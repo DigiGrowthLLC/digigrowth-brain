@@ -1,0 +1,67 @@
+MEMORY FILE — Lead Qualifier Agent
+Last updated: [update this date whenever you change criteria]
+
+CHAIN / FRANCHISE BLACKLIST:
+Planet Fitness, Anytime Fitness, LA Fitness, Crunch Fitness, Gold's Gym, 24 Hour Fitness, YMCA, Orangetheory, F45, EOS Fitness, Equinox, Life Time, Snap Fitness, Club Pilates, Pure Barre, Burn Boot Camp, Barry's, Solidcore, UFC Gym, Title Boxing Club
+
+NICHE DEFINITION:
+Qualified = privately owned facility where 1-on-1 or semi-private personal training is the PRIMARY service or a core revenue model. Sports performance facilities with private ownership also qualify.
+
+Disqualified = big box gyms, franchise locations, group-only studios (yoga-only, cycling-only, Pilates-only, dance-only), or any business where personal training is an add-on rather than the focus.
+
+CURRENT TARGET MARKETS:
+All US states
+
+AGENCY CONTEXT:
+COLD CALL OPENER CRITERIA:
+The one-line opener feeds into this exact cold call framework:
+Hey [Name], this is Dylan — quick question for you. I was looking at [Studio Name], and I noticed you're running [offer their running'] and was wondering how many people are you putting through that each month?
+
+The opener must complete that sentence naturally. It should sound like something Dylan observed that is genuinely interesting or specific — not a compliment.
+
+Priority order for what to pull from the website:
+1. A specific RESULT or outcome they advertise (e.g., "your 6-week transformation challenge", "the 30-day guarantee you're running", "those before/after results on your homepage")
+2. A specific OFFER or program name (e.g., "that semi-private small group model", "your unlimited membership at that price point", "the nutrition coaching bundle")
+3. A specific NICHE or client type they serve (e.g., "working exclusively with women over 40", "the athlete performance track", "that postpartum fitness program")
+4. A specific METHOD or system (e.g., "the 3-day strength template", "that hybrid in-person virtual setup", "the assessment-first intake process")
+5. If nothing specific exists — return null. Do not fabricate.
+COLD CALL OPENER EXAMPLES:
+The following are real examples of good openers. Use these as the tone and style reference when generating the opener field. Match this energy — casual, specific, observational, never salesy.
+"Noticed your running -
+Free intro session
+Free first class
+Free week trial
+$1–$7 trial week
+2-week unlimited classes intro deal ($19–$49)
+6–8 week transformation challenge
+21-day fitness challenge
+Weight loss challenge with accountability tracking
+Body transformation program (before/after focus)
+Free fitness assessment
+Movement screening / injury assessment
+Body composition scan + consultation
+Goal-setting consultation
+Low-cost starter package (2–5 sessions)
+Discounted first month membership
+Founding member pricing
+Bring-a-friend free class
+Buddy pass / guest pass offers
+Open house / free weekend classes
+30-day intro transformation package
+“First X sessions for $X” deal"
+
+OPENER TONE RULES:
+- Always sounds like Dylan is calling because he noticed something specific, not because he's running a list
+- Never complimentary — observational only
+- Ends with a curiosity question when possible to get the prospect talking
+- Short, punchy, conversational — not a monologue
+The opener must:
+- Be 15 words or fewer
+- Sound casual and observational, not like a sales pitch or compliment
+- Reference something real and specific — never generic like "your great reviews" or "your beautiful facility"
+- Set up the pivot to intro sessions and consults naturally
+- If a result or dollar figure is mentioned on their site, use it
+- If a challenge, guarantee, or transformation program exists, reference it
+- Never mention the website, never say "I was browsing" or "I came across"
+DYNAMIC MEMORY LOG:
+[Agent will append new entries below this line during runtime]

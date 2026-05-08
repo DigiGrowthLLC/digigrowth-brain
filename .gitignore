@@ -1,4 +1,12 @@
 .env
 CLAUDE.local.md
 .claude/settings.local.json
+**/settings.local.json
 node_modules/
+
+# Lead Qualifier — sensitive and auto-generated
+lead-qualifier/credentials.json
+lead-qualifier/.env
+lead-qualifier/__pycache__/
+lead-qualifier/progress.json
+lead-qualifier/scraped_ids.json

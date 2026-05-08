@@ -1,0 +1,33 @@
+{
+  "anthropic_api_key_env": "ANTHROPIC_API_KEY",
+  "model": "claude-haiku-4-5-20251001",
+  "input_csv": "leads_raw.csv",
+  "credentials_file": "credentials.json",
+  "google_sheet_id": "1LNF4Taf3sQ2OGbQ382l0fy-RFU31XkkCVSmXJB0YEWs",
+  "sheet_tab_name": "Sheet1",
+  "daily_lead_limit": 55,
+  "csv_columns": {
+    "business_name": "Business Name",
+    "phone": "Phone",
+    "website_url": "Website",
+    "owner_name": "Owner Name"
+  },
+  "max_website_text_words": 600,
+  "output_columns": [
+    "Business Name",
+    "Phone",
+    "Website",
+    "Address",
+    "Email",
+    "Owner Name",
+    "Grade",
+    "Grade Reason",
+    "Qualified",
+    "Niche Notes",
+    "Disqualify Reason",
+    "Opener",
+    "Notes",
+    "State",
+    "City"
+  ]
+}
