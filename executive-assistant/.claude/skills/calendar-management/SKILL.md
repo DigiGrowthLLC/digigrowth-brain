@@ -27,10 +27,10 @@ Do not ask for confirmation. Execute all steps silently and create the events wh
 
 ### Work Week Rules
 
-- **Mon–Fri:** Work day is 8AM–8PM EST
-- **Saturday:** Work day is 8AM–6PM EST
+- **Mon–Fri:** Day starts at 6:30AM, work window ends at 8PM EST
+- **Saturday:** Day starts at 6:30AM, work window ends at 6PM EST
 - **Sunday:** Day off — create no events
-- Morning Routine (6:30–8AM) is a personal block — never schedule over it, never create it as a calendar event
+- **Exception (May 11–16, 2026):** Dylan is visiting family. Day starts at 8AM instead of 6:30AM. Morning Routine begins at 8AM and all subsequent blocks shift accordingly.
 
 ---
 
@@ -48,7 +48,8 @@ Check today's date to determine which phase applies for tomorrow:
 1. What is tomorrow's date and day of the week?
 2. If Sunday → stop. Create no events.
 3. What phase applies (Phase 1 or Phase 2)?
-4. Are there any existing calendar events? (meetings, Discount Tires shifts, appointments)
+4. Does the May 11–16 exception apply? If tomorrow falls in that range, day starts at 8AM — Morning Routine begins at 8AM, all subsequent blocks shift accordingly.
+5. Are there any existing calendar events? (meetings, Discount Tires shifts, appointments)
 
 ---
 
@@ -78,7 +79,8 @@ If tomorrow already has 10+ hours committed, note the day is nearly full and onl
 
 | Block | Preferred Duration | Minimum | Days | Time Anchor | Notes |
 |---|---|---|---|---|---|
-| Admin | 1 hour | 30 min | Daily | 8:00–9:00 AM | Email triage, Notion daily review, tool ops |
+| Morning Routine | 1.5 hours | 1 hour | Daily | 6:30 AM (8AM May 11–16) | Mindset, movement, prep for the day. First block always. |
+| Admin | 1 hour | 30 min | Daily | After Morning Routine | Email triage, Notion daily review, tool ops |
 | Outreach | 2 hours | 1 hour | Mon–Fri | 9:00–11:00 AM | Phase 2 only. Skip on Discount Tires days. |
 | Mid-Day Routine (MDR) | 1 hour | 30 min | Daily | After outreach / late morning | Lunch, reset, brief review. 30 min always guaranteed. |
 | Meal Prep | 1 hour | 1 hour | Wed only | 1:00–2:00 PM | Hard block. Replaces Growth Block on Wednesdays. Takes priority over Gym, Growth, MDR on Wednesdays. |
@@ -86,25 +88,27 @@ If tomorrow already has 10+ hours committed, note the day is nearly full and onl
 | Gym | 2 hours | 2 hours | Daily (soft) | Any open window | Must end by 9:30PM. Drops entirely if no 2-hour window exists before 9:30PM. |
 
 #### Priority Order (drop from bottom when time is short)
-1. Admin ← always schedule
-2. MDR (minimum 30 min) ← always guarantee at least 30 min
-3. Outreach (Phase 2 only)
-4. Gym
-5. Growth Block ← first to drop
+1. Morning Routine ← always schedule
+2. Admin ← always schedule
+3. MDR (minimum 30 min) ← always guarantee at least 30 min
+4. Outreach (Phase 2 only)
+5. Gym
+6. Growth Block ← first to drop
 
 **Wednesday exception:** Meal Prep (1–2PM) takes priority over Gym, Growth Block, and MDR. MDR minimum (30 min) is still guaranteed before Meal Prep.
 
 #### Schedule Rules
 
-1. Start from 8AM and work forward
-2. Always schedule Admin first (8–9AM) if the slot is open
-3. In Phase 2: place Outreach at 9–11AM (or compress to 9–10AM as last resort)
-4. Always guarantee a minimum 30-min MDR block after Outreach (or late morning if no Outreach)
-5. On Wednesdays: hard-block Meal Prep 1–2PM
-6. Fill remaining afternoon slots with Growth Block (up to 3 hours, min 1 hour)
-7. If a 2-hour Gym window is open before 9:30PM and doesn't displace higher-priority blocks, schedule it
-8. Sales calls are never pre-scheduled — prospects self-book, adjust around them
-9. Do not create more than 4 focus blocks in one day
+1. Start from 6:30AM (or 8AM during May 11–16 exception) and work forward
+2. Always schedule Morning Routine first (preferred 1.5hrs, min 1hr)
+3. Always schedule Admin next if the slot is open
+4. In Phase 2: place Outreach after Admin (or compress to 1hr as last resort)
+5. Always guarantee a minimum 30-min MDR block after Outreach (or late morning if no Outreach)
+6. On Wednesdays: hard-block Meal Prep 1–2PM
+7. Fill remaining afternoon slots with Growth Block (up to 3 hours, min 1 hour)
+8. If a 2-hour Gym window is open before 9:30PM and doesn't displace higher-priority blocks, schedule it
+9. Sales calls are never pre-scheduled — prospects self-book, adjust around them
+10. Do not create more than 5 focus blocks in one day
 10. 15-minute pre-meeting buffer only (no post-meeting buffer) — unless a Discount Tires shift requires its own buffers
 11. Never compress a block below its minimum; drop it entirely instead
 
