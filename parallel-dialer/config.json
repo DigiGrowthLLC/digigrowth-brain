@@ -1,0 +1,21 @@
+{
+  "twilio_phone_number": "+1XXXXXXXXXX",
+  "dylan_phone_number": "+1XXXXXXXXXX",
+  "webhook_base_url": "https://your-ngrok-url.ngrok.io",
+  "max_parallel_lines": 10,
+  "max_call_attempts": 3,
+  "inter_attempt_delay_hours": 4,
+  "call_timeout_seconds": 30,
+  "google_sheet_id": "YOUR_GOOGLE_SHEET_ID",
+  "leads_tab": "Qualified Leads",
+  "ghl_base_url": "https://rest.gohighlevel.com/v1",
+  "ghl_location_id": "YOUR_GHL_LOCATION_ID",
+  "ghl_workflows": {
+    "sms_handoff": "WORKFLOW_ID_SMS_HANDOFF",
+    "follow_up": "WORKFLOW_ID_FOLLOW_UP",
+    "send_info": "WORKFLOW_ID_SEND_INFO",
+    "not_interested": "WORKFLOW_ID_NOT_INTERESTED"
+  },
+  "ghl_calendar_id": "YOUR_GHL_CALENDAR_ID",
+  "webhook_port": 5000
+}

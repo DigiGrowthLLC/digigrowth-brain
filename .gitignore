@@ -10,3 +10,9 @@ lead-qualifier/.env
 lead-qualifier/__pycache__/
 lead-qualifier/progress.json
 lead-qualifier/scraped_ids.json
+
+# Parallel Dialer — sensitive and auto-generated
+parallel-dialer/credentials.json
+parallel-dialer/.env
+parallel-dialer/__pycache__/
+parallel-dialer/state.json

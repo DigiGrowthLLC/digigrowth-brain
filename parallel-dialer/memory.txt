@@ -1,0 +1,23 @@
+# Parallel Dialer Memory
+
+Target niche: private and semi-private fitness/personal training studios
+Active market: The Carolinas (North and South Carolina)
+Primary metric: Decision makers reached
+
+## Rules
+
+- Grade A leads are dialed first, then B, C, D
+- Max 3 call attempts per lead before SMS handoff
+- Machine detection is enabled — voicemails are not counted as a DM reached
+- Do not dial on Sundays
+- Discount Tires shift days: reduce session length or skip if Dylan is working
+
+## GHL Notes
+
+- (Add workflow IDs here once configured)
+- SMS handoff workflow should fire immediately after 3rd missed attempt
+- "Follow Up" workflow = callback sequence, not same-day re-dial
+
+## Call Notes
+
+- (Add notes here after sessions — what worked, timing, objections)

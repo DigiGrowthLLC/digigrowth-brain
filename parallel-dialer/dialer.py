@@ -1,0 +1,117 @@
+import os
+from twilio.rest import Client
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _client():
+    return Client(
+        os.environ["TWILIO_ACCOUNT_SID"],
+        os.environ["TWILIO_AUTH_TOKEN"]
+    )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  OUTBOUND CALL — LEAD
+# ════════════════════════════════════════════════════════════════════════════
+
+def dial_lead(config, lead, session_id):
+    """
+    Place an outbound call to a lead.
+    When they answer, Twilio POSTs to /voice/lead-answered which joins them
+    to the conference and immediately calls Dylan.
+    Returns the Twilio Call SID or None on failure.
+    """
+    base_url = config["webhook_base_url"].rstrip("/")
+    try:
+        call = _client().calls.create(
+            to=lead["phone"],
+            from_=config["twilio_phone_number"],
+            url=f"{base_url}/voice/lead-answered?session_id={session_id}",
+            status_callback=f"{base_url}/voice/status?session_id={session_id}&phone={lead['phone']}",
+            status_callback_event=["no-answer", "busy", "failed", "completed"],
+            status_callback_method="POST",
+            timeout=config.get("call_timeout_seconds", 30),
+            machine_detection="Enable",
+        )
+        print(f"  📞 Dialing {lead['business']} ({lead['phone']}) — SID: {call.sid}")
+        return call.sid
+    except Exception as e:
+        print(f"  ❌ Failed to dial {lead['phone']}: {e}")
+        return None
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  OUTBOUND CALL — DYLAN
+# ════════════════════════════════════════════════════════════════════════════
+
+def dial_dylan(config, session_id):
+    """
+    Call Dylan's phone and put him in the conference as moderator.
+    startConferenceOnEnter=true on Dylan's side means the conference starts
+    (and the waiting lead is connected) as soon as Dylan picks up.
+    Returns the Call SID or None.
+    """
+    base_url = config["webhook_base_url"].rstrip("/")
+    try:
+        call = _client().calls.create(
+            to=config["dylan_phone_number"],
+            from_=config["twilio_phone_number"],
+            url=f"{base_url}/voice/dylan-join?session_id={session_id}",
+            timeout=30,
+        )
+        print(f"  📱 Calling Dylan — SID: {call.sid}")
+        return call.sid
+    except Exception as e:
+        print(f"  ❌ Failed to call Dylan: {e}")
+        return None
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  PARALLEL BATCH DIAL  (Phase 2 — stubs ready for expansion)
+# ════════════════════════════════════════════════════════════════════════════
+
+def dial_batch(config, leads, session_id):
+    """
+    Dial up to max_parallel_lines leads simultaneously.
+    Phase 1: calls leads one at a time.
+    Phase 2: calls all at once — first to answer bridges to Dylan,
+             others get a polite hangup via /voice/lead-overflow.
+    Returns dict of {phone: call_sid}.
+    """
+    max_lines = config.get("max_parallel_lines", 10)
+    batch     = leads[:max_lines]
+    call_sids = {}
+
+    for lead in batch:
+        sid = dial_lead(config, lead, session_id)
+        if sid:
+            call_sids[lead["phone"]] = sid
+
+    return call_sids
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  CANCEL OVERFLOW CALLS
+# ════════════════════════════════════════════════════════════════════════════
+
+def cancel_overflow_calls(call_sids, answered_sid):
+    """
+    After a lead is bridged to Dylan, cancel all other in-progress outbound
+    calls so prospects don't sit waiting on hold.
+    Called from webhook.py when the first lead picks up.
+    """
+    client = _client()
+    for phone, sid in call_sids.items():
+        if sid == answered_sid:
+            continue
+        try:
+            call = client.calls(sid).fetch()
+            if call.status in ("queued", "ringing", "in-progress"):
+                client.calls(sid).update(status="canceled")
+                print(f"  🚫 Canceled overflow call to {phone}")
+        except Exception as e:
+            print(f"  ⚠️  Could not cancel {sid}: {e}")
