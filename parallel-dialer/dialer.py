@@ -50,9 +50,8 @@ def dial_lead(config, lead, session_id):
 
 def dial_dylan(config, session_id):
     """
-    Call Dylan's phone and put him in the conference as moderator.
-    startConferenceOnEnter=true on Dylan's side means the conference starts
-    (and the waiting lead is connected) as soon as Dylan picks up.
+    Call Dylan's phone at session start. He joins the conference and waits on
+    hold music. When a lead answers and joins, the call begins automatically.
     Returns the Call SID or None.
     """
     base_url = config["webhook_base_url"].rstrip("/")
@@ -63,11 +62,19 @@ def dial_dylan(config, session_id):
             url=f"{base_url}/voice/dylan-join?session_id={session_id}",
             timeout=30,
         )
-        print(f"  📱 Calling Dylan — SID: {call.sid}")
+        print(f"  📱 Calling your phone — SID: {call.sid}")
         return call.sid
     except Exception as e:
         print(f"  ❌ Failed to call Dylan: {e}")
         return None
+
+
+def redirect_call(sid, url, method="POST"):
+    """Redirect an active call to a new TwiML URL via Twilio REST API."""
+    try:
+        _client().calls(sid).update(url=url, method=method)
+    except Exception as e:
+        print(f"  ⚠️  Could not redirect call {sid}: {e}")
 
 
 # ════════════════════════════════════════════════════════════════════════════

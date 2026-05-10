@@ -138,6 +138,7 @@ def run_session():
 
     # Start webhook server in background thread
     webhook.init_session(config, session_id)
+    webhook.set_total_leads(len(eligible))
     server_thread = threading.Thread(
         target=webhook.start_server,
         args=(config,),
@@ -146,7 +147,21 @@ def run_session():
     server_thread.start()
     time.sleep(1)  # give Flask a moment to start
 
-    print(f"\n🚀 Starting dialing session — {len(eligible)} leads")
+    port = config.get("webhook_port", 5000)
+    print(f"\n🌐 Open your browser: http://localhost:{port}/agent")
+    print("   Click 'Connect' to join the session through your PC\n")
+
+    # Wait for browser to connect (up to 2 minutes)
+    print("   Waiting for you to connect...")
+    for _ in range(120):
+        if webhook._session.get("dylan_sid"):
+            break
+        time.sleep(1)
+    else:
+        print("❌ You didn't connect in time. Run again when ready.")
+        return
+
+    print(f"✅ Connected — starting to dial {len(eligible)} leads")
     print("   Press Ctrl+C to stop\n")
 
     max_lines  = config.get("max_parallel_lines", 10)
@@ -222,7 +237,7 @@ def _print_stats():
 # ════════════════════════════════════════════════════════════════════════════
 
 def run_test():
-    """Place a single test call to Dylan's phone to verify Twilio is working."""
+    """Call Dylan's phone to verify Twilio credentials and webhook are working."""
     _banner("Test Call")
     session_id = "test-" + str(uuid.uuid4())[:4]
     webhook.init_session(config, session_id)
@@ -235,19 +250,11 @@ def run_test():
     server_thread.start()
     time.sleep(1)
 
-    fake_lead = {
-        "phone":    config["dylan_phone_number"],
-        "business": "TEST",
-        "owner":    "Dylan",
-        "grade":    "A",
-        "opener":   "",
-        "attempts": 0,
-        "row_index": None,
-    }
-    sid = dialer_mod.dial_lead(config, fake_lead, session_id)
+    sid = dialer_mod.dial_dylan(config, session_id)
     if sid:
         print(f"✅ Test call placed — SID: {sid}")
-        print("   Answer your phone. You should hear the conference prompt.")
+        print("   Answer your phone. You should hear hold music.")
+        print("   If you hear hold music, Twilio is configured correctly.")
     else:
         print("❌ Test call failed — check your Twilio credentials and phone numbers in config.json")
 

@@ -15,6 +15,15 @@ COL_OWNER    = "Owner Name"
 COL_GRADE    = "Grade"
 COL_OPENER   = "Opener"
 
+# Optional columns — included in lead data if present in the sheet
+OPTIONAL_COLS = {
+    "email":   "Email",
+    "website": "Website",
+    "address": "Address",
+    "city":    "City",
+    "state":   "State",
+}
+
 # Columns added by dialer
 COL_ATTEMPTS    = "Dial Attempts"
 COL_LAST_DIALED = "Last Dialed"
@@ -95,16 +104,20 @@ def load_leads(config):
         if attempts >= max_attempts:
             continue
 
-        leads.append({
-            "row_index": i,
-            "phone":     phone,
-            "business":  str(row.get(COL_BUSINESS, "")).strip(),
-            "owner":     str(row.get(COL_OWNER, "")).strip(),
-            "grade":     str(row.get(COL_GRADE, "C")).strip(),
-            "opener":    str(row.get(COL_OPENER, "")).strip(),
-            "attempts":  attempts,
+        lead = {
+            "row_index":   i,
+            "phone":       phone,
+            "business":    str(row.get(COL_BUSINESS, "")).strip(),
+            "owner":       str(row.get(COL_OWNER, "")).strip(),
+            "grade":       str(row.get(COL_GRADE, "C")).strip(),
+            "opener":      str(row.get(COL_OPENER, "")).strip(),
+            "attempts":    attempts,
             "disposition": disposition,
-        })
+        }
+        for key, col_name in OPTIONAL_COLS.items():
+            if col_name in headers:
+                lead[key] = str(row.get(col_name, "")).strip()
+        leads.append(lead)
 
     leads.sort(key=lambda x: GRADE_ORDER.get(x["grade"], 3))
     return leads, ws, headers
