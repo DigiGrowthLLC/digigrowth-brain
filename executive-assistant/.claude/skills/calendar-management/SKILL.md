@@ -65,6 +65,8 @@ For each existing event, note:
 - Whether it's a Discount Tires work shift (look for "Discount Tires", "work", or "shift" in the title)
 - Whether it is a fixed commitment or a block Dylan created himself
 
+**All pre-existing events are treated as fixed — no new block may overlap them, regardless of what the event is.** This includes personal events (gym classes, boxing, appointments, social events, etc.). Never place a block over any existing event.
+
 **Canonical block names** — always use exactly these titles when creating or comparing blocks:
 `Morning Routine`, `Admin`, `MDR`, `Growth`, `Gym`, `Meal Prep`
 Treat "Midday Routine", "Mid-Day Routine", "Mid Day Routine", "Midday", "MDR" as all meaning `MDR`.
