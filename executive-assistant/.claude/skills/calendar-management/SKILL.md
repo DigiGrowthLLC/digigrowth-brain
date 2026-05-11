@@ -63,6 +63,15 @@ For each existing event, note:
 - Whether it's a Discount Tires work shift (look for "Discount Tires", "work", or "shift" in the title)
 - Whether it is a fixed commitment or a block Dylan created himself
 
+**Canonical block names** — always use exactly these titles when creating or comparing blocks:
+`Morning Routine`, `Admin`, `MDR`, `Growth`, `Gym`, `Meal Prep`
+Treat "Midday Routine", "Mid-Day Routine", "Mid Day Routine", "Midday", "MDR" as all meaning `MDR`.
+
+**Audit existing blocks before scheduling:**
+1. Check Morning Routine's start time against the active rule (6:30AM normally; 8AM during May 11–16). If it starts at the wrong time, update it and cascade all subsequent self-created blocks to maintain correct spacing.
+2. Scan for duplicate block types using the canonical name list above. If duplicates exist, delete all but the most recently created one and ensure the survivor uses the canonical name.
+3. Any self-created block that violates an active rule must be corrected before adding new blocks.
+
 **Discount Tires shift handling:**
 - If a Discount Tires shift is on the calendar, block 30 minutes before it (commute) and 1 hour after it (commute + eating). No work blocks may overlap these buffers or the shift itself.
 - During Phase 2, skip the Outreach block on days with a Discount Tires shift.
