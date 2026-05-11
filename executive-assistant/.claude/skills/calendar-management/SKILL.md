@@ -96,7 +96,7 @@ If tomorrow already has 10+ hours committed, note the day is nearly full and onl
 | Admin | 1 hour | 30 min | Daily | After Morning Routine | Email triage, Notion daily review, tool ops |
 | Outreach | 2 hours | 1 hour | Mon–Fri | 9:00–11:00 AM | Phase 2 only. Skip on Discount Tires days. |
 | Mid-Day Routine (MDR) | 1 hour | 30 min | Daily | After outreach / late morning | Lunch, reset, brief review. 30 min always guaranteed. |
-| Meal Prep | 1 hour | 1 hour | Wed only | ~1:00–2:00 PM | Hard block — must happen, but time anchor is approximate (±30 min). Place it immediately after Growth Block finishes, not at a fixed 1PM. |
+| Meal Prep | 1.5 hours | 1.5 hours | Wed only | ~1:00–2:30 PM | Hard block — must happen, but time anchor is approximate (±30 min). Place it immediately after Growth Block finishes, not at a fixed 1PM. |
 | Growth Block | 3 hours | 1 hour | Daily | Afternoon | Learning, content, system building. First to drop when time is short. |
 | Gym | 2 hours | 2 hours | Daily (soft) | Any open window | Must end by 9:30PM. Drops entirely if no 2-hour window exists before 9:30PM. |
 
