@@ -112,16 +112,28 @@ If tomorrow already has 10+ hours committed, note the day is nearly full and onl
 
 1. Start from 6:30AM (or 8AM during May 11–16 exception) and work forward
 2. Always schedule Morning Routine first (preferred 1.5hrs, min 1hr)
-3. Always schedule Admin next if the slot is open
-4. In Phase 2: place Outreach after Admin (or compress to 1hr as last resort)
-5. Always guarantee a minimum 30-min MDR block after Outreach (or late morning if no Outreach)
-6. On Wednesdays: hard-block Meal Prep 1–2PM
-7. Fill remaining afternoon slots with Growth Block (up to 3 hours, min 1 hour)
-8. If a 2-hour Gym window is open before 9:30PM and doesn't displace higher-priority blocks, schedule it
-9. Sales calls are never pre-scheduled — prospects self-book, adjust around them
-10. Do not create more than 5 focus blocks in one day
-10. 15-minute pre-meeting buffer only (no post-meeting buffer) — unless a Discount Tires shift requires its own buffers
-11. Never compress a block below its minimum; drop it entirely instead
+3. Always schedule Admin next
+
+**Phase 1 block order (no Outreach):**
+4. After Admin: place Growth Block — fill the mid-morning slot up to the next fixed anchor (Meal Prep on Wed, or MDR otherwise). Cap at 3hrs.
+5. Place MDR after the largest mid-day anchor (after Meal Prep on Wed; or around noon on other days). MDR = lunch and reset — never schedule it before noon unless there is no other option.
+6. On Wednesdays: hard-block Meal Prep 1–2PM. Growth Block fills the gap between Admin and Meal Prep. MDR follows Meal Prep.
+7. Schedule Gym in the first available 2-hour window after MDR, must end by 9:30PM.
+
+**Phase 2 block order (Outreach active):**
+4. After Admin: place Outreach (or compress to 1hr as last resort). Skip on Discount Tires days.
+5. Place MDR immediately after Outreach.
+6. On Wednesdays: hard-block Meal Prep 1–2PM.
+7. Fill remaining afternoon slots with Growth Block (up to 3hrs, min 1hr).
+8. Schedule Gym in the first available 2-hour window, must end by 9:30PM.
+
+**Always:**
+- Never leave an unscheduled gap that a lower-priority block could fill — gaps are a scheduling failure
+- MDR = lunch and reset. It must never be placed before noon unless no other slot exists for the whole day
+- Sales calls are never pre-scheduled — prospects self-book, adjust around them
+- Do not create more than 5 focus blocks in one day
+- 15-minute pre-meeting buffer only (no post-meeting buffer) — unless a Discount Tires shift requires its own buffers
+- Never compress a block below its minimum; drop it entirely instead
 
 Build a complete list of events to create:
 - Title
