@@ -96,7 +96,7 @@ If tomorrow already has 10+ hours committed, note the day is nearly full and onl
 | Admin | 1 hour | 30 min | Daily | After Morning Routine | Email triage, Notion daily review, tool ops |
 | Outreach | 2 hours | 1 hour | Mon–Fri | 9:00–11:00 AM | Phase 2 only. Skip on Discount Tires days. |
 | Mid-Day Routine (MDR) | 1 hour | 30 min | Daily | After outreach / late morning | Lunch, reset, brief review. 30 min always guaranteed. |
-| Meal Prep | 1 hour | 1 hour | Wed only | 1:00–2:00 PM | Hard block. Replaces Growth Block on Wednesdays. Takes priority over Gym, Growth, MDR on Wednesdays. |
+| Meal Prep | 1 hour | 1 hour | Wed only | ~1:00–2:00 PM | Hard block — must happen, but time anchor is approximate (±30 min). Place it immediately after Growth Block finishes, not at a fixed 1PM. |
 | Growth Block | 3 hours | 1 hour | Daily | Afternoon | Learning, content, system building. First to drop when time is short. |
 | Gym | 2 hours | 2 hours | Daily (soft) | Any open window | Must end by 9:30PM. Drops entirely if no 2-hour window exists before 9:30PM. |
 
@@ -130,8 +130,11 @@ If tomorrow already has 10+ hours committed, note the day is nearly full and onl
 8. Schedule Gym in the first available 2-hour window, must end by 9:30PM.
 
 **Always:**
+- Always max every block to its preferred duration before moving to the next. Only after all blocks are maxed should a gap exist — and only if no remaining block meets its minimum duration in the remaining time.
 - Never leave an unscheduled gap that a lower-priority block could fill — gaps are a scheduling failure
 - MDR = lunch and reset. It must never be placed before noon unless no other slot exists for the whole day
+- MDR should be placed as late as possible — ideally directly before the next fixed commitment (Boxing, Discount Tires shift, end of workday). This keeps maximum contiguous work time earlier in the day.
+- After Meal Prep, resume Growth Block to fill all remaining time before MDR. Growth Block may appear in two segments in one day (before and after Meal Prep) — this is intentional and correct. Total across both segments should not exceed 4 hours.
 - Sales calls are never pre-scheduled — prospects self-book, adjust around them
 - Do not create more than 5 focus blocks in one day
 - 15-minute pre-meeting buffer only (no post-meeting buffer) — unless a Discount Tires shift requires its own buffers
