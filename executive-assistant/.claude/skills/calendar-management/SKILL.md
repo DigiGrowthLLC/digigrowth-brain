@@ -45,8 +45,10 @@ Check today's date to determine which phase applies for tomorrow:
 
 ### Step 1 — Determine Tomorrow's Context
 
-1. What is tomorrow's date and day of the week?
-2. If Sunday → stop. Create no events.
+**Important:** All date calculations must use the **America/New_York timezone**, not UTC. This skill runs at midnight UTC = 8PM EDT. "Today" is the EDT calendar date at the time of execution. "Tomorrow" is today + 1 day in EDT.
+
+1. What is today's date in **America/New_York** time? Tomorrow = today + 1 day in that timezone.
+2. If tomorrow is Sunday → stop. Create no events.
 3. What phase applies (Phase 1 or Phase 2)?
 4. Does the May 11–16 exception apply? If tomorrow falls in that range, day starts at 8AM — Morning Routine begins at 8AM, all subsequent blocks shift accordingly.
 5. Are there any existing calendar events? (meetings, Discount Tires shifts, appointments)
