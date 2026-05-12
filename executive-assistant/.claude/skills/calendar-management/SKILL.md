@@ -90,15 +90,15 @@ If tomorrow already has 10+ hours committed, note the day is nearly full and onl
 
 #### Block Reference Table
 
-| Block | Preferred Duration | Minimum | Days | Time Anchor | Notes |
-|---|---|---|---|---|---|
-| Morning Routine | 1.5 hours | 1 hour | Daily | 6:30 AM (8AM May 11–16) | Mindset, movement, prep for the day. First block always. |
-| Admin | 1 hour | 30 min | Daily | After Morning Routine | Email triage, Notion daily review, tool ops |
-| Outreach | 2 hours | 1 hour | Mon–Fri | 9:00–11:00 AM | Phase 2 only. Skip on Discount Tires days. |
-| Mid-Day Routine (MDR) | 1 hour | 30 min | Daily | After outreach / late morning | Lunch, reset, brief review. 30 min always guaranteed. |
-| Meal Prep | 1.5 hours | 1.5 hours | Wed only | ~1:00–2:30 PM | Hard block — must happen, but time anchor is approximate (±30 min). Place it immediately after Growth Block finishes, not at a fixed 1PM. |
-| Growth Block | 3 hours | 1 hour | Daily | Afternoon | Learning, content, system building. First to drop when time is short. |
-| Gym | 2 hours | 2 hours | Daily (soft) | Any open window | Must end by 9:30PM. Drops entirely if no 2-hour window exists before 9:30PM. |
+| Block | Preferred Duration | Minimum | Days | Time Anchor | Color (ID) | Notes |
+|---|---|---|---|---|---|---|
+| Morning Routine | 1.5 hours | 1 hour | Daily | 6:30 AM (8AM May 11–16) | Sage (2) | Mindset, movement, prep for the day. First block always. |
+| Admin | 1 hour | 30 min | Daily | After Morning Routine | Graphite (8) | Email triage, Notion daily review, tool ops |
+| Outreach | 2 hours | 1 hour | Mon–Fri | 9:00–11:00 AM | Tangerine (6) | Phase 2 only. Skip on Discount Tires days. |
+| Mid-Day Routine (MDR) | 1 hour | 30 min | Daily | After outreach / late morning | Banana (5) | Lunch, reset, brief review. 30 min always guaranteed. |
+| Meal Prep | 1.5 hours | 1.5 hours | Wed only | ~1:00–2:30 PM | Basil (10) | Hard block — must happen, but time anchor is approximate (±30 min). Place it immediately after Growth Block finishes, not at a fixed 1PM. |
+| Growth | 3 hours | 1 hour | Daily | Afternoon | Blueberry (9) | Learning, content, system building. First to drop when time is short. |
+| Gym | 2 hours | 2 hours | Daily (soft) | Any open window | Tomato (11) | Must end by 9:30PM. Drops entirely if no 2-hour window exists before 9:30PM. |
 
 #### Priority Order (drop from bottom when time is short)
 1. Morning Routine ← always schedule
@@ -153,9 +153,10 @@ Build a complete list of events to create:
 Use Google Calendar to create each event from Step 3 on tomorrow's date in the America/New_York timezone.
 
 Event format:
-- **Title:** Short and action-oriented (e.g., "Outreach — Cold Calls", "Admin + Inbox", "Growth Block", "Mid-Day Routine", "Gym", "Meal Prep")
+- **Title:** Short and action-oriented (e.g., "Outreach — Cold Calls", "Admin", "Growth", "MDR", "Gym", "Meal Prep")
 - **Description:** 1–2 bullets on what specifically to focus on during that block
 - **Calendar:** Primary calendar (dylangroenendijk@gmail.com)
+- **Color:** Apply the colorId from the Block Reference Table — Morning Routine=2, Admin=8, Outreach=6, MDR=5, Meal Prep=10, Growth=9, Gym=11
 - **No reminders needed**
 
 After creating all events, fetch tomorrow's calendar and confirm all events appear correctly.
@@ -171,7 +172,7 @@ No output needed. The calendar speaks for itself. If any event fails to create, 
 ## Edge Cases
 
 - **Tomorrow is Sunday:** Create no events. Stop.
-- **Tomorrow is Saturday:** Work day ends at 6PM, not 8PM. Gym must end by 6PM or drop it.
+- **Tomorrow is Saturday:** Work day ends at 6PM, not 8PM. Everything but the Gym must end by 6PM or drop it.
 - **Discount Tires shift on calendar:** Apply 30-min pre-buffer and 1-hour post-buffer. Skip Outreach if Phase 2.
 - **Tomorrow is Wednesday:** Hard-block Meal Prep 1–2PM. Drop Growth Block if no room.
 - **Tomorrow fully booked:** Create no new events. Do nothing.
