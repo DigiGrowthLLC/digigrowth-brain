@@ -230,7 +230,7 @@ def scrape_state_leads(progress, scraped_ids, daily_limit):
                     "state":    state_name,
                     "city":     city
                 })
-                if len(raw_leads) >= daily_limit * 3:
+                if len(raw_leads) >= daily_limit * 6:
                     progress["current_city_index"] = city_index
                     progress["current_term_index"] = term_index
                     save_progress(progress)
@@ -465,10 +465,9 @@ def push_to_sheet(worksheet, rows):
     if not rows:
         print("No qualified leads to push.")
         return
-    headers    = config["output_columns"]
-    existing   = worksheet.get_all_values()
-    if not existing:
-        worksheet.append_row(headers)
+    headers = config["output_columns"]
+    worksheet.clear()
+    worksheet.append_row(headers)
     grade_order = {"A": 0, "B": 1, "C": 2, "D": 3}
     for row in sorted(rows, key=lambda r: grade_order.get(r.get("Grade", "D"), 3)):
         worksheet.append_row([row.get(col, "") for col in headers])
@@ -521,8 +520,12 @@ def run_pipeline():
             print(f"  ⏭️  Skipped: {reason}")
             continue
 
+        owner_name = find_owner_name(name, place_id, website)
+        if not owner_name:
+            print(f"  ⏭️  Skipped: No owner found")
+            continue
+
         website_text = scrape_website(website)
-        owner_name   = find_owner_name(name, place_id, website)
         result       = qualify_lead(name, phone, website, owner_name, address, website_text)
 
         if result.get("qualified"):
