@@ -56,6 +56,30 @@ def _banner(text):
     print(f"{'─' * 50}")
 
 
+def _git_pull():
+    import subprocess
+    result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=BASE_DIR + "/..")
+    if result.returncode == 0:
+        print(f"  🔄 Git pull: {result.stdout.strip() or 'already up to date'}")
+    else:
+        print(f"  ⚠️  Git pull failed: {result.stderr.strip()}")
+
+
+def _git_push(message="Auto-sync session data"):
+    import subprocess
+    root = BASE_DIR + "/.."
+    subprocess.run(["git", "add", "-A"], cwd=root)
+    result = subprocess.run(["git", "commit", "-m", message], capture_output=True, text=True, cwd=root)
+    if "nothing to commit" in result.stdout:
+        print("  ✅ Git push: nothing new to commit")
+        return
+    push = subprocess.run(["git", "push"], capture_output=True, text=True, cwd=root)
+    if push.returncode == 0:
+        print("  🚀 Git push: session data synced to GitHub")
+    else:
+        print(f"  ⚠️  Git push failed: {push.stderr.strip()}")
+
+
 # ════════════════════════════════════════════════════════════════════════════
 #  TWIML APP AUTO-CONFIGURE
 # ════════════════════════════════════════════════════════════════════════════
@@ -139,6 +163,7 @@ def _update_twiml_app():
 def run_session():
     _banner(f"Parallel Dialer — {_now()}")
 
+    _git_pull()
     _start_tunnel()
     _update_twiml_app()
 
@@ -276,6 +301,7 @@ def run_session():
         time.sleep(3)  # let any in-flight GHL threads complete
         _print_stats()
         webhook.close_session()
+        _git_push(f"Session data — {_now()}")
 
 
 # ════════════════════════════════════════════════════════════════════════════
