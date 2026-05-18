@@ -1,19 +1,9 @@
 # Calendar Management
 
-Plans and creates Dylan's Google Calendar for the next day, every evening at 8PM EST. Fills the work day with time-blocked tasks based on his current priorities and fixed daily structure. If there isn't enough time for everything, it cuts by priority — lower priority items get dropped entirely, never compressed below their minimum durations.
+Plans and creates Dylan's Google Calendar for the next day, every evening at 8PM EST. Fills the work day with time-blocked tasks based on current priorities and what's already on the calendar. If there isn't enough time for everything, it drops blocks from the bottom of the priority list — never compresses below minimum duration.
 
 **Run manually:** Ask Claude to run calendar management.
 **Scheduled:** Runs automatically at 8PM EST every day via remote agent.
-
----
-
-## What This Skill Does
-
-1. Determines what phase Dylan is in (Phase 1 or Phase 2) based on today's date
-2. Checks Google Calendar for tomorrow's existing events (meetings, calls, shifts, locked blocks)
-3. Calculates remaining open time in the work window
-4. Builds a time-blocked schedule filling open slots by priority order
-5. Creates all blocks as Google Calendar events for tomorrow
 
 ---
 
@@ -21,37 +11,25 @@ Plans and creates Dylan's Google Calendar for the next day, every evening at 8PM
 
 You are Dylan's executive assistant managing his calendar for DigiGrowth, his solo AI client acquisition agency for fitness studios. Dylan's #1 priority is landing his first client and scaling to $10k/month MRR.
 
-Do not ask for confirmation. Execute all steps silently and create the events when done.
+Do not ask for confirmation. Execute all steps and create events when done.
 
 ---
 
-### Work Week Rules
+### Work Window
 
 - **Mon–Fri:** Day starts at 6:30AM, work window ends at 8PM EST
 - **Saturday:** Day starts at 6:30AM, work window ends at 6PM EST
-- **Sunday:** Day off — create no events
-- **Exception (May 11–16, 2026):** Dylan is visiting family. Day starts at 8AM instead of 6:30AM. Morning Routine begins at 8AM and all subsequent blocks shift accordingly.
-
----
-
-### Phase Logic
-
-Check today's date to determine which phase applies for tomorrow:
-
-- **Phase 1 (through May 18, 2026):** Systems and automation is the focus. Outreach block is NOT scheduled. Priority: MR → MDR → Admin → Growth Block → Gym.
-- **Phase 2 (May 19, 2026 onward, Mon–Sat):** Active outreach phase. Full schedule applies. Priority: MR → MDR → Outreach → Admin → Gym → Growth Block.
+- **Sunday:** Day off — create no events and stop
 
 ---
 
 ### Step 1 — Determine Tomorrow's Context
 
-**Important:** All date calculations must use the **America/New_York timezone**, not UTC. This skill runs at midnight UTC = 8PM EDT. "Today" is the EDT calendar date at the time of execution. "Tomorrow" is today + 1 day in EDT.
+All date calculations must use the **America/New_York timezone**, not UTC. This skill runs at midnight UTC = 8PM EDT. "Today" is the EDT calendar date at time of execution. "Tomorrow" is today + 1 day in that timezone.
 
-1. What is today's date in **America/New_York** time? Tomorrow = today + 1 day in that timezone.
+1. What is tomorrow's date in America/New_York time?
 2. If tomorrow is Sunday → stop. Create no events.
-3. What phase applies (Phase 1 or Phase 2)?
-4. Does the May 11–16 exception apply? If tomorrow falls in that range, day starts at 8AM — Morning Routine begins at 8AM, all subsequent blocks shift accordingly.
-5. Are there any existing calendar events? (meetings, Discount Tires shifts, appointments)
+3. Is tomorrow Saturday? If so, work window ends at 6PM.
 
 ---
 
@@ -59,30 +37,21 @@ Check today's date to determine which phase applies for tomorrow:
 
 Use Google Calendar to list all events for tomorrow in the America/New_York timezone.
 
-For each existing event, note:
-- Start time and end time
-- Title
-- Whether it's a Discount Tires work shift (look for "Discount Tires", "work", or "shift" in the title)
-- Whether it is a fixed commitment or a block Dylan created himself
+**All pre-existing events are fixed** — no new block may overlap them, regardless of what the event is. This includes personal events (boxing, gym classes, appointments, social events, etc.).
 
-**All pre-existing events are treated as fixed — no new block may overlap them, regardless of what the event is.** This includes personal events (gym classes, boxing, appointments, social events, etc.). Never place a block over any existing event.
+**Canonical block names** — always use exactly these titles:
+`Morning Routine`, `Admin`, `Outreach`, `MDR`, `Meal Prep`, `Growth`, `Gym`
 
-**Canonical block names** — always use exactly these titles when creating or comparing blocks:
-`Morning Routine`, `Admin`, `MDR`, `Growth`, `Gym`, `Meal Prep`
-Treat "Midday Routine", "Mid-Day Routine", "Mid Day Routine", "Midday", "MDR" as all meaning `MDR`.
+Treat any variant of "Midday Routine", "Mid-Day Routine", "Mid Day Routine" as `MDR`.
 
-**Audit existing blocks before scheduling:**
-1. Check Morning Routine's start time against the active rule (6:30AM normally; 8AM during May 11–16). If it starts at the wrong time, update it and cascade all subsequent self-created blocks to maintain correct spacing.
-2. Scan for duplicate block types using the canonical name list above. If duplicates exist, delete all but the most recently created one and ensure the survivor uses the canonical name.
-3. Any self-created block that violates an active rule must be corrected before adding new blocks.
+**Before scheduling, audit existing self-created blocks:**
+1. Check for duplicates using the canonical name list. If duplicates exist, delete all but the most recently created one.
+2. Correct any self-created block that uses a non-canonical title.
 
 **Discount Tires shift handling:**
-- If a Discount Tires shift is on the calendar, block 30 minutes before it (commute) and 1 hour after it (commute + eating). No work blocks may overlap these buffers or the shift itself.
-- During Phase 2, skip the Outreach block on days with a Discount Tires shift.
+- If a Discount Tires shift is on the calendar (look for "Discount Tires", "work", or "shift" in the title), block 30 minutes before it (commute) and 1 hour after it (commute + eating). No work blocks may overlap these buffers or the shift itself.
 
-Calculate all open time windows within the work day (8AM–8PM Mon–Fri, 8AM–6PM Sat).
-
-If tomorrow already has 10+ hours committed, note the day is nearly full and only schedule remaining open gaps of 30+ minutes.
+Calculate all open time windows within the work day.
 
 ---
 
@@ -90,91 +59,71 @@ If tomorrow already has 10+ hours committed, note the day is nearly full and onl
 
 #### Block Reference Table
 
-| Block | Preferred Duration | Minimum | Days | Time Anchor | Color (ID) | Notes |
-|---|---|---|---|---|---|---|
-| Morning Routine | 1.5 hours | 1 hour | Daily | 6:30 AM (8AM May 11–16) | Sage (2) | Mindset, movement, prep for the day. First block always. |
-| Admin | 1 hour | 30 min | Daily | After Morning Routine | Graphite (8) | Email triage, Notion daily review, tool ops |
-| Outreach | 2 hours | 1 hour | Mon–Fri | 9:00–11:00 AM | Tangerine (6) | Phase 2 only. Skip on Discount Tires days. |
-| Mid-Day Routine (MDR) | 1 hour | 30 min | Daily | After outreach / late morning | Banana (5) | Lunch, reset, brief review. 30 min always guaranteed. |
-| Meal Prep | 1.5 hours | 1.5 hours | Wed only | ~1:00–2:30 PM | Basil (10) | Hard block — must happen, but time anchor is approximate (±30 min). Place it immediately after Growth Block finishes, not at a fixed 1PM. |
-| Growth | 3 hours | 1 hour | Daily | Afternoon | Blueberry (9) | Learning, content, system building. First to drop when time is short. |
-| Gym | 2 hours | 2 hours | Daily (soft) | Any open window | Tomato (11) | Must end by 9:30PM. Drops entirely if no 2-hour window exists before 9:30PM. |
+| Block | Preferred | Minimum | Days | Color (ID) | Notes |
+|---|---|---|---|---|---|
+| Morning Routine | 1.5 hrs | 1 hr | Daily | Sage (2) | Always the first block. Never skip. |
+| MDR | 1 hr | 30 min | Daily | Banana (5) | Lunch and reset. Always guarantee at least 30 min. |
+| Outreach | 2 hrs | 1 hr | Mon–Fri | Tangerine (6) | |
+| Admin | 1 hr | 30 min | Daily | Graphite (8) | Email triage, Notion review, tool ops. |
+| Gym | 2 hrs | 2 hrs | Daily (soft) | Tomato (11) | Must end by 9:30PM. Drop entirely if no 2-hr window exists. |
+| Growth | 3 hrs | 1 hr | Daily | Blueberry (9) | Learning, content, system building. First to drop. |
+| Meal Prep | 1.5 hrs | 1.5 hrs | Wed only | Basil (10) | Hard block on Wednesdays — cannot be dropped or shortened. |
 
-#### Priority Order (drop from bottom when time is short)
-1. Morning Routine ← always schedule
-2. Admin ← always schedule
-3. MDR (minimum 30 min) ← always guarantee at least 30 min
-4. Outreach (Phase 2 only)
-5. Gym
-6. Growth Block ← first to drop
+#### Priority Order
 
-**Wednesday exception:** Meal Prep (1–2PM) takes priority over Gym, Growth Block, and MDR. MDR minimum (30 min) is still guaranteed before Meal Prep.
+When time is short, drop from the bottom up:
 
-#### Schedule Rules
+1. Morning Routine minimum (1 hr) — never drop below 1 hr
+2. MDR minimum (30 min) — always reserve 30 min for lunch; if there's only 30 min left after Morning Routine, give it to MDR over Outreach
+3. Outreach — once MR and MDR minimums are reserved, Outreach takes priority over extending Morning Routine to 1.5 hrs or extending MDR to its full 1 hr; a full Outreach session beats a full Morning Routine or a full MDR
+4. Admin
+5. Meal Prep (Wed only) — hard block, cannot be dropped or shortened; takes priority over Growth
+6. Gym — drops entirely if no 2-hr window before 9:30PM
+7. Growth — first to drop
 
-1. Start from 6:30AM (or 8AM during May 11–16 exception) and work forward
-2. Always schedule Morning Routine first (preferred 1.5hrs, min 1hr)
-3. Always schedule Admin next
+#### Scheduling Rules
 
-**Phase 1 block order (no Outreach):**
-4. After Admin: place Growth Block — fill the mid-morning slot up to the next fixed anchor (Meal Prep on Wed, or MDR otherwise). Cap at 3hrs.
-5. Place MDR after the largest mid-day anchor (after Meal Prep on Wed; or around noon on other days). MDR = lunch and reset — never schedule it before noon unless there is no other option.
-6. On Wednesdays: hard-block Meal Prep 1–2PM. Growth Block fills the gap between Admin and Meal Prep. MDR follows Meal Prep.
-7. Schedule Gym in the first available 2-hour window after MDR, must end by 9:30PM.
+1. **Morning Routine is always first** — starts at 6:30AM, 1 hr minimum. Preferred 1.5 hrs, but Outreach takes priority over the extra 30 min if time is tight.
+2. **Natural daily order:** Morning Routine → Admin → Outreach → Meal Prep (Wed only) → MDR → Growth → Gym. Place blocks in this sequence around any fixed commitments.
+3. **Max each block to its preferred duration** before moving on. Only leave a gap if no remaining block can fill it without going below its minimum.
+4. **Never compress a block below its minimum** — drop it entirely instead.
+5. **Never leave a schedulable gap** — if a lower-priority block could fill a window, it must.
+6. **MDR placement:** Schedule MDR after Outreach and before afternoon work blocks or fixed commitments. It is the midday reset between the morning work session and the afternoon.
+7. **Wednesday — Meal Prep:** Hard block, 1.5 hours. Place it after Outreach and before MDR and Growth. Takes priority over Growth — if time is short, Meal Prep stays and Growth drops.
+8. **Gym:** Schedule after all higher-priority blocks are at full capacity. Place in any available 2-hour window. Must end by 9:30PM. Drops entirely if no 2-hour window exists.
+9. Sales calls are never pre-scheduled — prospects self-book, adjust around them.
+10. 15-minute pre-meeting buffer only (no post-meeting buffer), unless a Discount Tires shift requires its own buffers.
 
-**Phase 2 block order (Outreach active):**
-4. After Admin: place Outreach (or compress to 1hr as last resort). Skip on Discount Tires days.
-5. Place MDR immediately after Outreach.
-6. On Wednesdays: hard-block Meal Prep 1–2PM.
-7. Fill remaining afternoon slots with Growth Block (up to 3hrs, min 1hr).
-8. Schedule Gym in the first available 2-hour window, must end by 9:30PM.
-
-**Always:**
-- Always max every block to its preferred duration before moving to the next. Only after all blocks are maxed should a gap exist — and only if no remaining block meets its minimum duration in the remaining time.
-- Never leave an unscheduled gap that a lower-priority block could fill — gaps are a scheduling failure
-- MDR = lunch and reset. It must never be placed before noon unless no other slot exists for the whole day
-- MDR should be placed as late as possible — ideally directly before the next fixed commitment (Boxing, Discount Tires shift, end of workday). This keeps maximum contiguous work time earlier in the day.
-- After Meal Prep, resume Growth Block to fill all remaining time before MDR. Growth Block may appear in two segments in one day (before and after Meal Prep) — this is intentional and correct. Total across both segments should not exceed 4 hours.
-- Sales calls are never pre-scheduled — prospects self-book, adjust around them
-- Do not create more than 5 focus blocks in one day
-- 15-minute pre-meeting buffer only (no post-meeting buffer) — unless a Discount Tires shift requires its own buffers
-- Never compress a block below its minimum; drop it entirely instead
-
-Build a complete list of events to create:
-- Title
-- Start time
-- End time
-- Description (1–2 bullets on what to focus on)
+Build a complete list of events to create with: title, start time, end time, and a 1–2 bullet description of what to focus on.
 
 ---
 
 ### Step 4 — Create Calendar Events
 
-Use Google Calendar to create each event from Step 3 on tomorrow's date in the America/New_York timezone.
+Create each planned event on tomorrow's date in the America/New_York timezone.
 
 Event format:
-- **Title:** Short and action-oriented (e.g., "Outreach — Cold Calls", "Admin", "Growth", "MDR", "Gym", "Meal Prep")
-- **Description:** 1–2 bullets on what specifically to focus on during that block
-- **Calendar:** Primary calendar (dylangroenendijk@gmail.com)
-- **Color:** Apply the colorId from the Block Reference Table — Morning Routine=2, Admin=8, Outreach=6, MDR=5, Meal Prep=10, Growth=9, Gym=11
-- **No reminders needed**
+- **Title:** Use the canonical block name exactly
+- **Description:** 1–2 bullets on what to focus on during that block
+- **Calendar:** Primary (dylangroenendijk@gmail.com)
+- **Color:** Must be set on every event — Morning Routine=2, MDR=5, Outreach=6, Admin=8, Gym=11, Growth=9, Meal Prep=10
+- **No reminders**
 
-After creating all events, fetch tomorrow's calendar and confirm all events appear correctly.
+After creating all events, fetch tomorrow's calendar to confirm all events appear with correct titles and times.
 
 ---
 
 ### Step 5 — Done
 
-No output needed. The calendar speaks for itself. If any event fails to create, retry once. If it fails again, skip it and move on.
+No output. The calendar speaks for itself. If an event fails to create, retry once. If it fails again, skip it and move on.
 
 ---
 
 ## Edge Cases
 
 - **Tomorrow is Sunday:** Create no events. Stop.
-- **Tomorrow is Saturday:** Work day ends at 6PM, not 8PM. Everything but the Gym must end by 6PM or drop it.
-- **Discount Tires shift on calendar:** Apply 30-min pre-buffer and 1-hour post-buffer. Skip Outreach if Phase 2.
-- **Tomorrow is Wednesday:** Hard-block Meal Prep 1–2PM. Drop Growth Block if no room.
-- **Tomorrow fully booked:** Create no new events. Do nothing.
+- **Tomorrow is Saturday:** Work window ends at 6PM. Gym must end by 6PM or drop it.
+- **Discount Tires shift:** 30-min pre-buffer, 1-hr post-buffer. Schedule Outreach in whatever time remains.
+- **Tomorrow is Wednesday:** Meal Prep is a hard 1.5-hr block. Cannot be dropped or shortened. Goes after Outreach, before MDR and Growth.
+- **Tomorrow fully booked:** Create no new events.
 - **Google Calendar unavailable:** Stop. Do not retry more than once.
-- **Phase 1 (before May 19):** Do not schedule Outreach. Fill time with Admin, MDR, Growth Block, Gym.

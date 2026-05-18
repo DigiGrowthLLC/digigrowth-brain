@@ -1,0 +1,16 @@
+{
+  "ghl_from_number": "",
+  "webhook_base_url": "https://YOUR_NGROK_URL",
+  "webhook_port": 5001,
+  "ghl_location_id": "FVNoxxUHiEhxjgsdhvsV",
+  "sms_agent": {
+    "max_messages": 15,
+    "booking_link": "YOUR_BOOKING_LINK",
+    "persona": "Dylan from Digigrowth"
+  },
+  "newsletter": {
+    "topic_hint": "AI client acquisition for fitness studios",
+    "booking_link": "https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn",
+    "from_name": "Dylan | Digigrowth"
+  }
+}

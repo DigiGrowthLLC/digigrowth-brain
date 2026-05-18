@@ -78,10 +78,12 @@ Priority order for what to reference:
 5. If nothing specific exists — return null
 
 The opener must:
-- Be 15 words or fewer
+- Use "a" or "an" before the program, offer, or model — NEVER "that", "the", or "your" (e.g. "you're running a 6-week transformation challenge" not "you're running that 6-week transformation challenge")
+- One sentence only
 - Sound casual and observational — not like a pitch or compliment
 - Reference something real and specific — never generic like "your great reviews"
 - Never mention the website, never say "I was browsing" or "I came across"
+- The opener is the observation only — no question. Dylan adds the question himself on the call.
 
 ---
 
