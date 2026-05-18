@@ -21,10 +21,10 @@ Generates and delivers DigiGrowth's weekly AI-tip email to GHL contacts tagged `
 
 Execute without asking for confirmation. Do not advise — just execute and report.
 
-The apptset-agent directory path is: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent /`
-The config is at: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent /config.json`
-The draft file is: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent /newsletter_draft.json`
-The topic log is: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent /newsletter_topic_log.json`
+The apptset-agent directory path is: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/`
+The config is at: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/config.json`
+The draft file is: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/newsletter_draft.json`
+The topic log is: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/newsletter_topic_log.json`
 
 ---
 

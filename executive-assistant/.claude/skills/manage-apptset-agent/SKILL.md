@@ -2,7 +2,7 @@
 
 Gives the EA direct control over the appointment-setting agent — manage the newsletter, SMS conversations, GHL contact flows, and configuration without leaving the chat.
 
-**Agent location:** `/Users/dylangroenendijk/digigrowth-brain/apptset-agent /`
+**Agent location:** `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/`
 
 ---
 
