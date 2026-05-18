@@ -16,3 +16,5 @@ parallel-dialer/credentials.json
 parallel-dialer/.env
 parallel-dialer/__pycache__/
 parallel-dialer/state.json
+.DS_Store
+.claude/worktrees/
