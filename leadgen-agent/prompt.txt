@@ -78,10 +78,25 @@ Priority order for what to reference:
 5. If nothing specific exists — return null
 
 The opener must:
-- Be 15 words or fewer
-- Sound casual and observational — not like a pitch or compliment
+- Be 15 words or fewer — this is a hard limit, count every word
+- Be a pure observation — no question, no question mark
+- Sound like something a real person casually noticed, not a summary of their website
 - Reference something real and specific — never generic like "your great reviews"
 - Never mention the website, never say "I was browsing" or "I came across"
+
+BANNED — never write a question:
+"you're running that [X] — how many [Y] are [verb]ing each month?"
+No questions. No question marks. Ever.
+
+GOOD examples (read them after "I noticed" to hear how they flow):
+- "the 30-day money-back on the intro"
+- "you cap groups at six for the semi-private sessions"
+- "the free InBody scan before the first session"
+- "you work exclusively with women over 40"
+- "the 21-day reset program"
+- "you offer a free no-sweat intro before anyone commits"
+
+Notice: short, specific, just an observation. Dylan handles the conversation from there.
 
 ---
 
