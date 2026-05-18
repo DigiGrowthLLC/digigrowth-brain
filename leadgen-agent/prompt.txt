@@ -81,8 +81,10 @@ The opener must:
 - Be 15 words or fewer — this is a hard limit, count every word
 - Be a pure observation — no question, no question mark
 - Sound like something a real person casually noticed, not a summary of their website
+- Use "a" or "an" before a program or offer — NEVER "that", "the", or "your" (e.g. "you offer a 30-day money-back" not "you're running that 30-day money-back")
 - Reference something real and specific — never generic like "your great reviews"
 - Never mention the website, never say "I was browsing" or "I came across"
+- The opener is the observation only — no question. Dylan adds the question himself on the call.
 
 BANNED — never write a question:
 "you're running that [X] — how many [Y] are [verb]ing each month?"

@@ -11,3 +11,5 @@ lead-qualifier/scraped_ids.json
 # Parallel Dialer — auto-generated
 parallel-dialer/__pycache__/
 parallel-dialer/state.json
+.DS_Store
+.claude/worktrees/

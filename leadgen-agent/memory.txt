@@ -15,15 +15,20 @@ All US states
 AGENCY CONTEXT:
 COLD CALL OPENER CRITERIA:
 The one-line opener feeds into this exact cold call framework:
-Hey [Name], this is Dylan — quick question for you. I was looking at [Studio Name], and I noticed you're running [offer their running'] and was wondering how many people are you putting through that each month?
+"Hey [Name], this is Dylan — quick question for you. I was looking at [Studio Name], and I noticed [OPENER]."
 
-The opener must complete that sentence naturally. It should sound like something Dylan observed that is genuinely interesting or specific — not a compliment.
+The opener must complete that sentence naturally. It should sound like something Dylan genuinely noticed — not a compliment, not a pitch.
+
+ARTICLE RULE: Always use "a" or "an" before the program, offer, or model. NEVER use "that", "the", or "your".
+  ✅ "you're running a 6-week transformation challenge"
+  ❌ "you're running that 6-week transformation challenge"
+  ❌ "you're running your 6-week transformation challenge"
 
 Priority order for what to pull from the website:
-1. A specific RESULT or outcome they advertise (e.g., "your 6-week transformation challenge", "the 30-day guarantee you're running", "those before/after results on your homepage")
-2. A specific OFFER or program name (e.g., "that semi-private small group model", "your unlimited membership at that price point", "the nutrition coaching bundle")
-3. A specific NICHE or client type they serve (e.g., "working exclusively with women over 40", "the athlete performance track", "that postpartum fitness program")
-4. A specific METHOD or system (e.g., "the 3-day strength template", "that hybrid in-person virtual setup", "the assessment-first intake process")
+1. A specific RESULT or outcome they advertise (e.g., "you're running a 6-week transformation challenge", "you're offering a 30-day money-back guarantee", "you're showing a before/after transformation program")
+2. A specific OFFER or program name (e.g., "you're running a semi-private small group training model", "you're offering an unlimited membership at that price point", "you're bundling a nutrition coaching program with training")
+3. A specific NICHE or client type they serve (e.g., "you're running a women's-only training program", "you're running an athlete performance program", "you're running a postpartum fitness program")
+4. A specific METHOD or system (e.g., "you're using a 3-day strength training template", "you're running a hybrid in-person and virtual training setup", "you're using an assessment-first intake system")
 5. If nothing specific exists — return null. Do not fabricate.
 COLD CALL OPENER EXAMPLES:
 The following are real examples of good openers. Use these as the tone and style reference when generating the opener field. Match this energy — casual, specific, observational, never salesy.
@@ -51,17 +56,23 @@ Open house / free weekend classes
 “First X sessions for $X” deal"
 
 OPENER TONE RULES:
-- Always sounds like Dylan is calling because he noticed something specific, not because he's running a list
+- Always sounds like Dylan noticed something specific, not like he's running a list
 - Never complimentary — observational only
-- Ends with a curiosity question when possible to get the prospect talking
-- Short, punchy, conversational — not a monologue
-The opener must:
-- Be 15 words or fewer
-- Sound casual and observational, not like a sales pitch or compliment
-- Reference something real and specific — never generic like "your great reviews" or "your beautiful facility"
-- Set up the pivot to intro sessions and consults naturally
-- If a result or dollar figure is mentioned on their site, use it
-- If a challenge, guarantee, or transformation program exists, reference it
+- One sentence only
+- Use "a" or "an" before the program/offer/model — never "that", "the", or "your"
+- If a result, dollar figure, challenge, or guarantee exists on their site, reference it
 - Never mention the website, never say "I was browsing" or "I came across"
+- Observation only — no question. Dylan handles the question on the call.
+
+OPENER EXAMPLES (use these as style reference — observation only, no question):
+✅ "you're running a women's small group training model"
+✅ "you're offering a 6-week body transformation challenge"
+✅ "you're running a 30-day money-back guarantee on your training program"
+✅ "you're running an athlete performance program for youth"
+✅ "you're offering a free first class for new clients"
+✅ "you're running a semi-private small group training model"
+✅ "you're running a weight loss transformation program"
+✅ "you're running an over-40 body recomposition program"
+✅ "you're offering a two-week unlimited trial for new members"
 DYNAMIC MEMORY LOG:
 [Agent will append new entries below this line during runtime]

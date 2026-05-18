@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Parallel Dialer</title>
-  <script src="https://sdk.twilio.com/js/voice/releases/2.3.0/twilio.min.js"></script>
+  <script src="https://unpkg.com/@twilio/voice-sdk@2.9.0/dist/twilio.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -61,6 +61,53 @@
     }
     .logo span { color: var(--accent); }
 
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .lines-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .lines-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .lines-select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 5px 10px;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .lines-select:focus { border-color: var(--accent); }
+
+    .btn-end-session {
+      background: var(--red-dim);
+      color: #fca5a5;
+      border: 1px solid #7f1d1d;
+      border-radius: 6px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-end-session:hover  { background: #991b1b; transform: translateY(-1px); }
+    .btn-end-session:active { transform: translateY(0); }
+    .btn-end-session:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
     .stats-row {
       display: flex;
       gap: 32px;
@@ -83,6 +130,11 @@
       letter-spacing: 1px;
       margin-top: 2px;
     }
+    .session-timer-val {
+      font-variant-numeric: tabular-nums;
+      color: var(--green);
+    }
+    .session-timer-val.paused { color: var(--muted); }
 
     /* ── STATUS BAR ── */
     .statusbar {
@@ -185,6 +237,48 @@
     .grade-B { background: #1e3a5f; color: #93c5fd; }
     .grade-C { background: #78350f; color: #fde68a; }
     .grade-D { background: #7f1d1d; color: #fca5a5; }
+    .gatekeeper-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: #451a03;
+      color: #fed7aa;
+      border: 1px solid #92400e;
+      margin-left: 6px;
+    }
+
+    /* ── GATEKEEPER POPUP ── */
+    .gk-popup {
+      position: fixed;
+      bottom: 88px;
+      right: 24px;
+      background: var(--surface);
+      border: 1px solid #92400e;
+      border-radius: 12px;
+      padding: 20px 22px;
+      width: 272px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      z-index: 500;
+      animation: gkSlideIn 0.2s ease;
+    }
+    @keyframes gkSlideIn {
+      from { transform: translateY(16px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .gk-popup-inner { text-align: center; }
+    .gk-icon   { font-size: 28px; margin-bottom: 6px; }
+    .gk-title  { font-size: 15px; font-weight: 700; color: #fed7aa; margin-bottom: 3px; }
+    .gk-sub    { font-size: 12px; color: var(--muted); margin-bottom: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .gk-btns   { display: flex; gap: 8px; }
+    .gk-btn    { flex: 1; padding: 9px 0; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; border: 1px solid; transition: opacity 0.15s, transform 0.1s; }
+    .gk-btn:hover  { opacity: 0.85; transform: translateY(-1px); }
+    .gk-btn:active { transform: translateY(0); }
+    .gk-connect { background: #92400e; color: #fed7aa; border-color: #b45309; }
+    .gk-decline { background: var(--surface2); color: var(--muted); border-color: var(--border); }
 
     .info-row {
       display: flex;
@@ -241,24 +335,13 @@
 
     /* ── CONNECT OVERLAY ── */
     .connect-overlay {
-      flex: 1;
       display: flex;
-      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 20px;
-      padding: 40px;
-    }
-    .connect-overlay h2 {
-      font-size: 22px;
-      font-weight: 700;
-    }
-    .connect-overlay p {
-      font-size: 14px;
-      color: var(--muted);
-      text-align: center;
-      max-width: 360px;
-      line-height: 1.6;
+      gap: 16px;
+      padding: 14px 24px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
     }
     .btn-connect {
       background: var(--accent);
@@ -282,29 +365,91 @@
 
     /* ── CALL AREA (shown when connected) ── */
     .call-area {
-      flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 24px;
-      gap: 20px;
-      overflow-y: auto;
+      padding: 0 24px 12px;
+      gap: 12px;
+      flex-shrink: 0;
     }
 
     .waiting-card {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--muted);
+      padding: 10px 0;
+      flex-shrink: 0;
+    }
+    .waiting-icon {
+      font-size: 18px;
+      opacity: 0.4;
+    }
+    .waiting-text {
+      font-size: 13px;
+    }
+
+    /* ── SCRIPT SECTION ── */
+    #script-section {
       flex: 1;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
+      min-height: 0;
+      padding: 24px 24px 0;
+    }
+    .script-label {
+      font-size: 11px;
+      font-weight: 600;
       color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
-    .waiting-icon {
-      font-size: 40px;
-      opacity: 0.3;
+    .script-hint {
+      font-size: 10px;
+      color: #4a5568;
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
     }
-    .waiting-text {
-      font-size: 15px;
+    #script-editor {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 12px 14px;
+      resize: none;
+      font-family: inherit;
+      line-height: 1.75;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #script-editor:focus { border-color: var(--accent); }
+    #script-editor::placeholder { color: #4a5568; }
+    #script-display {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 12px 14px;
+      line-height: 1.75;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .script-fill {
+      color: var(--green);
+      font-weight: 700;
     }
 
     .notes-label {
@@ -381,6 +526,69 @@
     }
 
     .hidden { display: none !important; }
+
+    /* ── BOOKING MODAL ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 24px;
+    }
+    .modal-overlay.hidden { display: none !important; }
+    .modal-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 860px;
+      height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .modal-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .modal-close {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+    }
+    .modal-close:hover { color: var(--text); background: var(--border); }
+    .modal-body {
+      flex: 1;
+      overflow: hidden;
+    }
+    .modal-body iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
   </style>
 </head>
 <body>
@@ -403,6 +611,22 @@
       <div class="stat-val" id="stat-dms">0</div>
       <div class="stat-label">DMs Reached</div>
     </div>
+    <div class="stat">
+      <div class="stat-val session-timer-val" id="stat-session-time">0:00</div>
+      <div class="stat-label">Session Time</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="lines-control">
+      <label class="lines-label" for="lines-select">Lines</label>
+      <select id="lines-select" class="lines-select" onchange="setLines(this.value)">
+        <option value="1">1</option>
+        <option value="3">3</option>
+        <option value="5">5</option>
+        <option value="10" selected>10</option>
+      </select>
+    </div>
+    <button class="btn-end-session" id="end-session-btn" onclick="endSession()">End Session</button>
   </div>
 </div>
 
@@ -426,6 +650,7 @@
       <div class="contact-name" id="lead-owner">—</div>
       <div class="contact-biz" id="lead-business">—</div>
       <span class="grade-badge grade-A hidden" id="lead-grade-badge">A</span>
+      <span class="gatekeeper-badge hidden" id="gatekeeper-badge">🤖 Gatekeeper</span>
     </div>
 
     <div class="panel-section">
@@ -474,25 +699,39 @@
   <!-- RIGHT PANEL -->
   <div class="panel-right">
 
-    <!-- Connect overlay (shown before connecting) -->
-    <div class="connect-overlay" id="connect-overlay">
-      <div class="waiting-icon">🎧</div>
-      <h2>Ready to Dial</h2>
-      <p>Connect your browser to the active session. Make sure <code>python run.py</code> is already running and ngrok is active.</p>
-      <button class="btn-connect" id="connect-btn" onclick="connectAgent()">Connect to Session</button>
-      <div class="setup-note" id="connect-error"></div>
+    <!-- Script — always visible so you can paste before connecting -->
+    <div id="script-section">
+      <div class="script-label">
+        Call Script
+        <span class="script-hint">[Name] · [Studio Name] · [custom opener] auto-fill on answer</span>
+      </div>
+      <textarea id="script-editor" placeholder="Paste your call script here. Use [Name], [Studio Name], and [custom opener] as placeholders — they'll be replaced with the prospect's details the moment they answer."></textarea>
+      <div id="script-display" class="hidden"></div>
     </div>
 
-    <!-- Call area (shown after connecting) -->
+    <!-- Connect strip (shown before connecting) -->
+    <div class="connect-overlay" id="connect-overlay">
+      <button class="btn-connect" id="connect-btn" onclick="connectAgent()">🎧 Connect to Session</button>
+      <span class="setup-note" id="connect-error" style="color:var(--muted);font-size:12px;"></span>
+    </div>
+
+    <!-- Call controls (shown after connecting) -->
     <div class="call-area hidden" id="call-area">
 
-      <!-- Waiting state -->
+      <!-- Waiting indicator -->
       <div class="waiting-card" id="waiting-card">
         <div class="waiting-icon">📡</div>
         <div class="waiting-text">Dialing in background — waiting for someone to answer...</div>
       </div>
 
-      <!-- Notes (shown when lead is connected or classifying) -->
+      <!-- End call button -->
+      <div id="end-call-section" class="hidden" style="display:flex;justify-content:center;">
+        <button onclick="endCall()" style="background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b;border-radius:6px;padding:10px 28px;font-size:14px;font-weight:600;cursor:pointer;">
+          ✕ End Call
+        </button>
+      </div>
+
+      <!-- Notes (shown when classifying) -->
       <div id="notes-section" class="hidden">
         <div class="notes-label">Call Notes</div>
         <textarea id="call-notes" placeholder="Type notes during or after the call..."></textarea>
@@ -515,13 +754,43 @@
   </div>
 </div>
 
+<!-- ── GATEKEEPER POPUP ── -->
+<div class="gk-popup hidden" id="gk-popup">
+  <div class="gk-popup-inner">
+    <div class="gk-icon">🤖</div>
+    <div class="gk-title">Gatekeeper Detected</div>
+    <div class="gk-sub" id="gk-sub">Automated system answered</div>
+    <div class="gk-btns">
+      <button class="gk-btn gk-connect" onclick="connectGatekeeper()">Connect</button>
+      <button class="gk-btn gk-decline" onclick="declineGatekeeper()">Decline</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── BOOKING MODAL ── -->
+<div class="modal-overlay hidden" id="booking-modal" onclick="handleModalClick(event)">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">📅 Book Appointment</div>
+      <button class="modal-close" onclick="closeBookingModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <iframe id="booking-iframe" src="" allow="camera; microphone"></iframe>
+    </div>
+  </div>
+</div>
+
 <!-- ── SCRIPTS ── -->
 <script>
-  let device     = null;
-  let activeCall = null;
-  let polling    = null;
-  let timerInt   = null;
-  let connectedAt = null;
+  let device            = null;
+  let activeCall        = null;
+  let polling           = null;
+  let timerInt          = null;
+  let connectedAt       = null;
+  let scriptFilled      = false;
+  let gkPresent         = false;
+  let sessionTimerInt   = null;
+  let sessionElapsed    = 0;
 
   // ── Connect to session ──────────────────────────────────────────────────
   async function connectAgent() {
@@ -557,6 +826,8 @@
         document.getElementById('connect-overlay').classList.add('hidden');
         document.getElementById('call-area').classList.remove('hidden');
         setStatus('waiting', 'Connected — dialing leads in background...');
+        resetSessionTimer();
+        startSessionTimer();
         startPolling();
       });
 
@@ -564,6 +835,7 @@
         setStatus('idle', 'Session ended — reload to reconnect');
         stopPolling();
         stopTimer();
+        pauseSessionTimer();
         setDispButtons(false);
       });
 
@@ -599,27 +871,47 @@
     setText('stat-remaining', s.remaining   >= 0 ? s.remaining : '—');
     setText('stat-dms',       s.dms_reached ?? 0);
 
+    // Gatekeeper popup
+    const gk = data.gatekeeper;
+    if (gk && !gkPresent) {
+      gkPresent = true;
+      const sub = document.getElementById('gk-sub');
+      if (sub) sub.textContent = gk.business || gk.owner || gk.phone || 'Automated system answered';
+      document.getElementById('gk-popup').classList.remove('hidden');
+    } else if (!gk && gkPresent) {
+      gkPresent = false;
+      document.getElementById('gk-popup').classList.add('hidden');
+    }
+
     const status = data.status;
 
     if (status === 'connected') {
-      setStatus('connected', '🔴 Live call in progress');
+      const isGk = data.current_lead && data.current_lead.gatekeeper;
+      setStatus('connected', isGk ? '🤖 Gatekeeper — navigate to reach owner' : '🔴 Live call in progress');
       if (data.connected_at && !timerInt) startTimer(data.connected_at);
-      if (data.current_lead) updateLeadPanel(data.current_lead);
+      if (data.current_lead) {
+        updateLeadPanel(data.current_lead);
+        if (!scriptFilled) { fillScript(data.current_lead); scriptFilled = true; }
+      }
       document.getElementById('waiting-card').classList.add('hidden');
-      document.getElementById('notes-section').classList.remove('hidden');
-      setDispButtons(false); // dimmed during call
+      document.getElementById('end-call-section').classList.remove('hidden');
+      document.getElementById('notes-section').classList.add('hidden');
+      setDispButtons(false);
 
     } else if (status === 'classify') {
       setStatus('classify', 'Call ended — select disposition below');
       stopTimer();
+      document.getElementById('end-call-section').classList.add('hidden');
       document.getElementById('notes-section').classList.remove('hidden');
-      setDispButtons(true); // active
+      setDispButtons(true);
 
     } else if (status === 'waiting') {
       setStatus('waiting', 'Dialing in background — waiting for someone to answer...');
       stopTimer();
       clearLeadPanel();
+      if (scriptFilled) { clearScript(); scriptFilled = false; }
       document.getElementById('waiting-card').classList.remove('hidden');
+      document.getElementById('end-call-section').classList.add('hidden');
       document.getElementById('notes-section').classList.add('hidden');
       document.getElementById('call-notes').value = '';
       setDispButtons(false);
@@ -639,6 +931,10 @@
     badge.className   = `grade-badge grade-${grade}`;
     badge.classList.toggle('hidden', !grade);
 
+    // Gatekeeper badge
+    const gkBadge = document.getElementById('gatekeeper-badge');
+    if (gkBadge) gkBadge.classList.toggle('hidden', !lead.gatekeeper);
+
     // Optional fields
     setField('lead-email',   'row-email',   lead.email);
     setField('lead-website', 'row-website', lead.website);
@@ -655,6 +951,8 @@
       document.getElementById(id).style.opacity = '0.3';
     });
     document.getElementById('lead-grade-badge').classList.add('hidden');
+    const gkBadge = document.getElementById('gatekeeper-badge');
+    if (gkBadge) gkBadge.classList.add('hidden');
   }
 
   function setField(valId, rowId, val) {
@@ -677,21 +975,47 @@
     });
   }
 
+  const BOOKING_URL = 'https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn';
+
   async function classify(disposition) {
     const notes = document.getElementById('call-notes').value.trim();
     setDispButtons(false);
     document.getElementById('call-notes').value = '';
 
-    await fetch('/api/classify', {
+    // Fire classify and open booking modal in parallel for Appointment Booked
+    const classifyPromise = fetch('/api/classify', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ disposition, notes }),
     });
 
+    if (disposition === 'Appointment Booked') {
+      openBookingModal();
+    }
+
+    await classifyPromise;
+
     setStatus('waiting', 'Logged — waiting for next lead...');
     document.getElementById('notes-section').classList.add('hidden');
     document.getElementById('waiting-card').classList.remove('hidden');
     clearLeadPanel();
+  }
+
+  function openBookingModal() {
+    document.getElementById('booking-iframe').src = BOOKING_URL;
+    document.getElementById('booking-modal').classList.remove('hidden');
+  }
+
+  function closeBookingModal() {
+    document.getElementById('booking-modal').classList.add('hidden');
+    document.getElementById('booking-iframe').src = '';
+  }
+
+  function handleModalClick(e) {
+    // Close if clicking the dark overlay (not the card itself)
+    if (e.target === document.getElementById('booking-modal')) {
+      closeBookingModal();
+    }
   }
 
   // ── Timer ────────────────────────────────────────────────────────────────
@@ -715,17 +1039,105 @@
     timerEl.textContent = '0:00';
   }
 
+  function fmtSessionTime(secs) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${m}:${String(s).padStart(2,'0')}`;
+  }
+
+  function startSessionTimer() {
+    const el = document.getElementById('stat-session-time');
+    el.classList.remove('paused');
+    sessionTimerInt = setInterval(() => {
+      sessionElapsed++;
+      el.textContent = fmtSessionTime(sessionElapsed);
+    }, 1000);
+  }
+
+  function pauseSessionTimer() {
+    if (sessionTimerInt) { clearInterval(sessionTimerInt); sessionTimerInt = null; }
+    document.getElementById('stat-session-time').classList.add('paused');
+  }
+
+  function resetSessionTimer() {
+    pauseSessionTimer();
+    sessionElapsed = 0;
+    const el = document.getElementById('stat-session-time');
+    el.textContent = '0:00';
+    el.classList.remove('paused');
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────
   function setText(id, val) {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
   }
 
+  async function endCall() {
+    await fetch('/api/end-call', { method: 'POST' });
+  }
+
+  async function connectGatekeeper() {
+    document.getElementById('gk-popup').classList.add('hidden');
+    gkPresent = false;
+    await fetch('/api/gatekeeper/connect', { method: 'POST' });
+  }
+
+  async function declineGatekeeper() {
+    document.getElementById('gk-popup').classList.add('hidden');
+    gkPresent = false;
+    await fetch('/api/gatekeeper/decline', { method: 'POST' });
+  }
+
+  async function setLines(val) {
+    await fetch('/api/set-lines', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ lines: parseInt(val) }),
+    });
+  }
+
+  async function endSession() {
+    const btn = document.getElementById('end-session-btn');
+    btn.disabled    = true;
+    btn.textContent = 'Ending...';
+    await fetch('/api/end-session', { method: 'POST' });
+    setStatus('idle', 'Session ended');
+  }
+
   function setStatus(cls, msg) {
-    const dot  = document.getElementById('status-dot');
+    const dot   = document.getElementById('status-dot');
     const label = document.getElementById('status-label');
-    dot.className    = 'dot ' + cls;
+    dot.className     = 'dot ' + cls;
     label.textContent = msg;
+  }
+
+  // ── Script fill ───────────────────────────────────────────────────────────
+  function escHtml(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function fillScript(lead) {
+    const editor  = document.getElementById('script-editor');
+    const display = document.getElementById('script-display');
+    let text = escHtml(editor.value);
+    text = text.replace(/\[Name\]/gi,          `<span class="script-fill">${escHtml(lead.owner    || '')}</span>`);
+    text = text.replace(/\[Studio Name\]/gi,   `<span class="script-fill">${escHtml(lead.business || '')}</span>`);
+    text = text.replace(/\[custom opener\]/gi, `<span class="script-fill">${escHtml(lead.opener   || '')}</span>`);
+    text = text.replace(/\n/g, '<br>');
+    display.innerHTML = text;
+    editor.classList.add('hidden');
+    display.classList.remove('hidden');
+  }
+
+  function clearScript() {
+    const editor  = document.getElementById('script-editor');
+    const display = document.getElementById('script-display');
+    display.innerHTML = '';
+    display.classList.add('hidden');
+    editor.classList.remove('hidden');
   }
 </script>
 

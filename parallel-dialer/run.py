@@ -2,20 +2,20 @@
 Parallel Dialer — main entry point
 
 Usage:
-  python run.py              Start a dialing session
+  python run.py              Start a dialing session (loads leads from GHL Manual Actions)
   python run.py status       Show session stats
-  python run.py retry        Re-dial leads with < 3 attempts and no disposition
   python run.py handoff      Trigger SMS handoff for all 3-strike leads
-  python run.py test         Place a single test call to Dylan's phone
+  python run.py test         Place a single test call to verify Twilio + webhook
+  python run.py newsletter   Generate and send the weekly AI newsletter via GHL
 
 Setup (first time):
-  1. cp .env.example .env and fill in Twilio + GHL keys
-  2. Fill in config.json (phone numbers, sheet ID, webhook URL)
-  3. Copy credentials.json from lead-qualifier/ (same Google service account)
-  4. pip install -r requirements.txt
-  5. Start ngrok: ngrok http 5000
-  6. Set webhook_base_url in config.json to your ngrok URL
-  7. python run.py
+  1. cp .env.example .env and fill in Twilio + GHL + Anthropic keys
+  2. Fill in config.json (phone numbers, GHL location ID, webhook URL)
+  3. pip install -r requirements.txt
+  4. Start ngrok: ngrok http 5000
+  5. Set webhook_base_url in config.json to your ngrok URL
+  6. python run.py test       — verify Twilio is wired up
+  7. python run.py            — start dialing
 """
 
 import json
@@ -28,10 +28,10 @@ from datetime import datetime
 
 from dotenv import load_dotenv
 
-import leads as leads_mod
 import dialer as dialer_mod
 import ghl as ghl_mod
 import webhook
+import leads as leads_mod  # _norm only
 
 load_dotenv()
 
@@ -57,56 +57,79 @@ def _banner(text):
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#  FLUSH PENDING DISPOSITIONS TO SHEETS
+#  TWIML APP AUTO-CONFIGURE
 # ════════════════════════════════════════════════════════════════════════════
 
-def flush_dispositions(ws, headers):
-    """Write any pending dispositions from state.json back to Google Sheets."""
-    state = leads_mod.load_state()
-    flushed = 0
-    for phone, data in state["leads"].items():
-        if not data.get("pending_write"):
-            continue
-        disposition = data.get("disposition", "")
-        attempts    = data.get("attempts", 0)
-        row_index   = data.get("row_index")
-        if row_index:
-            leads_mod.update_disposition(ws, headers, row_index, disposition, attempts)
-            state["leads"][phone]["pending_write"] = False
-            flushed += 1
-    if flushed:
-        leads_mod.save_state(state)
-        print(f"  ✅ Flushed {flushed} disposition(s) to sheet")
+def _start_tunnel():
+    """
+    Start the ngrok tunnel automatically so the user only needs one terminal.
+    Uses the static domain from webhook_base_url in config.json.
+    Requires NGROK_AUTH_TOKEN in .env (free ngrok account).
+    """
+    from pyngrok import ngrok, conf as ngrok_conf
+
+    auth_token = os.environ.get("NGROK_AUTH_TOKEN", "")
+    if auth_token:
+        ngrok_conf.get_default().auth_token = auth_token
+
+    base_url = config.get("webhook_base_url", "").rstrip("/")
+    port     = config.get("webhook_port", 5000)
+
+    # Extract static domain if the base URL is an ngrok domain
+    domain = None
+    if "ngrok" in base_url or "ngrok-free" in base_url:
+        from urllib.parse import urlparse
+        domain = urlparse(base_url).netloc
+
+    # Point pyngrok at the ngrok config where the auth token is stored
+    import os as _os
+    ngrok_cfg = _os.path.expanduser("~/Library/Application Support/ngrok/ngrok.yml")
+    if _os.path.exists(ngrok_cfg):
+        ngrok_conf.get_default().config_path = ngrok_cfg
+
+    try:
+        kwargs = {"domain": domain} if domain else {}
+        tunnel = ngrok.connect(port, **kwargs)
+        public_url = tunnel.public_url.replace("http://", "https://")
+        print(f"  ✅ Tunnel started → {public_url}")
+        return public_url
+    except Exception as e:
+        print(f"  ⚠️  Could not auto-start ngrok: {e}")
+        print(f"     Or start ngrok manually: ngrok http --domain={domain or ''} {port}")
+        sys.exit(1)
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  SMS HANDOFF — leads with 3 strikes
-# ════════════════════════════════════════════════════════════════════════════
+def _update_twiml_app():
+    """
+    Auto-point the TwiML App Voice URL at this server's /voice/agent-join.
+    Called at session start so ngrok URL changes never require manual Twilio
+    Console updates.
+    """
+    from twilio.rest import Client as TwilioClient
 
-def run_handoffs(ws=None, headers=None):
-    """Trigger GHL SMS handoff for all leads that exhausted their call attempts."""
-    max_attempts = config.get("max_call_attempts", 3)
-    state        = leads_mod.load_state()
-    handed_off   = 0
+    app_sid   = os.environ.get("TWILIO_TWIML_APP_SID", "")
+    base_url  = config.get("webhook_base_url", "").rstrip("/")
+    voice_url = f"{base_url}/voice/agent-join"
 
-    if ws is None or headers is None:
-        _, ws, headers = leads_mod.load_leads(config)
+    if not app_sid:
+        print(f"  ⚠️  TWILIO_TWIML_APP_SID not set in .env")
+        print(f"     Create a TwiML App in Twilio Console and set its Voice URL to:")
+        print(f"     {voice_url}")
+        return
 
-    for phone, data in state["leads"].items():
-        if leads_mod.needs_handoff(state, phone, max_attempts):
-            lead = {"phone": phone, **data}
-            ghl_mod.trigger_sms_handoff(config, lead)
-            state["leads"][phone]["handed_off"]    = True
-            state["leads"][phone]["disposition"]   = "SMS Handoff"
-            state["leads"][phone]["pending_write"] = True
-            handed_off += 1
-
-    if handed_off:
-        leads_mod.save_state(state)
-        flush_dispositions(ws, headers)
-        print(f"  📱 {handed_off} lead(s) handed off to SMS agent")
-    else:
-        print("  ✅ No leads pending handoff")
+    try:
+        client = TwilioClient(
+            os.environ["TWILIO_ACCOUNT_SID"],
+            os.environ["TWILIO_AUTH_TOKEN"],
+        )
+        client.applications(app_sid).update(
+            voice_url=voice_url,
+            voice_method="POST",
+        )
+        print(f"  ✅ TwiML App Voice URL → {voice_url}")
+    except Exception as e:
+        print(f"  ⚠️  Could not auto-update TwiML App ({e})")
+        print(f"     Set Voice URL manually in Twilio Console: {voice_url}")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -116,21 +139,18 @@ def run_handoffs(ws=None, headers=None):
 def run_session():
     _banner(f"Parallel Dialer — {_now()}")
 
-    # Load leads
-    print("📋 Loading leads from Google Sheets...")
-    eligible, ws, headers = leads_mod.load_leads(config)
+    _start_tunnel()
+    _update_twiml_app()
+
+    # Load leads from GHL Manual Actions
+    print("📋 Loading leads from GHL Manual Actions tab...")
+    eligible = ghl_mod.load_dialer_leads(config)
 
     if not eligible:
-        print("✅ No eligible leads to dial. Run 'python run.py status' for details.")
+        print("✅ No leads with pending call actions in GHL. Check your workflow manual actions.")
         return
 
     print(f"📊 {len(eligible)} leads eligible for dialing")
-
-    # Init state for each lead
-    state = leads_mod.load_state()
-    for lead in eligible:
-        leads_mod.init_lead_state(state, lead)
-    leads_mod.save_state(state)
 
     # Generate session ID
     session_id = str(uuid.uuid4())[:8]
@@ -139,20 +159,23 @@ def run_session():
     # Start webhook server in background thread
     webhook.init_session(config, session_id)
     webhook.set_total_leads(len(eligible))
+    webhook.set_eligible_leads(eligible)
     server_thread = threading.Thread(
         target=webhook.start_server,
         args=(config,),
         daemon=True
     )
     server_thread.start()
-    time.sleep(1)  # give Flask a moment to start
+    time.sleep(1)
 
-    port = config.get("webhook_port", 5000)
-    print(f"\n🌐 Open your browser: http://localhost:{port}/agent")
-    print("   Click 'Connect' to join the session through your PC\n")
+    port        = config.get("webhook_port", 5000)
+    agent_url   = f"http://localhost:{port}/agent"
+    print(f"\n🌐 Opening dialer UI: {agent_url}")
+    import webbrowser
+    webbrowser.open(agent_url)
 
     # Wait for browser to connect (up to 2 minutes)
-    print("   Waiting for you to connect...")
+    print("   Waiting for you to connect in the browser...")
     for _ in range(120):
         if webhook._session.get("dylan_sid"):
             break
@@ -164,41 +187,95 @@ def run_session():
     print(f"✅ Connected — starting to dial {len(eligible)} leads")
     print("   Press Ctrl+C to stop\n")
 
-    max_lines  = config.get("max_parallel_lines", 10)
-    call_delay = 2  # seconds between batches
+    max_lines    = config.get("max_parallel_lines", 10)
+    ring_timeout = config.get("call_timeout_seconds", 30)
+
+    def _wait_for_batch():
+        """
+        Wait until it's safe to dial the next batch:
+        - Always wait for any live call to end and be classified.
+        - If the batch had NO answer: also wait the full ring_timeout so unanswered
+          leads get their 30 s before being counted / retried.
+        - If the batch HAD an answer: overflow calls were canceled immediately, so
+          there's no reason to hold after classification is done.
+        """
+        deadline = time.time() + ring_timeout
+        while True:
+            with webhook._session["lock"]:
+                bridged      = webhook._session.get("bridged")
+                show_cls     = webhook._session.get("show_classification")
+                had_answer   = webhook._session.get("batch_had_answer", False)
+                end_req      = webhook._session.get("end_requested", False)
+            if end_req:
+                break
+            if bridged or show_cls:
+                time.sleep(0.5)
+                continue
+            if had_answer:
+                break
+            if time.time() >= deadline:
+                break
+            time.sleep(0.5)
 
     try:
-        i = 0
+        i         = 0
+        batch_num = 0
         while i < len(eligible):
-            # Flush any dispositions written by webhook between batches
-            flush_dispositions(ws, headers)
+            # Respect live lines setting from browser dropdown
+            with webhook._session["lock"]:
+                if webhook._session.get("end_requested"):
+                    print("\n⏹️  Session ended from browser")
+                    break
+                current_max = webhook._session.get("max_lines", max_lines)
 
-            # Handle any new 3-strike leads
-            run_handoffs(ws, headers)
+            batch      = eligible[i:i + current_max]
+            batch_num += 1
+            print(f"\n📞 Batch {batch_num}: dialing {len(batch)} lead(s) ({current_max}-line mode)...")
 
-            batch = eligible[i:i + max_lines]
-            print(f"\n📞 Batch {i // max_lines + 1}: dialing {len(batch)} lead(s)...")
-
-            # Dial batch — webhook handles bridging + classification
+            batch_start = time.time()
+            webhook.register_batch_start([l["phone"] for l in batch], batch_start)
             sids = dialer_mod.dial_batch(config, batch, session_id)
             webhook.register_call_sids(sids)
 
-            # Wait for this batch to settle before moving on
-            # (classification comes back async via webhook)
-            time.sleep(call_delay + config.get("call_timeout_seconds", 30))
+            i += len(batch)
+            _wait_for_batch()
 
-            i += max_lines
+            # If this batch had an answered call, give Twilio 3 s to deliver
+            # the cancel callbacks for overflow leads before we check retry_phones.
+            # Without this, register_batch_start can increment dial_count to 2
+            # before the first cancel callback fires, making it count prematurely.
+            if webhook._session.get("batch_had_answer"):
+                time.sleep(3)
+
+            # Re-dial leads with <30s ring time (max 2 dials total per lead).
+            # Fill remaining slots up to max_lines with new leads — redials go first.
+            retry_phones = webhook.get_and_clear_retry()
+            if retry_phones:
+                retry_leads = [l for l in batch if leads_mod._norm(l["phone"]) in retry_phones]
+                if retry_leads:
+                    slots       = max_lines - len(retry_leads)
+                    fill_leads  = eligible[i:i + slots] if slots > 0 else []
+                    retry_batch = retry_leads + fill_leads
+                    new_count   = len(fill_leads)
+
+                    print(f"  🔄 Re-dialing {len(retry_leads)} + {new_count} new — {len(retry_batch)} total")
+                    retry_start = time.time()
+                    webhook.register_batch_start([l["phone"] for l in retry_batch], retry_start)
+                    retry_sids  = dialer_mod.dial_batch(config, retry_batch, session_id)
+                    webhook.register_call_sids(retry_sids)
+
+                    i += new_count
+                    _wait_for_batch()
+                    webhook.get_and_clear_retry()  # discard; fill leads re-enter naturally
 
     except KeyboardInterrupt:
         print("\n⏸️  Session stopped by user")
 
     finally:
         print("\n🔄 Finalizing session...")
-        time.sleep(3)  # let any in-flight webhooks finish
-        flush_dispositions(ws, headers)
-        run_handoffs(ws, headers)
-        webhook.close_session()
+        time.sleep(3)  # let any in-flight GHL threads complete
         _print_stats()
+        webhook.close_session()
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -206,30 +283,12 @@ def run_session():
 # ════════════════════════════════════════════════════════════════════════════
 
 def _print_stats():
-    state = leads_mod.load_state()
-    leads = state.get("leads", {})
-
-    total       = len(leads)
-    attempted   = sum(1 for v in leads.values() if v.get("attempts", 0) > 0)
-    booked      = sum(1 for v in leads.values() if v.get("disposition") == "Appointment Booked")
-    follow_up   = sum(1 for v in leads.values() if v.get("disposition") == "Follow Up")
-    not_int     = sum(1 for v in leads.values() if v.get("disposition") == "Not Interested")
-    send_info   = sum(1 for v in leads.values() if v.get("disposition") == "Send Info")
-    no_answer   = sum(1 for v in leads.values() if v.get("disposition") == "No Answer")
-    handed_off  = sum(1 for v in leads.values() if v.get("handed_off"))
-    undialed    = sum(1 for v in leads.values() if v.get("attempts", 0) == 0)
-
+    stats = webhook._session.get("stats", {})
+    total = webhook._session.get("total_leads", 0)
     _banner("Session Stats")
-    print(f"  Total leads tracked : {total}")
-    print(f"  Attempted           : {attempted}")
-    print(f"  Undialed            : {undialed}")
-    print()
-    print(f"  Appointment Booked  : {booked}")
-    print(f"  Follow Up           : {follow_up}")
-    print(f"  Send Info           : {send_info}")
-    print(f"  Not Interested      : {not_int}")
-    print(f"  No Answer           : {no_answer}")
-    print(f"  SMS Handoff         : {handed_off}")
+    print(f"  Total leads  : {total}")
+    print(f"  Calls made   : {stats.get('calls_made', 0)}")
+    print(f"  DMs reached  : {stats.get('dms_reached', 0)}")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -237,8 +296,10 @@ def _print_stats():
 # ════════════════════════════════════════════════════════════════════════════
 
 def run_test():
-    """Call Dylan's phone to verify Twilio credentials and webhook are working."""
-    _banner("Test Call")
+    """Start the webhook server and verify browser connection + a single test dial."""
+    _banner("Test")
+    _start_tunnel()
+    _update_twiml_app()
     session_id = "test-" + str(uuid.uuid4())[:4]
     webhook.init_session(config, session_id)
 
@@ -250,15 +311,35 @@ def run_test():
     server_thread.start()
     time.sleep(1)
 
-    sid = dialer_mod.dial_dylan(config, session_id)
-    if sid:
-        print(f"✅ Test call placed — SID: {sid}")
-        print("   Answer your phone. You should hear hold music.")
-        print("   If you hear hold music, Twilio is configured correctly.")
-    else:
-        print("❌ Test call failed — check your Twilio credentials and phone numbers in config.json")
+    port      = config.get("webhook_port", 5000)
+    agent_url = f"http://localhost:{port}/agent"
+    print(f"🌐 Opening: {agent_url}")
+    import webbrowser
+    webbrowser.open(agent_url)
+    print("   Click Connect — you should hear hold music.\n")
+    print("   Waiting for browser to connect...")
 
+    for _ in range(120):
+        if webhook._session.get("dylan_sid"):
+            break
+        time.sleep(1)
+    else:
+        print("❌ Browser didn't connect in time.")
+        return
+
+    print("✅ Browser connected — Twilio + webhook are working.")
     input("\nPress Enter to stop the server...")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  NEWSLETTER
+# ════════════════════════════════════════════════════════════════════════════
+
+def run_newsletter():
+    """Generate and send the weekly AI newsletter to all GHL 'newsletter'-tagged contacts."""
+    import newsletter as newsletter_mod
+    _banner(f"Weekly Newsletter — {_now()}")
+    newsletter_mod.send_newsletter(config)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -268,17 +349,9 @@ def run_test():
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "start"
 
-    if cmd == "status":
-        _print_stats()
-    elif cmd == "retry":
-        print("📋 Loading leads for retry...")
-        eligible, ws, headers = leads_mod.load_leads(config)
-        print(f"  {len(eligible)} leads eligible for retry")
-        run_session()
-    elif cmd == "handoff":
-        print("📱 Running SMS handoffs...")
-        run_handoffs()
-    elif cmd == "test":
+    if cmd == "test":
         run_test()
+    elif cmd == "newsletter":
+        run_newsletter()
     else:
         run_session()

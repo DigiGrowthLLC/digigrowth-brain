@@ -32,7 +32,7 @@ def dial_lead(config, lead, session_id):
             from_=config["twilio_phone_number"],
             url=f"{base_url}/voice/lead-answered?session_id={session_id}",
             status_callback=f"{base_url}/voice/status?session_id={session_id}&phone={lead['phone']}",
-            status_callback_event=["no-answer", "busy", "failed", "completed"],
+            status_callback_event=["no-answer", "busy", "failed", "completed", "canceled"],
             status_callback_method="POST",
             timeout=config.get("call_timeout_seconds", 30),
             machine_detection="Enable",
@@ -77,6 +77,14 @@ def redirect_call(sid, url, method="POST"):
         print(f"  ⚠️  Could not redirect call {sid}: {e}")
 
 
+def hangup_call(sid):
+    """Hang up an active call by SID."""
+    try:
+        _client().calls(sid).update(status="completed")
+    except Exception as e:
+        print(f"  ⚠️  Could not hang up call {sid}: {e}")
+
+
 # ════════════════════════════════════════════════════════════════════════════
 #  PARALLEL BATCH DIAL  (Phase 2 — stubs ready for expansion)
 # ════════════════════════════════════════════════════════════════════════════
@@ -84,19 +92,23 @@ def redirect_call(sid, url, method="POST"):
 def dial_batch(config, leads, session_id):
     """
     Dial up to max_parallel_lines leads simultaneously.
-    Phase 1: calls leads one at a time.
-    Phase 2: calls all at once — first to answer bridges to Dylan,
-             others get a polite hangup via /voice/lead-overflow.
+    All Twilio API calls fire in parallel so every lead starts ringing at the
+    same time. First to answer bridges to Dylan; the rest get canceled.
     Returns dict of {phone: call_sid}.
     """
+    from concurrent.futures import ThreadPoolExecutor
     max_lines = config.get("max_parallel_lines", 10)
     batch     = leads[:max_lines]
     call_sids = {}
 
-    for lead in batch:
+    def _dial(lead):
         sid = dial_lead(config, lead, session_id)
-        if sid:
-            call_sids[lead["phone"]] = sid
+        return (lead["phone"], sid)
+
+    with ThreadPoolExecutor(max_workers=max_lines) as pool:
+        for phone, sid in pool.map(_dial, batch):
+            if sid:
+                call_sids[phone] = sid
 
     return call_sids
 
