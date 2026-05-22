@@ -42,7 +42,7 @@ Compare the log against the topic list below. Pick the **first topic not used in
 
 Run:
 ```bash
-cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent " && python -c "
+cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent" && python -c "
 import json, ghl
 c = json.load(open('config.json'))
 leads = ghl.get_newsletter_leads(c)
@@ -140,7 +140,7 @@ Check that `newsletter_draft.json` exists. If it doesn't: "No draft found — ru
 
 Run:
 ```bash
-cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent " && python newsletter.py --send
+cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent" && python newsletter.py --send
 ```
 
 Capture and report the output (sent count, failed count).

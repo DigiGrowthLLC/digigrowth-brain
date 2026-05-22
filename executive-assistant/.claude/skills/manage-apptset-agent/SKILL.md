@@ -26,16 +26,16 @@ Gives the EA direct control over the appointment-setting agent — manage the ne
 
 ```bash
 # Draft this week's newsletter (generate + save to newsletter_draft.json)
-cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent " && python newsletter.py --preview
+cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent" && python newsletter.py --preview
 
 # Send newsletter from the saved draft
-cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent " && python newsletter.py --send
+cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent" && python newsletter.py --send
 
 # Check how many contacts are tagged 'newsletter' in GHL
-cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent " && python -c "import json, ghl; c=json.load(open('config.json')); leads=ghl.get_newsletter_leads(c); print(len(leads))"
+cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent" && python -c "import json, ghl; c=json.load(open('config.json')); leads=ghl.get_newsletter_leads(c); print(len(leads))"
 
 # Start the inbound SMS webhook server
-cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent " && python server.py
+cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent" && python server.py
 ```
 
 ---
