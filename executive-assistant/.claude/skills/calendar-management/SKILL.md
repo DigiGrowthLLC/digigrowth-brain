@@ -65,7 +65,7 @@ Calculate all open time windows within the work day.
 | MDR | 1 hr | 30 min | Daily | Banana (5) | Lunch and reset. Always guarantee at least 30 min. |
 | Outreach | 2 hrs | 1 hr | Mon–Fri | Tangerine (6) | |
 | Admin | 1 hr | 30 min | Daily | Graphite (8) | Email triage, Notion review, tool ops. |
-| Gym | 2 hrs | 2 hrs | Daily (soft) | Tomato (11) | Must end by 9:30PM. Drop entirely if no 2-hr window exists. |
+| Gym | 2 hrs | 2 hrs | Daily (soft) | Tomato (11) | Must end by 9:30PM (weekdays) or 9:30PM (Saturday). Drop entirely if no 2-hr window exists. |
 | Growth | 3 hrs | 1 hr | Daily | Blueberry (9) | Learning, content, system building. First to drop. |
 | Meal Prep | 1.5 hrs | 1.5 hrs | Wed only | Basil (10) | Hard block on Wednesdays — cannot be dropped or shortened. |
 
@@ -122,8 +122,8 @@ No output. The calendar speaks for itself. If an event fails to create, retry on
 ## Edge Cases
 
 - **Tomorrow is Sunday:** Create no events. Stop.
-- **Tomorrow is Saturday:** Work window ends at 6PM. Gym must end by 6PM or drop it.
-- **Discount Tires shift:** 30-min pre-buffer, 1-hr post-buffer. Schedule Outreach in whatever time remains.
+- **Tomorrow is Saturday:** Work window ends at 6PM for non-gym blocks. Gym can extend to 9:30PM on Saturday — schedule it after the work window if no earlier 2-hr window exists.
+- **Discount Tires shift:** 30-min pre-buffer, 1-hr post-buffer. Schedule Outreach in whatever time remains. If fewer than 60 minutes exist before the pre-buffer, still create a Morning Routine for however long is available (even 30 min) — do not drop it entirely on shift days.
 - **Tomorrow is Wednesday:** Meal Prep is a hard 1.5-hr block. Cannot be dropped or shortened. Goes after Outreach, before MDR and Growth.
 - **Tomorrow fully booked:** Create no new events.
 - **Google Calendar unavailable:** Stop. Do not retry more than once.
