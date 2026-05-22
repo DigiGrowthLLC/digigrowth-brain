@@ -67,7 +67,7 @@ Calculate all open time windows within the work day.
 | Admin | 1 hr | 30 min | Daily | Graphite (8) | Email triage, Notion review, tool ops. |
 | Gym | 2 hrs | 2 hrs | Daily (soft) | Tomato (11) | Must end by 9:30PM (weekdays) or 9:30PM (Saturday). Drop entirely if no 2-hr window exists. |
 | Growth | 3 hrs | 1 hr | Daily | Blueberry (9) | Learning, content, system building. First to drop. |
-| Meal Prep | 1.5 hrs | 1.5 hrs | Wed only | Basil (10) | Hard block on Wednesdays — cannot be dropped or shortened. |
+| Meal Prep | 1.5 hrs | 1.5 hrs | Thu only | Basil (10) | Hard block on Thursdays — cannot be dropped or shortened. Not a work block — can extend up to 9:30PM. |
 
 #### Priority Order
 
@@ -77,19 +77,19 @@ When time is short, drop from the bottom up:
 2. MDR minimum (30 min) — always reserve 30 min for lunch; if there's only 30 min left after Morning Routine, give it to MDR over Outreach
 3. Outreach — once MR and MDR minimums are reserved, Outreach takes priority over extending Morning Routine to 1.5 hrs or extending MDR to its full 1 hr; a full Outreach session beats a full Morning Routine or a full MDR
 4. Admin
-5. Meal Prep (Wed only) — hard block, cannot be dropped or shortened; takes priority over Growth
+5. Meal Prep (Thu only) — hard block, cannot be dropped or shortened; takes priority over Growth; not a work block so can run up to 9:30PM
 6. Gym — drops entirely if no 2-hr window before 9:30PM
 7. Growth — first to drop
 
 #### Scheduling Rules
 
 1. **Morning Routine is always first** — starts at 6:30AM, 1 hr minimum. Preferred 1.5 hrs, but Outreach takes priority over the extra 30 min if time is tight.
-2. **Natural daily order:** Morning Routine → Admin → Outreach → Meal Prep (Wed only) → MDR → Growth → Gym. Place blocks in this sequence around any fixed commitments.
+2. **Natural daily order:** Morning Routine → Admin → Outreach → MDR → Growth → Gym → Meal Prep (Thu only). MDR always comes before Meal Prep. Place blocks in this sequence around any fixed commitments.
 3. **Max each block to its preferred duration** before moving on. Only leave a gap if no remaining block can fill it without going below its minimum.
 4. **Never compress a block below its minimum** — drop it entirely instead.
 5. **Never leave a schedulable gap** — if a lower-priority block could fill a window, it must.
 6. **MDR placement:** Schedule MDR after Outreach and before afternoon work blocks or fixed commitments. It is the midday reset between the morning work session and the afternoon.
-7. **Wednesday — Meal Prep:** Hard block, 1.5 hours. Place it after Outreach and before MDR and Growth. Takes priority over Growth — if time is short, Meal Prep stays and Growth drops.
+7. **Thursday — Meal Prep:** Hard block, 1.5 hours. Place it after Gym (or after Growth if no Gym). MDR must always come before Meal Prep. Meal Prep is not a work block — it can extend up to 9:30PM regardless of the work window end. Takes priority over Growth — if time is short, Meal Prep stays and Growth drops.
 8. **Gym:** Schedule after all higher-priority blocks are at full capacity. Place in any available 2-hour window. Must end by 9:30PM. Drops entirely if no 2-hour window exists.
 9. Sales calls are never pre-scheduled — prospects self-book, adjust around them.
 10. 15-minute pre-meeting buffer only (no post-meeting buffer), unless a Discount Tires shift requires its own buffers.
@@ -124,6 +124,6 @@ No output. The calendar speaks for itself. If an event fails to create, retry on
 - **Tomorrow is Sunday:** Create no events. Stop.
 - **Tomorrow is Saturday:** Work window ends at 6PM for non-gym blocks. Gym can extend to 9:30PM on Saturday — schedule it after the work window if no earlier 2-hr window exists.
 - **Discount Tires shift:** 30-min pre-buffer, 1-hr post-buffer. Schedule Outreach in whatever time remains. If fewer than 60 minutes exist before the pre-buffer, still create a Morning Routine for however long is available (even 30 min) — do not drop it entirely on shift days.
-- **Tomorrow is Wednesday:** Meal Prep is a hard 1.5-hr block. Cannot be dropped or shortened. Goes after Outreach, before MDR and Growth.
+- **Tomorrow is Thursday:** Meal Prep is a hard 1.5-hr block. Cannot be dropped or shortened. Goes after Gym (or Growth if no Gym). MDR must come before it. Can extend up to 9:30PM.
 - **Tomorrow fully booked:** Create no new events.
 - **Google Calendar unavailable:** Stop. Do not retry more than once.
