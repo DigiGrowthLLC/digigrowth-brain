@@ -72,8 +72,7 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 **Email structure:**
 1. `Hey {{first_name}},` — then 1-2 sentences on a real pain point or AI adoption stat for fitness studios
 2. ONE actionable insight about using AI for client acquisition tied to this week's topic (3-5 sentences, concrete and specific — no fluff)
-3. Social proof placeholder: `<p><em>[Insert client win here]</em></p>`
-4. CTA: "Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call — [booking_link from config]"
+3. CTA: "Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call — [booking_link from config]"
 5. Casual sign-off from "Dylan | Digigrowth"
 6. Footer: small plain-text unsubscribe note
 

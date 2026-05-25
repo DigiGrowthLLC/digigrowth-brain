@@ -61,8 +61,7 @@ Structure (in order):
 1. Subject line — specific, curiosity-driven, under 60 chars, no spam words
 2. Opening — "Hey {{{{first_name}}}}," then 1-2 sentences on a real pain point or surprising stat about AI adoption in fitness
 3. Main tip — ONE actionable insight about using AI for client acquisition (3-5 sentences). Be specific and concrete.
-4. Social proof — one placeholder line: [Insert client win here]
-5. CTA — "Want me to put together a custom AI + marketing plan for {{{{business_name}}}}? Book a quick discovery call → {booking_link if booking_link else '[BOOKING_LINK]'}"
+4. CTA — "Want me to put together a custom AI + marketing plan for {{{{business_name}}}}? Book a quick discovery call → {booking_link if booking_link else '[BOOKING_LINK]'}"
 6. Sign-off — casual, from {from_name}
 7. Footer — plain-text unsubscribe note at the very bottom
 
