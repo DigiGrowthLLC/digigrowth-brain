@@ -1,8 +1,8 @@
 name: Lead Qualifier — Daily Run
 
 on:
-  schedule:
-    - cron: "0 11 * * 1-5"   # 6am ET, weekdays only
+  # schedule:
+  #   - cron: "0 11 * * 1-5"   # 6am ET, weekdays only — PAUSED
   workflow_dispatch:          # allows manual trigger from GitHub UI
 
 jobs:
