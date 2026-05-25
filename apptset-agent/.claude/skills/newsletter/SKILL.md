@@ -21,10 +21,15 @@ Generates and delivers DigiGrowth's weekly AI-tip email to GHL contacts tagged `
 
 Execute without asking for confirmation. Do not advise — just execute and report.
 
-The apptset-agent directory path is: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/`
-The config is at: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/config.json`
-The draft file is: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/newsletter_draft.json`
-The topic log is: `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/newsletter_topic_log.json`
+Resolve paths dynamically — do not hardcode any absolute paths. Run this first to get the repo root:
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+```
+Then use:
+- apptset-agent dir: `$REPO_ROOT/apptset-agent`
+- config: `$REPO_ROOT/apptset-agent/config.json`
+- draft file: `$REPO_ROOT/apptset-agent/newsletter_draft.json`
+- topic log: `$REPO_ROOT/apptset-agent/newsletter_topic_log.json`
 
 ---
 
@@ -42,7 +47,7 @@ Compare the log against the topic list below. Pick the **first topic not used in
 
 Run:
 ```bash
-cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent" && python -c "
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && python -c "
 import json, ghl
 c = json.load(open('config.json'))
 leads = ghl.get_newsletter_leads(c)
@@ -140,7 +145,7 @@ Check that `newsletter_draft.json` exists. If it doesn't: "No draft found — ru
 
 Run:
 ```bash
-cd "/Users/dylangroenendijk/digigrowth-brain/apptset-agent" && python newsletter.py --send
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && python newsletter.py --send
 ```
 
 Capture and report the output (sent count, failed count).
