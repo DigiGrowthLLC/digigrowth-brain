@@ -12,15 +12,19 @@ First time setup:
   2. pip install -r requirements.txt
   3. Set webhook_base_url in config.json to your ngrok/public URL
   4. python server.py
-  5. In GHL → Settings → Integrations → Webhooks → Add webhook:
-       URL: https://<your-url>/sms/incoming
-       Events: InboundMessage
+  5. In GHL → Settings → Integrations → Webhooks → Add two webhooks:
+       URL: https://<your-url>/sms/incoming   Events: InboundMessage
+       URL: https://<your-url>/tag-update     Events: ContactTagUpdate
 """
 
 import json
 import os
 import sys
 import threading
+import time
+from datetime import datetime
+
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
@@ -47,12 +51,13 @@ def sms_incoming():
     """
     data = request.get_json(force=True, silent=True) or {}
 
-    # Only handle SMS inbound messages
-    if data.get("type") != "InboundMessage" or data.get("messageType", "SMS") != "SMS":
-        return jsonify({"status": "ignored"}), 200
-
-    from_phone = data.get("phone", "")
-    body       = (data.get("body") or data.get("message") or "").strip()
+    # GHL workflow sends phone in standard data, body nested under 'message'
+    from_phone = (data.get("phone") or "").strip()
+    body = (
+        (data.get("message") or {}).get("body")
+        or data.get("body")
+        or ""
+    ).strip()
 
     if from_phone and body:
         threading.Thread(
@@ -61,6 +66,39 @@ def sms_incoming():
             daemon=True,
         ).start()
 
+    return jsonify({"status": "ok"}), 200
+
+
+@app.route("/tag-update", methods=["POST"])
+def tag_update():
+    """
+    GHL workflow webhook — fires when sms-handoff tag is added to a contact.
+    Accepts GHL's standard workflow payload (contact_id snake_case) or
+    the legacy ContactTagUpdate format (contactId camelCase).
+    """
+    import ghl as ghl_mod
+
+    data = request.get_json(force=True, silent=True) or {}
+
+    # GHL workflow webhooks send contact_id (snake_case); legacy uses contactId
+    contact_id = (
+        data.get("contact_id") or
+        data.get("contactId") or
+        data.get("id", "")
+    )
+    if not contact_id:
+        print(f"  ⚠️  /tag-update: no contact_id in payload: {data}")
+        return jsonify({"status": "no_contact_id"}), 200
+
+    def _fire():
+        contact = ghl_mod.get_contact_by_id(config, contact_id)
+        if not contact:
+            print(f"  ⚠️  /tag-update: could not fetch contact {contact_id}")
+            return
+        lead = ghl_mod.contact_to_lead(contact)
+        sms_agent.send_outbound(config, contact_id, lead)
+
+    threading.Thread(target=_fire, daemon=True).start()
     return jsonify({"status": "ok"}), 200
 
 
@@ -101,6 +139,16 @@ def _start_tunnel():
         sys.exit(1)
 
 
+def _followup_thread():
+    """Background thread: checks for overdue follow-ups every 15 minutes."""
+    while True:
+        try:
+            sms_agent.check_followups(config)
+        except Exception as e:
+            print(f"  ⚠️  Follow-up thread error: {e}")
+        time.sleep(15 * 60)
+
+
 if __name__ == "__main__":
     use_ngrok = "--no-ngrok" not in sys.argv
     port      = config.get("webhook_port", 5001)
@@ -113,9 +161,16 @@ if __name__ == "__main__":
     if use_ngrok:
         public_url = _start_tunnel()
 
-    sms_url = f"{public_url}/sms/incoming"
-    print(f"\n📱 Webhook URL: {sms_url}")
-    print("   Set this in GHL → Settings → Integrations → Webhooks (event: InboundMessage)")
+    sms_url    = f"{public_url}/sms/incoming"
+    tag_url    = f"{public_url}/tag-update"
+    print(f"\n📱 SMS webhook:       {sms_url}")
+    print(f"🏷️  Tag-update webhook: {tag_url}")
+    print("   Register both in GHL → Settings → Integrations → Webhooks")
     print("   Press Ctrl+C to stop\n")
+
+    # Start follow-up background thread
+    t = threading.Thread(target=_followup_thread, daemon=True)
+    t.start()
+    print("  ✅ Follow-up scheduler started (every 15 min)\n")
 
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)

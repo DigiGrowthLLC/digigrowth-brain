@@ -125,11 +125,11 @@ Examples of correct framing:
 - "Full day available. Options: cold calls, Loom outreach video, or follow-up on open leads."
 - "Meetings until 3PM. 3PM–5PM is open — one option is follow-up calls while leads from this morning are warm."
 
-### Step 4.5 — Newsletter Draft (Saturdays only)
+### Step 4.5 — Newsletter Draft (Mondays only)
 
-If today is **not Saturday**, skip this step entirely and proceed to Step 5.
+If today is **not Monday**, skip this step entirely and proceed to Step 5.
 
-If today **is Saturday**: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the **Draft Mode** steps in the appt-setting agent's newsletter skill at `/Users/dylangroenendijk/digigrowth-brain/apptset-agent/.claude/skills/newsletter/SKILL.md`. Execute all steps and capture the final summary output (subject, recipient count, topic, Notion link). This output is included in the Notion page below under `## Newsletter Preview`.
+If today **is Monday**: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the **Draft Mode** steps in the appt-setting agent's newsletter skill at `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md`. Execute all steps and capture the final summary output (subject, recipient count, topic, Notion link). This output is included in the Notion page below under `## Newsletter Preview`.
 
 ### Step 5 — Write to Notion
 
@@ -169,7 +169,7 @@ Committed: Xh Xm | Free: Xh Xm
 
 ---
 
-[SATURDAY ONLY — include the section below if today is Saturday, omit entirely otherwise]
+[MONDAY ONLY — include the section below if today is Monday, omit entirely otherwise]
 
 ---
 

@@ -1,11 +1,13 @@
 {
-  "ghl_from_number": "",
+  "ghl_from_number": "+14454475179",
   "webhook_base_url": "https://YOUR_NGROK_URL",
   "webhook_port": 5001,
   "ghl_location_id": "FVNoxxUHiEhxjgsdhvsV",
   "sms_agent": {
     "max_messages": 15,
-    "booking_link": "YOUR_BOOKING_LINK",
+    "max_followups": 3,
+    "booking_link": "https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn",
+    "reference_page_ids": ["36cd25c0-53ea-8168-a615-eca377f05dc5", "2d5d25c053ea80e68fccf38e0e175837"],
     "persona": "Dylan from Digigrowth"
   },
   "newsletter": {

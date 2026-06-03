@@ -35,6 +35,49 @@ def _cf(contact, field_id):
     return ""
 
 
+def get_contact_by_id(config, contact_id):
+    """Look up a GHL contact by ID. Returns contact dict or None."""
+    try:
+        r = requests.get(
+            f"{GHL_BASE}/contacts/{contact_id}",
+            headers=_headers(),
+            timeout=10,
+        )
+        r.raise_for_status()
+        return r.json().get("contact")
+    except Exception as e:
+        print(f"  ⚠️  GHL contact lookup by ID failed: {e}")
+        return None
+
+
+def create_contact(config, first_name, last_name, phone, business, city, grade):
+    """Create a new GHL contact. Returns the contact dict or None."""
+    location_id = config.get("ghl_location_id", "")
+    body = {
+        "locationId":  location_id,
+        "firstName":   first_name,
+        "lastName":    last_name,
+        "phone":       phone,
+        "companyName": business,
+        "city":        city,
+        "customFields": [
+            {"id": CF_LEAD_GRADE, "value": grade or "C"},
+        ],
+    }
+    try:
+        r = requests.post(
+            f"{GHL_BASE}/contacts/",
+            headers=_headers(),
+            json=body,
+            timeout=10,
+        )
+        r.raise_for_status()
+        return r.json().get("contact")
+    except Exception as e:
+        print(f"  ⚠️  GHL create contact failed for {phone}: {e}")
+        return None
+
+
 def get_contact_by_phone(config, phone):
     """Look up a GHL contact by phone number. Returns contact dict or None."""
     url    = f"{GHL_BASE}/contacts/"

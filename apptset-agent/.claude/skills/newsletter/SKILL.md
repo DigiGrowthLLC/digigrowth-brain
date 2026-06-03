@@ -1,9 +1,9 @@
 # Newsletter
 
-Generates and delivers DigiGrowth's weekly AI-tip email to GHL contacts tagged `newsletter`. Draft runs every Saturday as part of the morning briefing. Dylan reviews and manually triggers the send.
+Generates and delivers DigiGrowth's weekly AI-tip email to GHL contacts tagged `newsletter`. Draft runs every Monday as part of the morning briefing. Dylan reviews and manually triggers the send.
 
 **Run manually:** Ask the EA to "draft the newsletter" or "send the newsletter." The EA delegates here via `manage-apptset-agent`.
-**Scheduled (draft):** Runs automatically every Saturday as part of the daily briefing (Step 4.5).
+**Scheduled (draft):** Runs automatically every Monday as part of the daily briefing (Step 4.5).
 
 ---
 
@@ -43,7 +43,7 @@ Read `newsletter_topic_log.json`. If the file doesn't exist, treat it as an empt
 
 Compare the log against the topic list below. Pick the **first topic not used in the last 20 entries**. If all 20 have been used recently, restart from topic 01.
 
-### Step 2 — Get recipient count
+### Step 2 — Get recipient list
 
 Run:
 ```bash
@@ -52,10 +52,14 @@ import json, ghl
 c = json.load(open('config.json'))
 leads = ghl.get_newsletter_leads(c)
 print(len(leads))
+for l in leads:
+    print(l.get('owner',''), '|', l.get('business',''))
 "
 ```
 
-If the command fails (API error, no env vars), set count to "unknown" and continue.
+Parse the output: first line is the count, subsequent lines are `name | business` pairs. Store both the count and the full list for use in Step 5.
+
+If the command fails (API error, no env vars), set count to "unknown" and list to empty. Continue.
 
 ### Step 3 — Generate this week's email
 
@@ -68,6 +72,9 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 - Centered div, max-width 600px, font-family sans-serif, line-height 1.6, inline styles
 - Use `{{first_name}}` where you'd address them by name (replaced per contact at send time)
 - Use `{{business_name}}` where you'd reference their studio (replaced per contact at send time)
+- **Use HTML entities for all non-ASCII characters** — never paste raw Unicode. Em dash → `&mdash;`, smart quotes → `&ldquo;` / `&rdquo;`, apostrophe → `&#39;` or `&apos;`. This prevents garbled symbols (â€") when GHL renders the email.
+- **Paragraph spacing:** every `<p>` tag must have `style="margin:0;"` and be followed by a `<br>` tag before the next paragraph. Do NOT rely on CSS margin/padding for spacing between paragraphs — email clients collapse it. Use explicit `<br>` tags between every paragraph block.
+- **Bold key phrases:** wrap the most important stats, numbers, and action phrases in `<strong>` tags so readers scanning quickly know what matters. Aim for 4-7 bolded phrases per email (e.g. response time stats, sequence steps, outcome metrics, the core benefit).
 
 **Email structure:**
 1. `Hey {{first_name}},` — then 1-2 sentences on a real pain point or AI adoption stat for fitness studios
@@ -82,11 +89,14 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 
 Read `config.json` → `newsletter.booking_link`. Replace `[booking_link from config]` in the HTML with the actual URL before saving.
 
-Write the draft to `newsletter_draft.json`:
+**Before saving:** Read the existing `newsletter_draft.json` if it exists. If it has a `notion_page_id` field, archive the old Notion page now using `notion-update-page` with `archived: true`. This deletes the old draft from Notion before creating the new one.
+
+Write the draft to `newsletter_draft.json` (leave `notion_page_id` empty for now — it gets filled in Step 5):
 ```json
 {
   "subject": "...",
-  "html": "..."
+  "html": "...",
+  "notion_page_id": ""
 }
 ```
 
@@ -103,18 +113,19 @@ If the file doesn't exist, create it with a single-item array.
 
 Create a new Notion page as a subpage of the Daily Brief (`355d25c0-53ea-8094-af4b-e13e20d48d3b`) using `notion-create-pages`.
 
+**After creating the page:** Update `newsletter_draft.json` to set `notion_page_id` to the new page's ID (the UUID returned by the create call).
+
 **Page title:** `Newsletter Draft — [Month Date, Year]`
 
 **Page content (as Notion blocks, in order):**
 1. `callout`: "Review this draft. Tell your EA 'send the newsletter' to deploy."
 2. `heading_2`: "Subject" → `paragraph`: the subject line
-3. `heading_2`: "Recipients" → `paragraph`: "[N] contacts tagged `newsletter` in GHL"
+3. `heading_2`: "Recipients" → a Markdown table listing every contact by Name and Business (fetched in Step 2). Header row: `| Name | Business |`. One row per contact. If business is blank, use `—`. End with a `paragraph`: "[N] contacts tagged `newsletter` in GHL"
 4. `heading_2`: "Topic this week" → `paragraph`: the topic from Step 1
 5. `divider`
 6. `heading_2`: "Email Preview" — format the HTML body as readable Notion blocks:
    - Opening line → `paragraph`
    - Each body paragraph → `paragraph`
-   - Social proof placeholder → `quote` block
    - CTA → `callout` block
    - Sign-off → `paragraph`
 7. `divider`
@@ -140,11 +151,30 @@ Run when Dylan says "send the newsletter" or when delegated by `manage-apptset-a
 
 Check that `newsletter_draft.json` exists. If it doesn't: "No draft found — run the newsletter draft first or ask me to draft it now." Stop.
 
+### Step 1.5 — Sync Notion edits before sending
+
+Read `notion_page_id` from `newsletter_draft.json`. If it exists, fetch the Notion page using `notion-fetch`.
+
+From the fetched page, extract:
+- The **subject**: text under the "Subject" heading
+- The **email body**: paragraphs under the "Email Preview" heading (reconstruct as HTML, preserving the `{{first_name}}` / `{{business_name}}` placeholders)
+
+Compare to the current `newsletter_draft.json`:
+- If the subject or body **differs** from what's saved in the JSON, report the differences clearly ("Notion subject differs: [old] → [new]", "Email body has been edited"). Update `newsletter_draft.json` with the Notion version before proceeding.
+- If they **match**, confirm "Draft matches Notion — no changes detected."
+
+This ensures any edits Dylan made directly in Notion are captured before the email goes out.
+
 ### Step 2 — Send
 
 Run:
 ```bash
 cd "$(git rev-parse --show-toplevel)/apptset-agent" && python newsletter.py --send
+```
+
+For a **test send** to a single contact, run instead:
+```bash
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && python newsletter.py --send --test-contact "Name"
 ```
 
 Capture and report the output (sent count, failed count).

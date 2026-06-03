@@ -1,0 +1,1530 @@
+[
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T17:01:04.438717+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T17:03:06.452074+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yeah this is Dylan"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T17:03:12.275886+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T17:07:03.597532+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T17:07:03.599810+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yeah this is me"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T17:07:12.648637+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T17:08:13.919491+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T17:08:13.922002+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yeah this is me"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T17:08:22.281630+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T17:10:02.351663+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T17:10:02.353651+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yeah this is me"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T17:10:10.563779+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T17:18:16.036247+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes what do you have to offer"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T17:18:24.011656+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T17:19:11.209285+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Do you have any more information ?"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T17:19:19.857573+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T17:19:39.093780+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "cta",
+    "body": "Yes"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T18:05:07.470929+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:05:07.473326+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yeah this is me"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:05:23.028986+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:05:25.352316+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:05:25.354490+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yeah that sounds interesting"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:05:44.555838+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:05:46.004998+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:05:46.006945+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "How much does it cost?"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:06:04.376368+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T18:17:30.282442+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:17:30.285923+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yeah who is this?"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:17:44.937895+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes who's this ?"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:18:00.696050+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:18:00.698550+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yeah what kind of results are we talking?"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:18:15.440920+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:18:35.666668+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:18:35.668721+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Alright yeah that sounds good, I am open to a quick chat"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:18:37.159463+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Just booked something in"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:19:16.577977+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Alright yeah that sounds good, I am open to a quick chat"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:21:01.413357+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:21:01.415491+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "cta",
+    "body": "Just booked something in"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:21:25.679583+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "cta",
+    "body": "Just booked something in"
+  },
+  {
+    "event": "BOOKED",
+    "timestamp": "2026-05-26T18:22:08.164379+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T18:23:30.028950+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:23:44.029846+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:24:14.128057+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:25:44.338622+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes I do"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:26:18.958391+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:32:13.585686+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Sounds interesting got any more info ?"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:33:02.155060+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:35:49.382507+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "cta",
+    "body": "Booked in"
+  },
+  {
+    "event": "BOOKED",
+    "timestamp": "2026-05-26T18:36:25.689038+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T18:39:51.069045+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:40:00.434856+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:40:29.418976+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:41:28.355638+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:42:17.356982+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:42:51.453221+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Yes it's worth a conversation"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:43:41.826247+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:44:44.025159+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "cta",
+    "body": "Sounds promising how do you go about getting me 5-15k in new business?"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T18:48:48.868643+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:48:59.928726+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:49:32.307523+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:49:57.687005+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes we do"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T18:52:06.912118+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:52:34.446525+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:53:05.192741+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:53:31.456659+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes we do"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:53:51.479269+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T18:57:12.626844+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:58:41.732222+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T18:59:10.352318+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T18:59:27.661052+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T19:00:28.107670+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T19:01:03.868269+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "How do you go about generating that amount of business"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T19:01:43.164487+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T19:28:08.823797+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T19:29:39.279639+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T19:30:12.282120+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T19:30:46.181218+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T19:31:50.948183+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T19:32:09.482489+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "How do you do that ?"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T19:32:49.811018+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T19:35:17.612431+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T19:35:26.928367+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T19:35:55.022575+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T19:36:47.087100+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes how do you do that ?"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T19:37:35.927985+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T19:41:11.143571+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T19:41:43.389123+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T19:42:14.096927+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-26T19:42:36.373617+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-26T19:43:30.555314+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-26T19:45:14.824780+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:25:38.110134+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:26:09.023907+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:26:24.242484+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes it is"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:27:05.244567+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:27:26.617955+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Definitely worth a conversation how does it work ?"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:28:48.625708+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "What is the call about ?"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:32:04.044671+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Let's do it"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:32:48.341779+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T16:32:48.812069+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:33:33.577195+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T16:35:01.329167+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:35:13.147323+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:35:53.660555+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:36:08.023428+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "It is"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:36:51.248993+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:37:35.305430+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "How do you go about getting that amount of business ?"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:42:39.187595+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Yes what's the call about"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:43:42.881336+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:44:25.331342+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:46:25.077174+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "cta",
+    "body": "Yes"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T16:49:12.181033+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:50:39.123693+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:51:12.937448+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:51:25.801646+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:52:12.151050+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:52:42.926574+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "It is worth a conversation but I already do my own marketing"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:53:20.087855+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:58:18.198642+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "cta",
+    "body": "Sounds good"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T16:59:02.231727+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "cta",
+    "to_stage": "booking"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T16:59:38.002834+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "booking",
+    "body": "Is this just marketing because I'm not really interested in marketing"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T17:00:51.906161+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T17:55:07.218165+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T17:55:30.797295+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T17:56:02.631066+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T17:56:26.877990+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T17:57:16.064205+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T17:57:51.232944+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Is this marketing ?"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:00:38.478311+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "How do you go about getting that amount of business ?"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T18:01:23.643972+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T18:04:02.914147+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:04:19.882199+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:04:50.157700+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:05:22.090515+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "We do"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:06:08.659378+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:06:36.217282+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "It is how do you go about getting that amount of business ?"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:08:49.272361+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Sounds good"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:09:19.425188+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "engaged",
+    "to_stage": "cta"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:09:51.543746+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "cta",
+    "body": "Sounds good"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:10:07.851316+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "cta",
+    "to_stage": "booking"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:10:23.596567+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "booking",
+    "body": "Booked"
+  },
+  {
+    "event": "BOOKED",
+    "timestamp": "2026-05-27T18:11:03.128895+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T18:15:26.023501+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:32:41.713266+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:33:11.462073+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:33:25.034116+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:34:08.288285+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:34:23.213724+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Is this marketing ?"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T18:37:20.964257+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:38:11.619644+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:38:43.358228+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:39:10.850295+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:39:54.406217+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:40:24.989418+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Is this marketing ?"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T18:42:54.404916+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:43:48.342730+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:44:19.685528+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:44:37.096044+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:45:18.179389+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:46:52.413410+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Is this marketing ?"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:48:31.926274+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "cta",
+    "body": "How'd you go about getting that amount of business ?"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T18:52:42.569374+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:53:14.110755+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:53:42.963336+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "opening",
+    "to_stage": "primed"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:54:52.232643+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "primed",
+    "body": "Yes"
+  },
+  {
+    "event": "STAGE_ADVANCED",
+    "timestamp": "2026-05-27T18:55:36.930979+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "from_stage": "primed",
+    "to_stage": "engaged"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T18:56:26.508555+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "Is this marketing ?"
+  },
+  {
+    "event": "REPLY_RECEIVED",
+    "timestamp": "2026-05-27T19:02:12.534127+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "engaged",
+    "body": "How do you get me that amount of business ?"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T19:06:44.174215+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T19:08:54.379515+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T19:11:49.245142+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T19:16:42.859991+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-27T19:19:21.857375+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  },
+  {
+    "event": "OUTBOUND_SENT",
+    "timestamp": "2026-05-28T13:26:06.294825+00:00",
+    "contact": "Dylan Groenendijk",
+    "business": "XYZ fitness",
+    "phone": "+17542485326",
+    "stage": "opening"
+  }
+]
