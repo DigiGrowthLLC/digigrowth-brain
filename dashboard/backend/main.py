@@ -44,6 +44,6 @@ app.add_middleware(
 app.include_router(crm.router, prefix="/api", dependencies=[Depends(require_auth)])
 
 # Serve built frontend (populated by Railway build step)
-frontend_dist = os.path.join(os.path.dirname(__file__), "../frontend/dist")
+frontend_dist = os.path.join(os.path.dirname(__file__), "frontend/dist")
 if os.path.isdir(frontend_dist):
     app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
