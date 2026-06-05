@@ -30,6 +30,7 @@ All date calculations must use the **America/New_York timezone**, not UTC. This 
 1. What is tomorrow's date in America/New_York time?
 2. If tomorrow is Sunday → stop. Create no events.
 3. Is tomorrow Saturday? If so, work window ends at 6PM.
+4. **Check for a schedule override:** Read `.claude/skills/calendar-management/schedule-override.md`. If it exists and tomorrow's date falls within the `from`/`to` range (inclusive), an override is active. Note the custom `start`, `blocks`, and any specified durations — these replace the defaults in Step 3. If the override's `to` date is in the past, ignore it.
 
 ---
 
@@ -93,6 +94,8 @@ When time is short, drop from the bottom up:
 8. **Gym:** Schedule after all higher-priority blocks are at full capacity. Place in any available 2-hour window. Must end by 9:30PM. Drops entirely if no 2-hour window exists.
 9. Sales calls are never pre-scheduled — prospects self-book, adjust around them.
 10. 15-minute pre-meeting buffer only (no post-meeting buffer), unless a Discount Tires shift requires its own buffers.
+
+**If a schedule override is active:** Use the override's `start` time instead of 6:30AM. Use only the blocks listed in `blocks`, in that order. Durations and colors still follow the Block Reference Table. All other rules still apply (no overlaps, no compression below minimums, etc.).
 
 Build a complete list of events to create with: title, start time, end time, and a 1–2 bullet description of what to focus on.
 
