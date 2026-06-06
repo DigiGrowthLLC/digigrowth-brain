@@ -13,12 +13,16 @@ Usage:
 import argparse
 import json
 import os
+import sys
 from datetime import date
 from pathlib import Path
 
 import anthropic
 import requests
 from dotenv import load_dotenv
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
+from github_sync import push_file
 
 load_dotenv()
 
@@ -102,6 +106,7 @@ def draft_newsletter(config):
 
     DRAFT_FILE.write_text(json.dumps({"subject": subject, "html": html_body}, indent=2))
     print(f"  ✅ Draft saved to {DRAFT_FILE}")
+    push_file(str(DRAFT_FILE))
     return subject, html_body
 
 
