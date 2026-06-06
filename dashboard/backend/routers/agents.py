@@ -14,10 +14,12 @@ POST   /agents/{id}/chat                   SSE stream — Claude + tool-use loop
 """
 
 import asyncio
+import base64
 import json
 import os
 import pathlib
-import subprocess
+import urllib.error
+import urllib.request
 
 import anthropic
 from fastapi import APIRouter, HTTPException, Request
@@ -29,60 +31,73 @@ router = APIRouter()
 
 _REGISTRY_PATH = pathlib.Path(__file__).parent.parent / "agents_registry.json"
 _REPO_ROOT = _REGISTRY_PATH.parent.parent.parent  # dashboard/backend/ → dashboard/ → repo root
+_GITHUB_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
 
 
-# ── Git helpers ───────────────────────────────────────────────────────────────
+# ── GitHub API helpers ────────────────────────────────────────────────────────
 
-def _git_push_url() -> str:
-    """Return the push URL, injecting GIT_TOKEN if set."""
+def _gh_request(method: str, path: str, body: dict | None = None) -> dict:
+    """Make a GitHub API request. Raises on HTTP error."""
     token = os.environ.get("GIT_TOKEN", "")
-    r = subprocess.run(
-        ["git", "remote", "get-url", "origin"],
-        cwd=_REPO_ROOT, capture_output=True, text=True, timeout=5,
-    )
-    url = r.stdout.strip()
-    if token and "github.com" in url and f"@github.com" not in url:
-        url = url.replace("https://github.com/", f"https://{token}@github.com/")
-    return url
+    url = f"https://api.github.com/repos/{_GITHUB_REPO}/contents/{path}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+    }
+    data = json.dumps(body).encode() if body else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read())
 
 
-def _git_commit_push(file_abs: pathlib.Path, agent_name: str, operation: str) -> str:
-    """Stage, commit, and push a single file change. Returns a short status string."""
+def _gh_get_sha(rel_path: str) -> str | None:
+    """Get current file SHA from GitHub (None if file doesn't exist yet)."""
+    try:
+        result = _gh_request("GET", rel_path)
+        return result.get("sha")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
+
+
+def github_push_file(file_abs: pathlib.Path, agent_name: str, operation: str) -> str:
+    """Push a file write/create/delete to GitHub via REST API. Returns status string."""
+    token = os.environ.get("GIT_TOKEN", "")
+    if not token:
+        return "no GIT_TOKEN — file saved locally only"
+
     try:
         rel = str(file_abs.relative_to(_REPO_ROOT))
     except ValueError:
-        rel = str(file_abs)
+        return "path outside repo — skipped"
 
     try:
-        # Ensure git identity is configured (needed in Railway containers)
-        subprocess.run(["git", "config", "user.email", "os@digigrowth.com"], cwd=_REPO_ROOT, capture_output=True, timeout=5)
-        subprocess.run(["git", "config", "user.name", "DigiGrowth OS"], cwd=_REPO_ROOT, capture_output=True, timeout=5)
+        if operation == "delete_file":
+            sha = _gh_get_sha(rel)
+            if not sha:
+                return "file not on GitHub — nothing to delete"
+            _gh_request("DELETE", rel, {
+                "message": f"Agent delete [{agent_name}]: {rel}",
+                "sha": sha,
+            })
+            return "deleted on GitHub"
 
-        r = subprocess.run(["git", "add", rel], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15)
-        if r.returncode != 0:
-            return f"git add failed: {r.stderr.strip()}"
+        # write_file / create_file
+        content_b64 = base64.b64encode(file_abs.read_bytes()).decode()
+        sha = _gh_get_sha(rel)  # None for new files
+        payload = {
+            "message": f"Agent edit [{agent_name}]: {operation} {rel}",
+            "content": content_b64,
+        }
+        if sha:
+            payload["sha"] = sha
+        _gh_request("PUT", rel, payload)
+        return "pushed to GitHub"
 
-        # Nothing staged → nothing to commit
-        diff = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=_REPO_ROOT, timeout=5)
-        if diff.returncode == 0:
-            return "no changes to commit"
-
-        msg = f"Agent edit [{agent_name}]: {operation} {rel}"
-        r = subprocess.run(["git", "commit", "-m", msg], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15)
-        if r.returncode != 0:
-            return f"git commit failed: {r.stderr.strip()}"
-
-        push_url = _git_push_url()
-        r = subprocess.run(["git", "push", push_url], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=30)
-        if r.returncode != 0:
-            return f"git push failed: {r.stderr.strip()}"
-
-        return "committed and pushed"
-
-    except subprocess.TimeoutExpired:
-        return "git timed out"
     except Exception as e:
-        return f"git error: {e}"
+        return f"github error: {e}"
 
 BLOCKED_FILENAMES = {".env", "credentials.json", "settings.local.json"}
 
@@ -217,7 +232,7 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
                 return f"Error: '{path}' already exists. Use write_file to overwrite."
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content)
-            git_status = _git_commit_push(target, agent["name"], tool_name)
+            git_status = github_push_file(target, agent["name"], tool_name)
             return f"OK: wrote {len(content)} chars to {path}\ngit: {git_status}"
 
         elif tool_name == "delete_file":
@@ -228,7 +243,7 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
             if target.is_dir():
                 return "Error: cannot delete directories via this tool"
             target.unlink()
-            git_status = _git_commit_push(target, agent["name"], "delete_file")
+            git_status = github_push_file(target, agent["name"], "delete_file")
             return f"OK: deleted {path}\ngit: {git_status}"
 
         else:
@@ -314,19 +329,15 @@ async def create_agent(payload: dict):
     })
     _REGISTRY_PATH.write_text(json.dumps(registry, indent=2))
 
-    # Commit the new agent scaffold + updated registry
-    def _commit_new_agent():
-        try:
-            subprocess.run(["git", "add", str(agent_root), str(_REGISTRY_PATH)],
-                           cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15)
-            subprocess.run(["git", "commit", "-m", f"New agent scaffold: {name}"],
-                           cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15)
-            subprocess.run(["git", "push"],
-                           cwd=_REPO_ROOT, capture_output=True, text=True, timeout=30)
-        except Exception:
-            pass
+    # Push scaffold files + updated registry to GitHub
+    def _push_new_agent():
+        for f in list(agent_root.iterdir()) + [_REGISTRY_PATH]:
+            try:
+                github_push_file(f, "system", "create_file")
+            except Exception:
+                pass
 
-    await asyncio.to_thread(_commit_new_agent)
+    await asyncio.to_thread(_push_new_agent)
 
     return {"id": agent_id, "name": name}
 
@@ -382,7 +393,7 @@ async def write_file_endpoint(agent_id: str, path: str, payload: dict):
     target = _safe_path(agent["abs_root"], path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(payload.get("content", ""))
-    git_status = await asyncio.to_thread(_git_commit_push, target, agent["name"], "write_file")
+    git_status = await asyncio.to_thread(github_push_file, target, agent["name"], "write_file")
     return {"ok": True, "git": git_status}
 
 
@@ -394,7 +405,7 @@ async def create_file_endpoint(agent_id: str, path: str, payload: dict):
         raise HTTPException(status_code=409, detail="File already exists")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(payload.get("content", ""))
-    git_status = await asyncio.to_thread(_git_commit_push, target, agent["name"], "create_file")
+    git_status = await asyncio.to_thread(github_push_file, target, agent["name"], "create_file")
     return {"ok": True, "git": git_status}
 
 
@@ -407,7 +418,7 @@ async def delete_file_endpoint(agent_id: str, path: str):
     if target.is_dir():
         raise HTTPException(status_code=400, detail="Cannot delete directories")
     target.unlink()
-    git_status = await asyncio.to_thread(_git_commit_push, target, agent["name"], "delete_file")
+    git_status = await asyncio.to_thread(github_push_file, target, agent["name"], "delete_file")
     return {"ok": True, "git": git_status}
 
 
