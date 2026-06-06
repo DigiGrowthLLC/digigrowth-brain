@@ -33,6 +33,19 @@ _REPO_ROOT = _REGISTRY_PATH.parent.parent.parent  # dashboard/backend/ → dashb
 
 # ── Git helpers ───────────────────────────────────────────────────────────────
 
+def _git_push_url() -> str:
+    """Return the push URL, injecting GIT_TOKEN if set."""
+    token = os.environ.get("GIT_TOKEN", "")
+    r = subprocess.run(
+        ["git", "remote", "get-url", "origin"],
+        cwd=_REPO_ROOT, capture_output=True, text=True, timeout=5,
+    )
+    url = r.stdout.strip()
+    if token and "github.com" in url and f"@github.com" not in url:
+        url = url.replace("https://github.com/", f"https://{token}@github.com/")
+    return url
+
+
 def _git_commit_push(file_abs: pathlib.Path, agent_name: str, operation: str) -> str:
     """Stage, commit, and push a single file change. Returns a short status string."""
     try:
@@ -41,6 +54,10 @@ def _git_commit_push(file_abs: pathlib.Path, agent_name: str, operation: str) ->
         rel = str(file_abs)
 
     try:
+        # Ensure git identity is configured (needed in Railway containers)
+        subprocess.run(["git", "config", "user.email", "os@digigrowth.com"], cwd=_REPO_ROOT, capture_output=True, timeout=5)
+        subprocess.run(["git", "config", "user.name", "DigiGrowth OS"], cwd=_REPO_ROOT, capture_output=True, timeout=5)
+
         r = subprocess.run(["git", "add", rel], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15)
         if r.returncode != 0:
             return f"git add failed: {r.stderr.strip()}"
@@ -55,7 +72,8 @@ def _git_commit_push(file_abs: pathlib.Path, agent_name: str, operation: str) ->
         if r.returncode != 0:
             return f"git commit failed: {r.stderr.strip()}"
 
-        r = subprocess.run(["git", "push"], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=30)
+        push_url = _git_push_url()
+        r = subprocess.run(["git", "push", push_url], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=30)
         if r.returncode != 0:
             return f"git push failed: {r.stderr.strip()}"
 
