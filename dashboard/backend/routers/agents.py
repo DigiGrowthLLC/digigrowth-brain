@@ -17,6 +17,7 @@ import asyncio
 import json
 import os
 import pathlib
+import subprocess
 
 import anthropic
 from fastapi import APIRouter, HTTPException, Request
@@ -27,6 +28,43 @@ from db import get_pool
 router = APIRouter()
 
 _REGISTRY_PATH = pathlib.Path(__file__).parent.parent / "agents_registry.json"
+_REPO_ROOT = _REGISTRY_PATH.parent.parent.parent  # dashboard/backend/ → dashboard/ → repo root
+
+
+# ── Git helpers ───────────────────────────────────────────────────────────────
+
+def _git_commit_push(file_abs: pathlib.Path, agent_name: str, operation: str) -> str:
+    """Stage, commit, and push a single file change. Returns a short status string."""
+    try:
+        rel = str(file_abs.relative_to(_REPO_ROOT))
+    except ValueError:
+        rel = str(file_abs)
+
+    try:
+        r = subprocess.run(["git", "add", rel], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            return f"git add failed: {r.stderr.strip()}"
+
+        # Nothing staged → nothing to commit
+        diff = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=_REPO_ROOT, timeout=5)
+        if diff.returncode == 0:
+            return "no changes to commit"
+
+        msg = f"Agent edit [{agent_name}]: {operation} {rel}"
+        r = subprocess.run(["git", "commit", "-m", msg], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            return f"git commit failed: {r.stderr.strip()}"
+
+        r = subprocess.run(["git", "push"], cwd=_REPO_ROOT, capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            return f"git push failed: {r.stderr.strip()}"
+
+        return "committed and pushed"
+
+    except subprocess.TimeoutExpired:
+        return "git timed out"
+    except Exception as e:
+        return f"git error: {e}"
 
 BLOCKED_FILENAMES = {".env", "credentials.json", "settings.local.json"}
 
@@ -161,7 +199,8 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
                 return f"Error: '{path}' already exists. Use write_file to overwrite."
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content)
-            return f"OK: wrote {len(content)} chars to {path}"
+            git_status = _git_commit_push(target, agent["name"], tool_name)
+            return f"OK: wrote {len(content)} chars to {path}\ngit: {git_status}"
 
         elif tool_name == "delete_file":
             path = tool_input.get("path", "")
@@ -171,7 +210,8 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
             if target.is_dir():
                 return "Error: cannot delete directories via this tool"
             target.unlink()
-            return f"OK: deleted {path}"
+            git_status = _git_commit_push(target, agent["name"], "delete_file")
+            return f"OK: deleted {path}\ngit: {git_status}"
 
         else:
             return f"Error: unknown tool '{tool_name}'"
@@ -256,6 +296,20 @@ async def create_agent(payload: dict):
     })
     _REGISTRY_PATH.write_text(json.dumps(registry, indent=2))
 
+    # Commit the new agent scaffold + updated registry
+    def _commit_new_agent():
+        try:
+            subprocess.run(["git", "add", str(agent_root), str(_REGISTRY_PATH)],
+                           cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15)
+            subprocess.run(["git", "commit", "-m", f"New agent scaffold: {name}"],
+                           cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15)
+            subprocess.run(["git", "push"],
+                           cwd=_REPO_ROOT, capture_output=True, text=True, timeout=30)
+        except Exception:
+            pass
+
+    await asyncio.to_thread(_commit_new_agent)
+
     return {"id": agent_id, "name": name}
 
 
@@ -310,7 +364,8 @@ async def write_file_endpoint(agent_id: str, path: str, payload: dict):
     target = _safe_path(agent["abs_root"], path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(payload.get("content", ""))
-    return {"ok": True}
+    git_status = await asyncio.to_thread(_git_commit_push, target, agent["name"], "write_file")
+    return {"ok": True, "git": git_status}
 
 
 @router.post("/agents/{agent_id}/files/{path:path}")
@@ -321,7 +376,8 @@ async def create_file_endpoint(agent_id: str, path: str, payload: dict):
         raise HTTPException(status_code=409, detail="File already exists")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(payload.get("content", ""))
-    return {"ok": True}
+    git_status = await asyncio.to_thread(_git_commit_push, target, agent["name"], "create_file")
+    return {"ok": True, "git": git_status}
 
 
 @router.delete("/agents/{agent_id}/files/{path:path}")
@@ -333,7 +389,8 @@ async def delete_file_endpoint(agent_id: str, path: str):
     if target.is_dir():
         raise HTTPException(status_code=400, detail="Cannot delete directories")
     target.unlink()
-    return {"ok": True}
+    git_status = await asyncio.to_thread(_git_commit_push, target, agent["name"], "delete_file")
+    return {"ok": True, "git": git_status}
 
 
 # ── Chat history endpoints ────────────────────────────────────────────────────
