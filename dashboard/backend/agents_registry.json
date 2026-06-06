@@ -1,0 +1,34 @@
+[
+  {
+    "id": "executive-assistant",
+    "name": "Executive Assistant",
+    "description": "Personal second brain — email, calendar, priorities",
+    "root_dir": "../../executive-assistant",
+    "color": "#7850d2",
+    "badge_class": "badge-purple"
+  },
+  {
+    "id": "apptset-agent",
+    "name": "Appt-Setting Agent",
+    "description": "SMS appointment setter and newsletter sender",
+    "root_dir": "../../apptset-agent",
+    "color": "#14c882",
+    "badge_class": "badge-green"
+  },
+  {
+    "id": "leadgen-agent",
+    "name": "Lead Qualifier",
+    "description": "Scrapes and qualifies fitness businesses from Maps",
+    "root_dir": "../../leadgen-agent",
+    "color": "#3a7bd5",
+    "badge_class": "badge-blue"
+  },
+  {
+    "id": "parallel-dialer",
+    "name": "Parallel Dialer",
+    "description": "Dials 10 leads simultaneously via Twilio",
+    "root_dir": "../../parallel-dialer",
+    "color": "#f0a028",
+    "badge_class": "badge-amber"
+  }
+]

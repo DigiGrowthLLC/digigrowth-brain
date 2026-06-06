@@ -3,13 +3,14 @@ import DashboardPanel from "./panels/DashboardPanel.jsx";
 import CRMPanel       from "./panels/CRMPanel.jsx";
 import SMSPanel       from "./panels/SMSPanel.jsx";
 import DialerPanel    from "./panels/DialerPanel.jsx";
+import AgentsPanel    from "./panels/AgentsPanel.jsx";
 
 const NAV = [
   { id: "home",      label: "Dashboard", ready: true  },
   { id: "crm",       label: "CRM",       ready: true  },
   { id: "dialer",    label: "Dialer",    ready: true  },
   { id: "sms",       label: "SMS Inbox", ready: true  },
-  { id: "agents",    label: "Agents",    ready: false },
+  { id: "agents",    label: "Agents",    ready: true  },
   { id: "analytics", label: "Analytics", ready: false },
 ];
 
@@ -193,11 +194,12 @@ export default function App() {
         flex: 1, overflow: "hidden", display: "flex", flexDirection: "column",
         background: "transparent",
       }}>
-        {active === "home"   && <DashboardPanel />}
-        {active === "crm"    && <CRMPanel />}
-        {active === "sms"    && <SMSPanel />}
-        {active === "dialer" && <DialerPanel />}
-        {!["home","crm","sms","dialer"].includes(active) && (
+        {active === "home"    && <DashboardPanel />}
+        {active === "crm"     && <CRMPanel />}
+        {active === "sms"     && <SMSPanel />}
+        {active === "dialer"  && <DialerPanel />}
+        {active === "agents"  && <AgentsPanel />}
+        {!["home","crm","sms","dialer","agents"].includes(active) && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 10,

@@ -78,9 +78,18 @@ async def _create_schema(pool: asyncpg.Pool):
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            CREATE TABLE IF NOT EXISTS agent_chats (
+                id         SERIAL PRIMARY KEY,
+                agent_id   TEXT NOT NULL,
+                role       TEXT NOT NULL,
+                content    JSONB NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
             CREATE INDEX IF NOT EXISTS idx_contacts_status ON contacts(status);
             CREATE INDEX IF NOT EXISTS idx_contacts_grade ON contacts(grade);
             CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(phone);
             CREATE INDEX IF NOT EXISTS idx_call_logs_contact ON call_logs(contact_id);
             CREATE INDEX IF NOT EXISTS idx_sms_messages_contact ON sms_messages(contact_id);
+            CREATE INDEX IF NOT EXISTS idx_agent_chats_agent ON agent_chats(agent_id, created_at);
         """)
