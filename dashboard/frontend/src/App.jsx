@@ -1,9 +1,11 @@
 import React, { useState } from "react";
+import DashboardPanel from "./panels/DashboardPanel.jsx";
 import CRMPanel from "./panels/CRMPanel.jsx";
 import SMSPanel from "./panels/SMSPanel.jsx";
 import DialerPanel from "./panels/DialerPanel.jsx";
 
 const NAV = [
+  { id: "home",      label: "Dashboard", icon: "⚡", ready: true  },
   { id: "crm",       label: "CRM",       icon: "👥", ready: true  },
   { id: "dialer",    label: "Dialer",    icon: "📞", ready: true  },
   { id: "sms",       label: "SMS Inbox", icon: "💬", ready: true  },
@@ -12,7 +14,7 @@ const NAV = [
 ];
 
 export default function App() {
-  const [active, setActive] = useState("crm");
+  const [active, setActive] = useState("home");
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -52,10 +54,11 @@ export default function App() {
 
       {/* Main */}
       <main className="flex-1 overflow-hidden flex flex-col bg-gray-950">
+        {active === "home"   && <DashboardPanel />}
         {active === "crm"    && <CRMPanel />}
         {active === "sms"    && <SMSPanel />}
         {active === "dialer" && <DialerPanel />}
-        {active !== "crm" && active !== "sms" && active !== "dialer" && (
+        {!["home","crm","sms","dialer"].includes(active) && (
           <div className="flex-1 flex items-center justify-center text-gray-600">
             Coming soon
           </div>

@@ -124,9 +124,20 @@ def close_session():
         _session["gatekeeper_pending"]  = None
         _session["batch_had_answer"]    = False
         # keep stats intact so run.py can print them after close_session()
+    with _session["lock"]:
+        stats = dict(_session.get("stats", {}))
+    summary = (
+        f"Session ended — {stats.get('calls_made', 0)} calls made, "
+        f"{stats.get('dms_reached', 0)} DMs reached."
+    )
     threading.Thread(
         target=_os_post,
         args=("/api/dialer/session/end", {}),
+        daemon=True,
+    ).start()
+    threading.Thread(
+        target=_os_post,
+        args=("/api/dashboard/agent-messages", {"agent": "dialer", "message": summary}),
         daemon=True,
     ).start()
 

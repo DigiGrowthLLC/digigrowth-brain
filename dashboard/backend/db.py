@@ -63,6 +63,21 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            CREATE TABLE IF NOT EXISTS todos (
+                id         SERIAL PRIMARY KEY,
+                text       TEXT NOT NULL,
+                done       BOOLEAN NOT NULL DEFAULT false,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE IF NOT EXISTS agent_messages (
+                id         SERIAL PRIMARY KEY,
+                agent      TEXT NOT NULL,
+                message    TEXT NOT NULL,
+                read       BOOLEAN NOT NULL DEFAULT false,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
             CREATE INDEX IF NOT EXISTS idx_contacts_status ON contacts(status);
             CREATE INDEX IF NOT EXISTS idx_contacts_grade ON contacts(grade);
             CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(phone);
