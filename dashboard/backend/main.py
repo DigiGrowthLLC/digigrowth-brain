@@ -8,7 +8,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
 from db import get_pool
-from routers import crm
+from routers import crm, sms
 
 security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
@@ -42,6 +42,8 @@ app.add_middleware(
 )
 
 app.include_router(crm.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(sms.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(sms.webhook_router)  # public — Twilio posts here, no auth
 
 # Serve built frontend (populated by Railway build step)
 frontend_dist = os.path.join(os.path.dirname(__file__), "frontend/dist")
