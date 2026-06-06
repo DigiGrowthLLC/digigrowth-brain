@@ -5,13 +5,61 @@ import SMSPanel       from "./panels/SMSPanel.jsx";
 import DialerPanel    from "./panels/DialerPanel.jsx";
 
 const NAV = [
-  { id: "home",      label: "Dashboard", icon: "⚡", ready: true  },
-  { id: "crm",       label: "CRM",       icon: "👥", ready: true  },
-  { id: "dialer",    label: "Dialer",    icon: "📞", ready: true  },
-  { id: "sms",       label: "SMS Inbox", icon: "💬", ready: true  },
-  { id: "agents",    label: "Agents",    icon: "🤖", ready: false },
-  { id: "analytics", label: "Analytics", icon: "📊", ready: false },
+  { id: "home",      label: "Dashboard", ready: true  },
+  { id: "crm",       label: "CRM",       ready: true  },
+  { id: "dialer",    label: "Dialer",    ready: true  },
+  { id: "sms",       label: "SMS Inbox", ready: true  },
+  { id: "agents",    label: "Agents",    ready: false },
+  { id: "analytics", label: "Analytics", ready: false },
 ];
+
+const NAV_ICONS = {
+  home: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+    </svg>
+  ),
+  crm: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <circle cx="6" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M1 13.5c0-2.485 2.239-4.5 5-4.5s5 2.015 5 4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M12 7.5c1.105 0 2 .895 2 2v1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <circle cx="12" cy="5.5" r="1.5" stroke="currentColor" strokeWidth="1.4"/>
+    </svg>
+  ),
+  dialer: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <path d="M3 2h2.5l1 3-1.5 1c.667 1.333 2 2.667 3.333 3.333L9.5 7.833l3 1V11.5c0 .828-.672 1.5-1.5 1.5C5.373 13 2 8.627 2 3.5 2 2.672 2.672 2 3.5 2H3z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  sms: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <path d="M13 2H3a1 1 0 00-1 1v7a1 1 0 001 1h2v2.5L8 11h5a1 1 0 001-1V3a1 1 0 00-1-1z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 6.5h6M5 8.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
+  agents: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <rect x="2" y="5" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M8 5V3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <circle cx="8" cy="2.5" r="0.8" fill="currentColor"/>
+      <circle cx="5.5" cy="9" r="1" fill="currentColor"/>
+      <circle cx="10.5" cy="9" r="1" fill="currentColor"/>
+      <path d="M6 11.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
+  analytics: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <path d="M2 13h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <rect x="3" y="8" width="2" height="5" rx="0.5" fill="currentColor" opacity="0.7"/>
+      <rect x="7" y="5" width="2" height="8" rx="0.5" fill="currentColor" opacity="0.7"/>
+      <rect x="11" y="2" width="2" height="11" rx="0.5" fill="currentColor" opacity="0.7"/>
+    </svg>
+  ),
+};
 
 const LogoMark = () => (
   <div style={{
@@ -68,7 +116,7 @@ export default function App() {
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 3 }}>
-          {NAV.map(({ id, label, icon, ready }) => {
+          {NAV.map(({ id, label, ready }) => {
             const isActive = active === id;
             return (
               <button key={id}
@@ -90,8 +138,11 @@ export default function App() {
                   if (!isActive) e.currentTarget.style.background = "transparent";
                 }}
               >
-                <span style={{ fontSize: 16, lineHeight: 1, opacity: isActive ? 1 : ready ? 0.7 : 0.3 }}>
-                  {icon}
+                <span style={{
+                  color: isActive ? "#6ab0ff" : ready ? "#3a5a80" : "#1e2f4a",
+                  display: "flex", flexShrink: 0,
+                }}>
+                  {NAV_ICONS[id]}
                 </span>
                 <span style={{
                   fontFamily: "'Space Grotesk', sans-serif",

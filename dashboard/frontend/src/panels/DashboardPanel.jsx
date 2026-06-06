@@ -18,7 +18,35 @@ function timeAgo(ts) {
 
 // ── Top stat card (Vision UI style) ──────────────────────────────────────────
 
-function TopStatCard({ label, value, delta, positive, icon }) {
+const STAT_ICONS = {
+  dialer: (
+    <svg viewBox="0 0 20 20" fill="none" width={20} height={20}>
+      <path d="M4 3h3l1.5 3.5-2 1.2c.8 1.7 2.3 3.2 4 4l1.2-2L15.5 11V14c0 .6-.4 1-1 1C7 15 4 8 4 4c0-.6.4-1 1-1H4z" stroke="#6ab0ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  reach: (
+    <svg viewBox="0 0 20 20" fill="none" width={20} height={20}>
+      <circle cx="7" cy="7" r="3" stroke="#6ab0ff" strokeWidth="1.6"/>
+      <circle cx="14" cy="7" r="3" stroke="#6ab0ff" strokeWidth="1.6"/>
+      <path d="M2 17c0-3 2.24-5 5-5m5 0c2.76 0 5 2 5 5" stroke="#6ab0ff" strokeWidth="1.6" strokeLinecap="round"/>
+    </svg>
+  ),
+  booked: (
+    <svg viewBox="0 0 20 20" fill="none" width={20} height={20}>
+      <rect x="3" y="4" width="14" height="13" rx="2" stroke="#6ab0ff" strokeWidth="1.6"/>
+      <path d="M7 2v4M13 2v4M3 9h14" stroke="#6ab0ff" strokeWidth="1.6" strokeLinecap="round"/>
+      <path d="M7 13l2 2 4-4" stroke="#6ab0ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  sms: (
+    <svg viewBox="0 0 20 20" fill="none" width={20} height={20}>
+      <path d="M16 3H4a1 1 0 00-1 1v8a1 1 0 001 1h3v3l4-3h5a1 1 0 001-1V4a1 1 0 00-1-1z" stroke="#6ab0ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7 9h6M7 12h4" stroke="#6ab0ff" strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  ),
+};
+
+function TopStatCard({ label, value, delta, positive, iconKey }) {
   return (
     <div className="stat-card">
       <div>
@@ -30,7 +58,7 @@ function TopStatCard({ label, value, delta, positive, icon }) {
           </div>
         )}
       </div>
-      <div className="stat-card-icon" style={{ fontSize: 22 }}>{icon}</div>
+      <div className="stat-card-icon">{STAT_ICONS[iconKey]}</div>
     </div>
   );
 }
@@ -230,13 +258,13 @@ export default function DashboardPanel() {
 
       {/* ── Row 1: 4 Stat Cards ────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-        <TopStatCard label="Calls Made"    value={calling.calls_made}  icon="📞"
+        <TopStatCard label="Calls Made"    value={calling.calls_made}  iconKey="dialer"
           delta={calling.calls_made > 0 ? `${calling.calls_made} dials` : null} positive={true} />
-        <TopStatCard label="DMs Reached"   value={calling.dms_reached} icon="🤝"
+        <TopStatCard label="DMs Reached"   value={calling.dms_reached} iconKey="reach"
           delta={calling.calls_made > 0 ? `${calling.reach_rate}% rate` : null} positive={true} />
-        <TopStatCard label="Appointments"  value={calling.booked}      icon="📅"
+        <TopStatCard label="Appointments"  value={calling.booked}      iconKey="booked"
           delta={calling.booked > 0 ? "booked" : null} positive={true} />
-        <TopStatCard label="SMS Active"    value={sms.active}          icon="💬"
+        <TopStatCard label="SMS Active"    value={sms.active}          iconKey="sms"
           delta={clientMsgs.length > 0 ? `${clientMsgs.length} need reply` : null}
           positive={clientMsgs.length === 0} />
       </div>
