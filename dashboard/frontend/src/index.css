@@ -2,11 +2,130 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-gray-950 text-gray-100;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+@layer base {
+  body {
+    background-color: #080c14;
+    color: #c4d0e8;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+  }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #080c14; }
+  ::-webkit-scrollbar-thumb { background: #1a2f52; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2857a0; }
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { @apply bg-gray-900; }
-::-webkit-scrollbar-thumb { @apply bg-gray-700 rounded; }
+@layer components {
+  /* Section labels — monospace, uppercase, blue */
+  .sec-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #3a7bd5;
+    margin-bottom: 14px;
+  }
+
+  /* Stat card */
+  .stat-card {
+    background: #080c14;
+    border: 0.5px solid #1a2f52;
+    border-radius: 4px;
+    padding: 10px 12px;
+  }
+  .stat-card-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #3a5a80;
+    margin-bottom: 4px;
+  }
+  .stat-card-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #d0dcf0;
+    letter-spacing: -0.02em;
+  }
+  .stat-card-delta {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: #14c882;
+    margin-top: 2px;
+  }
+
+  /* Badges */
+  .badge {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 3px;
+    padding: 3px 8px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .badge-blue   { background: rgba(58,123,213,0.15); color: #5a9bf0; border: 0.5px solid rgba(58,123,213,0.3); }
+  .badge-green  { background: rgba(20,200,130,0.10); color: #14c882; border: 0.5px solid rgba(20,200,130,0.25); }
+  .badge-amber  { background: rgba(240,160,40,0.10); color: #f0a028; border: 0.5px solid rgba(240,160,40,0.25); }
+  .badge-red    { background: rgba(220,60,60,0.10);  color: #dc3c3c; border: 0.5px solid rgba(220,60,60,0.25); }
+  .badge-gray   { background: rgba(90,111,143,0.15); color: #5a6f8f; border: 0.5px solid rgba(90,111,143,0.25); }
+  .badge-purple { background: rgba(120,80,210,0.15); color: #a080f0; border: 0.5px solid rgba(120,80,210,0.3); }
+
+  /* Buttons */
+  .btn {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 4px;
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    border: none;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary   { background: #2857a0; color: #c8dcff; }
+  .btn-primary:hover:not(:disabled) { background: #3a7bd5; }
+  .btn-secondary { background: #111e36; color: #6090c0; border: 0.5px solid #1a2f52; }
+  .btn-secondary:hover:not(:disabled) { background: #1a2f52; }
+  .btn-ghost     { background: transparent; color: #3a7bd5; border: 0.5px solid rgba(58,123,213,0.35); }
+  .btn-ghost:hover:not(:disabled) { border-color: rgba(58,123,213,0.7); background: rgba(58,123,213,0.06); }
+  .btn-danger    { background: rgba(220,60,60,0.12); color: #dc3c3c; border: 0.5px solid rgba(220,60,60,0.3); }
+  .btn-danger:hover:not(:disabled) { background: rgba(220,60,60,0.2); }
+
+  /* Inputs */
+  .dg-input {
+    width: 100%;
+    background: #080c14;
+    border: 0.5px solid #1a2f52;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: 'Space Grotesk', sans-serif;
+    color: #8aaad0;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .dg-input:focus { border-color: #3a7bd5; }
+  .dg-input::placeholder { color: #2a4a7a; }
+
+  /* Card surface */
+  .dg-card {
+    background: #0d1626;
+    border: 0.5px solid #1a2540;
+    border-radius: 8px;
+  }
+  .dg-surface {
+    background: #111e36;
+    border: 0.5px solid #1a2f52;
+    border-radius: 4px;
+  }
+
+  /* Divider */
+  .dg-divider { height: 0.5px; background: #1a2540; }
+}

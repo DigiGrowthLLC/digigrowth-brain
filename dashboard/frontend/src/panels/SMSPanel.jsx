@@ -1,25 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
-const API = (path) => `/api${path}`;
+const API = (p) => `/api${p}`;
 
-function fmt(ts) {
+function timeAgo(ts) {
   if (!ts) return "";
-  const d = new Date(ts);
-  return d.toLocaleString("en-US", {
-    month: "short", day: "numeric",
-    hour: "numeric", minute: "2-digit",
-  });
-}
-
-function StatusBadge({ status }) {
-  const cls = status === "closed"
-    ? "bg-green-900 text-green-300"
-    : "bg-yellow-900 text-yellow-300";
-  return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>
-      {status === "closed" ? "Booked" : "Active"}
-    </span>
-  );
+  const d = new Date(ts), now = new Date(), diff = now - d;
+  if (diff < 60000) return "now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 export default function SMSPanel() {
@@ -33,24 +22,20 @@ export default function SMSPanel() {
 
   const loadConvos = useCallback(async () => {
     try {
-      const res = await fetch(API("/sms/conversations"));
-      if (res.ok) setConvos(await res.json());
+      const r = await fetch(API("/sms/conversations"));
+      if (r.ok) setConvos(await r.json());
     } catch {}
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    loadConvos();
-    const id = setInterval(loadConvos, 15000);
-    return () => clearInterval(id);
-  }, [loadConvos]);
+  useEffect(() => { loadConvos(); const id = setInterval(loadConvos, 15000); return () => clearInterval(id); }, [loadConvos]);
 
   const openThread = async (phone) => {
     setSelected(phone);
     setThread(null);
     try {
-      const res = await fetch(API(`/sms/conversations/${encodeURIComponent(phone)}`));
-      if (res.ok) setThread(await res.json());
+      const r = await fetch(API(`/sms/conversations/${encodeURIComponent(phone)}`));
+      if (r.ok) setThread(await r.json());
     } catch {}
   };
 
@@ -60,72 +45,88 @@ export default function SMSPanel() {
     return () => clearInterval(id);
   }, [selected]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thread?.messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [thread?.messages]);
 
   const sendReply = async () => {
     if (!replyText.trim() || !selected) return;
     setSending(true);
     try {
       await fetch(API("/sms/send"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: selected, body: replyText.trim() }),
       });
-      setReplyText("");
-      await openThread(selected);
-      await loadConvos();
+      setReplyText(""); await openThread(selected); await loadConvos();
     } catch {}
     setSending(false);
   };
 
   const closeConvo = async () => {
     if (!selected) return;
-    await fetch(API(`/sms/conversations/${encodeURIComponent(selected)}/close`), {
-      method: "POST",
-    });
-    await openThread(selected);
-    await loadConvos();
-  };
-
-  const handleKey = (e) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply();
+    await fetch(API(`/sms/conversations/${encodeURIComponent(selected)}/close`), { method: "POST" });
+    await openThread(selected); await loadConvos();
   };
 
   return (
-    <div className="flex h-full">
+    <div style={{ display: "flex", height: "100%" }}>
+
       {/* Thread list */}
-      <aside className="w-72 border-r border-gray-800 flex flex-col shrink-0">
-        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-          <span className="text-sm font-semibold text-white">SMS Inbox</span>
-          <span className="text-xs text-gray-500">{convos.length} threads</span>
+      <aside style={{
+        width: 260, borderRight: "0.5px solid #1a2540",
+        display: "flex", flexDirection: "column", flexShrink: 0,
+      }}>
+        <div style={{ padding: "14px 16px", borderBottom: "0.5px solid #1a2540",
+                      display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#f0f4ff" }}>
+            SMS Inbox
+          </div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80" }}>
+            {convos.length} THREADS
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div style={{ flex: 1, overflowY: "auto" }}>
           {loading && (
-            <div className="p-4 text-sm text-gray-500">Loading…</div>
+            <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
+              LOADING...
+            </div>
           )}
           {!loading && convos.length === 0 && (
-            <div className="p-4 text-sm text-gray-600">No conversations yet.</div>
+            <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
+              NO CONVERSATIONS
+            </div>
           )}
-          {convos.map((c) => (
-            <button
-              key={c.phone}
-              onClick={() => openThread(c.phone)}
-              className={`w-full text-left px-4 py-3 border-b border-gray-800 transition-colors hover:bg-gray-800 ${
-                selected === c.phone ? "bg-gray-800" : ""
-              }`}
+          {convos.map(c => (
+            <button key={c.phone} onClick={() => openThread(c.phone)}
+              style={{
+                width: "100%", textAlign: "left", padding: "12px 16px",
+                borderBottom: "0.5px solid #1a2540", cursor: "pointer",
+                background: selected === c.phone ? "#0d1626" : "transparent",
+                borderLeft: `2px solid ${selected === c.phone ? "#3a7bd5" : "transparent"}`,
+                border: "none", borderBottom: "0.5px solid #1a2540",
+                borderLeft: selected === c.phone ? "2px solid #3a7bd5" : "2px solid transparent",
+                transition: "all 0.1s",
+              }}
+              onMouseEnter={e => { if (selected !== c.phone) e.currentTarget.style.background = "#0a1020"; }}
+              onMouseLeave={e => { if (selected !== c.phone) e.currentTarget.style.background = "transparent"; }}
             >
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-sm font-medium text-white truncate">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                <span style={{ fontSize: 13, fontWeight: 500, color: "#c4d0e8", overflow: "hidden",
+                               textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                   {c.business || c.owner || c.phone}
                 </span>
-                <StatusBadge status={c.status} />
+                <span className={`badge ${c.status === "closed" ? "badge-green" : "badge-blue"}`}
+                  style={{ marginLeft: 6, flexShrink: 0 }}>
+                  {c.status === "closed" ? "BOOKED" : "ACTIVE"}
+                </span>
               </div>
-              <div className="text-xs text-gray-500 truncate">{c.phone}</div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
+                {c.phone}
+              </div>
               {c.last_message && (
-                <div className="text-xs text-gray-600 truncate mt-1">{c.last_message}</div>
+                <div style={{ fontSize: 11, color: "#3a4f6f", marginTop: 4,
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {c.last_message}
+                </div>
               )}
             </button>
           ))}
@@ -133,57 +134,59 @@ export default function SMSPanel() {
       </aside>
 
       {/* Thread view */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {!selected && (
-          <div className="flex-1 flex items-center justify-center text-gray-600 text-sm">
-            Select a conversation
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        {!selected ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+                        justifyContent: "center", gap: 8 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.2em" }}>
+              SELECT A CONVERSATION
+            </div>
           </div>
-        )}
-
-        {selected && (
+        ) : (
           <>
-            {/* Header */}
-            <div className="px-5 py-3 border-b border-gray-800 flex items-center justify-between shrink-0">
+            {/* Thread header */}
+            <div style={{ padding: "14px 20px", borderBottom: "0.5px solid #1a2540",
+                          display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
               <div>
-                <div className="text-sm font-semibold text-white">
+                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#f0f4ff" }}>
                   {thread?.business || thread?.owner || selected}
                 </div>
-                <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
-                  {selected}
-                  {thread?.grade && (
-                    <span className="text-indigo-400">Grade {thread.grade}</span>
-                  )}
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80",
+                              letterSpacing: "0.1em", marginTop: 2 }}>
+                  {selected}{thread?.grade ? ` · GRADE ${thread.grade}` : ""}
                 </div>
               </div>
               {thread?.status !== "closed" && (
-                <button
-                  onClick={closeConvo}
-                  className="text-xs px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 text-white transition-colors"
-                >
-                  Mark Booked
+                <button onClick={closeConvo} className="btn btn-ghost"
+                  style={{ fontSize: 10, borderColor: "rgba(20,200,130,0.35)", color: "#14c882" }}>
+                  MARK BOOKED
                 </button>
               )}
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex",
+                          flexDirection: "column", gap: 10 }}>
               {!thread && (
-                <div className="text-sm text-gray-500">Loading…</div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
+                  LOADING...
+                </div>
               )}
               {thread?.messages?.map((m, i) => {
                 const isOut = m.direction === "outbound";
                 return (
-                  <div key={i} className={`flex ${isOut ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-xs px-3 py-2 rounded-2xl text-sm leading-snug ${
-                        isOut
-                          ? "bg-indigo-600 text-white rounded-br-sm"
-                          : "bg-gray-800 text-gray-100 rounded-bl-sm"
-                      }`}
-                    >
-                      <div>{m.body}</div>
-                      <div className={`text-xs mt-1 ${isOut ? "text-indigo-300" : "text-gray-500"}`}>
-                        {fmt(m.sent_at)}
+                  <div key={i} style={{ display: "flex", justifyContent: isOut ? "flex-end" : "flex-start" }}>
+                    <div style={{
+                      maxWidth: 320, padding: "9px 13px", borderRadius: isOut ? "8px 8px 2px 8px" : "8px 8px 8px 2px",
+                      background: isOut ? "#1f3d70" : "#0d1626",
+                      border: `0.5px solid ${isOut ? "#2857a0" : "#1a2540"}`,
+                    }}>
+                      <div style={{ fontSize: 13, color: isOut ? "#c8dcff" : "#8aaad0", lineHeight: 1.4 }}>
+                        {m.body}
+                      </div>
+                      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                                    color: isOut ? "#3a5a80" : "#2a4a7a", marginTop: 4 }}>
+                        {m.sent_at ? new Date(m.sent_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}
                       </div>
                     </div>
                   </div>
@@ -194,28 +197,26 @@ export default function SMSPanel() {
 
             {/* Reply box */}
             {thread?.status !== "closed" ? (
-              <div className="px-5 py-3 border-t border-gray-800 shrink-0">
-                <div className="flex gap-2">
-                  <textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    onKeyDown={handleKey}
-                    placeholder="Type a reply… (⌘↵ to send)"
-                    rows={2}
-                    className="flex-1 bg-gray-800 text-sm text-gray-100 placeholder-gray-600 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <button
-                    onClick={sendReply}
-                    disabled={sending || !replyText.trim()}
-                    className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium disabled:opacity-40 transition-colors self-end"
-                  >
-                    {sending ? "…" : "Send"}
-                  </button>
-                </div>
+              <div style={{ padding: "12px 20px", borderTop: "0.5px solid #1a2540", flexShrink: 0, display: "flex", gap: 8 }}>
+                <textarea
+                  value={replyText}
+                  onChange={e => setReplyText(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply(); }}
+                  placeholder="Type a reply… (⌘↵ to send)"
+                  rows={2}
+                  className="dg-input"
+                  style={{ flex: 1, resize: "none", fontSize: 13 }}
+                />
+                <button onClick={sendReply} disabled={sending || !replyText.trim()}
+                  className="btn btn-primary" style={{ alignSelf: "flex-end" }}>
+                  {sending ? "..." : "SEND"}
+                </button>
               </div>
             ) : (
-              <div className="px-5 py-3 border-t border-gray-800 text-center text-xs text-green-500 shrink-0">
-                Appointment booked — conversation closed
+              <div style={{ padding: "12px 20px", borderTop: "0.5px solid #1a2540",
+                            textAlign: "center", fontFamily: "'Share Tech Mono', monospace",
+                            fontSize: 10, color: "#14c882", letterSpacing: "0.18em" }}>
+                APPOINTMENT BOOKED · CONVERSATION CLOSED
               </div>
             )}
           </>
