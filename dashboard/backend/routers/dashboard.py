@@ -12,7 +12,7 @@ PATCH /dashboard/todos/{id}                    — update text or toggle done
 DELETE /dashboard/todos/{id}                   — delete todo
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 
 from fastapi import APIRouter, HTTPException
 
@@ -172,6 +172,33 @@ async def client_messages():
     return [
         dict(r) for r in rows
         if r["last_direction"] == "inbound"
+    ]
+
+
+# ── Chart data ───────────────────────────────────────────────────────────────
+
+@router.get("/dashboard/chart/calls")
+async def chart_calls(days: int = 30):
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    pool  = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT DATE(started_at) AS day,
+                   COUNT(*) AS calls,
+                   COUNT(*) FILTER (
+                       WHERE disposition IN ('Appointment Booked','Follow Up','Send Info')
+                   ) AS reached
+            FROM call_logs
+            WHERE started_at >= $1
+            GROUP BY DATE(started_at)
+            ORDER BY day
+            """,
+            since,
+        )
+    return [
+        {"date": str(r["day"]), "calls": r["calls"], "reached": r["reached"]}
+        for r in rows
     ]
 
 

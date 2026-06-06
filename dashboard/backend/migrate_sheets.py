@@ -70,7 +70,7 @@ def load_sheet_rows():
     return rows
 
 
-def row_to_contact(row: dict) -> dict | None:
+def row_to_contact(row: dict):
     phone = (row.get("Phone") or "").strip()
     if not phone:
         return None

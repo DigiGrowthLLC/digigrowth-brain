@@ -90,7 +90,7 @@ export default function DialerPanel() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
         {/* Disposition breakdown */}
-        <div className="dg-card" style={{ padding: 16 }}>
+        <div className="glass-card" style={{ padding: 16 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div className="sec-label" style={{ marginBottom: 0 }}>All-Time Breakdown</div>
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
@@ -137,7 +137,7 @@ export default function DialerPanel() {
         </div>
 
         {/* Recent calls */}
-        <div className="dg-card" style={{ padding: 16 }}>
+        <div className="glass-card" style={{ padding: 16 }}>
           <div className="sec-label">Recent Calls</div>
           {recent.length === 0 ? (
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
@@ -176,10 +176,7 @@ export default function DialerPanel() {
 
       {/* Idle hint */}
       {!session.active && (
-        <div style={{
-          background: "#0d1626", border: "0.5px solid #1a2540",
-          borderRadius: 4, padding: "12px 16px",
-        }}>
+        <div className="glass-card-sm" style={{ padding: "12px 16px" }}>
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.1em" }}>
             START SESSION:{" "}
           </span>
