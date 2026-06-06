@@ -7,16 +7,8 @@
   "call_timeout_seconds": 30,
   "google_sheet_id": "1LNF4Taf3sQ2OGbQ382l0fy-RFU31XkkCVSmXJB0YEWs",
   "leads_tab": "Sheet1",
-  "ghl_base_url": "https://rest.gohighlevel.com/v1",
-  "ghl_location_id": "FVNoxxUHiEhxjgsdhvsV",
+  "os_api_url": "https://digigrowth-brain-production.up.railway.app",
   "dialer_tag": "needs-call",
-  "ghl_workflows": {
-    "sms_handoff": "WORKFLOW_ID_SMS_HANDOFF",
-    "follow_up": "WORKFLOW_ID_FOLLOW_UP",
-    "send_info": "WORKFLOW_ID_SEND_INFO",
-    "not_interested": "WORKFLOW_ID_NOT_INTERESTED",
-    "voicemail": "WORKFLOW_ID_VOICEMAIL"
-  },
   "voicemail_audio_url": "https://drive.google.com/uc?export=download&id=1bOOXdSN9cMlthwkDpFu7597-sQ-NYAgA",
   "voicemail_tts": "Hey, this is Dylan Reece. Feel free to text me back at [+1 810-688-6279]. Talk soon!",
   "ghl_calendar_id": "YOUR_GHL_CALENDAR_ID",

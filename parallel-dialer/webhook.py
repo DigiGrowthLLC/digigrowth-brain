@@ -10,11 +10,30 @@ import json
 import os
 import threading
 
+import requests
 from flask import Flask, request, Response, send_file, jsonify
 from twilio.twiml.voice_response import VoiceResponse, Dial, Conference, Gather, Say
 
 import leads as leads_mod
 import dialer as dialer_mod
+
+_OS_URL  = os.environ.get("OS_API_URL", "").rstrip("/")
+_OS_PASS = os.environ.get("OS_API_PASSWORD", "")
+
+
+def _os_post(path, data):
+    """Fire-and-forget POST to the DigiGrowth OS backend. Silently ignores failures."""
+    if not _OS_URL:
+        return
+    try:
+        requests.post(
+            f"{_OS_URL}{path}",
+            json=data,
+            auth=("dialer", _OS_PASS),
+            timeout=5,
+        )
+    except Exception as e:
+        print(f"  ⚠️  OS API post failed ({path}): {e}")
 
 
 def _norm(phone):
@@ -80,6 +99,11 @@ def init_session(config, session_id):
         _session["eligible_leads"]      = []
         _session["max_lines"]           = config.get("max_parallel_lines", 10)
         _session["end_requested"]       = False
+    threading.Thread(
+        target=_os_post,
+        args=("/api/dialer/session/start", {"session_id": session_id}),
+        daemon=True,
+    ).start()
 
 
 def close_session():
@@ -100,11 +124,21 @@ def close_session():
         _session["gatekeeper_pending"]  = None
         _session["batch_had_answer"]    = False
         # keep stats intact so run.py can print them after close_session()
+    threading.Thread(
+        target=_os_post,
+        args=("/api/dialer/session/end", {}),
+        daemon=True,
+    ).start()
 
 
 def set_total_leads(count):
     with _session["lock"]:
         _session["total_leads"] = count
+    threading.Thread(
+        target=_os_post,
+        args=("/api/dialer/heartbeat", {"total_leads": count}),
+        daemon=True,
+    ).start()
 
 
 def set_eligible_leads(leads):
@@ -292,21 +326,36 @@ def api_classify():
         _session["connected_at"]       = None
 
     if pending:
-        config = _session.get("config", {})
-        if config:
-            import ghl as ghl_mod
-            try:
-                ghl_mod.handle_disposition(config, pending, disposition)
-                name = pending.get("business") or pending.get("owner") or pending.get("phone", "unknown")
-                print(f"  ✅ GHL updated: {name} → {disposition}")
-            except Exception as e:
-                print(f"  ⚠️  GHL update failed: {e}")
+        name = pending.get("business") or pending.get("owner") or pending.get("phone", "unknown")
+        threading.Thread(
+            target=_os_post,
+            args=("/api/dialer/disposition", {
+                "phone":       pending.get("phone", ""),
+                "disposition": disposition,
+                "notes":       notes,
+            }),
+            daemon=True,
+        ).start()
+        print(f"  ✅ OS updated: {name} → {disposition}")
 
         # Update in-session stats
         with _session["lock"]:
             _session["stats"]["calls_made"] += 1
             if disposition in ("Appointment Booked", "Follow Up", "Send Info"):
                 _session["stats"]["dms_reached"] += 1
+
+        with _session["lock"]:
+            stats = dict(_session["stats"])
+            total = _session["total_leads"]
+        threading.Thread(
+            target=_os_post,
+            args=("/api/dialer/heartbeat", {
+                "calls_made":  stats["calls_made"],
+                "dms_reached": stats["dms_reached"],
+                "total_leads": total,
+            }),
+            daemon=True,
+        ).start()
 
     return jsonify({"ok": True})
 
@@ -555,15 +604,14 @@ def call_status():
         with _session["lock"]:
             _session["stats"]["calls_made"] += 1
 
-        def _ghl(cfg, lead):
-            import ghl as ghl_mod
-            try:
-                ghl_mod.handle_disposition(cfg, lead, "No Answer")
-            except Exception as e:
-                print(f"  ⚠️  GHL update failed: {e}")
-
-        if config:
-            threading.Thread(target=_ghl, args=(config, lead_state), daemon=True).start()
+        threading.Thread(
+            target=_os_post,
+            args=("/api/dialer/disposition", {
+                "phone":       phone,
+                "disposition": "No Answer",
+            }),
+            daemon=True,
+        ).start()
 
     return "", 204
 

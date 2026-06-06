@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import CRMPanel from "./panels/CRMPanel.jsx";
 import SMSPanel from "./panels/SMSPanel.jsx";
+import DialerPanel from "./panels/DialerPanel.jsx";
 
 const NAV = [
   { id: "crm",       label: "CRM",       icon: "👥", ready: true  },
-  { id: "dialer",    label: "Dialer",    icon: "📞", ready: false },
+  { id: "dialer",    label: "Dialer",    icon: "📞", ready: true  },
   { id: "sms",       label: "SMS Inbox", icon: "💬", ready: true  },
   { id: "agents",    label: "Agents",    icon: "🤖", ready: false },
   { id: "analytics", label: "Analytics", icon: "📊", ready: false },
@@ -51,9 +52,10 @@ export default function App() {
 
       {/* Main */}
       <main className="flex-1 overflow-hidden flex flex-col bg-gray-950">
-        {active === "crm"  && <CRMPanel />}
-        {active === "sms"  && <SMSPanel />}
-        {active !== "crm" && active !== "sms" && (
+        {active === "crm"    && <CRMPanel />}
+        {active === "sms"    && <SMSPanel />}
+        {active === "dialer" && <DialerPanel />}
+        {active !== "crm" && active !== "sms" && active !== "dialer" && (
           <div className="flex-1 flex items-center justify-center text-gray-600">
             Coming soon
           </div>
