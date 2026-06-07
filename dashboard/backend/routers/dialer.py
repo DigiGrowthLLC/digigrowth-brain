@@ -6,12 +6,51 @@ The local dialer (parallel-dialer/webhook.py) POSTs here instead of GHL.
 The dashboard polls GET /api/dialer/stats for live + historical data.
 """
 
-from fastapi import APIRouter
+import asyncio
+import json
+import pathlib
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from db import get_pool
 from models import DISPOSITION_TO_STATUS
 
 router = APIRouter()
+
+_DIALER_DIR = (pathlib.Path(__file__).parent.parent.parent.parent / "parallel-dialer").resolve()
+
+
+# ── Terminal exec ─────────────────────────────────────────────────────────────
+
+@router.post("/dialer/exec")
+async def exec_dialer_command(body: dict):
+    """Run a shell command in parallel-dialer/. Streams stdout+stderr as SSE."""
+    command = (body.get("command") or "").strip()
+    if not command:
+        raise HTTPException(status_code=400, detail="command required")
+
+    async def _stream():
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                cwd=str(_DIALER_DIR),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            async for line in proc.stdout:
+                yield f"data: {json.dumps({'type': 'output', 'text': line.decode(errors='replace')})}\n\n"
+            await proc.wait()
+            yield f"data: {json.dumps({'type': 'done', 'code': proc.returncode})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        _stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 
 # ── In-memory live session state (reset on session start) ─────────────────────
 

@@ -100,6 +100,7 @@ def github_push_file(file_abs: pathlib.Path, agent_name: str, operation: str) ->
         return f"github error: {e}"
 
 BLOCKED_FILENAMES = {".env", "credentials.json", "settings.local.json"}
+SKIP_DIRS = {"node_modules", "__pycache__", ".venv", "venv", ".mypy_cache", ".pytest_cache"}
 
 TOOLS = [
     {
@@ -358,6 +359,8 @@ async def list_files(agent_id: str, subdir: str = ""):
             return entries
         for item in items:
             if item.name.startswith(".") and item.name not in (".env.example",):
+                continue
+            if item.is_dir() and item.name in SKIP_DIRS:
                 continue
             rel = str(item.relative_to(root))
             if item.is_dir():

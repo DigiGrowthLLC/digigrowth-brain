@@ -4,6 +4,7 @@ import CRMPanel       from "./panels/CRMPanel.jsx";
 import SMSPanel       from "./panels/SMSPanel.jsx";
 import DialerPanel    from "./panels/DialerPanel.jsx";
 import AgentsPanel    from "./panels/AgentsPanel.jsx";
+import SettingsPanel  from "./panels/SettingsPanel.jsx";
 
 const NAV = [
   { id: "home",      label: "Dashboard", ready: true  },
@@ -12,6 +13,7 @@ const NAV = [
   { id: "sms",       label: "SMS Inbox", ready: true  },
   { id: "agents",    label: "Agents",    ready: true  },
   { id: "analytics", label: "Analytics", ready: false },
+  { id: "settings",  label: "Settings",  ready: true  },
 ];
 
 const NAV_ICONS = {
@@ -58,6 +60,12 @@ const NAV_ICONS = {
       <rect x="3" y="8" width="2" height="5" rx="0.5" fill="currentColor" opacity="0.7"/>
       <rect x="7" y="5" width="2" height="8" rx="0.5" fill="currentColor" opacity="0.7"/>
       <rect x="11" y="2" width="2" height="11" rx="0.5" fill="currentColor" opacity="0.7"/>
+    </svg>
+  ),
+  settings: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
     </svg>
   ),
 };
@@ -194,12 +202,13 @@ export default function App() {
         flex: 1, overflow: "hidden", display: "flex", flexDirection: "column",
         background: "transparent",
       }}>
-        {active === "home"    && <DashboardPanel />}
-        {active === "crm"     && <CRMPanel />}
-        {active === "sms"     && <SMSPanel />}
-        {active === "dialer"  && <DialerPanel />}
-        {active === "agents"  && <AgentsPanel />}
-        {!["home","crm","sms","dialer","agents"].includes(active) && (
+        {active === "home"     && <DashboardPanel />}
+        {active === "crm"      && <CRMPanel />}
+        {active === "sms"      && <SMSPanel />}
+        {active === "dialer"   && <DialerPanel />}
+        {active === "agents"   && <AgentsPanel />}
+        {active === "settings" && <SettingsPanel />}
+        {!["home","crm","sms","dialer","agents","settings"].includes(active) && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 10,

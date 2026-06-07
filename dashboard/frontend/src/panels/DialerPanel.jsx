@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 const API = (p) => `/api${p}`;
 
@@ -27,8 +27,15 @@ function fmt(ts) {
   return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+const TERM_PRESETS = ["python run.py", "git status", "pip install -r requirements.txt", "python -c \"import dialer; print('ok')\""];
+
 export default function DialerPanel() {
   const [data, setData] = useState(null);
+  const [termOpen, setTermOpen]       = useState(false);
+  const [termCmd, setTermCmd]         = useState("");
+  const [termOutput, setTermOutput]   = useState("");
+  const [termRunning, setTermRunning] = useState(false);
+  const termBottomRef = useRef(null);
 
   const load = async () => {
     try {
@@ -38,6 +45,43 @@ export default function DialerPanel() {
   };
 
   useEffect(() => { load(); const id = setInterval(load, 5000); return () => clearInterval(id); }, []);
+
+  useEffect(() => { termBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [termOutput]);
+
+  const runCommand = async (cmd) => {
+    const c = (cmd || termCmd).trim();
+    if (!c || termRunning) return;
+    setTermOutput(prev => prev + `\n$ ${c}\n`);
+    setTermRunning(true);
+    try {
+      const resp = await fetch(API("/dialer/exec"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: c }),
+      });
+      if (!resp.ok) { setTermOutput(prev => prev + `[HTTP ${resp.status}]\n`); return; }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n"); buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          let evt; try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+          if (evt.type === "output") setTermOutput(prev => prev + evt.text);
+          else if (evt.type === "done") setTermOutput(prev => prev + (evt.code ? `[exit ${evt.code}]\n` : ""));
+          else if (evt.type === "error") setTermOutput(prev => prev + `[error: ${evt.message}]\n`);
+        }
+      }
+    } catch (e) {
+      setTermOutput(prev => prev + `[fetch error: ${e.message}]\n`);
+    } finally {
+      setTermRunning(false);
+    }
+  };
 
   const session = data?.session  ?? {};
   const history = data?.history  ?? {};
@@ -181,16 +225,107 @@ export default function DialerPanel() {
             START SESSION:{" "}
           </span>
           <span style={{ fontSize: 12, color: "#5a6f8f" }}>
-            cd parallel-dialer/ and run{" "}
+            use the terminal below or run{" "}
           </span>
           <code style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a7bd5" }}>
             python run.py
           </code>
           <span style={{ fontSize: 12, color: "#5a6f8f" }}>
-            {" "}— live stats update here automatically.
+            {" "}from parallel-dialer/.
           </span>
         </div>
       )}
+
+      {/* Terminal */}
+      <div className="glass-card" style={{ padding: 0, overflow: "hidden" }}>
+        {/* Terminal header */}
+        <div
+          onClick={() => setTermOpen(o => !o)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "10px 16px", cursor: "pointer",
+            borderBottom: termOpen ? "1px solid rgba(58,123,213,0.1)" : "none",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.14em" }}>
+              TERMINAL
+            </span>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a3a50" }}>
+              parallel-dialer/
+            </span>
+          </div>
+          <span style={{ fontSize: 10, color: "#2a4a7a" }}>{termOpen ? "▲" : "▼"}</span>
+        </div>
+
+        {termOpen && (
+          <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+            {/* Preset chips */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {TERM_PRESETS.map(p => (
+                <button
+                  key={p}
+                  onClick={() => { setTermCmd(p); runCommand(p); }}
+                  disabled={termRunning}
+                  style={{
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                    padding: "4px 10px", borderRadius: 6,
+                    background: "rgba(58,123,213,0.08)",
+                    border: "1px solid rgba(58,123,213,0.2)",
+                    color: "#3a7bd5", cursor: termRunning ? "not-allowed" : "pointer",
+                    opacity: termRunning ? 0.5 : 1,
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+
+            {/* Output */}
+            {termOutput && (
+              <div style={{
+                background: "#050d1a", borderRadius: 8, padding: "10px 12px",
+                maxHeight: 280, overflowY: "auto",
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 11,
+                color: "#7aaad0", whiteSpace: "pre-wrap", wordBreak: "break-all",
+                border: "1px solid rgba(58,123,213,0.1)",
+              }}>
+                {termOutput}
+                <div ref={termBottomRef} />
+              </div>
+            )}
+
+            {/* Command input */}
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                className="dg-input"
+                style={{ flex: 1, fontFamily: "'Share Tech Mono', monospace", fontSize: 12 }}
+                placeholder="enter command..."
+                value={termCmd}
+                onChange={e => setTermCmd(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && runCommand()}
+                disabled={termRunning}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={() => runCommand()}
+                disabled={termRunning || !termCmd.trim()}
+                style={{ minWidth: 60, fontSize: 11 }}
+              >
+                {termRunning ? "…" : "RUN"}
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setTermOutput("")}
+                style={{ fontSize: 11 }}
+              >
+                CLR
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

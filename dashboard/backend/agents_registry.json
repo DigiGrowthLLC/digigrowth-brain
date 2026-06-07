@@ -30,5 +30,13 @@
     "root_dir": "../../parallel-dialer",
     "color": "#f0a028",
     "badge_class": "badge-amber"
+  },
+  {
+    "id": "digiGrowth-os",
+    "name": "DigiGrowth OS",
+    "description": "Platform codebase — edit frontend, backend, and all agent files",
+    "root_dir": "../../",
+    "color": "#e84393",
+    "badge_class": "badge-pink"
   }
 ]
