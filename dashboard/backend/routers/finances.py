@@ -204,6 +204,7 @@ async def exchange_token(body: dict):
 
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Save token first — connection succeeds even if initial sync fails
         await conn.execute(
             """
             INSERT INTO plaid_config (access_token, item_id, institution_name)
@@ -213,12 +214,18 @@ async def exchange_token(body: dict):
             """,
             access_token, item_id, institution_name,
         )
-        # Initial sync — no cursor yet
-        added, modified, removed, cursor = await _do_sync(conn, access_token, None)
-        await conn.execute(
-            "UPDATE plaid_config SET cursor=$1, last_synced_at=now() WHERE item_id=$2",
-            cursor, item_id,
-        )
+        # Initial sync — wrap in try/except so token save isn't rolled back on sync error
+        added = 0
+        try:
+            added, _mod, _rem, cursor = await _do_sync(conn, access_token, None)
+            await conn.execute(
+                "UPDATE plaid_config SET cursor=$1, last_synced_at=now() WHERE item_id=$2",
+                cursor, item_id,
+            )
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            return {"ok": True, "added": 0, "sync_error": str(exc)}
 
     return {"ok": True, "added": added}
 

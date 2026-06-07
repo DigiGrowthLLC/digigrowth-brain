@@ -118,6 +118,8 @@ export default function FinancesPanel() {
   const [txnType, setTxnType]       = useState("all");
   const [expandedTxn, setExpandedTxn] = useState(null);
   const [linkToken, setLinkToken]   = useState(null);
+  const [connectError, setConnectError] = useState(null);
+  const [connecting, setConnecting] = useState(false);
 
   const loadAll = useCallback(async (d = days) => {
     const [s, c, t] = await Promise.all([
@@ -159,15 +161,30 @@ export default function FinancesPanel() {
   const { open: openPlaid, ready: plaidReady } = usePlaidLink({
     token: linkToken || "",
     onSuccess: async (publicToken, metadata) => {
-      await fetch(API("/finances/plaid/exchange"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          public_token: publicToken,
-          institution_name: metadata?.institution?.name || "Novo",
-        }),
-      });
-      await loadAll();
+      setConnecting(true);
+      setConnectError(null);
+      try {
+        const resp = await fetch(API("/finances/plaid/exchange"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            public_token: publicToken,
+            institution_name: metadata?.institution?.name || "Novo",
+          }),
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          setConnectError(`Server error ${resp.status}: ${err}`);
+          return;
+        }
+        const data = await resp.json();
+        if (data.sync_error) setConnectError(`Connected but sync failed: ${data.sync_error}`);
+        await loadAll();
+      } catch (e) {
+        setConnectError(`Network error: ${e.message}`);
+      } finally {
+        setConnecting(false);
+      }
     },
   });
 
@@ -237,7 +254,24 @@ export default function FinancesPanel() {
 
       {/* Not connected */}
       {!summary?.connected && (
-        <ConnectScreen onConnect={() => plaidReady && openPlaid()} />
+        <>
+          <ConnectScreen onConnect={() => { if (plaidReady && !connecting) openPlaid(); }} />
+          {connecting && (
+            <div style={{ textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.1em" }}>
+              CONNECTING & SYNCING TRANSACTIONS…
+            </div>
+          )}
+          {connectError && (
+            <div style={{
+              padding: "12px 16px", borderRadius: 10,
+              background: "rgba(220,60,60,0.08)", border: "1px solid rgba(220,60,60,0.2)",
+              fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#dc3c3c",
+              letterSpacing: "0.06em",
+            }}>
+              {connectError}
+            </div>
+          )}
+        </>
       )}
 
       {/* Connected dashboard */}
