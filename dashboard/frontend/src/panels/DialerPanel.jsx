@@ -27,7 +27,7 @@ function fmt(ts) {
   return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-const TERM_PRESETS = ["python run.py", "git status", "pip install -r requirements.txt", "python -c \"import dialer; print('ok')\""];
+const TERM_PRESETS = ["python run.py", "ls -la", "pip list | grep twilio", "python -c \"import dialer; print('ok')\""];
 
 export default function DialerPanel() {
   const [data, setData] = useState(null);

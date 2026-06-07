@@ -3,11 +3,11 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 const API = (p) => `/api${p}`;
 
 const TERM_PRESETS = [
-  "git status",
-  "git log --oneline -10",
-  "npm run build",
-  "git diff --stat",
   "pip list",
+  "python --version",
+  "ls -la",
+  "ls dashboard/backend/routers/",
+  "ls dashboard/frontend/src/panels/",
 ];
 
 // ── Tool block ────────────────────────────────────────────────────────────────
