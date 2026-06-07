@@ -1,5 +1,21 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { usePlaidLink } from "react-plaid-link";
+
+// Must be a separate component — usePlaidLink only works correctly when
+// mounted after the token is already available, not with token=""
+function PlaidConnectButton({ token, onSuccess, disabled }) {
+  const { open, ready } = usePlaidLink({ token, onSuccess });
+  return (
+    <button
+      onClick={() => open()}
+      disabled={!ready || disabled}
+      className="btn btn-primary"
+      style={{ padding: "12px 28px", fontSize: 13, fontWeight: 600, opacity: ready ? 1 : 0.5 }}
+    >
+      {disabled ? "Connecting…" : "Connect Novo"}
+    </button>
+  );
+}
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
@@ -74,40 +90,6 @@ function SummaryCard({ label, value, color, sub }) {
   );
 }
 
-function ConnectScreen({ onConnect }) {
-  return (
-    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div className="glass-card" style={{
-        padding: "40px 48px", textAlign: "center", maxWidth: 440,
-      }}>
-        <div style={{ marginBottom: 20 }}>
-          <svg viewBox="0 0 48 48" fill="none" width={48} height={48} style={{ margin: "0 auto" }}>
-            <rect x="4" y="10" width="40" height="28" rx="4" stroke="#3a7bd5" strokeWidth="2"/>
-            <path d="M4 18h40" stroke="#3a7bd5" strokeWidth="2"/>
-            <rect x="10" y="26" width="8" height="4" rx="1" fill="#3a7bd5" opacity="0.6"/>
-            <rect x="22" y="26" width="5" height="4" rx="1" fill="#3a7bd5" opacity="0.3"/>
-          </svg>
-        </div>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff", marginBottom: 8 }}>
-          Connect Your Novo Account
-        </div>
-        <div style={{ fontSize: 13, color: "#6080a8", lineHeight: 1.6, marginBottom: 24 }}>
-          Link your Novo business bank account to automatically track income, expenses, and profit margin. Syncs in real-time — no CSV exports needed.
-        </div>
-        <button
-          onClick={onConnect}
-          className="btn btn-primary"
-          style={{ padding: "12px 28px", fontSize: 13, fontWeight: 600 }}
-        >
-          Connect Novo
-        </button>
-        <div style={{ marginTop: 14, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#1a3a60", letterSpacing: "0.1em" }}>
-          POWERED BY PLAID · BANK-GRADE ENCRYPTION
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function FinancesPanel() {
   const [days, setDays]             = useState(30);
@@ -158,35 +140,32 @@ export default function FinancesPanel() {
     if (summary?.connected) triggerSync();
   }, [summary?.connected]);
 
-  const { open: openPlaid, ready: plaidReady } = usePlaidLink({
-    token: linkToken || "",
-    onSuccess: async (publicToken, metadata) => {
-      setConnecting(true);
-      setConnectError(null);
-      try {
-        const resp = await fetch(API("/finances/plaid/exchange"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            public_token: publicToken,
-            institution_name: metadata?.institution?.name || "Novo",
-          }),
-        });
-        if (!resp.ok) {
-          const err = await resp.text();
-          setConnectError(`Server error ${resp.status}: ${err}`);
-          return;
-        }
-        const data = await resp.json();
-        if (data.sync_error) setConnectError(`Connected but sync failed: ${data.sync_error}`);
-        await loadAll();
-      } catch (e) {
-        setConnectError(`Network error: ${e.message}`);
-      } finally {
-        setConnecting(false);
+  const handlePlaidSuccess = useCallback(async (publicToken, metadata) => {
+    setConnecting(true);
+    setConnectError(null);
+    try {
+      const resp = await fetch(API("/finances/plaid/exchange"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          public_token: publicToken,
+          institution_name: metadata?.institution?.name || "Novo",
+        }),
+      });
+      if (!resp.ok) {
+        const err = await resp.text();
+        setConnectError(`Server error ${resp.status}: ${err}`);
+        return;
       }
-    },
-  });
+      const data = await resp.json();
+      if (data.sync_error) setConnectError(`Connected — sync note: ${data.sync_error}`);
+      await loadAll();
+    } catch (e) {
+      setConnectError(`Network error: ${e.message}`);
+    } finally {
+      setConnecting(false);
+    }
+  }, [loadAll]);
 
   const updateTxn = async (id, patch) => {
     await fetch(API(`/finances/transactions/${id}`), {
@@ -254,24 +233,48 @@ export default function FinancesPanel() {
 
       {/* Not connected */}
       {!summary?.connected && (
-        <>
-          <ConnectScreen onConnect={() => { if (plaidReady && !connecting) openPlaid(); }} />
-          {connecting && (
-            <div style={{ textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.1em" }}>
-              CONNECTING & SYNCING TRANSACTIONS…
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="glass-card" style={{ padding: "40px 48px", textAlign: "center", maxWidth: 440 }}>
+            <div style={{ marginBottom: 20 }}>
+              <svg viewBox="0 0 48 48" fill="none" width={48} height={48} style={{ margin: "0 auto" }}>
+                <rect x="4" y="10" width="40" height="28" rx="4" stroke="#3a7bd5" strokeWidth="2"/>
+                <path d="M4 18h40" stroke="#3a7bd5" strokeWidth="2"/>
+                <rect x="10" y="26" width="8" height="4" rx="1" fill="#3a7bd5" opacity="0.6"/>
+                <rect x="22" y="26" width="5" height="4" rx="1" fill="#3a7bd5" opacity="0.3"/>
+              </svg>
             </div>
-          )}
-          {connectError && (
-            <div style={{
-              padding: "12px 16px", borderRadius: 10,
-              background: "rgba(220,60,60,0.08)", border: "1px solid rgba(220,60,60,0.2)",
-              fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#dc3c3c",
-              letterSpacing: "0.06em",
-            }}>
-              {connectError}
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff", marginBottom: 8 }}>
+              Connect Your Novo Account
             </div>
-          )}
-        </>
+            <div style={{ fontSize: 13, color: "#6080a8", lineHeight: 1.6, marginBottom: 24 }}>
+              Link your Novo business bank account to automatically track income, expenses, and profit margin.
+            </div>
+            {linkToken ? (
+              <PlaidConnectButton
+                token={linkToken}
+                onSuccess={handlePlaidSuccess}
+                disabled={connecting}
+              />
+            ) : (
+              <button className="btn btn-primary" disabled style={{ padding: "12px 28px", fontSize: 13, opacity: 0.5 }}>
+                Loading…
+              </button>
+            )}
+            {connecting && (
+              <div style={{ marginTop: 12, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>
+                CONNECTING & SYNCING…
+              </div>
+            )}
+            {connectError && (
+              <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "rgba(220,60,60,0.08)", border: "1px solid rgba(220,60,60,0.2)", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#dc3c3c", letterSpacing: "0.06em", textAlign: "left" }}>
+                {connectError}
+              </div>
+            )}
+            <div style={{ marginTop: 14, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#1a3a60", letterSpacing: "0.1em" }}>
+              POWERED BY PLAID · BANK-GRADE ENCRYPTION
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Connected dashboard */}
