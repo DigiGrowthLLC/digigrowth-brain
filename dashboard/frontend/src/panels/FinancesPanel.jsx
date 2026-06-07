@@ -113,6 +113,7 @@ export default function FinancesPanel() {
   const [linkToken, setLinkToken]   = useState(null);
   const [connectError, setConnectError] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   const loadAll = useCallback(async (d = days) => {
     const [s, c, t] = await Promise.all([
@@ -123,6 +124,7 @@ export default function FinancesPanel() {
     setSummary(s);
     setCategories(c);
     setTxns(t);
+    if (s?.connected) setIsConnected(true);
   }, [days]);
 
   const triggerSync = async () => {
@@ -148,8 +150,8 @@ export default function FinancesPanel() {
 
   // Auto-sync on load when connected
   useEffect(() => {
-    if (summary?.connected) triggerSync();
-  }, [summary?.connected]);
+    if (isConnected) triggerSync();
+  }, [isConnected]);
 
   const handlePlaidSuccess = useCallback(async (publicToken, metadata) => {
     setConnecting(true);
@@ -168,7 +170,7 @@ export default function FinancesPanel() {
         setConnectError(`Server error ${resp.status}: ${err}`);
         return;
       }
-      setConnectError("Token saved — loading dashboard…");
+      setIsConnected(true);
       const data = await resp.json();
       if (data.sync_error) setConnectError(`Connected — sync note: ${data.sync_error}`);
       await loadAll();
@@ -228,7 +230,7 @@ export default function FinancesPanel() {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {summary?.connected && (
+          {isConnected && (
             <button
               onClick={triggerSync}
               disabled={syncing}
@@ -244,7 +246,7 @@ export default function FinancesPanel() {
       </div>
 
       {/* Not connected */}
-      {!summary?.connected && (
+      {!isConnected && (
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div className="glass-card" style={{ padding: "40px 48px", textAlign: "center", maxWidth: 440 }}>
             <div style={{ marginBottom: 20 }}>
@@ -291,7 +293,7 @@ export default function FinancesPanel() {
       )}
 
       {/* Connected dashboard */}
-      {summary?.connected && (
+      {isConnected && (
         <>
           {/* Summary cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
