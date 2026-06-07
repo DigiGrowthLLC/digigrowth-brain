@@ -297,18 +297,18 @@ export default function FinancesPanel() {
         <>
           {/* Summary cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-            <SummaryCard label="Revenue"     value={money(summary.income)}   color="#14c882" />
-            <SummaryCard label="Expenses"    value={money(summary.expenses)}  color="#f0a028" />
+            <SummaryCard label="Revenue"     value={money(summary?.income)}   color="#14c882" />
+            <SummaryCard label="Expenses"    value={money(summary?.expenses)}  color="#f0a028" />
             <SummaryCard
               label="Net Profit"
-              value={money(summary.net)}
-              color={summary.net >= 0 ? "#14c882" : "#dc3c3c"}
+              value={money(summary?.net)}
+              color={(summary?.net ?? 0) >= 0 ? "#14c882" : "#dc3c3c"}
             />
             <SummaryCard
               label="Profit Margin"
-              value={summary.margin != null ? `${summary.margin}%` : "—"}
+              value={summary?.margin != null ? `${summary.margin}%` : "—"}
               color={marginColor}
-              sub={summary.margin != null ? (summary.margin > 30 ? "HEALTHY" : summary.margin > 0 ? "SLIM" : "LOSS") : null}
+              sub={summary?.margin != null ? (summary.margin > 30 ? "HEALTHY" : summary.margin > 0 ? "SLIM" : "LOSS") : null}
             />
           </div>
 
