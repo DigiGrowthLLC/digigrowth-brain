@@ -86,10 +86,33 @@ async def _create_schema(pool: asyncpg.Pool):
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            CREATE TABLE IF NOT EXISTS transactions (
+                id                   SERIAL PRIMARY KEY,
+                plaid_transaction_id TEXT UNIQUE,
+                date                 DATE NOT NULL,
+                description          TEXT,
+                amount               NUMERIC(10,2) NOT NULL,
+                is_income            BOOLEAN NOT NULL DEFAULT false,
+                category             TEXT DEFAULT 'Uncategorized',
+                notes                TEXT,
+                created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE IF NOT EXISTS plaid_config (
+                id               SERIAL PRIMARY KEY,
+                access_token     TEXT NOT NULL,
+                item_id          TEXT NOT NULL UNIQUE,
+                institution_name TEXT,
+                cursor           TEXT,
+                last_synced_at   TIMESTAMPTZ,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
             CREATE INDEX IF NOT EXISTS idx_contacts_status ON contacts(status);
             CREATE INDEX IF NOT EXISTS idx_contacts_grade ON contacts(grade);
             CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(phone);
             CREATE INDEX IF NOT EXISTS idx_call_logs_contact ON call_logs(contact_id);
             CREATE INDEX IF NOT EXISTS idx_sms_messages_contact ON sms_messages(contact_id);
             CREATE INDEX IF NOT EXISTS idx_agent_chats_agent ON agent_chats(agent_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
         """)

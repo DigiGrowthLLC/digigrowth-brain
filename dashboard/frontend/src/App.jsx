@@ -6,6 +6,7 @@ import DialerPanel    from "./panels/DialerPanel.jsx";
 import AgentsPanel    from "./panels/AgentsPanel.jsx";
 import SettingsPanel  from "./panels/SettingsPanel.jsx";
 import AnalyticsPanel from "./panels/AnalyticsPanel.jsx";
+import FinancesPanel  from "./panels/FinancesPanel.jsx";
 
 const NAV = [
   { id: "home",      label: "Dashboard", ready: true  },
@@ -14,6 +15,7 @@ const NAV = [
   { id: "sms",       label: "SMS Inbox", ready: true  },
   { id: "agents",    label: "Agents",    ready: true  },
   { id: "analytics", label: "Analytics", ready: true  },
+  { id: "finances",  label: "Finances",  ready: true  },
   { id: "settings",  label: "Settings",  ready: true  },
 ];
 
@@ -61,6 +63,13 @@ const NAV_ICONS = {
       <rect x="3" y="8" width="2" height="5" rx="0.5" fill="currentColor" opacity="0.7"/>
       <rect x="7" y="5" width="2" height="8" rx="0.5" fill="currentColor" opacity="0.7"/>
       <rect x="11" y="2" width="2" height="11" rx="0.5" fill="currentColor" opacity="0.7"/>
+    </svg>
+  ),
+  finances: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M1 6h14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+      <rect x="3" y="9" width="3" height="1.5" rx="0.5" fill="currentColor" opacity="0.6"/>
     </svg>
   ),
   settings: (
@@ -209,8 +218,9 @@ export default function App() {
         {active === "dialer"   && <DialerPanel />}
         {active === "agents"    && <AgentsPanel />}
         {active === "analytics" && <AnalyticsPanel />}
+        {active === "finances"  && <FinancesPanel />}
         {active === "settings"  && <SettingsPanel />}
-        {!["home","crm","sms","dialer","agents","analytics","settings"].includes(active) && (
+        {!["home","crm","sms","dialer","agents","analytics","finances","settings"].includes(active) && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 10,
