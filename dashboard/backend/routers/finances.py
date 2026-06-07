@@ -81,74 +81,79 @@ def _categorize(description: str, amount: float) -> tuple[str, bool]:
 
 # ── Sync helper ───────────────────────────────────────────────────────────────
 
-async def _do_sync(conn, access_token: str, cursor: str | None) -> tuple[int, int, int, str]:
+def _txn_date(d) -> date:
+    """Coerce Plaid date field to Python date."""
+    if isinstance(d, date):
+        return d
+    return date.fromisoformat(str(d))
+
+
+async def _do_sync(conn, access_token: str, cursor) -> tuple[int, int, int, str]:
     """Pull transactions from Plaid using /transactions/sync. Returns (added, modified, removed, new_cursor)."""
     from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
-    client  = _plaid_client()
-    added   = 0
+    client   = _plaid_client()
+    added    = 0
     modified = 0
     removed  = 0
     has_more = True
 
     while has_more:
-        req = TransactionsSyncRequest(
-            access_token=access_token,
-            **( {"cursor": cursor} if cursor else {} ),
-        )
-        resp = client.transactions_sync(req)
-        data = resp.to_dict()
+        kwargs = {"access_token": access_token}
+        if cursor:
+            kwargs["cursor"] = cursor
+        resp = client.transactions_sync(TransactionsSyncRequest(**kwargs))
 
-        for txn in data.get("added", []):
-            category, is_income = _categorize(txn.get("name", ""), txn.get("amount", 0))
-            # Plaid amount: positive = debit (expense), negative = credit (income)
-            # We store: positive = income, negative = expense
-            stored_amount = -(txn["amount"])
-            txn_date = txn["date"] if isinstance(txn["date"], date) else date.fromisoformat(str(txn["date"]))
-            category, is_income = _categorize(txn.get("name", ""), stored_amount)
+        for txn in resp.added or []:
+            # Plaid: positive amount = debit (money out). We flip: negative stored = expense.
+            raw_amount    = float(txn.amount)
+            stored_amount = -raw_amount
+            name          = getattr(txn, "name", None) or getattr(txn, "merchant_name", None) or ""
+            category, is_income = _categorize(name, stored_amount)
             await conn.execute(
                 """
                 INSERT INTO transactions (plaid_transaction_id, date, description, amount, is_income, category)
                 VALUES ($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (plaid_transaction_id) DO NOTHING
                 """,
-                txn["transaction_id"],
-                txn_date,
-                txn.get("name") or txn.get("merchant_name") or "",
+                txn.transaction_id,
+                _txn_date(txn.date),
+                name,
                 stored_amount,
                 is_income,
                 category,
             )
             added += 1
 
-        for txn in data.get("modified", []):
-            stored_amount = -(txn["amount"])
-            category, is_income = _categorize(txn.get("name", ""), stored_amount)
-            txn_date = txn["date"] if isinstance(txn["date"], date) else date.fromisoformat(str(txn["date"]))
+        for txn in resp.modified or []:
+            raw_amount    = float(txn.amount)
+            stored_amount = -raw_amount
+            name          = getattr(txn, "name", None) or getattr(txn, "merchant_name", None) or ""
+            category, is_income = _categorize(name, stored_amount)
             await conn.execute(
                 """
                 UPDATE transactions
                 SET date=$2, description=$3, amount=$4, is_income=$5, category=$6
                 WHERE plaid_transaction_id=$1
                 """,
-                txn["transaction_id"],
-                txn_date,
-                txn.get("name") or txn.get("merchant_name") or "",
+                txn.transaction_id,
+                _txn_date(txn.date),
+                name,
                 stored_amount,
                 is_income,
                 category,
             )
             modified += 1
 
-        for txn in data.get("removed", []):
+        for txn in resp.removed or []:
             await conn.execute(
                 "DELETE FROM transactions WHERE plaid_transaction_id=$1",
-                txn.get("transaction_id"),
+                txn.transaction_id,
             )
             removed += 1
 
-        cursor   = data["next_cursor"]
-        has_more = data["has_more"]
+        cursor   = resp.next_cursor
+        has_more = resp.has_more
 
     return added, modified, removed, cursor
 
@@ -177,7 +182,7 @@ async def create_link_token():
         language="en",
     )
     resp = client.link_token_create(req)
-    return {"link_token": resp["link_token"]}
+    return {"link_token": resp.link_token}
 
 
 @router.post("/finances/plaid/exchange")
@@ -194,8 +199,8 @@ async def exchange_token(body: dict):
     resp   = client.item_public_token_exchange(
         ItemPublicTokenExchangeRequest(public_token=public_token)
     )
-    access_token = resp["access_token"]
-    item_id      = resp["item_id"]
+    access_token = resp.access_token
+    item_id      = resp.item_id
 
     pool = await get_pool()
     async with pool.acquire() as conn:
