@@ -3,8 +3,19 @@ import { usePlaidLink } from "react-plaid-link";
 
 // Must be a separate component — usePlaidLink only works correctly when
 // mounted after the token is already available, not with token=""
-function PlaidConnectButton({ token, onSuccess, disabled }) {
-  const { open, ready } = usePlaidLink({ token, onSuccess });
+function PlaidConnectButton({ token, onSuccess, onError, disabled }) {
+  const { open, ready } = usePlaidLink({
+    token,
+    onSuccess,
+    onExit: (err, metadata) => {
+      if (err) {
+        onError?.(`Plaid exit error: ${err.error_code} — ${err.error_message}`);
+      } else if (metadata?.status !== "institution_selected") {
+        // exited after partially completing — surface for debugging
+        onError?.(`Exited at step: ${metadata?.status || "unknown"}`);
+      }
+    },
+  });
   return (
     <button
       onClick={() => open()}
@@ -142,7 +153,7 @@ export default function FinancesPanel() {
 
   const handlePlaidSuccess = useCallback(async (publicToken, metadata) => {
     setConnecting(true);
-    setConnectError(null);
+    setConnectError("Plaid authorized — exchanging token with server…");
     try {
       const resp = await fetch(API("/finances/plaid/exchange"), {
         method: "POST",
@@ -157,6 +168,7 @@ export default function FinancesPanel() {
         setConnectError(`Server error ${resp.status}: ${err}`);
         return;
       }
+      setConnectError("Token saved — loading dashboard…");
       const data = await resp.json();
       if (data.sync_error) setConnectError(`Connected — sync note: ${data.sync_error}`);
       await loadAll();
@@ -253,6 +265,7 @@ export default function FinancesPanel() {
               <PlaidConnectButton
                 token={linkToken}
                 onSuccess={handlePlaidSuccess}
+                onError={setConnectError}
                 disabled={connecting}
               />
             ) : (
