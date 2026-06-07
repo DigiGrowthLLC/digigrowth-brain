@@ -5,6 +5,7 @@ import SMSPanel       from "./panels/SMSPanel.jsx";
 import DialerPanel    from "./panels/DialerPanel.jsx";
 import AgentsPanel    from "./panels/AgentsPanel.jsx";
 import SettingsPanel  from "./panels/SettingsPanel.jsx";
+import AnalyticsPanel from "./panels/AnalyticsPanel.jsx";
 
 const NAV = [
   { id: "home",      label: "Dashboard", ready: true  },
@@ -12,7 +13,7 @@ const NAV = [
   { id: "dialer",    label: "Dialer",    ready: true  },
   { id: "sms",       label: "SMS Inbox", ready: true  },
   { id: "agents",    label: "Agents",    ready: true  },
-  { id: "analytics", label: "Analytics", ready: false },
+  { id: "analytics", label: "Analytics", ready: true  },
   { id: "settings",  label: "Settings",  ready: true  },
 ];
 
@@ -206,9 +207,10 @@ export default function App() {
         {active === "crm"      && <CRMPanel />}
         {active === "sms"      && <SMSPanel />}
         {active === "dialer"   && <DialerPanel />}
-        {active === "agents"   && <AgentsPanel />}
-        {active === "settings" && <SettingsPanel />}
-        {!["home","crm","sms","dialer","agents","settings"].includes(active) && (
+        {active === "agents"    && <AgentsPanel />}
+        {active === "analytics" && <AnalyticsPanel />}
+        {active === "settings"  && <SettingsPanel />}
+        {!["home","crm","sms","dialer","agents","analytics","settings"].includes(active) && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 10,
