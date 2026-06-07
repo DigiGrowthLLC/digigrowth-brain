@@ -87,7 +87,7 @@ const LogoMark = () => (
 );
 
 export default function App() {
-  const [active, setActive] = useState("agents");
+  const [active, setActive] = useState("home");
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
