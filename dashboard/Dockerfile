@@ -16,8 +16,12 @@ RUN apt-get update && apt-get install -y git --no-install-recommends && rm -rf /
 # Copy entire repo so agent directories are accessible
 COPY . .
 
-# Install Python deps
-RUN pip install --no-cache-dir -r dashboard/backend/requirements.txt
+# Install Python deps (dashboard + all agents run in this container)
+RUN pip install --no-cache-dir \
+    -r dashboard/backend/requirements.txt \
+    -r parallel-dialer/requirements.txt \
+    -r leadgen-agent/requirements.txt \
+    -r apptset-agent/requirements.txt
 
 # Copy built frontend into the location the backend serves from
 COPY --from=frontend-build /build/dist ./dashboard/backend/frontend/dist
