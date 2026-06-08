@@ -115,6 +115,7 @@ export default function FinancesPanel() {
   const [txns, setTxns]             = useState(null);
   const [syncing, setSyncing]       = useState(false);
   const [txnType, setTxnType]       = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [expandedTxn, setExpandedTxn] = useState(null);
   const [linkToken, setLinkToken]   = useState(null);
   const [connectError, setConnectError] = useState(null);
@@ -205,7 +206,7 @@ export default function FinancesPanel() {
     if (txnType === "income")  return t.is_income;
     if (txnType === "expense") return !t.is_income;
     return true;
-  });
+  }).filter(t => !selectedCategory || t.category === selectedCategory);
 
   const marginColor = summary?.margin == null ? "#3a5a80"
     : summary.margin > 30 ? "#14c882"
@@ -363,19 +364,33 @@ export default function FinancesPanel() {
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>NO EXPENSES YET</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {categories.expense_breakdown.map(c => (
-                    <div key={c.category}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={{ fontSize: 12, color: "#8aaad0" }}>{c.category}</span>
-                        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
-                          {money(c.total)} ({c.pct}%)
-                        </span>
+                  {categories.expense_breakdown.map(c => {
+                    const isSelected = selectedCategory === c.category;
+                    return (
+                      <div
+                        key={c.category}
+                        onClick={() => setSelectedCategory(isSelected ? null : c.category)}
+                        style={{
+                          cursor: "pointer", borderRadius: 8, padding: "6px 8px", margin: "-6px -8px",
+                          background: isSelected ? "rgba(58,123,213,0.12)" : "transparent",
+                          border: isSelected ? "1px solid rgba(58,123,213,0.25)" : "1px solid transparent",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, color: isSelected ? "#6ab0ff" : "#8aaad0", fontWeight: isSelected ? 600 : 400 }}>
+                            {c.category}
+                          </span>
+                          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: isSelected ? "#6ab0ff" : "#3a5a80" }}>
+                            {money(c.total)} ({c.pct}%)
+                          </span>
+                        </div>
+                        <div style={{ height: 2, background: "#111e36", borderRadius: 1 }}>
+                          <div style={{ height: 2, borderRadius: 1, width: `${c.pct}%`, background: isSelected ? "#3a7bd5" : "#f0a028", opacity: isSelected ? 1 : 0.7 }} />
+                        </div>
                       </div>
-                      <div style={{ height: 2, background: "#111e36", borderRadius: 1 }}>
-                        <div style={{ height: 2, borderRadius: 1, width: `${c.pct}%`, background: "#f0a028", opacity: 0.7 }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -384,17 +399,27 @@ export default function FinancesPanel() {
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 14 }}>
                 Top Expenses
               </div>
-              {(categories?.expense_breakdown?.slice(0, 3) ?? []).map((c, i) => (
-                <div key={c.category} style={{
-                  padding: "10px 0",
-                  borderBottom: i < 2 ? "0.5px solid #1a2540" : "none",
-                }}>
-                  <div style={{ fontSize: 11, color: "#6080a8", marginBottom: 3 }}>{c.category}</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: "#f0a028", letterSpacing: "-0.02em" }}>
-                    {money(c.total)}
+              {(categories?.expense_breakdown?.slice(0, 3) ?? []).map((c, i) => {
+                const isSelected = selectedCategory === c.category;
+                return (
+                  <div
+                    key={c.category}
+                    onClick={() => setSelectedCategory(isSelected ? null : c.category)}
+                    style={{
+                      padding: "10px 8px", margin: "0 -8px",
+                      borderBottom: i < 2 ? "0.5px solid #1a2540" : "none",
+                      cursor: "pointer", borderRadius: 8,
+                      background: isSelected ? "rgba(58,123,213,0.12)" : "transparent",
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    <div style={{ fontSize: 11, color: isSelected ? "#6ab0ff" : "#6080a8", marginBottom: 3 }}>{c.category}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: isSelected ? "#3a7bd5" : "#f0a028", letterSpacing: "-0.02em" }}>
+                      {money(c.total)}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {!categories?.expense_breakdown?.length && (
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>NO DATA</div>
               )}
@@ -404,8 +429,25 @@ export default function FinancesPanel() {
           {/* Transaction list */}
           <div className="glass-card" style={{ padding: "18px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0" }}>
-                Transactions
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0" }}>
+                  Transactions
+                </div>
+                {selectedCategory && (
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 5,
+                      fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                      padding: "3px 8px 3px 10px", borderRadius: 20,
+                      background: "rgba(58,123,213,0.18)", border: "1px solid rgba(58,123,213,0.35)",
+                      color: "#6ab0ff", cursor: "pointer", letterSpacing: "0.06em",
+                    }}
+                  >
+                    {selectedCategory}
+                    <span style={{ fontSize: 11, lineHeight: 1, color: "#3a7bd5" }}>×</span>
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", background: "rgba(10,18,48,0.5)", border: "1px solid rgba(58,123,213,0.1)", borderRadius: 8, padding: 3, gap: 2 }}>
                 {[["all","ALL"],["income","INCOME"],["expense","EXPENSES"]].map(([v, label]) => (
