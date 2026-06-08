@@ -264,7 +264,7 @@ async def summary(days: int = 30):
             """
             SELECT
                 COALESCE(SUM(amount) FILTER (WHERE is_income AND date >= $1), 0) AS income,
-                COALESCE(ABS(SUM(amount)) FILTER (WHERE NOT is_income AND date >= $1), 0) AS expenses
+                COALESCE(ABS(SUM(amount) FILTER (WHERE NOT is_income AND date >= $1)), 0) AS expenses
             FROM transactions
             """,
             since,
@@ -307,7 +307,7 @@ async def categories(days: int = 30):
             """
             SELECT date,
                    COALESCE(SUM(amount) FILTER (WHERE is_income), 0)          AS income,
-                   COALESCE(ABS(SUM(amount)) FILTER (WHERE NOT is_income), 0) AS expenses
+                   COALESCE(ABS(SUM(amount) FILTER (WHERE NOT is_income)), 0) AS expenses
             FROM transactions
             WHERE date >= $1
             GROUP BY date
