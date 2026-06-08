@@ -469,13 +469,17 @@ def _build_system_prompt(agent: dict) -> str:
         f"Description: {description}\n\n"
         "You have tools to read, write, create, and delete files in this agent's directory. "
         "Use them freely — read files before editing them, and explain your changes.\n\n"
+        "MEMORY: You have a persistent memory file at memory.md in your directory. "
+        "After any conversation where you learn something important — a decision, a preference, "
+        "a key fact, a recurring task — write it to memory.md using write_file. "
+        "Keep entries concise, one fact per bullet. This file is loaded every session so you remember across conversations.\n\n"
         "SECURITY: NEVER read, write, or reference .env files, credentials.json, or settings.local.json. "
         "These contain secrets and are blocked at the API level.\n\n"
         "When making code changes, follow the existing patterns in the files you read first. "
         "Be concise — the user is technical."
     ]
 
-    for candidate in ["CLAUDE.md", "prompt.txt", "role.txt"]:
+    for candidate in ["memory.md", "CLAUDE.md", "prompt.txt", "role.txt"]:
         p = root / candidate
         if p.exists():
             try:
@@ -755,6 +759,21 @@ async def chat(agent_id: str, request: Request):
 
             # Done — no tool calls
             if final_message.stop_reason != "tool_use":
+                # Trim history to 100 rows to keep DB lean
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        DELETE FROM agent_chats
+                        WHERE agent_id = $1
+                          AND id NOT IN (
+                            SELECT id FROM agent_chats
+                            WHERE agent_id = $1
+                            ORDER BY created_at DESC
+                            LIMIT 100
+                          )
+                        """,
+                        agent_id,
+                    )
                 yield f"data: {json.dumps({'type': 'done'})}\n\n"
                 return
 
