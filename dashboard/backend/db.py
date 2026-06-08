@@ -94,6 +94,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 amount               NUMERIC(10,2) NOT NULL,
                 is_income            BOOLEAN NOT NULL DEFAULT false,
                 category             TEXT DEFAULT 'Uncategorized',
+                plaid_category       TEXT,
                 notes                TEXT,
                 created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
             );
@@ -115,4 +116,8 @@ async def _create_schema(pool: asyncpg.Pool):
             CREATE INDEX IF NOT EXISTS idx_sms_messages_contact ON sms_messages(contact_id);
             CREATE INDEX IF NOT EXISTS idx_agent_chats_agent ON agent_chats(agent_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+        """)
+        # Migrate existing deployments — no-op if column already exists
+        await conn.execute("""
+            ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_category TEXT;
         """)

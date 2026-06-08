@@ -48,32 +48,38 @@ def _plaid_client():
 
 # Business keyword rules — checked first, override Plaid's generic categories
 _CATEGORY_RULES = [
-    (["aws", "amazon web", "railway.app", "vercel", "supabase", "heroku", "digitalocean", "linode", "cloudflare"], "Hosting & Infrastructure"),
-    (["twilio", "bandwidth", "vonage", "sinch"], "Communications"),
-    (["anthropic", "openai", "claude", "gpt", "perplexity", "mistral"], "AI Tools"),
-    (["google ads", "meta ads", "facebook ads", "instagram ads", "tiktok ads", "youtube ads"], "Advertising"),
-    (["notion", "slack", "zoom", "loom", "figma", "airtable", "zapier", "hubspot", "salesforce"], "SaaS Tools"),
-    (["stripe fee", "paypal fee", "square fee", "braintree"], "Payment Processing"),
+    # Technology — every digital tool used to run the business
+    (["aws", "amazon web", "railway.app", "vercel", "supabase", "heroku", "digitalocean",
+      "linode", "cloudflare", "render.com", "fly.io",
+      "twilio", "bandwidth", "vonage", "sinch", "ringcentral", "aircall", "dialpad",
+      "anthropic", "openai", "gpt", "perplexity", "mistral", "replicate", "elevenlabs",
+      "notion", "slack", "zoom", "loom", "figma", "canva", "adobe", "airtable", "zapier",
+      "hubspot", "salesforce", "pipedrive", "linear", "github", "jira", "clickup",
+      "namecheap", "godaddy", "google workspace", "gsuite", "g suite", "microsoft 365", "office 365",
+      "stripe fee", "paypal fee", "square fee", "braintree"], "Technology"),
+
+    # Advertising & Marketing — paid media + outbound tooling
+    (["google ads", "meta ads", "facebook ads", "instagram ads", "tiktok ads", "linkedin ads", "bing ads",
+      "apollo.io", "apollo ", "instantly", "smartlead", "lemlist", "hunter.io", "clay.com",
+      "leadiq", "lusha", "zoominfo", "snov", "woodpecker", "reply.io", "mailshake",
+      "semrush", "ahrefs", "mailchimp", "klaviyo"], "Advertising & Marketing"),
+
+    # Team & Labor — contractors, freelancers, future employees, payroll platforms
+    (["upwork", "fiverr", "toptal", "contractor", "freelance", "consulting fee",
+      "gusto", "rippling", "deel", "remote.com"], "Team & Labor"),
+
+    # Operations — accounting, office, insurance, overhead
+    (["quickbooks", "xero", "freshbooks", "bench", "wework", "regus", "insureon"], "Operations"),
 ]
 
 # Plaid personal_finance_category.primary → (our category, is_income)
 _PLAID_CATEGORY_MAP = {
-    "INCOME":              ("Revenue",           True),
-    "TRANSFER_IN":         ("Revenue",           True),
-    "BANK_FEES":           ("Bank Fees",         False),
-    "ENTERTAINMENT":       ("Entertainment",     False),
-    "FOOD_AND_DRINK":      ("Food & Drink",      False),
-    "GENERAL_MERCHANDISE": ("Miscellaneous",     False),
-    "GENERAL_SERVICES":    ("Services",          False),
-    "GOVERNMENT_AND_NON_PROFIT": ("Miscellaneous", False),
-    "HOME_IMPROVEMENT":    ("Miscellaneous",     False),
-    "LOAN_PAYMENTS":       ("Loan Payments",     False),
-    "MEDICAL":             ("Medical",           False),
-    "PERSONAL_CARE":       ("Personal Care",     False),
-    "RENT_AND_UTILITIES":  ("Rent & Utilities",  False),
-    "TRANSPORTATION":      ("Travel & Transport",False),
-    "TRAVEL":              ("Travel & Transport",False),
-    "TRANSFER_OUT":        ("Transfers",         False),
+    "INCOME":             ("Revenue",    True),
+    "TRANSFER_IN":        ("Revenue",    True),
+    "BANK_FEES":          ("Operations", False),
+    "RENT_AND_UTILITIES": ("Operations", False),
+    "LOAN_PAYMENTS":      ("Operations", False),
+    "TRANSFER_OUT":       ("Transfers",  False),
 }
 
 # Only treated as income when the amount sign ALSO indicates money in
@@ -139,8 +145,8 @@ async def _do_sync(conn, access_token: str, cursor) -> tuple[int, int, int, str]
             category, is_income = _categorize(name, stored_amount, plaid_primary)
             await conn.execute(
                 """
-                INSERT INTO transactions (plaid_transaction_id, date, description, amount, is_income, category)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO transactions (plaid_transaction_id, date, description, amount, is_income, category, plaid_category)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 ON CONFLICT (plaid_transaction_id) DO NOTHING
                 """,
                 txn.transaction_id,
@@ -149,6 +155,7 @@ async def _do_sync(conn, access_token: str, cursor) -> tuple[int, int, int, str]
                 stored_amount,
                 is_income,
                 category,
+                plaid_primary,
             )
             added += 1
 
@@ -162,7 +169,7 @@ async def _do_sync(conn, access_token: str, cursor) -> tuple[int, int, int, str]
             await conn.execute(
                 """
                 UPDATE transactions
-                SET date=$2, description=$3, amount=$4, is_income=$5, category=$6
+                SET date=$2, description=$3, amount=$4, is_income=$5, category=$6, plaid_category=$7
                 WHERE plaid_transaction_id=$1
                 """,
                 txn.transaction_id,
@@ -171,6 +178,7 @@ async def _do_sync(conn, access_token: str, cursor) -> tuple[int, int, int, str]
                 stored_amount,
                 is_income,
                 category,
+                plaid_primary,
             )
             modified += 1
 
@@ -421,10 +429,10 @@ async def recategorize():
     """Re-run categorization rules on every transaction (no Plaid call needed)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT id, description, amount FROM transactions")
+        rows = await conn.fetch("SELECT id, description, amount, plaid_category FROM transactions")
         updated = 0
         for row in rows:
-            category, is_income = _categorize(row["description"], float(row["amount"]))
+            category, is_income = _categorize(row["description"], float(row["amount"]), row["plaid_category"])
             await conn.execute(
                 "UPDATE transactions SET category=$1, is_income=$2 WHERE id=$3",
                 category, is_income, row["id"],
