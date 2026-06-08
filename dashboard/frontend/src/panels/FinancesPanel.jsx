@@ -126,7 +126,7 @@ export default function FinancesPanel() {
     const [s, c, t] = await Promise.all([
       fetch(API(`/finances/summary?days=${d}`)).then(r => r.ok ? r.json() : null),
       fetch(API(`/finances/categories?days=${d}`)).then(r => r.ok ? r.json() : null),
-      fetch(API(`/finances/transactions?days=${d}&type=all`)).then(r => r.ok ? r.json() : null),
+      fetch(API(`/finances/transactions?days=${d}&type=all&limit=1000`)).then(r => r.ok ? r.json() : null),
     ]);
     setSummary(s);
     setCategories(c);
