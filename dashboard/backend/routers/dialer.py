@@ -119,7 +119,7 @@ async def log_disposition(payload: dict):
 
         if contact_id:
             new_status = DISPOSITION_TO_STATUS.get(disposition)
-            await conn.execute(
+            updated = await conn.fetchrow(
                 """
                 UPDATE contacts SET
                     call_attempts    = call_attempts + 1,
@@ -128,11 +128,66 @@ async def log_disposition(payload: dict):
                     status           = COALESCE($2, status),
                     updated_at       = now()
                 WHERE id = $3
+                RETURNING call_attempts, phone, owner
                 """,
                 disposition, new_status, contact_id,
             )
 
+            if updated and disposition == "No Answer" and updated["call_attempts"] >= 3:
+                await conn.execute(
+                    "UPDATE contacts SET status='sms-handoff' WHERE id=$1",
+                    contact_id,
+                )
+                from routers.sms import _send_twilio
+                owner = updated["owner"] or "there"
+                msg = (
+                    f"Hey {owner}, this is Dylan from DigiGrowth — "
+                    "I tried reaching you a few times. Wanted to connect about growing "
+                    "your business online. Reply back if you'd like to chat!"
+                )
+                try:
+                    _send_twilio(updated["phone"], msg)
+                except Exception:
+                    pass
+
     return {"ok": True}
+
+
+@router.get("/dialer/leads")
+async def dialer_leads(limit: int = 500):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, phone, business, owner, grade, opener, email, call_attempts
+            FROM contacts
+            WHERE phone IS NOT NULL
+              AND status NOT IN ('appointment-booked', 'not-interested', 'sms-handoff', 'dnc')
+              AND (last_called_at IS NULL
+                   OR last_called_at < now() - interval '4 hours')
+            ORDER BY
+              CASE grade WHEN 'A' THEN 1 WHEN 'B' THEN 2
+                         WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END,
+              call_attempts ASC
+            LIMIT $1
+            """,
+            limit,
+        )
+    return {
+        "leads": [
+            {
+                "contact_id": str(r["id"]),
+                "phone":      r["phone"],
+                "business":   r["business"] or "",
+                "owner":      r["owner"] or "",
+                "grade":      r["grade"] or "",
+                "opener":     r["opener"] or "",
+                "email":      r["email"] or "",
+                "attempts":   r["call_attempts"],
+            }
+            for r in rows
+        ]
+    }
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────

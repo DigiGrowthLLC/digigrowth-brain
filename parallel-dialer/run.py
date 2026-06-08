@@ -2,15 +2,14 @@
 Parallel Dialer — main entry point
 
 Usage:
-  python run.py              Start a dialing session (loads leads from GHL Manual Actions)
+  python run.py              Start a dialing session (loads leads from DigiGrowth OS CRM)
   python run.py status       Show session stats
-  python run.py handoff      Trigger SMS handoff for all 3-strike leads
   python run.py test         Place a single test call to verify Twilio + webhook
-  python run.py newsletter   Generate and send the weekly AI newsletter via GHL
+  python run.py newsletter   Generate and send the weekly AI newsletter
 
 Setup (first time):
-  1. cp .env.example .env and fill in Twilio + GHL + Anthropic keys
-  2. Fill in config.json (phone numbers, GHL location ID, webhook URL)
+  1. cp .env.example .env and fill in Twilio + Anthropic keys
+  2. Fill in config.json (phone numbers, os_api_url, calendly_url, webhook URL)
   3. pip install -r requirements.txt
   4. Start ngrok: ngrok http 5000
   5. Set webhook_base_url in config.json to your ngrok URL
@@ -29,7 +28,6 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 import dialer as dialer_mod
-import ghl as ghl_mod
 import webhook
 import leads as leads_mod  # _norm only
 
@@ -54,6 +52,25 @@ def _banner(text):
     print(f"\n{'─' * 50}")
     print(f"  {text}")
     print(f"{'─' * 50}")
+
+
+def _os_get(path, params=None):
+    """GET against the DigiGrowth OS dashboard API."""
+    os_url = config.get("os_api_url", "").rstrip("/")
+    if not os_url:
+        return None
+    try:
+        import requests
+        resp = requests.get(
+            f"{os_url}{path}",
+            params=params,
+            auth=("dialer", os.environ.get("OS_API_PASSWORD", "")),
+            timeout=10,
+        )
+        return resp.json() if resp.ok else None
+    except Exception as e:
+        print(f"  ⚠️  OS API get failed ({path}): {e}")
+        return None
 
 
 def _git_pull():
@@ -167,12 +184,13 @@ def run_session():
     _start_tunnel()
     _update_twiml_app()
 
-    # Load leads from GHL Manual Actions
-    print("📋 Loading leads from GHL Manual Actions tab...")
-    eligible = ghl_mod.load_dialer_leads(config)
+    # Load leads from DigiGrowth OS CRM
+    print("📋 Loading leads from CRM...")
+    result   = _os_get("/api/dialer/leads", params={"limit": 500})
+    eligible = result.get("leads", []) if result else []
 
     if not eligible:
-        print("✅ No leads with pending call actions in GHL. Check your workflow manual actions.")
+        print("✅ No eligible leads in CRM. Add contacts or wait for the 4-hour cooldown to expire.")
         return
 
     print(f"📊 {len(eligible)} leads eligible for dialing")
@@ -298,7 +316,7 @@ def run_session():
 
     finally:
         print("\n🔄 Finalizing session...")
-        time.sleep(3)  # let any in-flight GHL threads complete
+        time.sleep(3)  # let any in-flight webhook callbacks complete
         _print_stats()
         webhook.close_session()
         _git_push(f"Session data — {_now()}")
@@ -362,7 +380,7 @@ def run_test():
 # ════════════════════════════════════════════════════════════════════════════
 
 def run_newsletter():
-    """Generate and send the weekly AI newsletter to all GHL 'newsletter'-tagged contacts."""
+    """Generate and send the weekly AI newsletter."""
     import newsletter as newsletter_mod
     _banner(f"Weekly Newsletter — {_now()}")
     newsletter_mod.send_newsletter(config)

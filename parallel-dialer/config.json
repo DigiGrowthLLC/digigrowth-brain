@@ -8,10 +8,9 @@
   "google_sheet_id": "1LNF4Taf3sQ2OGbQ382l0fy-RFU31XkkCVSmXJB0YEWs",
   "leads_tab": "Sheet1",
   "os_api_url": "https://digigrowth-brain-production.up.railway.app",
-  "dialer_tag": "needs-call",
+  "calendly_url": "https://calendly.com/YOUR_USERNAME/YOUR_EVENT",
   "voicemail_audio_url": "https://drive.google.com/uc?export=download&id=1bOOXdSN9cMlthwkDpFu7597-sQ-NYAgA",
   "voicemail_tts": "Hey, this is Dylan Reece. Feel free to text me back at [+1 810-688-6279]. Talk soon!",
-  "ghl_calendar_id": "YOUR_GHL_CALENDAR_ID",
   "webhook_port": 5000,
   "sms_agent": {
     "max_messages": 15,

@@ -190,7 +190,12 @@ def get_and_clear_retry():
 
 @app.route("/agent", methods=["GET"])
 def agent_ui():
-    return send_file(os.path.join(BASE_DIR, "agent.html"))
+    path = os.path.join(BASE_DIR, "agent.html")
+    with open(path, encoding="utf-8") as f:
+        html = f.read()
+    calendly_url = _session.get("config", {}).get("calendly_url", "")
+    html = html.replace("__CALENDLY_URL__", calendly_url)
+    return Response(html, mimetype="text/html")
 
 
 @app.route("/voicemail-audio", methods=["GET"])

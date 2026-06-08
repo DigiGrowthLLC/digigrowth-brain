@@ -174,6 +174,59 @@ async def create_contact(body: Contact):
     return dict(row)
 
 
+@router.post("/contacts/import")
+async def import_contacts(body: dict):
+    rows = body.get("contacts", [])
+    if not rows:
+        raise HTTPException(status_code=400, detail="No contacts provided")
+
+    pool = await get_pool()
+    inserted = updated = skipped = 0
+
+    async with pool.acquire() as conn:
+        for c in rows:
+            phone = (c.get("phone") or "").strip()
+            if not phone:
+                skipped += 1
+                continue
+            contact_id = str(uuid.uuid4())
+            result = await conn.fetchrow(
+                """
+                INSERT INTO contacts
+                    (id, business, owner, phone, email, website, city, state,
+                     grade, opener, status, notes, newsletter)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                ON CONFLICT (phone) DO UPDATE SET
+                    business   = COALESCE(EXCLUDED.business,   contacts.business),
+                    owner      = COALESCE(EXCLUDED.owner,      contacts.owner),
+                    email      = COALESCE(EXCLUDED.email,      contacts.email),
+                    grade      = COALESCE(EXCLUDED.grade,      contacts.grade),
+                    opener     = COALESCE(EXCLUDED.opener,     contacts.opener),
+                    updated_at = now()
+                RETURNING (xmax = 0) AS was_inserted
+                """,
+                contact_id,
+                (c.get("business") or "").strip() or None,
+                (c.get("owner") or "").strip() or None,
+                phone,
+                (c.get("email") or "").strip() or None,
+                (c.get("website") or "").strip() or None,
+                (c.get("city") or "").strip() or None,
+                (c.get("state") or "").strip() or None,
+                (c.get("grade") or "").strip().upper() or None,
+                (c.get("opener") or "").strip() or None,
+                (c.get("status") or "new").strip() or "new",
+                (c.get("notes") or "").strip() or None,
+                bool(c.get("newsletter", False)),
+            )
+            if result["was_inserted"]:
+                inserted += 1
+            else:
+                updated += 1
+
+    return {"inserted": inserted, "updated": updated, "skipped": skipped}
+
+
 @router.get("/stats/funnel")
 async def funnel_stats():
     pool = await get_pool()

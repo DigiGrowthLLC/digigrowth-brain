@@ -6,10 +6,10 @@ To activate an override, fill in the fields below. To deactivate early, clear th
 
 ---
 
-from:
-to:
-start:
-blocks:
+from: 2026-06-06
+to: 2026-06-09
+start: 08:30
+blocks: Morning Routine → Growth → Gym → MDR
 
 ---
 
