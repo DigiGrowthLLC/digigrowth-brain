@@ -701,11 +701,12 @@ async def chat(agent_id: str, request: Request):
     model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-4-6")
 
     async def event_stream():
-        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-        messages = list(history)
-        MAX_ITERATIONS = 10
+        try:
+          client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+          messages = list(history)
+          MAX_ITERATIONS = 10
 
-        for _ in range(MAX_ITERATIONS):
+          for _ in range(MAX_ITERATIONS):
             accumulated_text = ""
             assistant_content = []  # full blocks for this turn
 
@@ -807,7 +808,10 @@ async def chat(agent_id: str, request: Request):
             messages.append({"role": "user", "content": tool_results})
             # Loop: Claude will now respond to the tool results
 
-        yield f"data: {json.dumps({'type': 'error', 'message': 'Max tool iterations reached'})}\n\n"
+          yield f"data: {json.dumps({'type': 'error', 'message': 'Max tool iterations reached'})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
     return StreamingResponse(
         event_stream(),
