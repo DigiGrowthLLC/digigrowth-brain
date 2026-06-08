@@ -35,8 +35,13 @@ import {
 const API = (p) => `/api${p}`;
 
 const CATEGORIES = [
-  "Revenue", "Hosting & Infrastructure", "Communications", "AI Tools",
-  "Advertising", "SaaS Tools", "Payment Processing", "Miscellaneous", "Uncategorized",
+  "Revenue",
+  "Hosting & Infrastructure", "Communications", "AI Tools",
+  "Advertising", "SaaS Tools", "Payment Processing",
+  "Bank Fees", "Entertainment", "Food & Drink", "Services",
+  "Travel & Transport", "Rent & Utilities", "Loan Payments",
+  "Medical", "Personal Care", "Transfers",
+  "Miscellaneous", "Uncategorized",
 ];
 
 function money(v) {
@@ -131,6 +136,7 @@ export default function FinancesPanel() {
     setSyncing(true);
     try {
       await fetch(API("/finances/plaid/sync"), { method: "POST" });
+      await fetch(API("/finances/recategorize"), { method: "POST" });
       await loadAll();
     } finally {
       setSyncing(false);
@@ -173,6 +179,7 @@ export default function FinancesPanel() {
       setIsConnected(true);
       const data = await resp.json();
       if (data.sync_error) setConnectError(`Connected — sync note: ${data.sync_error}`);
+      await fetch(API("/finances/recategorize"), { method: "POST" });
       await loadAll();
     } catch (e) {
       setConnectError(`Network error: ${e.message}`);

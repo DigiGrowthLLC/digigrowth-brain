@@ -46,37 +46,62 @@ def _plaid_client():
 
 # ── Auto-categorization ───────────────────────────────────────────────────────
 
+# Business keyword rules — checked first, override Plaid's generic categories
 _CATEGORY_RULES = [
-    (["aws", "railway.app", "vercel", "supabase", "heroku", "digitalocean", "linode"], "Hosting & Infrastructure"),
-    (["twilio", "bandwidth", "vonage"], "Communications"),
-    (["anthropic", "openai", "claude", "gpt"], "AI Tools"),
-    (["google ads", "meta ads", "facebook ads", "instagram ads"], "Advertising"),
-    (["notion", "slack", "zoom", "loom", "figma", "airtable"], "SaaS Tools"),
-    (["stripe fee", "paypal fee", "square fee"], "Payment Processing"),
+    (["aws", "amazon web", "railway.app", "vercel", "supabase", "heroku", "digitalocean", "linode", "cloudflare"], "Hosting & Infrastructure"),
+    (["twilio", "bandwidth", "vonage", "sinch"], "Communications"),
+    (["anthropic", "openai", "claude", "gpt", "perplexity", "mistral"], "AI Tools"),
+    (["google ads", "meta ads", "facebook ads", "instagram ads", "tiktok ads", "youtube ads"], "Advertising"),
+    (["notion", "slack", "zoom", "loom", "figma", "airtable", "zapier", "hubspot", "salesforce"], "SaaS Tools"),
+    (["stripe fee", "paypal fee", "square fee", "braintree"], "Payment Processing"),
 ]
 
-_INCOME_KEYWORDS = ["client", "payment", "invoice", "retainer", "deposit", "zelle", "ach credit", "wire credit"]
+# Plaid personal_finance_category.primary → (our category, is_income)
+_PLAID_CATEGORY_MAP = {
+    "INCOME":              ("Revenue",           True),
+    "TRANSFER_IN":         ("Revenue",           True),
+    "BANK_FEES":           ("Bank Fees",         False),
+    "ENTERTAINMENT":       ("Entertainment",     False),
+    "FOOD_AND_DRINK":      ("Food & Drink",      False),
+    "GENERAL_MERCHANDISE": ("Miscellaneous",     False),
+    "GENERAL_SERVICES":    ("Services",          False),
+    "GOVERNMENT_AND_NON_PROFIT": ("Miscellaneous", False),
+    "HOME_IMPROVEMENT":    ("Miscellaneous",     False),
+    "LOAN_PAYMENTS":       ("Loan Payments",     False),
+    "MEDICAL":             ("Medical",           False),
+    "PERSONAL_CARE":       ("Personal Care",     False),
+    "RENT_AND_UTILITIES":  ("Rent & Utilities",  False),
+    "TRANSPORTATION":      ("Travel & Transport",False),
+    "TRAVEL":              ("Travel & Transport",False),
+    "TRANSFER_OUT":        ("Transfers",         False),
+}
+
+# Only treated as income when the amount sign ALSO indicates money in
+_INCOME_KEYWORDS = ["ach credit", "wire credit", "direct deposit", "client payment", "invoice payment"]
 
 
-def _categorize(description: str, amount: float) -> tuple[str, bool]:
+def _categorize(description: str, amount: float, plaid_primary: str = None) -> tuple[str, bool]:
     """Return (category, is_income) for a transaction."""
     desc = (description or "").lower()
+    is_income = amount > 0  # stored_amount: positive = credit/income, negative = debit/expense
 
-    # Plaid: positive amount = money in (income), negative = money out (expense)
-    is_income = amount > 0
-
-    # Override is_income if description screams income
-    if any(kw in desc for kw in _INCOME_KEYWORDS):
-        is_income = True
-
-    if is_income:
-        return "Revenue", True
-
+    # Business keyword rules take highest priority
     for keywords, category in _CATEGORY_RULES:
         if any(kw in desc for kw in keywords):
             return category, False
 
-    return "Miscellaneous", False
+    # Income keyword override — only when amount sign also indicates income
+    if is_income and any(kw in desc for kw in _INCOME_KEYWORDS):
+        return "Revenue", True
+
+    # Use Plaid's own classification
+    if plaid_primary:
+        mapped = _PLAID_CATEGORY_MAP.get(plaid_primary.upper())
+        if mapped:
+            return mapped
+
+    # Final fallback: amount sign
+    return ("Revenue", True) if is_income else ("Miscellaneous", False)
 
 
 # ── Sync helper ───────────────────────────────────────────────────────────────
@@ -109,7 +134,9 @@ async def _do_sync(conn, access_token: str, cursor) -> tuple[int, int, int, str]
             raw_amount    = float(txn.amount)
             stored_amount = -raw_amount
             name          = getattr(txn, "name", None) or getattr(txn, "merchant_name", None) or ""
-            category, is_income = _categorize(name, stored_amount)
+            pfc           = getattr(txn, "personal_finance_category", None)
+            plaid_primary = getattr(pfc, "primary", None) if pfc else None
+            category, is_income = _categorize(name, stored_amount, plaid_primary)
             await conn.execute(
                 """
                 INSERT INTO transactions (plaid_transaction_id, date, description, amount, is_income, category)
@@ -129,7 +156,9 @@ async def _do_sync(conn, access_token: str, cursor) -> tuple[int, int, int, str]
             raw_amount    = float(txn.amount)
             stored_amount = -raw_amount
             name          = getattr(txn, "name", None) or getattr(txn, "merchant_name", None) or ""
-            category, is_income = _categorize(name, stored_amount)
+            pfc           = getattr(txn, "personal_finance_category", None)
+            plaid_primary = getattr(pfc, "primary", None) if pfc else None
+            category, is_income = _categorize(name, stored_amount, plaid_primary)
             await conn.execute(
                 """
                 UPDATE transactions
@@ -385,6 +414,23 @@ async def transactions(
             for r in rows
         ],
     }
+
+
+@router.post("/finances/recategorize")
+async def recategorize():
+    """Re-run categorization rules on every transaction (no Plaid call needed)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT id, description, amount FROM transactions")
+        updated = 0
+        for row in rows:
+            category, is_income = _categorize(row["description"], float(row["amount"]))
+            await conn.execute(
+                "UPDATE transactions SET category=$1, is_income=$2 WHERE id=$3",
+                category, is_income, row["id"],
+            )
+            updated += 1
+    return {"recategorized": updated}
 
 
 @router.patch("/finances/transactions/{txn_id}")
