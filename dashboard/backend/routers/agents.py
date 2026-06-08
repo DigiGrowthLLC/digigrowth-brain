@@ -26,6 +26,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from db import get_pool
+from integrations import execute_integration_tool
 
 router = APIRouter()
 
@@ -159,7 +160,204 @@ TOOLS = [
             "required": ["path"],
         },
     },
+    # ── Gmail ──────────────────────────────────────────────────────────────────
+    {
+        "name": "gmail_search",
+        "description": "Search Gmail threads. Returns thread IDs and snippets. Requires GOOGLE_* env vars.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Gmail search query, e.g. 'from:someone@example.com subject:invoice'"},
+                "max_results": {"type": "integer", "default": 10},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "gmail_read_thread",
+        "description": "Read full content of a Gmail thread by thread_id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "thread_id": {"type": "string"},
+            },
+            "required": ["thread_id"],
+        },
+    },
+    {
+        "name": "gmail_send",
+        "description": "Send an email from the configured Gmail account.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string", "description": "Recipient email address"},
+                "subject": {"type": "string"},
+                "body": {"type": "string", "description": "Plain-text body"},
+            },
+            "required": ["to", "subject", "body"],
+        },
+    },
+    {
+        "name": "gmail_create_draft",
+        "description": "Create a Gmail draft (does not send).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "to": {"type": "string"},
+                "subject": {"type": "string"},
+                "body": {"type": "string"},
+            },
+            "required": ["to", "subject", "body"],
+        },
+    },
+    # ── Google Calendar ────────────────────────────────────────────────────────
+    {
+        "name": "calendar_list_events",
+        "description": "List upcoming Google Calendar events. Requires GOOGLE_* env vars.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days_ahead": {"type": "integer", "default": 7, "description": "How many days ahead to look"},
+                "calendar_id": {"type": "string", "default": "primary"},
+            },
+        },
+    },
+    {
+        "name": "calendar_create_event",
+        "description": "Create a Google Calendar event.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "start_datetime": {"type": "string", "description": "ISO 8601 datetime, e.g. '2026-06-10T09:00:00-07:00'"},
+                "end_datetime": {"type": "string", "description": "ISO 8601 datetime"},
+                "description": {"type": "string", "default": ""},
+                "attendees": {"type": "array", "items": {"type": "string"}, "description": "List of attendee emails"},
+                "calendar_id": {"type": "string", "default": "primary"},
+            },
+            "required": ["title", "start_datetime", "end_datetime"],
+        },
+    },
+    {
+        "name": "calendar_update_event",
+        "description": "Update an existing Google Calendar event by event_id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string"},
+                "title": {"type": "string"},
+                "start_datetime": {"type": "string"},
+                "end_datetime": {"type": "string"},
+                "description": {"type": "string"},
+                "calendar_id": {"type": "string", "default": "primary"},
+            },
+            "required": ["event_id"],
+        },
+    },
+    {
+        "name": "calendar_delete_event",
+        "description": "Delete a Google Calendar event by event_id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string"},
+                "calendar_id": {"type": "string", "default": "primary"},
+            },
+            "required": ["event_id"],
+        },
+    },
+    # ── Google Drive ───────────────────────────────────────────────────────────
+    {
+        "name": "drive_search",
+        "description": "Search Google Drive files. Requires GOOGLE_* env vars.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Drive query, e.g. \"name contains 'invoice'\""},
+                "max_results": {"type": "integer", "default": 10},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "drive_list_recent",
+        "description": "List recently modified Google Drive files.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "max_results": {"type": "integer", "default": 10},
+            },
+        },
+    },
+    {
+        "name": "drive_read_file",
+        "description": "Read content of a Google Drive file by file_id. Exports Google Docs as plain text.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_id": {"type": "string"},
+            },
+            "required": ["file_id"],
+        },
+    },
+    # ── Notion ─────────────────────────────────────────────────────────────────
+    {
+        "name": "notion_search",
+        "description": "Search Notion pages and databases. Requires NOTION_TOKEN env var.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "max_results": {"type": "integer", "default": 10},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "notion_read_page",
+        "description": "Read content of a Notion page by page_id.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "page_id": {"type": "string"},
+            },
+            "required": ["page_id"],
+        },
+    },
+    {
+        "name": "notion_create_page",
+        "description": "Create a new Notion page as a child of an existing page.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "parent_page_id": {"type": "string"},
+                "title": {"type": "string"},
+                "content": {"type": "string", "description": "Initial paragraph text", "default": ""},
+            },
+            "required": ["parent_page_id", "title"],
+        },
+    },
+    {
+        "name": "notion_update_page",
+        "description": "Update title or archive a Notion page.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "page_id": {"type": "string"},
+                "title": {"type": "string"},
+                "archived": {"type": "boolean", "default": False},
+            },
+            "required": ["page_id"],
+        },
+    },
 ]
+
+_INTEGRATION_TOOLS = {
+    "gmail_search", "gmail_read_thread", "gmail_send", "gmail_create_draft",
+    "calendar_list_events", "calendar_create_event", "calendar_update_event", "calendar_delete_event",
+    "drive_search", "drive_list_recent", "drive_read_file",
+    "notion_search", "notion_read_page", "notion_create_page", "notion_update_page",
+}
 
 
 # ── Registry helpers ──────────────────────────────────────────────────────────
@@ -246,6 +444,9 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
             target.unlink()
             git_status = github_push_file(target, agent["name"], "delete_file")
             return f"OK: deleted {path}\ngit: {git_status}"
+
+        elif tool_name in _INTEGRATION_TOOLS:
+            return execute_integration_tool(tool_name, tool_input)
 
         else:
             return f"Error: unknown tool '{tool_name}'"
