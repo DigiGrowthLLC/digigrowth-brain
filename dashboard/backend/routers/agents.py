@@ -730,42 +730,27 @@ async def chat(agent_id: str, request: Request):
                 # Stream response from Claude
                 with client.messages.stream(
                     model=model,
-                    max_tokens=16000,
-                    thinking={"type": "enabled", "budget_tokens": 10000},
+                    max_tokens=4096,
                     system=system_prompt,
                     tools=TOOLS,
                     messages=messages,
                 ) as stream:
-                    in_thinking = False
                     for event in stream:
                         etype = event.type
                         if etype == "content_block_start":
                             block = event.content_block
-                            if block.type == "thinking":
-                                in_thinking = True
-                                yield f"data: {json.dumps({'type': 'thinking_start'})}\n\n"
-                            elif block.type == "tool_use":
-                                in_thinking = False
+                            if block.type == "tool_use":
                                 yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': block.name, 'tool_use_id': block.id})}\n\n"
-                            else:
-                                in_thinking = False
                         elif etype == "content_block_delta":
                             delta = event.delta
-                            if in_thinking and hasattr(delta, "thinking"):
-                                yield f"data: {json.dumps({'type': 'thinking_delta', 'text': delta.thinking})}\n\n"
-                            elif hasattr(delta, "text"):
+                            if hasattr(delta, "text"):
                                 accumulated_text += delta.text
                                 yield f"data: {json.dumps({'type': 'text_delta', 'text': delta.text})}\n\n"
-                        elif etype == "content_block_stop" and in_thinking:
-                            yield f"data: {json.dumps({'type': 'thinking_done'})}\n\n"
-                            in_thinking = False
                     final_message = stream.get_final_message()
 
-                # Build content blocks for storage (include thinking for multi-turn continuity)
+                # Build content blocks for storage
                 for block in final_message.content:
-                    if block.type == "thinking":
-                        assistant_content.append({"type": "thinking", "thinking": block.thinking})
-                    elif block.type == "text":
+                    if block.type == "text":
                         assistant_content.append({"type": "text", "text": block.text})
                     elif block.type == "tool_use":
                         assistant_content.append({
