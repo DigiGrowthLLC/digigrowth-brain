@@ -116,6 +116,18 @@ async def _create_schema(pool: asyncpg.Pool):
             CREATE INDEX IF NOT EXISTS idx_sms_messages_contact ON sms_messages(contact_id);
             CREATE INDEX IF NOT EXISTS idx_agent_chats_agent ON agent_chats(agent_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
+
+            CREATE TABLE IF NOT EXISTS sops (
+                id           SERIAL PRIMARY KEY,
+                title        TEXT NOT NULL,
+                content      TEXT NOT NULL DEFAULT '',
+                category     TEXT NOT NULL DEFAULT 'General',
+                visibility   TEXT NOT NULL DEFAULT 'private',
+                sort_order   INTEGER NOT NULL DEFAULT 0,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_sops_visibility ON sops(visibility);
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""

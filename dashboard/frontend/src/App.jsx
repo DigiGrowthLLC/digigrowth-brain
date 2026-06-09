@@ -7,6 +7,7 @@ import AgentsPanel    from "./panels/AgentsPanel.jsx";
 import SettingsPanel  from "./panels/SettingsPanel.jsx";
 import AnalyticsPanel from "./panels/AnalyticsPanel.jsx";
 import FinancesPanel  from "./panels/FinancesPanel.jsx";
+import SOPsPanel      from "./panels/SOPsPanel.jsx";
 
 const NAV = [
   { id: "home",      label: "Dashboard", ready: true  },
@@ -16,6 +17,7 @@ const NAV = [
   { id: "agents",    label: "Agents",    ready: true  },
   { id: "analytics", label: "Analytics", ready: true  },
   { id: "finances",  label: "Finances",  ready: true  },
+  { id: "sops",      label: "SOPs",      ready: true  },
   { id: "settings",  label: "Settings",  ready: true  },
 ];
 
@@ -70,6 +72,12 @@ const NAV_ICONS = {
       <rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.4"/>
       <path d="M1 6h14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
       <rect x="3" y="9" width="3" height="1.5" rx="0.5" fill="currentColor" opacity="0.6"/>
+    </svg>
+  ),
+  sops: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M5 5h6M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
     </svg>
   ),
   settings: (
@@ -219,8 +227,9 @@ export default function App() {
         {active === "agents"    && <AgentsPanel />}
         {active === "analytics" && <AnalyticsPanel />}
         {active === "finances"  && <FinancesPanel />}
+        {active === "sops"      && <SOPsPanel />}
         {active === "settings"  && <SettingsPanel />}
-        {!["home","crm","sms","dialer","agents","analytics","finances","settings"].includes(active) && (
+        {!["home","crm","sms","dialer","agents","analytics","finances","sops","settings"].includes(active) && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 10,

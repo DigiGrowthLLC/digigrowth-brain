@@ -8,7 +8,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
 from db import get_pool
-from routers import crm, sms, dialer, dashboard, agents, settings, analytics, finances
+from routers import crm, sms, dialer, dashboard, agents, settings, analytics, finances, sops, public_sops
 
 security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
@@ -50,6 +50,8 @@ app.include_router(agents.router, prefix="/api", dependencies=[Depends(require_a
 app.include_router(settings.router,   prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(analytics.router,  prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(finances.router,   prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(sops.router,       prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(public_sops.router)  # no auth — readable by team
 
 # Serve built frontend (populated by Railway build step)
 frontend_dist = os.path.join(os.path.dirname(__file__), "frontend/dist")
