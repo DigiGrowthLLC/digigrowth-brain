@@ -704,6 +704,13 @@ async def chat(agent_id: str, request: Request):
 
     history = [{"role": r["role"], "content": json.loads(r["content"])} for r in rows]
 
+    # If the last assistant turn has tool_use blocks with no following tool_result
+    # (happens when stop is hit mid-execution), drop it to avoid API rejection.
+    if (len(history) >= 1
+            and history[-1]["role"] == "assistant"
+            and any(b.get("type") == "tool_use" for b in history[-1]["content"])):
+        history = history[:-1]
+
     # Persist user message
     user_content = [{"type": "text", "text": user_message}]
     async with pool.acquire() as conn:
