@@ -222,12 +222,13 @@ function FunnelBlock({ label, value, convRate, benchmark, color, isFirst }) {
 }
 
 export default function AnalyticsPanel() {
-  const [days, setDays]         = useState(30);
-  const [outreach, setOutreach] = useState(null);
-  const [calls, setCalls]       = useState(null);
-  const [pipeline, setPipeline] = useState(null);
-  const [sales, setSales]       = useState(null);
+  const [days, setDays]               = useState(30);
+  const [outreach, setOutreach]       = useState(null);
+  const [calls, setCalls]             = useState(null);
+  const [pipeline, setPipeline]       = useState(null);
+  const [sales, setSales]             = useState(null);
   const [outreachTab, setOutreachTab] = useState("period");
+  const [digest, setDigest]           = useState(undefined);
 
   useEffect(() => {
     Promise.all([
@@ -240,7 +241,8 @@ export default function AnalyticsPanel() {
     Promise.all([
       fetch(API("/analytics/pipeline")).then(r => r.ok ? r.json() : null),
       fetch(API("/analytics/sales")).then(r => r.ok ? r.json() : null),
-    ]).then(([p, s]) => { setPipeline(p); setSales(s); });
+      fetch(API("/analytics/sheets-digest")).then(r => r.ok ? r.json() : null),
+    ]).then(([p, s, d]) => { setPipeline(p); setSales(s); setDigest(d); });
   }, []);
 
   const funnel = pipeline?.funnel ?? {};
@@ -268,6 +270,34 @@ export default function AnalyticsPanel() {
           </div>
         </div>
         <PeriodToggle days={days} setDays={setDays} />
+      </div>
+
+      {/* ── Sheets Digest ─────────────────────────────────────────── */}
+      <div className="glass-card" style={{ padding: "20px 22px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <SecLabel style={{ marginBottom: 0 }}>Sheets Digest</SecLabel>
+          {digest?.date && (
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.12em" }}>
+              {digest.date}
+            </span>
+          )}
+        </div>
+        {digest === undefined ? (
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>LOADING...</div>
+        ) : !digest?.content ? (
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a3a60", letterSpacing: "0.08em" }}>
+            No digest run yet. Runs daily at 6AM EST alongside the daily briefing.
+          </div>
+        ) : (
+          <pre style={{
+            fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#8aaad0",
+            lineHeight: 1.7, whiteSpace: "pre-wrap", wordBreak: "break-word",
+            margin: 0, background: "rgba(10,18,48,0.4)", borderRadius: 8,
+            padding: "14px 16px", border: "1px solid rgba(58,123,213,0.08)",
+          }}>
+            {digest.content}
+          </pre>
+        )}
       </div>
 
       {/* ── Outreach & Appointment Setting ─────────────────────────── */}

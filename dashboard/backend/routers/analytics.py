@@ -5,10 +5,12 @@ GET /analytics/outreach?days=30  — per-channel table (calling + SMS + email), 
 GET /analytics/pipeline           — 6-stage acquisition funnel + grade breakdown + top states
 GET /analytics/sales              — sales statistics (reads sales_stats.json + DB)
 GET /analytics/calls?days=30      — calling detail: daily trend + disposition breakdown
+GET /analytics/sheets-digest      — most recent sheets-digest report file content + metadata
 """
 
 import json
 import pathlib
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter
@@ -17,6 +19,7 @@ from db import get_pool
 router = APIRouter()
 
 _SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
+_EA_REPORTS_DIR = pathlib.Path(__file__).parent.parent.parent.parent / "executive-assistant" / "reports"
 
 POSITIVE_DISPOSITIONS = ("Appointment Booked", "Follow Up", "Send Info", "SMS Handoff", "Not Interested")
 PITCHED_DISPOSITIONS  = ("Appointment Booked", "Follow Up", "Send Info", "SMS Handoff", "Not Interested")
@@ -302,3 +305,26 @@ async def calls_detail(days: int = 30):
         "by_disposition": [{"disposition": r["disposition"], "cnt": r["cnt"]} for r in dispo_rows],
         "daily":          [{"date": str(r["day"]), "calls": r["calls"], "pickups": r["pickups"]} for r in daily_rows],
     }
+
+
+@router.get("/analytics/sheets-digest")
+async def sheets_digest():
+    """Return the most recent sheets-digest report file content and metadata."""
+    if not _EA_REPORTS_DIR.exists():
+        return {"date": None, "content": None, "sheets": []}
+
+    files = sorted(_EA_REPORTS_DIR.glob("sheets-digest-*.md"), reverse=True)
+    if not files:
+        return {"date": None, "content": None, "sheets": []}
+
+    latest = files[0]
+    content = latest.read_text()
+
+    # Extract date from filename: sheets-digest-YYYY-MM-DD.md
+    m = re.search(r"sheets-digest-(\d{4}-\d{2}-\d{2})\.md$", latest.name)
+    date = m.group(1) if m else None
+
+    # Extract sheet names (lines starting with "## ")
+    sheets = [line[3:].strip() for line in content.splitlines() if line.startswith("## ")]
+
+    return {"date": date, "content": content, "sheets": sheets}
