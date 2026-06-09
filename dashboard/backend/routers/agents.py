@@ -399,13 +399,14 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
             base = _safe_path(root, subdir) if subdir else root
             if not base.exists():
                 return f"Error: directory '{subdir}' does not exist"
+            VISIBLE_DOTS = {".env.example", ".claude"}
             lines = []
             for item in sorted(base.rglob("*")):
-                # Skip deeply hidden dirs (e.g. .git)
-                if any(p.name.startswith(".") and p.name not in (".env.example",)
+                # Skip hidden dirs except .claude (skills/rules) and .env.example
+                if any(p.name.startswith(".") and p.name not in VISIBLE_DOTS
                        for p in item.parents if p != root and p != item):
                     continue
-                if item.name.startswith(".") and item.name not in (".env.example",):
+                if item.name.startswith(".") and item.name not in VISIBLE_DOTS:
                     continue
                 rel = item.relative_to(root)
                 indent = "  " * (len(rel.parts) - 1)
