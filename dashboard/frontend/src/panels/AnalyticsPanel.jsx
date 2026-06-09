@@ -332,6 +332,25 @@ export default function AnalyticsPanel() {
         </div>
       </div>
 
+      {/* ── Input Tracker · From Sheets ──────────────────────────── */}
+      {sales?.sheet_sync && (
+        <div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
+            <SecLabel style={{ marginBottom: 0 }}>Input Tracker · From Sheets</SecLabel>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>
+              {sales.sheet_sync.synced_at ? new Date(sales.sheet_sync.synced_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
+              {sales.sheet_sync.source_note ? ` · ${sales.sheet_sync.source_note}` : ""}
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+            <MiniStat label="Calls Made"    value={num(sales.sheet_sync.calls_made)}          color="#3a7bd5" />
+            <MiniStat label="Contacts"      value={num(sales.sheet_sync.contacts_reached)}     color="#14c882" />
+            <MiniStat label="Appointments"  value={num(sales.sheet_sync.appointments_booked)}  color="#14c882" />
+            <MiniStat label="SMS Sent"      value={num(sales.sheet_sync.sms_sent)}             color="#5a9bf0" />
+          </div>
+        </div>
+      )}
+
       <div className="dg-divider" />
 
       {/* ── Cold Calling Detail ────────────────────────────────────── */}

@@ -314,13 +314,19 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
+                # Sales funnel (cumulative all-time totals)
                 "shows":              {"type": "integer", "description": "Total prospects who showed up to a sales call/demo"},
                 "closes":             {"type": "integer", "description": "Total deals closed / clients signed"},
                 "total_revenue":      {"type": "number",  "description": "Total revenue collected in dollars"},
                 "avg_deal_size":      {"type": "number",  "description": "Average deal size in dollars (auto-calculated if omitted)"},
                 "discovery_calls":    {"type": "integer", "description": "Total discovery / intro calls completed"},
                 "strategy_sessions":  {"type": "integer", "description": "Total strategy sessions / deep-dive calls completed"},
-                "source_note":        {"type": "string",  "description": "Brief note on which sheet(s) this data came from"},
+                # Outreach activity (use the most recent period total you can find — weekly or all available)
+                "calls_made":         {"type": "integer", "description": "Total calls dialed in the tracked period"},
+                "contacts_reached":   {"type": "integer", "description": "Total calls answered / contacts reached"},
+                "appointments_booked":{"type": "integer", "description": "Total appointments / intro sessions booked"},
+                "sms_sent":           {"type": "integer", "description": "Total SMS messages sent"},
+                "source_note":        {"type": "string",  "description": "Brief note on which sheet(s) this data came from and what period it covers"},
             },
         },
     },
@@ -478,12 +484,16 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
                 current = {}
 
             FIELD_MAP = {
-                "shows":             "shows",
-                "closes":            "closes",
-                "total_revenue":     "total_revenue",
-                "avg_deal_size":     "avg_deal_size",
-                "discovery_calls":   "discovery_calls",
-                "strategy_sessions": "strategy_sessions",
+                "shows":               "shows",
+                "closes":              "closes",
+                "total_revenue":       "total_revenue",
+                "avg_deal_size":       "avg_deal_size",
+                "discovery_calls":     "discovery_calls",
+                "strategy_sessions":   "strategy_sessions",
+                "calls_made":          "sheet_calls_made",
+                "contacts_reached":    "sheet_contacts_reached",
+                "appointments_booked": "sheet_appointments_booked",
+                "sms_sent":            "sheet_sms_sent",
             }
             updated = []
             for key, stat_key in FIELD_MAP.items():
@@ -540,11 +550,15 @@ _MODE_INSTRUCTIONS = {
 }
 
 def _build_system_prompt(agent: dict, mode: str = "auto") -> str:
+    from datetime import datetime as _dt
+    today = _dt.now().strftime("%Y-%m-%d")
+
     root: pathlib.Path = agent["abs_root"]
     name = agent["name"]
     description = agent.get("description", "")
 
     parts = [
+        f"Today's date: {today}\n\n"
         f"You are a code and configuration assistant for the **{name}** agent in Dylan's DigiGrowth OS. "
         f"Description: {description}\n\n"
         "You have tools to read, write, create, and delete files in this agent's directory. "

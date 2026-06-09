@@ -252,6 +252,17 @@ async def sales_stats():
     discovery = stats.get("discovery_calls", 0)
     closes    = stats.get("closes", 0)
 
+    sheet_sync = None
+    if stats.get("last_sheet_sync"):
+        sheet_sync = {
+            "synced_at":           stats.get("last_sheet_sync"),
+            "source_note":         stats.get("last_sheet_sync_note", ""),
+            "calls_made":          stats.get("sheet_calls_made"),
+            "contacts_reached":    stats.get("sheet_contacts_reached"),
+            "appointments_booked": stats.get("sheet_appointments_booked"),
+            "sms_sent":            stats.get("sheet_sms_sent"),
+        }
+
     return {
         "total_leads":       total_leads or 0,
         "discovery_calls":   discovery,
@@ -261,6 +272,7 @@ async def sales_stats():
         "total_revenue":     stats.get("total_revenue", 0),
         "avg_deal_size":     stats.get("avg_deal_size", 0),
         "shows":             stats.get("shows", 0),
+        "sheet_sync":        sheet_sync,
     }
 
 
