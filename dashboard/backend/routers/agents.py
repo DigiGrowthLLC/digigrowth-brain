@@ -738,7 +738,7 @@ async def get_history(agent_id: str):
             SELECT id, role, content, created_at FROM (
                 SELECT id, role, content, created_at
                 FROM agent_chats WHERE agent_id = $1
-                ORDER BY created_at DESC LIMIT 40
+                ORDER BY created_at DESC LIMIT 20
             ) sub ORDER BY sub.created_at ASC
             """,
             agent_id,
@@ -777,7 +777,7 @@ async def chat(agent_id: str, request: Request):
             SELECT role, content FROM (
                 SELECT role, content, created_at
                 FROM agent_chats WHERE agent_id = $1
-                ORDER BY created_at DESC LIMIT 40
+                ORDER BY created_at DESC LIMIT 20
             ) sub ORDER BY sub.created_at ASC
             """,
             agent_id,
@@ -888,14 +888,19 @@ async def chat(agent_id: str, request: Request):
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": result,
+                        "content": result,  # full result for current-turn context
                     })
 
-                # Persist tool results as user turn
+                # Persist tool results — truncate large results to prevent history bloat
+                _STORE_LIMIT = 6000
+                stored_results = [
+                    {**tr, "content": tr["content"][:_STORE_LIMIT] if len(tr["content"]) > _STORE_LIMIT else tr["content"]}
+                    for tr in tool_results
+                ]
                 async with pool.acquire() as conn:
                     await conn.execute(
                         "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
-                        agent_id, "user", json.dumps(tool_results),
+                        agent_id, "user", json.dumps(stored_results),
                     )
                 messages.append({"role": "user", "content": tool_results})
 
