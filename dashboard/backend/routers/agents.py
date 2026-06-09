@@ -702,130 +702,99 @@ async def chat(agent_id: str, request: Request):
 
     async def event_stream():
         try:
-          client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-          messages = list(history)
-          MAX_ITERATIONS = 10
+            client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+            messages = list(history)
+            MAX_ITERATIONS = 10
 
-          for _ in range(MAX_ITERATIONS):
-            accumulated_text = ""
-            assistant_content = []  # full blocks for this turn
+            for _ in range(MAX_ITERATIONS):
+                accumulated_text = ""
+                assistant_content = []
 
-            # Stream response from Claude
-            with client.messages.stream(
-                model=model,
-                max_tokens=12000,
-                thinking={"type": "enabled", "budget_tokens": 8000},
-                system=system_prompt,
-                tools=TOOLS,
-                messages=messages,
-            ) as stream:
-                current_tool_id = None
-                current_tool_name = None
-                in_thinking = False
+                # Stream response from Claude
+                with client.messages.stream(
+                    model=model,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    tools=TOOLS,
+                    messages=messages,
+                ) as stream:
+                    for event in stream:
+                        etype = event.type
+                        if etype == "content_block_start":
+                            block = event.content_block
+                            if block.type == "tool_use":
+                                yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': block.name, 'tool_use_id': block.id})}\n\n"
+                        elif etype == "content_block_delta":
+                            delta = event.delta
+                            if hasattr(delta, "text"):
+                                accumulated_text += delta.text
+                                yield f"data: {json.dumps({'type': 'text_delta', 'text': delta.text})}\n\n"
+                    final_message = stream.get_final_message()
 
-                for event in stream:
-                    etype = event.type
+                # Build content blocks for storage
+                for block in final_message.content:
+                    if block.type == "text":
+                        assistant_content.append({"type": "text", "text": block.text})
+                    elif block.type == "tool_use":
+                        assistant_content.append({
+                            "type": "tool_use",
+                            "id": block.id,
+                            "name": block.name,
+                            "input": block.input,
+                        })
 
-                    if etype == "content_block_start":
-                        block = event.content_block
-                        if block.type == "thinking":
-                            in_thinking = True
-                            yield f"data: {json.dumps({'type': 'thinking_start'})}\n\n"
-                        elif block.type == "tool_use":
-                            in_thinking = False
-                            current_tool_id = block.id
-                            current_tool_name = block.name
-                            yield f"data: {json.dumps({'type': 'tool_start', 'tool_name': block.name, 'tool_use_id': block.id})}\n\n"
-                        else:
-                            in_thinking = False
-
-                    elif etype == "content_block_delta":
-                        delta = event.delta
-                        if in_thinking and hasattr(delta, "thinking"):
-                            yield f"data: {json.dumps({'type': 'thinking_delta', 'text': delta.thinking})}\n\n"
-                        elif hasattr(delta, "text"):
-                            accumulated_text += delta.text
-                            yield f"data: {json.dumps({'type': 'text_delta', 'text': delta.text})}\n\n"
-
-                    elif etype == "content_block_stop":
-                        if in_thinking:
-                            yield f"data: {json.dumps({'type': 'thinking_done'})}\n\n"
-                            in_thinking = False
-
-                final_message = stream.get_final_message()
-
-            # Build full content blocks list for storage
-            for block in final_message.content:
-                if block.type == "thinking":
-                    assistant_content.append({"type": "thinking", "thinking": block.thinking})
-                elif block.type == "text":
-                    assistant_content.append({"type": "text", "text": block.text})
-                elif block.type == "tool_use":
-                    assistant_content.append({
-                        "type": "tool_use",
-                        "id": block.id,
-                        "name": block.name,
-                        "input": block.input,
-                    })
-
-            # Persist assistant turn
-            async with pool.acquire() as conn:
-                await conn.execute(
-                    "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
-                    agent_id, "assistant", json.dumps(assistant_content),
-                )
-
-            # Done — no tool calls
-            if final_message.stop_reason != "tool_use":
-                # Trim history to 100 rows to keep DB lean
+                # Persist assistant turn
                 async with pool.acquire() as conn:
                     await conn.execute(
-                        """
-                        DELETE FROM agent_chats
-                        WHERE agent_id = $1
-                          AND id NOT IN (
-                            SELECT id FROM agent_chats
-                            WHERE agent_id = $1
-                            ORDER BY created_at DESC
-                            LIMIT 100
-                          )
-                        """,
-                        agent_id,
+                        "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
+                        agent_id, "assistant", json.dumps(assistant_content),
                     )
-                yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                return
 
-            # Execute tool calls
-            messages.append({"role": "assistant", "content": assistant_content})
-            tool_results = []
+                # Done — no tool calls
+                if final_message.stop_reason != "tool_use":
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            """
+                            DELETE FROM agent_chats
+                            WHERE agent_id = $1
+                              AND id NOT IN (
+                                SELECT id FROM agent_chats
+                                WHERE agent_id = $1
+                                ORDER BY created_at DESC
+                                LIMIT 100
+                              )
+                            """,
+                            agent_id,
+                        )
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                    return
 
-            for block in final_message.content:
-                if block.type != "tool_use":
-                    continue
+                # Execute tool calls
+                messages.append({"role": "assistant", "content": assistant_content})
+                tool_results = []
 
-                result = await asyncio.to_thread(
-                    _execute_tool, agent, block.name, block.input
-                )
+                for block in final_message.content:
+                    if block.type != "tool_use":
+                        continue
+                    result = await asyncio.to_thread(
+                        _execute_tool, agent, block.name, block.input
+                    )
+                    yield f"data: {json.dumps({'type': 'tool_result', 'tool_use_id': block.id, 'tool_name': block.name, 'result': result[:3000]})}\n\n"
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    })
 
-                yield f"data: {json.dumps({'type': 'tool_result', 'tool_use_id': block.id, 'tool_name': block.name, 'result': result[:3000]})}\n\n"
+                # Persist tool results as user turn
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
+                        agent_id, "user", json.dumps(tool_results),
+                    )
+                messages.append({"role": "user", "content": tool_results})
 
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result,
-                })
-
-            # Persist tool results as user turn (Anthropic requires alternating roles)
-            async with pool.acquire() as conn:
-                await conn.execute(
-                    "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
-                    agent_id, "user", json.dumps(tool_results),
-                )
-
-            messages.append({"role": "user", "content": tool_results})
-            # Loop: Claude will now respond to the tool results
-
-          yield f"data: {json.dumps({'type': 'error', 'message': 'Max tool iterations reached'})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Max tool iterations reached'})}\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
