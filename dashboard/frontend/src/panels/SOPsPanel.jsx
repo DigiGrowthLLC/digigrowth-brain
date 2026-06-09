@@ -455,7 +455,7 @@ export default function SOPsPanel() {
                   flex: 1, resize: "none",
                   background: "transparent", border: "none", outline: "none",
                   padding: CONTENT_PAD,
-                  fontFamily: "'Share Tech Mono', monospace", fontSize: 13,
+                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 13.5,
                   color: "#b8cce8", lineHeight: 1.8,
                 }}
               />
