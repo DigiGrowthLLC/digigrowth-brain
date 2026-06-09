@@ -300,6 +300,30 @@ TOOLS = [
             "required": ["file_id"],
         },
     },
+    # ── OS Dashboard ───────────────────────────────────────────────────────────
+    {
+        "name": "update_os_stats",
+        "description": (
+            "Write sales and outreach metrics extracted from Google Sheets directly into the OS dashboard "
+            "and Analytics panel. Updates sales_stats.json which drives: Sales Statistics card, "
+            "Daily Scoreboard (shows/closes), and the bottom of the 6-Stage Acquisition Funnel. "
+            "Only provide fields where you found real data — omit fields you did not find. "
+            "All values should be cumulative all-time totals (not daily increments) unless the sheet "
+            "clearly tracks only a single day."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "shows":              {"type": "integer", "description": "Total prospects who showed up to a sales call/demo"},
+                "closes":             {"type": "integer", "description": "Total deals closed / clients signed"},
+                "total_revenue":      {"type": "number",  "description": "Total revenue collected in dollars"},
+                "avg_deal_size":      {"type": "number",  "description": "Average deal size in dollars (auto-calculated if omitted)"},
+                "discovery_calls":    {"type": "integer", "description": "Total discovery / intro calls completed"},
+                "strategy_sessions":  {"type": "integer", "description": "Total strategy sessions / deep-dive calls completed"},
+                "source_note":        {"type": "string",  "description": "Brief note on which sheet(s) this data came from"},
+            },
+        },
+    },
     # ── Notion ─────────────────────────────────────────────────────────────────
     {
         "name": "notion_search",
@@ -445,6 +469,48 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
             target.unlink()
             git_status = github_push_file(target, agent["name"], "delete_file")
             return f"OK: deleted {path}\ngit: {git_status}"
+
+        elif tool_name == "update_os_stats":
+            stats_path = pathlib.Path(__file__).parent.parent / "sales_stats.json"
+            try:
+                current = json.loads(stats_path.read_text()) if stats_path.exists() else {}
+            except Exception:
+                current = {}
+
+            FIELD_MAP = {
+                "shows":             "shows",
+                "closes":            "closes",
+                "total_revenue":     "total_revenue",
+                "avg_deal_size":     "avg_deal_size",
+                "discovery_calls":   "discovery_calls",
+                "strategy_sessions": "strategy_sessions",
+            }
+            updated = []
+            for key, stat_key in FIELD_MAP.items():
+                if key in tool_input and tool_input[key] is not None:
+                    current[stat_key] = tool_input[key]
+                    updated.append(f"{stat_key}={tool_input[key]}")
+
+            # Auto-calculate avg_deal_size if not provided
+            closes = current.get("closes", 0)
+            revenue = current.get("total_revenue", 0)
+            if closes and revenue and "avg_deal_size" not in tool_input:
+                current["avg_deal_size"] = round(revenue / closes)
+
+            from datetime import datetime as _dt
+            current["last_sheet_sync"] = _dt.now().isoformat()
+            if tool_input.get("source_note"):
+                current["last_sheet_sync_note"] = tool_input["source_note"]
+
+            stats_path.write_text(json.dumps(current, indent=2))
+            git_status = github_push_file(stats_path, agent["name"], "write_file")
+            if not updated:
+                return "No recognized stat fields provided — sales_stats.json unchanged."
+            return (
+                f"OS stats updated: {', '.join(updated)}\n"
+                f"Dashboard and Analytics panel will reflect these on next load.\n"
+                f"git: {git_status}"
+            )
 
         elif tool_name in _INTEGRATION_TOOLS:
             return execute_integration_tool(tool_name, tool_input)

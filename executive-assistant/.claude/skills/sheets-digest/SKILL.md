@@ -1,62 +1,67 @@
 # Skill: Sheets Digest
 
-**Trigger:** Daily at 6AM EST, or on-demand
-**Parallel execution:** Runs concurrently with `daily-briefing` at 6AM EST — both fire as separate agent requests at the same time.
-**Purpose:** Scan Google Sheets opened in the last 24 hours. Extract raw stats. Write a dated report file. Nothing else.
+**Trigger:** Daily at 6AM EST (in parallel with daily-briefing), or on-demand
+**Purpose:** Read recent Google Sheets, identify sales and outreach metrics, and write them into the OS Dashboard and Analytics panel stat categories.
 
 ---
 
 ## What This Skill Does
 
-1. `drive_list_recent` — get recently accessed files
-2. Filter to `application/vnd.google-apps.spreadsheet` only
-3. Filter to files accessed within the last 24 hours
-4. `drive_read_file` each qualifying sheet — read raw numbers
-5. `write_file` a dated stats block to `reports/sheets-digest-YYYY-MM-DD.md`
-6. End your response with the completion message below — exactly as formatted
+1. Pull recent Drive files — `drive_list_recent`
+2. Filter to spreadsheets only (`application/vnd.google-apps.spreadsheet`)
+3. Read each sheet — `drive_read_file`
+4. Analyze the content: identify any data related to calls, appointments, shows, closes, revenue, discovery calls, or strategy sessions
+5. Map what you find to OS stat categories (see mapping below)
+6. Call `update_os_stats` with the extracted values
+7. End your response with a confirmation of what was updated
 
 **Do not call Notion, Gmail, Calendar, or any other tool.**
 
 ---
 
-## Output Format
+## Data Mapping
 
-Written to `reports/sheets-digest-YYYY-MM-DD.md`:
+When reading sheets, look for these types of data and map them as follows:
 
-```
-# Sheets Digest — YYYY-MM-DD
+| What you find in the sheet | OS field | Where it appears in the OS |
+|---|---|---|
+| Shows / prospects who showed up | `shows` | Sales Statistics · Daily Scoreboard |
+| Closes / deals signed / clients won | `closes` | Sales Statistics · Daily Scoreboard · Funnel |
+| Total revenue / MRR / payments collected | `total_revenue` | Sales Statistics |
+| Discovery calls / intro calls completed | `discovery_calls` | Sales Statistics |
+| Strategy sessions / deep dives | `strategy_sessions` | Sales Statistics |
+| Average deal value | `avg_deal_size` | Sales Statistics |
 
-## [Sheet Name]
-- [Label]: [Value]
-- [Label]: [Value]
-
-## [Sheet Name]
-- [Label]: [Value]
-```
-
-Numbers and labels only. If no sheets were opened in last 24h:
-
-```
-# Sheets Digest — YYYY-MM-DD
-_No sheets opened in the last 24 hours._
-```
+**Rules:**
+- Use **cumulative all-time totals** — not daily increments — unless the sheet clearly tracks a single day only
+- Only include fields where you found actual data. Do not guess or assume zeros.
+- If a sheet tracks weekly or monthly data, use the most recent period's cumulative total
+- If two sheets have conflicting numbers for the same metric, use the sheet that appears to be the primary tracker (more complete, more recent, or explicitly labeled as a tracker)
 
 ---
 
 ## Completion Message
 
-After writing the report file, end your response with this exact line:
+End your response with:
 
 ```
-✓ Sheets Digest complete — YYYY-MM-DD. [N] sheet(s) scanned. Report saved to reports/sheets-digest-YYYY-MM-DD.md.
+✓ Sheets Digest complete — YYYY-MM-DD
+Updated: [list the fields you wrote, e.g. "shows=2, closes=1, total_revenue=1500"]
+Source: [sheet name(s) the data came from]
+Visible in: Sales Statistics · Daily Scoreboard
 ```
 
-Replace `YYYY-MM-DD` with today's date and `[N]` with the number of sheets scanned (0 if none).
+If no relevant data was found in any sheet:
+
+```
+✓ Sheets Digest complete — YYYY-MM-DD
+No sales or outreach metrics found in recent sheets. OS stats unchanged.
+```
 
 ---
 
 ## Invocation
 
 > "Run the sheets digest"
-> "Pull my sheets stats"
-> "What do my sheets say today?"
+> "Sync my sheets to the OS"
+> "Pull my stats from sheets"
