@@ -2,6 +2,9 @@ import os
 import secrets
 from contextlib import asynccontextmanager
 
+import httpx
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -12,6 +15,23 @@ from routers import crm, sms, dialer, dashboard, agents, settings, analytics, fi
 
 security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
+
+
+async def _trigger_agent_skill(agent_id: str, message: str) -> None:
+    """Call the agent chat endpoint from the scheduler (self-call via localhost)."""
+    port = os.environ.get("PORT", "8000")
+    url = f"http://localhost:{port}/api/agents/{agent_id}/chat"
+    try:
+        async with httpx.AsyncClient(timeout=300) as client:
+            async with client.stream(
+                "POST", url,
+                auth=("admin", DASHBOARD_PASSWORD),
+                json={"message": message, "mode": "auto"},
+            ) as resp:
+                async for _ in resp.aiter_lines():
+                    pass  # consume stream; results are stored in agent_chats by the endpoint
+    except Exception as exc:
+        print(f"[cron] {agent_id} / '{message}' failed: {exc}")
 
 
 def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
@@ -28,7 +48,28 @@ def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await get_pool()
+
+    scheduler = AsyncIOScheduler()
+    eastern = "America/New_York"
+    scheduler.add_job(
+        _trigger_agent_skill,
+        CronTrigger(hour=6, minute=0, timezone=eastern),
+        args=["executive-assistant", "Run the sheets digest"],
+        id="sheets-digest-daily",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _trigger_agent_skill,
+        CronTrigger(hour=6, minute=1, timezone=eastern),
+        args=["executive-assistant", "Run the daily briefing"],
+        id="daily-briefing-daily",
+        replace_existing=True,
+    )
+    scheduler.start()
+
     yield
+
+    scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="DigiGrowth OS", lifespan=lifespan)

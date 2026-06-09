@@ -12,3 +12,4 @@ google-api-python-client==2.154.0
 twilio==9.4.6
 anthropic==0.40.0
 plaid-python>=26.0.0
+apscheduler==3.10.4
