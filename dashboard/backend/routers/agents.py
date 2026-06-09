@@ -459,7 +459,20 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
 
 # ── System prompt builder ──────────────────────────────────────────────────────
 
-def _build_system_prompt(agent: dict) -> str:
+_MODE_INSTRUCTIONS = {
+    "plan": (
+        "\n\nMODE: PLAN ONLY — Do NOT call write_file, create_file, or delete_file under any circumstances. "
+        "Instead, describe exactly what changes you would make, show the proposed content inline, "
+        "and tell the user to switch to Auto mode to apply them."
+    ),
+    "ask": (
+        "\n\nMODE: ASK BEFORE EDITS — Before calling write_file, create_file, or delete_file, "
+        "always stop and describe the exact change you're about to make, then ask the user to confirm. "
+        "Only proceed with the file operation after explicit user approval."
+    ),
+}
+
+def _build_system_prompt(agent: dict, mode: str = "auto") -> str:
     root: pathlib.Path = agent["abs_root"]
     name = agent["name"]
     description = agent.get("description", "")
@@ -478,6 +491,9 @@ def _build_system_prompt(agent: dict) -> str:
         "When making code changes, follow the existing patterns in the files you read first. "
         "Be concise — the user is technical."
     ]
+
+    if mode in _MODE_INSTRUCTIONS:
+        parts.append(_MODE_INSTRUCTIONS[mode])
 
     for candidate in ["memory.md", "CLAUDE.md", "prompt.txt", "role.txt"]:
         p = root / candidate
@@ -697,7 +713,8 @@ async def chat(agent_id: str, request: Request):
         )
 
     history.append({"role": "user", "content": user_content})
-    system_prompt = _build_system_prompt(agent)
+    mode = (body.get("mode") or "auto").strip()
+    system_prompt = _build_system_prompt(agent, mode)
     model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-4-6")
 
     async def event_stream():

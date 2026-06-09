@@ -381,6 +381,12 @@ function NewAgentModal({ onClose, onCreated }) {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
+const MODES = [
+  { id: "auto",  label: "Auto",  desc: "Runs freely, no confirmation needed" },
+  { id: "ask",   label: "Ask",   desc: "Confirms before every file edit" },
+  { id: "plan",  label: "Plan",  desc: "Plans only — never writes files" },
+];
+
 export default function AgentsPanel() {
   const [agents, setAgents] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -389,9 +395,11 @@ export default function AgentsPanel() {
   const [streaming, setStreaming] = useState(false);
   const [filePanelOpen, setFilePanelOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [mode, setMode] = useState("auto");
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
   const streamIdRef = useRef(null);
+  const abortRef = useRef(null);
 
   const loadAgents = useCallback(async () => {
     const r = await fetch(API("/agents"));
@@ -420,6 +428,15 @@ export default function AgentsPanel() {
 
   const selectedAgent = agents.find(a => a.id === selectedId);
 
+  const stopStreaming = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setMessages(prev => prev.map(m =>
+      m._streaming ? { ...m, _streaming: false, _thinkingStreaming: false } : m
+    ));
+    setStreaming(false);
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || streaming || !selectedId) return;
 
@@ -431,6 +448,9 @@ export default function AgentsPanel() {
     const streamId = Date.now() + 1;
     streamIdRef.current = streamId;
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setMessages(prev => [
       ...prev,
       { id: userId, role: "user", content: [{ type: "text", text: userText }] },
@@ -441,7 +461,8 @@ export default function AgentsPanel() {
       const resp = await fetch(API(`/agents/${selectedId}/chat`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userText }),
+        body: JSON.stringify({ message: userText, mode }),
+        signal: controller.signal,
       });
 
       if (!resp.ok) {
@@ -515,9 +536,11 @@ export default function AgentsPanel() {
         }
       }
     } catch (err) {
-      setMessages(prev => prev.map(m =>
-        m.id === streamIdRef.current ? { ...m, _streaming: false, _error: String(err) } : m
-      ));
+      if (err.name !== "AbortError") {
+        setMessages(prev => prev.map(m =>
+          m.id === streamIdRef.current ? { ...m, _streaming: false, _error: String(err) } : m
+        ));
+      }
       setStreaming(false);
     }
   };
@@ -640,7 +663,32 @@ export default function AgentsPanel() {
                     {selectedAgent.description}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {/* Mode toggles */}
+                  <div style={{
+                    display: "flex", gap: 2,
+                    background: "rgba(7,12,30,0.6)", border: "0.5px solid #1a2540",
+                    borderRadius: 8, padding: 3,
+                  }}>
+                    {MODES.map(m => (
+                      <button
+                        key={m.id}
+                        title={m.desc}
+                        onClick={() => setMode(m.id)}
+                        style={{
+                          background: mode === m.id ? "rgba(58,123,213,0.25)" : "transparent",
+                          border: mode === m.id ? "0.5px solid rgba(58,123,213,0.4)" : "0.5px solid transparent",
+                          borderRadius: 6, padding: "4px 10px", cursor: "pointer",
+                          fontSize: 10, fontFamily: "'Share Tech Mono', monospace",
+                          letterSpacing: "0.08em",
+                          color: mode === m.id ? "#7aaae8" : "#3a5a80",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     className="btn btn-ghost"
                     onClick={() => setFilePanelOpen(o => !o)}
@@ -696,14 +744,28 @@ export default function AgentsPanel() {
                   disabled={streaming}
                   style={{ resize: "none", flex: 1, lineHeight: 1.5 }}
                 />
-                <button
-                  className="btn btn-primary"
-                  onClick={sendMessage}
-                  disabled={streaming || !input.trim()}
-                  style={{ flexShrink: 0, alignSelf: "flex-end", padding: "9px 18px", fontSize: 11 }}
-                >
-                  {streaming ? "…" : "SEND"}
-                </button>
+                {streaming ? (
+                  <button
+                    onClick={stopStreaming}
+                    style={{
+                      flexShrink: 0, alignSelf: "flex-end", padding: "9px 18px", fontSize: 11,
+                      background: "rgba(180,40,40,0.15)", border: "0.5px solid rgba(220,60,60,0.4)",
+                      borderRadius: 8, color: "#e06060", cursor: "pointer",
+                      fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.1em",
+                    }}
+                  >
+                    ■ STOP
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-primary"
+                    onClick={sendMessage}
+                    disabled={!input.trim()}
+                    style={{ flexShrink: 0, alignSelf: "flex-end", padding: "9px 18px", fontSize: 11 }}
+                  >
+                    SEND
+                  </button>
+                )}
               </div>
             </>
           ) : (
