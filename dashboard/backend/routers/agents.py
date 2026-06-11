@@ -787,12 +787,29 @@ async def read_file_endpoint(agent_id: str, path: str):
 
 @router.get("/agents/{agent_id}/brief-pdf")
 async def serve_brief_pdf(agent_id: str):
-    """Serve the latest daily-briefing PDF for the given agent."""
+    """Serve the latest daily-briefing PDF, generating it from the MD if needed."""
+    import integrations as _integrations
     agent = _get_agent(agent_id)
     reports_dir = agent["abs_root"] / "reports"
+
     pdfs = sorted(reports_dir.glob("daily-briefing-*.pdf"), reverse=True)
+
+    # If no PDF yet, try to generate one from the latest MD file
     if not pdfs:
-        raise HTTPException(status_code=404, detail="No daily brief PDF found")
+        mds = sorted(reports_dir.glob("daily-briefing-*.md"), reverse=True)
+        if not mds:
+            raise HTTPException(status_code=404, detail="No daily brief found")
+        md_path = mds[0]
+        pdf_path = md_path.with_suffix(".pdf")
+        try:
+            pdf_bytes = await asyncio.to_thread(
+                _integrations._md_to_pdf_bytes, md_path.read_text(encoding="utf-8")
+            )
+            pdf_path.write_bytes(pdf_bytes)
+            pdfs = [pdf_path]
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
+
     return FileResponse(pdfs[0], media_type="application/pdf", filename=pdfs[0].name)
 
 
