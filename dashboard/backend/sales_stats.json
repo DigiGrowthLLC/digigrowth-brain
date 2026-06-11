@@ -5,9 +5,10 @@
   "shows": 9,
   "total_revenue": 0,
   "avg_deal_size": 0,
-  "last_sheet_sync": "2026-06-11T14:49:12.466051",
-  "last_sheet_sync_note": "Feb 2026 Cold Calling (calls=1459, contacts=174, appts=1) + Mar 2026 Cold Calling (calls=924, contacts=145, appts=8) + Apr 2026 Cold Calling (calls=1344, contacts=211, appts=6) = all-time totals. Sales Performance Tracker all-time: discovery_calls=18 booked, shows=9, closes=0. June/May Input Trackers = habit tracking only, no outreach data. Goal Tracker = context only.",
+  "last_sheet_sync": "2026-06-11T14:52:39.016532",
+  "last_sheet_sync_note": "Cold Calling Metrics: Feb 2026 (covers Nov '25\u2013Feb '26, 1,459 dials), March 2026 (924 dials), April 2026 (1,344 dials). Sales Performance Tracker: all-time through April 2026 (18 booked, 9 shows, 0 closes). June/May Daily Input Trackers contain no outreach metrics.",
   "sheet_calls_made": 3727,
-  "sheet_contacts_reached": 530,
-  "sheet_appointments_booked": 15
+  "sheet_contacts_reached": 287,
+  "sheet_appointments_booked": 18,
+  "sheet_calls_answered": 545
 }
