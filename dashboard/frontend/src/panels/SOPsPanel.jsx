@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Color } from "@tiptap/extension-color";
@@ -84,6 +84,13 @@ const COLORS = [
 function FormatBar({ editor }) {
   const [linkInput, setLinkInput] = useState("");
   const [showLink, setShowLink] = useState(false);
+  const inputRef = useRef(null);
+  const savedSel = useRef(null);
+
+  // Focus the URL input after render, without autoFocus stealing editor selection
+  useEffect(() => {
+    if (showLink && inputRef.current) inputRef.current.focus();
+  }, [showLink]);
 
   if (!editor) return null;
 
@@ -108,10 +115,20 @@ function FormatBar({ editor }) {
   );
 
   const applyLink = () => {
-    if (!linkInput.trim()) { setShowLink(false); return; }
-    const href = linkInput;
-    editor.chain().focus().setLink({ href, target: "_blank" }).run();
-    setLinkInput(""); setShowLink(false);
+    const href = linkInput.trim();
+    if (href && savedSel.current) {
+      editor.chain()
+        .focus()
+        .setTextSelection({ from: savedSel.current.from, to: savedSel.current.to })
+        .setLink({ href, target: "_blank" })
+        .run();
+    }
+    setLinkInput(""); setShowLink(false); savedSel.current = null;
+  };
+
+  const cancelLink = () => {
+    setLinkInput(""); setShowLink(false); savedSel.current = null;
+    editor.commands.focus();
   };
 
   const handleLinkBtn = (e) => {
@@ -119,6 +136,7 @@ function FormatBar({ editor }) {
     if (editor.isActive("link")) {
       editor.chain().focus().unsetLink().run();
     } else {
+      savedSel.current = editor.state.selection;  // save before input steals focus
       setShowLink(s => !s);
     }
   };
@@ -158,19 +176,31 @@ function FormatBar({ editor }) {
         }}
       >🔗</button>
       {showLink && (
-        <input
-          autoFocus
-          value={linkInput}
-          onChange={e => setLinkInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyLink(); } if (e.key === "Escape") { setShowLink(false); setLinkInput(""); } }}
-          onBlur={applyLink}
-          placeholder="https://..."
-          style={{
-            background: "rgba(7,12,30,0.8)", border: "1px solid rgba(58,123,213,0.35)",
-            borderRadius: 5, color: "#8aaad0", fontSize: 11, padding: "3px 8px",
-            outline: "none", width: 180,
-          }}
-        />
+        <>
+          <input
+            ref={inputRef}
+            value={linkInput}
+            onChange={e => setLinkInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter") { e.preventDefault(); applyLink(); }
+              if (e.key === "Escape") cancelLink();
+            }}
+            placeholder="Paste URL…"
+            style={{
+              background: "rgba(7,12,30,0.8)", border: "1px solid rgba(58,123,213,0.35)",
+              borderRadius: 5, color: "#8aaad0", fontSize: 11, padding: "3px 8px",
+              outline: "none", width: 200,
+            }}
+          />
+          <button
+            onMouseDown={e => { e.preventDefault(); applyLink(); }}
+            style={{ background: "rgba(58,123,213,0.3)", border: "1px solid rgba(58,123,213,0.5)", borderRadius: 5, color: "#6ab0ff", fontSize: 11, padding: "3px 8px", cursor: "pointer" }}
+          >✓</button>
+          <button
+            onMouseDown={e => { e.preventDefault(); cancelLink(); }}
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(58,123,213,0.15)", borderRadius: 5, color: "#7a9cc0", fontSize: 11, padding: "3px 8px", cursor: "pointer" }}
+          >✕</button>
+        </>
       )}
 
       {sep("s4")}
