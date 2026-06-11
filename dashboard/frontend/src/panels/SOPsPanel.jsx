@@ -104,8 +104,7 @@ function FormatBar({ editor }) {
     <div key={k} style={{ width: 1, height: 14, background: "rgba(58,123,213,0.2)", margin: "0 2px", flexShrink: 0 }} />
   );
 
-  const handleLinkBtn = (e) => {
-    e.preventDefault();
+  const handleLinkBtn = () => {
     if (editor.isActive("link")) {
       editor.chain().focus().unsetLink().run();
       return;
