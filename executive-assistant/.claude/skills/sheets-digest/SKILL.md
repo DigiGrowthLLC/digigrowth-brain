@@ -39,7 +39,7 @@ Be liberal — column names vary. Match on intent, not exact wording.
 | What to look for | Tool field | Where it shows |
 |---|---|---|
 | Calls made / dials / outbound calls / calls placed | `calls_made` | Analytics · Input Tracker |
-| Answered / pickups / someone picked up / live answers | `calls_answered` | Analytics · Funnel (Answered stage) |
+| **Calls answered** / answered / pickups / live answers | `calls_answered` | Analytics · Funnel (Answered stage) |
 | Contacts reached / pitched / spoken to / stayed on line | `contacts_reached` | Analytics · Input Tracker + Funnel (Pitched stage) |
 | Appointments booked / intro sessions / bookings | `appointments_booked` | Analytics · Input Tracker |
 | SMS sent / texts sent / messages sent | `sms_sent` | Analytics · Input Tracker |
