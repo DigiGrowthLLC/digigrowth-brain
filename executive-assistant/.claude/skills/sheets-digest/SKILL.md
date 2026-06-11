@@ -25,7 +25,7 @@ Dylan's key sheets — if found in the list, always read them:
 
 | Sheet name contains | What it holds |
 |---|---|
-| `Cold Calling` / `cold calling` / `Cold Calling Metrics` | calls_made, contacts_reached, appointments_booked |
+| `Cold Calling` / `cold calling` / `Cold Calling Metrics` | calls_made, calls_answered, contacts_reached, appointments_booked |
 | `Sales Performance` / `Sales Tracker` | shows, closes, discovery_calls, total_revenue |
 | `Input Tracker` / `Daily Input` | calls_made, contacts_reached, appointments_booked, sms_sent |
 | `Goal Tracker` | context only — no stats to extract |
@@ -49,8 +49,13 @@ Be liberal — column names vary. Match on intent, not exact wording.
 | Discovery calls / intro calls / first calls completed | `discovery_calls` | Sales Statistics |
 | Strategy sessions / deep dives / follow-up calls | `strategy_sessions` | Sales Statistics |
 
+**IMPORTANT — `calls_answered` vs `contacts_reached` are separate fields:**
+- `calls_answered` = the "Calls answered" column — raw pickups (someone picked up the phone). Always pass this as its own field.
+- `contacts_reached` = contacts actually spoken to / pitched (may be a different column). Do NOT merge these two into one.
+- If you only find one of these columns, pass only that one — never substitute one for the other.
+
 **Rules:**
-- Outreach fields (calls, contacts, appointments, SMS): sum all rows or use the running total column — whichever is larger
+- Outreach fields (calls, contacts, appointments, SMS): sum all months/rows for all-time totals
 - Sales funnel fields (shows, closes, revenue): cumulative all-time totals only
 - Never default to zero — only write a field if you found real data for it
 - If data is from a past period with nothing recent, still include it with a note in `source_note`
