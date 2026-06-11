@@ -573,24 +573,48 @@ def _resolve_at_includes(content: str, root: pathlib.Path, depth: int = 0) -> st
     return "\n".join(lines)
 
 
-def _load_skills(root: pathlib.Path) -> str:
-    """Load all SKILL.md files from .claude/skills/ and return as a combined string."""
+def _load_skills(root: pathlib.Path, match_message: str = "") -> str:
+    """
+    Load SKILL.md files from .claude/skills/.
+    If match_message is provided, only load the skill whose folder name or first line
+    best matches the message (avoids bloating the system prompt with all skills).
+    Falls back to listing skill names only when no match.
+    """
     skills_dir = root / ".claude" / "skills"
     if not skills_dir.exists():
         return ""
-    parts = []
+
+    skill_files = {}
     for skill_dir in sorted(skills_dir.iterdir()):
         skill_file = skill_dir / "SKILL.md"
         if skill_file.exists():
+            skill_files[skill_dir.name] = skill_file
+
+    if not skill_files:
+        return ""
+
+    if match_message:
+        msg_lower = match_message.lower()
+        for name, path in skill_files.items():
+            # Match on folder name words or first heading in the file
+            name_words = name.replace("-", " ").replace("_", " ")
             try:
-                content = skill_file.read_text(errors="replace")[:8000]
-                parts.append(f"### Skill: {skill_dir.name}\n\n{content}")
+                first_line = path.read_text(errors="replace").split("\n")[0].lower()
             except Exception:
-                pass
-    return "\n\n---\n\n".join(parts)
+                first_line = ""
+            if any(w in msg_lower for w in name_words.split()) or name_words in msg_lower:
+                try:
+                    content = path.read_text(errors="replace")[:6000]
+                    return f"### Active Skill: {name}\n\nExecute these instructions now:\n\n{content}"
+                except Exception:
+                    pass
+
+    # No match — just list available skill names so Claude can read one if needed
+    names = ", ".join(skill_files.keys())
+    return f"Available skills (read the relevant SKILL.md if needed): {names}"
 
 
-def _build_system_prompt(agent: dict, mode: str = "auto") -> str:
+def _build_system_prompt(agent: dict, mode: str = "auto", match_message: str = "") -> str:
     from datetime import datetime as _dt
     today = _dt.now().strftime("%Y-%m-%d")
 
@@ -627,9 +651,9 @@ def _build_system_prompt(agent: dict, mode: str = "auto") -> str:
             except Exception:
                 pass
 
-    skills_content = _load_skills(root)
+    skills_content = _load_skills(root, match_message)
     if skills_content:
-        parts.append(f"\n---\n## Available Skills\n\nThese skills are pre-loaded. When asked to run one, execute its steps directly without reading the file first.\n\n{skills_content}")
+        parts.append(f"\n---\n## Skills\n\n{skills_content}")
 
     return "\n".join(parts)
 
@@ -848,7 +872,7 @@ async def chat(agent_id: str, request: Request):
 
     history.append({"role": "user", "content": user_content})
     mode = (body.get("mode") or "auto").strip()
-    system_prompt = _build_system_prompt(agent, mode)
+    system_prompt = _build_system_prompt(agent, mode, match_message=user_message)
     model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-4-6")
 
     async def event_stream():
