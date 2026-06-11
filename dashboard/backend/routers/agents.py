@@ -753,7 +753,7 @@ async def list_files(agent_id: str, subdir: str = ""):
         except PermissionError:
             return entries
         for item in items:
-            if item.name.startswith(".") and item.name not in (".env.example",):
+            if item.name.startswith(".") and item.name not in (".env.example", ".claude"):
                 continue
             if item.is_dir() and item.name in SKIP_DIRS:
                 continue
