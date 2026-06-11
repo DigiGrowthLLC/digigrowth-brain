@@ -878,12 +878,36 @@ async def chat(agent_id: str, request: Request):
 
     history = [{"role": r["role"], "content": json.loads(r["content"])} for r in rows]
 
-    # If the last assistant turn has tool_use blocks with no following tool_result
-    # (happens when stop is hit mid-execution), drop it to avoid API rejection.
-    if (len(history) >= 1
-            and history[-1]["role"] == "assistant"
-            and any(b.get("type") == "tool_use" for b in history[-1]["content"])):
-        history = history[:-1]
+    # Sanitize history: remove any assistant turn whose tool_use blocks are not
+    # immediately followed by a user turn containing matching tool_result blocks.
+    # This self-heals corrupted history from mid-run failures (rate limits, timeouts).
+    def _sanitize(msgs):
+        clean = []
+        i = 0
+        while i < len(msgs):
+            msg = msgs[i]
+            if msg["role"] == "assistant":
+                tool_ids = {b["id"] for b in msg["content"] if b.get("type") == "tool_use"}
+                if tool_ids:
+                    # Check next message has matching tool_results
+                    next_msg = msgs[i + 1] if i + 1 < len(msgs) else None
+                    if next_msg and next_msg["role"] == "user":
+                        result_ids = {b.get("tool_use_id") for b in next_msg["content"]
+                                      if b.get("type") == "tool_result"}
+                        if tool_ids <= result_ids:
+                            clean.append(msg)
+                            i += 1
+                            continue
+                    # Orphaned tool_use — drop this turn (and skip the orphaned result if present)
+                    i += 1
+                    if i < len(msgs) and msgs[i]["role"] == "user":
+                        i += 1  # skip dangling tool_result turn too
+                    continue
+            clean.append(msg)
+            i += 1
+        return clean
+
+    history = _sanitize(history)
 
     # Persist user message
     user_content = [{"type": "text", "text": user_message}]

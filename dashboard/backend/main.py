@@ -18,20 +18,37 @@ DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
 
 
 async def _trigger_agent_skill(agent_id: str, message: str, timeout: int = 300) -> None:
-    """Call the agent chat endpoint from the scheduler (self-call via localhost)."""
+    """Call the agent chat endpoint from the scheduler (self-call via localhost).
+    Retries once after 60s if the first attempt fails.
+    History is self-healed by the chat endpoint before every run.
+    """
     port = os.environ.get("PORT", "8000")
     url = f"http://localhost:{port}/api/agents/{agent_id}/chat"
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream(
-                "POST", url,
-                auth=("admin", DASHBOARD_PASSWORD),
-                json={"message": message, "mode": "auto"},
-            ) as resp:
-                async for _ in resp.aiter_lines():
-                    pass  # consume stream; results are stored in agent_chats by the endpoint
-    except Exception as exc:
-        print(f"[cron] {agent_id} / '{message}' failed: {exc}")
+
+    async def _run() -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream(
+                    "POST", url,
+                    auth=("admin", DASHBOARD_PASSWORD),
+                    json={"message": message, "mode": "auto"},
+                ) as resp:
+                    async for line in resp.aiter_lines():
+                        if '"type": "error"' in line:
+                            print(f"[cron] {agent_id} stream error: {line[:200]}")
+                            return False
+            return True
+        except Exception as exc:
+            print(f"[cron] {agent_id} / '{message}' attempt failed: {exc}")
+            return False
+
+    success = await _run()
+    if not success:
+        print(f"[cron] {agent_id} / '{message}' — retrying in 60s")
+        await asyncio.sleep(60)
+        ok = await _run()
+        if not ok:
+            print(f"[cron] {agent_id} / '{message}' — retry also failed, will try again next scheduled run")
 
 
 def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
