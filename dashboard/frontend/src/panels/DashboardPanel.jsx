@@ -178,24 +178,8 @@ function TodoList() {
 // ── Calendar widget ───────────────────────────────────────────────────────────
 
 function CalendarWidget({ events, loading, error }) {
-  const todayKey     = new Date().toISOString().slice(0, 10);
-  const tomorrowKey  = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-
-  const groups = {};
-  for (const ev of events) {
-    const key = ev.start.slice(0, 10);
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(ev);
-  }
-  const sortedDates = Object.keys(groups).sort();
-
-  const dayLabel = (key) => {
-    const d = new Date(key + "T12:00:00");
-    const sub = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    if (key === todayKey)    return { label: "Today",    sub };
-    if (key === tomorrowKey) return { label: "Tomorrow", sub };
-    return { label: d.toLocaleDateString("en-US", { weekday: "long" }), sub };
-  };
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayEvents = events.filter(ev => ev.start.slice(0, 10) === todayKey);
 
   const fmtTime = (iso, allDay) => {
     if (allDay) return "All day";
@@ -203,89 +187,43 @@ function CalendarWidget({ events, loading, error }) {
   };
 
   return (
-    <div className="glass-card" style={{ padding: "20px 24px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0" }}>
-          Upcoming
-        </div>
-        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.12em" }}>
-          NEXT 7 DAYS
-        </span>
+    <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", minHeight: 280 }}>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0", marginBottom: 16 }}>
+        Today's Calendar
       </div>
 
       {loading && (
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>
       )}
-
       {!loading && error && (
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
           {error.toLowerCase().includes("missing") || error.toLowerCase().includes("configured")
-            ? "GOOGLE CALENDAR NOT CONFIGURED — SET GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN"
+            ? "GOOGLE CALENDAR NOT CONFIGURED"
             : error.toUpperCase()}
         </div>
       )}
-
-      {!loading && !error && events.length === 0 && (
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
-          NO UPCOMING EVENTS
-        </div>
+      {!loading && !error && todayEvents.length === 0 && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO EVENTS TODAY</div>
       )}
 
-      {!loading && sortedDates.length > 0 && (
-        <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 4 }}>
-          {sortedDates.map(dateKey => {
-            const { label, sub } = dayLabel(dateKey);
-            const isToday = dateKey === todayKey;
-            return (
-              <div key={dateKey} style={{ minWidth: 170, flexShrink: 0 }}>
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{
-                    fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600,
-                    color: isToday ? "#6ab0ff" : "#4a6080",
-                  }}>{label}</div>
-                  <div style={{
-                    fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                    color: "#2a4a7a", letterSpacing: "0.1em",
-                  }}>{sub.toUpperCase()}</div>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {groups[dateKey].map(ev => (
-                    <div key={ev.id} style={{
-                      padding: "7px 10px", borderRadius: 8,
-                      background: isToday ? "rgba(58,123,213,0.07)" : "rgba(255,255,255,0.02)",
-                      border: `1px solid ${isToday ? "rgba(58,123,213,0.14)" : "rgba(58,123,213,0.05)"}`,
-                      borderLeft: `3px solid ${isToday ? "#3a7bd5" : "#2a4a7a"}`,
-                    }}>
-                      <div style={{
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                        color: isToday ? "#3a7bd5" : "#2a4a7a",
-                        letterSpacing: "0.08em", marginBottom: 3,
-                      }}>
-                        {fmtTime(ev.start, ev.all_day)}
-                      </div>
-                      <div style={{
-                        fontSize: 12, color: isToday ? "#c4d0e8" : "#5a7090",
-                        lineHeight: 1.3, overflow: "hidden",
-                        textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 148,
-                      }}>
-                        {ev.title}
-                      </div>
-                      {ev.location && (
-                        <div style={{
-                          fontSize: 10, color: "#2a4060", marginTop: 2,
-                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 148,
-                        }}>
-                          {ev.location}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+        {todayEvents.map(ev => (
+          <div key={ev.id} style={{
+            padding: "8px 12px", borderRadius: 10,
+            background: "rgba(58,123,213,0.06)",
+            border: "1px solid rgba(58,123,213,0.12)",
+            borderLeft: "3px solid #3a7bd5",
+          }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.08em", marginBottom: 2 }}>
+              {fmtTime(ev.start, ev.all_day)}
+            </div>
+            <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>{ev.title}</div>
+            {ev.location && (
+              <div style={{ fontSize: 10, color: "#3a5a7a", marginTop: 2 }}>{ev.location}</div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -305,7 +243,7 @@ export default function DashboardPanel() {
 
   const loadCalendar = async () => {
     try {
-      const r = await fetch(API("/dashboard/calendar?days=7"));
+      const r = await fetch(API("/dashboard/calendar?days=1"));
       if (r.ok) {
         const d = await r.json();
         setCalEvents(d.events || []);
@@ -404,91 +342,20 @@ export default function DashboardPanel() {
           positive={clientMsgs.length === 0} />
       </div>
 
-      {/* ── Row 2: Hero card + 2 metric cards ─────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr 1fr", gap: 16 }}>
+      {/* ── Row 2: To-Do + Today's Calendar ───────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
-        {/* Welcome hero card */}
-        <div className="glass-card" style={{
-          padding: "24px 28px", minHeight: 160,
-          background: "linear-gradient(135deg, rgba(13,22,60,0.95) 0%, rgba(40,87,160,0.25) 100%)",
-          position: "relative", overflow: "hidden",
-        }}>
-          {/* Decorative glow */}
-          <div style={{
-            position: "absolute", right: -40, top: -40,
-            width: 200, height: 200, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(58,123,213,0.15) 0%, transparent 70%)",
-            pointerEvents: "none",
-          }} />
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#6080a8", marginBottom: 6 }}>
-            Welcome back,
+        {/* To-Do */}
+        <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", minHeight: 280 }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0", marginBottom: 16 }}>
+            To-Do
           </div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700,
-                        color: "#f0f4ff", letterSpacing: "-0.02em", marginBottom: 10 }}>
-            Dylan Groenendijk
-          </div>
-          <div style={{ fontSize: 13, color: "#6080a8", lineHeight: 1.5, marginBottom: 16 }}>
-            {contacts.total ?? 0} total contacts · {sms.active ?? 0} active SMS threads
-            {clientMsgs.length > 0 && ` · ${clientMsgs.length} waiting for reply`}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5",
-                          letterSpacing: "0.12em", cursor: "pointer" }}>
-              GO TO DIALER →
-            </div>
-          </div>
+          <TodoList />
         </div>
 
-        {/* Reach Rate */}
-        <div className="glass-card" style={{ padding: "24px 22px" }}>
-          <div className="sec-label">Reach Rate</div>
-          <div style={{ textAlign: "center", padding: "10px 0" }}>
-            <div style={{
-              fontSize: 52, fontWeight: 700, color: "#f0f4ff",
-              letterSpacing: "-0.04em", lineHeight: 1,
-              background: "linear-gradient(135deg, #3a7bd5, #6ab0ff)",
-              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            }}>
-              {calling.calls_made > 0 ? `${calling.reach_rate}%` : "—"}
-            </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-                          color: "#3a5a80", letterSpacing: "0.12em", marginTop: 8 }}>
-              DMS / CALLS MADE
-            </div>
-          </div>
-          <div className="dg-divider" style={{ margin: "12px 0" }} />
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <div>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.12em" }}>DIALS</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#c4d0e8", marginTop: 2 }}>{calling.calls_made ?? 0}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.12em" }}>REACHED</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#14c882", marginTop: 2 }}>{calling.dms_reached ?? 0}</div>
-            </div>
-          </div>
-        </div>
+        {/* Today's Calendar */}
+        <CalendarWidget events={calEvents} loading={calLoading} error={calError} />
 
-        {/* Pipeline */}
-        <div className="glass-card" style={{ padding: "24px 22px" }}>
-          <div className="sec-label">Pipeline</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {[
-              { label: "Total Contacts", value: contacts.total ?? 0, color: "#5a9bf0" },
-              { label: "New This Period", value: contacts.new ?? 0,   color: "#14c882" },
-              { label: "SMS Booked",      value: sms.booked ?? 0,     color: "#f0a028" },
-              { label: "Active Convos",   value: sms.active ?? 0,     color: "#a080f0" },
-            ].map(({ label, value, color }) => (
-              <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "#6080a8" }}>{label}</span>
-                </div>
-                <span style={{ fontSize: 15, fontWeight: 700, color: "#c4d0e8" }}>{value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* ── Row 3: Charts ──────────────────────────────────────────── */}
@@ -581,8 +448,94 @@ export default function DashboardPanel() {
         </div>
       </div>
 
-      {/* ── Row 4: Agent / Client / Todos ──────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+      {/* ── Row 4: Hero card + 2 metric cards ─────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr 1fr", gap: 16 }}>
+
+        {/* Welcome hero card */}
+        <div className="glass-card" style={{
+          padding: "24px 28px", minHeight: 160,
+          background: "linear-gradient(135deg, rgba(13,22,60,0.95) 0%, rgba(40,87,160,0.25) 100%)",
+          position: "relative", overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", right: -40, top: -40,
+            width: 200, height: 200, borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(58,123,213,0.15) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }} />
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#6080a8", marginBottom: 6 }}>
+            Welcome back,
+          </div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700,
+                        color: "#f0f4ff", letterSpacing: "-0.02em", marginBottom: 10 }}>
+            Dylan Groenendijk
+          </div>
+          <div style={{ fontSize: 13, color: "#6080a8", lineHeight: 1.5, marginBottom: 16 }}>
+            {contacts.total ?? 0} total contacts · {sms.active ?? 0} active SMS threads
+            {clientMsgs.length > 0 && ` · ${clientMsgs.length} waiting for reply`}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5",
+                          letterSpacing: "0.12em", cursor: "pointer" }}>
+              GO TO DIALER →
+            </div>
+          </div>
+        </div>
+
+        {/* Reach Rate */}
+        <div className="glass-card" style={{ padding: "24px 22px" }}>
+          <div className="sec-label">Reach Rate</div>
+          <div style={{ textAlign: "center", padding: "10px 0" }}>
+            <div style={{
+              fontSize: 52, fontWeight: 700, color: "#f0f4ff",
+              letterSpacing: "-0.04em", lineHeight: 1,
+              background: "linear-gradient(135deg, #3a7bd5, #6ab0ff)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            }}>
+              {calling.calls_made > 0 ? `${calling.reach_rate}%` : "—"}
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+                          color: "#3a5a80", letterSpacing: "0.12em", marginTop: 8 }}>
+              DMS / CALLS MADE
+            </div>
+          </div>
+          <div className="dg-divider" style={{ margin: "12px 0" }} />
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.12em" }}>DIALS</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#c4d0e8", marginTop: 2 }}>{calling.calls_made ?? 0}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.12em" }}>REACHED</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#14c882", marginTop: 2 }}>{calling.dms_reached ?? 0}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Pipeline */}
+        <div className="glass-card" style={{ padding: "24px 22px" }}>
+          <div className="sec-label">Pipeline</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {[
+              { label: "Total Contacts", value: contacts.total ?? 0, color: "#5a9bf0" },
+              { label: "New This Period", value: contacts.new ?? 0,   color: "#14c882" },
+              { label: "SMS Booked",      value: sms.booked ?? 0,     color: "#f0a028" },
+              { label: "Active Convos",   value: sms.active ?? 0,     color: "#a080f0" },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: "#6080a8" }}>{label}</span>
+                </div>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "#c4d0e8" }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Row 5: Agent Activity + Needs Reply ────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
         {/* Agent Messages */}
         <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", minHeight: 280 }}>
@@ -655,18 +608,7 @@ export default function DashboardPanel() {
           </div>
         </div>
 
-        {/* To-Do */}
-        <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", minHeight: 280 }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0", marginBottom: 16 }}>
-            To-Do
-          </div>
-          <TodoList />
-        </div>
-
       </div>
-
-      {/* ── Row 5: Calendar ────────────────────────────────────────── */}
-      <CalendarWidget events={calEvents} loading={calLoading} error={calError} />
 
     </div>
   );
