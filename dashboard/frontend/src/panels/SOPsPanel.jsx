@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Color } from "@tiptap/extension-color";
@@ -82,16 +82,6 @@ const COLORS = [
 
 // ── Format toolbar ───────────────────────────────────────────────────────────
 function FormatBar({ editor }) {
-  const [linkInput, setLinkInput] = useState("");
-  const [showLink, setShowLink] = useState(false);
-  const inputRef = useRef(null);
-  const savedSel = useRef(null);
-
-  // Focus the URL input after render, without autoFocus stealing editor selection
-  useEffect(() => {
-    if (showLink && inputRef.current) inputRef.current.focus();
-  }, [showLink]);
-
   if (!editor) return null;
 
   const btn = (label, onClick, isActive = false, extra = {}) => (
@@ -114,30 +104,16 @@ function FormatBar({ editor }) {
     <div key={k} style={{ width: 1, height: 14, background: "rgba(58,123,213,0.2)", margin: "0 2px", flexShrink: 0 }} />
   );
 
-  const applyLink = () => {
-    const href = linkInput.trim();
-    if (href && savedSel.current) {
-      editor.chain()
-        .focus()
-        .setTextSelection({ from: savedSel.current.from, to: savedSel.current.to })
-        .setLink({ href, target: "_blank" })
-        .run();
-    }
-    setLinkInput(""); setShowLink(false); savedSel.current = null;
-  };
-
-  const cancelLink = () => {
-    setLinkInput(""); setShowLink(false); savedSel.current = null;
-    editor.commands.focus();
-  };
-
   const handleLinkBtn = (e) => {
     e.preventDefault();
     if (editor.isActive("link")) {
       editor.chain().focus().unsetLink().run();
-    } else {
-      savedSel.current = editor.state.selection;  // save before input steals focus
-      setShowLink(s => !s);
+      return;
+    }
+    // window.prompt is blocking — editor selection is fully preserved while dialog is open
+    const url = window.prompt("Link URL:");
+    if (url && url.trim()) {
+      editor.chain().focus().setLink({ href: url.trim(), target: "_blank" }).run();
     }
   };
 
@@ -164,44 +140,7 @@ function FormatBar({ editor }) {
       {sep("s3")}
 
       {/* Link */}
-      <button
-        onMouseDown={handleLinkBtn}
-        title={editor.isActive("link") ? "Remove link" : "Add link"}
-        style={{
-          background: editor.isActive("link") ? "rgba(58,123,213,0.3)" : "rgba(255,255,255,0.04)",
-          border: `1px solid ${editor.isActive("link") ? "rgba(58,123,213,0.5)" : "rgba(58,123,213,0.15)"}`,
-          borderRadius: 5, color: editor.isActive("link") ? "#6ab0ff" : "#7a9cc0",
-          fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
-          padding: "3px 8px", cursor: "pointer", lineHeight: 1.4,
-        }}
-      >🔗</button>
-      {showLink && (
-        <>
-          <input
-            ref={inputRef}
-            value={linkInput}
-            onChange={e => setLinkInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === "Enter") { e.preventDefault(); applyLink(); }
-              if (e.key === "Escape") cancelLink();
-            }}
-            placeholder="Paste URL…"
-            style={{
-              background: "rgba(7,12,30,0.8)", border: "1px solid rgba(58,123,213,0.35)",
-              borderRadius: 5, color: "#8aaad0", fontSize: 11, padding: "3px 8px",
-              outline: "none", width: 200,
-            }}
-          />
-          <button
-            onMouseDown={e => { e.preventDefault(); applyLink(); }}
-            style={{ background: "rgba(58,123,213,0.3)", border: "1px solid rgba(58,123,213,0.5)", borderRadius: 5, color: "#6ab0ff", fontSize: 11, padding: "3px 8px", cursor: "pointer" }}
-          >✓</button>
-          <button
-            onMouseDown={e => { e.preventDefault(); cancelLink(); }}
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(58,123,213,0.15)", borderRadius: 5, color: "#7a9cc0", fontSize: 11, padding: "3px 8px", cursor: "pointer" }}
-          >✕</button>
-        </>
-      )}
+      {btn("🔗", handleLinkBtn, editor.isActive("link"))}
 
       {sep("s4")}
 
