@@ -12,7 +12,7 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 1. Reads yesterday's brief and saves any new info Dylan added to his context files
 2. Surfaces business-relevant emails from the last 24 hours (both inboxes)
 3. Lists today's Google Calendar events
-4. Pulls weekly data from the Daily Input Tracker in Google Drive
+4. Pulls cold calling / SMS outreach data from Google Drive
 5. Suggests how to use free time blocks based on the day's schedule and current priorities
 6. Saves the briefing to `reports/` and delivers it as a chat message with inline PDF
 
@@ -68,9 +68,9 @@ Calculate total committed time and free time (assuming a 9 AM–6 PM workday).
 
 If no events: "No events today — full day available."
 
-### Step 3 — Daily Input Tracker
+### Step 3 — Cold Calling / SMS Outreach Data
 
-Search Google Drive for the current month's file named **"[Month] Daily Input Tracker"** (e.g. "June Daily Input Tracker"). Search current month first; if not found, try the prior month.
+Search Google Drive for the current month's outreach tracker. The file is named **"[Month] Daily Input Tracker"** (e.g. "June Daily Input Tracker"). Search current month first; if not found, try the prior month.
 
 **Do not use** files named "⚡ Input Tracker" or any variation without a month prefix.
 
@@ -78,11 +78,11 @@ Search Google Drive for the current month's file named **"[Month] Daily Input Tr
 
 If found:
 - Read its content
-- Report this week's data for whatever columns exist (Priority Work, Gym, Healthy Diet, Score, etc.)
-- Compare to last week if data is available
-- Note the biggest drop or gap in the data
+- Summarize this week's numbers: calls made, contacts reached, SMS sent (or whatever columns exist)
+- Compare to last week's numbers if available
+- Note the biggest gap or opportunity based on the data (e.g. "Call volume dropped 30% week-over-week")
 
-If not found: "No input tracker found in Drive. Expected: '[Month] Daily Input Tracker'."
+If not found: "No outreach data found in Drive. Expected file: '[Month] Daily Input Tracker' — confirm the file exists in Drive with that exact naming format."
 
 ### Step 4 — Time Suggestions
 
@@ -131,7 +131,7 @@ Committed: Xh Xm | Free: Xh Xm
 
 ---
 
-## Daily Inputs This Week
+## Outreach This Week
 
 [Step 3 output]
 
