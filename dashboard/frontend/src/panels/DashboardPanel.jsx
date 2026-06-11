@@ -448,39 +448,8 @@ export default function DashboardPanel() {
         </div>
       </div>
 
-      {/* ── Row 4: Hero card + 2 metric cards ─────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr 1fr", gap: 16 }}>
-
-        {/* Welcome hero card */}
-        <div className="glass-card" style={{
-          padding: "24px 28px", minHeight: 160,
-          background: "linear-gradient(135deg, rgba(13,22,60,0.95) 0%, rgba(40,87,160,0.25) 100%)",
-          position: "relative", overflow: "hidden",
-        }}>
-          <div style={{
-            position: "absolute", right: -40, top: -40,
-            width: 200, height: 200, borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(58,123,213,0.15) 0%, transparent 70%)",
-            pointerEvents: "none",
-          }} />
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#6080a8", marginBottom: 6 }}>
-            Welcome back,
-          </div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700,
-                        color: "#f0f4ff", letterSpacing: "-0.02em", marginBottom: 10 }}>
-            Dylan Groenendijk
-          </div>
-          <div style={{ fontSize: 13, color: "#6080a8", lineHeight: 1.5, marginBottom: 16 }}>
-            {contacts.total ?? 0} total contacts · {sms.active ?? 0} active SMS threads
-            {clientMsgs.length > 0 && ` · ${clientMsgs.length} waiting for reply`}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5",
-                          letterSpacing: "0.12em", cursor: "pointer" }}>
-              GO TO DIALER →
-            </div>
-          </div>
-        </div>
+      {/* ── Row 4: Metric cards ────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
         {/* Reach Rate */}
         <div className="glass-card" style={{ padding: "24px 22px" }}>
