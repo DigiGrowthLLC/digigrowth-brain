@@ -311,116 +311,12 @@ export default function AnalyticsPanel() {
       <div>
         <SecLabel>Sales Statistics</SecLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-          <MiniStat label="Total Leads Generated" value={num(sales?.total_leads)}     color="#5a9bf0" />
-          <MiniStat label="Discovery Calls"        value={num(sales?.discovery_calls)} color="#5a9bf0" />
-          <MiniStat label="Strategy Sessions"      value={num(sales?.strategy_sessions)} />
-          <MiniStat label="Close Rate"  value={sales?.close_rate != null ? `${sales.close_rate}%` : "—"} color="#14c882" />
-          <MiniStat label="Total Revenue"  value={money(sales?.total_revenue)} color="#14c882" />
-          <MiniStat label="Avg Deal Size"  value={money(sales?.avg_deal_size)} />
-        </div>
-      </div>
-
-      {/* ── Daily Scoreboard ──────────────────────────────────────── */}
-      <div>
-        <SecLabel>Daily Scoreboard · Last {days}D</SecLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
-          <MiniStat label="Calls Made" value={num(calls?.total_calls)} color="#3a7bd5" />
-          <MiniStat label="Pickups"    value={num(calls?.pickups)}     color="#14c882" />
-          <MiniStat label="Bookings"   value={num(calls?.booked)}      color="#14c882" />
-          <MiniStat label="Shows"      value={num(sales?.shows)}       color="#f0a028" />
-          <MiniStat label="Closes"     value={num(sales?.closes)}      color="#f0a028" />
-        </div>
-      </div>
-
-      {/* ── Input Tracker · From Sheets ──────────────────────────── */}
-      {sales?.sheet_sync && (
-        <div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
-            <SecLabel style={{ marginBottom: 0 }}>Input Tracker · From Sheets</SecLabel>
-            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>
-              {sales.sheet_sync.synced_at ? new Date(sales.sheet_sync.synced_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
-              {sales.sheet_sync.source_note ? ` · ${sales.sheet_sync.source_note}` : ""}
-            </span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-            <MiniStat label="Calls Made"    value={num(sales.sheet_sync.calls_made)}          color="#3a7bd5" />
-            <MiniStat label="Contacts"      value={num(sales.sheet_sync.contacts_reached)}     color="#14c882" />
-            <MiniStat label="Appointments"  value={num(sales.sheet_sync.appointments_booked)}  color="#14c882" />
-            <MiniStat label="SMS Sent"      value={num(sales.sheet_sync.sms_sent)}             color="#5a9bf0" />
-          </div>
-        </div>
-      )}
-
-      <div className="dg-divider" />
-
-      {/* ── Cold Calling Detail ────────────────────────────────────── */}
-      <div>
-        <SecLabel>Cold Calling Detail</SecLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr", gap: 16 }}>
-
-          {/* Daily trend chart */}
-          <div className="glass-card" style={{ padding: "18px 20px" }}>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0", marginBottom: 4 }}>
-              Calls vs Pickups
-            </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em", marginBottom: 16 }}>
-              LAST {days} DAYS
-            </div>
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={calls?.daily ?? []} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-                <defs>
-                  <linearGradient id="acGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#3a7bd5" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3a7bd5" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="apGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#14c882" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#14c882" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
-                <XAxis dataKey="date" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-                  axisLine={false} tickLine={false} tickFormatter={v => v ? v.slice(5) : ""} />
-                <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-                  axisLine={false} tickLine={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="calls"   name="Calls"   stroke="#3a7bd5" strokeWidth={2} fill="url(#acGrad)" />
-                <Area type="monotone" dataKey="pickups" name="Pickups" stroke="#14c882" strokeWidth={2} fill="url(#apGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Disposition breakdown */}
-          <div className="glass-card" style={{ padding: "18px 20px" }}>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0", marginBottom: 14 }}>
-              By Disposition
-            </div>
-            {!calls?.by_disposition?.length ? (
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-                NO DATA YET
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {calls.by_disposition.map(d => {
-                  const pct2 = totalCalls ? Math.round(d.cnt / totalCalls * 100) : 0;
-                  const color = DISPO_COLORS[d.disposition] ?? "#3a5a80";
-                  return (
-                    <div key={d.disposition}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={{ fontSize: 11, color }}>{d.disposition}</span>
-                        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
-                          {d.cnt} ({pct2}%)
-                        </span>
-                      </div>
-                      <div style={{ height: 2, background: "#111e36", borderRadius: 1 }}>
-                        <div style={{ height: 2, borderRadius: 1, width: `${pct2}%`, background: color, opacity: 0.7 }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <MiniStat label="Appointments Booked" value={num(funnel.booked)}   color="#5a9bf0" />
+          <MiniStat label="Discovery Calls"     value={num(sales?.shows)}   color="#5a9bf0" />
+          <MiniStat label="Show Rate"           value={funnel.booked ? `${Math.round((sales?.shows ?? 0) / funnel.booked * 100)}%` : "—"} color="#14c882" />
+          <MiniStat label="Close Rate"          value={sales?.close_rate != null ? `${sales.close_rate}%` : "—"} color="#14c882" />
+          <MiniStat label="Total Revenue"       value={money(sales?.total_revenue)} color="#14c882" />
+          <MiniStat label="Avg Deal Size"       value={money(sales?.avg_deal_size)} />
         </div>
       </div>
 
