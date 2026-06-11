@@ -3,6 +3,11 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Color } from "@tiptap/extension-color";
 import TextStyle from "@tiptap/extension-text-style";
+import Link from "@tiptap/extension-link";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import { marked } from "marked";
 
 const EMPTY_DRAFT = { title: "", content: "", category: "General", visibility: "private" };
@@ -49,11 +54,17 @@ const PROSE_CSS = `
   .sop-prose pre { background: rgba(0,0,0,0.35); border: 1px solid rgba(58,123,213,0.2);
     border-radius: 6px; padding: 12px 16px; overflow: auto; margin: 0 0 12px; }
   .sop-prose pre code { background: none; padding: 0; color: #b8cce8; }
-  .sop-prose a { color: #3a7bd5; text-decoration: underline; }
-  .sop-prose table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 0 0 12px; }
+  .sop-prose a { color: #3a7bd5; text-decoration: underline; cursor: pointer; }
+  .sop-prose a:hover { color: #6ab0ff; }
+  .sop-prose .tableWrapper { overflow-x: auto; margin: 0 0 12px; }
+  .sop-prose table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 0; }
   .sop-prose th { padding: 6px 12px; background: rgba(58,123,213,0.2); color: #a0c4ff;
-    font-weight: 600; text-align: left; border: 1px solid rgba(58,123,213,0.2); }
-  .sop-prose td { padding: 6px 12px; color: #b8cce8; border: 1px solid rgba(58,123,213,0.12); }
+    font-weight: 600; text-align: left; border: 1px solid rgba(58,123,213,0.25); min-width: 80px; }
+  .sop-prose td { padding: 6px 12px; color: #b8cce8; border: 1px solid rgba(58,123,213,0.12); min-width: 80px; }
+  .sop-prose .selectedCell { background: rgba(58,123,213,0.15) !important; }
+  .sop-prose .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0;
+    width: 4px; background: rgba(58,123,213,0.4); pointer-events: none; }
+  .sop-prose .resize-cursor { cursor: col-resize; }
   .tiptap { height: 100%; }
   .sop-del { opacity: 0 !important; transition: opacity 0.15s; }
   div:hover > .sop-del { opacity: 1 !important; }
@@ -71,6 +82,9 @@ const COLORS = [
 
 // ── Format toolbar ───────────────────────────────────────────────────────────
 function FormatBar({ editor }) {
+  const [linkInput, setLinkInput] = useState("");
+  const [showLink, setShowLink] = useState(false);
+
   if (!editor) return null;
 
   const btn = (label, onClick, isActive = false, extra = {}) => (
@@ -93,6 +107,24 @@ function FormatBar({ editor }) {
     <div key={k} style={{ width: 1, height: 14, background: "rgba(58,123,213,0.2)", margin: "0 2px", flexShrink: 0 }} />
   );
 
+  const applyLink = () => {
+    if (!linkInput.trim()) { setShowLink(false); return; }
+    const href = linkInput.startsWith("http") ? linkInput : `https://${linkInput}`;
+    editor.chain().focus().setLink({ href, target: "_blank" }).run();
+    setLinkInput(""); setShowLink(false);
+  };
+
+  const handleLinkBtn = (e) => {
+    e.preventDefault();
+    if (editor.isActive("link")) {
+      editor.chain().focus().unsetLink().run();
+    } else {
+      setShowLink(s => !s);
+    }
+  };
+
+  const inTable = editor.isActive("table");
+
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 4,
@@ -112,6 +144,46 @@ function FormatBar({ editor }) {
       {btn("1. List", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"))}
       {btn("——",       () => editor.chain().focus().setHorizontalRule().run())}
       {sep("s3")}
+
+      {/* Link */}
+      <button
+        onMouseDown={handleLinkBtn}
+        title={editor.isActive("link") ? "Remove link" : "Add link"}
+        style={{
+          background: editor.isActive("link") ? "rgba(58,123,213,0.3)" : "rgba(255,255,255,0.04)",
+          border: `1px solid ${editor.isActive("link") ? "rgba(58,123,213,0.5)" : "rgba(58,123,213,0.15)"}`,
+          borderRadius: 5, color: editor.isActive("link") ? "#6ab0ff" : "#7a9cc0",
+          fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
+          padding: "3px 8px", cursor: "pointer", lineHeight: 1.4,
+        }}
+      >🔗</button>
+      {showLink && (
+        <input
+          autoFocus
+          value={linkInput}
+          onChange={e => setLinkInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); applyLink(); } if (e.key === "Escape") { setShowLink(false); setLinkInput(""); } }}
+          onBlur={applyLink}
+          placeholder="https://..."
+          style={{
+            background: "rgba(7,12,30,0.8)", border: "1px solid rgba(58,123,213,0.35)",
+            borderRadius: 5, color: "#8aaad0", fontSize: 11, padding: "3px 8px",
+            outline: "none", width: 180,
+          }}
+        />
+      )}
+
+      {sep("s4")}
+
+      {/* Table */}
+      {btn("⊞ Table", () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}
+      {inTable && btn("+Row", () => editor.chain().focus().addRowAfter().run())}
+      {inTable && btn("+Col", () => editor.chain().focus().addColumnAfter().run())}
+      {inTable && btn("-Row", () => editor.chain().focus().deleteRow().run())}
+      {inTable && btn("-Col", () => editor.chain().focus().deleteColumn().run())}
+      {inTable && btn("Del Table", () => editor.chain().focus().deleteTable().run(), false, { color: "#dc3c3c" })}
+
+      {sep("s5")}
       {COLORS.map(({ hex, label }) => (
         <button
           key={hex}
@@ -237,7 +309,16 @@ export default function SOPsPanel() {
   const [savedFlash, setSavedFlash] = useState(false);
 
   const editor = useEditor({
-    extensions: [StarterKit, TextStyle, Color],
+    extensions: [
+      StarterKit,
+      TextStyle,
+      Color.configure({ types: ["textStyle"] }),
+      Link.configure({ openOnClick: false, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
+    ],
     content: "",
     onUpdate: ({ editor }) => {
       setDraft(d => ({ ...d, content: editor.getHTML() }));
