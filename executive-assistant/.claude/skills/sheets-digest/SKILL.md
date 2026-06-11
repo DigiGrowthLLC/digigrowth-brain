@@ -1,72 +1,59 @@
 # Skill: Sheets Digest
 
 **Trigger:** Daily at 6AM EST (in parallel with daily-briefing), or on-demand
-**Purpose:** Read every Google Sheet opened or modified in the last 7 days, extract outreach and sales metrics, and write them into the OS via `update_os_stats`.
+**Purpose:** Read Dylan's two target sheet types, extract outreach and sales metrics, and write them period-bucketed into the OS via `update_os_stats`.
 
 ---
 
 ## Steps
 
-1. Call `drive_list_recent` with `days=7, max_results=30` — get all files active in the last 7 days
-2. Filter the result to spreadsheets only (`application/vnd.google-apps.spreadsheet`)
-3. Call `drive_read_file` on **every** spreadsheet in the list — do not skip any
-4. For each sheet that has a date column, calculate three separate totals per metric:
-   - **7D**: sum rows where the date is within the last 7 days
-   - **30D**: sum rows where the date is within the last 30 days
-   - **All-time**: sum all rows regardless of date
-5. Compile across all sheets (use the largest value if multiple sheets track the same metric)
-6. Call `update_os_stats` with all three period buckets for each metric — **always call it, even if nothing changed**
+1. Call `drive_search` with query `"DigiGrowth Sales Performance Tracker"` — get the Sales Performance Tracker (always read this regardless of when it was last opened)
+2. Call `drive_list_recent` with `days=1, max_results=20` — get files opened or modified in the last 24 hours
+3. From the recent list, keep only spreadsheets whose name matches the pattern **`[Month Year] DigiGrowth Cold Calling Metrics`** (e.g. "June 2026 DigiGrowth Cold Calling Metrics"). Ignore all other files.
+4. Call `drive_read_file` on the Sales Performance Tracker + any matching Cold Calling Metrics sheets from step 3
+5. For each Cold Calling sheet, calculate three totals per metric using the date column:
+   - **7D**: sum rows where date is within last 7 days
+   - **30D**: sum rows where date is within last 30 days
+   - **All-time**: sum all rows
+6. Call `update_os_stats` with all found values — **always call it, even if nothing changed**
 7. End with the completion message
 
-**Only use `drive_list_recent`, `drive_read_file`, and `update_os_stats`. No other tools.**
+**Only use `drive_search`, `drive_list_recent`, `drive_read_file`, and `update_os_stats`. No other tools.**
 
 **Period calculation rules:**
-- Today's date is always available from the system prompt. Use it to determine what's within 7 and 30 days.
-- If a sheet has no date column, all its data goes into all-time only (set 7d and 30d to 0 for that sheet's contribution).
-- Pass the period fields separately: `calls_made` (all-time), `calls_made_30d`, `calls_made_7d` — all as distinct fields.
+- Today's date is in the system prompt. Use it to determine what falls within 7 and 30 days.
+- The Sales Performance Tracker has no date column — its data goes to all-time fields only.
+- Pass period fields separately: `calls_made` (all-time), `calls_made_30d`, `calls_made_7d` — never merge them.
 
 ---
 
-## Known Sheets (check these first)
+## Target Sheets
 
-Dylan's key sheets — if found in the list, always read them:
+| Sheet | When to read | What it holds |
+|---|---|---|
+| `DigiGrowth Sales Performance Tracker` | Always — search by name | shows, closes, discovery_calls, total_revenue |
+| `[Month Year] DigiGrowth Cold Calling Metrics` | Only if opened in last 24h | calls_made, calls_answered, contacts_reached, appointments_booked |
 
-| Sheet name contains | What it holds |
-|---|---|
-| `Cold Calling` / `cold calling` / `Cold Calling Metrics` | calls_made, calls_answered, contacts_reached, appointments_booked |
-| `Sales Performance` / `Sales Tracker` | shows, closes, discovery_calls, total_revenue |
-| `Input Tracker` / `Daily Input` | calls_made, contacts_reached, appointments_booked, sms_sent |
-| `Goal Tracker` | context only — no stats to extract |
+**Ignore everything else** — habit trackers, goal trackers, lead lists, input trackers, etc.
 
 ---
 
 ## Data Mapping
 
-Be liberal — column names vary. Match on intent, not exact wording.
-
-| What to look for | Tool field | Where it shows |
+| What to look for in sheet | Tool field | Period variants |
 |---|---|---|
-| Calls made / dials / outbound calls / calls placed | `calls_made` | Analytics · Input Tracker |
-| **Calls answered** / answered / pickups / live answers | `calls_answered` | Analytics · Funnel (Answered stage) |
-| Contacts reached / pitched / spoken to / stayed on line | `contacts_reached` | Analytics · Input Tracker + Funnel (Pitched stage) |
-| Appointments booked / intro sessions / bookings | `appointments_booked` | Analytics · Input Tracker |
-| SMS sent / texts sent / messages sent | `sms_sent` | Analytics · Input Tracker |
-| Shows / showed up / showed / prospects who attended | `shows` | Sales Statistics · Daily Scoreboard |
-| Closes / won / signed / clients closed | `closes` | Sales Statistics · Funnel |
-| Revenue / MRR / collected / payments | `total_revenue` | Sales Statistics |
-| Discovery calls / intro calls / first calls completed | `discovery_calls` | Sales Statistics |
-| Strategy sessions / deep dives / follow-up calls | `strategy_sessions` | Sales Statistics |
+| Calls made / dials | `calls_made` | `calls_made_7d`, `calls_made_30d` |
+| **Calls answered** (exact column name) | `calls_answered` | `calls_answered_7d`, `calls_answered_30d` |
+| Contacts reached / pitched | `contacts_reached` | `contacts_reached_7d`, `contacts_reached_30d` |
+| Appointments booked / bookings | `appointments_booked` | `appointments_booked_7d`, `appointments_booked_30d` |
+| Shows / showed up | `shows` | all-time only |
+| Closes / won / signed | `closes` | all-time only |
+| Discovery calls / booked calls | `discovery_calls` | all-time only |
+| Revenue | `total_revenue` | all-time only |
 
-**IMPORTANT — `calls_answered` vs `contacts_reached` are separate fields:**
-- `calls_answered` = the "Calls answered" column — raw pickups (someone picked up the phone). Always pass this as its own field.
-- `contacts_reached` = contacts actually spoken to / pitched (may be a different column). Do NOT merge these two into one.
-- If you only find one of these columns, pass only that one — never substitute one for the other.
-
-**Rules:**
-- Outreach fields (calls, contacts, appointments, SMS): sum all months/rows for all-time totals
-- Sales funnel fields (shows, closes, revenue): cumulative all-time totals only
-- Never default to zero — only write a field if you found real data for it
-- If data is from a past period with nothing recent, still include it with a note in `source_note`
+**`calls_answered` and `contacts_reached` are SEPARATE fields — never merge them.**
+- `calls_answered` = raw pickups (the "Calls answered" column)
+- `contacts_reached` = people actually spoken to and pitched
 
 ---
 
@@ -74,13 +61,13 @@ Be liberal — column names vary. Match on intent, not exact wording.
 
 ```
 Sheets Digest complete — YYYY-MM-DD
-Updated: [every field written, e.g. "calls_made=312, contacts_reached=45, shows=9"]
-Source: [sheet name(s) and period covered]
+Updated: [fields written, e.g. "calls_made=45, calls_answered=12, contacts_reached=8"]
+Source: [sheet names and period covered]
 ```
 
-If no data found:
+If no cold calling sheet was opened in the last 24h:
 ```
 Sheets Digest complete — YYYY-MM-DD
-No metrics found. OS stats unchanged.
-Sheets scanned: [list names]
+No cold calling sheet opened today. Sales tracker updated only.
+Updated: [sales fields]
 ```
