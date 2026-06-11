@@ -132,4 +132,6 @@ async def _create_schema(pool: asyncpg.Pool):
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""
             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_category TEXT;
+            ALTER TABLE todos ADD COLUMN IF NOT EXISTS due_date DATE;
+            ALTER TABLE todos ADD COLUMN IF NOT EXISTS recurrence TEXT;
         """)

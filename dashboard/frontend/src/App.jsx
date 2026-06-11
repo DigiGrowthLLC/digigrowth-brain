@@ -8,6 +8,7 @@ import SettingsPanel  from "./panels/SettingsPanel.jsx";
 import AnalyticsPanel from "./panels/AnalyticsPanel.jsx";
 import FinancesPanel  from "./panels/FinancesPanel.jsx";
 import SOPsPanel      from "./panels/SOPsPanel.jsx";
+import TodoPanel      from "./panels/TodoPanel.jsx";
 
 const NAV = [
   { id: "home",      label: "Dashboard", ready: true  },
@@ -15,6 +16,7 @@ const NAV = [
   { id: "dialer",    label: "Dialer",    ready: true  },
   { id: "sms",       label: "SMS Inbox", ready: true  },
   { id: "agents",    label: "Agents",    ready: true  },
+  { id: "todos",     label: "To-Do",     ready: true  },
   { id: "analytics", label: "Analytics", ready: true  },
   { id: "finances",  label: "Finances",  ready: true  },
   { id: "sops",      label: "SOPs",      ready: true  },
@@ -57,6 +59,12 @@ const NAV_ICONS = {
       <circle cx="5.5" cy="9" r="1" fill="currentColor"/>
       <circle cx="10.5" cy="9" r="1" fill="currentColor"/>
       <path d="M6 11.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
+  todos: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   ),
   analytics: (
@@ -227,9 +235,10 @@ export default function App() {
         {active === "agents"    && <AgentsPanel />}
         {active === "analytics" && <AnalyticsPanel />}
         {active === "finances"  && <FinancesPanel />}
+        {active === "todos"     && <TodoPanel />}
         {active === "sops"      && <SOPsPanel />}
         {active === "settings"  && <SettingsPanel />}
-        {!["home","crm","sms","dialer","agents","analytics","finances","sops","settings"].includes(active) && (
+        {!["home","crm","sms","dialer","agents","todos","analytics","finances","sops","settings"].includes(active) && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 10,

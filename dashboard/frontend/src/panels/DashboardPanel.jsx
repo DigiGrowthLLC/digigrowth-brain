@@ -83,11 +83,12 @@ function ChartTooltip({ active, payload, label }) {
   );
 }
 
-// ── To-Do ─────────────────────────────────────────────────────────────────────
+// ── To-Do (dashboard widget — today + overdue only) ──────────────────────────
 
 function TodoList() {
   const [todos, setTodos] = useState([]);
   const [draft, setDraft] = useState("");
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   const load = async () => {
     const r = await fetch(API("/dashboard/todos"));
@@ -104,70 +105,62 @@ function TodoList() {
     setDraft(""); load();
   };
 
-  const toggle = async (id, done) => {
+  const complete = async (id) => {
+    setTodos(prev => prev.filter(t => t.id !== id));
     await fetch(API(`/dashboard/todos/${id}`), {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ done: !done }),
+      body: JSON.stringify({ done: true }),
     });
-    load();
   };
 
   const remove = async (id) => {
+    setTodos(prev => prev.filter(t => t.id !== id));
     await fetch(API(`/dashboard/todos/${id}`), { method: "DELETE" });
-    load();
   };
 
-  const pending = todos.filter(t => !t.done);
-  const done    = todos.filter(t =>  t.done);
+  const visible = todos
+    .filter(t => !t.due_date || t.due_date.slice(0, 10) <= todayStr)
+    .slice(0, 6);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         <input value={draft} onChange={e => setDraft(e.target.value)}
           onKeyDown={e => e.key === "Enter" && add()}
-          placeholder="Add a task…" className="dg-input"
+          placeholder="Quick add…" className="dg-input"
           style={{ flex: 1, fontSize: 12 }} />
         <button onClick={add} className="btn btn-primary" style={{ padding: "8px 14px", fontSize: 11 }}>
           Add
         </button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
-        {pending.map(t => (
-          <div key={t.id} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <button onClick={() => toggle(t.id, t.done)} style={{
-              marginTop: 2, width: 16, height: 16, flexShrink: 0, cursor: "pointer",
-              border: "1px solid rgba(58,123,213,0.3)", borderRadius: 4,
-              background: "transparent",
-            }} />
-            <span style={{ flex: 1, fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>{t.text}</span>
-            <button onClick={() => remove(t.id)} style={{
-              fontSize: 10, color: "#2a4a7a", cursor: "pointer",
-              background: "none", border: "none",
-            }}>✕</button>
-          </div>
-        ))}
-        {done.length > 0 && (
-          <>
-            <div className="dg-divider" style={{ margin: "4px 0" }} />
-            {done.map(t => (
-              <div key={t.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, opacity: 0.5 }}>
-                <div onClick={() => toggle(t.id, t.done)} style={{
-                  marginTop: 2, width: 16, height: 16, flexShrink: 0, cursor: "pointer",
-                  border: "1px solid #1a2f52", borderRadius: 4, background: "#1a2f52",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 9, color: "#3a5a80",
-                }}>✓</div>
-                <span style={{ flex: 1, fontSize: 12, color: "#3a4f6f", textDecoration: "line-through" }}>{t.text}</span>
-                <button onClick={() => remove(t.id)} style={{
-                  fontSize: 10, color: "#1a2f52", cursor: "pointer", background: "none", border: "none",
-                }}>✕</button>
-              </div>
-            ))}
-          </>
-        )}
-        {todos.length === 0 && (
+        {visible.map(t => {
+          const overdue = t.due_date && t.due_date.slice(0, 10) < todayStr;
+          return (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button onClick={() => complete(t.id)} style={{
+                flexShrink: 0, width: 16, height: 16, cursor: "pointer",
+                border: "1px solid rgba(58,123,213,0.3)", borderRadius: 4,
+                background: "transparent",
+              }} />
+              <span style={{ flex: 1, fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>{t.text}</span>
+              {t.due_date && (
+                <span style={{
+                  fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                  color: overdue ? "#dc3c3c" : "#3a5a80", letterSpacing: "0.06em", flexShrink: 0,
+                }}>
+                  {t.due_date.slice(5).replace("-", "/")}
+                </span>
+              )}
+              <button onClick={() => remove(t.id)} style={{
+                fontSize: 10, color: "#2a4a7a", cursor: "pointer", background: "none", border: "none",
+              }}>✕</button>
+            </div>
+          );
+        })}
+        {visible.length === 0 && (
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
-            NO TASKS YET
+            ALL CLEAR
           </div>
         )}
       </div>
