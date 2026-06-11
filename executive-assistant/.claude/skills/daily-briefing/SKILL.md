@@ -129,7 +129,7 @@ Examples of correct framing:
 
 If today is **not Monday**, skip this step entirely and proceed to Step 5.
 
-If today **is Monday**: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the **Draft Mode** steps in the appt-setting agent's newsletter skill at `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md`. Execute all steps and capture the final summary output (subject, recipient count, topic, Notion link). This output is included in the Notion page below under `## Newsletter Preview`.
+If today **is Monday**: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the **Draft Mode** steps in the appt-setting agent's newsletter skill at `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md`. Execute all steps and capture the final summary output (subject, recipient count, topic). Include this under `## Newsletter Preview` in the briefing.
 
 ### Step 5 — Save Archive File and Deliver as Chat
 
@@ -139,7 +139,7 @@ Compose the final briefing using the format below, then:
 2. **Your chat response IS the briefing** — paste the full formatted briefing as your reply. It is automatically stored in the OS chat and visible in the agent window.
 3. **Append `[[PDF:brief]]`** on its own line at the very end of your chat response — this triggers the dashboard to display the briefing as an inline PDF below your message.
 
-Do not write to Notion.
+Do not use Notion at any point during the daily briefing — no searches, reads, or writes.
 
 **Briefing format:**
 
