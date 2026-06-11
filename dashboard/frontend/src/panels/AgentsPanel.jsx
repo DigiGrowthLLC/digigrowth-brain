@@ -127,7 +127,7 @@ function MessageBubble({ msg }) {
         <ThinkingBlock text={msg.thinking} streaming={msg._thinkingStreaming} />
       )}
       {(msg.toolBlocks || []).map(tb => <ToolBlock key={tb.id} block={tb} />)}
-      {text && (
+      {(text || msg._streaming || msg._error) && (
         <div style={{
           maxWidth: "85%", padding: "10px 14px",
           borderRadius: "8px 8px 8px 2px",
@@ -142,7 +142,7 @@ function MessageBubble({ msg }) {
             )}
           </div>
           {msg._error && (
-            <div style={{ fontSize: 11, color: "#dc3c3c", marginTop: 4 }}>Error: {msg._error}</div>
+            <div style={{ fontSize: 11, color: "#dc3c3c", marginTop: msg._streaming || text ? 4 : 0 }}>Error: {msg._error}</div>
           )}
         </div>
       )}
