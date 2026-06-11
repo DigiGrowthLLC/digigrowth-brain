@@ -39,12 +39,12 @@ const PROSE_CSS = `
     font-family: 'Space Grotesk', sans-serif; }
   .sop-prose h3 { font-size: 14px; font-weight: 600; color: #c0d8ff; margin: 16px 0 6px;
     font-family: 'Space Grotesk', sans-serif; }
-  .sop-prose p { font-size: 13.5px; color: #b8cce8; line-height: 1.8; margin: 0 0 12px; }
+  .sop-prose p { font-size: 13.5px; line-height: 1.8; margin: 0 0 12px; }
   .sop-prose ul { padding-left: 20px; margin: 0 0 12px; }
   .sop-prose ol { padding-left: 20px; margin: 0 0 12px; }
-  .sop-prose li { font-size: 13.5px; color: #b8cce8; line-height: 1.8; margin-bottom: 4px; }
+  .sop-prose li { font-size: 13.5px; line-height: 1.8; margin-bottom: 4px; }
   .sop-prose strong { color: #d0e8ff; font-weight: 700; }
-  .sop-prose em { color: #b8cce8; font-style: italic; }
+  .sop-prose em { font-style: italic; }
   .sop-prose s { color: #4a6a8a; }
   .sop-prose hr { border: none; border-top: 1px solid rgba(58,123,213,0.18); margin: 20px 0; }
   .sop-prose blockquote { border-left: 3px solid #3a7bd5; padding-left: 14px;
@@ -313,7 +313,7 @@ export default function SOPsPanel() {
       StarterKit,
       TextStyle,
       Color.configure({ types: ["textStyle"] }),
-      Link.configure({ openOnClick: false, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
+      Link.configure({ openOnClick: true, HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" } }),
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
