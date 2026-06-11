@@ -281,11 +281,12 @@ TOOLS = [
     },
     {
         "name": "drive_list_recent",
-        "description": "List recently modified Google Drive files.",
+        "description": "List Google Drive files modified or opened within the last N days (default 7). Returns file IDs and names.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "max_results": {"type": "integer", "default": 10},
+                "days":        {"type": "integer", "default": 7,  "description": "How many days back to look"},
+                "max_results": {"type": "integer", "default": 30, "description": "Max files to return"},
             },
         },
     },

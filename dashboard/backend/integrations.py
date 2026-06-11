@@ -279,18 +279,22 @@ def drive_search(query: str, max_results: int = 10) -> str:
         return f"Drive error: {e}"
 
 
-def drive_list_recent(max_results: int = 10) -> str:
+def drive_list_recent(max_results: int = 30, days: int = 7) -> str:
     try:
+        from datetime import datetime, timedelta, timezone
         svc = _drive_service()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        query = f"(modifiedTime > '{cutoff}' or viewedByMeTime > '{cutoff}') and trashed = false"
         res = svc.files().list(
+            q=query,
             orderBy="modifiedTime desc",
             pageSize=max_results,
-            fields="files(id,name,mimeType,modifiedTime)",
+            fields="files(id,name,mimeType,modifiedTime,viewedByMeTime)",
         ).execute()
         files = res.get("files", [])
         if not files:
-            return "No recent files found."
-        lines = [f"{len(files)} recent file(s):"]
+            return f"No files modified or opened in the last {days} days."
+        lines = [f"{len(files)} file(s) active in last {days} days:"]
         for f in files:
             lines.append(f"  [{f['id']}] {f['name']}  ({f.get('mimeType','?')})")
         return "\n".join(lines)
@@ -526,7 +530,7 @@ def execute_integration_tool(tool_name: str, tool_input: dict) -> str:
     elif tool_name == "drive_search":
         return drive_search(tool_input.get("query", ""), tool_input.get("max_results", 10))
     elif tool_name == "drive_list_recent":
-        return drive_list_recent(tool_input.get("max_results", 10))
+        return drive_list_recent(tool_input.get("max_results", 30), tool_input.get("days", 7))
     elif tool_name == "drive_read_file":
         return drive_read_file(tool_input["file_id"])
     elif tool_name == "notion_search":

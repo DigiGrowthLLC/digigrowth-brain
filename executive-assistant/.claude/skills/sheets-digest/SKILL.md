@@ -1,68 +1,72 @@
 # Skill: Sheets Digest
 
 **Trigger:** Daily at 6AM EST (in parallel with daily-briefing), or on-demand
-**Purpose:** Read recent Google Sheets, extract any relevant outreach or sales metrics, and write them into the OS Dashboard and Analytics panel via `update_os_stats`. Always call `update_os_stats` with whatever you find — even if nothing changed since yesterday.
+**Purpose:** Read every Google Sheet opened or modified in the last 7 days, extract outreach and sales metrics, and write them into the OS via `update_os_stats`.
 
 ---
 
 ## Steps
 
-1. `drive_list_recent` — get recently accessed files
-2. Filter to `application/vnd.google-apps.spreadsheet` only
-3. `drive_read_file` each sheet
-4. For each sheet: scan all columns and rows for any of the metrics in the mapping table below
-5. Compile the values across all sheets (use the most complete/recent numbers if multiple sheets have the same metric)
-6. Call `update_os_stats` with everything you found — **always call it, even if the values are the same as last time**
+1. Call `drive_list_recent` with `days=7, max_results=30` — get all files active in the last 7 days
+2. Filter the result to spreadsheets only (`application/vnd.google-apps.spreadsheet`)
+3. Call `drive_read_file` on **every** spreadsheet in the list — do not skip any
+4. For each sheet, scan all columns and rows for the metrics below
+5. Compile values across all sheets — if the same metric appears in multiple sheets, use the most complete/recent number
+6. Call `update_os_stats` with all found values — **always call it, even if nothing changed**
 7. End with the completion message
 
-**Do not call Notion, Gmail, Calendar, or any other tool.**
+**Only use `drive_list_recent`, `drive_read_file`, and `update_os_stats`. No other tools.**
+
+---
+
+## Known Sheets (check these first)
+
+Dylan's key sheets — if found in the list, always read them:
+
+| Sheet name contains | What it holds |
+|---|---|
+| `Cold Calling` / `cold calling` / `Cold Calling Metrics` | calls_made, contacts_reached, appointments_booked |
+| `Sales Performance` / `Sales Tracker` | shows, closes, discovery_calls, total_revenue |
+| `Input Tracker` / `Daily Input` | calls_made, contacts_reached, appointments_booked, sms_sent |
+| `Goal Tracker` | context only — no stats to extract |
 
 ---
 
 ## Data Mapping
 
-Scan sheets for any data that matches these categories. Be liberal in interpretation — column names vary.
+Be liberal — column names vary. Match on intent, not exact wording.
 
-| What to look for in the sheet | Tool field | Where it shows in the OS |
+| What to look for | Tool field | Where it shows |
 |---|---|---|
-| Calls made / dials / outbound calls | `calls_made` | Analytics · Input Tracker section |
-| Contacts reached / answers / picked up | `contacts_reached` | Analytics · Input Tracker section |
-| Appointments booked / intro sessions scheduled | `appointments_booked` | Analytics · Input Tracker section |
-| SMS sent / texts sent | `sms_sent` | Analytics · Input Tracker section |
-| Shows / prospects who showed up | `shows` | Sales Statistics · Daily Scoreboard |
-| Closes / deals signed / clients won | `closes` | Sales Statistics · Daily Scoreboard · Funnel |
-| Revenue / MRR / payments collected | `total_revenue` | Sales Statistics |
-| Discovery calls / intro calls completed | `discovery_calls` | Sales Statistics |
-| Strategy sessions / deep dives | `strategy_sessions` | Sales Statistics |
+| Calls made / dials / outbound calls / calls placed | `calls_made` | Analytics · Input Tracker |
+| Contacts reached / answers / pickups / people reached | `contacts_reached` | Analytics · Input Tracker |
+| Appointments booked / intro sessions / bookings | `appointments_booked` | Analytics · Input Tracker |
+| SMS sent / texts sent / messages sent | `sms_sent` | Analytics · Input Tracker |
+| Shows / showed up / showed / prospects who attended | `shows` | Sales Statistics · Daily Scoreboard |
+| Closes / won / signed / clients closed | `closes` | Sales Statistics · Funnel |
+| Revenue / MRR / collected / payments | `total_revenue` | Sales Statistics |
+| Discovery calls / intro calls / first calls completed | `discovery_calls` | Sales Statistics |
+| Strategy sessions / deep dives / follow-up calls | `strategy_sessions` | Sales Statistics |
 
 **Rules:**
-- For **outreach fields** (calls, contacts, appointments, SMS): use the most recent period total you can find — weekly, monthly, or all available rows summed
-- For **sales funnel fields** (shows, closes, revenue): use cumulative all-time totals
-- Only include fields where real data exists — do not guess or default to zero
-- If data is clearly from a past period only (nothing recent), still report it with a note in `source_note`
+- Outreach fields (calls, contacts, appointments, SMS): sum all rows or use the running total column — whichever is larger
+- Sales funnel fields (shows, closes, revenue): cumulative all-time totals only
+- Never default to zero — only write a field if you found real data for it
+- If data is from a past period with nothing recent, still include it with a note in `source_note`
 
 ---
 
 ## Completion Message
 
 ```
-✓ Sheets Digest complete — YYYY-MM-DD
-Updated: [list every field written, e.g. "calls_made=45, contacts_reached=8, appointments_booked=2"]
+Sheets Digest complete — YYYY-MM-DD
+Updated: [every field written, e.g. "calls_made=312, contacts_reached=45, shows=9"]
 Source: [sheet name(s) and period covered]
-Visible in: [relevant OS sections]
 ```
 
-If no data at all was found:
+If no data found:
 ```
-✓ Sheets Digest complete — YYYY-MM-DD
-No metrics found in recent sheets. OS stats unchanged.
+Sheets Digest complete — YYYY-MM-DD
+No metrics found. OS stats unchanged.
 Sheets scanned: [list names]
 ```
-
----
-
-## Invocation
-
-> "Run the sheets digest"
-> "Sync my sheets to the OS"
-> "Pull my stats from sheets"
