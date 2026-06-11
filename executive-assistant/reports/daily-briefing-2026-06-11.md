@@ -53,5 +53,3 @@ Free time available: **9 AM – 4 PM (7 hours)** before gym.
 ---
 
 *Daily briefing — Thursday, June 11, 2026*
-
-[[PDF:brief]]
