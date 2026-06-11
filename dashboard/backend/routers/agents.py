@@ -23,7 +23,7 @@ import urllib.request
 
 import anthropic
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from db import get_pool
 from integrations import execute_integration_tool
@@ -783,6 +783,17 @@ async def read_file_endpoint(agent_id: str, path: str):
     if size > 500_000:
         raise HTTPException(status_code=413, detail="File too large to display (>500KB)")
     return {"path": path, "content": target.read_text(errors="replace"), "size": size}
+
+
+@router.get("/agents/{agent_id}/brief-pdf")
+async def serve_brief_pdf(agent_id: str):
+    """Serve the latest daily-briefing PDF for the given agent."""
+    agent = _get_agent(agent_id)
+    reports_dir = agent["abs_root"] / "reports"
+    pdfs = sorted(reports_dir.glob("daily-briefing-*.pdf"), reverse=True)
+    if not pdfs:
+        raise HTTPException(status_code=404, detail="No daily brief PDF found")
+    return FileResponse(pdfs[0], media_type="application/pdf", filename=pdfs[0].name)
 
 
 @router.put("/agents/{agent_id}/files/{path:path}")

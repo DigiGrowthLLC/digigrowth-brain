@@ -493,6 +493,72 @@ def calendar_events_structured(days_ahead: int = 7, calendar_id: str = "primary"
     return events
 
 
+# ── Daily brief PDF emailer ───────────────────────────────────────────────────
+
+def _md_to_pdf_bytes(md_text: str) -> bytes:
+    """Convert a Markdown daily brief to a styled PDF and return raw bytes."""
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.set_margins(20, 20, 20)
+    pdf.add_page()
+    w = pdf.w - pdf.l_margin - pdf.r_margin
+
+    for line in md_text.split("\n"):
+        s = line.strip()
+
+        if s.startswith("# "):
+            pdf.set_font("Helvetica", "B", 20)
+            pdf.multi_cell(w, 11, s[2:])
+            pdf.ln(3)
+        elif s.startswith("## "):
+            pdf.ln(2)
+            pdf.set_font("Helvetica", "B", 13)
+            pdf.multi_cell(w, 8, s[3:])
+            pdf.ln(1)
+        elif s == "---":
+            pdf.set_draw_color(180, 180, 180)
+            pdf.set_line_width(0.3)
+            y = pdf.get_y() + 2
+            pdf.line(pdf.l_margin, y, pdf.w - pdf.r_margin, y)
+            pdf.ln(5)
+        elif s.startswith("- "):
+            pdf.set_font("Helvetica", "", 10)
+            pdf.set_x(pdf.l_margin + 4)
+            pdf.multi_cell(w - 4, 6, f"•  {s[2:]}")
+        elif s == "":
+            pdf.ln(3)
+        elif s.startswith("*") and s.endswith("*") and len(s) > 2:
+            pdf.set_font("Helvetica", "I", 9)
+            pdf.multi_cell(w, 6, s[1:-1])
+        else:
+            pdf.set_font("Helvetica", "", 10)
+            pdf.multi_cell(w, 6, s)
+
+    return bytes(pdf.output())
+
+
+def save_daily_brief_pdf() -> str:
+    """Read the latest daily briefing MD, convert to PDF, and save it alongside the MD file."""
+    from pathlib import Path
+
+    reports_dir = Path(__file__).parent.parent.parent / "executive-assistant" / "reports"
+    files = sorted(reports_dir.glob("daily-briefing-*.md"), reverse=True)
+    if not files:
+        return "No daily briefing file found — skipping PDF generation."
+
+    md_path = files[0]
+    pdf_path = md_path.with_suffix(".pdf")
+    md_text = md_path.read_text(encoding="utf-8")
+
+    try:
+        pdf_bytes = _md_to_pdf_bytes(md_text)
+        pdf_path.write_bytes(pdf_bytes)
+        return f"Saved daily brief PDF: {pdf_path.name}"
+    except Exception as exc:
+        return f"PDF generation failed: {exc}"
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 def execute_integration_tool(tool_name: str, tool_input: dict) -> str:

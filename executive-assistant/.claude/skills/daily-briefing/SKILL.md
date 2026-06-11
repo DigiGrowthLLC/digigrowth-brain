@@ -137,6 +137,7 @@ Compose the final briefing using the format below, then:
 
 1. **Write the file**: call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (use today's date)
 2. **Your chat response IS the briefing** — paste the full formatted briefing as your reply. It is automatically stored in the OS chat and visible in the agent window.
+3. **Append `[[PDF:brief]]`** on its own line at the very end of your chat response — this triggers the dashboard to display the briefing as an inline PDF below your message.
 
 Do not write to Notion.
 
@@ -187,6 +188,8 @@ Committed: Xh Xm | Free: Xh Xm
 *Daily briefing — [Day, Month Date]*
 
 ---
+
+[[PDF:brief]]
 
 ## Edge Cases
 

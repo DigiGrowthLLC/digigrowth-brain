@@ -1,3 +1,4 @@
+import asyncio
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -10,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
+import integrations
 from db import get_pool
 from routers import crm, sms, dialer, dashboard, agents, settings, analytics, finances, sops, public_sops
 
@@ -62,6 +64,14 @@ def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
     return credentials.username
 
 
+async def _run_daily_briefing() -> None:
+    """Run the daily briefing agent, then email the result as a PDF."""
+    await _trigger_agent_skill("executive-assistant", "Run the daily briefing", timeout=600)
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, integrations.save_daily_brief_pdf)
+    print(f"[cron] daily-brief PDF: {result}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await get_pool()
@@ -76,10 +86,8 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
-        _trigger_agent_skill,
+        _run_daily_briefing,
         CronTrigger(hour=6, minute=1, timezone=eastern),
-        args=["executive-assistant", "Run the daily briefing"],
-        kwargs={"timeout": 600},
         id="daily-briefing-daily",
         replace_existing=True,
     )

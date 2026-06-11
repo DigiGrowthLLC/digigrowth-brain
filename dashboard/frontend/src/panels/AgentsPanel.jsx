@@ -94,16 +94,21 @@ function ToolBlock({ block }) {
 
 // ── Message bubble ────────────────────────────────────────────────────────────
 
+const PDF_MARKER = "[[PDF:brief]]";
+
 function MessageBubble({ msg }) {
   const isUser = msg.role === "user";
 
   // Skip pure tool_result user turns (internal API turns, not human messages)
   if (isUser && msg.content?.every(b => b.type === "tool_result")) return null;
 
-  const text = (msg.content || [])
+  const rawText = (msg.content || [])
     .filter(b => b.type === "text")
     .map(b => b.text)
     .join("");
+
+  const hasPdf = rawText.includes(PDF_MARKER);
+  const text = hasPdf ? rawText.replace(PDF_MARKER, "").trimEnd() : rawText;
 
   if (isUser) {
     return (
@@ -144,6 +149,16 @@ function MessageBubble({ msg }) {
           {msg._error && (
             <div style={{ fontSize: 11, color: "#dc3c3c", marginTop: msg._streaming || text ? 4 : 0 }}>Error: {msg._error}</div>
           )}
+        </div>
+      )}
+      {hasPdf && !msg._streaming && (
+        <div style={{ maxWidth: "85%", marginTop: 8, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(58,123,213,0.15)" }}>
+          <embed
+            src="/api/agents/executive-assistant/brief-pdf"
+            type="application/pdf"
+            width="100%"
+            height="720px"
+          />
         </div>
       )}
     </div>
