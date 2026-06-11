@@ -17,12 +17,12 @@ security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
 
 
-async def _trigger_agent_skill(agent_id: str, message: str) -> None:
+async def _trigger_agent_skill(agent_id: str, message: str, timeout: int = 300) -> None:
     """Call the agent chat endpoint from the scheduler (self-call via localhost)."""
     port = os.environ.get("PORT", "8000")
     url = f"http://localhost:{port}/api/agents/{agent_id}/chat"
     try:
-        async with httpx.AsyncClient(timeout=300) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             async with client.stream(
                 "POST", url,
                 auth=("admin", DASHBOARD_PASSWORD),
@@ -62,6 +62,7 @@ async def lifespan(app: FastAPI):
         _trigger_agent_skill,
         CronTrigger(hour=6, minute=1, timezone=eastern),
         args=["executive-assistant", "Run the daily briefing"],
+        kwargs={"timeout": 600},
         id="daily-briefing-daily",
         replace_existing=True,
     )
