@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import {
-  AreaChart, Area, BarChart, Bar,
+  BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, defs, linearGradient, stop,
+  ResponsiveContainer, Cell,
 } from "recharts";
 
 const API = (p) => `/api${p}`;
@@ -227,7 +227,6 @@ function CalendarWidget({ events, loading, error }) {
 export default function DashboardPanel() {
   const [period, setPeriod]       = useState("week");
   const [stats, setStats]         = useState(null);
-  const [chartData, setChartData] = useState([]);
   const [agentMsgs, setAgentMsgs]   = useState([]);
   const [clientMsgs, setClientMsgs] = useState([]);
   const [calEvents, setCalEvents]   = useState([]);
@@ -249,21 +248,17 @@ export default function DashboardPanel() {
     }
   };
 
-  const PERIOD_DAYS = { day: 1, week: 7, month: 30, all: 3650 };
   const PERIOD_LABEL = { day: "TODAY", week: "THIS WEEK", month: "THIS MONTH", all: "ALL TIME" };
 
   const load = async (p = period) => {
-    const days = PERIOD_DAYS[p] ?? 30;
-    const [s, a, c, ch] = await Promise.all([
+    const [s, a, c] = await Promise.all([
       fetch(API(`/dashboard/summary?period=${p}`)),
       fetch(API("/dashboard/agent-messages")),
       fetch(API("/dashboard/client-messages")),
-      fetch(API(`/dashboard/chart/calls?days=${days}`)),
     ]);
-    if (s.ok)  setStats(await s.json());
-    if (a.ok)  setAgentMsgs(await a.json());
-    if (c.ok)  setClientMsgs(await c.json());
-    if (ch.ok) setChartData(await ch.json());
+    if (s.ok) setStats(await s.json());
+    if (a.ok) setAgentMsgs(await a.json());
+    if (c.ok) setClientMsgs(await c.json());
   };
 
   useEffect(() => { load(period); }, [period]);
@@ -359,52 +354,49 @@ export default function DashboardPanel() {
       {/* ── Row 3: Charts ──────────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr", gap: 16 }}>
 
-        {/* Area chart — calls over time */}
+        {/* Funnel chart — calls overview for selected period */}
         <div className="glass-card" style={{ padding: "22px 24px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-            <div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: "#d0dcf0" }}>
-                Calls Overview
-              </div>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882", letterSpacing: "0.1em", marginTop: 3 }}>
-                {PERIOD_LABEL[period]}
-              </div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: "#d0dcf0" }}>
+              Calls Overview
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882", letterSpacing: "0.1em", marginTop: 3 }}>
+              {PERIOD_LABEL[period]}
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={chartData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-              <defs>
-                <linearGradient id="callsGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#3a7bd5" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#3a7bd5" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="reachedGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#14c882" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#14c882" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
-              <XAxis dataKey="date" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-                axisLine={false} tickLine={false}
-                tickFormatter={v => v ? v.slice(5) : ""} />
-              <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-                axisLine={false} tickLine={false} />
-              <Tooltip content={<ChartTooltip />} />
-              <Area type="monotone" dataKey="calls"   name="Calls"   stroke="#3a7bd5"
-                strokeWidth={2} fill="url(#callsGrad)" />
-              <Area type="monotone" dataKey="reached" name="Reached" stroke="#14c882"
-                strokeWidth={2} fill="url(#reachedGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
-          {chartData.length === 0 && (
-            <div style={{
-              position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-              fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.15em",
-              pointerEvents: "none",
-            }}>
-              NO CALL DATA YET — RUN A DIALER SESSION
-            </div>
-          )}
+          {(() => {
+            const funnelData = [
+              { name: "Dialed",   value: calling.calls_made     ?? 0, fill: "#3a7bd5" },
+              { name: "Answered", value: calling.calls_answered ?? 0, fill: "#5a9bf0" },
+              { name: "Reached",  value: calling.dms_reached    ?? 0, fill: "#14c882" },
+              { name: "Booked",   value: calling.booked         ?? 0, fill: "#f0a028" },
+            ];
+            const hasData = funnelData.some(d => d.value > 0);
+            return hasData ? (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart layout="vertical" data={funnelData}
+                  margin={{ top: 0, right: 20, bottom: 0, left: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" horizontal={false} />
+                  <XAxis type="number" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
+                    axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name"
+                    tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#8aaad0", letterSpacing: "0.06em" }}
+                    axisLine={false} tickLine={false} width={58} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(58,123,213,0.04)" }} />
+                  <Bar dataKey="value" name="Count" radius={[0, 4, 4, 0]} maxBarSize={28}>
+                    {funnelData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{
+                height: 180, display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.15em",
+              }}>
+                NO DATA FOR THIS PERIOD
+              </div>
+            );
+          })()}
         </div>
 
         {/* Bar chart — this period breakdown */}

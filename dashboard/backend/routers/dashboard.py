@@ -71,17 +71,19 @@ async def summary(period: str = "day"):
             return stats.get(key, 0) or 0
         return stats.get(f"{key}_{p_days}d", 0) or 0
 
-    calls_made  = _sheet("sheet_calls_made")
-    dms_reached = _sheet("sheet_contacts_reached")
-    booked      = _sheet("sheet_appointments_booked")
-    reach_rate  = round(dms_reached / calls_made * 100, 1) if calls_made else 0
+    calls_made     = _sheet("sheet_calls_made")
+    calls_answered = _sheet("sheet_calls_answered")
+    dms_reached    = _sheet("sheet_contacts_reached")
+    booked         = _sheet("sheet_appointments_booked")
+    reach_rate     = round(dms_reached / calls_made * 100, 1) if calls_made else 0
 
     return {
         "calling": {
-            "calls_made":  calls_made,
-            "dms_reached": dms_reached,
-            "reach_rate":  reach_rate,
-            "booked":      booked,
+            "calls_made":     calls_made,
+            "calls_answered": calls_answered,
+            "dms_reached":    dms_reached,
+            "reach_rate":     reach_rate,
+            "booked":         booked,
         },
         "sms": {
             "active":   sms_active,
