@@ -309,7 +309,7 @@ export default function DashboardPanel() {
           display: "flex", background: "rgba(10,18,48,0.7)",
           border: "1px solid rgba(58,123,213,0.1)", borderRadius: 12, padding: 4, gap: 2,
         }}>
-          {[["day","Today"],["week","Week"],["month","Month"]].map(([p, label]) => (
+          {[["day","Today"],["week","Week"],["month","Month"],["all","All Time"]].map(([p, label]) => (
             <button key={p} onClick={() => setPeriod(p)} style={{
               fontFamily: "'Space Grotesk', sans-serif",
               fontSize: 12, fontWeight: 500, padding: "6px 16px",

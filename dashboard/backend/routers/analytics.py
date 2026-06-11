@@ -170,9 +170,10 @@ async def outreach(days: int = 30):
 
 
 @router.get("/analytics/pipeline")
-async def pipeline():
+async def pipeline(days: int = 0):
     pool  = await get_pool()
     sales = _load_sales_stats()
+    all_time = (days == 0)
     week_ago  = _since(7)
     month_ago = _since(30)
 
@@ -207,12 +208,12 @@ async def pipeline():
     return {
         "funnel": {
             "total_leads": total_leads or 0,
-            "dialed":      sales.get("sheet_calls_made", 0),
-            "answered":    sales.get("sheet_calls_answered", 0),
-            "pitched":     sales.get("sheet_contacts_reached", 0),
-            "booked":      sales.get("sheet_appointments_booked", 0),
-            "shows":       sales.get("shows", 0),
-            "closes":      sales.get("closes", 0),
+            "dialed":      sales.get("sheet_calls_made", 0)        if all_time else 0,
+            "answered":    sales.get("sheet_calls_answered", 0)    if all_time else 0,
+            "pitched":     sales.get("sheet_contacts_reached", 0)  if all_time else 0,
+            "booked":      sales.get("sheet_appointments_booked", 0) if all_time else 0,
+            "shows":       sales.get("shows", 0)                   if all_time else 0,
+            "closes":      sales.get("closes", 0)                  if all_time else 0,
         },
         "by_grade":       by_grade,
         "top_states":     [{"state": r["state"], "cnt": r["cnt"]} for r in state_rows],
@@ -257,10 +258,11 @@ async def sales_stats():
 
 
 @router.get("/analytics/calls")
-async def calls_detail(days: int = 30):
-    pool  = await get_pool()
-    since = _since(days)
-    stats = _load_sales_stats()
+async def calls_detail(days: int = 0):
+    pool      = await get_pool()
+    all_time  = (days == 0)
+    stats     = _load_sales_stats()
+    since     = _since(days) if not all_time else _since(36500)
 
     async with pool.acquire() as conn:
         dispo_rows = await conn.fetch(
@@ -282,9 +284,9 @@ async def calls_detail(days: int = 30):
         )
 
     return {
-        "total_calls":    stats.get("sheet_calls_made", 0),
-        "pickups":        stats.get("sheet_contacts_reached", 0),
-        "booked":         stats.get("sheet_appointments_booked", 0),
+        "total_calls":    stats.get("sheet_calls_made", 0)          if all_time else 0,
+        "pickups":        stats.get("sheet_calls_answered", 0)      if all_time else 0,
+        "booked":         stats.get("sheet_appointments_booked", 0) if all_time else 0,
         "by_disposition": [{"disposition": r["disposition"], "cnt": r["cnt"]} for r in dispo_rows],
         "daily":          [{"date": str(r["day"]), "calls": r["calls"], "pickups": r["pickups"]} for r in daily_rows],
     }

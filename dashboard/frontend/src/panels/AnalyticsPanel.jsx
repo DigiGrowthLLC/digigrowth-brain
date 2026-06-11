@@ -59,7 +59,7 @@ function PeriodToggle({ days, setDays }) {
       display: "flex", background: "rgba(10,18,48,0.7)",
       border: "1px solid rgba(58,123,213,0.1)", borderRadius: 12, padding: 4, gap: 2,
     }}>
-      {[[7,"7D"],[30,"30D"],[90,"90D"]].map(([d, label]) => (
+      {[[7,"7D"],[30,"30D"],[0,"All Time"]].map(([d, label]) => (
         <button key={d} onClick={() => setDays(d)} style={{
           fontFamily: "'Space Grotesk', sans-serif",
           fontSize: 11, fontWeight: 500, padding: "5px 14px",
@@ -222,7 +222,7 @@ function FunnelBlock({ label, value, convRate, benchmark, color, isFirst }) {
 }
 
 export default function AnalyticsPanel() {
-  const [days, setDays]               = useState(30);
+  const [days, setDays]               = useState(0);
   const [outreach, setOutreach]       = useState(null);
   const [calls, setCalls]             = useState(null);
   const [pipeline, setPipeline]       = useState(null);
@@ -238,10 +238,10 @@ export default function AnalyticsPanel() {
 
   useEffect(() => {
     Promise.all([
-      fetch(API("/analytics/pipeline")).then(r => r.ok ? r.json() : null),
+      fetch(API(`/analytics/pipeline?days=${days}`)).then(r => r.ok ? r.json() : null),
       fetch(API("/analytics/sales")).then(r => r.ok ? r.json() : null),
     ]).then(([p, s]) => { setPipeline(p); setSales(s); });
-  }, []);
+  }, [days]);
 
   const funnel = pipeline?.funnel ?? {};
   const totalCalls = calls?.total_calls ?? 0;

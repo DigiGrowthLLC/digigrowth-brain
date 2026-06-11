@@ -63,10 +63,15 @@ async def summary(period: str = "day"):
             "SELECT COUNT(*) FROM contacts WHERE created_at >= $1", since
         )
 
-    calls_made  = stats.get("sheet_calls_made", 0)
-    dms_reached = stats.get("sheet_contacts_reached", 0)
-    booked      = stats.get("sheet_appointments_booked", 0)
-    reach_rate  = round(dms_reached / calls_made * 100, 1) if calls_made else 0
+    if period == "all":
+        calls_made  = stats.get("sheet_calls_made", 0)
+        dms_reached = stats.get("sheet_contacts_reached", 0)
+        booked      = stats.get("sheet_appointments_booked", 0)
+    else:
+        calls_made  = 0
+        dms_reached = 0
+        booked      = 0
+    reach_rate = round(dms_reached / calls_made * 100, 1) if calls_made else 0
 
     return {
         "calling": {
