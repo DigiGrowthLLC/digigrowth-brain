@@ -171,74 +171,46 @@ async def outreach(days: int = 30):
 
 @router.get("/analytics/pipeline")
 async def pipeline():
-    pool = await get_pool()
+    pool  = await get_pool()
     sales = _load_sales_stats()
     week_ago  = _since(7)
     month_ago = _since(30)
 
     async with pool.acquire() as conn:
         total_leads = await conn.fetchval("SELECT COUNT(*) FROM contacts")
-        dialed      = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE call_attempts > 0")
-        answered    = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts WHERE last_disposition NOT IN ('No Answer','Voicemail') AND last_disposition IS NOT NULL"
-        )
-        pitched     = await conn.fetchval(
-            f"SELECT COUNT(*) FROM contacts WHERE last_disposition IN {str(PITCHED_DISPOSITIONS).replace('[','(').replace(']',')')}"
-        )
-        booked      = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts WHERE status = 'appointment-booked'"
-        )
-
-    # Fall back to sheet data when dialer hasn't been used yet
-    if not dialed:
-        dialed   = sales.get("sheet_calls_made") or 0
-        answered = sales.get("sheet_contacts_reached") or 0
-        booked   = sales.get("sheet_appointments_booked") or booked or 0
-
-    async with pool.acquire() as conn:
-        new_week  = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", week_ago)
-        new_month = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", month_ago)
-
-        grade_rows = await conn.fetch(
+        new_week    = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", week_ago)
+        new_month   = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", month_ago)
+        grade_rows  = await conn.fetch(
             """
             SELECT grade,
                    COUNT(*) AS cnt,
                    COUNT(*) FILTER (WHERE status = 'appointment-booked') AS booked
             FROM contacts
             WHERE grade IS NOT NULL
-            GROUP BY grade
-            ORDER BY grade
+            GROUP BY grade ORDER BY grade
             """
         )
-
         state_rows = await conn.fetch(
             """
             SELECT state, COUNT(*) AS cnt
             FROM contacts
             WHERE state IS NOT NULL AND state != ''
-            GROUP BY state
-            ORDER BY cnt DESC
-            LIMIT 8
+            GROUP BY state ORDER BY cnt DESC LIMIT 8
             """
         )
 
     by_grade = [
-        {
-            "grade":     r["grade"],
-            "cnt":       r["cnt"],
-            "booked":    r["booked"],
-            "book_rate": _pct(r["booked"], r["cnt"]),
-        }
+        {"grade": r["grade"], "cnt": r["cnt"], "booked": r["booked"], "book_rate": _pct(r["booked"], r["cnt"])}
         for r in grade_rows
     ]
 
     return {
         "funnel": {
             "total_leads": total_leads or 0,
-            "dialed":      dialed      or 0,
-            "answered":    answered    or 0,
-            "pitched":     pitched     or 0,
-            "booked":      booked      or 0,
+            "dialed":      sales.get("sheet_calls_made", 0),
+            "answered":    sales.get("sheet_contacts_reached", 0),
+            "pitched":     0,
+            "booked":      sales.get("sheet_appointments_booked", 0),
             "shows":       sales.get("shows", 0),
             "closes":      sales.get("closes", 0),
         },
@@ -288,18 +260,9 @@ async def sales_stats():
 async def calls_detail(days: int = 30):
     pool  = await get_pool()
     since = _since(days)
+    stats = _load_sales_stats()
 
     async with pool.acquire() as conn:
-        summary = await conn.fetchrow(
-            """
-            SELECT
-                COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE disposition NOT IN ('No Answer','Voicemail')) AS pickups,
-                COUNT(*) FILTER (WHERE disposition = 'Appointment Booked') AS booked
-            FROM call_logs WHERE started_at >= $1
-            """,
-            since,
-        )
         dispo_rows = await conn.fetch(
             """
             SELECT disposition, COUNT(*) AS cnt
@@ -318,21 +281,10 @@ async def calls_detail(days: int = 30):
             since,
         )
 
-    total_calls = summary["total"]  or 0
-    pickups     = summary["pickups"] or 0
-    booked      = summary["booked"]  or 0
-
-    # Fall back to sheet data when dialer hasn't been used yet
-    if not total_calls:
-        sheet = _load_sales_stats()
-        total_calls = sheet.get("sheet_calls_made")    or 0
-        pickups     = sheet.get("sheet_contacts_reached") or 0
-        booked      = sheet.get("sheet_appointments_booked") or 0
-
     return {
-        "total_calls":    total_calls,
-        "pickups":        pickups,
-        "booked":         booked,
+        "total_calls":    stats.get("sheet_calls_made", 0),
+        "pickups":        stats.get("sheet_contacts_reached", 0),
+        "booked":         stats.get("sheet_appointments_booked", 0),
         "by_disposition": [{"disposition": r["disposition"], "cnt": r["cnt"]} for r in dispo_rows],
         "daily":          [{"date": str(r["day"]), "calls": r["calls"], "pickups": r["pickups"]} for r in daily_rows],
     }
