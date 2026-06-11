@@ -1,8 +1,10 @@
 {
-  "discovery_calls": 8,
+  "discovery_calls": 18,
   "strategy_sessions": 0,
   "closes": 0,
-  "shows": 0,
+  "shows": 9,
   "total_revenue": 0,
-  "avg_deal_size": 0
+  "avg_deal_size": 0,
+  "last_sheet_sync": "2025-06-11",
+  "last_sheet_sync_note": "DigiGrowth Sales Performance Tracker — all-time totals"
 }
