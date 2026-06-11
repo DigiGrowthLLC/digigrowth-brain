@@ -109,7 +109,7 @@ function FormatBar({ editor }) {
 
   const applyLink = () => {
     if (!linkInput.trim()) { setShowLink(false); return; }
-    const href = linkInput.startsWith("http") ? linkInput : `https://${linkInput}`;
+    const href = linkInput;
     editor.chain().focus().setLink({ href, target: "_blank" }).run();
     setLinkInput(""); setShowLink(false);
   };
