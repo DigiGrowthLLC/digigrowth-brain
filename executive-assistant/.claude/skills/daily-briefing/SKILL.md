@@ -105,11 +105,10 @@ If today is Monday: use the `manage-apptset-agent` skill to run the newsletter d
 
 ### Step 5 — Save and Deliver
 
-1. Call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (today's date)
-2. Paste the full formatted briefing as your chat response
-3. Append `[[PDF:brief]]` on its own line at the very end — this renders the PDF inline in the dashboard
+1. Call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (today's date) using the file format below
+2. Your chat response must be **only** `[[PDF:brief]]` — nothing else. No text, no summary, no confirmation. Just the marker on its own line so the PDF renders inline in the dashboard.
 
-**Briefing format:**
+**File format** (write this to disk — do NOT paste into chat):
 
 ---
 
@@ -152,8 +151,6 @@ Committed: Xh Xm | Free: Xh Xm
 ---
 
 *Daily briefing — [Day, Month Date]*
-
-[[PDF:brief]]
 
 ---
 
