@@ -157,26 +157,36 @@ function FormatBar({ editor }) {
     const { from, to } = editor.state.selection;
     if (from === to) return; // nothing selected
     savedRange.current = { from, to };
+    console.log("[link] saved range", { from, to });
     setShowLink(true);
   };
 
   const applyLink = (url) => {
     const href = (url || "").trim();
     const range = savedRange.current;
-    setShowLink(false);
     savedRange.current = null;
-    if (!href || !range) return;
-    // Bypass Tiptap's command system entirely — dispatch directly via ProseMirror
-    requestAnimationFrame(() => {
+    setShowLink(false);
+    console.log("[link] applyLink", { href, range });
+    if (!href || !range || range.from >= range.to) {
+      console.log("[link] early exit");
+      return;
+    }
+    try {
       const { state, dispatch } = editor.view;
       const linkMark = state.schema.marks.link;
+      console.log("[link] schema marks:", Object.keys(state.schema.marks));
+      console.log("[link] linkMark:", linkMark);
       if (!linkMark) return;
-      const tr = state.tr
-        .addMark(range.from, range.to, linkMark.create({ href, target: "_blank" }))
-        .setSelection(TextSelection.create(state.doc, range.to));
+      const tr = state.tr.addMark(
+        range.from, range.to,
+        linkMark.create({ href, target: "_blank" })
+      );
       dispatch(tr);
       editor.view.dom.focus();
-    });
+      console.log("[link] dispatched OK");
+    } catch (e) {
+      console.error("[link] failed:", e);
+    }
   };
 
   const cancelLink = () => {
