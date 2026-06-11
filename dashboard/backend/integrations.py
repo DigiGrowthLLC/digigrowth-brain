@@ -495,6 +495,25 @@ def calendar_events_structured(days_ahead: int = 7, calendar_id: str = "primary"
 
 # ── Daily brief PDF emailer ───────────────────────────────────────────────────
 
+def _pdf_safe(text: str) -> str:
+    """Transliterate Unicode chars unsupported by Helvetica to ASCII equivalents."""
+    table = {
+        "—": "--", "–": "-", "‒": "-",
+        "‘": "'",  "’": "'",
+        "“": '"',  "”": '"',
+        "…": "...",
+        "•": "-",  "·": "-",
+        "✓": "[x]", "✕": "[ ]",
+        "✅": "[x]", "❌": "[ ]",
+        "é": "e",  "è": "e", "ê": "e",
+        "à": "a",  "â": "a",
+        "ô": "o",  "û": "u", "ü": "u",
+    }
+    for char, replacement in table.items():
+        text = text.replace(char, replacement)
+    return text.encode("latin-1", errors="replace").decode("latin-1")
+
+
 def _md_to_pdf_bytes(md_text: str) -> bytes:
     """Convert a Markdown daily brief to a styled PDF and return raw bytes."""
     from fpdf import FPDF
@@ -505,7 +524,7 @@ def _md_to_pdf_bytes(md_text: str) -> bytes:
     w = pdf.w - pdf.l_margin - pdf.r_margin
 
     for line in md_text.split("\n"):
-        s = line.strip()
+        s = _pdf_safe(line.strip())
 
         if s.startswith("# "):
             pdf.set_font("Helvetica", "B", 20)
@@ -525,7 +544,7 @@ def _md_to_pdf_bytes(md_text: str) -> bytes:
         elif s.startswith("- "):
             pdf.set_font("Helvetica", "", 10)
             pdf.set_x(pdf.l_margin + 4)
-            pdf.multi_cell(w - 4, 6, f"•  {s[2:]}")
+            pdf.multi_cell(w - 4, 6, f"-  {s[2:]}")
         elif s == "":
             pdf.ln(3)
         elif s.startswith("*") and s.endswith("*") and len(s) > 2:
