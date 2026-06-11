@@ -160,12 +160,17 @@ function FormatBar({ editor }) {
   };
 
   const applyLink = (url) => {
-    setShowLink(false);
     const href = (url || "").trim();
     const range = savedRange.current;
+    setShowLink(false);
     savedRange.current = null;
     if (!href || !range) return;
-    editor.chain().focus().setTextSelection({ from: range.from, to: range.to }).setLink({ href, target: "_blank" }).run();
+    // rAF lets the modal unmount and focus settle before we touch the editor
+    requestAnimationFrame(() => {
+      editor.view.dom.focus();
+      editor.commands.setTextSelection({ from: range.from, to: range.to });
+      editor.commands.setLink({ href, target: "_blank" });
+    });
   };
 
   const cancelLink = () => {
