@@ -13,7 +13,7 @@ Generates Dylan's daily morning briefing, delivers it as a formatted chat messag
 2. Lists today's Google Calendar events
 3. Pulls cold calling / SMS outreach data from Google Drive and gives weekly comparison insights
 4. Suggests how to use free time based on the day's schedule and current priorities
-5. Writes the briefing to the Notion "Daily Brief" page — replaces previous day's content
+5. Saves the briefing as a dated archive file and delivers it as a chat message
 
 ---
 
@@ -181,7 +181,7 @@ Committed: Xh Xm | Free: Xh Xm
 
 ## Newsletter Preview
 
-[Output from Step 4.5 — subject, recipient count, topic, and Notion link only. No email body here.]
+[Output from Step 4.5 — subject, recipient count, and topic only. No email body here.]
 
 ---
 
