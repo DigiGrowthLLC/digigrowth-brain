@@ -8,6 +8,7 @@ import Table from "@tiptap/extension-table";
 import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
+import { TextSelection } from "@tiptap/pm/state";
 import { marked } from "marked";
 
 const EMPTY_DRAFT = { title: "", content: "", category: "General", visibility: "private" };
@@ -165,11 +166,16 @@ function FormatBar({ editor }) {
     setShowLink(false);
     savedRange.current = null;
     if (!href || !range) return;
-    // rAF lets the modal unmount and focus settle before we touch the editor
+    // Bypass Tiptap's command system entirely — dispatch directly via ProseMirror
     requestAnimationFrame(() => {
+      const { state, dispatch } = editor.view;
+      const linkMark = state.schema.marks.link;
+      if (!linkMark) return;
+      const tr = state.tr
+        .addMark(range.from, range.to, linkMark.create({ href, target: "_blank" }))
+        .setSelection(TextSelection.create(state.doc, range.to));
+      dispatch(tr);
       editor.view.dom.focus();
-      editor.commands.setTextSelection({ from: range.from, to: range.to });
-      editor.commands.setLink({ href, target: "_blank" });
     });
   };
 
