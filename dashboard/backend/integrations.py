@@ -515,44 +515,175 @@ def _pdf_safe(text: str) -> str:
 
 
 def _md_to_pdf_bytes(md_text: str) -> bytes:
-    """Convert a Markdown daily brief to a styled PDF and return raw bytes."""
+    """Convert a Markdown daily brief to a branded PDF and return raw bytes."""
     from fpdf import FPDF
 
+    # Brand palette
+    NAVY   = (9,   15,  38)
+    BLUE   = (58,  123, 213)
+    BLUE_M = (30,  70,  140)   # muted blue for dividers
+    BODY   = (25,  35,  65)
+    MUTED  = (100, 130, 180)
+    WHITE  = (255, 255, 255)
+    LTBLUE = (190, 215, 255)
+    ROW_A  = (235, 242, 255)   # table alternating row tint
+
+    MARGIN = 18
     pdf = FPDF()
-    pdf.set_margins(20, 20, 20)
+    pdf.set_margins(MARGIN, MARGIN, MARGIN)
     pdf.add_page()
-    w = pdf.w - pdf.l_margin - pdf.r_margin
+    W = pdf.w - MARGIN * 2
 
+    # ── Extract H1 title / date for header ───────────────────────────
+    brief_title, brief_date = "Morning Briefing", ""
     for line in md_text.split("\n"):
-        s = _pdf_safe(line.strip())
+        if line.startswith("# "):
+            parts = line[2:].strip().split(" -- ", 1)
+            if len(parts) == 2:
+                brief_title, brief_date = parts[0], parts[1]
+            else:
+                brief_title = parts[0]
+            break
 
-        if s.startswith("# "):
-            pdf.set_font("Helvetica", "B", 20)
-            pdf.multi_cell(w, 11, s[2:])
+    # ── Header bar ───────────────────────────────────────────────────
+    HDR_H = 26
+    pdf.set_fill_color(*NAVY)
+    pdf.rect(0, 0, pdf.w, HDR_H, "F")
+
+    # Accent stripe
+    pdf.set_fill_color(*BLUE)
+    pdf.rect(0, HDR_H - 2, pdf.w, 2, "F")
+
+    pdf.set_xy(MARGIN, 6)
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_text_color(*BLUE)
+    pdf.cell(60, 6, "DigiGrowth OS", ln=False)
+
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_text_color(*LTBLUE)
+    pdf.set_xy(MARGIN, 14)
+    pdf.cell(60, 5, _pdf_safe(brief_title.upper()), ln=False)
+
+    if brief_date:
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(*LTBLUE)
+        pdf.set_xy(MARGIN, 14)
+        pdf.cell(W, 5, _pdf_safe(brief_date), align="R", ln=False)
+
+    pdf.set_y(HDR_H + 6)
+
+    # ── Body ─────────────────────────────────────────────────────────
+    # Collect lines; handle table blocks as a unit
+    lines = md_text.split("\n")
+    i = 0
+    while i < len(lines):
+        s = _pdf_safe(lines[i].strip())
+
+        # Skip H1 (already in header) and PDF marker
+        if s.startswith("# ") or s.startswith("[[PDF:"):
+            i += 1
+            continue
+
+        # Section header
+        if s.startswith("## "):
+            pdf.ln(4)
+            pdf.set_font("Helvetica", "B", 11)
+            pdf.set_text_color(*BLUE)
+            pdf.set_fill_color(*NAVY)
+            pdf.set_x(MARGIN)
+            pdf.cell(W, 7, s[3:].upper(), fill=True, ln=True)
+            pdf.set_draw_color(*BLUE)
+            pdf.set_line_width(0.5)
+            pdf.line(MARGIN, pdf.get_y(), MARGIN + W, pdf.get_y())
             pdf.ln(3)
-        elif s.startswith("## "):
+            i += 1
+            continue
+
+        # Divider
+        if s == "---":
             pdf.ln(2)
-            pdf.set_font("Helvetica", "B", 13)
-            pdf.multi_cell(w, 8, s[3:])
-            pdf.ln(1)
-        elif s == "---":
-            pdf.set_draw_color(180, 180, 180)
-            pdf.set_line_width(0.3)
-            y = pdf.get_y() + 2
-            pdf.line(pdf.l_margin, y, pdf.w - pdf.r_margin, y)
-            pdf.ln(5)
-        elif s.startswith("- "):
-            pdf.set_font("Helvetica", "", 10)
-            pdf.set_x(pdf.l_margin + 4)
-            pdf.multi_cell(w - 4, 6, f"-  {s[2:]}")
-        elif s == "":
-            pdf.ln(3)
-        elif s.startswith("*") and s.endswith("*") and len(s) > 2:
-            pdf.set_font("Helvetica", "I", 9)
-            pdf.multi_cell(w, 6, s[1:-1])
-        else:
-            pdf.set_font("Helvetica", "", 10)
-            pdf.multi_cell(w, 6, s)
+            pdf.set_draw_color(*BLUE_M)
+            pdf.set_line_width(0.2)
+            pdf.line(MARGIN, pdf.get_y(), MARGIN + W, pdf.get_y())
+            pdf.ln(4)
+            i += 1
+            continue
+
+        # Table block — collect all consecutive | lines
+        if s.startswith("|"):
+            table_lines = []
+            while i < len(lines) and _pdf_safe(lines[i].strip()).startswith("|"):
+                row = _pdf_safe(lines[i].strip())
+                if not all(c in "|-: " for c in row):  # skip separator rows
+                    cells = [c.strip() for c in row.strip("|").split("|")]
+                    table_lines.append(cells)
+                i += 1
+            if table_lines:
+                max_cols = max(len(r) for r in table_lines)
+                col_w = W / max_cols
+                for ri, row in enumerate(table_lines):
+                    is_header = ri == 0
+                    fill_color = NAVY if is_header else (ROW_A if ri % 2 == 0 else WHITE)
+                    text_color = WHITE if is_header else BODY
+                    pdf.set_fill_color(*fill_color)
+                    pdf.set_text_color(*text_color)
+                    pdf.set_font("Helvetica", "B" if is_header else "", 8)
+                    x_start = MARGIN
+                    for ci, cell in enumerate(row[:max_cols]):
+                        pdf.set_xy(x_start + ci * col_w, pdf.get_y())
+                        pdf.cell(col_w, 6, cell, border=0, fill=True)
+                    pdf.ln(6)
+                pdf.ln(2)
+            continue
+
+        # Bullet
+        if s.startswith("- "):
+            pdf.set_font("Helvetica", "", 9)
+            pdf.set_text_color(*BODY)
+            pdf.set_x(MARGIN + 4)
+            pdf.multi_cell(W - 4, 5.5, f"-  {s[2:]}")
+            i += 1
+            continue
+
+        # Italic footer (*text*)
+        if s.startswith("*") and s.endswith("*") and len(s) > 2:
+            pdf.ln(2)
+            pdf.set_font("Helvetica", "I", 8)
+            pdf.set_text_color(*MUTED)
+            pdf.set_x(MARGIN)
+            pdf.multi_cell(W, 5, s[1:-1])
+            i += 1
+            continue
+
+        # Empty line
+        if s == "":
+            pdf.ln(2)
+            i += 1
+            continue
+
+        # Bold inline (**text**)
+        if s.startswith("**") and s.endswith("**") and len(s) > 4:
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_text_color(*BODY)
+            pdf.set_x(MARGIN)
+            pdf.multi_cell(W, 5.5, s[2:-2])
+            i += 1
+            continue
+
+        # Regular body text
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(*BODY)
+        pdf.set_x(MARGIN)
+        pdf.multi_cell(W, 5.5, s)
+        i += 1
+
+    # ── Footer bar ───────────────────────────────────────────────────
+    pdf.set_fill_color(*NAVY)
+    pdf.rect(0, pdf.h - 10, pdf.w, 10, "F")
+    pdf.set_xy(MARGIN, pdf.h - 7)
+    pdf.set_font("Helvetica", "", 7)
+    pdf.set_text_color(*MUTED)
+    pdf.cell(W, 4, "DigiGrowth OS  |  Confidential", align="C")
 
     return bytes(pdf.output())
 

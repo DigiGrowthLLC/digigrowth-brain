@@ -23,7 +23,7 @@ import urllib.request
 
 import anthropic
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from db import get_pool
 from integrations import execute_integration_tool
@@ -810,7 +810,11 @@ async def serve_brief_pdf(agent_id: str):
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"PDF generation failed: {exc}")
 
-    return FileResponse(pdfs[0], media_type="application/pdf", filename=pdfs[0].name)
+    return Response(
+        content=pdfs[0].read_bytes(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=\"{pdfs[0].name}\""},
+    )
 
 
 @router.put("/agents/{agent_id}/files/{path:path}")
