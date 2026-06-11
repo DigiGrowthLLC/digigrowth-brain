@@ -5,9 +5,9 @@
   "shows": 9,
   "total_revenue": 0,
   "avg_deal_size": 0,
-  "last_sheet_sync": "2026-06-11T14:26:50.463628",
-  "last_sheet_sync_note": "April 2026 Cold Calling Metrics (calls_made=1344, contacts_reached=124, appointments_booked=6) + DigiGrowth Sales Performance Tracker all-time (discovery_calls=18 booked, shows=9, closes=0). June & May Input Trackers had no outreach call data. Goal Tracker context only.",
-  "sheet_calls_made": 1344,
-  "sheet_contacts_reached": 124,
-  "sheet_appointments_booked": 6
+  "last_sheet_sync": "2026-06-11T14:49:12.466051",
+  "last_sheet_sync_note": "Feb 2026 Cold Calling (calls=1459, contacts=174, appts=1) + Mar 2026 Cold Calling (calls=924, contacts=145, appts=8) + Apr 2026 Cold Calling (calls=1344, contacts=211, appts=6) = all-time totals. Sales Performance Tracker all-time: discovery_calls=18 booked, shows=9, closes=0. June/May Input Trackers = habit tracking only, no outreach data. Goal Tracker = context only.",
+  "sheet_calls_made": 3727,
+  "sheet_contacts_reached": 530,
+  "sheet_appointments_booked": 15
 }
