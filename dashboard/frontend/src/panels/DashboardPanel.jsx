@@ -226,7 +226,7 @@ function CalendarWidget({ events, loading, error }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPanel() {
-  const [period, setPeriod]       = useState("week");
+  const [period, setPeriod]       = useState("all");
   const [stats, setStats]         = useState(null);
   const [agentMsgs, setAgentMsgs]   = useState([]);
   const [clientMsgs, setClientMsgs] = useState([]);
