@@ -188,6 +188,14 @@ async def pipeline():
         booked      = await conn.fetchval(
             "SELECT COUNT(*) FROM contacts WHERE status = 'appointment-booked'"
         )
+
+    # Fall back to sheet data when dialer hasn't been used yet
+    if not dialed:
+        dialed   = sales.get("sheet_calls_made") or 0
+        answered = sales.get("sheet_contacts_reached") or 0
+        booked   = sales.get("sheet_appointments_booked") or booked or 0
+
+    async with pool.acquire() as conn:
         new_week  = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", week_ago)
         new_month = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", month_ago)
 
@@ -310,10 +318,21 @@ async def calls_detail(days: int = 30):
             since,
         )
 
+    total_calls = summary["total"]  or 0
+    pickups     = summary["pickups"] or 0
+    booked      = summary["booked"]  or 0
+
+    # Fall back to sheet data when dialer hasn't been used yet
+    if not total_calls:
+        sheet = _load_sales_stats()
+        total_calls = sheet.get("sheet_calls_made")    or 0
+        pickups     = sheet.get("sheet_contacts_reached") or 0
+        booked      = sheet.get("sheet_appointments_booked") or 0
+
     return {
-        "total_calls":    summary["total"]   or 0,
-        "pickups":        summary["pickups"]  or 0,
-        "booked":         summary["booked"]   or 0,
+        "total_calls":    total_calls,
+        "pickups":        pickups,
+        "booked":         booked,
         "by_disposition": [{"disposition": r["disposition"], "cnt": r["cnt"]} for r in dispo_rows],
         "daily":          [{"date": str(r["day"]), "calls": r["calls"], "pickups": r["pickups"]} for r in daily_rows],
     }
