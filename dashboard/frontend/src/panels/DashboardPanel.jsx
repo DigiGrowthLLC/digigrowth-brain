@@ -330,9 +330,10 @@ export default function DashboardPanel() {
           delta={calling.calls_made > 0 ? `${calling.reach_rate}% rate` : null} positive={true} />
         <TopStatCard label="Appointments"  value={calling.booked}      iconKey="booked"
           delta={calling.booked > 0 ? "booked" : null} positive={true} />
-        <TopStatCard label="SMS Active"    value={sms.active}          iconKey="sms"
-          delta={clientMsgs.length > 0 ? `${clientMsgs.length} need reply` : null}
-          positive={clientMsgs.length === 0} />
+        <TopStatCard label="ABR"
+          value={calling.calls_made > 0 ? `${((calling.booked / calling.calls_made) * 100).toFixed(1)}%` : "—"}
+          iconKey="sms"
+          delta="appt booking rate" positive={true} />
       </div>
 
       {/* ── Row 2: To-Do + Today's Calendar ───────────────────────── */}
