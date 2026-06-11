@@ -249,12 +249,16 @@ export default function DashboardPanel() {
     }
   };
 
+  const PERIOD_DAYS = { day: 1, week: 7, month: 30, all: 3650 };
+  const PERIOD_LABEL = { day: "TODAY", week: "THIS WEEK", month: "THIS MONTH", all: "ALL TIME" };
+
   const load = async (p = period) => {
+    const days = PERIOD_DAYS[p] ?? 30;
     const [s, a, c, ch] = await Promise.all([
       fetch(API(`/dashboard/summary?period=${p}`)),
       fetch(API("/dashboard/agent-messages")),
       fetch(API("/dashboard/client-messages")),
-      fetch(API("/dashboard/chart/calls?days=30")),
+      fetch(API(`/dashboard/chart/calls?days=${days}`)),
     ]);
     if (s.ok)  setStats(await s.json());
     if (a.ok)  setAgentMsgs(await a.json());
@@ -363,7 +367,7 @@ export default function DashboardPanel() {
                 Calls Overview
               </div>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882", letterSpacing: "0.1em", marginTop: 3 }}>
-                LAST 30 DAYS
+                {PERIOD_LABEL[period]}
               </div>
             </div>
           </div>
