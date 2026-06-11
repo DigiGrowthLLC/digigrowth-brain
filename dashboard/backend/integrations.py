@@ -459,6 +459,36 @@ def _notion_block_text(block: dict) -> str:
     return f"{prefix}{text}{suffix}"
 
 
+# ── Dashboard helpers ─────────────────────────────────────────────────────────
+
+def calendar_events_structured(days_ahead: int = 7, calendar_id: str = "primary") -> list[dict]:
+    """Return structured event dicts for the dashboard calendar widget."""
+    from datetime import datetime, timezone, timedelta
+    svc = _calendar_service()
+    now = datetime.now(timezone.utc)
+    end = now + timedelta(days=days_ahead)
+    res = svc.events().list(
+        calendarId=calendar_id,
+        timeMin=now.isoformat(),
+        timeMax=end.isoformat(),
+        singleEvents=True,
+        orderBy="startTime",
+        maxResults=50,
+    ).execute()
+    events = []
+    for ev in res.get("items", []):
+        all_day = "dateTime" not in ev["start"]
+        events.append({
+            "id": ev["id"],
+            "title": ev.get("summary", "(no title)"),
+            "start": ev["start"].get("dateTime") or ev["start"].get("date", ""),
+            "end": ev["end"].get("dateTime") or ev["end"].get("date", ""),
+            "all_day": all_day,
+            "location": ev.get("location", ""),
+        })
+    return events
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 def execute_integration_tool(tool_name: str, tool_input: dict) -> str:

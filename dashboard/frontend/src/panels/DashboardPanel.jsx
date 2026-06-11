@@ -175,6 +175,122 @@ function TodoList() {
   );
 }
 
+// ── Calendar widget ───────────────────────────────────────────────────────────
+
+function CalendarWidget({ events, loading, error }) {
+  const todayKey     = new Date().toISOString().slice(0, 10);
+  const tomorrowKey  = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+  const groups = {};
+  for (const ev of events) {
+    const key = ev.start.slice(0, 10);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(ev);
+  }
+  const sortedDates = Object.keys(groups).sort();
+
+  const dayLabel = (key) => {
+    const d = new Date(key + "T12:00:00");
+    const sub = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    if (key === todayKey)    return { label: "Today",    sub };
+    if (key === tomorrowKey) return { label: "Tomorrow", sub };
+    return { label: d.toLocaleDateString("en-US", { weekday: "long" }), sub };
+  };
+
+  const fmtTime = (iso, allDay) => {
+    if (allDay) return "All day";
+    return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  };
+
+  return (
+    <div className="glass-card" style={{ padding: "20px 24px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0" }}>
+          Upcoming
+        </div>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.12em" }}>
+          NEXT 7 DAYS
+        </span>
+      </div>
+
+      {loading && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>
+      )}
+
+      {!loading && error && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
+          {error.toLowerCase().includes("missing") || error.toLowerCase().includes("configured")
+            ? "GOOGLE CALENDAR NOT CONFIGURED — SET GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN"
+            : error.toUpperCase()}
+        </div>
+      )}
+
+      {!loading && !error && events.length === 0 && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
+          NO UPCOMING EVENTS
+        </div>
+      )}
+
+      {!loading && sortedDates.length > 0 && (
+        <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 4 }}>
+          {sortedDates.map(dateKey => {
+            const { label, sub } = dayLabel(dateKey);
+            const isToday = dateKey === todayKey;
+            return (
+              <div key={dateKey} style={{ minWidth: 170, flexShrink: 0 }}>
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{
+                    fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600,
+                    color: isToday ? "#6ab0ff" : "#4a6080",
+                  }}>{label}</div>
+                  <div style={{
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                    color: "#2a4a7a", letterSpacing: "0.1em",
+                  }}>{sub.toUpperCase()}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {groups[dateKey].map(ev => (
+                    <div key={ev.id} style={{
+                      padding: "7px 10px", borderRadius: 8,
+                      background: isToday ? "rgba(58,123,213,0.07)" : "rgba(255,255,255,0.02)",
+                      border: `1px solid ${isToday ? "rgba(58,123,213,0.14)" : "rgba(58,123,213,0.05)"}`,
+                      borderLeft: `3px solid ${isToday ? "#3a7bd5" : "#2a4a7a"}`,
+                    }}>
+                      <div style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                        color: isToday ? "#3a7bd5" : "#2a4a7a",
+                        letterSpacing: "0.08em", marginBottom: 3,
+                      }}>
+                        {fmtTime(ev.start, ev.all_day)}
+                      </div>
+                      <div style={{
+                        fontSize: 12, color: isToday ? "#c4d0e8" : "#5a7090",
+                        lineHeight: 1.3, overflow: "hidden",
+                        textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 148,
+                      }}>
+                        {ev.title}
+                      </div>
+                      {ev.location && (
+                        <div style={{
+                          fontSize: 10, color: "#2a4060", marginTop: 2,
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 148,
+                        }}>
+                          {ev.location}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPanel() {
@@ -183,6 +299,24 @@ export default function DashboardPanel() {
   const [chartData, setChartData] = useState([]);
   const [agentMsgs, setAgentMsgs]   = useState([]);
   const [clientMsgs, setClientMsgs] = useState([]);
+  const [calEvents, setCalEvents]   = useState([]);
+  const [calLoading, setCalLoading] = useState(true);
+  const [calError, setCalError]     = useState(null);
+
+  const loadCalendar = async () => {
+    try {
+      const r = await fetch(API("/dashboard/calendar?days=7"));
+      if (r.ok) {
+        const d = await r.json();
+        setCalEvents(d.events || []);
+        setCalError(d.error || null);
+      }
+    } catch {
+      setCalError("Failed to load");
+    } finally {
+      setCalLoading(false);
+    }
+  };
 
   const load = async (p = period) => {
     const [s, a, c, ch] = await Promise.all([
@@ -198,6 +332,7 @@ export default function DashboardPanel() {
   };
 
   useEffect(() => { load(period); }, [period]);
+  useEffect(() => { loadCalendar(); }, []);
   useEffect(() => {
     const id = setInterval(() => load(period), 30000);
     return () => clearInterval(id);
@@ -529,6 +664,10 @@ export default function DashboardPanel() {
         </div>
 
       </div>
+
+      {/* ── Row 5: Calendar ────────────────────────────────────────── */}
+      <CalendarWidget events={calEvents} loading={calLoading} error={calError} />
+
     </div>
   );
 }

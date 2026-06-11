@@ -12,6 +12,7 @@ PATCH /dashboard/todos/{id}                    — update text or toggle done
 DELETE /dashboard/todos/{id}                   — delete todo
 """
 
+import asyncio
 from datetime import datetime, timedelta, timezone, date
 
 from fastapi import APIRouter, HTTPException
@@ -200,6 +201,20 @@ async def chart_calls(days: int = 30):
         {"date": str(r["day"]), "calls": r["calls"], "reached": r["reached"]}
         for r in rows
     ]
+
+
+# ── Calendar ─────────────────────────────────────────────────────────────────
+
+@router.get("/dashboard/calendar")
+async def get_calendar(days: int = 7):
+    from integrations import calendar_events_structured
+    try:
+        events = await asyncio.to_thread(calendar_events_structured, days)
+        return {"events": events}
+    except RuntimeError as e:
+        return {"events": [], "error": str(e)}
+    except Exception as e:
+        return {"events": [], "error": f"Calendar error: {e}"}
 
 
 # ── Todos ─────────────────────────────────────────────────────────────────────
