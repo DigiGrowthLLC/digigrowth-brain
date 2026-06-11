@@ -1,18 +1,4 @@
 {
-  "subject": "The follow-up sequence booking appointments while you sleep",
-  "html": "<div style=\"max-width:600px;margin:0 auto;font-family:sans-serif;line-height:1.6;color:#222;\"><p style=\"margin:0;\">Hey {{first_name}},</p><br><p style=\"margin:0;\">Most fitness studios lose <strong>60-70% of their leads</strong> not because the lead wasn't interested &mdash; but because <strong>no one followed up fast enough</strong>. The average studio takes over <strong>24 hours</strong> to respond to a new inquiry. By then, they've already booked somewhere else.</p><br><p style=\"margin:0;\">Here's the fix: a <strong>3-step AI follow-up sequence</strong> that runs the moment someone fills out your form or clicks your ad. Step one fires within <strong>90 seconds</strong> &mdash; a personalized text that references their goal (weight loss, strength, whatever they opted in for). Step two goes out <strong>3 hours later</strong> if no reply &mdash; a simple check-in with your booking link. Step three goes out the <strong>next morning</strong>. Studios running this sequence are booking <strong>2-3x more consultations</strong> from the same ad spend &mdash; not because they're spending more, but because they're <strong>not letting leads go cold</strong>.</p><br><p style=\"margin:0;\">Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call &mdash; <a href=\"https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn\">https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn</a></p><br><p style=\"margin:0;\">Dylan | Digigrowth</p><p style=\"font-size:12px;color:#999;margin-top:32px;\">You're receiving this because you opted in or connected with Digigrowth. <a href=\"#\" style=\"color:#999;\">Unsubscribe</a></p></div>",
-  "notion_page_id": "36bd25c0-53ea-81dd-b589-f9f38e007905",
-  "sent_to": [
-    "4BPb9MnZncr9Do6DQ8Kw",
-    "SvkJKA6qLMMvUq0ynj4R",
-    "6cAfBPvI9MVL3hqcLgKj",
-    "NjCOI59LLiWEMOyeJWDl",
-    "R4A6fd4jM7XiZEmUi67y",
-    "WSVj49gPsECTxRidljcy",
-    "haaC0oYLao8z680z8U5c",
-    "oflyIqXDFa1DrxcNvopf",
-    "lH8CDzf9avEtcwTHV4dZ",
-    "rzkijQh9p5K9hB31wE2T",
-    "215mTa5aQIMfgijvdzMJ"
-  ]
+  "subject": "The follow-up that books consultations while you sleep",
+  "html": "<div style=\"max-width:600px;margin:0 auto;font-family:sans-serif;line-height:1.6;color:#222;\">\n  <p>Hey {{first_name}},</p>\n  <p>Most fitness studios lose 60\u201380% of their leads not because the offer is wrong \u2014 but because the follow-up happens too late, too infrequently, or not at all. A prospect fills out your form on a Tuesday night and hears back Thursday afternoon. By then, they've already booked somewhere else.</p>\n  <p>Here's what the studios gaining ground right now are doing differently: they've built an AI-powered follow-up sequence that triggers the moment a lead comes in \u2014 day or night. The first message goes out in under 60 seconds. Over the next 5 days, a series of short, personalized texts and emails keeps {{business_name}} top of mind \u2014 asking about their goals, handling objections, and linking directly to a booking page. No manual work. No leads falling through the cracks. One studio I spoke with last month went from booking 4\u20135 consultations a week to 14\u201317 using this exact setup, without changing anything else in their marketing.</p>\n  <p>The whole thing runs on tools that cost less than $150/month combined and takes about a day to set up once you know what you're building.</p>\n  <p>Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call \u2014 <a href=\"https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn\" style=\"color:#1a73e8;\">https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn</a></p>\n  <p>Talk soon,<br>Dylan | Digigrowth</p>\n  <hr style=\"border:none;border-top:1px solid #eee;margin:24px 0;\">\n  <p style=\"font-size:12px;color:#999;\">You're receiving this because you opted in or connected with DigiGrowth. To unsubscribe, reply with \"unsubscribe\" and we'll remove you right away.</p>\n</div>"
 }

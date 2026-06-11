@@ -1,0 +1,6 @@
+[build]
+dockerfilePath = "dashboard/Dockerfile"
+
+[deploy]
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

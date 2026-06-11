@@ -11,7 +11,6 @@ Usage:
 """
 
 import argparse
-import io
 import json
 import os
 import sys
@@ -22,7 +21,8 @@ import anthropic
 import requests
 from dotenv import load_dotenv
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
+from github_sync import push_file
 
 load_dotenv()
 
@@ -106,6 +106,7 @@ def draft_newsletter(config):
 
     DRAFT_FILE.write_text(json.dumps({"subject": subject, "html": html_body}, indent=2))
     print(f"  ✅ Draft saved to {DRAFT_FILE}")
+    push_file(str(DRAFT_FILE))
     return subject, html_body
 
 
@@ -183,20 +184,15 @@ def _send_to_contact(location_id, contact_id, subject, html_body):
 
 # ── Main entry ────────────────────────────────────────────────────────────────
 
-def send_newsletter(config, subject=None, html_template=None, test_contact=None):
+def send_newsletter(config, subject=None, html_template=None):
     """Fetch newsletter leads and deliver personalized emails.
 
     If subject/html_template are not provided, loads from newsletter_draft.json.
-    If test_contact is set (name substring, case-insensitive), only sends to matching contacts.
-    Contacts already in the draft's sent_to list are skipped to prevent duplicate sends.
     """
     import ghl as ghl_mod
 
     if subject is None or html_template is None:
         subject, html_template = _load_draft()
-
-    draft_data = json.loads(DRAFT_FILE.read_text())
-    already_sent = set(draft_data.get("sent_to", []))
 
     print("📰 Newsletter: fetching recipients from GHL...")
     leads = ghl_mod.get_newsletter_leads(config)
@@ -205,38 +201,23 @@ def send_newsletter(config, subject=None, html_template=None, test_contact=None)
         print("  ⚠️  No contacts tagged 'newsletter' in GHL. Add the tag and retry.")
         return
 
-    if test_contact:
-        leads = [l for l in leads if test_contact.lower() in (l.get("owner") or "").lower()]
-        if not leads:
-            print(f"  ⚠️  No contacts matched '{test_contact}'. Check the name and retry.")
-            return
-        print(f"  🧪 TEST MODE — sending only to: {', '.join(l.get('owner','?') for l in leads)}")
-    else:
-        print(f"  ✅ {len(leads)} newsletter recipients")
-
+    print(f"  ✅ {len(leads)} newsletter recipients")
     print(f"📰 Newsletter: sending '{subject}' to {len(leads)} contacts...")
 
     location_id = config.get("ghl_location_id", "")
-    sent = failed = skipped = 0
+    sent = failed = 0
 
     for lead in leads:
         contact_id = lead.get("contact_id")
         if not contact_id:
             continue
-        if contact_id in already_sent:
-            print(f"  ⏭️  Skipping {lead.get('owner','?')} — already sent this draft")
-            skipped += 1
-            continue
         personalized_html = _personalize(html_template, lead)
         if _send_to_contact(location_id, contact_id, subject, personalized_html):
             sent += 1
-            already_sent.add(contact_id)
-            draft_data["sent_to"] = list(already_sent)
-            DRAFT_FILE.write_text(json.dumps(draft_data, indent=2))
         else:
             failed += 1
 
-    print(f"  ✅ Done — {sent} sent, {skipped} skipped (already received), {failed} failed")
+    print(f"  ✅ Done — {sent} sent, {failed} failed")
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -246,7 +227,6 @@ if __name__ == "__main__":
     group  = parser.add_mutually_exclusive_group()
     group.add_argument("--preview", action="store_true", help="Generate draft only, save to newsletter_draft.json")
     group.add_argument("--send",    action="store_true", help="Send from existing newsletter_draft.json")
-    parser.add_argument("--test-contact", metavar="NAME", help="Test mode: send only to contacts whose name contains NAME (case-insensitive)")
     args = parser.parse_args()
 
     with open(Path(__file__).parent / "config.json") as f:
@@ -255,7 +235,7 @@ if __name__ == "__main__":
     if args.preview:
         draft_newsletter(config)
     elif args.send:
-        send_newsletter(config, test_contact=args.test_contact)
+        send_newsletter(config)
     else:
         subject, html_body = draft_newsletter(config)
-        send_newsletter(config, subject=subject, html_template=html_body, test_contact=args.test_contact)
+        send_newsletter(config, subject=subject, html_template=html_body)

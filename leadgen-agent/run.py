@@ -1,5 +1,7 @@
 import json
 import os
+import pathlib
+import sys
 import time
 import re
 import requests
@@ -9,6 +11,9 @@ import anthropic
 import gspread
 from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "shared"))
+from github_sync import push_file
 
 load_dotenv()
 
@@ -156,6 +161,7 @@ def update_memory(new_information):
     with open(MEMORY_FILE, "a") as f:
         f.write(entry)
     print(f"✅ Memory updated: {new_information}")
+    push_file(__file__, "memory.txt")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -556,6 +562,8 @@ def run_pipeline():
 
     print(f"\n📊 Results: {len(qualified_leads)} qualified today")
     push_to_sheet(get_sheet(), qualified_leads)
+    push_file(__file__, "progress.json")
+    push_file(__file__, "scraped_ids.json")
 
 
 # ════════════════════════════════════════════════════════════════════════════

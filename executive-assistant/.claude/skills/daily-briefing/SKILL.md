@@ -1,9 +1,9 @@
 # Daily Briefing
 
-Generates Dylan's daily morning briefing and writes it to his Notion "Daily Brief" page.
+Generates Dylan's daily morning briefing, delivers it as a formatted chat message, and saves a dated archive file.
 
 **Run manually:** Ask Claude to run the daily briefing.
-**Scheduled:** Runs automatically at 6AM EST every day via remote agent.
+**Scheduled:** Runs automatically at 6AM EST every day in parallel with the sheets-digest skill — both fire as separate agent requests at the same time.
 
 ---
 
@@ -28,13 +28,13 @@ You are Dylan's executive assistant running the daily briefing for DigiGrowth, h
 - **Suggest, don't prescribe.** Time management output (Step 4) is suggestions only — not instructions, not recommendations on what he "should" do. Frame everything as an option, not a directive.
 - **Data and facts only.** Every insight, comparison, or observation must be grounded in actual data from the sources pulled (emails, calendar, outreach sheet). Do not add opinions, general best practices, or motivational framing. If the data doesn't support a statement, don't make it.
 
-Follow these steps in order. Do not skip any step. Do not ask for confirmation — execute silently and update Notion when done.
+Follow these steps in order. Do not skip any step. Do not ask for confirmation — execute silently.
 
 ### Step 0 — Read Yesterday's Brief & Save What's New
 
-Before generating today's brief, fetch the current content of the Notion page (`355d25c0-53ea-8094-af4b-e13e20d48d3b`).
+Before generating today's brief, check for yesterday's brief file. Use `list_files` on the `reports/` directory to find files matching `daily-briefing-*.md`, then `read_file` the most recent one.
 
-Read the full page and look for anything Dylan has added, corrected, or annotated since the last brief was written. His additions will appear as:
+Read the file and look for anything Dylan has added, corrected, or annotated since it was written. His additions will appear as:
 - Text that doesn't match the auto-generated section formats (emails, calendar events, outreach numbers, time suggestions)
 - Corrections to priorities, goals, or context
 - Notes about what actually happened (e.g., "ended up not doing calls", "closed a lead", "moved to next phase")
@@ -53,7 +53,7 @@ For each piece of new information found, save it to the appropriate place:
 
 **Rules for Step 0:**
 - Only save information that appears to be Dylan's own additions — not the AI-generated content
-- If the page is empty or unchanged from a standard brief format, skip saving and continue
+- If no prior file exists or the file is unchanged from a standard brief format, skip saving and continue
 - Do not ask for confirmation — read, identify, save, then continue to Step 1
 
 ### Step 1 — Fetch Emails (Last 24 Hours)
@@ -131,11 +131,16 @@ If today is **not Monday**, skip this step entirely and proceed to Step 5.
 
 If today **is Monday**: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the **Draft Mode** steps in the appt-setting agent's newsletter skill at `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md`. Execute all steps and capture the final summary output (subject, recipient count, topic, Notion link). This output is included in the Notion page below under `## Newsletter Preview`.
 
-### Step 5 — Write to Notion
+### Step 5 — Save Archive File and Deliver as Chat
 
-Update the Notion page with ID `355d25c0-53ea-8094-af4b-e13e20d48d3b` (titled "Daily Brief").
+Compose the final briefing using the format below, then:
 
-Replace the entire page content with the following — delete everything previously there and write this fresh:
+1. **Write the file**: call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (use today's date)
+2. **Your chat response IS the briefing** — paste the full formatted briefing as your reply. It is automatically stored in the OS chat and visible in the agent window.
+
+Do not write to Notion.
+
+**Briefing format:**
 
 ---
 
@@ -179,7 +184,7 @@ Committed: Xh Xm | Free: Xh Xm
 
 ---
 
-*Updated by executive assistant at 6AM EST.*
+*Daily briefing — [Day, Month Date]*
 
 ---
 
@@ -188,5 +193,5 @@ Committed: Xh Xm | Free: Xh Xm
 - **Gmail returns no results:** Write "Inbox clear" in that section and continue.
 - **Calendar is unavailable:** Write "Calendar unavailable — check manually" and continue.
 - **No outreach file in Drive:** Use the fallback message from Step 3.
-- **Notion update fails:** Retry once. If it fails again, stop — do not loop.
+- **File write fails:** Retry once. If it fails again, deliver the briefing as chat only — do not loop.
 - **Weekend:** Run the full briefing. Dylan works weekends.
