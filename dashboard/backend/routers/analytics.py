@@ -219,7 +219,7 @@ async def pipeline(days: int = 0):
 
     return {
         "funnel": {
-            "total_leads": total_leads or 0,
+            "total_leads": ((sales.get("sheet_calls_made") or 0) + (total_leads or 0)) if all_time else (total_leads or 0),
             "dialed":   _sheet_stat(sales, "sheet_calls_made",        days),
             "answered": _sheet_stat(sales, "sheet_calls_answered",    days),
             "pitched":  _sheet_stat(sales, "sheet_contacts_reached",  days),
