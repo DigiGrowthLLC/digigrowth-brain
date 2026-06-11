@@ -549,6 +549,46 @@ _MODE_INSTRUCTIONS = {
     ),
 }
 
+def _resolve_at_includes(content: str, root: pathlib.Path, depth: int = 0) -> str:
+    """Replace @path/to/file.md references with the file's content (one level deep)."""
+    if depth > 2:
+        return content
+    lines = []
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("@") and not stripped.startswith("@@"):
+            ref_path = stripped[1:].strip()
+            target = (root / ref_path).resolve()
+            try:
+                target.relative_to(root)
+                if target.exists() and target.is_file():
+                    included = target.read_text(errors="replace")[:3000]
+                    included = _resolve_at_includes(included, root, depth + 1)
+                    lines.append(f"<!-- {ref_path} -->\n{included}")
+                    continue
+            except (ValueError, Exception):
+                pass
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _load_skills(root: pathlib.Path) -> str:
+    """Load all SKILL.md files from .claude/skills/ and return as a combined string."""
+    skills_dir = root / ".claude" / "skills"
+    if not skills_dir.exists():
+        return ""
+    parts = []
+    for skill_dir in sorted(skills_dir.iterdir()):
+        skill_file = skill_dir / "SKILL.md"
+        if skill_file.exists():
+            try:
+                content = skill_file.read_text(errors="replace")[:8000]
+                parts.append(f"### Skill: {skill_dir.name}\n\n{content}")
+            except Exception:
+                pass
+    return "\n\n---\n\n".join(parts)
+
+
 def _build_system_prompt(agent: dict, mode: str = "auto") -> str:
     from datetime import datetime as _dt
     today = _dt.now().strftime("%Y-%m-%d")
@@ -580,10 +620,15 @@ def _build_system_prompt(agent: dict, mode: str = "auto") -> str:
         p = root / candidate
         if p.exists():
             try:
-                content = p.read_text(errors="replace")[:4000]
+                raw = p.read_text(errors="replace")[:6000]
+                content = _resolve_at_includes(raw, root)
                 parts.append(f"\n---\n## {candidate}\n\n{content}")
             except Exception:
                 pass
+
+    skills_content = _load_skills(root)
+    if skills_content:
+        parts.append(f"\n---\n## Available Skills\n\nThese skills are pre-loaded. When asked to run one, execute its steps directly without reading the file first.\n\n{skills_content}")
 
     return "\n".join(parts)
 
@@ -809,7 +854,7 @@ async def chat(agent_id: str, request: Request):
         try:
             client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
             messages = list(history)
-            MAX_ITERATIONS = 10
+            MAX_ITERATIONS = 25
 
             for _ in range(MAX_ITERATIONS):
                 accumulated_text = ""
