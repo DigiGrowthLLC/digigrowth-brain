@@ -10,12 +10,20 @@
 1. Call `drive_list_recent` with `days=7, max_results=30` — get all files active in the last 7 days
 2. Filter the result to spreadsheets only (`application/vnd.google-apps.spreadsheet`)
 3. Call `drive_read_file` on **every** spreadsheet in the list — do not skip any
-4. For each sheet, scan all columns and rows for the metrics below
-5. Compile values across all sheets — if the same metric appears in multiple sheets, use the most complete/recent number
-6. Call `update_os_stats` with all found values — **always call it, even if nothing changed**
+4. For each sheet that has a date column, calculate three separate totals per metric:
+   - **7D**: sum rows where the date is within the last 7 days
+   - **30D**: sum rows where the date is within the last 30 days
+   - **All-time**: sum all rows regardless of date
+5. Compile across all sheets (use the largest value if multiple sheets track the same metric)
+6. Call `update_os_stats` with all three period buckets for each metric — **always call it, even if nothing changed**
 7. End with the completion message
 
 **Only use `drive_list_recent`, `drive_read_file`, and `update_os_stats`. No other tools.**
+
+**Period calculation rules:**
+- Today's date is always available from the system prompt. Use it to determine what's within 7 and 30 days.
+- If a sheet has no date column, all its data goes into all-time only (set 7d and 30d to 0 for that sheet's contribution).
+- Pass the period fields separately: `calls_made` (all-time), `calls_made_30d`, `calls_made_7d` — all as distinct fields.
 
 ---
 

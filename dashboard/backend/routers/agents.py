@@ -322,13 +322,23 @@ TOOLS = [
                 "avg_deal_size":      {"type": "number",  "description": "Average deal size in dollars (auto-calculated if omitted)"},
                 "discovery_calls":    {"type": "integer", "description": "Total discovery / intro calls completed"},
                 "strategy_sessions":  {"type": "integer", "description": "Total strategy sessions / deep-dive calls completed"},
-                # Outreach activity (use the most recent period total you can find — weekly or all available)
-                "calls_made":         {"type": "integer", "description": "Total calls dialed / dials made"},
-                "calls_answered":     {"type": "integer", "description": "Total calls answered / pickups (someone picked up the phone)"},
-                "contacts_reached":   {"type": "integer", "description": "Total contacts actually spoken to and pitched (stayed on the line)"},
-                "appointments_booked":{"type": "integer", "description": "Total appointments / intro sessions booked"},
-                "sms_sent":           {"type": "integer", "description": "Total SMS messages sent"},
-                "source_note":        {"type": "string",  "description": "Brief note on which sheet(s) this data came from and what period it covers"},
+                # Outreach — all-time totals
+                "calls_made":            {"type": "integer", "description": "All-time total calls dialed"},
+                "calls_answered":        {"type": "integer", "description": "All-time total calls answered (pickups)"},
+                "contacts_reached":      {"type": "integer", "description": "All-time total contacts spoken to / pitched"},
+                "appointments_booked":   {"type": "integer", "description": "All-time total appointments booked"},
+                "sms_sent":              {"type": "integer", "description": "All-time total SMS sent"},
+                # Outreach — last 30 days (sum rows dated within last 30 days)
+                "calls_made_30d":        {"type": "integer", "description": "Calls dialed in last 30 days"},
+                "calls_answered_30d":    {"type": "integer", "description": "Calls answered in last 30 days"},
+                "contacts_reached_30d":  {"type": "integer", "description": "Contacts reached in last 30 days"},
+                "appointments_booked_30d":{"type": "integer", "description": "Appointments booked in last 30 days"},
+                # Outreach — last 7 days (sum rows dated within last 7 days)
+                "calls_made_7d":         {"type": "integer", "description": "Calls dialed in last 7 days"},
+                "calls_answered_7d":     {"type": "integer", "description": "Calls answered in last 7 days"},
+                "contacts_reached_7d":   {"type": "integer", "description": "Contacts reached in last 7 days"},
+                "appointments_booked_7d":{"type": "integer", "description": "Appointments booked in last 7 days"},
+                "source_note":           {"type": "string",  "description": "Brief note on which sheet(s) this data came from"},
             },
         },
     },
@@ -486,17 +496,28 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
                 current = {}
 
             FIELD_MAP = {
-                "shows":               "shows",
-                "closes":              "closes",
-                "total_revenue":       "total_revenue",
-                "avg_deal_size":       "avg_deal_size",
-                "discovery_calls":     "discovery_calls",
-                "strategy_sessions":   "strategy_sessions",
-                "calls_made":          "sheet_calls_made",
-                "calls_answered":      "sheet_calls_answered",
-                "contacts_reached":    "sheet_contacts_reached",
-                "appointments_booked": "sheet_appointments_booked",
-                "sms_sent":            "sheet_sms_sent",
+                "shows":                  "shows",
+                "closes":                 "closes",
+                "total_revenue":          "total_revenue",
+                "avg_deal_size":          "avg_deal_size",
+                "discovery_calls":        "discovery_calls",
+                "strategy_sessions":      "strategy_sessions",
+                # all-time
+                "calls_made":             "sheet_calls_made",
+                "calls_answered":         "sheet_calls_answered",
+                "contacts_reached":       "sheet_contacts_reached",
+                "appointments_booked":    "sheet_appointments_booked",
+                "sms_sent":               "sheet_sms_sent",
+                # 30-day
+                "calls_made_30d":         "sheet_calls_made_30d",
+                "calls_answered_30d":     "sheet_calls_answered_30d",
+                "contacts_reached_30d":   "sheet_contacts_reached_30d",
+                "appointments_booked_30d":"sheet_appointments_booked_30d",
+                # 7-day
+                "calls_made_7d":          "sheet_calls_made_7d",
+                "calls_answered_7d":      "sheet_calls_answered_7d",
+                "contacts_reached_7d":    "sheet_contacts_reached_7d",
+                "appointments_booked_7d": "sheet_appointments_booked_7d",
             }
             updated = []
             for key, stat_key in FIELD_MAP.items():

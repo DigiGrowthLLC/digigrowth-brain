@@ -30,6 +30,18 @@ def _since(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
 
 
+def _sheet_stat(stats: dict, base_key: str, days: int) -> int:
+    """Return the right period bucket from sales_stats.json.
+    days=0 → all-time (base_key)
+    days=7 → base_key_7d, falling back to 0
+    days=30 → base_key_30d, falling back to 0
+    """
+    if days == 0:
+        return stats.get(base_key, 0) or 0
+    suffix = f"_{days}d"
+    return stats.get(f"{base_key}{suffix}", 0) or 0
+
+
 def _pct(num, denom) -> float:
     if not denom:
         return 0.0
@@ -208,12 +220,12 @@ async def pipeline(days: int = 0):
     return {
         "funnel": {
             "total_leads": total_leads or 0,
-            "dialed":      sales.get("sheet_calls_made", 0)        if all_time else 0,
-            "answered":    sales.get("sheet_calls_answered", 0)    if all_time else 0,
-            "pitched":     sales.get("sheet_contacts_reached", 0)  if all_time else 0,
-            "booked":      sales.get("sheet_appointments_booked", 0) if all_time else 0,
-            "shows":       sales.get("shows", 0)                   if all_time else 0,
-            "closes":      sales.get("closes", 0)                  if all_time else 0,
+            "dialed":   _sheet_stat(sales, "sheet_calls_made",        days),
+            "answered": _sheet_stat(sales, "sheet_calls_answered",    days),
+            "pitched":  _sheet_stat(sales, "sheet_contacts_reached",  days),
+            "booked":   _sheet_stat(sales, "sheet_appointments_booked", days),
+            "shows":    sales.get("shows", 0) if all_time else 0,
+            "closes":   sales.get("closes", 0) if all_time else 0,
         },
         "by_grade":       by_grade,
         "top_states":     [{"state": r["state"], "cnt": r["cnt"]} for r in state_rows],
@@ -284,9 +296,9 @@ async def calls_detail(days: int = 0):
         )
 
     return {
-        "total_calls":    stats.get("sheet_calls_made", 0)          if all_time else 0,
-        "pickups":        stats.get("sheet_calls_answered", 0)      if all_time else 0,
-        "booked":         stats.get("sheet_appointments_booked", 0) if all_time else 0,
+        "total_calls": _sheet_stat(stats, "sheet_calls_made",         days),
+        "pickups":     _sheet_stat(stats, "sheet_calls_answered",     days),
+        "booked":      _sheet_stat(stats, "sheet_appointments_booked",days),
         "by_disposition": [{"disposition": r["disposition"], "cnt": r["cnt"]} for r in dispo_rows],
         "daily":          [{"date": str(r["day"]), "calls": r["calls"], "pickups": r["pickups"]} for r in daily_rows],
     }
