@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Color } from "@tiptap/extension-color";
@@ -80,8 +80,50 @@ const COLORS = [
   { hex: "#a78bfa", label: "Purple" },
 ];
 
+// ── Link modal ────────────────────────────────────────────────────────────────
+function LinkModal({ onApply, onCancel }) {
+  const [url, setUrl] = useState("");
+  const inputRef = useRef(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.55)",
+      }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div className="glass-card" style={{ width: 400, padding: "24px 28px" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff", marginBottom: 16 }}>
+          Add Link
+        </div>
+        <input
+          ref={inputRef}
+          value={url}
+          onChange={e => setUrl(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter") { e.preventDefault(); onApply(url); }
+            if (e.key === "Escape") onCancel();
+          }}
+          placeholder="https://example.com"
+          className="dg-input"
+          style={{ width: "100%", fontSize: 13, marginBottom: 16, boxSizing: "border-box" }}
+        />
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button className="btn btn-secondary" onClick={onCancel}>CANCEL</button>
+          <button className="btn btn-primary" onClick={() => onApply(url)}>APPLY LINK</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Format toolbar ───────────────────────────────────────────────────────────
 function FormatBar({ editor }) {
+  const [showLink, setShowLink] = useState(false);
+  const savedRange = useRef(null);
+
   if (!editor) return null;
 
   const btn = (label, onClick, isActive = false, extra = {}) => (
@@ -104,67 +146,97 @@ function FormatBar({ editor }) {
     <div key={k} style={{ width: 1, height: 14, background: "rgba(58,123,213,0.2)", margin: "0 2px", flexShrink: 0 }} />
   );
 
-  const handleLinkBtn = () => {
+  // Link button uses its own onMouseDown so we get `e` for preventDefault
+  const onLinkMouseDown = (e) => {
+    e.preventDefault(); // keep editor focused + selection intact
     if (editor.isActive("link")) {
       editor.chain().focus().unsetLink().run();
       return;
     }
-    // window.prompt is blocking — editor selection is fully preserved while dialog is open
-    const url = window.prompt("Link URL:");
-    if (url && url.trim()) {
-      editor.chain().focus().setLink({ href: url.trim(), target: "_blank" }).run();
-    }
+    const { from, to } = editor.state.selection;
+    if (from === to) return; // nothing selected
+    savedRange.current = { from, to };
+    setShowLink(true);
+  };
+
+  const applyLink = (url) => {
+    setShowLink(false);
+    const href = (url || "").trim();
+    const range = savedRange.current;
+    savedRange.current = null;
+    if (!href || !range) return;
+    editor.chain().focus().setTextSelection({ from: range.from, to: range.to }).setLink({ href, target: "_blank" }).run();
+  };
+
+  const cancelLink = () => {
+    setShowLink(false);
+    savedRange.current = null;
+    editor.commands.focus();
   };
 
   const inTable = editor.isActive("table");
+  const linkActive = editor.isActive("link");
 
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 4,
-      padding: "8px 36px", flexShrink: 0, flexWrap: "wrap",
-      borderBottom: "1px solid rgba(58,123,213,0.1)",
-      background: "rgba(0,0,0,0.15)",
-    }}>
-      {btn("H1", () => editor.chain().focus().toggleHeading({ level: 1 }).run(), editor.isActive("heading", { level: 1 }))}
-      {btn("H2", () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 }))}
-      {btn("H3", () => editor.chain().focus().toggleHeading({ level: 3 }).run(), editor.isActive("heading", { level: 3 }))}
-      {sep("s1")}
-      {btn("B",  () => editor.chain().focus().toggleBold().run(),   editor.isActive("bold"),   { fontWeight: 900 })}
-      {btn("I",  () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"), { fontStyle: "italic" })}
-      {btn("S",  () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"), { textDecoration: "line-through" })}
-      {sep("s2")}
-      {btn("• List",  () => editor.chain().focus().toggleBulletList().run(),  editor.isActive("bulletList"))}
-      {btn("1. List", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"))}
-      {btn("——",       () => editor.chain().focus().setHorizontalRule().run())}
-      {sep("s3")}
+    <>
+      {showLink && <LinkModal onApply={applyLink} onCancel={cancelLink} />}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 4,
+        padding: "8px 36px", flexShrink: 0, flexWrap: "wrap",
+        borderBottom: "1px solid rgba(58,123,213,0.1)",
+        background: "rgba(0,0,0,0.15)",
+      }}>
+        {btn("H1", () => editor.chain().focus().toggleHeading({ level: 1 }).run(), editor.isActive("heading", { level: 1 }))}
+        {btn("H2", () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 }))}
+        {btn("H3", () => editor.chain().focus().toggleHeading({ level: 3 }).run(), editor.isActive("heading", { level: 3 }))}
+        {sep("s1")}
+        {btn("B",  () => editor.chain().focus().toggleBold().run(),   editor.isActive("bold"),   { fontWeight: 900 })}
+        {btn("I",  () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"), { fontStyle: "italic" })}
+        {btn("S",  () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"), { textDecoration: "line-through" })}
+        {sep("s2")}
+        {btn("• List",  () => editor.chain().focus().toggleBulletList().run(),  editor.isActive("bulletList"))}
+        {btn("1. List", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"))}
+        {btn("——",      () => editor.chain().focus().setHorizontalRule().run())}
+        {sep("s3")}
 
-      {/* Link */}
-      {btn("🔗", handleLinkBtn, editor.isActive("link"))}
-
-      {sep("s4")}
-
-      {/* Table */}
-      {btn("⊞ Table", () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}
-      {inTable && btn("+Row", () => editor.chain().focus().addRowAfter().run())}
-      {inTable && btn("+Col", () => editor.chain().focus().addColumnAfter().run())}
-      {inTable && btn("-Row", () => editor.chain().focus().deleteRow().run())}
-      {inTable && btn("-Col", () => editor.chain().focus().deleteColumn().run())}
-      {inTable && btn("Del Table", () => editor.chain().focus().deleteTable().run(), false, { color: "#dc3c3c" })}
-
-      {sep("s5")}
-      {COLORS.map(({ hex, label }) => (
+        {/* Link — direct button to get event e */}
         <button
-          key={hex}
-          title={label}
-          onMouseDown={e => { e.preventDefault(); editor.chain().focus().setColor(hex).run(); }}
+          onMouseDown={onLinkMouseDown}
+          title={linkActive ? "Remove link" : "Add link"}
           style={{
-            width: 14, height: 14, borderRadius: "50%",
-            background: hex, border: "1.5px solid rgba(255,255,255,0.15)",
-            cursor: "pointer", padding: 0, flexShrink: 0,
+            background: linkActive ? "rgba(58,123,213,0.3)" : "rgba(255,255,255,0.04)",
+            border: `1px solid ${linkActive ? "rgba(58,123,213,0.5)" : "rgba(58,123,213,0.15)"}`,
+            borderRadius: 5, color: linkActive ? "#6ab0ff" : "#7a9cc0",
+            fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
+            padding: "3px 8px", cursor: "pointer", lineHeight: 1.4,
           }}
-        />
-      ))}
-    </div>
+        >🔗</button>
+
+        {sep("s4")}
+
+        {/* Table */}
+        {btn("⊞ Table", () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())}
+        {inTable && btn("+Row",      () => editor.chain().focus().addRowAfter().run())}
+        {inTable && btn("+Col",      () => editor.chain().focus().addColumnAfter().run())}
+        {inTable && btn("-Row",      () => editor.chain().focus().deleteRow().run())}
+        {inTable && btn("-Col",      () => editor.chain().focus().deleteColumn().run())}
+        {inTable && btn("Del Table", () => editor.chain().focus().deleteTable().run(), false, { color: "#dc3c3c" })}
+
+        {sep("s5")}
+        {COLORS.map(({ hex, label }) => (
+          <button
+            key={hex}
+            title={label}
+            onMouseDown={e => { e.preventDefault(); editor.chain().focus().setColor(hex).run(); }}
+            style={{
+              width: 14, height: 14, borderRadius: "50%",
+              background: hex, border: "1.5px solid rgba(255,255,255,0.15)",
+              cursor: "pointer", padding: 0, flexShrink: 0,
+            }}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 
