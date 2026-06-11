@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
+  LineChart, Line,
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -366,27 +367,26 @@ export default function DashboardPanel() {
           </div>
           {(() => {
             const funnelData = [
-              { name: "Dialed",   value: calling.calls_made     ?? 0, fill: "#3a7bd5" },
-              { name: "Answered", value: calling.calls_answered ?? 0, fill: "#5a9bf0" },
-              { name: "Reached",  value: calling.dms_reached    ?? 0, fill: "#14c882" },
-              { name: "Booked",   value: calling.booked         ?? 0, fill: "#f0a028" },
+              { stage: "Dialed",   value: calling.calls_made     ?? 0 },
+              { stage: "Answered", value: calling.calls_answered ?? 0 },
+              { stage: "Reached",  value: calling.dms_reached    ?? 0 },
+              { stage: "Booked",   value: calling.booked         ?? 0 },
             ];
             const hasData = funnelData.some(d => d.value > 0);
             return hasData ? (
               <ResponsiveContainer width="100%" height={180}>
-                <BarChart layout="vertical" data={funnelData}
-                  margin={{ top: 0, right: 20, bottom: 0, left: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" horizontal={false} />
-                  <XAxis type="number" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
+                <LineChart data={funnelData} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
+                  <XAxis dataKey="stage" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
                     axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name"
-                    tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#8aaad0", letterSpacing: "0.06em" }}
-                    axisLine={false} tickLine={false} width={58} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(58,123,213,0.04)" }} />
-                  <Bar dataKey="value" name="Count" radius={[0, 4, 4, 0]} maxBarSize={28}>
-                    {funnelData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                  </Bar>
-                </BarChart>
+                  <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
+                    axisLine={false} tickLine={false} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Line type="monotone" dataKey="value" name="Count"
+                    stroke="#3a7bd5" strokeWidth={2}
+                    dot={{ fill: "#3a7bd5", r: 4, strokeWidth: 0 }}
+                    activeDot={{ fill: "#6ab0ff", r: 5, strokeWidth: 0 }} />
+                </LineChart>
               </ResponsiveContainer>
             ) : (
               <div style={{
@@ -406,7 +406,7 @@ export default function DashboardPanel() {
           </div>
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5",
                         letterSpacing: "0.1em", marginBottom: 18 }}>
-            {period === "day" ? "TODAY" : period === "week" ? "THIS WEEK" : "THIS MONTH"}
+            {PERIOD_LABEL[period]}
           </div>
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={barData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
