@@ -208,7 +208,7 @@ async def pipeline():
         "funnel": {
             "total_leads": total_leads or 0,
             "dialed":      sales.get("sheet_calls_made", 0),
-            "answered":    0,
+            "answered":    sales.get("sheet_calls_answered", 0),
             "pitched":     sales.get("sheet_contacts_reached", 0),
             "booked":      sales.get("sheet_appointments_booked", 0),
             "shows":       sales.get("shows", 0),
