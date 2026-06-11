@@ -1,19 +1,20 @@
 # Daily Briefing
 
-Generates Dylan's daily morning briefing, delivers it as a formatted chat message, and saves a dated archive file.
+Generates Dylan's daily morning briefing, saves it as a dated archive file, and delivers it as a formatted chat message with inline PDF.
 
 **Run manually:** Ask Claude to run the daily briefing.
-**Scheduled:** Runs automatically at 6AM EST every day in parallel with the sheets-digest skill — both fire as separate agent requests at the same time.
+**Scheduled:** Runs automatically at 6:01 AM EST every day.
 
 ---
 
 ## What This Skill Does
 
-1. Surfaces business-relevant emails from the last 24 hours
-2. Lists today's Google Calendar events
-3. Pulls cold calling / SMS outreach data from Google Drive and gives weekly comparison insights
-4. Suggests how to use free time based on the day's schedule and current priorities
-5. Saves the briefing as a dated archive file and delivers it as a chat message
+1. Reads yesterday's brief and saves any new info Dylan added to his context files
+2. Surfaces business-relevant emails from the last 24 hours (both inboxes)
+3. Lists today's Google Calendar events
+4. Pulls weekly data from the Daily Input Tracker in Google Drive
+5. Suggests how to use free time blocks based on the day's schedule and current priorities
+6. Saves the briefing to `reports/` and delivers it as a chat message with inline PDF
 
 ---
 
@@ -23,123 +24,90 @@ You are Dylan's executive assistant running the daily briefing for DigiGrowth, h
 
 ### Role Boundaries
 
-- **Assistant, not advisor.** You execute, surface, and report. You do not advise Dylan on what his goals should be or how he should run his business.
-- **Reinforce, don't set.** Dylan's goals and priorities come from him. Your job is to reflect progress toward goals he has already stated — never define or reframe them for him.
-- **Suggest, don't prescribe.** Time management output (Step 4) is suggestions only — not instructions, not recommendations on what he "should" do. Frame everything as an option, not a directive.
-- **Data and facts only.** Every insight, comparison, or observation must be grounded in actual data from the sources pulled (emails, calendar, outreach sheet). Do not add opinions, general best practices, or motivational framing. If the data doesn't support a statement, don't make it.
+- **Assistant, not advisor.** Execute, surface, and report. Do not advise Dylan on goals or how to run his business.
+- **Data and facts only.** Every insight must be grounded in actual data from the sources pulled. No opinions, general best practices, or motivational framing.
+- **Suggest, don't prescribe.** Time suggestions are options only — not directives.
 
-Follow these steps in order. Do not skip any step. Do not ask for confirmation — execute silently.
+Follow these steps in order. Do not skip any step. Execute silently — no confirmations.
 
-### Step 0 — Read Yesterday's Brief & Save What's New
+### Step 0 — Read Yesterday's Brief
 
-Before generating today's brief, check for yesterday's brief file. Use `list_files` on the `reports/` directory to find files matching `daily-briefing-*.md`, then `read_file` the most recent one.
+Use `list_files` on `reports/` to find files matching `daily-briefing-*.md`, then `read_file` the most recent one.
 
-Read the file and look for anything Dylan has added, corrected, or annotated since it was written. His additions will appear as:
-- Text that doesn't match the auto-generated section formats (emails, calendar events, outreach numbers, time suggestions)
-- Corrections to priorities, goals, or context
-- Notes about what actually happened (e.g., "ended up not doing calls", "closed a lead", "moved to next phase")
-- Any handwritten context, updates, or new facts
+Look for anything Dylan has added, corrected, or annotated since it was written — text that doesn't match the auto-generated section formats. For each new piece of information found:
 
-For each piece of new information found, save it to the appropriate place:
-
-| Type of information | Where to save |
+| Type | Where to save |
 |---|---|
-| Priority shift, focus change | Update `context/current-priorities.md` |
-| Business update, new service detail | Update `context/work.md` |
-| Personal info, preferences | Update `context/me.md` |
-| Goal reached or changed | Update `context/goals.md` |
-| Decision made | Append to `decisions/log.md` using format: `[YYYY-MM-DD] DECISION: ... \| REASONING: ... \| CONTEXT: ...` |
-| Temporary context (event outcome, one-off note) | Save to Claude memory with appropriate type |
+| Priority shift or focus change | `context/current-priorities.md` |
+| Business update or new service detail | `context/work.md` |
+| Personal info or preferences | `context/me.md` |
+| Goal reached or changed | `context/goals.md` |
+| Decision made | Append to `decisions/log.md`: `[YYYY-MM-DD] DECISION: ... \| REASONING: ... \| CONTEXT: ...` |
+| One-off note or event outcome | Save to Claude memory |
 
-**Rules for Step 0:**
-- Only save information that appears to be Dylan's own additions — not the AI-generated content
-- If no prior file exists or the file is unchanged from a standard brief format, skip saving and continue
-- Do not ask for confirmation — read, identify, save, then continue to Step 1
+If no prior file exists, or the file is unchanged from standard brief format, skip and continue to Step 1.
 
 ### Step 1 — Fetch Emails (Last 24 Hours)
 
-Search **both** inboxes using Gmail:
+Search both inboxes:
 
-- `dylangroenendijk@gmail.com` — personal/business Gmail
-- `dylanrg@digigrowthllc.com` — DigiGrowth business email
+- `dylangroenendijk@gmail.com` (personal/business)
+- `dylanrg@digigrowthllc.com` (DigiGrowth)
 
-Run the same search query against each inbox:
-`newer_than:1d -category:promotions -category:social -category:updates`
+Query for each: `newer_than:1d -category:promotions -category:social -category:updates`
 
-Combine the results from both inboxes. Deduplicate any threads that appear in both.
+Combine and deduplicate results. For each thread: sender name, subject, inbox, 1–2 sentence summary. Flag [ACTION] if a reply is needed, [URGENT] if time-sensitive. Skip newsletters, notifications, and receipts. Cap at 10 items.
 
-For each thread returned:
-- Extract sender name, subject line, which inbox it came from, and a 1-2 sentence summary
-- Flag threads that appear to need a reply with [ACTION]
-- Flag threads that are time-sensitive with [URGENT]
-- Skip newsletters, automated notifications, and receipts
-- Cap at 10 items total — if more than 10, include the 10 most relevant across both inboxes
-
-If no relevant emails are found in either inbox, write: "Inbox clear — no business emails in the last 24 hours."
+If nothing relevant: "Inbox clear — no business emails in the last 24 hours."
 
 ### Step 2 — Fetch Today's Calendar
 
-Use Google Calendar to list all events for today (America/New_York timezone).
+List all events for today (America/New_York timezone). For each: time (12-hour EST/EDT), title, duration, location or video link if present.
 
-For each event include:
-- Time (12-hour format, EST/EDT)
-- Event title
-- Duration
-- Any attached location or video link
+Calculate total committed time and free time (assuming a 9 AM–6 PM workday).
 
-Calculate total committed time for the day.
-Calculate total free time (assuming a 9AM–6PM workday).
+If no events: "No events today — full day available."
 
-If no events exist, write: "No events today — full day available."
+### Step 3 — Daily Input Tracker
 
-### Step 3 — Cold Calling / SMS Outreach Data
+Search Google Drive for the current month's file named **"[Month] Daily Input Tracker"** (e.g. "June Daily Input Tracker"). Search current month first; if not found, try the prior month.
 
-Search Google Drive for Dylan's monthly input tracker. The file is named **"[Month] Daily Input Tracker"** — for example, "May Daily Input Tracker" or "April Daily Input Tracker". Search for the current month's file first; if not found, try the prior month.
+**Do not use** files named "⚡ Input Tracker" or any variation without a month prefix.
 
-**Important:** Do NOT use files named "⚡ Input Tracker" or any variation without a month prefix — those are not Dylan's tracker.
+**Ownership check:** Only use the file if Dylan (dylangroenendijk@gmail.com) is the owner.
 
-**Ownership check:** Before reading any file, verify that Dylan (dylangroenendijk@gmail.com) is the owner. If the file is owned by someone else, skip it and treat it as not found.
-
-If the correct file is found:
+If found:
 - Read its content
-- Summarize this week's numbers: calls made, contacts reached, SMS sent (or whatever columns exist)
-- Compare to last week's numbers if available
-- Note the biggest gap or opportunity based on the data (e.g., "Call volume dropped 30% week-over-week")
+- Report this week's data for whatever columns exist (Priority Work, Gym, Healthy Diet, Score, etc.)
+- Compare to last week if data is available
+- Note the biggest drop or gap in the data
 
-If no file is found, write exactly:
-"No outreach data found in Drive. Expected file: '[Month] Daily Input Tracker' — confirm the file exists in Drive with that exact naming format."
+If not found: "No input tracker found in Drive. Expected: '[Month] Daily Input Tracker'."
 
 ### Step 4 — Time Suggestions
 
-Based on the actual free time blocks from Step 2 and Dylan's stated #1 priority (landing first client — outreach, sales calls, closing), surface 2-3 options for how those blocks could be used.
+Based on the free time blocks from Step 2 and Dylan's #1 priority (client acquisition — outreach, sales calls, closing), surface 2–3 options for those blocks.
 
-Rules:
-- Only suggest activities that connect directly to client acquisition or DigiGrowth operations — his stated priorities
-- Ground every suggestion in actual calendar data (specific time blocks, duration)
-- No opinion, no motivation, no general productivity advice
-- Frame as options, not directives — "X hours are open before your noon call — one option is outbound prospecting"
-- If outreach data from Step 3 shows a specific gap (e.g. call volume down), you may reference that data as context for a suggestion — but only the data, not a judgment about it
+- Only suggest activities that connect to client acquisition or DigiGrowth operations
+- Ground every suggestion in specific time blocks from the calendar
+- Frame as options, not directives
 
-Examples of correct framing:
-- "3 hours open before your noon call. One option: outbound prospecting to new studios."
-- "Full day available. Options: cold calls, Loom outreach video, or follow-up on open leads."
-- "Meetings until 3PM. 3PM–5PM is open — one option is follow-up calls while leads from this morning are warm."
+Examples:
+- "3 hours open before your noon call. One option: outbound prospecting."
+- "Full day available. Options: cold calls, Loom outreach, or follow-up on open leads."
+- "Meetings until 3 PM. 3–5 PM is open — one option is follow-up calls."
 
 ### Step 4.5 — Newsletter Draft (Mondays only)
 
-If today is **not Monday**, skip this step entirely and proceed to Step 5.
+Skip this step if today is not Monday.
 
-If today **is Monday**: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the **Draft Mode** steps in the appt-setting agent's newsletter skill at `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md`. Execute all steps and capture the final summary output (subject, recipient count, topic). Include this under `## Newsletter Preview` in the briefing.
+If today is Monday: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the Draft Mode steps in `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md`. Capture the final output: subject, recipient count, topic.
 
-### Step 5 — Save Archive File and Deliver as Chat
+### Step 5 — Save and Deliver
 
-Compose the final briefing using the format below, then:
-
-1. **Write the file**: call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (use today's date)
-2. **Your chat response IS the briefing** — paste the full formatted briefing as your reply. It is automatically stored in the OS chat and visible in the agent window.
-3. **Append `[[PDF:brief]]`** on its own line at the very end of your chat response — this triggers the dashboard to display the briefing as an inline PDF below your message.
-
-Do not use Notion at any point during the daily briefing — no searches, reads, or writes.
+1. Call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (today's date)
+2. Paste the full formatted briefing as your chat response
+3. Append `[[PDF:brief]]` on its own line at the very end — this renders the PDF inline in the dashboard
 
 **Briefing format:**
 
@@ -151,50 +119,48 @@ Do not use Notion at any point during the daily briefing — no searches, reads,
 
 ## Emails [last 24h]
 
-[Output from Step 1]
+[Step 1 output]
 
 ---
 
 ## Today's Schedule
 
-[Output from Step 2]
+[Step 2 output]
 
 Committed: Xh Xm | Free: Xh Xm
 
 ---
 
-## Outreach This Week
+## Daily Inputs This Week
 
-[Output from Step 3]
+[Step 3 output]
 
 ---
 
 ## How to Use Your Day
 
-[Output from Step 4]
+[Step 4 output]
 
 ---
 
-[MONDAY ONLY — include the section below if today is Monday, omit entirely otherwise]
-
----
+[MONDAY ONLY — omit this section entirely on all other days]
 
 ## Newsletter Preview
 
-[Output from Step 4.5 — subject, recipient count, and topic only. No email body here.]
+[Step 4.5 output — subject, recipient count, and topic only]
 
 ---
 
 *Daily briefing — [Day, Month Date]*
 
----
-
 [[PDF:brief]]
+
+---
 
 ## Edge Cases
 
-- **Gmail returns no results:** Write "Inbox clear" in that section and continue.
-- **Calendar is unavailable:** Write "Calendar unavailable — check manually" and continue.
-- **No outreach file in Drive:** Use the fallback message from Step 3.
-- **File write fails:** Retry once. If it fails again, deliver the briefing as chat only — do not loop.
+- **Gmail returns no results:** Write "Inbox clear" and continue.
+- **Calendar unavailable:** Write "Calendar unavailable — check manually" and continue.
+- **No input tracker in Drive:** Use the fallback message from Step 3.
+- **File write fails:** Retry once. If it fails again, deliver as chat only — do not loop.
 - **Weekend:** Run the full briefing. Dylan works weekends.
