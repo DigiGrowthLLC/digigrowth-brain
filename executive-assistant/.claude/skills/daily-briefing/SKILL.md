@@ -84,6 +84,34 @@ If found:
 
 If not found: "No outreach data found in Drive. Expected file: '[Month] Daily Input Tracker' — confirm the file exists in Drive with that exact naming format."
 
+### Step 3.5 — Yesterday's Performance Analysis
+
+Using the input tracker data already read in Step 3, find yesterday's row specifically.
+
+**Identify yesterday's date** (today minus 1 day). Locate that row in the tracker. If no row exists for yesterday (e.g. it was a weekend or the row is blank), write "No data logged for yesterday." and skip the rest of this step.
+
+**From yesterday's row, evaluate each metric column:**
+
+- Compare each value to the **weekly average** (use the other days in the current week, or the prior week if this is Monday)
+- Flag a metric as a **win** if it was at or above average
+- Flag a metric as **needs focus** if it was below average or zero when other days had activity
+
+**Output format — two bullet lists:**
+
+**What you did well yesterday:**
+- [Metric]: [value] — [brief factual note, e.g. "above this week's X avg"]
+- (list all metrics that were at or above average)
+
+**What to focus on improving today:**
+- [Metric]: [value yesterday] → target: [this week's average or best day value]
+- (list only metrics that were below average or missed)
+
+Rules:
+- Base every statement on actual numbers from the tracker — no motivational language
+- If all metrics were strong, write "All metrics on target yesterday." under the second list
+- If all metrics were zero or missing, write "No activity logged yesterday." for both lists
+- Cap each list at 4 items — prioritize the biggest gaps
+
 ### Step 4 — Time Suggestions
 
 Based on the free time blocks from Step 2 and Dylan's #1 priority (client acquisition — outreach, sales calls, closing), surface 2–3 options for those blocks.
@@ -136,6 +164,12 @@ Committed: Xh Xm | Free: Xh Xm
 
 ---
 
+## Yesterday's Performance
+
+[Step 3.5 output]
+
+---
+
 ## How to Use Your Day
 
 [Step 4 output]
@@ -158,6 +192,7 @@ Committed: Xh Xm | Free: Xh Xm
 
 - **Gmail returns no results:** Write "Inbox clear" and continue.
 - **Calendar unavailable:** Write "Calendar unavailable — check manually" and continue.
-- **No input tracker in Drive:** Use the fallback message from Step 3.
+- **No input tracker in Drive:** Use the fallback message from Step 3. Skip Step 3.5.
+- **Yesterday's row missing or blank:** Write "No data logged for yesterday." in the Yesterday's Performance section and continue.
 - **File write fails:** Retry once. If it fails again, deliver as chat only — do not loop.
 - **Weekend:** Run the full briefing. Dylan works weekends.
