@@ -70,23 +70,24 @@ If no events: "No events today — full day available."
 
 ### Step 3 — Cold Calling / SMS Outreach Data
 
-Search Google Drive for the current month's outreach tracker. The file is named **"[Month] Daily Input Tracker"** (e.g. "June Daily Input Tracker"). Search current month first; if not found, try the prior month.
+Search Google Drive for two separate files:
 
-**Do not use** files named "⚡ Input Tracker" or any variation without a month prefix.
+**A) Cold calling / SMS outreach tracker** — look for a file containing columns like "calls made", "contacts reached", "SMS sent", "appointments booked", or similar outreach metrics. It may be named something like "[Month] Outreach Tracker", "Call Tracker", or similar. Search for files owned by Dylan (`dylangroenendijk@gmail.com`) with "tracker" in the title, excluding the Daily Input Tracker.
 
-**Ownership check:** Only use the file if Dylan (dylangroenendijk@gmail.com) is the owner.
-
-If found:
-- Read its content
-- Summarize this week's numbers: calls made, contacts reached, SMS sent (or whatever columns exist)
+If found and it contains outreach columns (calls, contacts, SMS, appointments):
+- Summarize this week's numbers for each column
 - Compare to last week's numbers if available
-- Note the biggest gap or opportunity based on the data (e.g. "Call volume dropped 30% week-over-week")
+- Note the biggest gap or opportunity (e.g. "Call volume dropped 30% week-over-week")
 
-If not found: "No outreach data found in Drive. Expected file: '[Month] Daily Input Tracker' — confirm the file exists in Drive with that exact naming format."
+If not found or no outreach-specific columns exist: "No cold calling or SMS outreach tracker found in Drive. If a separate file tracks calls made, contacts reached, or SMS sent, confirm the file name."
+
+**B) Daily Input Tracker** — search for the file named **"[Month] Daily Input Tracker"** (e.g. "June Daily Input Tracker"), owned by Dylan. Read and store its data — this is a **habits tracker** (wake time, morning routine, gym, healthy diet, etc.) used only in Step 3.5 below. Do **not** display habits data in this Outreach section.
+
+**Do not use** files named "⚡ Input Tracker" or any variation without a month prefix for either search.
 
 ### Step 3.5 — Yesterday's Performance Analysis
 
-Using the input tracker data already read in Step 3, find yesterday's row specifically.
+Using the **Daily Input Tracker** data read in Step 3B, find yesterday's row specifically.
 
 **Identify yesterday's date** (today minus 1 day). Locate that row in the tracker. If no row exists for yesterday (e.g. it was a weekend or the row is blank), write "No data logged for yesterday." and skip the rest of this step.
 
@@ -192,7 +193,8 @@ Committed: Xh Xm | Free: Xh Xm
 
 - **Gmail returns no results:** Write "Inbox clear" and continue.
 - **Calendar unavailable:** Write "Calendar unavailable — check manually" and continue.
-- **No input tracker in Drive:** Use the fallback message from Step 3. Skip Step 3.5.
+- **No cold calling tracker in Drive:** Write the Step 3A fallback message and continue. Still attempt to read the Daily Input Tracker for Step 3.5.
+- **No Daily Input Tracker in Drive:** Write "No habit data found." in Yesterday's Performance and continue.
 - **Yesterday's row missing or blank:** Write "No data logged for yesterday." in the Yesterday's Performance section and continue.
 - **File write fails:** Retry once. If it fails again, deliver as chat only — do not loop.
 - **Weekend:** Run the full briefing. Dylan works weekends.
