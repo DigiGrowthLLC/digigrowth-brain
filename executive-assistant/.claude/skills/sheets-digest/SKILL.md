@@ -7,21 +7,22 @@
 
 ## Steps
 
-1. Call `drive_search` with query `"DigiGrowth Sales Performance Tracker"` — get the Sales Performance Tracker (always read this regardless of when it was last opened)
-2. Call `drive_list_recent` with `days=1, max_results=20` — get files opened or modified in the last 24 hours
-3. From the recent list, keep only spreadsheets whose name matches the pattern **`[Month Year] DigiGrowth Cold Calling Metrics`** (e.g. "June 2026 DigiGrowth Cold Calling Metrics"). Ignore all other files.
-4. Call `drive_read_file` on the Sales Performance Tracker + any matching Cold Calling Metrics sheets from step 3
-5. For each Cold Calling sheet, calculate three totals per metric using the date column:
+1. Call `drive_search` with query `"DigiGrowth Sales Performance Tracker"` — get the Sales Performance Tracker. Always read this file.
+2. Call `drive_list_recent` with `days=1, max_results=20` — get files modified in the last 24 hours.
+3. From the recent list, **only keep** files whose name matches **exactly** `[Month Year] DigiGrowth Cold Calling Metrics` (e.g. "June 2026 DigiGrowth Cold Calling Metrics"). **Discard every other file** — do not read habit trackers, input trackers, goal trackers, lead lists, financial trackers, DM trackers, SMS trackers, or any file not matching that exact pattern.
+4. Call `drive_read_file` on: (a) the Sales Performance Tracker, and (b) any Cold Calling Metrics file from step 3 only.
+5. For each Cold Calling Metrics file, calculate three totals per metric using the date column:
    - **7D**: sum rows where date is within last 7 days
    - **30D**: sum rows where date is within last 30 days
    - **All-time**: sum all rows
 6. Call `update_os_stats` with all found values — **always call it, even if nothing changed**
-7. End with the completion message
+7. Save the completion report to `reports/sheets-digest-YYYY-MM-DD.md` where YYYY-MM-DD is today's **full 4-digit year** date from the system prompt (e.g. 2026-06-12, never 2025).
+8. End with the completion message.
 
 **Only use `drive_search`, `drive_list_recent`, `drive_read_file`, and `update_os_stats`. No other tools.**
 
 **Period calculation rules:**
-- Today's date is in the system prompt. Use it to determine what falls within 7 and 30 days.
+- Today's date is in the system prompt. Use the full year (e.g. 2026) — never default to 2025.
 - The Sales Performance Tracker has no date column — its data goes to all-time fields only.
 - Pass period fields separately: `calls_made` (all-time), `calls_made_30d`, `calls_made_7d` — never merge them.
 
