@@ -2,32 +2,28 @@
 
 ## Summary
 
-No cold calling metrics sheet opened in the last 24 hours. Sales tracker updated only.
+No cold calling sheet opened in the last 24 hours. Sales Performance Tracker updated only.
 
-## Updated Fields
+## Data Extracted
 
-| Field | Value | Period |
-|---|---|---|
-| discovery_calls | 18 | All-time |
-| shows | 9 | All-time |
-| closes | 0 | All-time |
-| total_revenue | $0 | All-time |
+### DigiGrowth Sales Performance Tracker
+- **Discovery Calls (Total Booked):** 18
+- **Shows:** 9
+- **Closes (Won):** 0
+- **Lost:** 8
+- **Show Rate:** 50%
+- **Closing %:** 0%
+- **Revenue:** $0
 
-## Sources
-
-- **DigiGrowth Sales Performance Tracker** — last modified 2026-06-08. All-time totals extracted.
-- **Cold Calling Metrics** — "April 2026 DigiGrowth Cold Calling Metrics" was last modified 2026-06-11 (>24h ago). Not read. Cold calling stats (calls_made, calls_answered, contacts_reached, appointments_booked) carried forward from last sync.
-
-## Carried-Forward Cold Calling Stats (from prior sync)
+## Fields Written to OS
 
 | Field | Value |
 |---|---|
-| sheet_calls_made | 3,727 |
-| sheet_calls_answered | 545 |
-| sheet_contacts_reached | 287 |
-| sheet_appointments_booked | 18 |
+| `discovery_calls` | 18 |
+| `shows` | 9 |
+| `closes` | 0 |
 
-## Notes
+## Sources
 
-- Sales tracker values unchanged from 2026-06-12 sync (discovery_calls=18, shows=9, closes=0).
-- No June 2026 Cold Calling Metrics file found in Drive at time of run.
+- `DigiGrowth Sales Performance Tracker` — last modified 2026-06-08
+- No `[Month Year] DigiGrowth Cold Calling Metrics` file opened in the last 24h
