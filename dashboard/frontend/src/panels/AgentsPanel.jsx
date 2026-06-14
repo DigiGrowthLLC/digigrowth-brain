@@ -93,23 +93,108 @@ function ToolBlock({ block }) {
   );
 }
 
-// ── Markdown styles ──────────────────────────────────────────────────────────
+// ── Styles ───────────────────────────────────────────────────────────────────
 
-const MD_STYLES = `
+const CHAT_STYLES = `
 .md-content { color: #8aaad0; font-size: 13px; line-height: 1.6; }
-.md-content h1 { color: #c8dcff; font-size: 16px; font-weight: 600; margin: 14px 0 6px; font-family: 'Space Grotesk', sans-serif; }
-.md-content h2 { color: #a8c4f0; font-size: 14px; font-weight: 600; margin: 12px 0 5px; font-family: 'Space Grotesk', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; }
-.md-content h3 { color: #8aaad0; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
-.md-content p { margin: 4px 0 8px; }
-.md-content ul, .md-content ol { padding-left: 18px; margin: 4px 0 8px; }
+.md-content h1 { color: #c8dcff; font-size: 15px; font-weight: 600; margin: 12px 0 5px; font-family: 'Space Grotesk', sans-serif; }
+.md-content h2 { color: #a8c4f0; font-size: 13px; font-weight: 600; margin: 10px 0 4px; font-family: 'Space Grotesk', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; }
+.md-content h3 { color: #8aaad0; font-size: 13px; font-weight: 600; margin: 8px 0 3px; }
+.md-content p { margin: 3px 0 7px; }
+.md-content ul, .md-content ol { padding-left: 18px; margin: 3px 0 7px; }
 .md-content li { margin-bottom: 3px; }
-.md-content hr { border: none; border-top: 1px solid rgba(58,123,213,0.15); margin: 10px 0; }
+.md-content hr { border: none; border-top: 1px solid rgba(58,123,213,0.15); margin: 8px 0; }
 .md-content strong { color: #c8dcff; font-weight: 600; }
 .md-content em { color: #7090b8; font-style: italic; }
 .md-content code { background: rgba(58,123,213,0.12); border-radius: 3px; padding: 1px 5px; font-family: 'Share Tech Mono', monospace; font-size: 12px; }
 .md-content a { color: #3a7bd5; text-decoration: none; }
-.md-content blockquote { border-left: 2px solid rgba(58,123,213,0.4); margin: 6px 0; padding-left: 10px; color: #6888a8; }
+
+.brief-body { padding: 0; }
+.brief-body h1 { display: none; }
+.brief-body h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 10px; font-weight: 700;
+  color: #3a7bd5; letter-spacing: 0.12em; text-transform: uppercase;
+  margin: 0; padding: 8px 16px 7px;
+  background: rgba(58,123,213,0.07);
+  border-top: 1px solid rgba(58,123,213,0.15);
+  border-bottom: 1px solid rgba(58,123,213,0.1);
+}
+.brief-body h3 { font-size: 12px; font-weight: 600; color: #8aaad0; margin: 8px 0 3px; padding: 0 16px; }
+.brief-body p { font-size: 13px; color: #7a9ac0; line-height: 1.6; margin: 0; padding: 5px 16px 3px; }
+.brief-body ul { list-style: none; padding: 6px 16px 6px 16px; margin: 0; }
+.brief-body ol { padding: 6px 16px 6px 32px; margin: 0; }
+.brief-body li { font-size: 13px; color: #7a9ac0; line-height: 1.55; margin-bottom: 4px; padding-left: 14px; position: relative; }
+.brief-body li::before { content: "›"; position: absolute; left: 0; color: #3a7bd5; font-weight: 700; }
+.brief-body ol li::before { display: none; }
+.brief-body hr { border: none; border-top: 1px solid rgba(58,123,213,0.08); margin: 0; }
+.brief-body strong { color: #c8dcff; font-weight: 600; }
+.brief-body em { color: #5a7a9a; font-style: italic; }
+.brief-body code { background: rgba(58,123,213,0.12); border-radius: 3px; padding: 1px 5px; font-family: 'Share Tech Mono', monospace; font-size: 12px; }
 `;
+
+// ── Briefing card ─────────────────────────────────────────────────────────────
+
+function BriefingCard({ text, streaming }) {
+  const dateMatch = text.match(/^# Morning Briefing\s*[—\-–]\s*(.+)/m);
+  const dateLabel = dateMatch ? dateMatch[1].trim() : "";
+
+  if (streaming) {
+    return (
+      <div style={{
+        width: "100%", borderRadius: 10, overflow: "hidden",
+        border: "1px solid rgba(58,123,213,0.25)",
+        background: "linear-gradient(160deg, rgba(12,22,58,0.98) 0%, rgba(7,12,35,0.96) 100%)",
+      }}>
+        <div style={{
+          background: "rgba(58,123,213,0.1)", borderBottom: "1px solid rgba(58,123,213,0.2)",
+          padding: "10px 16px", display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{ color: "#3a7bd5", fontSize: 14, lineHeight: 1 }}>◈</span>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#c8dcff", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+            Morning Briefing
+          </span>
+          {dateLabel && (
+            <span style={{ marginLeft: "auto", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#4a6a9a" }}>
+              {dateLabel}
+            </span>
+          )}
+        </div>
+        <div style={{ padding: "12px 16px", fontSize: 13, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+          {text}
+          <span style={{ display: "inline-block", animation: "blink 0.9s step-end infinite", marginLeft: 1, color: "#3a7bd5" }}>▋</span>
+        </div>
+      </div>
+    );
+  }
+
+  const html = marked.parse(text);
+
+  return (
+    <div style={{
+      width: "100%", borderRadius: 10, overflow: "hidden",
+      border: "1px solid rgba(58,123,213,0.25)",
+      background: "linear-gradient(160deg, rgba(12,22,58,0.98) 0%, rgba(7,12,35,0.96) 100%)",
+      boxShadow: "0 4px 32px rgba(0,0,0,0.35)",
+    }}>
+      <div style={{
+        background: "rgba(58,123,213,0.1)", borderBottom: "1px solid rgba(58,123,213,0.2)",
+        padding: "11px 16px", display: "flex", alignItems: "center", gap: 8,
+      }}>
+        <span style={{ color: "#3a7bd5", fontSize: 14, lineHeight: 1 }}>◈</span>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#c8dcff", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          Morning Briefing
+        </span>
+        {dateLabel && (
+          <span style={{ marginLeft: "auto", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#4a6a9a" }}>
+            {dateLabel}
+          </span>
+        )}
+      </div>
+      <div className="brief-body" dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
+  );
+}
 
 // ── Message bubble ────────────────────────────────────────────────────────────
 
@@ -140,36 +225,39 @@ function MessageBubble({ msg }) {
     );
   }
 
+  const isBriefing = text.trimStart().startsWith("# Morning Briefing");
+
   return (
     <div style={{ marginBottom: 10 }}>
-      <style>{MD_STYLES}</style>
+      <style>{CHAT_STYLES}</style>
       {msg.thinking !== undefined && (
         <ThinkingBlock text={msg.thinking} streaming={msg._thinkingStreaming} />
       )}
       {(msg.toolBlocks || []).map(tb => <ToolBlock key={tb.id} block={tb} />)}
       {(text || msg._streaming || msg._error) && (
-        <div style={{
-          maxWidth: "85%", padding: "10px 14px",
-          borderRadius: "8px 8px 8px 2px",
-          background: "linear-gradient(127deg, rgba(10,18,48,0.88) 0%, rgba(8,14,38,0.6) 100%)",
-          border: "1px solid rgba(58,123,213,0.07)",
-          marginTop: (msg.toolBlocks?.length > 0) ? 6 : 0,
-        }}>
-          {msg._streaming ? (
-            <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-              {text}
-              <span style={{ display: "inline-block", animation: "blink 0.9s step-end infinite", marginLeft: 1, color: "#3a7bd5" }}>▋</span>
-            </div>
-          ) : (
-            <div
-              className="md-content"
-              dangerouslySetInnerHTML={{ __html: marked.parse(text || "") }}
-            />
-          )}
-          {msg._error && (
-            <div style={{ fontSize: 11, color: "#dc3c3c", marginTop: text ? 4 : 0 }}>Error: {msg._error}</div>
-          )}
-        </div>
+        isBriefing ? (
+          <BriefingCard text={text} streaming={msg._streaming} />
+        ) : (
+          <div style={{
+            maxWidth: "85%", padding: "10px 14px",
+            borderRadius: "8px 8px 8px 2px",
+            background: "linear-gradient(127deg, rgba(10,18,48,0.88) 0%, rgba(8,14,38,0.6) 100%)",
+            border: "1px solid rgba(58,123,213,0.07)",
+            marginTop: (msg.toolBlocks?.length > 0) ? 6 : 0,
+          }}>
+            {msg._streaming ? (
+              <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                {text}
+                <span style={{ display: "inline-block", animation: "blink 0.9s step-end infinite", marginLeft: 1, color: "#3a7bd5" }}>▋</span>
+              </div>
+            ) : (
+              <div className="md-content" dangerouslySetInnerHTML={{ __html: marked.parse(text || "") }} />
+            )}
+            {msg._error && (
+              <div style={{ fontSize: 11, color: "#dc3c3c", marginTop: text ? 4 : 0 }}>Error: {msg._error}</div>
+            )}
+          </div>
+        )
       )}
     </div>
   );
