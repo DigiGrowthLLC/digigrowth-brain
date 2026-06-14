@@ -1,6 +1,6 @@
 # Daily Briefing
 
-Generates Dylan's daily morning briefing, saves it as a dated archive file, and delivers it as a formatted chat message with inline PDF.
+Generates Dylan's daily morning briefing, saves it as a dated archive file, and delivers the full briefing as a formatted markdown message in the OS chat window.
 
 **Run manually:** Ask Claude to run the daily briefing.
 **Scheduled:** Runs automatically at 6:01 AM EST every day.
@@ -14,7 +14,7 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 3. Lists today's Google Calendar events
 4. Pulls cold calling / SMS outreach data from Google Drive
 5. Suggests how to use free time blocks based on the day's schedule and current priorities
-6. Saves the briefing to `reports/` and delivers it as a chat message with inline PDF
+6. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
 
 ---
 
@@ -135,7 +135,7 @@ If today is Monday: use the `manage-apptset-agent` skill to run the newsletter d
 ### Step 5 — Save and Deliver
 
 1. Call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (today's date) using the file format below
-2. Your chat response must be **only** `[[PDF:brief]]` — nothing else. No text, no summary, no confirmation. Just the marker on its own line so the PDF renders inline in the dashboard.
+2. Your chat response must be the **full briefing markdown** — copy exactly what you wrote to disk. Do not add any prefix, suffix, or commentary around it. Just the briefing content, starting with `# Morning Briefing`.
 
 **File format** (write this to disk — do NOT paste into chat):
 

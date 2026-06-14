@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { marked } from "marked";
 
 const API = (p) => `/api${p}`;
 
@@ -92,9 +93,25 @@ function ToolBlock({ block }) {
   );
 }
 
-// ── Message bubble ────────────────────────────────────────────────────────────
+// ── Markdown styles ──────────────────────────────────────────────────────────
 
-const PDF_MARKER = "[[PDF:brief]]";
+const MD_STYLES = `
+.md-content { color: #8aaad0; font-size: 13px; line-height: 1.6; }
+.md-content h1 { color: #c8dcff; font-size: 16px; font-weight: 600; margin: 14px 0 6px; font-family: 'Space Grotesk', sans-serif; }
+.md-content h2 { color: #a8c4f0; font-size: 14px; font-weight: 600; margin: 12px 0 5px; font-family: 'Space Grotesk', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; }
+.md-content h3 { color: #8aaad0; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+.md-content p { margin: 4px 0 8px; }
+.md-content ul, .md-content ol { padding-left: 18px; margin: 4px 0 8px; }
+.md-content li { margin-bottom: 3px; }
+.md-content hr { border: none; border-top: 1px solid rgba(58,123,213,0.15); margin: 10px 0; }
+.md-content strong { color: #c8dcff; font-weight: 600; }
+.md-content em { color: #7090b8; font-style: italic; }
+.md-content code { background: rgba(58,123,213,0.12); border-radius: 3px; padding: 1px 5px; font-family: 'Share Tech Mono', monospace; font-size: 12px; }
+.md-content a { color: #3a7bd5; text-decoration: none; }
+.md-content blockquote { border-left: 2px solid rgba(58,123,213,0.4); margin: 6px 0; padding-left: 10px; color: #6888a8; }
+`;
+
+// ── Message bubble ────────────────────────────────────────────────────────────
 
 function MessageBubble({ msg }) {
   const isUser = msg.role === "user";
@@ -102,13 +119,10 @@ function MessageBubble({ msg }) {
   // Skip pure tool_result user turns (internal API turns, not human messages)
   if (isUser && msg.content?.every(b => b.type === "tool_result")) return null;
 
-  const rawText = (msg.content || [])
+  const text = (msg.content || [])
     .filter(b => b.type === "text")
     .map(b => b.text)
     .join("");
-
-  const hasPdf = rawText.includes(PDF_MARKER);
-  const text = hasPdf ? rawText.replace(PDF_MARKER, "").trimEnd() : rawText;
 
   if (isUser) {
     return (
@@ -128,6 +142,7 @@ function MessageBubble({ msg }) {
 
   return (
     <div style={{ marginBottom: 10 }}>
+      <style>{MD_STYLES}</style>
       {msg.thinking !== undefined && (
         <ThinkingBlock text={msg.thinking} streaming={msg._thinkingStreaming} />
       )}
@@ -140,25 +155,20 @@ function MessageBubble({ msg }) {
           border: "1px solid rgba(58,123,213,0.07)",
           marginTop: (msg.toolBlocks?.length > 0) ? 6 : 0,
         }}>
-          <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-            {text}
-            {msg._streaming && (
+          {msg._streaming ? (
+            <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+              {text}
               <span style={{ display: "inline-block", animation: "blink 0.9s step-end infinite", marginLeft: 1, color: "#3a7bd5" }}>▋</span>
-            )}
-          </div>
-          {msg._error && (
-            <div style={{ fontSize: 11, color: "#dc3c3c", marginTop: msg._streaming || text ? 4 : 0 }}>Error: {msg._error}</div>
+            </div>
+          ) : (
+            <div
+              className="md-content"
+              dangerouslySetInnerHTML={{ __html: marked.parse(text || "") }}
+            />
           )}
-        </div>
-      )}
-      {hasPdf && !msg._streaming && (
-        <div style={{ maxWidth: "85%", marginTop: 8, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(58,123,213,0.15)" }}>
-          <embed
-            src="/api/agents/executive-assistant/brief-pdf"
-            type="application/pdf"
-            width="100%"
-            height="720px"
-          />
+          {msg._error && (
+            <div style={{ fontSize: 11, color: "#dc3c3c", marginTop: text ? 4 : 0 }}>Error: {msg._error}</div>
+          )}
         </div>
       )}
     </div>
