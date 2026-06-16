@@ -1,78 +1,70 @@
 MEMORY FILE — Lead Qualifier Agent
-Last updated: [update this date whenever you change criteria]
+Last updated: 2026-06-16
 
 CHAIN / FRANCHISE BLACKLIST:
-Planet Fitness, Anytime Fitness, LA Fitness, Crunch Fitness, Gold's Gym, 24 Hour Fitness, YMCA, Orangetheory, F45, EOS Fitness, Equinox, Life Time, Snap Fitness, Club Pilates, Pure Barre, Burn Boot Camp, Barry's, Solidcore, UFC Gym, Title Boxing Club
+VCA, VCA Animal Hospitals, Banfield, Banfield Pet Hospital, PetSmart Vets, Vetco, BluePearl, Thrive Pet Healthcare, National Veterinary Associates, PetIQ, Lap of Love, ASPCA, Humane Society, SPCA, Animal Protective League
 
 NICHE DEFINITION:
-Qualified = privately owned facility where 1-on-1 or semi-private personal training is the PRIMARY service or a core revenue model. Sports performance facilities with private ownership also qualify.
+Qualified = independently owned mobile or in-home veterinary practice where house-call or in-home visits are the PRIMARY or a core service. Focuses on companion animals (dogs and cats). Owner-operated with a small team (1–6 staff). No in-house marketing team or agency.
 
-Disqualified = big box gyms, franchise locations, group-only studios (yoga-only, cycling-only, Pilates-only, dance-only), or any business where personal training is an add-on rather than the focus.
+Disqualified = corporate-owned or franchise vet clinics, brick-and-mortar-only practices with no mobile component, emergency/specialty-only animal hospitals, university or teaching hospitals, equine-only or exotic-only practices, practices with active paid advertising or an in-house marketing coordinator.
 
 CURRENT TARGET MARKETS:
-All US states
+All US states — priority on Sun Belt markets: Florida, Texas, Georgia, South Carolina, North Carolina, Arizona, Tennessee, Virginia
+
+DISQUALIFIER SIGNALS (check website and social):
+- Actively running Meta or Google ads
+- Has a marketing coordinator or agency listed
+- Corporate group ownership mentioned (multiple locations under one brand)
+- Brick-and-mortar only — no mention of mobile, house call, or in-home
+- Exotic animal only or equine only (wrong animal focus)
+- Emergency or specialty hospital (no general wellness/primary care)
+
+GOOD LEAD SIGNALS:
+- "House call", "in-home", "mobile vet", or "we come to you" on website or in business name
+- Independent DVM owner (Dr. [Name]'s Mobile Vet, [Name] Veterinary House Calls)
+- Website exists but minimal paid marketing evidence
+- Google reviews but no recent social media posts (30+ days since last post)
+- Suburban service area listed with radius or zip codes
+- Companion animals: dogs and cats as primary patient focus
 
 AGENCY CONTEXT:
 COLD CALL OPENER CRITERIA:
 The one-line opener feeds into this exact cold call framework:
-"Hey [Name], this is Dylan — quick question for you. I was looking at [Studio Name], and I noticed [OPENER]."
+"Hey [Name], this is Dylan — quick question for you. I was looking at [Practice Name], and I noticed [OPENER]."
 
 The opener must complete that sentence naturally. It should sound like something Dylan genuinely noticed — not a compliment, not a pitch.
 
-ARTICLE RULE: Always use "a" or "an" before the program, offer, or model. NEVER use "that", "the", or "your".
-  ✅ "you're running a 6-week transformation challenge"
-  ❌ "you're running that 6-week transformation challenge"
-  ❌ "you're running your 6-week transformation challenge"
+ARTICLE RULE: Always use "a" or "an" before the service, offer, or specialty. NEVER use "that", "the", or "your".
+  ✅ "you offer a complimentary first in-home wellness visit"
+  ❌ "you offer that complimentary first in-home wellness visit"
+  ❌ "you offer your complimentary first in-home wellness visit"
 
 Priority order for what to pull from the website:
-1. A specific RESULT or outcome they advertise (e.g., "you're running a 6-week transformation challenge", "you're offering a 30-day money-back guarantee", "you're showing a before/after transformation program")
-2. A specific OFFER or program name (e.g., "you're running a semi-private small group training model", "you're offering an unlimited membership at that price point", "you're bundling a nutrition coaching program with training")
-3. A specific NICHE or client type they serve (e.g., "you're running a women's-only training program", "you're running an athlete performance program", "you're running a postpartum fitness program")
-4. A specific METHOD or system (e.g., "you're using a 3-day strength training template", "you're running a hybrid in-person and virtual training setup", "you're using an assessment-first intake system")
+1. A specific RESULT or OFFER they advertise (complimentary first visit, free new client consultation, new client special, wellness guarantee)
+2. A specific SERVICE or PROGRAM (in-home euthanasia, Fear Free certified, senior pet wellness plan, anxiety-free home visits)
+3. A specific NICHE or PATIENT TYPE (cats only, senior dogs, end-of-life care, house call only practice)
+4. A specific METHOD or APPROACH (no waiting room, same-day scheduling, in-home exams, house call model)
 5. If nothing specific exists — return null. Do not fabricate.
-COLD CALL OPENER EXAMPLES:
-The following are real examples of good openers. Use these as the tone and style reference when generating the opener field. Match this energy — casual, specific, observational, never salesy.
-"Noticed your running -
-Free intro session
-Free first class
-Free week trial
-$1–$7 trial week
-2-week unlimited classes intro deal ($19–$49)
-6–8 week transformation challenge
-21-day fitness challenge
-Weight loss challenge with accountability tracking
-Body transformation program (before/after focus)
-Free fitness assessment
-Movement screening / injury assessment
-Body composition scan + consultation
-Goal-setting consultation
-Low-cost starter package (2–5 sessions)
-Discounted first month membership
-Founding member pricing
-Bring-a-friend free class
-Buddy pass / guest pass offers
-Open house / free weekend classes
-30-day intro transformation package
-“First X sessions for $X” deal"
 
 OPENER TONE RULES:
 - Always sounds like Dylan noticed something specific, not like he's running a list
 - Never complimentary — observational only
 - One sentence only
-- Use "a" or "an" before the program/offer/model — never "that", "the", or "your"
-- If a result, dollar figure, challenge, or guarantee exists on their site, reference it
+- Use "a" or "an" before the service/offer/specialty — never "that", "the", or "your"
+- If a specific offer, result, or specialty exists on their site, reference it
 - Never mention the website, never say "I was browsing" or "I came across"
 - Observation only — no question. Dylan handles the question on the call.
 
 OPENER EXAMPLES (use these as style reference — observation only, no question):
-✅ "you're running a women's small group training model"
-✅ "you're offering a 6-week body transformation challenge"
-✅ "you're running a 30-day money-back guarantee on your training program"
-✅ "you're running an athlete performance program for youth"
-✅ "you're offering a free first class for new clients"
-✅ "you're running a semi-private small group training model"
-✅ "you're running a weight loss transformation program"
-✅ "you're running an over-40 body recomposition program"
-✅ "you're offering a two-week unlimited trial for new members"
+✅ "you offer a complimentary first in-home wellness visit"
+✅ "you specialize in senior dog and cat care"
+✅ "you're Fear Free certified for in-home exams"
+✅ "you do in-home end-of-life care and euthanasia appointments"
+✅ "you focus exclusively on cats"
+✅ "you offer a free new client consultation for new pet owners"
+✅ "you cap appointments to allow a full in-home exam every visit"
+✅ "you run a senior pet wellness plan for dogs over eight"
+
 DYNAMIC MEMORY LOG:
 [Agent will append new entries below this line during runtime]

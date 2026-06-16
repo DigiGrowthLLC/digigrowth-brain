@@ -8,8 +8,6 @@ import requests
 from datetime import datetime
 from bs4 import BeautifulSoup
 import anthropic
-import gspread
-from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "shared"))
@@ -90,23 +88,23 @@ US_STATES = {
 }
 
 SEARCH_TERMS = [
-    "personal training studio",
-    "personal trainer",
-    "private gym",
-    "fitness studio",
-    "strength training gym",
-    "semi private training",
-    "athletic training facility"
+    "mobile veterinarian",
+    "mobile vet",
+    "in-home vet",
+    "house call vet",
+    "mobile animal hospital",
+    "mobile pet clinic",
+    "in-home veterinary"
 ]
 
 CHAIN_KEYWORDS = [
-    "planet fitness", "anytime fitness", "la fitness", "crunch",
-    "gold's gym", "golds gym", "24 hour fitness", "ymca", "orangetheory",
-    "f45", "eos fitness", "equinox", "life time", "lifetime fitness",
-    "snap fitness", "club pilates", "pure barre", "burn boot camp",
-    "barry's", "solidcore", "ufc gym", "title boxing", "workout anytime",
-    "jazzercise", "curves", "exercise coach"
+    "vca animal", "banfield", "petsmart vets", "vetco", "bluepearl",
+    "thrive pet", "petiq", "lap of love", "national veterinary",
+    "humane society", "spca", "aspca", "animal shelter",
+    "animal emergency", "emergency animal", "university veterinary",
+    "college of veterinary"
 ]
+
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -316,8 +314,8 @@ def find_owner_from_website(website_url, business_name):
             model=config["model"],
             max_tokens=50,
             messages=[{"role": "user", "content": (
-                f"Read this text from a gym website called '{business_name}':\n\n{combined}\n\n"
-                f"Is there a real person clearly identified as owner, founder, or head trainer? "
+                f"Read this text from a veterinary practice website called '{business_name}':\n\n{combined}\n\n"
+                f"Is there a real person clearly identified as owner, founder, or licensed veterinarian who owns the practice? "
                 f"If yes return ONLY their first and last name. If no return ONLY the word null."
             )}]
         )
@@ -348,7 +346,7 @@ def find_owner_from_maps(place_id, business_name):
             max_tokens=50,
             messages=[{"role": "user", "content": (
                 f"Read these Google Maps reviews for '{business_name}':\n\n{review_text[:1500]}\n\n"
-                f"Is there a real person clearly identified as owner or founder? "
+                f"Is there a real person clearly identified as owner or veterinarian-owner? "
                 f"If yes return ONLY their first and last name. If no return ONLY the word null."
             )}]
         )
@@ -449,36 +447,41 @@ def rule_based_filter(name, phone, website):
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#  GOOGLE SHEETS
+#  DIGIGROWTH OS EXPORT
 # ════════════════════════════════════════════════════════════════════════════
 
-def get_sheet():
-    creds = Credentials.from_service_account_file(
-        os.path.join(BASE_DIR, "credentials.json"),
-        scopes=[
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive"
-        ]
-    )
-    gc = gspread.authorize(creds)
-    sh = gc.open_by_key(config["google_sheet_id"])
-    try:
-        return sh.worksheet(config["sheet_tab_name"])
-    except gspread.exceptions.WorksheetNotFound:
-        return sh.add_worksheet(title=config["sheet_tab_name"], rows="1000", cols="20")
-
-def push_to_sheet(worksheet, rows):
-    if not rows:
+def push_to_os(leads):
+    if not leads:
         print("No qualified leads to push.")
         return
-    headers = config["output_columns"]
-    worksheet.clear()
-    worksheet.append_row(headers)
+    base_url = os.environ.get("DASHBOARD_URL", "").rstrip("/")
+    password = os.environ.get("DASHBOARD_PASSWORD", "")
+    auth     = ("admin", password)
     grade_order = {"A": 0, "B": 1, "C": 2, "D": 3}
-    for row in sorted(rows, key=lambda r: grade_order.get(r.get("Grade", "D"), 3)):
-        worksheet.append_row([row.get(col, "") for col in headers])
-        time.sleep(0.5)
-    print(f"✅ {len(rows)} leads pushed to Google Sheets.")
+    pushed = 0
+    for lead in sorted(leads, key=lambda r: grade_order.get(r.get("Grade", "D"), 3)):
+        body = {
+            "business": lead["Business Name"],
+            "owner":    lead["Owner Name"],
+            "phone":    lead["Phone"],
+            "email":    lead["Email"],
+            "website":  lead["Website"],
+            "city":     lead["City"],
+            "state":    lead["State"],
+            "grade":    lead["Grade"],
+            "opener":   lead["Opener"],
+            "notes":    lead["Grade Reason"],
+            "status":   "new",
+            "tags":     ["mobile-vet"],
+        }
+        try:
+            r = requests.post(f"{base_url}/api/contacts", auth=auth, json=body, timeout=10)
+            r.raise_for_status()
+            pushed += 1
+            time.sleep(0.3)
+        except Exception as e:
+            print(f"  ⚠️  OS push failed for {lead['Business Name']}: {e}")
+    print(f"✅ {pushed}/{len(leads)} leads pushed to DigiGrowth OS.")
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -561,7 +564,7 @@ def run_pipeline():
         time.sleep(0.3)
 
     print(f"\n📊 Results: {len(qualified_leads)} qualified today")
-    push_to_sheet(get_sheet(), qualified_leads)
+    push_to_os(qualified_leads)
     push_file(__file__, "progress.json")
     push_file(__file__, "scraped_ids.json")
 
