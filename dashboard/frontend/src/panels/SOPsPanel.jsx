@@ -276,8 +276,9 @@ function FormatBar({ editor }) {
 }
 
 const SUBSECTIONS = [
-  { id: "sop",          label: "SOPs",               subtitle: "STANDARD OPERATING PROCEDURES", newLabel: "New SOP",      placeholder: "SOP title..." },
-  { id: "business_doc", label: "Business Documents",  subtitle: "CONTRACTS · PROPOSALS · DOCS",  newLabel: "New Document", placeholder: "Document title..." },
+  { id: "sop",          label: "SOPs",               subtitle: "STANDARD OPERATING PROCEDURES", newLabel: "New SOP",        placeholder: "SOP title..." },
+  { id: "business_doc", label: "Business Documents",  subtitle: "CONTRACTS · PROPOSALS · DOCS",  newLabel: "New Document",   placeholder: "Document title..." },
+  { id: "recording",    label: "Recordings",          subtitle: "CALLS · DEMOS · RECORDINGS",    newLabel: "New Recording",  placeholder: "Recording title..." },
 ];
 
 // ── Main panel ───────────────────────────────────────────────────────────────
@@ -434,7 +435,7 @@ export default function SOPsPanel() {
         borderBottom: "1px solid rgba(58,123,213,0.12)",
         display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
       }}>
-        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>Business Documents</span>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
           {savedFlash && (

@@ -19,7 +19,7 @@ const NAV = [
   { id: "todos",     label: "To-Do",     ready: true  },
   { id: "analytics", label: "Analytics", ready: true  },
   { id: "finances",  label: "Finances",  ready: true  },
-  { id: "sops",      label: "Business Docs", ready: true  },
+  { id: "sops",      label: "Business Resources", ready: true  },
   { id: "settings",  label: "Settings",  ready: true  },
 ];
 

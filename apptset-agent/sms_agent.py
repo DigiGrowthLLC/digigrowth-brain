@@ -35,6 +35,8 @@ load_dotenv()
 _db_lock = threading.Lock()
 DB_PATH  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sms_conversations.db")
 
+_claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+
 EST = ZoneInfo("America/New_York")
 
 # ── Stage machine ─────────────────────────────────────────────────────────────
@@ -294,17 +296,16 @@ def _is_weekday():
 
 def _classify_intent(message, stage, config):
     """Classify a prospect reply into one of INTENT_LABELS. Returns the label string."""
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
     prompt = (
         f"Current stage: {stage}\n"
         f"Prospect reply: {message}\n\n"
         "Classify with one label."
     )
     try:
-        resp = client.messages.create(
+        resp = _claude.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=10,
-            system=CLASSIFY_SYSTEM,
+            system=[{"type": "text", "text": CLASSIFY_SYSTEM, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": prompt}],
         )
         label = resp.content[0].text.strip().upper()
@@ -341,7 +342,6 @@ def _is_simple_reply(body):
 def _handle_objection(message, lead, stage, config):
     """Generate a 1-2 sentence empathetic objection response."""
     from notion_messages import fetch_reference
-    client     = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
     first_name = (lead.get("owner") or "there").split()[0]
     business   = lead.get("business") or "your studio"
     reference  = fetch_reference(config.get("sms_agent", {}).get("reference_page_ids", []))
@@ -357,10 +357,10 @@ def _handle_objection(message, lead, stage, config):
         f"Write a 1-sentence reply that handles this using the reference document above."
     )
     try:
-        resp = client.messages.create(
+        resp = _claude.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=80,
-            system=OBJECTION_SYSTEM,
+            system=[{"type": "text", "text": OBJECTION_SYSTEM, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": prompt}],
         )
         text = resp.content[0].text.strip()
@@ -379,7 +379,6 @@ def _naturalize_opener(template, lead):
     opener = (lead.get("opener") or "").strip()
     if not opener or opener not in template:
         return template
-    client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
     prompt = (
         f"This SMS message has an opener detail inserted that may not read naturally:\n\n"
         f"{template}\n\n"
@@ -388,7 +387,7 @@ def _naturalize_opener(template, lead):
         "Keep everything else word-for-word. Output only the final message text."
     )
     try:
-        resp = client.messages.create(
+        resp = _claude.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=200,
             messages=[{"role": "user", "content": prompt}],
@@ -407,7 +406,6 @@ def _adapt_message(template, prospect_message, lead, stage, config):
     Falls back to the raw template if Claude fails.
     """
     from notion_messages import fetch_reference
-    client     = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
     first_name = (lead.get("owner") or "there").split()[0]
     ref_section = ""
     if stage in ("engaged", "cta"):
@@ -422,10 +420,10 @@ def _adapt_message(template, prospect_message, lead, stage, config):
         f"{ref_section}"
     )
     try:
-        resp = client.messages.create(
+        resp = _claude.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=200,
-            system=ADAPT_SYSTEM,
+            system=[{"type": "text", "text": ADAPT_SYSTEM, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": prompt}],
         )
         return resp.content[0].text.strip()

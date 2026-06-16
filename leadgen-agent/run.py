@@ -401,9 +401,7 @@ def scrape_website(url, max_words=600):
 #  LEAD QUALIFIER
 # ════════════════════════════════════════════════════════════════════════════
 
-def qualify_lead(business_name, phone, website_url, owner_name, address, website_text):
-    role     = open(ROLE_FILE).read()
-    memory   = read_memory()
+def qualify_lead(business_name, phone, website_url, owner_name, address, website_text, role, memory):
     prompt   = open(PROMPT_FILE).read()
     filled   = (
         prompt
@@ -416,19 +414,28 @@ def qualify_lead(business_name, phone, website_url, owner_name, address, website
     response = client.messages.create(
         model=config["model"],
         max_tokens=500,
-        system=f"{role}\n\nAgent memory and criteria:\n{memory}",
+        system=[{
+            "type": "text",
+            "text": f"{role}\n\nAgent memory and criteria:\n{memory}",
+            "cache_control": {"type": "ephemeral"}
+        }],
         messages=[{"role": "user", "content": filled}]
     )
+    usage = response.usage
+    cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
+    cache_write = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    if cache_read or cache_write:
+        print(f"  💾 Cache: read={cache_read} write={cache_write}")
     raw = response.content[0].text.strip()
     try:
-        return json.loads(raw.replace("```json", "").replace("```", "").strip())
+        return json.loads(raw.replace("```json", "").replace("```", "").strip()), cache_read > 0
     except json.JSONDecodeError:
         return {
             "qualified": False, "grade": "D",
             "grade_reason": "Parse error",
             "disqualify_reason": f"Unparseable: {raw[:100]}",
             "niche_confirmed": False, "niche_notes": "", "opener": None
-        }
+        }, cache_read > 0
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -500,6 +507,9 @@ def run_pipeline():
     print(f"📊 Total leads scraped so far: {len(scraped_ids)}")
     print(f"\n🌎 Scraping Google Maps...")
 
+    role   = open(ROLE_FILE).read()
+    memory = read_memory()
+
     raw_leads = scrape_state_leads(progress, scraped_ids, daily_limit)
     print(f"📋 Raw leads collected: {len(raw_leads)}")
 
@@ -509,6 +519,7 @@ def run_pipeline():
 
     qualified_leads = []
     processed       = 0
+    cache_hits      = 0
 
     for lead in raw_leads:
         if len(qualified_leads) >= daily_limit:
@@ -535,7 +546,9 @@ def run_pipeline():
             continue
 
         website_text = scrape_website(website)
-        result       = qualify_lead(name, phone, website, owner_name, address, website_text)
+        result, cached = qualify_lead(name, phone, website, owner_name, address, website_text, role, memory)
+        if cached:
+            cache_hits += 1
 
         if result.get("qualified"):
             grade  = result.get("grade", "C")
@@ -563,7 +576,7 @@ def run_pipeline():
 
         time.sleep(0.3)
 
-    print(f"\n📊 Results: {len(qualified_leads)} qualified today")
+    print(f"\n📊 Results: {len(qualified_leads)} qualified today | Cache hits: {cache_hits}/{processed}")
     push_to_os(qualified_leads)
     push_file(__file__, "progress.json")
     push_file(__file__, "scraped_ids.json")

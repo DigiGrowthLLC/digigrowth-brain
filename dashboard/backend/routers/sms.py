@@ -22,6 +22,8 @@ from db import get_pool
 router         = APIRouter()   # authenticated API routes
 webhook_router = APIRouter()  # public Twilio webhook
 
+_claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+
 SYSTEM_PROMPT = """\
 You are a professional appointment setter texting on behalf of Dylan from Digigrowth \
 — a digital marketing agency that helps local businesses grow online and get more customers.
@@ -65,8 +67,6 @@ def _send_twilio(to: str, body: str):
 
 def _call_claude(messages: list, contact: dict) -> tuple[str, str]:
     """Return (reply_text, status). Status is 'ongoing' or 'APPOINTMENT_BOOKED'."""
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-
     context = (
         f"Prospect info:\n"
         f"- Name: {contact.get('owner') or 'there'}\n"
@@ -84,10 +84,10 @@ def _call_claude(messages: list, contact: dict) -> tuple[str, str]:
         {"role": "assistant", "content": "Understood. I'll respond as the appointment setter."},
     ] + messages
 
-    response = client.messages.create(
+    response = _claude.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=300,
-        system=SYSTEM_PROMPT,
+        system=[{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
         messages=claude_messages,
     )
 

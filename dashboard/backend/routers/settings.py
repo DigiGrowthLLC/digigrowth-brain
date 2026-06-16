@@ -464,7 +464,7 @@ async def chat(request: Request):
             with client.messages.stream(
                 model=model,
                 max_tokens=4096,
-                system=system_prompt,
+                system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
                 tools=TOOLS,
                 messages=messages,
             ) as stream:
