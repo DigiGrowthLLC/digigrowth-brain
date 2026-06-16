@@ -136,4 +136,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS recurrence TEXT;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS doc_type TEXT NOT NULL DEFAULT 'sop';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+            ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_name TEXT;
+            ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_type TEXT;
+            ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_size BIGINT;
+            ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_data BYTEA;
         """)

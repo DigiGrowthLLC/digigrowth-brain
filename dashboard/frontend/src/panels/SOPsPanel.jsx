@@ -286,6 +286,7 @@ export default function SOPsPanel() {
   const [activeSection, setActiveSection] = useState("sop");
   const [sops, setSops] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [isNew, setIsNew] = useState(false);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("General");
@@ -294,7 +295,9 @@ export default function SOPsPanel() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const suppressNextUpdate = useRef(false);
+  const uploadRef = useRef(null);
 
   const section = SUBSECTIONS.find(s => s.id === activeSection) || SUBSECTIONS[0];
 
@@ -329,6 +332,7 @@ export default function SOPsPanel() {
 
   useEffect(() => {
     setSelectedId(null);
+    setSelectedItem(null);
     setIsNew(false);
     setDirty(false);
     setTitle("");
@@ -345,21 +349,47 @@ export default function SOPsPanel() {
 
   const openSOP = (sop) => {
     if (dirty && !window.confirm("Discard unsaved changes?")) return;
-    const html = toHTML(sop.content);
     setSelectedId(sop.id);
+    setSelectedItem(sop);
     setTitle(sop.title);
     setCategory(sop.category || "General");
     setVisibility(sop.visibility || "private");
     setIsNew(false);
     setDirty(false);
     setCustomCatMode(false);
-    setContent(html);
-    requestAnimationFrame(() => editor?.commands.focus());
+    if (!sop.file_name) {
+      setContent(toHTML(sop.content));
+      requestAnimationFrame(() => editor?.commands.focus());
+    }
+  };
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("title", file.name);
+      form.append("category", "General");
+      form.append("doc_type", activeSection);
+      form.append("visibility", "private");
+      const r = await fetch("/api/sops/upload", { method: "POST", body: form });
+      if (r.ok) {
+        const created = await r.json();
+        await fetchSOPs();
+        openSOP(created);
+      }
+    } finally {
+      setUploading(false);
+    }
   };
 
   const startNew = () => {
     if (dirty && !window.confirm("Discard unsaved changes?")) return;
     setSelectedId(null);
+    setSelectedItem(null);
     setIsNew(true);
     setTitle("");
     setCategory(categories[0] || "General");
@@ -408,6 +438,7 @@ export default function SOPsPanel() {
     await fetch(`/api/sops/${sop.id}`, { method: "DELETE" });
     if (selectedId === sop.id) {
       setSelectedId(null);
+      setSelectedItem(null);
       setIsNew(false);
       setDirty(false);
       setTitle("");
@@ -441,7 +472,7 @@ export default function SOPsPanel() {
           {savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {showEditor && (
+          {showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -458,6 +489,19 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
+          <input ref={uploadRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
+          <button
+            onClick={() => uploadRef.current?.click()}
+            disabled={uploading}
+            style={{
+              background: "rgba(58,123,213,0.12)",
+              border: "1px solid rgba(58,123,213,0.25)",
+              borderRadius: 6, color: "#6ab0ff",
+              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+              fontSize: 12, padding: "6px 14px", cursor: uploading ? "not-allowed" : "pointer",
+              opacity: uploading ? 0.6 : 1,
+            }}
+          >{uploading ? "Uploading…" : "↑ Upload"}</button>
           <button
             onClick={startNew}
             style={{
@@ -541,7 +585,10 @@ export default function SOPsPanel() {
                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(58,123,213,0.07)"; }}
                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                   >
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: sop.visibility === "public" ? "#34d399" : "#6ab0ff", opacity: 0.8 }} />
+                    {sop.file_name
+                      ? <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>{/^audio|^video/.test(sop.file_type || "") ? "🎙" : "📎"}</span>
+                      : <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: sop.visibility === "public" ? "#34d399" : "#6ab0ff", opacity: 0.8 }} />
+                    }
                     <span style={{
                       flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
@@ -567,12 +614,61 @@ export default function SOPsPanel() {
           </div>
         </div>
 
-        {/* Editor pane */}
+        {/* Editor / file viewer pane */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {!showEditor ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>
                 SELECT OR CREATE A {section.label.toUpperCase().replace(/S$/, "")}
+              </div>
+            </div>
+          ) : selectedItem?.file_name ? (
+            /* ── File viewer ── */
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <div style={{
+                padding: "14px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+                display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+              }}>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#e8f0ff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {selectedItem.title}
+                </span>
+                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.1em", flexShrink: 0 }}>
+                  {selectedItem.file_type} · {selectedItem.file_size ? (selectedItem.file_size / 1024 / 1024).toFixed(1) + " MB" : ""}
+                </span>
+                <a
+                  href={`/api/sops/${selectedItem.id}/file`}
+                  download={selectedItem.file_name}
+                  style={{
+                    background: "rgba(58,123,213,0.12)", border: "1px solid rgba(58,123,213,0.25)",
+                    borderRadius: 6, color: "#6ab0ff", textDecoration: "none",
+                    fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+                    fontSize: 12, padding: "6px 14px", flexShrink: 0,
+                  }}
+                >↓ Download</a>
+              </div>
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 24 }}>
+                {/^audio\//.test(selectedItem.file_type || "") ? (
+                  <audio controls src={`/api/sops/${selectedItem.id}/file`} style={{ width: "100%", maxWidth: 600 }} />
+                ) : /^video\//.test(selectedItem.file_type || "") ? (
+                  <video controls src={`/api/sops/${selectedItem.id}/file`} style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 8 }} />
+                ) : /\/pdf$/.test(selectedItem.file_type || "") ? (
+                  <iframe src={`/api/sops/${selectedItem.id}/file`} style={{ width: "100%", height: "100%", border: "none", borderRadius: 8, background: "#fff" }} title={selectedItem.file_name} />
+                ) : (
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>📎</div>
+                    <div style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#9ab8d8", marginBottom: 20 }}>{selectedItem.file_name}</div>
+                    <a
+                      href={`/api/sops/${selectedItem.id}/file`}
+                      download={selectedItem.file_name}
+                      style={{
+                        background: "linear-gradient(90deg, #2857a0, #3a7bd5)", border: "none",
+                        borderRadius: 6, color: "#fff", textDecoration: "none",
+                        fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+                        fontSize: 13, padding: "9px 24px",
+                      }}
+                    >↓ Download File</a>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
