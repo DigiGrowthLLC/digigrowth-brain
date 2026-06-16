@@ -17,9 +17,8 @@ Do not ask for confirmation. Execute all steps and create events when done.
 
 ### Work Window
 
-- **Mon–Fri:** Day starts at 6:30AM, work window ends at 8PM EST
-- **Saturday:** Day starts at 6:30AM, work window ends at 6PM EST
-- **Sunday:** Day off by default — create no events and stop, unless a schedule override is active for that date, in which case work window ends at 6PM EST
+- **Mon–Fri:** Day starts at 8:30AM, work window ends at 8PM EST
+- **Saturday–Sunday:** Day off by default — create no events and stop, unless a schedule override is active for that date, in which case work window ends at 6PM EST
 
 ---
 
@@ -29,9 +28,8 @@ All date calculations must use the **America/New_York timezone**, not UTC. This 
 
 1. What is tomorrow's date in America/New_York time?
 2. **Check for a schedule override:** Read `.claude/skills/calendar-management/schedule-override.md`. If it exists and tomorrow's date falls within the `from`/`to` range (inclusive), an override is active. Note the custom `start`, `blocks`, and any specified durations — these replace the defaults in Step 3. If the override's `to` date is in the past, ignore it.
-3. If tomorrow is Sunday and no override is active → stop. Create no events.
-4. If tomorrow is Sunday and an override IS active → proceed. Work window ends at 6PM.
-5. Is tomorrow Saturday? If so, work window ends at 6PM.
+3. If tomorrow is Saturday or Sunday and no override is active → stop. Create no events.
+4. If tomorrow is Saturday or Sunday and an override IS active → proceed. Work window ends at 6PM.
 
 ---
 
@@ -69,7 +67,7 @@ Calculate all open time windows within the work day.
 | MDR | 1 hr | 30 min | Daily | Banana (5) | Lunch and reset. Always guarantee at least 30 min. |
 | Outreach | 2 hrs | 1 hr | Mon–Fri | Tangerine (6) | |
 | Admin | 1 hr | 30 min | Daily | Graphite (8) | Email triage, Notion review, tool ops. |
-| Gym | 2 hrs | 2 hrs | Daily (soft) | Tomato (11) | Must end by 9:30PM (weekdays) or 9:30PM (Saturday). Drop entirely if no 2-hr window exists. |
+| Gym | 2 hrs | 2 hrs | Daily (soft) | Tomato (11) | Must end by 9:30PM. Drop entirely if no 2-hr window exists. |
 | Growth | 3 hrs | 1 hr | Daily | Blueberry (9) | Learning, content, system building. First to drop. |
 | Meal Prep | 1.5 hrs | 1.5 hrs | Thu only | Basil (10) | Hard block on Thursdays — cannot be dropped or shortened. Not a work block — can extend up to 9:30PM. |
 
@@ -87,12 +85,12 @@ When time is short, drop from the bottom up:
 
 #### Scheduling Rules
 
-1. **Morning Routine is always first** — starts at 6:30AM, 1 hr minimum. Preferred 1.5 hrs, but Outreach takes priority over the extra 30 min if time is tight.
-2. **Natural daily order:** Morning Routine → Admin → Outreach → MDR → Growth → Gym → Meal Prep (Thu only). On days without Outreach (weekends), Growth comes before MDR: Morning Routine → Admin → Growth → MDR → Gym. MDR always comes before Meal Prep. Place blocks in this sequence around any fixed commitments.
+1. **Morning Routine is always first** — starts at 8:30AM, 1 hr minimum. Preferred 1.5 hrs, but Outreach takes priority over the extra 30 min if time is tight.
+2. **Natural daily order:** Morning Routine → Admin → Outreach → MDR → Growth → Gym → Meal Prep (Thu only). MDR always comes before Meal Prep. Place blocks in this sequence around any fixed commitments.
 3. **Max each block to its preferred duration** before moving on. Only leave a gap if no remaining block can fill it without going below its minimum.
 4. **Never compress a block below its minimum** — drop it entirely instead.
 5. **Never leave a schedulable gap** — if a lower-priority block could fill a window, it must.
-6. **MDR placement:** MDR must always follow a primary work block — never place it directly after Admin alone. On weekdays, it goes after Outreach. On weekends or days without Outreach, it goes after Growth. It is the midday reset between the morning work session and the afternoon.
+6. **MDR placement:** MDR must always follow a primary work block — never place it directly after Admin alone. It goes after Outreach. It is the midday reset between the morning work session and the afternoon.
 7. **Thursday — Meal Prep:** Hard block, 1.5 hours. Place it after Gym (or after Growth if no Gym). MDR must always come before Meal Prep. Meal Prep is not a work block — it can extend up to 9:30PM regardless of the work window end. Takes priority over Growth — if time is short, Meal Prep stays and Growth drops.
 8. **Gym:** Schedule after all higher-priority blocks are at full capacity. Place in any available 2-hour window. Must end by 9:30PM. Before dropping Gym, check if shortening Growth below its preferred duration (but not below its 1-hr minimum) would open a 2-hr window — if yes, shorten Growth to make room. Only drop Gym entirely if no 2-hr window exists even with Growth at its minimum.
 9. Sales calls are never pre-scheduled — prospects self-book, adjust around them.
@@ -127,9 +125,8 @@ No output. The calendar speaks for itself. If an event fails to create, retry on
 
 ## Edge Cases
 
-- **Tomorrow is Sunday, no override:** Create no events. Stop.
-- **Tomorrow is Sunday, override active:** Schedule normally. Work window ends at 6PM.
-- **Tomorrow is Saturday:** Work window ends at 6PM for non-gym blocks. Gym can extend to 9:30PM on Saturday — schedule it after the work window if no earlier 2-hr window exists.
+- **Tomorrow is Saturday or Sunday, no override:** Create no events. Stop.
+- **Tomorrow is Saturday or Sunday, override active:** Schedule normally. Work window ends at 6PM.
 - **Discount Tires shift:** 30-min pre-buffer, 1-hr post-buffer. Schedule Outreach in whatever time remains. Morning Routine always runs on shift days — the 1-hr minimum does not apply here. If fewer than 60 minutes exist before the pre-buffer, create Morning Routine for however long is available (minimum 30 min). Never skip it entirely on shift days.
 - **Tomorrow is Thursday:** Meal Prep is a hard 1.5-hr block. Cannot be dropped or shortened. Goes after Gym (or Growth if no Gym). MDR must come before it. Can extend up to 9:30PM.
 - **Tomorrow fully booked:** Create no new events.
