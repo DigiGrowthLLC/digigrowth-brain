@@ -69,7 +69,7 @@ _session = {
     "batch_had_answer":    False, # True once any lead in the current batch answered
     "max_lines":           10,    # overridable from browser dropdown
     "end_requested":       False, # set by browser End Session button
-    # In-session stats (GHL is the source of truth; these are just for the end-of-session print)
+    # In-session stats (OS CRM is the source of truth; these are for the end-of-session print)
     "stats": {"calls_made": 0, "dms_reached": 0},
     "lock":                threading.Lock(),
 }

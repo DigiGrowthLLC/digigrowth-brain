@@ -4,55 +4,66 @@
 
 ## Emails [last 24h]
 
-1. **[URGENT] Google Cloud — Security Alert** | `google-cloud-compliance@google.com`
-   A service account key (`apptset-agent@digigrowth-agents`) was found publicly exposed in your GitHub repo (`digigrowth-brain/apptset-agent/credentials.json`). Google is disabling the key. **Immediate action required: rotate the key in Google Cloud Console and remove credentials.json from the repo.**
-
-2. **[ACTION] Sonny Hsia @ Plaid** | `shsia@plaid.com`
-   Sonny confirmed no meeting needed since the Plaid integration is internal-use only. Directed Dylan to submit for Production Access on the Plaid Dashboard. Dylan replied that production access was already submitted and he's waiting on approval. **Watch for Plaid's approval email — no action needed until it arrives.**
-
-3. **Job Application — The Osprey (Amber)** | `dylangroenendijk@gmail.com` (outbound)
-   Dylan sent a serving position inquiry to Amber at The Osprey. No reply yet.
-
-4. **Job Application — Aurora (Mike)** | `dylangroenendijk@gmail.com` (outbound)
-   Dylan sent a serving position inquiry to Mike at Aurora. No reply yet.
+Inbox clear — no business emails in the last 24 hours.
 
 ---
 
 ## Today's Schedule
 
-- **1:00 PM – 2:00 PM EDT** — Work (1h)
+- **6:30 AM – 8:00 AM EDT** — Morning Routine (1h 30m)
+- **8:00 AM – 9:00 AM EDT** — Admin (1h) — inbox triage, GHL CRM check, Notion review
+- **9:00 AM – 11:00 AM EDT** — Outreach (2h) — cold calls and follow-ups, log contacts in GHL
+- **11:00 AM – 12:00 PM EDT** — MDR (1h) — lunch, step away from screens
+- **12:00 PM – 1:00 PM EDT** — Free (1h)
+- **1:00 PM – 6:30 PM EDT** — Work (5h 30m)
+- **7:30 PM – 9:30 PM EDT** — Gym (2h)
 
-Committed: 1h | Free: 8h
+Committed: 8h (within 9 AM–6 PM) | Free: 1h (12–1 PM)
 
 ---
 
 ## Outreach This Week
 
-The June Daily Input Tracker is a **daily habits/routine tracker** — not a cold calling or SMS outreach tracker. It tracks: wake time, morning routine (MR), priority work, gym, healthy diet, and dopamine regulation.
+**Source: DigiGrowth Sales Performance Tracker**
 
-**This week's habit scores (Jun 8–12):**
+| Metric | All-Time |
+|---|---|
+| Calls booked | 18 |
+| Calls showed | 9 |
+| Calls won | 0 |
+| Show rate | 50% |
+| Close rate | 0% (note: tracker flags <30 calls as insufficient sample) |
 
-| Date | Score | Priority Work | Gym | Morning Routine | Healthy Diet |
-|---|---|---|---|---|---|
-| Jun 8 | 5/10 | ✅ | ✅ | ✅ | ❌ |
-| Jun 9 | 4/10 | ✅ | ❌ | ✅ | ❌ |
-| Jun 10 | 4/10 | ❌ | ❌ | ❌ | ❌ |
-| Jun 11 | — | ✅ | ❌ | ✅ | ✅ |
-| Jun 12 | — | ❌ | ❌ | ❌ | ❌ |
+Last call logged: **April 24, 2026** (Call 18 — Xander Aguirre, no-show). No calls logged in May or June.
 
-**Gaps this week:** Gym missed every day this week (0/5). Jun 10 and Jun 12 had no tracked habits completed. Wake time (6:30 AM) has not been hit any day this week.
+Per Goal Tracker: outreach is scheduled to start **June 15**. Systems build deadline is **June 14** (tomorrow).
 
-**Note:** No cold calling or SMS outreach tracker found in Drive. If a separate outreach sheet exists (calls made, contacts reached, SMS sent), confirm the file name so it can be pulled in future briefs.
+---
+
+## Yesterday's Performance
+
+**June 11 — Score: 5/10** (week avg: 4.5)
+
+**What you did well yesterday:**
+- **Morning Routine** ✅ — hit (3 of 4 days this week)
+- **Priority Work** ✅ — hit (3 of 4 days this week)
+- **Gym** ✅ — hit (only 2 days this week: Jun 8 and Jun 11)
+- **Healthy Diet** ✅ — hit (only day this week it was logged; 0/3 prior days)
+- **MDR** ✅ — hit (2 of 4 days this week)
+
+**What to focus on improving today:**
+- **6:30am Wake Up** ❌ — missed all 4 days this week (0/4); not hit once in June
+- **Dopamine Reg** ❌ — missed yesterday; only logged once this week (Jun 10)
 
 ---
 
 ## How to Use Your Day
 
-1 hour committed (Work block at 1 PM). ~8 hours open.
+Schedule is nearly full. One free block: 12–1 PM.
 
-- **Option 1 (9 AM – 12 PM):** Cold outreach block — calls or Loom prospecting targeting fitness studio owners before the 1 PM work block.
-- **Option 2 (2 PM – 5 PM):** Follow up on open leads in GHL CRM — review pipeline and any pending fitness studio prospects.
-- **Option 3 (Morning, before outreach):** Rotate the exposed Google Cloud service account key — this is time-sensitive and takes ~15 minutes. Remove `credentials.json` from the public GitHub repo first.
+- **9–11 AM (Outreach block):** Systems build starts June 15 — use today's outreach block to prep the prospecting pipeline in GHL so it's ready to run Monday.
+- **12–1 PM (free block):** Review any open leads or follow-ups from the morning, or finalize whatever systems work is blocking the June 14 deadline.
+- **1–6:30 PM (Work block):** June 14 systems build deadline is tomorrow — this is the window to close it out.
 
 ---
 

@@ -12,6 +12,7 @@ class SOPCreate(BaseModel):
     category: str = "General"
     visibility: str = "private"
     sort_order: int = 0
+    doc_type: str = "sop"
 
 
 class SOPUpdate(BaseModel):
@@ -20,16 +21,27 @@ class SOPUpdate(BaseModel):
     category: Optional[str] = None
     visibility: Optional[str] = None
     sort_order: Optional[int] = None
+    doc_type: Optional[str] = None
 
 
 @router.get("/sops")
-async def list_sops(category: Optional[str] = Query(None)):
+async def list_sops(category: Optional[str] = Query(None), doc_type: Optional[str] = Query(None)):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        if category:
+        if category and doc_type:
+            rows = await conn.fetch(
+                "SELECT * FROM sops WHERE category = $1 AND doc_type = $2 ORDER BY category, sort_order, id",
+                category, doc_type,
+            )
+        elif category:
             rows = await conn.fetch(
                 "SELECT * FROM sops WHERE category = $1 ORDER BY category, sort_order, id",
                 category,
+            )
+        elif doc_type:
+            rows = await conn.fetch(
+                "SELECT * FROM sops WHERE doc_type = $1 ORDER BY category, sort_order, id",
+                doc_type,
             )
         else:
             rows = await conn.fetch(
@@ -43,9 +55,9 @@ async def create_sop(body: SOPCreate):
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """INSERT INTO sops (title, content, category, visibility, sort_order)
-               VALUES ($1, $2, $3, $4, $5) RETURNING *""",
-            body.title, body.content, body.category, body.visibility, body.sort_order,
+            """INSERT INTO sops (title, content, category, visibility, sort_order, doc_type)
+               VALUES ($1, $2, $3, $4, $5, $6) RETURNING *""",
+            body.title, body.content, body.category, body.visibility, body.sort_order, body.doc_type,
         )
     return dict(row)
 

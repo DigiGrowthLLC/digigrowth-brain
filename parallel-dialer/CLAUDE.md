@@ -1,6 +1,6 @@
 # Parallel Dialer
 
-Dials up to 10 leads simultaneously via Twilio, bridges the first answered call to Dylan's phone, classifies dispositions via DTMF keypress, and routes each lead into the correct GHL workflow. After 3 unanswered attempts, leads hand off automatically to the GHL SMS appointment-setting workflow.
+Dials up to 10 leads simultaneously via Twilio, bridges the first answered call to Dylan's browser, classifies dispositions via button click, and logs everything to the DigiGrowth OS CRM. After 3 unanswered attempts, leads hand off automatically to the OS SMS appointment-setting workflow.
 
 **Run:** `python run.py`
 
@@ -10,16 +10,14 @@ Dials up to 10 leads simultaneously via Twilio, bridges the first answered call 
 
 | File | Purpose |
 |---|---|
-| `run.py` | CLI entry point — start session, status, retry, handoff, test |
+| `run.py` | CLI entry point — start session, test, newsletter |
 | `dialer.py` | Twilio: place outbound calls, manage conference, cancel overflow |
-| `webhook.py` | Flask server: handle all Twilio call events via TwiML |
-| `leads.py` | Google Sheets: load leads, write dispositions, manage state.json |
-| `ghl.py` | GHL API: contact lookup/create, tags, workflow triggers, notes |
-| `config.json` | All settings — phone numbers, sheet ID, GHL workflow IDs, webhook URL |
+| `webhook.py` | Flask server: handle all Twilio call events via TwiML, serve browser UI |
+| `leads.py` | Utility: phone number normalization |
+| `agent.html` | Browser UI: Twilio.Device client, disposition buttons, contact info display |
+| `config.json` | Settings — phone numbers, OS API URL, ngrok URL, Twilio config |
 | `memory.txt` | Agent memory — rules, notes, edge cases |
-| `state.json` | Auto-generated: per-lead attempt counts and dispositions |
-| `.env` | Twilio + GHL API keys — never commit |
-| `credentials.json` | Google service account — never commit (copy from lead-qualifier/) |
+| `.env` | Twilio API keys — never commit |
 
 ---
 
@@ -29,28 +27,24 @@ Dials up to 10 leads simultaneously via Twilio, bridges the first answered call 
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Copy credentials from lead-qualifier (same Google service account)
-cp ../lead-qualifier/credentials.json .
-
-# 3. Set up env
+# 2. Set up env
 cp .env.example .env
-# Fill in: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, GHL_API_KEY
+# Fill in: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_API_KEY_SID,
+#          TWILIO_API_KEY_SECRET, TWILIO_TWIML_APP_SID,
+#          OS_API_PASSWORD, NGROK_AUTH_TOKEN
 
-# 4. Fill in config.json
-#    - twilio_phone_number, dylan_phone_number
-#    - google_sheet_id (same sheet as lead-qualifier output)
-#    - leads_tab (default: "Qualified Leads")
-#    - ghl_location_id, ghl_calendar_id
-#    - ghl_workflows (get IDs from GHL → Automations)
-#    - webhook_base_url (your ngrok URL)
+# 3. Fill in config.json
+#    - twilio_phone_number (your Twilio number)
+#    - os_api_url (DigiGrowth OS Railway URL)
+#    - webhook_base_url (your ngrok static domain URL)
+#    - calendly_url (your booking link)
 
-# 5. Start ngrok (in a separate terminal)
-ngrok http 5000
+# 4. Start ngrok (auto-started by run.py if NGROK_AUTH_TOKEN is set)
 
-# 6. Test the call bridge
+# 5. Test the call bridge
 python run.py test
 
-# 7. Start a real session
+# 6. Start a real session
 python run.py
 ```
 
@@ -59,64 +53,75 @@ python run.py
 ## CLI Commands
 
 ```bash
-python run.py            # Start dialing session
-python run.py status     # Show session stats (calls, dispositions, handoffs)
-python run.py retry      # Re-dial leads with <3 attempts and no disposition
-python run.py handoff    # Manually trigger SMS handoff for all 3-strike leads
-python run.py test       # Place a single test call to verify Twilio setup
+python run.py          # Start dialing session
+python run.py test     # Place a test call to verify Twilio + webhook setup
+python run.py newsletter  # Generate and send weekly AI newsletter
 ```
 
 ---
 
 ## How a Call Works
 
-1. `run.py` loads eligible leads from Google Sheets (Grade A → B → C → D)
-2. Flask webhook server starts on port 5000
-3. Dialer calls up to 10 leads simultaneously
-4. **First lead to answer** → put in Twilio Conference (hears hold music)
-5. Dylan's phone is called — when he answers, conference starts → live call
-6. Other answered calls → polite message + hangup
-7. Call ends → Dylan hears classification prompt
-8. Dylan presses:
-   - `1` Appointment Booked
-   - `2` Follow Up
-   - `3` Not Interested
-   - `4` Send Info
-   - `5` No Answer
-9. Disposition saved to `state.json` and flushed to Google Sheets
-10. GHL workflow triggered based on disposition
+1. `run.py` loads eligible leads from DigiGrowth OS CRM (`GET /api/dialer/leads`)
+   - Leads ordered: Grade A → B → C → D, then by fewest attempts
+   - Excluded: appointment-booked, not-interested, sms-handoff, dnc
+   - Cooldown: contacts last called within 4 hours are skipped
+2. Ngrok tunnel auto-starts, TwiML App Voice URL is auto-updated
+3. Browser UI opens at `http://localhost:5000/agent`
+4. Dylan clicks Connect — his browser joins the Twilio conference
+5. Dialer calls up to 10 leads simultaneously
+6. **First lead to answer** → bridged to conference immediately (Dylan hears them)
+7. All other ringing calls → canceled
+8. Call ends → Dylan clicks a disposition button in the browser
+9. Disposition POSTed to OS CRM (`POST /api/dialer/disposition`)
+10. Contact status updated in PostgreSQL; call logged to `call_logs` table
+11. Next batch starts
+
+---
+
+## Disposition → OS CRM Status Map
+
+| Disposition | OS Contact Status |
+|---|---|
+| Appointment Booked | `appointment-booked` |
+| Follow Up | `dialer-lead` |
+| Send Info | `send-info` |
+| Not Interested | `not-interested` |
+| No Answer | `dialer-lead` |
+| SMS Handoff (auto after 3×) | `sms-handoff` |
 
 ---
 
 ## 3-Strike Handoff
 
 If a lead reaches 3 unanswered call attempts:
-- Marked as `SMS Handoff` in Google Sheets
-- GHL "SMS Handoff" workflow fires → appointment setter sends outbound SMS sequence
+- OS CRM sets contact status → `sms-handoff`
+- Twilio sends an outbound SMS automatically (handled in `dashboard/backend/routers/dialer.py`)
 
 ---
 
-## Disposition → GHL Workflow Map
+## Machine Detection
 
-| Keypress | Disposition | GHL Action |
-|---|---|---|
-| 1 | Appointment Booked | Tag + (book via booking.py — Phase 4) |
-| 2 | Follow Up | Tag + `follow_up` workflow |
-| 3 | Not Interested | Tag + `not_interested` workflow |
-| 4 | Send Info | Tag + `send_info` workflow |
-| 5 / auto | No Answer × 3 | `sms_handoff` workflow |
+Twilio's `AnsweredBy` parameter is used to detect voicemails:
+- `machine_end_*` or `fax` → call is dropped immediately, counted as No Answer
+- `machine_start` (IVR/gatekeeper) → held silently, popup appears in browser for Dylan to connect or decline
 
 ---
 
-## Build Phases
+## Environment Variables (`.env`)
 
-- **Phase 1 (current):** Foundation — single-line bridge, Sheets integration, GHL stubs
-- **Phase 2:** True parallel dialing — 10 lines simultaneously
-- **Phase 3:** Live GHL workflow wiring with real IDs
-- **Phase 4:** GHL Calendar appointment booking via `booking.py`
+```
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=...
+TWILIO_API_KEY_SID=SK...
+TWILIO_API_KEY_SECRET=...
+TWILIO_TWIML_APP_SID=AP...
+OS_API_PASSWORD=...        # same as DASHBOARD_PASSWORD on Railway
+NGROK_AUTH_TOKEN=...       # free ngrok account token
+```
 
 ---
 
 ## Security
 
-`.env` and `credentials.json` are in `.gitignore`. Never commit them.
+`.env` is in `.gitignore`. Never commit it.

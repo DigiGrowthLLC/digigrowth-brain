@@ -159,7 +159,8 @@ async def dialer_leads(limit: int = 500):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, phone, business, owner, grade, opener, email, call_attempts
+            SELECT id, phone, business, owner, grade, opener, email,
+                   website, city, state, call_attempts
             FROM contacts
             WHERE phone IS NOT NULL
               AND status NOT IN ('appointment-booked', 'not-interested', 'sms-handoff', 'dnc')
@@ -183,6 +184,9 @@ async def dialer_leads(limit: int = 500):
                 "grade":      r["grade"] or "",
                 "opener":     r["opener"] or "",
                 "email":      r["email"] or "",
+                "website":    r["website"] or "",
+                "city":       r["city"] or "",
+                "state":      r["state"] or "",
                 "attempts":   r["call_attempts"],
             }
             for r in rows
@@ -226,19 +230,28 @@ async def get_stats():
             "SELECT COUNT(*) FROM contacts WHERE last_disposition IN "
             "('Appointment Booked', 'Follow Up', 'Send Info')"
         )
+        leads_ready = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM contacts
+            WHERE phone IS NOT NULL
+              AND status NOT IN ('appointment-booked', 'not-interested', 'sms-handoff', 'dnc')
+              AND (last_called_at IS NULL OR last_called_at < now() - interval '4 hours')
+            """
+        )
 
     reach_rate = round(_live["dms_reached"] / _live["calls_made"] * 100, 1) \
         if _live["calls_made"] > 0 else 0
 
     return {
         "session": {
-            "active":      _live["active"],
-            "session_id":  _live["session_id"],
-            "calls_made":  _live["calls_made"],
-            "dms_reached": _live["dms_reached"],
-            "total_leads": _live["total_leads"],
-            "remaining":   max(0, _live["total_leads"] - _live["calls_made"]),
-            "reach_rate":  reach_rate,
+            "active":       _live["active"],
+            "session_id":   _live["session_id"],
+            "calls_made":   _live["calls_made"],
+            "dms_reached":  _live["dms_reached"],
+            "total_leads":  _live["total_leads"],
+            "remaining":    max(0, _live["total_leads"] - _live["calls_made"]),
+            "reach_rate":   reach_rate,
+            "leads_ready":  leads_ready,
         },
         "history": {
             "total_calls":     total_calls,

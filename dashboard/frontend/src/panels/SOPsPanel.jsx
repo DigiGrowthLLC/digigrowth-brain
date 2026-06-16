@@ -33,7 +33,7 @@ const PROSE_CSS = `
   .sop-prose:focus { outline: none; }
   .sop-prose.ProseMirror { outline: none; }
   .sop-prose.ProseMirror p.is-editor-empty:first-child::before {
-    content: 'Start writing your SOP...';
+    content: 'Start writing...';
     float: left; color: #2a4a6a;
     pointer-events: none; height: 0;
   }
@@ -275,8 +275,14 @@ function FormatBar({ editor }) {
   );
 }
 
+const SUBSECTIONS = [
+  { id: "sop",          label: "SOPs",               subtitle: "STANDARD OPERATING PROCEDURES", newLabel: "New SOP",      placeholder: "SOP title..." },
+  { id: "business_doc", label: "Business Documents",  subtitle: "CONTRACTS · PROPOSALS · DOCS",  newLabel: "New Document", placeholder: "Document title..." },
+];
+
 // ── Main panel ───────────────────────────────────────────────────────────────
 export default function SOPsPanel() {
+  const [activeSection, setActiveSection] = useState("sop");
   const [sops, setSops] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [isNew, setIsNew] = useState(false);
@@ -288,6 +294,8 @@ export default function SOPsPanel() {
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const suppressNextUpdate = useRef(false);
+
+  const section = SUBSECTIONS.find(s => s.id === activeSection) || SUBSECTIONS[0];
 
   const editor = useEditor({
     extensions: [
@@ -312,11 +320,20 @@ export default function SOPsPanel() {
   });
 
   const fetchSOPs = useCallback(async () => {
-    const r = await fetch("/api/sops");
+    const r = await fetch(`/api/sops?doc_type=${activeSection}`);
     if (r.ok) setSops(await r.json());
-  }, []);
+  }, [activeSection]);
 
   useEffect(() => { fetchSOPs(); }, [fetchSOPs]);
+
+  useEffect(() => {
+    setSelectedId(null);
+    setIsNew(false);
+    setDirty(false);
+    setTitle("");
+    setCategory("General");
+    setContent("");
+  }, [activeSection]);
 
   const categories = [...new Set(sops.map(s => s.category || "General").filter(Boolean))];
 
@@ -354,7 +371,7 @@ export default function SOPsPanel() {
   const save = async () => {
     if (!title.trim()) return;
     const content = editor ? editor.getHTML() : "";
-    const payload = { title: title.trim(), content, category, visibility };
+    const payload = { title: title.trim(), content, category, visibility, doc_type: activeSection };
     setSaving(true);
     try {
       if (selectedId && !isNew) {
@@ -417,8 +434,8 @@ export default function SOPsPanel() {
         borderBottom: "1px solid rgba(58,123,213,0.12)",
         display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
       }}>
-        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>SOPs</span>
-        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>STANDARD OPERATING PROCEDURES</span>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>Business Documents</span>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
           {savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
@@ -448,7 +465,7 @@ export default function SOPsPanel() {
               fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
               fontSize: 12, padding: "6px 14px", cursor: "pointer",
             }}
-          >+ New SOP</button>
+          >+ {section.newLabel}</button>
         </div>
       </div>
 
@@ -459,8 +476,31 @@ export default function SOPsPanel() {
         <div style={{
           width: 240, flexShrink: 0,
           borderRight: "1px solid rgba(58,123,213,0.1)",
-          overflowY: "auto", padding: "12px 0",
+          display: "flex", flexDirection: "column", overflow: "hidden",
         }}>
+          {/* Subsection tabs */}
+          <div style={{ padding: "10px 8px 0", flexShrink: 0 }}>
+            {SUBSECTIONS.map(sub => (
+              <button
+                key={sub.id}
+                onClick={() => setActiveSection(sub.id)}
+                style={{
+                  display: "block", width: "100%", textAlign: "left",
+                  padding: "7px 12px", marginBottom: 2,
+                  background: activeSection === sub.id ? "rgba(58,123,213,0.18)" : "transparent",
+                  border: activeSection === sub.id ? "1px solid rgba(58,123,213,0.3)" : "1px solid transparent",
+                  borderRadius: 6, cursor: "pointer",
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 12, fontWeight: activeSection === sub.id ? 600 : 400,
+                  color: activeSection === sub.id ? "#6ab0ff" : "#4a6a8a",
+                  transition: "all 0.15s",
+                }}
+              >{sub.label}</button>
+            ))}
+            <div style={{ borderBottom: "1px solid rgba(58,123,213,0.1)", margin: "8px 0" }} />
+          </div>
+
+          <div style={{ flex: 1, overflowY: "auto", padding: "0 0 12px" }}>
           {isNew && (
             <div style={{
               margin: "0 8px 8px",
@@ -471,12 +511,12 @@ export default function SOPsPanel() {
               fontFamily: "'Space Grotesk', sans-serif",
               fontSize: 12, color: "#6ab0ff", fontWeight: 600,
             }}>
-              + New SOP
+              + {section.newLabel}
             </div>
           )}
           {Object.keys(grouped).length === 0 && !isNew && (
             <div style={{ padding: "20px 16px", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a6a", textAlign: "center", letterSpacing: "0.1em" }}>
-              NO SOPS YET
+              NO {section.label.toUpperCase()} YET
             </div>
           )}
           {Object.entries(grouped).map(([cat, items]) => (
@@ -523,6 +563,7 @@ export default function SOPsPanel() {
               })}
             </div>
           ))}
+          </div>
         </div>
 
         {/* Editor pane */}
@@ -530,7 +571,7 @@ export default function SOPsPanel() {
           {!showEditor ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>
-                SELECT OR CREATE A SOP
+                SELECT OR CREATE A {section.label.toUpperCase().replace(/S$/, "")}
               </div>
             </div>
           ) : (
@@ -544,7 +585,7 @@ export default function SOPsPanel() {
                 <input
                   value={title}
                   onChange={e => { setTitle(e.target.value); setDirty(true); }}
-                  placeholder="SOP title..."
+                  placeholder={section.placeholder}
                   autoFocus={isNew}
                   style={{
                     flex: 1, background: "rgba(255,255,255,0.04)",

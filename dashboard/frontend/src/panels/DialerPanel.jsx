@@ -119,12 +119,14 @@ export default function DialerPanel() {
       {/* Live Session Stats */}
       <div>
         <div className="sec-label">{session.active ? "Live Session" : "Last Session"}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-          <StatCard label="Calls Made"  value={session.calls_made} />
-          <StatCard label="DMs Reached" value={session.dms_reached} />
-          <StatCard label="Remaining"   value={session.remaining}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+          <StatCard label="Calls Made"    value={session.calls_made} />
+          <StatCard label="DMs Reached"   value={session.dms_reached} />
+          <StatCard label="Remaining"     value={session.remaining}
             sub={session.total_leads ? `OF ${session.total_leads}` : null} />
-          <StatCard label="Reach Rate"  value={session.calls_made > 0 ? `${session.reach_rate}%` : "—"} />
+          <StatCard label="Reach Rate"    value={session.calls_made > 0 ? `${session.reach_rate}%` : "—"} />
+          <StatCard label="Ready to Dial" value={session.leads_ready ?? "—"}
+            sub={session.leads_ready > 0 ? "IN QUEUE" : null} />
         </div>
       </div>
 
