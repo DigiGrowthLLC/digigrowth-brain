@@ -35,6 +35,15 @@ class ContactUpdate(BaseModel):
     newsletter: Optional[bool] = None
 
 
+class BulkAction(BaseModel):
+    ids: Optional[list[str]] = None      # specific contact IDs
+    select_all: bool = False             # if True, applies to all matching filter
+    filter_status: Optional[str] = None  # used when select_all=True
+    filter_search: Optional[str] = None  # used when select_all=True
+    action: str                          # "delete" | "add_tag" | "remove_tag" | "set_status"
+    value: Optional[str] = None          # tag name or status value
+
+
 class NoteAdd(BaseModel):
     text: str
 

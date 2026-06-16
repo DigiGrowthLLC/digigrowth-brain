@@ -135,4 +135,5 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS due_date DATE;
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS recurrence TEXT;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS doc_type TEXT NOT NULL DEFAULT 'sop';
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
         """)

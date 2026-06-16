@@ -269,40 +269,47 @@ function ImportModal({ onClose, onImported }) {
   );
 }
 
-function ContactRow({ contact, onSelect }) {
+function ContactRow({ contact, checked, onCheck, onSelect }) {
   return (
     <tr
-      onClick={() => onSelect(contact)}
-      style={{ borderBottom: "0.5px solid #1a2540", cursor: "pointer", transition: "background 0.1s" }}
-      onMouseEnter={e => e.currentTarget.style.background = "#0d1626"}
-      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+      style={{ borderBottom: "0.5px solid #1a2540", cursor: "pointer", transition: "background 0.1s", background: checked ? "rgba(40,87,160,0.1)" : "transparent" }}
+      onMouseEnter={e => { if (!checked) e.currentTarget.style.background = "#0d1626"; }}
+      onMouseLeave={e => { if (!checked) e.currentTarget.style.background = "transparent"; }}
     >
-      <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#c4d0e8", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <td style={{ padding: "10px 10px 10px 14px", width: 32 }} onClick={e => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={() => onCheck(contact.id)}
+          style={{ accentColor: "#3a7bd5", width: 13, height: 13, cursor: "pointer" }}
+        />
+      </td>
+      <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 600, color: "#c4d0e8", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => onSelect(contact)}>
         {contact.business || <span style={{ color: "#1a2f52" }}>—</span>}
       </td>
-      <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9dc0", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9dc0", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => onSelect(contact)}>
         {contact.owner || <span style={{ color: "#1a2f52" }}>—</span>}
       </td>
-      <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a6f8f" }}>
+      <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a6f8f" }} onClick={() => onSelect(contact)}>
         {contact.phone || "—"}
       </td>
-      <td style={{ padding: "10px 14px" }}>
+      <td style={{ padding: "10px 14px" }} onClick={() => onSelect(contact)}>
         {contact.grade
           ? <span className={`badge ${GRADE_BADGE[contact.grade] || "badge-gray"}`}>{contact.grade}</span>
           : <span style={{ color: "#1a2f52" }}>—</span>}
       </td>
-      <td style={{ padding: "10px 14px" }}>
+      <td style={{ padding: "10px 14px" }} onClick={() => onSelect(contact)}>
         <span className={`badge ${STATUS_BADGE[contact.status] || "badge-gray"}`}>
           {contact.status}
         </span>
       </td>
-      <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a6f8f", textAlign: "center" }}>
+      <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a6f8f", textAlign: "center" }} onClick={() => onSelect(contact)}>
         {contact.call_attempts}
       </td>
-      <td style={{ padding: "10px 14px", fontSize: 11, color: "#5a6f8f", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <td style={{ padding: "10px 14px", fontSize: 11, color: "#5a6f8f", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => onSelect(contact)}>
         {contact.last_disposition || <span style={{ color: "#1a2f52" }}>—</span>}
       </td>
-      <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a4f6f" }}>
+      <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a4f6f" }} onClick={() => onSelect(contact)}>
         {contact.state || "—"}
       </td>
     </tr>
@@ -454,6 +461,18 @@ export default function CRMPanel() {
   const [selected, setSelected]       = useState(null);
   const [showAdd, setShowAdd]         = useState(false);
   const [showImport, setShowImport]   = useState(false);
+
+  // ── Selection state ──
+  const [checkedIds, setCheckedIds]   = useState(new Set());
+  const [selectAllPages, setSelectAllPages] = useState(false); // true = all contacts across pages
+
+  // ── Bulk action state ──
+  const [bulkAction, setBulkAction]   = useState("set_status");
+  const [bulkValue, setBulkValue]     = useState("");
+  const [bulkTagInput, setBulkTagInput] = useState("");
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkFeedback, setBulkFeedback] = useState("");
+
   const LIMIT = 50;
 
   const fetchContacts = useCallback(async () => {
@@ -473,7 +492,62 @@ export default function CRMPanel() {
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
   function handleSearch(e) { e.preventDefault(); setSearch(searchInput); setOffset(0); }
-  function handleStatus(val) { setActiveStatus(val); setOffset(0); }
+  function handleStatus(val) { setActiveStatus(val); setOffset(0); setCheckedIds(new Set()); setSelectAllPages(false); }
+
+  // ── Selection helpers ──
+  const pageIds = contacts.map(c => c.id);
+  const allPageChecked = pageIds.length > 0 && pageIds.every(id => checkedIds.has(id));
+  const someChecked = checkedIds.size > 0 || selectAllPages;
+
+  function toggleCheck(id) {
+    setSelectAllPages(false);
+    setCheckedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function togglePageAll() {
+    setSelectAllPages(false);
+    if (allPageChecked) {
+      setCheckedIds(prev => { const next = new Set(prev); pageIds.forEach(id => next.delete(id)); return next; });
+    } else {
+      setCheckedIds(prev => { const next = new Set(prev); pageIds.forEach(id => next.add(id)); return next; });
+    }
+  }
+
+  function clearSelection() { setCheckedIds(new Set()); setSelectAllPages(false); }
+
+  async function runBulkAction() {
+    const action = bulkAction;
+    const value  = action === "set_status" ? bulkValue : bulkTagInput.trim();
+    if ((action === "add_tag" || action === "remove_tag") && !value) return;
+    if (action === "set_status" && !value) return;
+    if (action === "delete" && !window.confirm(`Delete ${selectAllPages ? total : checkedIds.size} contact(s)? This cannot be undone.`)) return;
+
+    setBulkRunning(true);
+    setBulkFeedback("");
+    const body = selectAllPages
+      ? { select_all: true, filter_status: activeStatus, filter_search: search || null, action, value: value || null }
+      : { ids: [...checkedIds], select_all: false, action, value: value || null };
+
+    const res = await fetch("/api/contacts/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setBulkFeedback(`${data.affected} contact(s) updated`);
+      clearSelection();
+      await fetchContacts();
+      setTimeout(() => setBulkFeedback(""), 3000);
+    } else {
+      setBulkFeedback(data.detail || "Error");
+    }
+    setBulkRunning(false);
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -528,6 +602,87 @@ export default function CRMPanel() {
         ))}
       </div>
 
+      {/* Bulk action bar */}
+      {someChecked && (
+        <div style={{
+          padding: "8px 20px", flexShrink: 0,
+          background: "rgba(40,87,160,0.12)",
+          borderBottom: "0.5px solid rgba(58,123,213,0.25)",
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+        }}>
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#6ab0ff", whiteSpace: "nowrap" }}>
+            {selectAllPages ? `ALL ${total.toLocaleString()}` : checkedIds.size} SELECTED
+          </span>
+
+          {!selectAllPages && checkedIds.size === pageIds.length && total > checkedIds.size && (
+            <button
+              onClick={() => setSelectAllPages(true)}
+              style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", textDecoration: "underline", padding: 0 }}
+            >
+              Select all {total.toLocaleString()} contacts
+            </button>
+          )}
+
+          <div style={{ width: 1, height: 16, background: "rgba(58,123,213,0.3)" }} />
+
+          {/* Action selector */}
+          <select
+            value={bulkAction}
+            onChange={e => { setBulkAction(e.target.value); setBulkValue(""); setBulkTagInput(""); }}
+            style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#8aaad0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, padding: "4px 8px", cursor: "pointer" }}
+          >
+            <option value="set_status">Set Status</option>
+            <option value="add_tag">Add Tag</option>
+            <option value="remove_tag">Remove Tag</option>
+            <option value="delete">Delete</option>
+          </select>
+
+          {/* Value input based on action */}
+          {bulkAction === "set_status" && (
+            <select
+              value={bulkValue}
+              onChange={e => setBulkValue(e.target.value)}
+              style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#8aaad0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, padding: "4px 8px", cursor: "pointer" }}
+            >
+              <option value="">— pick status —</option>
+              {STATUSES.filter(s => s.value !== "all").map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          )}
+          {(bulkAction === "add_tag" || bulkAction === "remove_tag") && (
+            <input
+              value={bulkTagInput}
+              onChange={e => setBulkTagInput(e.target.value)}
+              placeholder="Tag name…"
+              onKeyDown={e => e.key === "Enter" && runBulkAction()}
+              style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#c4d0e8", fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, padding: "4px 10px", width: 140, outline: "none" }}
+            />
+          )}
+
+          <button
+            onClick={runBulkAction}
+            disabled={bulkRunning}
+            style={{
+              background: bulkAction === "delete" ? "rgba(200,50,50,0.2)" : "linear-gradient(90deg,#2857a0,#3a7bd5)",
+              border: bulkAction === "delete" ? "0.5px solid #8b2020" : "none",
+              borderRadius: 4, color: bulkAction === "delete" ? "#e05555" : "#fff",
+              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+              fontSize: 11, padding: "5px 14px", cursor: bulkRunning ? "not-allowed" : "pointer", opacity: bulkRunning ? 0.6 : 1,
+            }}
+          >{bulkRunning ? "…" : bulkAction === "delete" ? "Delete" : "Apply"}</button>
+
+          <button
+            onClick={clearSelection}
+            style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", padding: "4px 6px" }}
+          >✕ Clear</button>
+
+          {bulkFeedback && (
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399" }}>{bulkFeedback}</span>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
@@ -546,6 +701,14 @@ export default function CRMPanel() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead style={{ position: "sticky", top: 0, background: "#080c14", zIndex: 1 }}>
               <tr style={{ borderBottom: "0.5px solid #1a2540" }}>
+                <th style={{ padding: "8px 10px 8px 14px", width: 32 }}>
+                  <input
+                    type="checkbox"
+                    checked={allPageChecked}
+                    onChange={togglePageAll}
+                    style={{ accentColor: "#3a7bd5", width: 13, height: 13, cursor: "pointer" }}
+                  />
+                </th>
                 {["Business","Owner","Phone","Grade","Status","Calls","Last Disposition","State"].map(h => (
                   <th key={h} style={{
                     padding: "8px 14px", textAlign: "left",
@@ -557,7 +720,15 @@ export default function CRMPanel() {
               </tr>
             </thead>
             <tbody>
-              {contacts.map(c => <ContactRow key={c.id} contact={c} onSelect={setSelected} />)}
+              {contacts.map(c => (
+                <ContactRow
+                  key={c.id}
+                  contact={c}
+                  checked={checkedIds.has(c.id)}
+                  onCheck={toggleCheck}
+                  onSelect={setSelected}
+                />
+              ))}
             </tbody>
           </table>
         )}

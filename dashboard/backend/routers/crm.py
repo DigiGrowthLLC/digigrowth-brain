@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 from db import get_pool
-from models import Contact, ContactUpdate, NoteAdd, DispositionUpdate, VALID_STATUSES, DISPOSITION_TO_STATUS
+from models import Contact, ContactUpdate, NoteAdd, DispositionUpdate, BulkAction, VALID_STATUSES, DISPOSITION_TO_STATUS
 
 router = APIRouter()
 
@@ -84,6 +84,77 @@ async def update_contact(contact_id: str, body: ContactUpdate):
     if not row:
         raise HTTPException(status_code=404, detail="Contact not found")
     return dict(row)
+
+
+@router.delete("/contacts/{contact_id}")
+async def delete_contact(contact_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM contacts WHERE id = $1", contact_id)
+    if result == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Contact not found")
+    return {"ok": True}
+
+
+@router.post("/contacts/bulk")
+async def bulk_action(body: BulkAction):
+    pool = await get_pool()
+
+    async with pool.acquire() as conn:
+        if body.select_all:
+            conditions, params = [], []
+            if body.filter_status and body.filter_status != "all":
+                params.append(body.filter_status)
+                conditions.append(f"status = ${len(params)}")
+            if body.filter_search:
+                params.append(f"%{body.filter_search}%")
+                idx = len(params)
+                conditions.append(f"(business ILIKE ${idx} OR owner ILIKE ${idx} OR phone ILIKE ${idx})")
+            where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+            ids = [r["id"] for r in await conn.fetch(f"SELECT id FROM contacts {where}", *params)]
+        else:
+            ids = body.ids or []
+
+        if not ids:
+            return {"ok": True, "affected": 0}
+
+        if body.action == "delete":
+            result = await conn.execute("DELETE FROM contacts WHERE id = ANY($1::text[])", ids)
+            affected = int(result.split()[-1])
+
+        elif body.action == "add_tag":
+            if not body.value:
+                raise HTTPException(status_code=400, detail="value required for add_tag")
+            result = await conn.execute(
+                "UPDATE contacts SET tags = array_append(tags, $1), updated_at = now() "
+                "WHERE id = ANY($2::text[]) AND NOT ($1 = ANY(tags))",
+                body.value, ids,
+            )
+            affected = int(result.split()[-1])
+
+        elif body.action == "remove_tag":
+            if not body.value:
+                raise HTTPException(status_code=400, detail="value required for remove_tag")
+            result = await conn.execute(
+                "UPDATE contacts SET tags = array_remove(tags, $1), updated_at = now() "
+                "WHERE id = ANY($2::text[])",
+                body.value, ids,
+            )
+            affected = int(result.split()[-1])
+
+        elif body.action == "set_status":
+            if body.value not in VALID_STATUSES:
+                raise HTTPException(status_code=400, detail=f"Invalid status: {body.value}")
+            result = await conn.execute(
+                "UPDATE contacts SET status = $1, updated_at = now() WHERE id = ANY($2::text[])",
+                body.value, ids,
+            )
+            affected = int(result.split()[-1])
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}")
+
+    return {"ok": True, "affected": affected}
 
 
 @router.post("/contacts/{contact_id}/note")
