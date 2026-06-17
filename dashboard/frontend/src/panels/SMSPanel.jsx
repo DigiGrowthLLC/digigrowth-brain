@@ -11,6 +11,14 @@ function timeAgo(ts) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function fmtMsgTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts), diff = Date.now() - d;
+  if (diff < 86400000) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + ", " +
+         d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
 export default function SMSPanel() {
   const [convos, setConvos]       = useState([]);
   const [selected, setSelected]   = useState(null);
@@ -186,7 +194,7 @@ export default function SMSPanel() {
                       </div>
                       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
                                     color: isOut ? "#5a7faa" : "#4a6a8a", marginTop: 4, textAlign: isOut ? "right" : "left" }}>
-                        {m.sent_at ? new Date(m.sent_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}
+                        {fmtMsgTime(m.sent_at)}
                       </div>
                     </div>
                   </div>

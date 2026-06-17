@@ -14,6 +14,14 @@ function timeAgo(ts) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function fmtMsgTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts), diff = Date.now() - d;
+  if (diff < 86400000) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + ", " +
+         d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
 // ── Thinking block (collapsible) ─────────────────────────────────────────────
 
 function ThinkingBlock({ text, streaming }) {
@@ -222,7 +230,7 @@ function MessageBubble({ msg }) {
           </div>
           {msg.created_at && (
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#4a6a9a", marginTop: 4, textAlign: "right" }}>
-              {new Date(msg.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+              {fmtMsgTime(msg.created_at)}
             </div>
           )}
         </div>
@@ -263,7 +271,7 @@ function MessageBubble({ msg }) {
             )}
             {msg.created_at && !msg._streaming && (
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 6 }}>
-                {new Date(msg.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                {fmtMsgTime(msg.created_at)}
               </div>
             )}
           </div>
