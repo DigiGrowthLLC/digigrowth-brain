@@ -127,7 +127,7 @@ No output. The calendar speaks for itself. If an event fails to create, retry on
 
 - **Tomorrow is Saturday or Sunday, no override:** Create no events. Stop.
 - **Tomorrow is Saturday or Sunday, override active:** Schedule normally. Work window ends at 6PM.
-- **Discount Tires shift:** 30-min pre-buffer, 1-hr post-buffer. Schedule Outreach in whatever time remains. Morning Routine always runs on shift days — the 1-hr minimum does not apply here. If fewer than 60 minutes exist before the pre-buffer, create Morning Routine for however long is available (minimum 30 min). Never skip it entirely on shift days.
+- **Discount Tires shift:** 30-min pre-buffer, 1-hr post-buffer. Morning Routine always runs on shift days — if fewer than 60 minutes exist before the pre-buffer, create Morning Routine for however long is available (minimum 30 min). MDR's 30-min minimum is always guaranteed — shorten Outreach if needed to fit MDR before the pre-buffer starts. Schedule remaining blocks in whatever time is left.
 - **Tomorrow is Thursday:** Meal Prep is a hard 1.5-hr block. Cannot be dropped or shortened. Goes after Gym (or Growth if no Gym). MDR must come before it. Can extend up to 9:30PM.
 - **Tomorrow fully booked:** Create no new events.
 - **Google Calendar unavailable:** Stop. Do not retry more than once.
