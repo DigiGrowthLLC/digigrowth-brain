@@ -25,7 +25,7 @@ PROGRESS_FILE = os.path.join(BASE_DIR, "progress.json")
 SCRAPED_FILE  = os.path.join(BASE_DIR, "scraped_ids.json")
 
 # ── Load config ──────────────────────────────────────────────────────────────
-with open(CONFIG_FILE, "r") as f:
+with open(CONFIG_FILE, "r", encoding="utf-8") as f:
     config = json.load(f)
 
 # ── API clients ───────────────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ CHAIN_KEYWORDS = [
 
 def load_progress():
     if os.path.exists(PROGRESS_FILE):
-        with open(PROGRESS_FILE, "r") as f:
+        with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {
         "current_state_index": 0,
@@ -123,17 +123,17 @@ def load_progress():
     }
 
 def save_progress(progress):
-    with open(PROGRESS_FILE, "w") as f:
+    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
         json.dump(progress, f, indent=2)
 
 def load_scraped_ids():
     if os.path.exists(SCRAPED_FILE):
-        with open(SCRAPED_FILE, "r") as f:
+        with open(SCRAPED_FILE, "r", encoding="utf-8") as f:
             return set(json.load(f))
     return set()
 
 def save_scraped_ids(ids):
-    with open(SCRAPED_FILE, "w") as f:
+    with open(SCRAPED_FILE, "w", encoding="utf-8") as f:
         json.dump(list(ids), f)
 
 
@@ -142,7 +142,7 @@ def save_scraped_ids(ids):
 # ════════════════════════════════════════════════════════════════════════════
 
 def read_memory():
-    with open(MEMORY_FILE, "r") as f:
+    with open(MEMORY_FILE, "r", encoding="utf-8") as f:
         return f.read()
 
 def update_memory(new_information):
@@ -156,7 +156,7 @@ def update_memory(new_information):
         return
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     entry = f"\n[{timestamp}] {new_information}"
-    with open(MEMORY_FILE, "a") as f:
+    with open(MEMORY_FILE, "a", encoding="utf-8") as f:
         f.write(entry)
     print(f"✅ Memory updated: {new_information}")
     push_file(__file__, "memory.txt")
@@ -402,7 +402,7 @@ def scrape_website(url, max_words=600):
 # ════════════════════════════════════════════════════════════════════════════
 
 def qualify_lead(business_name, phone, website_url, owner_name, address, website_text, role, memory):
-    prompt   = open(PROMPT_FILE).read()
+    prompt   = open(PROMPT_FILE, encoding="utf-8").read()
     filled   = (
         prompt
         .replace("{business_name}", business_name)
@@ -507,7 +507,7 @@ def run_pipeline():
     print(f"📊 Total leads scraped so far: {len(scraped_ids)}")
     print(f"\n🌎 Scraping Google Maps...")
 
-    role   = open(ROLE_FILE).read()
+    role   = open(ROLE_FILE, encoding="utf-8").read()
     memory = read_memory()
 
     raw_leads = scrape_state_leads(progress, scraped_ids, daily_limit)
