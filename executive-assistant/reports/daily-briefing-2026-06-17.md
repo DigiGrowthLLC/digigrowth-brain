@@ -1,59 +1,70 @@
-# Morning Briefing — Wednesday, June 17
+# Morning Briefing — Wednesday, June 17, 2026
 
 ---
 
 ## Emails [last 24h]
 
-Inbox clear — no business emails in the last 24 hours.
+### dylangroenendijk@gmail.com
 
-Business inbox (dylanrg@digigrowthllc.com): Not accessible via current Gmail connection — check manually if needed.
+1. **[ACTION] Railway — Deploy Crashed** *(hello@notify.railway.app)*
+   `digigrowth-brain` in `attractive-education` crashed 3 times today (10:04 AM, 10:13 AM, 1:45 PM). Likely related to the PostgreSQL volume issue (see below). Needs a restart or fix.
+
+2. **[ACTION] Railway Community — PostgreSQL Fix Available** *(hello@notify.railway.app)*
+   A reply in your thread "PostgreSQL volume full — crash loop" says: expand the Postgres volume from 500MB to up to 5GB via Live Resize in Railway volume settings. Offline resize required since volume is at 100%. After restart, Postgres should recover and you can clean up data.
+
+3. **Nate Herk / AI Automation Society — Newsletter** *(nate@aiautomationsociety.ai)*
+   New post from AI Automation Society. Not business-critical.
+
+### dylanrg@digigrowthllc.com
+Inbox clear — no business emails in the last 24 hours.
 
 ---
 
 ## Today's Schedule
 
-- **8:30 AM – 10:00 AM** — Morning Routine (1h 30m) — Hydrate, journal, set top priorities
-- **10:00 AM – 11:00 AM** — Admin (1h) — Inbox triage, GHL CRM, Notion task list
-- **11:00 AM – 1:00 PM** — Outreach (2h) — Cold calls and follow-ups, 20+ dial target
-- **1:00 PM – 2:00 PM** — MDR (1h)
-- **2:00 PM – 6:00 PM** — Growth (4h) — Deep work: ads, case study, automation, or content
-- **6:00 PM – 8:00 PM** — Gym (2h)
+| Time | Event | Duration |
+|---|---|---|
+| 10:00 AM | Admin | 30 min |
+| 10:30 AM | Outreach | (open-ended) |
+| 12:00 PM | MDR | 1h |
+| 1:00 PM | Work | (open-ended) |
+| 7:30 PM | Gym | (open-ended) |
 
-Committed: 9h | Free: 0h (9 AM–6 PM fully blocked)
+**Committed:** ~2h 30m minimum | **Free blocks:** 10:30 AM–12:00 PM (Outreach), 1:00 PM–7:30 PM (Work)
 
 ---
 
 ## Outreach This Week
 
-**Cold calling (sprint Day 3):** No daily dial tracker exists in Drive. The Sales Performance Tracker logs booked discovery calls only — last entry April 24, 2026. The 100-call sprint launched June 15; no raw dial volume is tracked in any file. If dials are being logged in GHL or elsewhere, confirm the location so it can be pulled into future briefs.
+No cold calling tracker found — only the Sales Performance Tracker and Cold SMS Tracker are in Drive. If calls are being logged somewhere else, confirm the file name.
 
-**Cold SMS:** Last campaign (V.1.4, ~May 1): 56 initiated → 0 engaged (0% engage rate). No new activity since.
+**Sales calls (cumulative through last update — June 8):**
+- 18 booked | 9 showed (50% show rate) | 0 won | 8 lost | 0% close rate
 
-**Cold DM (Instagram):** Last logged activity March 2026. No new entries.
+**Cold SMS (cumulative through May 1):**
+- V1.1: 175 initiated → 22 engaged → 1 booked
+- V1.2: 125 initiated → 6 engaged → 0 booked
+- V1.3: 84 initiated → 3 engaged → 0 booked
+- V1.4: 56 initiated → 0 engaged → 0 booked
 
 ---
 
-## Yesterday's Performance
+## Yesterday's Performance (June 16)
 
-*Comparison: prior week June 8–12 (5 days) — this week's only prior day, June 15, had all habits blank.*
+**Score: 5/10**
 
-**What you did well yesterday (June 16):**
-- Priority work: done — above prior week 60% rate (3/5 days)
-- Gym: done — above prior week 40% rate (2/5 days)
-- Healthy Diet: done — above prior week 40% rate (2/5 days)
-- NTR: done — above prior week 40% rate (2/5 days)
+**What you did well:**
+- Morning Routine (MR): ✅
+- Priority Work: ✅
+- Gym: ✅
+- Healthy Diet: ✅
+- NTR: ✅
 
 **What to focus on improving today:**
-- MDR: missed yesterday → target: done (prior week: 2/5 days, 40% rate)
-- Dopamine Reg: missed yesterday → target: done (prior week: 1/5 days, 20% rate)
-
----
-
-## How to Use Your Day
-
-- **11 AM–1 PM (Outreach, 2h):** Day 3 of the 100-call sprint. No dial volume is logged anywhere yet — one option is to log a count after today's session (GHL note or a new Sheets row) so tomorrow's brief can surface actual numbers vs the 100-call target.
-- **2–6 PM (Growth, 4h):** Options: (1) set up a minimal daily dial tracker in Sheets so sprint progress shows in the brief, (2) build ad creative or a case study for discovery call support, (3) prep tomorrow's dial list so Day 4 starts without friction.
-- **MDR (1–2 PM):** Missed yesterday — already on today's calendar. One of two habit gaps flagged above.
+- 6:30 AM Wake Up: ❌ — has been missed every logged day in June
+- MDR: ❌ (missed yesterday; on target Mon/Wed historically)
+- Dopamine Reg: ❌
+- W?: ❌ — missed all of June so far
 
 ---
 
