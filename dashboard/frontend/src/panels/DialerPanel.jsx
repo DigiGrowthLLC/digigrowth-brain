@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 const API = (p) => `/api${p}`;
+
+// ── Colours ───────────────────────────────────────────────────────────────────
 
 const DISPO_COLORS = {
   "Appointment Booked": { text: "#14c882", bg: "rgba(20,200,130,0.08)", border: "rgba(20,200,130,0.2)" },
@@ -11,6 +13,21 @@ const DISPO_COLORS = {
   "Voicemail":          { text: "#f0a028", bg: "rgba(240,160,40,0.08)", border: "rgba(240,160,40,0.2)" },
   "SMS Handoff":        { text: "#a080f0", bg: "rgba(120,80,210,0.08)", border: "rgba(120,80,210,0.2)" },
 };
+
+const DISPO_BUTTONS = [
+  { label: "Appointment Booked", emoji: "✅", style: { background: "rgba(20,200,130,0.12)", border: "1px solid rgba(20,200,130,0.3)", color: "#14c882" } },
+  { label: "Follow Up",          emoji: "📞", style: { background: "rgba(58,123,213,0.12)", border: "1px solid rgba(58,123,213,0.3)", color: "#5a9bf0" } },
+  { label: "Send Info",          emoji: "📧", style: { background: "rgba(120,80,210,0.12)", border: "1px solid rgba(120,80,210,0.3)", color: "#a080f0" } },
+  { label: "Not Interested",     emoji: "🚫", style: { background: "rgba(220,60,60,0.12)",  border: "1px solid rgba(220,60,60,0.3)",  color: "#dc3c3c" } },
+  { label: "No Answer",          emoji: "—",  style: { background: "rgba(30,47,80,0.4)",    border: "1px solid #1a2540",              color: "#3a5a80" } },
+  { label: "Voicemail",          emoji: "📬", style: { background: "rgba(240,160,40,0.12)", border: "1px solid rgba(240,160,40,0.3)", color: "#f0a028" } },
+];
+
+const GRADE_COLORS = { A: "#14c882", B: "#5a9bf0", C: "#f0a028", D: "#dc3c3c" };
+
+const CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function StatCard({ label, value, sub }) {
   return (
@@ -27,27 +44,174 @@ function fmt(ts) {
   return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-const TERM_PRESETS = ["python run.py", "ls -la", "pip list | grep twilio", "python -c \"import dialer; print('ok')\""];
+const TERM_PRESETS = ["python run.py newsletter", "ls -la", "pip list | grep twilio"];
+
+// ── Main Panel ────────────────────────────────────────────────────────────────
 
 export default function DialerPanel() {
-  const [data, setData] = useState(null);
+  // Stats / history (5s poll)
+  const [stats, setStats]   = useState(null);
+  // Live session state (1s poll when active)
+  const [sess, setSess]     = useState(null);
+  // UI state
+  const [sessionActive, setSessionActive]       = useState(false);
+  const [initiating, setInitiating]             = useState(false);
+  const [deviceReady, setDeviceReady]           = useState(false);
+  const [connecting, setConnecting]             = useState(false);
+  const [notes, setNotes]                       = useState("");
+  const [classifying, setClassifying]           = useState(false);
+  const [prevStatus, setPrevStatus]             = useState(null);
+  const [bookingOpen, setBookingOpen]           = useState(false);
+  // Terminal
   const [termOpen, setTermOpen]       = useState(false);
   const [termCmd, setTermCmd]         = useState("");
   const [termOutput, setTermOutput]   = useState("");
   const [termRunning, setTermRunning] = useState(false);
   const termBottomRef = useRef(null);
+  // Twilio Device ref
+  const deviceRef    = useRef(null);
+  const activeCallRef = useRef(null);
 
-  const load = async () => {
+  // ── Stats poll (5s) ─────────────────────────────────────────────────────────
+  const loadStats = useCallback(async () => {
     try {
       const r = await fetch(API("/dialer/stats"));
-      if (r.ok) setData(await r.json());
+      if (r.ok) setStats(await r.json());
     } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadStats();
+    const id = setInterval(loadStats, 5000);
+    return () => clearInterval(id);
+  }, [loadStats]);
+
+  // ── Session poll (1s while active) ──────────────────────────────────────────
+  useEffect(() => {
+    if (!sessionActive) return;
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch(API("/dialer/session"));
+        if (!r.ok) return;
+        const data = await r.json();
+        setSess(data);
+        if (!data.active) {
+          setSessionActive(false);
+          setDeviceReady(false);
+        }
+      } catch {}
+    }, 1000);
+    return () => clearInterval(id);
+  }, [sessionActive]);
+
+  // ── Auto-dial next batch after classification ────────────────────────────────
+  useEffect(() => {
+    if (!sess) return;
+    const prev = prevStatus;
+    setPrevStatus(sess.status);
+
+    if (prev === "classify" && sess.status === "waiting" && !sess.end_requested) {
+      fetch(API("/dialer/dial-batch"), { method: "POST" }).catch(() => {});
+    }
+  }, [sess?.status]);
+
+  // ── Terminal scroll ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    termBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [termOutput]);
+
+  // ── Start Session ────────────────────────────────────────────────────────────
+  const startSession = async () => {
+    setInitiating(true);
+    try {
+      const r = await fetch(API("/dialer/session/init"), { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Init failed");
+      setSessionActive(true);
+      // Fetch initial session state
+      const s = await fetch(API("/dialer/session"));
+      if (s.ok) setSess(await s.json());
+    } catch (e) {
+      alert("Could not start session: " + e.message);
+    } finally {
+      setInitiating(false);
+    }
   };
 
-  useEffect(() => { load(); const id = setInterval(load, 5000); return () => clearInterval(id); }, []);
+  // ── Connect Twilio Device ────────────────────────────────────────────────────
+  const connectDevice = async () => {
+    if (!window.Twilio?.Device) {
+      alert("Twilio SDK not loaded — reload the page and try again.");
+      return;
+    }
+    setConnecting(true);
+    try {
+      const tr = await fetch(API("/dialer/token"));
+      const td = await tr.json();
+      if (td.detail || td.error) throw new Error(td.detail || td.error);
 
-  useEffect(() => { termBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [termOutput]);
+      const device = new window.Twilio.Device(td.token, { logLevel: "error" });
+      await device.register();
+      deviceRef.current = device;
 
+      const session_id = sess?.session_id || "";
+      const call = await device.connect({ params: { session_id } });
+      activeCallRef.current = call;
+
+      call.on("accept", () => {
+        setDeviceReady(true);
+        setConnecting(false);
+        // Start first batch
+        fetch(API("/dialer/dial-batch"), { method: "POST" }).catch(() => {});
+      });
+      call.on("disconnect", () => {
+        setDeviceReady(false);
+      });
+      call.on("error", (e) => {
+        setConnecting(false);
+        alert("Twilio error: " + e.message);
+      });
+    } catch (e) {
+      setConnecting(false);
+      alert("Connect failed: " + e.message);
+    }
+  };
+
+  const disconnectDevice = () => {
+    activeCallRef.current?.disconnect();
+    deviceRef.current?.destroy();
+    deviceRef.current = null;
+    activeCallRef.current = null;
+    setDeviceReady(false);
+  };
+
+  // ── Call actions ──────────────────────────────────────────────────────────────
+  const endCall = () => fetch(API("/dialer/end-call"), { method: "POST" });
+
+  const classify = async (disposition) => {
+    setClassifying(true);
+    await fetch(API("/dialer/classify"), {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ disposition, notes }),
+    });
+    setNotes("");
+    setClassifying(false);
+    if (disposition === "Appointment Booked") setBookingOpen(true);
+  };
+
+  const connectGK = () => fetch(API("/dialer/gatekeeper/connect"), { method: "POST" });
+  const declineGK = () => fetch(API("/dialer/gatekeeper/decline"), { method: "POST" });
+
+  const endSession = async () => {
+    await fetch(API("/dialer/end-session"), { method: "POST" });
+    disconnectDevice();
+    setSessionActive(false);
+    setSess(null);
+    loadStats();
+  };
+
+  // ── Terminal ──────────────────────────────────────────────────────────────────
   const runCommand = async (cmd) => {
     const c = (cmd || termCmd).trim();
     if (!c || termRunning) return;
@@ -83,40 +247,379 @@ export default function DialerPanel() {
     }
   };
 
-  const session = data?.session  ?? {};
-  const history = data?.history  ?? {};
-  const recent  = history.recent ?? [];
-  const byDispo = history.by_disposition ?? [];
+  // ── Derived display values ───────────────────────────────────────────────────
+  const session  = stats?.session  ?? {};
+  const history  = stats?.history  ?? {};
+  const recent   = history.recent ?? [];
+  const byDispo  = history.by_disposition ?? [];
   const totalCalls = history.total_calls ?? 0;
 
+  const liveStatus   = sess?.status ?? "idle";
+  const currentLead  = sess?.current_lead ?? null;
+  const gatekeeper   = sess?.gatekeeper ?? null;
+  const liveStats    = sess?.stats ?? {};
+
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
 
-      {/* Header */}
+      {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
             Parallel Dialer
           </div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80",
-                        letterSpacing: "0.18em", marginTop: 3 }}>
-            {session.active ? "SESSION · LIVE" : "SESSION · IDLE"}
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.18em", marginTop: 3 }}>
+            {sessionActive ? (liveStatus === "connected" ? "SESSION · LIVE CALL" : "SESSION · ACTIVE") : "SESSION · IDLE"}
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{
             width: 8, height: 8, borderRadius: "50%",
-            background: session.active ? "#14c882" : "#1a2f52",
-            boxShadow: session.active ? "0 0 6px #14c882" : "none",
+            background: sessionActive ? "#14c882" : "#1a2f52",
+            boxShadow: sessionActive ? "0 0 6px #14c882" : "none",
           }} />
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-                          color: session.active ? "#14c882" : "#2a4a7a", letterSpacing: "0.1em" }}>
-            {session.active ? "ACTIVE" : "IDLE"}
+                          color: sessionActive ? "#14c882" : "#2a4a7a", letterSpacing: "0.1em" }}>
+            {sessionActive ? "ACTIVE" : "IDLE"}
           </span>
         </div>
       </div>
 
-      {/* Live Session Stats */}
+      {/* ── Calling Interface ── */}
+      <div className="glass-card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {!sessionActive ? (
+          /* Idle: Start Session */
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "8px 0" }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.14em" }}>
+              {session.leads_ready > 0
+                ? `${session.leads_ready} LEADS READY TO DIAL`
+                : "NO LEADS IN QUEUE"}
+            </div>
+            <button
+              className="btn btn-primary"
+              style={{ fontSize: 13, padding: "10px 32px", minWidth: 160 }}
+              onClick={startSession}
+              disabled={initiating}
+            >
+              {initiating ? "Loading Leads..." : "Start Session"}
+            </button>
+          </div>
+        ) : (
+          /* Active session UI */
+          <>
+            {/* Status + controls row */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              {/* Status dot + label */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{
+                  width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                  background: liveStatus === "connected" ? "#14c882"
+                            : liveStatus === "classify"  ? "#3a7bd5"
+                            : liveStatus === "waiting"   ? "#f0a028"
+                            : "#3a5a80",
+                  boxShadow: liveStatus === "connected" ? "0 0 6px #14c882"
+                           : liveStatus === "waiting"   ? "0 0 6px #f0a028"
+                           : "none",
+                }} />
+                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8aaad0", letterSpacing: "0.1em" }}>
+                  {liveStatus === "connected" ? "LIVE CALL"
+                 : liveStatus === "classify"  ? "CLASSIFY"
+                 : liveStatus === "waiting"   ? "DIALING…"
+                 : "WAITING FOR CONNECTION"}
+                </span>
+              </div>
+
+              {/* Right controls */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {/* Lines selector */}
+                <select
+                  style={{
+                    background: "rgba(30,47,80,0.6)", border: "1px solid #1a2540",
+                    borderRadius: 6, color: "#8aaad0",
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+                    padding: "4px 8px", cursor: "pointer",
+                  }}
+                  defaultValue="10"
+                  onChange={(e) => fetch(API("/dialer/set-lines"), {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ lines: parseInt(e.target.value) }),
+                  })}
+                >
+                  {[1, 3, 5, 10].map(n => <option key={n} value={n}>{n} Lines</option>)}
+                </select>
+
+                {/* Connect / Disconnect */}
+                {!deviceReady ? (
+                  <button
+                    className="btn btn-primary"
+                    style={{ fontSize: 11, padding: "6px 16px" }}
+                    onClick={connectDevice}
+                    disabled={connecting}
+                  >
+                    {connecting ? "Connecting…" : "Connect"}
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: 11, padding: "6px 16px", color: "#dc3c3c", borderColor: "rgba(220,60,60,0.3)" }}
+                    onClick={disconnectDevice}
+                  >
+                    Disconnect
+                  </button>
+                )}
+
+                {/* End Session */}
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: 11, padding: "6px 16px", color: "#dc3c3c", borderColor: "rgba(220,60,60,0.3)" }}
+                  onClick={endSession}
+                >
+                  End Session
+                </button>
+              </div>
+            </div>
+
+            {/* Live mini-stats */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+              {[
+                { label: "Calls", value: liveStats.calls_made ?? 0 },
+                { label: "DMs",   value: liveStats.dms_reached ?? 0 },
+                { label: "Left",  value: liveStats.remaining ?? "—" },
+                { label: "Total", value: liveStats.total ?? "—" },
+              ].map(({ label, value }) => (
+                <div key={label} style={{
+                  background: "rgba(15,25,50,0.5)", borderRadius: 8, padding: "8px 10px",
+                  border: "1px solid #1a2540", textAlign: "center",
+                }}>
+                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
+                    {value}
+                  </div>
+                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.12em", marginTop: 2 }}>
+                    {label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Lead Card (connected or classify) */}
+            {currentLead && (liveStatus === "connected" || liveStatus === "classify") && (
+              <div style={{
+                background: "rgba(15,25,50,0.6)", borderRadius: 10, padding: "14px 16px",
+                border: "1px solid rgba(58,123,213,0.2)",
+                display: "flex", flexDirection: "column", gap: 8,
+              }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
+                      {currentLead.owner || "—"}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#5a6f8f", marginTop: 2 }}>
+                      {currentLead.business || "—"}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {currentLead.grade && (
+                      <span style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 11, fontWeight: 700,
+                        padding: "2px 8px", borderRadius: 20,
+                        color: GRADE_COLORS[currentLead.grade] || "#8aaad0",
+                        background: "rgba(30,47,80,0.6)",
+                        border: `1px solid ${GRADE_COLORS[currentLead.grade] || "#1a2540"}33`,
+                      }}>
+                        {currentLead.grade}
+                      </span>
+                    )}
+                    {currentLead.gatekeeper && (
+                      <span style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                        padding: "2px 8px", borderRadius: 20,
+                        background: "rgba(240,100,20,0.1)", color: "#f0a028",
+                        border: "1px solid rgba(240,100,20,0.3)",
+                      }}>
+                        GATEKEEPER
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {currentLead.opener && (
+                  <div style={{
+                    fontSize: 12, color: "#5a9bf0", fontStyle: "italic",
+                    borderTop: "1px solid #1a2540", paddingTop: 8,
+                  }}>
+                    {currentLead.opener}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 12 }}>
+                  {currentLead.phone && (
+                    <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
+                      {currentLead.phone}
+                    </span>
+                  )}
+                  {currentLead.city && (
+                    <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
+                      {[currentLead.city, currentLead.state].filter(Boolean).join(", ")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* End Call button */}
+            {liveStatus === "connected" && (
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <button
+                  onClick={endCall}
+                  style={{
+                    background: "rgba(220,60,60,0.12)", border: "1px solid rgba(220,60,60,0.3)",
+                    color: "#dc3c3c", borderRadius: 6, padding: "10px 32px",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  End Call
+                </button>
+              </div>
+            )}
+
+            {/* Classification panel */}
+            {liveStatus === "classify" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div className="sec-label" style={{ marginBottom: 0 }}>Disposition</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                  {DISPO_BUTTONS.map(({ label, emoji, style }) => (
+                    <button
+                      key={label}
+                      disabled={classifying}
+                      onClick={() => classify(label)}
+                      style={{
+                        ...style,
+                        borderRadius: 6, padding: "10px 8px",
+                        fontSize: 12, fontWeight: 600, cursor: classifying ? "not-allowed" : "pointer",
+                        opacity: classifying ? 0.5 : 1,
+                        fontFamily: "'Space Grotesk', sans-serif",
+                      }}
+                    >
+                      {emoji} {label}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  className="dg-input"
+                  placeholder="Call notes (optional)…"
+                  rows={2}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, resize: "none" }}
+                />
+              </div>
+            )}
+
+            {/* Waiting indicator */}
+            {liveStatus === "waiting" && deviceReady && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#3a5a80" }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, letterSpacing: "0.1em" }}>
+                  DIALING IN BACKGROUND — WAITING FOR ANSWER…
+                </div>
+              </div>
+            )}
+
+            {/* Not connected hint */}
+            {!deviceReady && (
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a", letterSpacing: "0.1em" }}>
+                CLICK CONNECT TO JOIN THE CONFERENCE
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Gatekeeper popup (overlay-style) */}
+        {gatekeeper && (
+          <div style={{
+            position: "fixed", bottom: 88, right: 24,
+            background: "#0d1830", border: "1px solid rgba(240,120,20,0.4)",
+            borderRadius: 12, padding: "18px 20px", width: 260,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.6)", zIndex: 500,
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 22, marginBottom: 4 }}>🤖</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#fed7aa", marginBottom: 2 }}>
+                Gatekeeper Detected
+              </div>
+              <div style={{
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+                color: "#5a6f8f", marginBottom: 14,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {gatekeeper.business || gatekeeper.owner || gatekeeper.phone || "Automated system"}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={connectGK}
+                  style={{
+                    flex: 1, padding: "8px 0", borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    background: "rgba(240,120,20,0.2)", color: "#fed7aa",
+                    border: "1px solid rgba(240,120,20,0.4)", cursor: "pointer",
+                  }}
+                >
+                  Connect
+                </button>
+                <button
+                  onClick={declineGK}
+                  style={{
+                    flex: 1, padding: "8px 0", borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    background: "rgba(30,47,80,0.4)", color: "#5a6f8f",
+                    border: "1px solid #1a2540", cursor: "pointer",
+                  }}
+                >
+                  Decline
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Booking modal (Appointment Booked) */}
+        {bookingOpen && (
+          <div
+            onClick={(e) => e.target === e.currentTarget && setBookingOpen(false)}
+            style={{
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              zIndex: 1000, padding: 24,
+            }}
+          >
+            <div style={{
+              background: "#0d1830", border: "1px solid #1a2540",
+              borderRadius: 12, width: "100%", maxWidth: 860,
+              height: "85vh", display: "flex", flexDirection: "column", overflow: "hidden",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+            }}>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0,
+              }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff" }}>Book Appointment</span>
+                <button
+                  onClick={() => setBookingOpen(false)}
+                  style={{
+                    background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540",
+                    borderRadius: 6, color: "#5a6f8f", width: 30, height: 30,
+                    cursor: "pointer", fontSize: 16,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div style={{ flex: 1, overflow: "hidden" }}>
+                <iframe src={CALENDLY_URL} style={{ width: "100%", height: "100%", border: "none" }} allow="camera; microphone" />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Live Session Stats ── */}
       <div>
         <div className="sec-label">{session.active ? "Live Session" : "Last Session"}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
@@ -132,7 +635,7 @@ export default function DialerPanel() {
 
       <div className="dg-divider" />
 
-      {/* Historical */}
+      {/* ── Historical ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
         {/* Disposition breakdown */}
@@ -150,7 +653,7 @@ export default function DialerPanel() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {byDispo.map(d => {
-                const pct = totalCalls ? Math.round(d.cnt / totalCalls * 100) : 0;
+                const pct    = totalCalls ? Math.round(d.cnt / totalCalls * 100) : 0;
                 const colors = DISPO_COLORS[d.disposition] ?? { text: "#5a6f8f", bg: "transparent", border: "#1a2540" };
                 return (
                   <div key={d.disposition}>
@@ -220,27 +723,8 @@ export default function DialerPanel() {
         </div>
       </div>
 
-      {/* Idle hint */}
-      {!session.active && (
-        <div className="glass-card-sm" style={{ padding: "12px 16px" }}>
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.1em" }}>
-            START SESSION:{" "}
-          </span>
-          <span style={{ fontSize: 12, color: "#5a6f8f" }}>
-            use the terminal below or run{" "}
-          </span>
-          <code style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a7bd5" }}>
-            python run.py
-          </code>
-          <span style={{ fontSize: 12, color: "#5a6f8f" }}>
-            {" "}from parallel-dialer/.
-          </span>
-        </div>
-      )}
-
-      {/* Terminal */}
+      {/* ── Terminal ── */}
       <div className="glass-card" style={{ padding: 0, overflow: "hidden" }}>
-        {/* Terminal header */}
         <div
           onClick={() => setTermOpen(o => !o)}
           style={{
@@ -262,7 +746,6 @@ export default function DialerPanel() {
 
         {termOpen && (
           <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-            {/* Preset chips */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {TERM_PRESETS.map(p => (
                 <button
@@ -272,11 +755,9 @@ export default function DialerPanel() {
                   style={{
                     fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
                     padding: "4px 10px", borderRadius: 6,
-                    background: "rgba(58,123,213,0.08)",
-                    border: "1px solid rgba(58,123,213,0.2)",
+                    background: "rgba(58,123,213,0.08)", border: "1px solid rgba(58,123,213,0.2)",
                     color: "#3a7bd5", cursor: termRunning ? "not-allowed" : "pointer",
-                    opacity: termRunning ? 0.5 : 1,
-                    letterSpacing: "0.05em",
+                    opacity: termRunning ? 0.5 : 1, letterSpacing: "0.05em",
                   }}
                 >
                   {p}
@@ -284,7 +765,6 @@ export default function DialerPanel() {
               ))}
             </div>
 
-            {/* Output */}
             {termOutput && (
               <div style={{
                 background: "#050d1a", borderRadius: 8, padding: "10px 12px",
@@ -298,7 +778,6 @@ export default function DialerPanel() {
               </div>
             )}
 
-            {/* Command input */}
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 className="dg-input"

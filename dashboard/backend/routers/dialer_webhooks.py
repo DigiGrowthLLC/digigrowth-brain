@@ -1,0 +1,300 @@
+"""
+Public Twilio voice webhook router — no auth required.
+Twilio posts here for every call event. Ported from parallel-dialer/webhook.py.
+
+Mounted at root (no /api prefix) so URLs match what Twilio expects:
+  POST /dialer/voice/agent-join
+  POST /dialer/voice/lead-answered
+  POST /dialer/voice/lead-overflow
+  POST /dialer/voice/status
+  POST /dialer/voice/gatekeeper-join
+"""
+
+import time as _time
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Request
+from fastapi.responses import Response
+from twilio.twiml.voice_response import VoiceResponse
+
+import dialer_engine as engine
+
+router = APIRouter()
+
+
+# ── Agent (Dylan's browser) joins the conference ───────────────────────────────
+
+@router.post("/dialer/voice/agent-join")
+async def agent_join(request: Request):
+    form       = await request.form()
+    session_id = form.get("session_id") or request.query_params.get("session_id") or engine._session.get("id")
+    call_sid   = form.get("CallSid", "")
+
+    with engine._session["lock"]:
+        engine._session["dylan_sid"] = call_sid
+
+    response = VoiceResponse()
+    dial     = response.dial()
+    dial.conference(
+        f"dialer-{session_id}",
+        start_conference_on_enter=True,
+        end_conference_on_exit=True,
+        beep=False,
+    )
+    return Response(str(response), media_type="text/xml")
+
+
+# ── Lead picks up ─────────────────────────────────────────────────────────────
+
+@router.post("/dialer/voice/lead-answered")
+async def lead_answered(request: Request):
+    try:
+        return await _lead_answered_inner(request)
+    except Exception as exc:
+        import traceback
+        print(f"  dialer: lead_answered exception: {exc}")
+        traceback.print_exc()
+        r = VoiceResponse()
+        r.hangup()
+        return Response(str(r), media_type="text/xml")
+
+
+async def _lead_answered_inner(request: Request):
+    form        = await request.form()
+    answered_sid = form.get("CallSid", "")
+    phone        = form.get("To", "")
+    answered_by  = form.get("AnsweredBy", "")
+
+    response = VoiceResponse()
+
+    # Confirmed voicemail or fax — drop immediately
+    if answered_by in ("machine_end_beep", "machine_end_silence", "machine_end_other", "fax"):
+        norm = engine._norm(phone)
+        with engine._session["lock"]:
+            engine._session["machine_detected"].add(norm)
+        response.hangup()
+        return Response(str(response), media_type="text/xml")
+
+    # machine_start = possible IVR/gatekeeper — hold silently for up to 60s
+    if answered_by == "machine_start":
+        with engine._session["lock"]:
+            if not engine._session["active"] or engine._session["bridged"]:
+                response.hangup()
+                return Response(str(response), media_type="text/xml")
+            norm_phone = engine._norm(phone)
+            lead_data  = next(
+                (l for l in engine._session.get("eligible_leads", [])
+                 if engine._norm(l.get("phone", "")) == norm_phone),
+                engine._session["leads_by_phone"].get(norm_phone, {}),
+            )
+            old_gk = engine._session.get("gatekeeper_pending")
+            engine._session["gatekeeper_pending"] = {
+                "sid": answered_sid, "phone": phone,
+                "lead": {**lead_data, "phone": phone},
+            }
+
+        if old_gk and old_gk.get("sid") != answered_sid:
+            engine.hangup_call(old_gk["sid"])
+
+        response.pause(length=60)
+        response.hangup()
+        return Response(str(response), media_type="text/xml")
+
+    # Human answered — bridge into conference
+    with engine._session["lock"]:
+        if not engine._session["active"] or engine._session["bridged"]:
+            response.say(
+                "Sorry about that, we accidentally dialed you. Have a great day!",
+                voice="Polly.Matthew",
+            )
+            response.hangup()
+            return Response(str(response), media_type="text/xml")
+
+        engine._session["bridged"]             = True
+        engine._session["bridged_sid"]         = answered_sid
+        engine._session["bridged_phone"]       = engine._norm(phone)
+        engine._session["show_classification"] = False
+        engine._session["connected_at"]        = datetime.now(timezone.utc).isoformat()
+        engine._session["batch_had_answer"]    = True
+        session_id = engine._session["id"]
+
+        norm_phone = engine._norm(phone)
+        lead_data  = next(
+            (l for l in engine._session.get("eligible_leads", [])
+             if engine._norm(l.get("phone", "")) == norm_phone),
+            engine._session["leads_by_phone"].get(norm_phone, {}),
+        )
+        engine._session["pending"] = {**lead_data, "phone": phone}
+
+        gk_to_cancel = engine._session.get("gatekeeper_pending")
+        engine._session["gatekeeper_pending"] = None
+        overflow = {p: s for p, s in engine._session["call_sids"].items() if s != answered_sid}
+
+    if gk_to_cancel and gk_to_cancel.get("sid") and gk_to_cancel["sid"] != answered_sid:
+        engine.hangup_call(gk_to_cancel["sid"])
+
+    if overflow:
+        engine.cancel_overflow_calls(overflow, answered_sid)
+
+    dial = response.dial()
+    dial.conference(
+        f"dialer-{session_id}",
+        start_conference_on_enter=True,
+        end_conference_on_exit=False,
+        beep=False,
+    )
+    return Response(str(response), media_type="text/xml")
+
+
+# ── Overflow — extra pickup while already bridged ─────────────────────────────
+
+@router.post("/dialer/voice/lead-overflow")
+async def lead_overflow():
+    response = VoiceResponse()
+    response.say("Sorry, I dialed the wrong number. Have a great day!", voice="Polly.Matthew")
+    response.hangup()
+    return Response(str(response), media_type="text/xml")
+
+
+# ── Call status callback ───────────────────────────────────────────────────────
+
+@router.post("/dialer/voice/status")
+async def call_status(request: Request):
+    form     = await request.form()
+    status   = form.get("CallStatus", "")
+    call_sid = form.get("CallSid", "")
+    phone    = request.query_params.get("phone") or form.get("To", "")
+
+    if not phone or status not in ("no-answer", "busy", "failed", "completed", "canceled"):
+        return Response("", status_code=204)
+
+    # Clear gatekeeper popup if the held call timed out
+    with engine._session["lock"]:
+        gk = engine._session.get("gatekeeper_pending")
+        if gk and gk.get("sid") == call_sid:
+            engine._session["gatekeeper_pending"] = None
+
+    norm         = engine._norm(phone)
+    now          = _time.time()
+    should_count = False
+
+    with engine._session["lock"]:
+        bridged_phone   = engine._session.get("bridged_phone", "") or ""
+        is_bridged_lead = norm == engine._norm(bridged_phone)
+        ring_start      = engine._session["ring_start"].get(norm, now)
+        dial_count      = engine._session["dial_count"].get(norm, 1)
+
+        if status == "canceled":
+            ring_duration = max(0.0, now - ring_start)
+            engine._session["ring_accum"][norm] = (
+                engine._session["ring_accum"].get(norm, 0.0) + ring_duration
+            )
+            ring_total = engine._session["ring_accum"][norm]
+
+            if ring_total < 30 and dial_count < 2:
+                engine._session["needs_retry"].add(norm)
+                should_count = False
+            else:
+                engine._session["needs_retry"].discard(norm)
+                should_count = True
+
+        elif is_bridged_lead and status == "completed":
+            engine._session["bridged"]             = False
+            engine._session["bridged_phone"]       = None
+            engine._session["bridged_sid"]         = None
+            engine._session["show_classification"] = True
+            should_count = False
+
+        else:
+            ring_duration = max(0.0, now - ring_start)
+            engine._session["ring_accum"][norm] = (
+                engine._session["ring_accum"].get(norm, 0.0) + ring_duration
+            )
+            ring_total = engine._session["ring_accum"][norm]
+            is_machine = norm in engine._session["machine_detected"]
+
+            if is_machine:
+                engine._session["needs_retry"].discard(norm)
+                engine._session["machine_detected"].discard(norm)
+                should_count = True
+            elif status == "completed":
+                engine._session["needs_retry"].discard(norm)
+                should_count = True
+            elif ring_total < 30 and dial_count < 2:
+                engine._session["needs_retry"].add(norm)
+                should_count = False
+            else:
+                engine._session["needs_retry"].discard(norm)
+                should_count = True
+
+    if should_count:
+        with engine._session["lock"]:
+            engine._session["stats"]["calls_made"] += 1
+
+        # Log no-answer to DB asynchronously
+        import asyncio
+        asyncio.create_task(_log_no_answer(phone))
+
+    return Response("", status_code=204)
+
+
+async def _log_no_answer(phone: str):
+    try:
+        from db import get_pool
+        from models import DISPOSITION_TO_STATUS
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            contact = await conn.fetchrow("SELECT id FROM contacts WHERE phone = $1", phone)
+            contact_id = contact["id"] if contact else None
+            await conn.execute(
+                "INSERT INTO call_logs (contact_id, disposition) VALUES ($1, $2)",
+                contact_id, "No Answer",
+            )
+            if contact_id:
+                new_status = DISPOSITION_TO_STATUS.get("No Answer")
+                updated = await conn.fetchrow(
+                    """
+                    UPDATE contacts SET
+                        call_attempts  = call_attempts + 1,
+                        last_disposition = $1,
+                        last_called_at = now(),
+                        status         = COALESCE($2, status),
+                        updated_at     = now()
+                    WHERE id = $3
+                    RETURNING call_attempts, phone, owner
+                    """,
+                    "No Answer", new_status, contact_id,
+                )
+                if updated and updated["call_attempts"] >= 3:
+                    await conn.execute(
+                        "UPDATE contacts SET status='sms-handoff' WHERE id=$1", contact_id,
+                    )
+                    from routers.sms import _send_twilio
+                    owner = updated["owner"] or "there"
+                    msg = (
+                        f"Hey {owner}, this is Dylan from DigiGrowth — "
+                        "I tried reaching you a few times. Wanted to connect about growing "
+                        "your business online. Reply back if you'd like to chat!"
+                    )
+                    try:
+                        _send_twilio(updated["phone"], msg)
+                    except Exception:
+                        pass
+    except Exception as e:
+        print(f"  dialer: _log_no_answer failed for {phone}: {e}")
+
+
+# ── Gatekeeper redirected into conference ────────────────────────────────────
+
+@router.post("/dialer/voice/gatekeeper-join")
+async def gatekeeper_join(request: Request):
+    session_id = request.query_params.get("session_id") or engine._session.get("id")
+    response   = VoiceResponse()
+    dial       = response.dial()
+    dial.conference(
+        f"dialer-{session_id}",
+        start_conference_on_enter=True,
+        end_conference_on_exit=False,
+        beep=False,
+    )
+    return Response(str(response), media_type="text/xml")

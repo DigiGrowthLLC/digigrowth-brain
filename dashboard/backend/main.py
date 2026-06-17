@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 import integrations
 from db import get_pool
-from routers import crm, sms, dialer, dashboard, agents, settings, analytics, finances, sops, public_sops
+from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops
 
 security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
@@ -110,7 +110,8 @@ app.add_middleware(
 
 app.include_router(crm.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms.router, prefix="/api", dependencies=[Depends(require_auth)])
-app.include_router(sms.webhook_router)  # public — Twilio posts here, no auth
+app.include_router(sms.webhook_router)         # public — Twilio SMS webhooks
+app.include_router(dialer_webhooks.router)     # public — Twilio voice webhooks
 app.include_router(dialer.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(dashboard.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(agents.router, prefix="/api", dependencies=[Depends(require_auth)])
