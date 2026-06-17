@@ -185,7 +185,7 @@ export default function SMSPanel() {
                         {m.body}
                       </div>
                       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                                    color: isOut ? "#3a5a80" : "#2a4a7a", marginTop: 4 }}>
+                                    color: isOut ? "#5a7faa" : "#4a6a8a", marginTop: 4, textAlign: isOut ? "right" : "left" }}>
                         {m.sent_at ? new Date(m.sent_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}
                       </div>
                     </div>

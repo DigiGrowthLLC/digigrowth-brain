@@ -220,6 +220,11 @@ function MessageBubble({ msg }) {
           <div style={{ fontSize: 13, color: "#c8dcff", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
             {text}
           </div>
+          {msg.created_at && (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#4a6a9a", marginTop: 4, textAlign: "right" }}>
+              {new Date(msg.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -255,6 +260,11 @@ function MessageBubble({ msg }) {
             )}
             {msg._error && (
               <div style={{ fontSize: 11, color: "#dc3c3c", marginTop: text ? 4 : 0 }}>Error: {msg._error}</div>
+            )}
+            {msg.created_at && !msg._streaming && (
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 6 }}>
+                {new Date(msg.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+              </div>
             )}
           </div>
         )
