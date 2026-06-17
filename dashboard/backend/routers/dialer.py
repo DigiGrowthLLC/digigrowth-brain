@@ -232,12 +232,17 @@ async def dial_batch():
 
     base = engine.base_url()
     phones = [l["phone"] for l in batch]
-    sids   = await engine.dial_batch(phones, session_id, base, config)
+    sids, errors = await engine.dial_batch(phones, session_id, base, config)
 
     with engine._session["lock"]:
         engine._session["call_sids"].update(sids)
 
-    return {"ok": True, "dialed": len(sids), "done": False}
+    return {
+        "ok":     True,
+        "dialed": len(sids),
+        "done":   False,
+        "errors": errors,
+    }
 
 
 @router.post("/dialer/classify")

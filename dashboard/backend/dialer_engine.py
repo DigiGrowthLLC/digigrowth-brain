@@ -84,9 +84,17 @@ def cancel_overflow_calls(call_sids: dict, answered_sid: str) -> None:
 
 
 def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
-    """Synchronous outbound call. Returns (phone, sid_or_None)."""
+    """Synchronous outbound call. Returns (phone, sid_or_None, error_or_None)."""
     from_num = os.environ.get("TWILIO_PHONE_NUMBER") or config.get("twilio_phone_number", "")
     base = base_url.rstrip("/")
+    if not base:
+        err = "base_url is empty — RAILWAY_PUBLIC_DOMAIN not set?"
+        print(f"  dialer: {err}")
+        return (phone, None, err)
+    if not from_num:
+        err = "TWILIO_PHONE_NUMBER not set and not in config.json"
+        print(f"  dialer: {err}")
+        return (phone, None, err)
     try:
         call = _client().calls.create(
             to=phone,
@@ -99,21 +107,24 @@ def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
             machine_detection="Enable",
         )
         print(f"  dialer: dialing {phone} — SID {call.sid}")
-        return (phone, call.sid)
+        return (phone, call.sid, None)
     except Exception as e:
         print(f"  dialer: failed to dial {phone}: {e}")
-        return (phone, None)
+        return (phone, None, str(e))
 
 
-async def dial_batch(phones: list, session_id: str, base_url: str, config: dict) -> dict:
-    """Async parallel dial — runs Twilio REST calls in thread pool. Returns {phone: sid}."""
+async def dial_batch(phones: list, session_id: str, base_url: str, config: dict) -> tuple:
+    """Async parallel dial — runs Twilio REST calls in thread pool.
+    Returns ({phone: sid}, [error_strings])."""
     loop = asyncio.get_event_loop()
     tasks = [
         loop.run_in_executor(None, _dial_lead_sync, phone, session_id, base_url, config)
         for phone in phones
     ]
     results = await asyncio.gather(*tasks)
-    return {phone: sid for phone, sid in results if sid}
+    sids   = {phone: sid for phone, sid, err in results if sid}
+    errors = [err         for phone, sid, err in results if err]
+    return sids, errors
 
 
 # ── Session lifecycle ──────────────────────────────────────────────────────────
