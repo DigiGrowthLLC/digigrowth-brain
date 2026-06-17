@@ -140,4 +140,5 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_type TEXT;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_size BIGINT;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_data BYTEA;
+            ALTER TABLE sops ADD COLUMN IF NOT EXISTS github_path TEXT;
         """)
