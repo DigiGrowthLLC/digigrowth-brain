@@ -1,22 +1,51 @@
 # Parallel Dialer Memory
 
-Target niche: private and semi-private fitness/personal training studios
-Active market: The Carolinas (North and South Carolina)
-Primary metric: Decision makers reached
+Target niche: Independent mobile and in-home veterinary practices
+Active market: All US states — priority on Sun Belt (FL, TX, GA, SC, NC, AZ, TN, VA)
+Primary metric: Decision makers reached (practice owner / veterinarian-owner)
 
 ## Rules
 
 - Grade A leads are dialed first, then B, C, D
 - Max 3 call attempts per lead before SMS handoff
 - Machine detection is enabled — voicemails are not counted as a DM reached
-- Do not dial on Sundays
+- Do not dial on Saturdays or Sundays
 - Discount Tires shift days: reduce session length or skip if Dylan is working
 
-## GHL Notes
+## Ideal Prospect
 
-- (Add workflow IDs here once configured)
-- SMS handoff workflow should fire immediately after 3rd missed attempt
-- "Follow Up" workflow = callback sequence, not same-day re-dial
+- Dr. [Name] — independent DVM who owns a mobile or in-home vet practice
+- Companion animals (dogs and cats) as primary focus
+- 1–6 staff, suburban area, no in-house marketing
+- Growing through referrals only — no paid ads, no funnel
+
+## Pitch Frame
+
+- Offer: Done-for-you Meta ads system running a complimentary in-home wellness visit offer
+- Delivers 20–40 new client appointments in 6 weeks
+- She confirms appointments — nothing else required
+- ROI: 20 appts × $200 avg = $4,000+ in new revenue, many become recurring ($500–$1k+/yr LTV)
+
+## Common Objections
+
+- "I get enough from referrals" → Average practice loses ~100 active clients/year to churn. Referrals replace some — this adds a predictable layer on top.
+- "I don't have time for an agency" → Done-for-you. She doesn't manage ads, funnel, or follow-up. She just shows up for appointments.
+- "I've never done paid ads" → Same strategy vets have used for decades with new client promotions, just systematized on Meta.
+- "How much does it cost?" → Hold until ROI is established. Ask: "If we put 20 new client appointments on your calendar this month, what does that mean in revenue for you?"
+
+## Qualifying Questions
+
+1. "Are you currently running any paid ads or is growth mostly coming from referrals right now?"
+2. "How's your schedule looking most weeks — pretty full, or are there gaps you'd like to fill?"
+3. "If I could put 20 new client appointments on your calendar in the next 6 weeks, is that something you'd want to explore?"
+
+## Disqualifiers (End Call Politely)
+
+- Brick-and-mortar only clinic (no mobile component)
+- Corporate-owned or franchise location
+- Solo operator with no support staff
+- Already has in-house marketing or a marketing coordinator
+- Explicitly at capacity and not looking to grow
 
 ## Call Notes
 
