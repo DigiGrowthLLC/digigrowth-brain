@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 class Contact(BaseModel):
-    id: str
+    id: Optional[str] = None
     business: Optional[str] = None
     owner: Optional[str] = None
     phone: Optional[str] = None
