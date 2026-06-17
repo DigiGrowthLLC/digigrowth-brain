@@ -162,7 +162,7 @@ async def session_init():
                    website, city, state, call_attempts
             FROM contacts
             WHERE phone IS NOT NULL
-              AND status NOT IN ('appointment-booked', 'not-interested', 'sms-handoff', 'dnc')
+              AND status = 'dialer-lead'
               AND (last_called_at IS NULL OR last_called_at < now() - interval '4 hours')
             ORDER BY
               CASE grade WHEN 'A' THEN 1 WHEN 'B' THEN 2
@@ -477,7 +477,7 @@ async def dialer_leads(limit: int = 500):
                    website, city, state, call_attempts
             FROM contacts
             WHERE phone IS NOT NULL
-              AND status NOT IN ('appointment-booked', 'not-interested', 'sms-handoff', 'dnc')
+              AND status = 'dialer-lead'
               AND (last_called_at IS NULL
                    OR last_called_at < now() - interval '4 hours')
             ORDER BY
@@ -548,7 +548,7 @@ async def get_stats():
             """
             SELECT COUNT(*) FROM contacts
             WHERE phone IS NOT NULL
-              AND status NOT IN ('appointment-booked', 'not-interested', 'sms-handoff', 'dnc')
+              AND status = 'dialer-lead'
               AND (last_called_at IS NULL OR last_called_at < now() - interval '4 hours')
             """
         )
