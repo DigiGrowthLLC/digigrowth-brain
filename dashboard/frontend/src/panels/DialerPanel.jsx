@@ -71,8 +71,9 @@ export default function DialerPanel() {
   const [scriptTemplate, setScriptTemplate] = useState("");
   const [filledScript, setFilledScript]     = useState("");
   const [scriptFilled, setScriptFilled]     = useState(false);
-  // Dial feedback
-  const [dialMsg, setDialMsg] = useState("");
+  // Dial / error feedback
+  const [dialMsg, setDialMsg]   = useState("");
+  const [errMsg, setErrMsg]     = useState("");
   const prevStatusRef = useRef(null);
   // Terminal
   const [termOpen, setTermOpen]       = useState(false);
@@ -154,17 +155,18 @@ export default function DialerPanel() {
     setInitiating(true);
     setLeadCount(null);
     setDialMsg("");
+    setErrMsg("");
     try {
       const r = await fetch(API("/dialer/session/init"), { method: "POST" });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || "Init failed");
+      if (!r.ok) { setErrMsg(d.detail || "Init failed"); return; }
       setLeadCount(d.lead_count);
       setSessionActive(true);
       prevStatusRef.current = null;
       const s = await fetch(API("/dialer/session"));
       if (s.ok) setSess(await s.json());
     } catch (e) {
-      alert("Could not start session: " + e.message);
+      setErrMsg("Could not start session: " + e.message);
     } finally {
       setInitiating(false);
     }
@@ -172,21 +174,32 @@ export default function DialerPanel() {
 
   // ── Connect Twilio Device ────────────────────────────────────────────────────
   const connectDevice = async () => {
+    setErrMsg("");
     if (!window.Twilio?.Device) {
-      alert("Twilio SDK not loaded — reload the page and try again.");
+      setErrMsg("Twilio SDK not loaded — reload the page.");
       return;
     }
     setConnecting(true);
     try {
+      // Fetch access token
       const tr = await fetch(API("/dialer/token"));
       const td = await tr.json();
-      if (td.detail || td.error) throw new Error(td.detail || td.error);
-
-      const device = new window.Twilio.Device(td.token, { logLevel: "error" });
-      await device.register();
-      deviceRef.current = device;
+      if (!tr.ok || td.detail || td.error) {
+        setErrMsg("Token error: " + (td.detail || td.error || tr.status));
+        setConnecting(false);
+        return;
+      }
 
       const session_id = sess?.session_id || "";
+      const device = new window.Twilio.Device(td.token, { logLevel: "warn" });
+      deviceRef.current = device;
+
+      device.on("error", (e) => {
+        setErrMsg("Twilio device error: " + (e.message || JSON.stringify(e)));
+        setConnecting(false);
+      });
+
+      // Connect to conference — triggers TwiML App Voice URL (/dialer/voice/agent-join)
       const call = await device.connect({ params: { session_id } });
       activeCallRef.current = call;
 
@@ -198,7 +211,7 @@ export default function DialerPanel() {
           .then(r => r.json())
           .then(d => {
             if (d.errors && d.errors.length > 0)
-              setDialMsg(`Twilio error: ${d.errors[0]}`);
+              setErrMsg(`Twilio dial error: ${d.errors[0]}`);
             else if (d.done && d.dialed === 0)
               setDialMsg("No leads with status 'dialer-lead' — update lead statuses in CRM first.");
             else if (d.dialed === 0)
@@ -206,13 +219,13 @@ export default function DialerPanel() {
             else
               setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}…`);
           })
-          .catch(() => {});
+          .catch(e => setErrMsg("dial-batch fetch failed: " + e.message));
       });
       call.on("disconnect", () => setDeviceReady(false));
-      call.on("error", (e) => { setConnecting(false); alert("Twilio error: " + e.message); });
+      call.on("error",      (e) => { setConnecting(false); setErrMsg("Call error: " + (e.message || JSON.stringify(e))); });
     } catch (e) {
       setConnecting(false);
-      alert("Connect failed: " + e.message);
+      setErrMsg("Connect failed: " + e.message);
     }
   };
 
@@ -244,20 +257,20 @@ export default function DialerPanel() {
   const connectGK = () => fetch(API("/dialer/gatekeeper/connect"), { method: "POST" }).catch(() => {});
   const declineGK = () => fetch(API("/dialer/gatekeeper/decline"), { method: "POST" }).catch(() => {});
 
-  const endSession = async () => {
-    setEnding(true);
-    try {
-      await fetch(API("/dialer/end-session"), { method: "POST" });
-    } catch {}
+  const endSession = () => {
+    // Reset UI immediately — don't wait for backend
     disconnectDevice();
     setSessionActive(false);
     setSess(null);
     setLeadCount(null);
     setDialMsg("");
+    setErrMsg("");
     setScriptFilled(false);
     setFilledScript("");
     prevStatusRef.current = null;
     setEnding(false);
+    // Fire backend cleanup in background
+    fetch(API("/dialer/end-session"), { method: "POST" }).catch(() => {});
     loadStats();
   };
 
@@ -345,6 +358,24 @@ export default function DialerPanel() {
       {/* ── Calling Interface ── */}
       <div className="glass-card" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
 
+        {/* Error banner */}
+        {errMsg && (
+          <div style={{
+            background: "rgba(220,60,60,0.1)", border: "1px solid rgba(220,60,60,0.3)",
+            borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "flex-start", gap: 10,
+          }}>
+            <span style={{ color: "#dc3c3c", fontSize: 13, flexShrink: 0 }}>✕</span>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#dc3c3c",
+                            lineHeight: 1.6, wordBreak: "break-all" }}>
+              {errMsg}
+            </span>
+            <button onClick={() => setErrMsg("")} style={{
+              marginLeft: "auto", flexShrink: 0, background: "none", border: "none",
+              color: "#5a3a3a", cursor: "pointer", fontSize: 12,
+            }}>✕</button>
+          </div>
+        )}
+
         {!sessionActive ? (
           /* Idle */
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "8px 0" }}>
@@ -422,12 +453,10 @@ export default function DialerPanel() {
 
                 <button
                   className="btn btn-secondary"
-                  style={{ fontSize: 11, padding: "6px 16px", color: "#dc3c3c", borderColor: "rgba(220,60,60,0.3)",
-                           opacity: ending ? 0.5 : 1 }}
+                  style={{ fontSize: 11, padding: "6px 16px", color: "#dc3c3c", borderColor: "rgba(220,60,60,0.3)" }}
                   onClick={endSession}
-                  disabled={ending}
                 >
-                  {ending ? "Ending…" : "End Session"}
+                  End Session
                 </button>
               </div>
             </div>
