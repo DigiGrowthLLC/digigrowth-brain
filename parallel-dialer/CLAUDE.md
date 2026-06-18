@@ -1,6 +1,6 @@
 # Parallel Dialer
 
-Dials up to 10 leads simultaneously via Twilio, bridges the first answered call to Dylan's browser, classifies dispositions via button click, and logs everything to the DigiGrowth OS CRM. After 3 unanswered attempts, leads hand off automatically to the OS SMS appointment-setting workflow.
+Dials up to 5 leads simultaneously via Twilio, bridges the first answered call to Dylan's browser, classifies dispositions via button click, and logs everything to the DigiGrowth OS CRM. After 3 unanswered attempts, leads hand off automatically to the OS SMS appointment-setting workflow.
 
 **Run:** `python run.py`
 
@@ -69,7 +69,7 @@ python run.py newsletter  # Generate and send weekly AI newsletter
 2. Ngrok tunnel auto-starts, TwiML App Voice URL is auto-updated
 3. Browser UI opens at `http://localhost:5000/agent`
 4. Dylan clicks Connect — his browser joins the Twilio conference
-5. Dialer calls up to 10 leads simultaneously
+5. Dialer calls up to 5 leads simultaneously
 6. **First lead to answer** → bridged to conference immediately (Dylan hears them)
 7. All other ringing calls → canceled
 8. Call ends → Dylan clicks a disposition button in the browser

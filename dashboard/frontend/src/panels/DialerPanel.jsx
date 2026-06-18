@@ -63,8 +63,7 @@ export default function DialerPanel() {
   const [initiating, setInitiating]       = useState(false);
   const [deviceReady, setDeviceReady]     = useState(false);
   const [connecting, setConnecting]       = useState(false);
-  const [ending, setEnding]               = useState(false);
-  const [notes, setNotes]                 = useState("");
+const [notes, setNotes]                 = useState("");
   const [classifying, setClassifying]     = useState(false);
   const [bookingOpen, setBookingOpen]     = useState(false);
   // Script
@@ -291,7 +290,6 @@ export default function DialerPanel() {
     setScriptFilled(false);
     setFilledScript("");
     prevStatusRef.current = null;
-    setEnding(false);
     // Fire backend cleanup in background
     fetch(API("/dialer/end-session"), { method: "POST" }).catch(() => {});
     loadStats();

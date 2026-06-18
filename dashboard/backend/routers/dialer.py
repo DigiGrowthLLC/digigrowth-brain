@@ -1,8 +1,6 @@
 """
-Dialer router — auth-protected endpoints for the DialerPanel UI and legacy
-heartbeat/disposition callbacks from parallel-dialer/webhook.py.
+Dialer router — auth-protected endpoints for the DialerPanel UI.
 
-New endpoints power the native OS calling UI:
   GET  /api/dialer/token         — Twilio access token for Twilio.Device
   GET  /api/dialer/session       — live session state (polled every 1s by frontend)
   POST /api/dialer/session/init  — start session, load leads into engine
@@ -13,9 +11,6 @@ New endpoints power the native OS calling UI:
   POST /api/dialer/gatekeeper/decline  — hang up held gatekeeper
   POST /api/dialer/set-lines     — update max parallel lines
   POST /api/dialer/end-session   — request session end
-
-Legacy (kept for backward compat with parallel-dialer/webhook.py):
-  POST /api/dialer/session/start, /session/end, /heartbeat, /disposition
 """
 
 import asyncio
@@ -372,147 +367,6 @@ async def end_session():
     return {"ok": True}
 
 
-# ── Legacy in-memory live state (kept for backward compat) ────────────────────
-
-_live = {
-    "active":      False,
-    "session_id":  None,
-    "started_at":  None,
-    "calls_made":  0,
-    "dms_reached": 0,
-    "total_leads": 0,
-}
-
-
-# ── Legacy session lifecycle (used by parallel-dialer/webhook.py) ─────────────
-
-@router.post("/dialer/session/start")
-async def session_start(payload: dict):
-    _live["active"]      = True
-    _live["session_id"]  = payload.get("session_id")
-    _live["started_at"]  = payload.get("started_at")
-    _live["calls_made"]  = 0
-    _live["dms_reached"] = 0
-    _live["total_leads"] = payload.get("total_leads", 0)
-    return {"ok": True}
-
-
-@router.post("/dialer/session/end")
-async def session_end(payload: dict):
-    _live["active"] = False
-    return {"ok": True}
-
-
-@router.post("/dialer/heartbeat")
-async def heartbeat(payload: dict):
-    if payload.get("total_leads") is not None:
-        _live["total_leads"] = payload["total_leads"]
-    if payload.get("calls_made") is not None:
-        _live["calls_made"] = payload["calls_made"]
-    if payload.get("dms_reached") is not None:
-        _live["dms_reached"] = payload["dms_reached"]
-    return {"ok": True}
-
-
-# ── Disposition event (replaces GHL handle_disposition) ──────────────────────
-
-@router.post("/dialer/disposition")
-async def log_disposition(payload: dict):
-    phone       = (payload.get("phone") or "").strip()
-    disposition = (payload.get("disposition") or "No Answer").strip()
-    notes       = (payload.get("notes") or "").strip() or None
-
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        contact = await conn.fetchrow(
-            "SELECT id FROM contacts WHERE phone = $1", phone
-        )
-        contact_id = contact["id"] if contact else None
-
-        await conn.execute(
-            """
-            INSERT INTO call_logs (contact_id, disposition, notes)
-            VALUES ($1, $2, $3)
-            """,
-            contact_id, disposition, notes,
-        )
-
-        if contact_id:
-            new_status = DISPOSITION_TO_STATUS.get(disposition)
-            updated = await conn.fetchrow(
-                """
-                UPDATE contacts SET
-                    call_attempts    = call_attempts + 1,
-                    last_disposition = $1,
-                    last_called_at   = now(),
-                    status           = COALESCE($2, status),
-                    updated_at       = now()
-                WHERE id = $3
-                RETURNING call_attempts, phone, owner
-                """,
-                disposition, new_status, contact_id,
-            )
-
-            if updated and disposition == "No Answer" and updated["call_attempts"] >= 3:
-                await conn.execute(
-                    "UPDATE contacts SET status='sms-handoff' WHERE id=$1",
-                    contact_id,
-                )
-                from routers.sms import _send_twilio
-                owner = updated["owner"] or "there"
-                msg = (
-                    f"Hey {owner}, this is Dylan from DigiGrowth — "
-                    "I tried reaching you a few times. Wanted to connect about growing "
-                    "your business online. Reply back if you'd like to chat!"
-                )
-                try:
-                    _send_twilio(updated["phone"], msg)
-                except Exception:
-                    pass
-
-    return {"ok": True}
-
-
-@router.get("/dialer/leads")
-async def dialer_leads(limit: int = 500):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, phone, business, owner, grade, opener, email,
-                   website, city, state, call_attempts
-            FROM contacts
-            WHERE phone IS NOT NULL
-              AND status = 'dialer-lead'
-              AND (last_called_at IS NULL
-                   OR last_called_at < now() - interval '4 hours')
-            ORDER BY
-              CASE grade WHEN 'A' THEN 1 WHEN 'B' THEN 2
-                         WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END,
-              call_attempts ASC
-            LIMIT $1
-            """,
-            limit,
-        )
-    return {
-        "leads": [
-            {
-                "contact_id": str(r["id"]),
-                "phone":      r["phone"],
-                "business":   r["business"] or "",
-                "owner":      r["owner"] or "",
-                "grade":      r["grade"] or "",
-                "opener":     r["opener"] or "",
-                "email":      r["email"] or "",
-                "website":    r["website"] or "",
-                "city":       r["city"] or "",
-                "state":      r["state"] or "",
-                "attempts":   r["call_attempts"],
-            }
-            for r in rows
-        ]
-    }
-
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
@@ -559,28 +413,15 @@ async def get_stats():
             """
         )
 
-    # Prefer engine session stats (native OS dialer); fall back to legacy _live
     with engine._session["lock"]:
-        eng_active      = engine._session.get("active", False)
-        eng_session_id  = engine._session.get("id")
-        eng_stats       = dict(engine._session.get("stats", {}))
-        eng_total       = engine._session.get("total_leads", 0)
-        eng_remaining   = len(engine._session.get("eligible_leads", []))
+        active      = engine._session.get("active", False)
+        session_id  = engine._session.get("id")
+        eng_stats   = dict(engine._session.get("stats", {}))
+        total_leads = engine._session.get("total_leads", 0)
+        remaining   = len(engine._session.get("eligible_leads", []))
 
-    if eng_active:
-        calls_made  = eng_stats.get("calls_made", 0)
-        dms_reached = eng_stats.get("dms_reached", 0)
-        active      = True
-        session_id  = eng_session_id
-        total_leads = eng_total
-        remaining   = eng_remaining
-    else:
-        calls_made  = _live["calls_made"]
-        dms_reached = _live["dms_reached"]
-        active      = _live["active"]
-        session_id  = _live["session_id"]
-        total_leads = _live["total_leads"]
-        remaining   = max(0, _live["total_leads"] - _live["calls_made"])
+    calls_made  = eng_stats.get("calls_made", 0)
+    dms_reached = eng_stats.get("dms_reached", 0)
 
     reach_rate = round(dms_reached / calls_made * 100, 1) if calls_made > 0 else 0
 
