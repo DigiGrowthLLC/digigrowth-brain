@@ -233,7 +233,7 @@ export default function DialerPanel() {
             else if (d.dialed === 0)
               setDialMsg("0 calls placed — check Railway logs for Twilio errors.");
             else
-              setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}…`);
+              setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}… → ${(d.phones || []).join(", ")}`);
           })
           .catch(e => setErrMsg("dial-batch fetch failed: " + e.message));
       });

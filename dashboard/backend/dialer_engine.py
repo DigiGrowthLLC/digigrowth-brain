@@ -83,6 +83,16 @@ def cancel_overflow_calls(call_sids: dict, answered_sid: str) -> None:
             print(f"  dialer: could not cancel {sid}: {e}")
 
 
+def _to_e164(phone: str) -> str:
+    """Normalize a US phone number to E.164 format (+1XXXXXXXXXX)."""
+    digits = "".join(c for c in phone if c.isdigit())
+    if len(digits) == 10:
+        return f"+1{digits}"
+    if len(digits) == 11 and digits.startswith("1"):
+        return f"+{digits}"
+    return phone  # already E.164 or non-US; pass through
+
+
 def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
     """Synchronous outbound call. Returns (phone, sid_or_None, error_or_None)."""
     from_num = os.environ.get("TWILIO_PHONE_NUMBER") or config.get("twilio_phone_number", "")
@@ -95,9 +105,11 @@ def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
         err = "TWILIO_PHONE_NUMBER not set and not in config.json"
         print(f"  dialer: {err}")
         return (phone, None, err)
+    to_num = _to_e164(phone)
+    print(f"  dialer: dialing {phone} → {to_num} (from {from_num})")
     try:
         call = _client().calls.create(
-            to=phone,
+            to=to_num,
             from_=from_num,
             url=f"{base}/dialer/voice/lead-answered?session_id={session_id}",
             status_callback=f"{base}/dialer/voice/status?session_id={session_id}&phone={phone}",
@@ -106,7 +118,7 @@ def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
             timeout=config.get("call_timeout_seconds", 30),
             machine_detection="Enable",
         )
-        print(f"  dialer: dialing {phone} — SID {call.sid}")
+        print(f"  dialer: placed call to {to_num} — SID {call.sid}")
         return (phone, call.sid, None)
     except Exception as e:
         print(f"  dialer: failed to dial {phone}: {e}")

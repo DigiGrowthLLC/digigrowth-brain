@@ -242,6 +242,7 @@ async def dial_batch():
         "dialed": len(sids),
         "done":   False,
         "errors": errors,
+        "phones": list(sids.keys()),
     }
 
 
