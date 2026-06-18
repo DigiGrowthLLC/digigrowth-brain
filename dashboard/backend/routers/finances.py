@@ -502,3 +502,15 @@ async def delete_transaction(txn_id: int):
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="Transaction not found")
     return {"ok": True}
+
+
+@router.post("/finances/plaid/purge")
+async def purge_plaid_data():
+    """Delete all Plaid-imported transactions and stored credentials."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        deleted = await conn.fetchval(
+            "DELETE FROM transactions WHERE plaid_transaction_id IS NOT NULL RETURNING count(*)"
+        )
+        await conn.execute("DELETE FROM plaid_config")
+    return {"deleted_transactions": deleted or 0}
