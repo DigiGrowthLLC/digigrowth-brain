@@ -32,7 +32,7 @@ _session = {
     "machine_detected":     set(),   # norm_phones where Twilio detected automation
     "gatekeeper_pending":   None,    # {"sid", "phone", "lead"} — held call
     "batch_had_answer":     False,
-    "max_lines":            10,
+    "max_lines":            5,
     "end_requested":        False,
     "eligible_leads":       [],      # leads yet to be dialed (mutable queue)
     "leads_by_phone":       {},      # norm_phone → lead dict (for retry lookups)
@@ -153,7 +153,7 @@ def init_session(session_id: str, config_data: dict, leads: list) -> None:
         _session["eligible_leads"]      = list(leads)
         _session["leads_by_phone"]      = {_norm(l["phone"]): l for l in leads if l.get("phone")}
         _session["total_leads"]         = len(leads)
-        _session["max_lines"]           = config_data.get("max_parallel_lines", 10)
+        _session["max_lines"]           = config_data.get("max_parallel_lines", 5)
         _session["end_requested"]       = False
 
 

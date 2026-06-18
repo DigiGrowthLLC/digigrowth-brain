@@ -176,7 +176,7 @@ export default function DialerPanel() {
   const connectDevice = async () => {
     setErrMsg("");
     if (!window.Twilio?.Device) {
-      setErrMsg("Twilio SDK not loaded — reload the page.");
+      setErrMsg("Twilio SDK not loaded — hard-refresh the page (Ctrl+Shift+R).");
       return;
     }
     setConnecting(true);
@@ -199,11 +199,27 @@ export default function DialerPanel() {
         setConnecting(false);
       });
 
+      // Register first (required even for outbound in SDK v2)
+      await Promise.race([
+        device.register(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("register() timed out — check TWILIO env vars on Railway")), 12000)),
+      ]);
+
       // Connect to conference — triggers TwiML App Voice URL (/dialer/voice/agent-join)
-      const call = await device.connect({ params: { session_id } });
+      const call = await Promise.race([
+        device.connect({ params: { session_id } }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("connect() timed out — check TwiML App Voice URL in Twilio console points to Railway")), 15000)),
+      ]);
       activeCallRef.current = call;
 
+      // If accept doesn't fire within 20s, report it
+      const acceptTimer = setTimeout(() => {
+        setErrMsg("Call connected but 'accept' never fired — TwiML App Voice URL may be misconfigured");
+        setConnecting(false);
+      }, 20000);
+
       call.on("accept", () => {
+        clearTimeout(acceptTimer);
         setDeviceReady(true);
         setConnecting(false);
         setDialMsg("Dialing first batch…");
@@ -221,6 +237,7 @@ export default function DialerPanel() {
           })
           .catch(e => setErrMsg("dial-batch fetch failed: " + e.message));
       });
+      call.on("cancel",     () => { setConnecting(false); setErrMsg("Call was canceled before connecting — TwiML App may have failed"); });
       call.on("disconnect", () => setDeviceReady(false));
       call.on("error",      (e) => { setConnecting(false); setErrMsg("Call error: " + (e.message || JSON.stringify(e))); });
     } catch (e) {
@@ -429,7 +446,7 @@ export default function DialerPanel() {
                     fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
                     padding: "4px 8px", cursor: "pointer",
                   }}
-                  defaultValue="10"
+                  defaultValue="5"
                   onChange={(e) => fetch(API("/dialer/set-lines"), {
                     method: "POST", headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ lines: parseInt(e.target.value) }),

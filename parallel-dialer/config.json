@@ -1,7 +1,7 @@
 {
   "twilio_phone_number": "+17542915582",
   "webhook_base_url": "https://digigrowth-brain-production.up.railway.app",
-  "max_parallel_lines": 10,
+  "max_parallel_lines": 5,
   "max_call_attempts": 3,
   "inter_attempt_delay_hours": 4,
   "call_timeout_seconds": 30,
