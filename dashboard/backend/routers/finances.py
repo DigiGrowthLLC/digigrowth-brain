@@ -509,8 +509,9 @@ async def purge_plaid_data():
     """Delete all Plaid-imported transactions and stored credentials."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        deleted = await conn.fetchval(
-            "DELETE FROM transactions WHERE plaid_transaction_id IS NOT NULL RETURNING count(*)"
+        result = await conn.execute(
+            "DELETE FROM transactions WHERE plaid_transaction_id IS NOT NULL"
         )
         await conn.execute("DELETE FROM plaid_config")
-    return {"deleted_transactions": deleted or 0}
+    deleted = int(result.split()[-1]) if result else 0
+    return {"deleted_transactions": deleted}
