@@ -123,14 +123,15 @@ export default function DialerPanel() {
     if (prev === "classify" && sess.status === "waiting" && !sess.end_requested) {
       setDialMsg("");
       fetch(API("/dialer/dial-batch"), { method: "POST" })
-        .then(r => r.json())
-        .then(d => {
-          if (d.errors && d.errors.length > 0) setDialMsg(`Twilio error: ${d.errors[0]}`);
+        .then(async r => {
+          if (!r.ok) { const t = await r.text().catch(() => ""); setErrMsg(`dial-batch ${r.status}: ${t}`); return; }
+          const d = await r.json();
+          if (d.errors && d.errors.length > 0) setErrMsg(`Twilio error: ${d.errors[0]}`);
           else if (d.done && d.dialed === 0)   setDialMsg("No more leads in queue.");
           else if (d.dialed === 0)             setDialMsg("0 calls placed — check Railway logs.");
-          else                                 setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}…`);
+          else                                 setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}… → ${(d.phones||[]).join(", ")}`);
         })
-        .catch(() => {});
+        .catch(e => setErrMsg("dial-batch: " + e.message));
     }
 
     // Lead connected: fill script
@@ -224,8 +225,13 @@ export default function DialerPanel() {
         setConnecting(false);
         setDialMsg("Dialing first batch…");
         fetch(API("/dialer/dial-batch"), { method: "POST" })
-          .then(r => r.json())
-          .then(d => {
+          .then(async r => {
+            if (!r.ok) {
+              const txt = await r.text().catch(() => "");
+              setErrMsg(`dial-batch failed (${r.status}): ${txt || "no body"} — if "upstream error", wait for Railway deploy to finish then retry`);
+              return;
+            }
+            const d = await r.json();
             if (d.errors && d.errors.length > 0)
               setErrMsg(`Twilio dial error: ${d.errors[0]}`);
             else if (d.done && d.dialed === 0)
@@ -235,7 +241,7 @@ export default function DialerPanel() {
             else
               setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}… → ${(d.phones || []).join(", ")}`);
           })
-          .catch(e => setErrMsg("dial-batch fetch failed: " + e.message));
+          .catch(e => setErrMsg("dial-batch error: " + e.message + " — if 'upstream error', Railway is still deploying, retry in 1 min"));
       });
       call.on("cancel",     () => { setConnecting(false); setErrMsg("Call was canceled before connecting — TwiML App may have failed"); });
       call.on("disconnect", () => setDeviceReady(false));
