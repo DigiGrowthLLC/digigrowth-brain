@@ -1,32 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { usePlaidLink } from "react-plaid-link";
-
-// Must be a separate component — usePlaidLink only works correctly when
-// mounted after the token is already available, not with token=""
-function PlaidConnectButton({ token, onSuccess, onError, disabled }) {
-  const { open, ready } = usePlaidLink({
-    token,
-    onSuccess,
-    onExit: (err, metadata) => {
-      if (err) {
-        onError?.(`Plaid exit error: ${err.error_code} — ${err.error_message}`);
-      } else if (metadata?.status !== "institution_selected") {
-        // exited after partially completing — surface for debugging
-        onError?.(`Exited at step: ${metadata?.status || "unknown"}`);
-      }
-    },
-  });
-  return (
-    <button
-      onClick={() => open()}
-      disabled={!ready || disabled}
-      className="btn btn-primary"
-      style={{ padding: "12px 28px", fontSize: 13, fontWeight: 600, opacity: ready ? 1 : 0.5 }}
-    >
-      {disabled ? "Connecting…" : "Connect Novo"}
-    </button>
-  );
-}
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
@@ -45,18 +17,11 @@ const CATEGORIES = [
   "Uncategorized",
 ];
 
+const EXPENSE_CATEGORIES = CATEGORIES.filter(c => c !== "Revenue");
+
 function money(v) {
   if (v == null) return "—";
   return `$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function timeAgo(iso) {
-  if (!iso) return "never";
-  const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60000) return "just now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return `${Math.floor(diff / 86400000)}d ago`;
 }
 
 function ChartTooltip({ active, payload, label }) {
@@ -107,20 +72,177 @@ function SummaryCard({ label, value, color, sub }) {
   );
 }
 
+function AddTransactionModal({ onClose, onSaved }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    is_income: false,
+    description: "",
+    amount: "",
+    date: today,
+    category: "Uncategorized",
+    notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState(null);
+
+  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleSave = async () => {
+    if (!form.description.trim()) { setError("Description is required."); return; }
+    const amt = parseFloat(form.amount);
+    if (!form.amount || isNaN(amt) || amt <= 0) { setError("Enter a valid amount greater than 0."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const resp = await fetch(API("/finances/transactions"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          is_income:   form.is_income,
+          description: form.description.trim(),
+          amount:      amt,
+          date:        form.date,
+          category:    form.is_income ? "Revenue" : form.category,
+          notes:       form.notes.trim() || null,
+        }),
+      });
+      if (!resp.ok) { setError(await resp.text()); return; }
+      onSaved(await resp.json());
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
+        backdropFilter: "blur(6px)", zIndex: 1000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+      onClick={onClose}
+    >
+      <div className="glass-card" style={{ width: 420, padding: "28px 32px" }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "#f0f4ff", marginBottom: 22 }}>
+          Add Transaction
+        </div>
+
+        {/* Revenue / Expense toggle */}
+        <div style={{ display: "flex", marginBottom: 20, background: "rgba(10,18,48,0.7)", borderRadius: 10, padding: 4, gap: 4 }}>
+          {[[false, "Expense", "#f0a028"], [true, "Revenue", "#14c882"]].map(([val, label, accent]) => (
+            <button key={label} onClick={() => set("is_income", val)} style={{
+              flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600,
+              padding: "9px 0", borderRadius: 8, border: "none", cursor: "pointer",
+              background: form.is_income === val
+                ? val
+                  ? "linear-gradient(135deg, #0d7a4e, #14c882)"
+                  : "linear-gradient(135deg, #7a3a00, #f0a028)"
+                : "transparent",
+              color: form.is_income === val ? "#fff" : "#4a6080",
+              transition: "all 0.15s",
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {/* Description */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>DESCRIPTION</div>
+          <input
+            className="dg-input" type="text"
+            style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+            placeholder={form.is_income ? "e.g. Client invoice, retainer payment…" : "e.g. AWS bill, Anthropic API…"}
+            value={form.description}
+            onChange={e => set("description", e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleSave()}
+          />
+        </div>
+
+        {/* Amount + Date side by side */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>AMOUNT ($)</div>
+            <input
+              className="dg-input" type="number" min="0" step="0.01"
+              style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+              placeholder="0.00"
+              value={form.amount}
+              onChange={e => set("amount", e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSave()}
+            />
+          </div>
+          <div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>DATE</div>
+            <input
+              className="dg-input" type="date"
+              style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+              value={form.date}
+              onChange={e => set("date", e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Category — only shown for expenses */}
+        {!form.is_income && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>CATEGORY</div>
+            <select
+              className="dg-input"
+              style={{ width: "100%", fontSize: 13 }}
+              value={form.category}
+              onChange={e => set("category", e.target.value)}
+            >
+              {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* Notes */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>NOTES (OPTIONAL)</div>
+          <input
+            className="dg-input" type="text"
+            style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+            placeholder="Optional note…"
+            value={form.notes}
+            onChange={e => set("notes", e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleSave()}
+          />
+        </div>
+
+        {error && (
+          <div style={{
+            marginBottom: 14, padding: "8px 12px", borderRadius: 8,
+            background: "rgba(220,60,60,0.08)", border: "1px solid rgba(220,60,60,0.2)",
+            fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#dc3c3c", letterSpacing: "0.04em",
+          }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} className="btn btn-secondary" style={{ flex: 1, fontSize: 12 }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ flex: 1, fontSize: 12 }}>
+            {saving ? "Saving…" : `Add ${form.is_income ? "Revenue" : "Expense"}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function FinancesPanel() {
   const [days, setDays]             = useState(30);
   const [summary, setSummary]       = useState(null);
   const [categories, setCategories] = useState(null);
   const [txns, setTxns]             = useState(null);
-  const [syncing, setSyncing]       = useState(false);
   const [txnType, setTxnType]       = useState("all");
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [expandedTxn, setExpandedTxn] = useState(null);
-  const [linkToken, setLinkToken]   = useState(null);
-  const [connectError, setConnectError] = useState(null);
-  const [connecting, setConnecting] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  const [expandedTxn, setExpandedTxn]   = useState(null);
+  const [showAddForm, setShowAddForm]   = useState(false);
+  const [deletingId, setDeletingId]     = useState(null);
 
   const loadAll = useCallback(async (d = days) => {
     const [s, c, t] = await Promise.all([
@@ -131,64 +253,35 @@ export default function FinancesPanel() {
     setSummary(s);
     setCategories(c);
     setTxns(t);
-    if (s?.connected) setIsConnected(true);
   }, [days]);
 
-  const triggerSync = async () => {
-    setSyncing(true);
-    try {
-      await fetch(API("/finances/plaid/sync"), { method: "POST" });
-      await fetch(API("/finances/recategorize"), { method: "POST" });
-      await loadAll();
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  // Fetch Plaid link token on mount
-  useEffect(() => {
-    fetch(API("/finances/plaid/link-token"), { method: "POST" })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.link_token) setLinkToken(d.link_token); })
-      .catch(() => {});
-    loadAll();
-  }, []);
-
+  useEffect(() => { loadAll(); }, []);
   useEffect(() => { loadAll(days); }, [days]);
 
-  // Auto-sync on load when connected
-  useEffect(() => {
-    if (isConnected) triggerSync();
-  }, [isConnected]);
+  const handleTxnSaved = (newTxn) => {
+    setTxns(prev => prev ? {
+      ...prev,
+      total: prev.total + 1,
+      transactions: [newTxn, ...prev.transactions],
+    } : { total: 1, transactions: [newTxn] });
+    loadAll();
+  };
 
-  const handlePlaidSuccess = useCallback(async (publicToken, metadata) => {
-    setConnecting(true);
-    setConnectError("Plaid authorized — exchanging token with server…");
+  const deleteTxn = async (id) => {
+    setDeletingId(id);
     try {
-      const resp = await fetch(API("/finances/plaid/exchange"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          public_token: publicToken,
-          institution_name: metadata?.institution?.name || "Novo",
-        }),
-      });
-      if (!resp.ok) {
-        const err = await resp.text();
-        setConnectError(`Server error ${resp.status}: ${err}`);
-        return;
-      }
-      setIsConnected(true);
-      const data = await resp.json();
-      if (data.sync_error) setConnectError(`Connected — sync note: ${data.sync_error}`);
-      await fetch(API("/finances/recategorize"), { method: "POST" });
-      await loadAll();
-    } catch (e) {
-      setConnectError(`Network error: ${e.message}`);
+      await fetch(API(`/finances/transactions/${id}`), { method: "DELETE" });
+      setTxns(prev => prev ? {
+        ...prev,
+        total: prev.total - 1,
+        transactions: prev.transactions.filter(t => t.id !== id),
+      } : prev);
+      setExpandedTxn(null);
+      loadAll();
     } finally {
-      setConnecting(false);
+      setDeletingId(null);
     }
-  }, [loadAll]);
+  };
 
   const updateTxn = async (id, patch) => {
     await fetch(API(`/finances/transactions/${id}`), {
@@ -215,7 +308,7 @@ export default function FinancesPanel() {
 
   const totalExpenses = categories?.expense_breakdown?.reduce((s, r) => s + r.total, 0) || 1;
 
-  if (!summary && !linkToken) {
+  if (!summary) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.15em" }}>
@@ -228,6 +321,13 @@ export default function FinancesPanel() {
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
 
+      {showAddForm && (
+        <AddTransactionModal
+          onClose={() => setShowAddForm(false)}
+          onSaved={handleTxnSaved}
+        />
+      )}
+
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
@@ -235,312 +335,278 @@ export default function FinancesPanel() {
             Finances
           </div>
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.18em", marginTop: 3 }}>
-            {summary?.institution_name ? `${summary.institution_name.toUpperCase()} · BUSINESS ACCOUNT` : "NOVO · BUSINESS ACCOUNT"}
+            MANUAL LEDGER · BUSINESS ACCOUNT
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {isConnected && (
-            <button
-              onClick={triggerSync}
-              disabled={syncing}
-              className="btn btn-secondary"
-              style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}
-            >
-              <span style={{ display: "inline-block", transform: syncing ? "rotate(360deg)" : "none", transition: syncing ? "transform 1s linear infinite" : "none" }}>↻</span>
-              {syncing ? "SYNCING…" : "SYNC"}
-            </button>
-          )}
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="btn btn-primary"
+            style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, padding: "7px 16px" }}
+          >
+            + Add Transaction
+          </button>
           <PeriodToggle days={days} setDays={setDays} />
         </div>
       </div>
 
-      {/* Not connected */}
-      {!isConnected && (
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div className="glass-card" style={{ padding: "40px 48px", textAlign: "center", maxWidth: 440 }}>
-            <div style={{ marginBottom: 20 }}>
-              <svg viewBox="0 0 48 48" fill="none" width={48} height={48} style={{ margin: "0 auto" }}>
-                <rect x="4" y="10" width="40" height="28" rx="4" stroke="#3a7bd5" strokeWidth="2"/>
-                <path d="M4 18h40" stroke="#3a7bd5" strokeWidth="2"/>
-                <rect x="10" y="26" width="8" height="4" rx="1" fill="#3a7bd5" opacity="0.6"/>
-                <rect x="22" y="26" width="5" height="4" rx="1" fill="#3a7bd5" opacity="0.3"/>
-              </svg>
-            </div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff", marginBottom: 8 }}>
-              Connect Your Novo Account
-            </div>
-            <div style={{ fontSize: 13, color: "#6080a8", lineHeight: 1.6, marginBottom: 24 }}>
-              Link your Novo business bank account to automatically track income, expenses, and profit margin.
-            </div>
-            {linkToken ? (
-              <PlaidConnectButton
-                token={linkToken}
-                onSuccess={handlePlaidSuccess}
-                onError={setConnectError}
-                disabled={connecting}
-              />
-            ) : (
-              <button className="btn btn-primary" disabled style={{ padding: "12px 28px", fontSize: 13, opacity: 0.5 }}>
-                Loading…
-              </button>
-            )}
-            {connecting && (
-              <div style={{ marginTop: 12, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>
-                CONNECTING & SYNCING…
-              </div>
-            )}
-            {connectError && (
-              <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "rgba(220,60,60,0.08)", border: "1px solid rgba(220,60,60,0.2)", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#dc3c3c", letterSpacing: "0.06em", textAlign: "left" }}>
-                {connectError}
-              </div>
-            )}
-            <div style={{ marginTop: 14, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#1a3a60", letterSpacing: "0.1em" }}>
-              POWERED BY PLAID · BANK-GRADE ENCRYPTION
-            </div>
-          </div>
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <SummaryCard label="Revenue"  value={money(summary?.income)}   color="#14c882" />
+        <SummaryCard label="Expenses" value={money(summary?.expenses)}  color="#f0a028" />
+        <SummaryCard
+          label="Net Profit"
+          value={money(summary?.net)}
+          color={(summary?.net ?? 0) >= 0 ? "#14c882" : "#dc3c3c"}
+        />
+        <SummaryCard
+          label="Profit Margin"
+          value={summary?.margin != null ? `${summary.margin}%` : "—"}
+          color={marginColor}
+          sub={summary?.margin != null ? (summary.margin > 30 ? "HEALTHY" : summary.margin > 0 ? "SLIM" : "LOSS") : null}
+        />
+      </div>
+
+      {/* Income vs Expenses trend */}
+      <div className="glass-card" style={{ padding: "20px 22px" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 4 }}>
+          Income vs Expenses
         </div>
-      )}
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em", marginBottom: 16 }}>
+          LAST {days} DAYS · DAILY
+        </div>
+        <ResponsiveContainer width="100%" height={160}>
+          <AreaChart data={categories?.daily ?? []} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+            <defs>
+              <linearGradient id="fIncome" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#14c882" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#14c882" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="fExpense" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#f0a028" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#f0a028" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
+            <XAxis dataKey="date" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
+              axisLine={false} tickLine={false} tickFormatter={v => v ? v.slice(5) : ""} />
+            <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
+              axisLine={false} tickLine={false} />
+            <Tooltip content={<ChartTooltip />} />
+            <Area type="monotone" dataKey="income"   name="Income"   stroke="#14c882" strokeWidth={2} fill="url(#fIncome)" />
+            <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f0a028" strokeWidth={2} fill="url(#fExpense)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
 
-      {/* Connected dashboard */}
-      {isConnected && (
-        <>
-          {/* Summary cards */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-            <SummaryCard label="Revenue"     value={money(summary?.income)}   color="#14c882" />
-            <SummaryCard label="Expenses"    value={money(summary?.expenses)}  color="#f0a028" />
-            <SummaryCard
-              label="Net Profit"
-              value={money(summary?.net)}
-              color={(summary?.net ?? 0) >= 0 ? "#14c882" : "#dc3c3c"}
-            />
-            <SummaryCard
-              label="Profit Margin"
-              value={summary?.margin != null ? `${summary.margin}%` : "—"}
-              color={marginColor}
-              sub={summary?.margin != null ? (summary.margin > 30 ? "HEALTHY" : summary.margin > 0 ? "SLIM" : "LOSS") : null}
-            />
+      {/* Spending by category */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
+
+        <div className="glass-card" style={{ padding: "18px 20px" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 14 }}>
+            Spending by Category
           </div>
-
-          {/* Income vs Expenses trend */}
-          <div className="glass-card" style={{ padding: "20px 22px" }}>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 4 }}>
-              Income vs Expenses
-            </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em", marginBottom: 16 }}>
-              LAST {days} DAYS · DAILY
-            </div>
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={categories?.daily ?? []} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
-                <defs>
-                  <linearGradient id="fIncome" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#14c882" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#14c882" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="fExpense" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#f0a028" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#f0a028" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
-                <XAxis dataKey="date" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-                  axisLine={false} tickLine={false} tickFormatter={v => v ? v.slice(5) : ""} />
-                <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-                  axisLine={false} tickLine={false} />
-                <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="income"   name="Income"   stroke="#14c882" strokeWidth={2} fill="url(#fIncome)" />
-                <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f0a028" strokeWidth={2} fill="url(#fExpense)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Spending by category */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
-
-            <div className="glass-card" style={{ padding: "18px 20px" }}>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 14 }}>
-                Spending by Category
-              </div>
-              {!categories?.expense_breakdown?.length ? (
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>NO EXPENSES YET</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {categories.expense_breakdown.map(c => {
-                    const isSelected = selectedCategory === c.category;
-                    return (
-                      <div
-                        key={c.category}
-                        onClick={() => setSelectedCategory(isSelected ? null : c.category)}
-                        style={{
-                          cursor: "pointer", borderRadius: 8, padding: "6px 8px", margin: "-6px -8px",
-                          background: isSelected ? "rgba(58,123,213,0.12)" : "transparent",
-                          border: isSelected ? "1px solid rgba(58,123,213,0.25)" : "1px solid transparent",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                          <span style={{ fontSize: 12, color: isSelected ? "#6ab0ff" : "#8aaad0", fontWeight: isSelected ? 600 : 400 }}>
-                            {c.category}
-                          </span>
-                          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: isSelected ? "#6ab0ff" : "#3a5a80" }}>
-                            {money(c.total)} ({c.pct}%)
-                          </span>
-                        </div>
-                        <div style={{ height: 2, background: "#111e36", borderRadius: 1 }}>
-                          <div style={{ height: 2, borderRadius: 1, width: `${c.pct}%`, background: isSelected ? "#3a7bd5" : "#f0a028", opacity: isSelected ? 1 : 0.7 }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="glass-card" style={{ padding: "18px 20px" }}>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 14 }}>
-                Top Expenses
-              </div>
-              {(categories?.expense_breakdown?.slice(0, 3) ?? []).map((c, i) => {
+          {!categories?.expense_breakdown?.length ? (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>NO EXPENSES YET</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {categories.expense_breakdown.map(c => {
                 const isSelected = selectedCategory === c.category;
                 return (
                   <div
                     key={c.category}
                     onClick={() => setSelectedCategory(isSelected ? null : c.category)}
                     style={{
-                      padding: "10px 8px", margin: "0 -8px",
-                      borderBottom: i < 2 ? "0.5px solid #1a2540" : "none",
-                      cursor: "pointer", borderRadius: 8,
+                      cursor: "pointer", borderRadius: 8, padding: "6px 8px", margin: "-6px -8px",
                       background: isSelected ? "rgba(58,123,213,0.12)" : "transparent",
-                      transition: "background 0.15s",
+                      border: isSelected ? "1px solid rgba(58,123,213,0.25)" : "1px solid transparent",
+                      transition: "all 0.15s",
                     }}
                   >
-                    <div style={{ fontSize: 11, color: isSelected ? "#6ab0ff" : "#6080a8", marginBottom: 3 }}>{c.category}</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: isSelected ? "#3a7bd5" : "#f0a028", letterSpacing: "-0.02em" }}>
-                      {money(c.total)}
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, color: isSelected ? "#6ab0ff" : "#8aaad0", fontWeight: isSelected ? 600 : 400 }}>
+                        {c.category}
+                      </span>
+                      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: isSelected ? "#6ab0ff" : "#3a5a80" }}>
+                        {money(c.total)} ({c.pct}%)
+                      </span>
+                    </div>
+                    <div style={{ height: 2, background: "#111e36", borderRadius: 1 }}>
+                      <div style={{ height: 2, borderRadius: 1, width: `${c.pct}%`, background: isSelected ? "#3a7bd5" : "#f0a028", opacity: isSelected ? 1 : 0.7 }} />
                     </div>
                   </div>
                 );
               })}
-              {!categories?.expense_breakdown?.length && (
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>NO DATA</div>
-              )}
             </div>
+          )}
+        </div>
+
+        <div className="glass-card" style={{ padding: "18px 20px" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 14 }}>
+            Top Expenses
           </div>
-
-          {/* Transaction list */}
-          <div className="glass-card" style={{ padding: "18px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0" }}>
-                  Transactions
+          {(categories?.expense_breakdown?.slice(0, 3) ?? []).map((c, i) => {
+            const isSelected = selectedCategory === c.category;
+            return (
+              <div
+                key={c.category}
+                onClick={() => setSelectedCategory(isSelected ? null : c.category)}
+                style={{
+                  padding: "10px 8px", margin: "0 -8px",
+                  borderBottom: i < 2 ? "0.5px solid #1a2540" : "none",
+                  cursor: "pointer", borderRadius: 8,
+                  background: isSelected ? "rgba(58,123,213,0.12)" : "transparent",
+                  transition: "background 0.15s",
+                }}
+              >
+                <div style={{ fontSize: 11, color: isSelected ? "#6ab0ff" : "#6080a8", marginBottom: 3 }}>{c.category}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: isSelected ? "#3a7bd5" : "#f0a028", letterSpacing: "-0.02em" }}>
+                  {money(c.total)}
                 </div>
-                {selectedCategory && (
-                  <button
-                    onClick={() => setSelectedCategory(null)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 5,
-                      fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                      padding: "3px 8px 3px 10px", borderRadius: 20,
-                      background: "rgba(58,123,213,0.18)", border: "1px solid rgba(58,123,213,0.35)",
-                      color: "#6ab0ff", cursor: "pointer", letterSpacing: "0.06em",
-                    }}
-                  >
-                    {selectedCategory}
-                    <span style={{ fontSize: 11, lineHeight: 1, color: "#3a7bd5" }}>×</span>
-                  </button>
-                )}
               </div>
-              <div style={{ display: "flex", background: "rgba(10,18,48,0.5)", border: "1px solid rgba(58,123,213,0.1)", borderRadius: 8, padding: 3, gap: 2 }}>
-                {[["all","ALL"],["income","INCOME"],["expense","EXPENSES"]].map(([v, label]) => (
-                  <button key={v} onClick={() => setTxnType(v)} style={{
-                    fontFamily: "'Share Tech Mono', monospace",
-                    fontSize: 9, padding: "4px 12px", letterSpacing: "0.08em",
-                    borderRadius: 6, border: "none", cursor: "pointer",
-                    background: txnType === v ? "rgba(58,123,213,0.3)" : "transparent",
-                    color: txnType === v ? "#6ab0ff" : "#2a4a7a",
-                  }}>{label}</button>
-                ))}
-              </div>
+            );
+          })}
+          {!categories?.expense_breakdown?.length && (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>NO DATA</div>
+          )}
+        </div>
+      </div>
+
+      {/* Transaction list */}
+      <div className="glass-card" style={{ padding: "18px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0" }}>
+              Transactions
             </div>
-
-            {filteredTxns.length === 0 ? (
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-                NO TRANSACTIONS
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {filteredTxns.map(t => (
-                  <div key={t.id}>
-                    <div
-                      onClick={() => setExpandedTxn(expandedTxn === t.id ? null : t.id)}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "9px 0", borderBottom: "0.5px solid #1a2540",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, marginRight: 12 }}>
-                        <span style={{ fontSize: 12, color: "#8aaad0", fontWeight: 500 }}>
-                          {t.description || "—"}
-                        </span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
-                            {t.date}
-                          </span>
-                          <span style={{
-                            fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
-                            padding: "2px 6px", borderRadius: 4,
-                            background: "rgba(58,123,213,0.08)", color: "#3a7bd5",
-                            letterSpacing: "0.06em",
-                          }}>
-                            {t.category}
-                          </span>
-                        </div>
-                      </div>
-                      <span style={{
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 13, fontWeight: 700,
-                        color: t.is_income ? "#14c882" : "#f0a028",
-                        letterSpacing: "-0.01em",
-                      }}>
-                        {t.is_income ? "+" : "-"}{money(t.amount)}
-                      </span>
-                    </div>
-
-                    {/* Inline edit row */}
-                    {expandedTxn === t.id && (
-                      <div style={{
-                        padding: "10px 12px", background: "rgba(10,18,48,0.4)",
-                        borderBottom: "0.5px solid #1a2540",
-                        display: "flex", gap: 10, alignItems: "center",
-                      }}>
-                        <select
-                          value={t.category}
-                          onChange={e => updateTxn(t.id, { category: e.target.value })}
-                          className="dg-input"
-                          style={{ fontSize: 11, padding: "5px 8px", flex: "0 0 auto" }}
-                        >
-                          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <input
-                          className="dg-input"
-                          style={{ flex: 1, fontSize: 11 }}
-                          placeholder="Add note…"
-                          defaultValue={t.notes || ""}
-                          onBlur={e => updateTxn(t.id, { notes: e.target.value })}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+            {selectedCategory && (
+              <button
+                onClick={() => setSelectedCategory(null)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                  padding: "3px 8px 3px 10px", borderRadius: 20,
+                  background: "rgba(58,123,213,0.18)", border: "1px solid rgba(58,123,213,0.35)",
+                  color: "#6ab0ff", cursor: "pointer", letterSpacing: "0.06em",
+                }}
+              >
+                {selectedCategory}
+                <span style={{ fontSize: 11, lineHeight: 1, color: "#3a7bd5" }}>×</span>
+              </button>
             )}
           </div>
-
-          {/* Last synced footer */}
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#1a3a60", letterSpacing: "0.1em", textAlign: "center" }}>
-            LAST SYNCED · {timeAgo(summary?.last_synced_at).toUpperCase()}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", background: "rgba(10,18,48,0.5)", border: "1px solid rgba(58,123,213,0.1)", borderRadius: 8, padding: 3, gap: 2 }}>
+              {[["all","ALL"],["income","INCOME"],["expense","EXPENSES"]].map(([v, label]) => (
+                <button key={v} onClick={() => setTxnType(v)} style={{
+                  fontFamily: "'Share Tech Mono', monospace",
+                  fontSize: 9, padding: "4px 12px", letterSpacing: "0.08em",
+                  borderRadius: 6, border: "none", cursor: "pointer",
+                  background: txnType === v ? "rgba(58,123,213,0.3)" : "transparent",
+                  color: txnType === v ? "#6ab0ff" : "#2a4a7a",
+                }}>{label}</button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="btn btn-primary"
+              style={{ fontSize: 10, padding: "5px 12px" }}
+            >
+              + Add
+            </button>
           </div>
-        </>
-      )}
+        </div>
+
+        {filteredTxns.length === 0 ? (
+          <div style={{ padding: "32px 0", textAlign: "center" }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em", marginBottom: 12 }}>
+              NO TRANSACTIONS
+            </div>
+            <button onClick={() => setShowAddForm(true)} className="btn btn-secondary" style={{ fontSize: 11 }}>
+              Add your first transaction
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {filteredTxns.map(t => (
+              <div key={t.id}>
+                <div
+                  onClick={() => setExpandedTxn(expandedTxn === t.id ? null : t.id)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "9px 0", borderBottom: "0.5px solid #1a2540",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, marginRight: 12 }}>
+                    <span style={{ fontSize: 12, color: "#8aaad0", fontWeight: 500 }}>
+                      {t.description || "—"}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
+                        {t.date}
+                      </span>
+                      <span style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
+                        padding: "2px 6px", borderRadius: 4,
+                        background: "rgba(58,123,213,0.08)", color: "#3a7bd5",
+                        letterSpacing: "0.06em",
+                      }}>
+                        {t.category}
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 13, fontWeight: 700,
+                    color: t.is_income ? "#14c882" : "#f0a028",
+                    letterSpacing: "-0.01em",
+                  }}>
+                    {t.is_income ? "+" : "-"}{money(t.amount)}
+                  </span>
+                </div>
+
+                {/* Inline edit + delete row */}
+                {expandedTxn === t.id && (
+                  <div style={{
+                    padding: "10px 12px", background: "rgba(10,18,48,0.4)",
+                    borderBottom: "0.5px solid #1a2540",
+                    display: "flex", gap: 10, alignItems: "center",
+                  }}>
+                    <select
+                      value={t.category}
+                      onChange={e => updateTxn(t.id, { category: e.target.value })}
+                      className="dg-input"
+                      style={{ fontSize: 11, padding: "5px 8px", flex: "0 0 auto" }}
+                    >
+                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <input
+                      className="dg-input"
+                      style={{ flex: 1, fontSize: 11 }}
+                      placeholder="Add note…"
+                      defaultValue={t.notes || ""}
+                      onBlur={e => updateTxn(t.id, { notes: e.target.value })}
+                    />
+                    <button
+                      onClick={() => deleteTxn(t.id)}
+                      disabled={deletingId === t.id}
+                      style={{
+                        flexShrink: 0, padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(220,60,60,0.3)",
+                        background: "rgba(220,60,60,0.08)", color: "#dc3c3c",
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                        cursor: "pointer", letterSpacing: "0.06em",
+                        opacity: deletingId === t.id ? 0.5 : 1,
+                      }}
+                    >
+                      {deletingId === t.id ? "…" : "DELETE"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

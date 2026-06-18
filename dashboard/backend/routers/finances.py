@@ -292,11 +292,6 @@ async def summary(days: int = 30):
     pool  = await get_pool()
 
     async with pool.acquire() as conn:
-        cfg = await conn.fetchrow("SELECT institution_name, last_synced_at FROM plaid_config ORDER BY id LIMIT 1")
-        if not cfg:
-            return {"connected": False, "income": 0, "expenses": 0, "net": 0, "margin": None,
-                    "institution_name": None, "last_synced_at": None}
-
         row = await conn.fetchrow(
             """
             SELECT
@@ -313,13 +308,11 @@ async def summary(days: int = 30):
     margin   = round(net / income * 100, 1) if income else None
 
     return {
-        "connected":        True,
-        "institution_name": cfg["institution_name"],
-        "last_synced_at":   cfg["last_synced_at"].isoformat() if cfg["last_synced_at"] else None,
-        "income":           round(income, 2),
-        "expenses":         round(expenses, 2),
-        "net":              round(net, 2),
-        "margin":           margin,
+        "connected": True,
+        "income":    round(income, 2),
+        "expenses":  round(expenses, 2),
+        "net":       round(net, 2),
+        "margin":    margin,
     }
 
 
@@ -455,4 +448,57 @@ async def update_transaction(txn_id: int, body: dict):
                 "UPDATE transactions SET notes=$1 WHERE id=$2",
                 (body["notes"] or "").strip() or None, txn_id,
             )
+    return {"ok": True}
+
+
+@router.post("/finances/transactions")
+async def add_transaction(body: dict):
+    date_str    = (body.get("date") or "").strip()
+    description = (body.get("description") or "").strip()
+    amount_raw  = body.get("amount")
+    is_income   = bool(body.get("is_income", False))
+    category    = (body.get("category") or "").strip() or ("Revenue" if is_income else "Uncategorized")
+    notes       = (body.get("notes") or "").strip() or None
+
+    if not date_str or amount_raw is None:
+        raise HTTPException(status_code=400, detail="date and amount required")
+    try:
+        amount_float = float(amount_raw)
+        txn_date     = date.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="invalid date or amount")
+    if amount_float <= 0:
+        raise HTTPException(status_code=400, detail="amount must be positive")
+
+    stored_amount = amount_float if is_income else -amount_float
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO transactions (date, description, amount, is_income, category, notes)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id, date, description, amount, is_income, category, notes
+            """,
+            txn_date, description or None, stored_amount, is_income, category, notes,
+        )
+
+    return {
+        "id":          row["id"],
+        "date":        str(row["date"]),
+        "description": row["description"],
+        "amount":      float(row["amount"]),
+        "is_income":   row["is_income"],
+        "category":    row["category"],
+        "notes":       row["notes"],
+    }
+
+
+@router.delete("/finances/transactions/{txn_id}")
+async def delete_transaction(txn_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute("DELETE FROM transactions WHERE id=$1", txn_id)
+    if result == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Transaction not found")
     return {"ok": True}
