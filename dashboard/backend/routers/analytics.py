@@ -96,7 +96,7 @@ async def _sms_metrics(conn, since=None) -> dict:
         f"SELECT COUNT(*) FROM sms_messages WHERE direction='outbound' {msg_filter}", *params
     )
     total_convos = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE true {time_filter}", *params
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE true {time_filter}", *params
     )
     replied = await conn.fetchval(
         f"""
@@ -135,7 +135,7 @@ async def _sms_metrics(conn, since=None) -> dict:
         """
     )
     closed = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE status='closed' {time_filter}", *params
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE status='closed' {time_filter}", *params
     )
 
     return {
