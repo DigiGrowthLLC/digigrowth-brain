@@ -10,6 +10,8 @@ Mounted at root (no /api prefix) so URLs match what Twilio expects:
   POST /dialer/voice/gatekeeper-join
 """
 
+import logging
+import sys
 import threading
 import time as _time
 from datetime import datetime, timezone
@@ -19,6 +21,8 @@ from fastapi.responses import Response
 from twilio.twiml.voice_response import VoiceResponse
 
 import dialer_engine as engine
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -33,6 +37,11 @@ async def agent_join(request: Request):
 
     with engine._session["lock"]:
         engine._session["dylan_sid"] = call_sid
+
+    # Diagnostic: verify Railway captures output before the thread starts
+    print(f"  dialer: agent_join — session={session_id} sid={call_sid}", flush=True)
+    sys.stdout.flush()
+    _log.info(f"dialer: agent_join — session={session_id}")
 
     response = VoiceResponse()
     dial     = response.dial()
@@ -51,6 +60,8 @@ async def agent_join(request: Request):
 
 def _auto_first_dial_sync(session_id: str):
     """Fire the first dial-batch synchronously in a background thread."""
+    print(f"  dialer: _auto_first_dial_sync STARTED session={session_id}", flush=True)
+    _log.info(f"dialer: _auto_first_dial_sync STARTED session={session_id}")
     try:
         _time.sleep(0.5)  # brief pause so the conference is fully set up
 
