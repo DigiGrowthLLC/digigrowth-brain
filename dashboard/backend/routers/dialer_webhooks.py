@@ -64,17 +64,22 @@ def _auto_first_dial_sync(session_id: str):
     _log.info(f"dialer: _auto_first_dial_sync STARTED session={session_id}")
     try:
         _time.sleep(0.5)  # brief pause so the conference is fully set up
+        print("  dialer: _auto_first_dial_sync AFTER SLEEP — acquiring lock", flush=True)
+
+        engine._session["auto_dialed"] = True  # set BEFORE lock to avoid deadlock risk
+        active       = engine._session.get("active")
+        current_id   = engine._session.get("id")
+        print(f"  dialer: _auto_first_dial_sync — active={active} id={current_id}", flush=True)
+
+        if not active:
+            print("  dialer: auto_first_dial — session not active", flush=True)
+            return
+        if current_id != session_id:
+            print(f"  dialer: auto_first_dial — session changed ({current_id} != {session_id})", flush=True)
+            return
 
         with engine._session["lock"]:
-            if not engine._session.get("active"):
-                print("  dialer: auto_first_dial — session not active, skipping", flush=True)
-                return
-            if engine._session.get("id") != session_id:
-                print("  dialer: auto_first_dial — session changed, skipping", flush=True)
-                return
-            if engine._session.get("auto_dialed"):
-                print("  dialer: auto_first_dial — already dialed, skipping", flush=True)
-                return
+            print("  dialer: _auto_first_dial_sync — LOCK ACQUIRED", flush=True)
             engine._session["auto_dialed"] = True
 
             max_lines = engine._session.get("max_lines", 5)
