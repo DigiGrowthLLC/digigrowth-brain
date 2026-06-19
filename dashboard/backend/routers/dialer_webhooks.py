@@ -10,13 +10,12 @@ Mounted at root (no /api prefix) so URLs match what Twilio expects:
   POST /dialer/voice/gatekeeper-join
 """
 
-import asyncio
+import threading
 import time as _time
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
-from starlette.background import BackgroundTask
 from twilio.twiml.voice_response import VoiceResponse
 
 import dialer_engine as engine
@@ -43,24 +42,28 @@ async def agent_join(request: Request):
         end_conference_on_exit=True,
         beep=False,
     )
-    # BackgroundTask runs after the TwiML response is sent — guaranteed by Starlette.
-    # asyncio.create_task() gets garbage-collected before executing; BackgroundTask doesn't.
-    return Response(str(response), media_type="text/xml",
-                    background=BackgroundTask(_auto_first_dial, session_id))
+    # Use a plain daemon thread — asyncio.create_task and BackgroundTask both
+    # silently fail in this Starlette/uvicorn context. threading.Thread is
+    # independent of the event loop and guaranteed to execute.
+    threading.Thread(target=_auto_first_dial_sync, args=(session_id,), daemon=True).start()
+    return Response(str(response), media_type="text/xml")
 
 
-async def _auto_first_dial(session_id: str):
-    """Fire the first dial-batch after Dylan joins the conference."""
+def _auto_first_dial_sync(session_id: str):
+    """Fire the first dial-batch synchronously in a background thread."""
     try:
-        await asyncio.sleep(0.5)  # brief pause so TwiML is fully processed
+        _time.sleep(0.5)  # brief pause so the conference is fully set up
 
         with engine._session["lock"]:
             if not engine._session.get("active"):
+                print("  dialer: auto_first_dial — session not active, skipping", flush=True)
                 return
             if engine._session.get("id") != session_id:
+                print("  dialer: auto_first_dial — session changed, skipping", flush=True)
                 return
             if engine._session.get("auto_dialed"):
-                return  # frontend beat us to it — no double-dial
+                print("  dialer: auto_first_dial — already dialed, skipping", flush=True)
+                return
             engine._session["auto_dialed"] = True
 
             max_lines = engine._session.get("max_lines", 5)
@@ -68,7 +71,7 @@ async def _auto_first_dial(session_id: str):
             engine._session["eligible_leads"] = engine._session["eligible_leads"][max_lines:]
 
             if not batch:
-                print("  dialer: auto_first_dial — no eligible leads")
+                print("  dialer: auto_first_dial — no eligible leads", flush=True)
                 return
 
             now = _time.time()
@@ -83,21 +86,30 @@ async def _auto_first_dial(session_id: str):
 
         base = engine.base_url()
         if not base:
-            print("  dialer: auto_first_dial — base_url empty, cannot dial")
+            print("  dialer: auto_first_dial — base_url empty", flush=True)
             return
 
         phones = [l["phone"] for l in batch]
-        print(f"  dialer: auto_first_dial — dialing {len(phones)} leads: {phones}")
-        sids, errors = await engine.dial_batch(phones, s_id, base, config)
+        print(f"  dialer: auto_first_dial — dialing {len(phones)} leads: {phones}", flush=True)
+
+        sids = {}
+        errors = []
+        for phone in phones:
+            _, sid, err = engine._dial_lead_sync(phone, s_id, base, config)
+            if sid:
+                sids[phone] = sid
+            if err:
+                errors.append(err)
 
         with engine._session["lock"]:
             engine._session["call_sids"].update(sids)
 
-        print(f"  dialer: auto_first_dial — placed {len(sids)} calls, errors: {errors}")
+        print(f"  dialer: auto_first_dial — placed {len(sids)} calls, errors: {errors}", flush=True)
 
     except Exception as e:
-        print(f"  dialer: auto_first_dial failed: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+        print(f"  dialer: auto_first_dial failed: {e}", flush=True)
+        traceback.print_exc()
 
 
 # ── Lead picks up ─────────────────────────────────────────────────────────────
