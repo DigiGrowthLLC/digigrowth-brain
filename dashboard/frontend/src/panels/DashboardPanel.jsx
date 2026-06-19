@@ -175,9 +175,12 @@ function CalendarWidget({ events, loading, error }) {
   const todayKey = new Date().toISOString().slice(0, 10);
   const todayEvents = events.filter(ev => ev.start.slice(0, 10) === todayKey);
 
-  const fmtTime = (iso, allDay) => {
+  const fmtTime = (start, end, allDay) => {
     if (allDay) return "All day";
-    return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    const opts = { hour: "numeric", minute: "2-digit", hour12: true };
+    const s = new Date(start).toLocaleTimeString("en-US", opts);
+    const e = end ? new Date(end).toLocaleTimeString("en-US", opts) : null;
+    return e ? `${s} – ${e}` : s;
   };
 
   return (
@@ -209,7 +212,7 @@ function CalendarWidget({ events, loading, error }) {
             borderLeft: "3px solid #3a7bd5",
           }}>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.08em", marginBottom: 2 }}>
-              {fmtTime(ev.start, ev.all_day)}
+              {fmtTime(ev.start, ev.end, ev.all_day)}
             </div>
             <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>{ev.title}</div>
             {ev.location && (
