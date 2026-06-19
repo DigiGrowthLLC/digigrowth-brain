@@ -73,7 +73,8 @@ const [notes, setNotes]                 = useState("");
   // Dial / error feedback
   const [dialMsg, setDialMsg]   = useState("");
   const [errMsg, setErrMsg]     = useState("");
-  const prevStatusRef = useRef(null);
+  const prevStatusRef   = useRef(null);
+  const needsFirstDial  = useRef(false);
   // Terminal
   const [termOpen, setTermOpen]       = useState(false);
   const [termCmd, setTermCmd]         = useState("");
@@ -107,6 +108,22 @@ const [notes, setNotes]                 = useState("");
         const data = await r.json();
         setSess(data);
         if (!data.active) { setSessionActive(false); setDeviceReady(false); }
+
+        // First dial-batch: triggered here (not from Twilio accept handler) to avoid
+        // browser dropping fetch calls made inside WebRTC event callbacks
+        if (needsFirstDial.current && data.active && data.status === "waiting") {
+          needsFirstDial.current = false;
+          fetch(API("/dialer/dial-batch"), { method: "POST" })
+            .then(async r2 => {
+              if (!r2.ok) { const t = await r2.text().catch(() => ""); setErrMsg(`dial-batch ${r2.status}: ${t}`); return; }
+              const d = await r2.json();
+              if (d.errors?.length)        setErrMsg(`Twilio error: ${d.errors[0]}`);
+              else if (d.done && !d.dialed) setDialMsg("No leads with status 'dialer-lead' — update lead statuses in CRM first.");
+              else if (!d.dialed)           setDialMsg("0 calls placed — check Railway logs for Twilio errors.");
+              else                          setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}… → ${(d.phones||[]).join(", ")}`);
+            })
+            .catch(e => setErrMsg("dial-batch: " + e.message));
+        }
       } catch {}
     }, 1000);
     return () => clearInterval(id);
@@ -222,25 +239,8 @@ const [notes, setNotes]                 = useState("");
         clearTimeout(acceptTimer);
         setDeviceReady(true);
         setConnecting(false);
-        setDialMsg("Dialing first batch…");
-        fetch(API("/dialer/dial-batch"), { method: "POST" })
-          .then(async r => {
-            if (!r.ok) {
-              const txt = await r.text().catch(() => "");
-              setErrMsg(`dial-batch failed (${r.status}): ${txt || "no body"} — if "upstream error", wait for Railway deploy to finish then retry`);
-              return;
-            }
-            const d = await r.json();
-            if (d.errors && d.errors.length > 0)
-              setErrMsg(`Twilio dial error: ${d.errors[0]}`);
-            else if (d.done && d.dialed === 0)
-              setDialMsg("No leads with status 'dialer-lead' — update lead statuses in CRM first.");
-            else if (d.dialed === 0)
-              setDialMsg("0 calls placed — check Railway logs for Twilio errors.");
-            else
-              setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}… → ${(d.phones || []).join(", ")}`);
-          })
-          .catch(e => setErrMsg("dial-batch error: " + e.message + " — if 'upstream error', Railway is still deploying, retry in 1 min"));
+        setDialMsg("Connected — dialing first batch…");
+        needsFirstDial.current = true;
       });
       call.on("cancel",     () => { setConnecting(false); setErrMsg("Call was canceled before connecting — TwiML App may have failed"); });
       call.on("disconnect", () => setDeviceReady(false));
@@ -289,7 +289,8 @@ const [notes, setNotes]                 = useState("");
     setErrMsg("");
     setScriptFilled(false);
     setFilledScript("");
-    prevStatusRef.current = null;
+    prevStatusRef.current  = null;
+    needsFirstDial.current = false;
     // Fire backend cleanup in background
     fetch(API("/dialer/end-session"), { method: "POST" }).catch(() => {});
     loadStats();
