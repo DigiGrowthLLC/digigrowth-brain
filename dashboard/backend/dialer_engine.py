@@ -169,6 +169,7 @@ def init_session(session_id: str, config_data: dict, leads: list) -> None:
         _session["total_leads"]         = len(leads)
         _session["max_lines"]           = config_data.get("max_parallel_lines", 5)
         _session["end_requested"]       = False
+        _session["auto_dialed"]         = False
 
 
 def close_session() -> None:

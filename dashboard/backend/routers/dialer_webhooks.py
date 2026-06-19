@@ -10,6 +10,7 @@ Mounted at root (no /api prefix) so URLs match what Twilio expects:
   POST /dialer/voice/gatekeeper-join
 """
 
+import asyncio
 import time as _time
 from datetime import datetime, timezone
 
@@ -33,6 +34,11 @@ async def agent_join(request: Request):
     with engine._session["lock"]:
         engine._session["dylan_sid"] = call_sid
 
+    # Server-side trigger: fire first dial-batch as background task.
+    # Browser-initiated fetches from inside Twilio SDK callbacks are silently
+    # dropped even with setTimeout(0), so we trigger from the server instead.
+    asyncio.create_task(_auto_first_dial(session_id))
+
     response = VoiceResponse()
     dial     = response.dial()
     dial.conference(
@@ -42,6 +48,57 @@ async def agent_join(request: Request):
         beep=False,
     )
     return Response(str(response), media_type="text/xml")
+
+
+async def _auto_first_dial(session_id: str):
+    """Fire the first dial-batch after Dylan joins the conference."""
+    try:
+        await asyncio.sleep(0.5)  # brief pause so TwiML is fully processed
+
+        with engine._session["lock"]:
+            if not engine._session.get("active"):
+                return
+            if engine._session.get("id") != session_id:
+                return
+            if engine._session.get("auto_dialed"):
+                return  # frontend beat us to it — no double-dial
+            engine._session["auto_dialed"] = True
+
+            max_lines = engine._session.get("max_lines", 5)
+            batch     = engine._session["eligible_leads"][:max_lines]
+            engine._session["eligible_leads"] = engine._session["eligible_leads"][max_lines:]
+
+            if not batch:
+                print("  dialer: auto_first_dial — no eligible leads")
+                return
+
+            now = _time.time()
+            engine._session["batch_had_answer"] = False
+            for lead in batch:
+                norm = engine._norm(lead["phone"])
+                engine._session["ring_start"][norm]  = now
+                engine._session["dial_count"][norm]  = engine._session["dial_count"].get(norm, 0) + 1
+
+            s_id   = engine._session["id"]
+            config = engine._session["config"]
+
+        base = engine.base_url()
+        if not base:
+            print("  dialer: auto_first_dial — base_url empty, cannot dial")
+            return
+
+        phones = [l["phone"] for l in batch]
+        print(f"  dialer: auto_first_dial — dialing {len(phones)} leads: {phones}")
+        sids, errors = await engine.dial_batch(phones, s_id, base, config)
+
+        with engine._session["lock"]:
+            engine._session["call_sids"].update(sids)
+
+        print(f"  dialer: auto_first_dial — placed {len(sids)} calls, errors: {errors}")
+
+    except Exception as e:
+        print(f"  dialer: auto_first_dial failed: {e}")
+        import traceback; traceback.print_exc()
 
 
 # ── Lead picks up ─────────────────────────────────────────────────────────────

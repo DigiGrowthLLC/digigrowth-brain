@@ -197,6 +197,13 @@ async def dial_batch():
         if engine._session.get("end_requested"):
             return {"ok": True, "dialed": 0, "done": True}
 
+        # Guard: if server-side auto_first_dial already claimed the first batch,
+        # skip this frontend-initiated call (prevents double-dial at session start).
+        # auto_dialed is reset to False at session init so it only blocks the
+        # very first batch — subsequent batches (after classification) proceed normally.
+        if engine._session.get("auto_dialed") and not engine._session.get("batch_had_answer"):
+            return {"ok": True, "dialed": 0, "done": False, "note": "first batch auto-dialed"}
+
         # Prepend any retry phones to the queue
         retry_phones  = engine.get_and_clear_retry()
         retry_leads   = [
