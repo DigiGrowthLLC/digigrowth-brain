@@ -11,6 +11,7 @@ PATCH /finances/transactions/{id} — update category or notes
 """
 
 import os
+import calendar
 from datetime import datetime, timedelta, timezone, date
 
 from fastapi import APIRouter, HTTPException
@@ -515,3 +516,154 @@ async def purge_plaid_data():
         await conn.execute("DELETE FROM plaid_config")
     deleted = int(result.split()[-1]) if result else 0
     return {"deleted_transactions": deleted}
+
+
+# ── Recurring transactions ────────────────────────────────────────────────────
+
+_VALID_FREQUENCIES = {"weekly", "monthly", "yearly"}
+
+
+def _advance(d: date, frequency: str) -> date:
+    if frequency == "weekly":
+        return d + timedelta(weeks=1)
+    if frequency == "monthly":
+        month = d.month + 1
+        year  = d.year + (month - 1) // 12
+        month = (month - 1) % 12 + 1
+        day   = min(d.day, calendar.monthrange(year, month)[1])
+        return date(year, month, day)
+    # yearly
+    try:
+        return date(d.year + 1, d.month, d.day)
+    except ValueError:
+        return date(d.year + 1, d.month, d.day - 1)
+
+
+async def _apply_recurring(conn) -> int:
+    today = date.today()
+    rules = await conn.fetch(
+        "SELECT * FROM recurring_transactions WHERE active = true"
+    )
+    total = 0
+    for rule in rules:
+        current  = rule["start_date"]
+        last     = rule["last_applied"]
+        end      = rule["end_date"]
+        freq     = rule["frequency"]
+
+        # fast-forward past already-applied dates
+        if last is not None:
+            while current <= last:
+                current = _advance(current, freq)
+
+        new_last = last
+        while current <= today and (end is None or current <= end):
+            stored = float(rule["amount"]) if rule["is_income"] else -float(rule["amount"])
+            await conn.execute(
+                """
+                INSERT INTO transactions (date, description, amount, is_income, category, notes, recurring_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """,
+                current, rule["description"], stored,
+                rule["is_income"], rule["category"], rule["notes"], rule["id"],
+            )
+            new_last = current
+            current  = _advance(current, freq)
+            total   += 1
+
+        if new_last != last:
+            await conn.execute(
+                "UPDATE recurring_transactions SET last_applied=$1 WHERE id=$2",
+                new_last, rule["id"],
+            )
+
+    return total
+
+
+@router.post("/finances/recurring/apply")
+async def apply_recurring():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        applied = await _apply_recurring(conn)
+    return {"applied": applied}
+
+
+@router.get("/finances/recurring")
+async def list_recurring():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM recurring_transactions WHERE active = true ORDER BY created_at DESC"
+        )
+
+    def next_occurrence(row) -> str:
+        last = row["last_applied"]
+        base = _advance(last, row["frequency"]) if last else row["start_date"]
+        return str(base)
+
+    return [
+        {
+            "id":             r["id"],
+            "description":    r["description"],
+            "amount":         float(r["amount"]),
+            "is_income":      r["is_income"],
+            "category":       r["category"],
+            "frequency":      r["frequency"],
+            "start_date":     str(r["start_date"]),
+            "end_date":       str(r["end_date"]) if r["end_date"] else None,
+            "last_applied":   str(r["last_applied"]) if r["last_applied"] else None,
+            "next_occurrence": next_occurrence(r),
+        }
+        for r in rows
+    ]
+
+
+@router.post("/finances/recurring")
+async def create_recurring(body: dict):
+    description    = (body.get("description") or "").strip()
+    amount_raw     = body.get("amount")
+    is_income      = bool(body.get("is_income", False))
+    category       = (body.get("category") or "").strip() or ("Revenue" if is_income else "Uncategorized")
+    notes          = (body.get("notes") or "").strip() or None
+    frequency      = (body.get("frequency") or "monthly").lower()
+    start_date_str = (body.get("start_date") or "").strip()
+    end_date_str   = (body.get("end_date") or "").strip() or None
+
+    if frequency not in _VALID_FREQUENCIES:
+        raise HTTPException(status_code=400, detail="frequency must be weekly, monthly, or yearly")
+    if not start_date_str or amount_raw is None:
+        raise HTTPException(status_code=400, detail="start_date and amount required")
+    try:
+        amount_float = float(amount_raw)
+        start        = date.fromisoformat(start_date_str)
+        end          = date.fromisoformat(end_date_str) if end_date_str else None
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="invalid date or amount")
+    if amount_float <= 0:
+        raise HTTPException(status_code=400, detail="amount must be positive")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rule = await conn.fetchrow(
+            """
+            INSERT INTO recurring_transactions
+                (description, amount, is_income, category, notes, frequency, start_date, end_date)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING *
+            """,
+            description or None, amount_float, is_income, category,
+            notes, frequency, start, end,
+        )
+        applied = await _apply_recurring(conn)
+
+    return {"id": rule["id"], "frequency": rule["frequency"], "applied": applied}
+
+
+@router.delete("/finances/recurring/{rule_id}")
+async def delete_recurring(rule_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE recurring_transactions SET active=false WHERE id=$1", rule_id
+        )
+    return {"ok": True}

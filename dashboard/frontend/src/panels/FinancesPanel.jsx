@@ -72,15 +72,19 @@ function SummaryCard({ label, value, color, sub }) {
   );
 }
 
-function AddTransactionModal({ onClose, onSaved }) {
+const FREQ_LABELS = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
+
+function AddTransactionModal({ onClose, onSaved, onRecurringSaved }) {
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
-    is_income: false,
+    is_income:  false,
+    recurring:  false,
+    frequency:  "monthly",
     description: "",
-    amount: "",
-    date: today,
-    category: "Uncategorized",
-    notes: "",
+    amount:      "",
+    date:        today,
+    category:    "Uncategorized",
+    notes:       "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
@@ -94,20 +98,38 @@ function AddTransactionModal({ onClose, onSaved }) {
     setSaving(true);
     setError(null);
     try {
-      const resp = await fetch(API("/finances/transactions"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          is_income:   form.is_income,
-          description: form.description.trim(),
-          amount:      amt,
-          date:        form.date,
-          category:    form.is_income ? "Revenue" : form.category,
-          notes:       form.notes.trim() || null,
-        }),
-      });
-      if (!resp.ok) { setError(await resp.text()); return; }
-      onSaved(await resp.json());
+      if (form.recurring) {
+        const resp = await fetch(API("/finances/recurring"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            is_income:   form.is_income,
+            description: form.description.trim(),
+            amount:      amt,
+            start_date:  form.date,
+            frequency:   form.frequency,
+            category:    form.is_income ? "Revenue" : form.category,
+            notes:       form.notes.trim() || null,
+          }),
+        });
+        if (!resp.ok) { setError(await resp.text()); return; }
+        onRecurringSaved();
+      } else {
+        const resp = await fetch(API("/finances/transactions"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            is_income:   form.is_income,
+            description: form.description.trim(),
+            amount:      amt,
+            date:        form.date,
+            category:    form.is_income ? "Revenue" : form.category,
+            notes:       form.notes.trim() || null,
+          }),
+        });
+        if (!resp.ok) { setError(await resp.text()); return; }
+        onSaved(await resp.json());
+      }
       onClose();
     } catch (e) {
       setError(e.message);
@@ -125,23 +147,34 @@ function AddTransactionModal({ onClose, onSaved }) {
       }}
       onClick={onClose}
     >
-      <div className="glass-card" style={{ width: 420, padding: "28px 32px" }} onClick={e => e.stopPropagation()}>
+      <div className="glass-card" style={{ width: 440, padding: "28px 32px" }} onClick={e => e.stopPropagation()}>
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "#f0f4ff", marginBottom: 22 }}>
           Add Transaction
         </div>
 
         {/* Revenue / Expense toggle */}
-        <div style={{ display: "flex", marginBottom: 20, background: "rgba(10,18,48,0.7)", borderRadius: 10, padding: 4, gap: 4 }}>
-          {[[false, "Expense", "#f0a028"], [true, "Revenue", "#14c882"]].map(([val, label, accent]) => (
+        <div style={{ display: "flex", marginBottom: 12, background: "rgba(10,18,48,0.7)", borderRadius: 10, padding: 4, gap: 4 }}>
+          {[[false, "Expense"], [true, "Revenue"]].map(([val, label]) => (
             <button key={label} onClick={() => set("is_income", val)} style={{
               flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600,
               padding: "9px 0", borderRadius: 8, border: "none", cursor: "pointer",
               background: form.is_income === val
-                ? val
-                  ? "linear-gradient(135deg, #0d7a4e, #14c882)"
-                  : "linear-gradient(135deg, #7a3a00, #f0a028)"
+                ? val ? "linear-gradient(135deg, #0d7a4e, #14c882)" : "linear-gradient(135deg, #7a3a00, #f0a028)"
                 : "transparent",
               color: form.is_income === val ? "#fff" : "#4a6080",
+              transition: "all 0.15s",
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {/* One-time / Recurring toggle */}
+        <div style={{ display: "flex", marginBottom: 20, background: "rgba(10,18,48,0.5)", borderRadius: 10, padding: 4, gap: 4 }}>
+          {[[false, "One-time"], [true, "Recurring"]].map(([val, label]) => (
+            <button key={label} onClick={() => set("recurring", val)} style={{
+              flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
+              padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer",
+              background: form.recurring === val ? "rgba(58,123,213,0.35)" : "transparent",
+              color: form.recurring === val ? "#6ab0ff" : "#4a6080",
               transition: "all 0.15s",
             }}>{label}</button>
           ))}
@@ -153,14 +186,14 @@ function AddTransactionModal({ onClose, onSaved }) {
           <input
             className="dg-input" type="text"
             style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
-            placeholder={form.is_income ? "e.g. Client invoice, retainer payment…" : "e.g. AWS bill, Anthropic API…"}
+            placeholder={form.is_income ? "e.g. Client retainer, invoice…" : "e.g. AWS, Anthropic API…"}
             value={form.description}
             onChange={e => set("description", e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSave()}
           />
         </div>
 
-        {/* Amount + Date side by side */}
+        {/* Amount + Date/Start date */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
           <div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>AMOUNT ($)</div>
@@ -174,7 +207,9 @@ function AddTransactionModal({ onClose, onSaved }) {
             />
           </div>
           <div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>DATE</div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>
+              {form.recurring ? "FIRST OCCURRENCE" : "DATE"}
+            </div>
             <input
               className="dg-input" type="date"
               style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
@@ -184,7 +219,25 @@ function AddTransactionModal({ onClose, onSaved }) {
           </div>
         </div>
 
-        {/* Category — only shown for expenses */}
+        {/* Frequency — only for recurring */}
+        {form.recurring && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>FREQUENCY</div>
+            <div style={{ display: "flex", background: "rgba(10,18,48,0.7)", borderRadius: 10, padding: 4, gap: 4 }}>
+              {["weekly", "monthly", "yearly"].map(f => (
+                <button key={f} onClick={() => set("frequency", f)} style={{
+                  flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
+                  padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer",
+                  background: form.frequency === f ? "rgba(58,123,213,0.35)" : "transparent",
+                  color: form.frequency === f ? "#6ab0ff" : "#4a6080",
+                  transition: "all 0.15s",
+                }}>{FREQ_LABELS[f]}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Category — only for expenses */}
         {!form.is_income && (
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>CATEGORY</div>
@@ -225,7 +278,9 @@ function AddTransactionModal({ onClose, onSaved }) {
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={onClose} className="btn btn-secondary" style={{ flex: 1, fontSize: 12 }}>Cancel</button>
           <button onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ flex: 1, fontSize: 12 }}>
-            {saving ? "Saving…" : `Add ${form.is_income ? "Revenue" : "Expense"}`}
+            {saving ? "Saving…" : form.recurring
+              ? `Add Recurring ${form.is_income ? "Revenue" : "Expense"}`
+              : `Add ${form.is_income ? "Revenue" : "Expense"}`}
           </button>
         </div>
       </div>
@@ -238,21 +293,27 @@ export default function FinancesPanel() {
   const [summary, setSummary]       = useState(null);
   const [categories, setCategories] = useState(null);
   const [txns, setTxns]             = useState(null);
+  const [recurring, setRecurring]   = useState([]);
   const [txnType, setTxnType]       = useState("all");
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [expandedTxn, setExpandedTxn]   = useState(null);
   const [showAddForm, setShowAddForm]   = useState(false);
   const [deletingId, setDeletingId]     = useState(null);
+  const [deletingRuleId, setDeletingRuleId] = useState(null);
 
   const loadAll = useCallback(async (d = days) => {
-    const [s, c, t] = await Promise.all([
-      fetch(API(`/finances/summary?days=${d}`)).then(r => r.ok ? r.json() : null),
-      fetch(API(`/finances/categories?days=${d}`)).then(r => r.ok ? r.json() : null),
-      fetch(API(`/finances/transactions?days=${d}&type=all&limit=1000`)).then(r => r.ok ? r.json() : null),
+    // Apply any pending recurring instances first, then load data
+    await fetch(API("/finances/recurring/apply"), { method: "POST" });
+    const [s, c, t, r] = await Promise.all([
+      fetch(API(`/finances/summary?days=${d}`)).then(x => x.ok ? x.json() : null),
+      fetch(API(`/finances/categories?days=${d}`)).then(x => x.ok ? x.json() : null),
+      fetch(API(`/finances/transactions?days=${d}&type=all&limit=1000`)).then(x => x.ok ? x.json() : null),
+      fetch(API("/finances/recurring")).then(x => x.ok ? x.json() : []),
     ]);
     setSummary(s);
     setCategories(c);
     setTxns(t);
+    setRecurring(r ?? []);
   }, [days]);
 
   useEffect(() => { loadAll(); }, []);
@@ -280,6 +341,16 @@ export default function FinancesPanel() {
       loadAll();
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const deleteRule = async (id) => {
+    setDeletingRuleId(id);
+    try {
+      await fetch(API(`/finances/recurring/${id}`), { method: "DELETE" });
+      setRecurring(prev => prev.filter(r => r.id !== id));
+    } finally {
+      setDeletingRuleId(null);
     }
   };
 
@@ -325,6 +396,7 @@ export default function FinancesPanel() {
         <AddTransactionModal
           onClose={() => setShowAddForm(false)}
           onSaved={handleTxnSaved}
+          onRecurringSaved={() => loadAll()}
         />
       )}
 
@@ -366,6 +438,78 @@ export default function FinancesPanel() {
           sub={summary?.margin != null ? (summary.margin > 30 ? "HEALTHY" : summary.margin > 0 ? "SLIM" : "LOSS") : null}
         />
       </div>
+
+      {/* Recurring rules */}
+      {recurring.length > 0 && (
+        <div className="glass-card" style={{ padding: "18px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0" }}>
+              Recurring
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>
+              {recurring.length} ACTIVE
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {recurring.map((rule, i) => (
+              <div key={rule.id} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "9px 0",
+                borderBottom: i < recurring.length - 1 ? "0.5px solid #1a2540" : "none",
+              }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, marginRight: 12 }}>
+                  <span style={{ fontSize: 12, color: "#8aaad0", fontWeight: 500 }}>
+                    {rule.description || "—"}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{
+                      fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
+                      padding: "2px 6px", borderRadius: 4,
+                      background: "rgba(58,123,213,0.12)", color: "#3a7bd5", letterSpacing: "0.06em",
+                    }}>
+                      {rule.frequency.toUpperCase()}
+                    </span>
+                    <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
+                      next {rule.next_occurrence}
+                    </span>
+                    {rule.category && rule.category !== "Revenue" && (
+                      <span style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
+                        padding: "2px 6px", borderRadius: 4,
+                        background: "rgba(240,160,40,0.08)", color: "#a07020", letterSpacing: "0.06em",
+                      }}>
+                        {rule.category}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 13, fontWeight: 700,
+                    color: rule.is_income ? "#14c882" : "#f0a028",
+                  }}>
+                    {rule.is_income ? "+" : "-"}{money(rule.amount)}
+                  </span>
+                  <button
+                    onClick={() => deleteRule(rule.id)}
+                    disabled={deletingRuleId === rule.id}
+                    style={{
+                      padding: "4px 10px", borderRadius: 6,
+                      border: "1px solid rgba(220,60,60,0.25)",
+                      background: "rgba(220,60,60,0.06)", color: "#dc3c3c",
+                      fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
+                      cursor: "pointer", letterSpacing: "0.06em",
+                      opacity: deletingRuleId === rule.id ? 0.5 : 1,
+                    }}
+                  >
+                    {deletingRuleId === rule.id ? "…" : "STOP"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Income vs Expenses trend */}
       <div className="glass-card" style={{ padding: "20px 22px" }}>

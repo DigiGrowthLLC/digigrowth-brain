@@ -86,6 +86,21 @@ async def _create_schema(pool: asyncpg.Pool):
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            CREATE TABLE IF NOT EXISTS recurring_transactions (
+                id           SERIAL PRIMARY KEY,
+                description  TEXT,
+                amount       NUMERIC(10,2) NOT NULL,
+                is_income    BOOLEAN NOT NULL DEFAULT false,
+                category     TEXT DEFAULT 'Uncategorized',
+                notes        TEXT,
+                frequency    TEXT NOT NULL,
+                start_date   DATE NOT NULL,
+                end_date     DATE,
+                last_applied DATE,
+                active       BOOLEAN NOT NULL DEFAULT true,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
             CREATE TABLE IF NOT EXISTS transactions (
                 id                   SERIAL PRIMARY KEY,
                 plaid_transaction_id TEXT UNIQUE,
@@ -96,6 +111,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 category             TEXT DEFAULT 'Uncategorized',
                 plaid_category       TEXT,
                 notes                TEXT,
+                recurring_id         INTEGER REFERENCES recurring_transactions(id) ON DELETE SET NULL,
                 created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
@@ -132,6 +148,7 @@ async def _create_schema(pool: asyncpg.Pool):
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""
             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_category TEXT;
+            ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recurring_id INTEGER REFERENCES recurring_transactions(id) ON DELETE SET NULL;
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS due_date DATE;
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS recurrence TEXT;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS doc_type TEXT NOT NULL DEFAULT 'sop';
