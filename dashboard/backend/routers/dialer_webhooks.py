@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
+from starlette.background import BackgroundTask
 from twilio.twiml.voice_response import VoiceResponse
 
 import dialer_engine as engine
@@ -34,11 +35,6 @@ async def agent_join(request: Request):
     with engine._session["lock"]:
         engine._session["dylan_sid"] = call_sid
 
-    # Server-side trigger: fire first dial-batch as background task.
-    # Browser-initiated fetches from inside Twilio SDK callbacks are silently
-    # dropped even with setTimeout(0), so we trigger from the server instead.
-    asyncio.create_task(_auto_first_dial(session_id))
-
     response = VoiceResponse()
     dial     = response.dial()
     dial.conference(
@@ -47,7 +43,10 @@ async def agent_join(request: Request):
         end_conference_on_exit=True,
         beep=False,
     )
-    return Response(str(response), media_type="text/xml")
+    # BackgroundTask runs after the TwiML response is sent — guaranteed by Starlette.
+    # asyncio.create_task() gets garbage-collected before executing; BackgroundTask doesn't.
+    return Response(str(response), media_type="text/xml",
+                    background=BackgroundTask(_auto_first_dial, session_id))
 
 
 async def _auto_first_dial(session_id: str):
