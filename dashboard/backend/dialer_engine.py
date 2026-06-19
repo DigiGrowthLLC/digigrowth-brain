@@ -49,9 +49,11 @@ def _norm(phone: str) -> str:
 
 def _client():
     from twilio.rest import Client
+    from twilio.http.http_client import TwilioHttpClient
     return Client(
         os.environ["TWILIO_ACCOUNT_SID"],
         os.environ["TWILIO_AUTH_TOKEN"],
+        http_client=TwilioHttpClient(timeout=15),
     )
 
 
