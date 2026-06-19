@@ -1,0 +1,10 @@
+dashboard/frontend/node_modules/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+leadgen-agent/.env
+apptset-agent/.env
+parallel-dialer/.env
+leadgen-agent/credentials.json
+executive-assistant/credentials.json

@@ -226,6 +226,13 @@ async def dial_batch():
         config     = engine._session["config"]
 
     base = engine.base_url()
+    if not base:
+        return {
+            "ok": False, "dialed": 0, "done": False, "errors":
+            ["RAILWAY_PUBLIC_DOMAIN not set — Twilio callback URLs cannot be built. Set this env var on Railway."],
+            "phones": [],
+        }
+
     phones = [l["phone"] for l in batch]
     sids, errors = await engine.dial_batch(phones, session_id, base, config)
 
@@ -233,11 +240,12 @@ async def dial_batch():
         engine._session["call_sids"].update(sids)
 
     return {
-        "ok":     True,
-        "dialed": len(sids),
-        "done":   False,
-        "errors": errors,
-        "phones": list(sids.keys()),
+        "ok":       True,
+        "dialed":   len(sids),
+        "done":     False,
+        "errors":   errors,
+        "phones":   list(sids.keys()),
+        "base_url": base,
     }
 
 
@@ -366,6 +374,28 @@ async def end_session():
     engine.close_session()
     return {"ok": True}
 
+
+@router.get("/dialer/debug")
+async def debug_config():
+    """Returns resolved config so you can verify Railway env vars without checking logs."""
+    config = _load_dialer_config()
+    base = engine.base_url()
+    twilio_phone = os.environ.get("TWILIO_PHONE_NUMBER") or config.get("twilio_phone_number", "")
+    account_sid  = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    twiml_app    = os.environ.get("TWILIO_TWIML_APP_SID", "")
+    with engine._session["lock"]:
+        sess_active = engine._session.get("active", False)
+        sess_leads  = len(engine._session.get("eligible_leads", []))
+    return {
+        "base_url":        base or "(EMPTY — RAILWAY_PUBLIC_DOMAIN and WEBHOOK_BASE_URL both unset)",
+        "twilio_phone":    twilio_phone or "(EMPTY — TWILIO_PHONE_NUMBER not set and not in config.json)",
+        "account_sid_set": bool(account_sid),
+        "twiml_app_set":   bool(twiml_app),
+        "lead_answered_url": f"{base}/dialer/voice/lead-answered" if base else "(base_url empty)",
+        "agent_join_url":    f"{base}/dialer/voice/agent-join" if base else "(base_url empty)",
+        "session_active":  sess_active,
+        "eligible_leads":  sess_leads,
+    }
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────

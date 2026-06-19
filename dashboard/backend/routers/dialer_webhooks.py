@@ -168,6 +168,9 @@ async def call_status(request: Request):
     if not phone or status not in ("no-answer", "busy", "failed", "completed", "canceled"):
         return Response("", status_code=204)
 
+    if status == "failed":
+        print(f"  dialer: CALL FAILED to {phone} (sid={call_sid}) — check Twilio console for error code")
+
     # Clear gatekeeper popup if the held call timed out
     with engine._session["lock"]:
         gk = engine._session.get("gatekeeper_pending")
