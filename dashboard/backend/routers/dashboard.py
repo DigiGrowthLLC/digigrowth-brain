@@ -13,12 +13,16 @@ DELETE /dashboard/todos/{id}                   — delete todo
 """
 
 import asyncio
+import json
+import pathlib
 import calendar as _calendar
 from datetime import datetime, timedelta, timezone, date
 
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
+
+_SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 
 router = APIRouter()
 
@@ -38,11 +42,9 @@ def _period_start(period: str) -> datetime:
 
 @router.get("/dashboard/summary")
 async def summary(period: str = "day"):
-    import json, pathlib
     since = _period_start(period)
     pool  = await get_pool()
 
-    _SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
     try:
         stats = json.loads(_SALES_STATS_PATH.read_text())
     except Exception:

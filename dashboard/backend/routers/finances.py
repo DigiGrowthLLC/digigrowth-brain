@@ -1,16 +1,20 @@
 """
-Finances router — Plaid-powered Novo transaction sync.
+Finances router — manual ledger.
 
-POST /finances/plaid/link-token   — create Plaid link_token for frontend
-POST /finances/plaid/exchange     — exchange public_token for access_token
-POST /finances/plaid/sync         — pull new transactions from Plaid (incremental)
-GET  /finances/summary?days=30    — income / expenses / net / margin
-GET  /finances/categories?days=30 — expense breakdown by category + daily trend
-GET  /finances/transactions       — paginated transaction list with filters
-PATCH /finances/transactions/{id} — update category or notes
+POST /finances/transactions          — add a manual revenue or expense
+DELETE /finances/transactions/{id}   — remove a transaction
+PATCH /finances/transactions/{id}    — update category or notes
+GET  /finances/summary?days=30       — income / expenses / net / margin
+GET  /finances/categories?days=30    — expense breakdown by category + daily trend
+GET  /finances/transactions          — paginated transaction list with filters
+POST /finances/recategorize          — re-run keyword categorization on all transactions
+POST /finances/recurring             — create a recurring rule
+GET  /finances/recurring             — list active recurring rules
+DELETE /finances/recurring/{id}      — stop a recurring rule
+POST /finances/recurring/apply       — generate pending recurring instances
+POST /finances/plaid/purge           — delete all Plaid-imported data (one-time utility)
 """
 
-import os
 import calendar
 from datetime import datetime, timedelta, timezone, date
 
@@ -18,32 +22,6 @@ from fastapi import APIRouter, HTTPException
 from db import get_pool
 
 router = APIRouter()
-
-# ── Plaid client (lazy-initialised so missing env vars don't crash at import) ──
-
-def _plaid_client():
-    try:
-        from plaid.api import plaid_api
-        from plaid.configuration import Configuration
-        from plaid.api_client import ApiClient
-
-        env_map = {
-            "sandbox":     "https://sandbox.plaid.com",
-            "development": "https://development.plaid.com",
-            "production":  "https://production.plaid.com",
-        }
-        host = env_map.get(os.environ.get("PLAID_ENV", "development"), env_map["development"])
-        config = Configuration(
-            host=host,
-            api_key={
-                "clientId": os.environ["PLAID_CLIENT_ID"],
-                "secret":   os.environ["PLAID_SECRET"],
-            },
-        )
-        return plaid_api.PlaidApi(ApiClient(config))
-    except KeyError as e:
-        raise HTTPException(status_code=503, detail=f"Plaid not configured: {e}")
-
 
 # ── Auto-categorization ───────────────────────────────────────────────────────
 
@@ -73,127 +51,22 @@ _CATEGORY_RULES = [
     (["quickbooks", "xero", "freshbooks", "bench", "wework", "regus", "insureon"], "Operations"),
 ]
 
-# Plaid personal_finance_category.primary → (our category, is_income)
-_PLAID_CATEGORY_MAP = {
-    "INCOME":             ("Revenue",    True),
-    "TRANSFER_IN":        ("Revenue",    True),
-    "BANK_FEES":          ("Operations", False),
-    "RENT_AND_UTILITIES": ("Operations", False),
-    "LOAN_PAYMENTS":      ("Operations", False),
-    "TRANSFER_OUT":       ("Transfers",  False),
-}
-
-# Only treated as income when the amount sign ALSO indicates money in
 _INCOME_KEYWORDS = ["ach credit", "wire credit", "direct deposit", "client payment", "invoice payment"]
 
 
-def _categorize(description: str, amount: float, plaid_primary: str = None) -> tuple[str, bool]:
-    """Return (category, is_income) for a transaction."""
+def _categorize(description: str, amount: float) -> tuple[str, bool]:
+    """Return (category, is_income) based on description keywords and amount sign."""
     desc = (description or "").lower()
-    is_income = amount > 0  # stored_amount: positive = credit/income, negative = debit/expense
+    is_income = amount > 0
 
-    # Business keyword rules take highest priority
     for keywords, category in _CATEGORY_RULES:
         if any(kw in desc for kw in keywords):
             return category, False
 
-    # Income keyword override — only when amount sign also indicates income
     if is_income and any(kw in desc for kw in _INCOME_KEYWORDS):
         return "Revenue", True
 
-    # Use Plaid's own classification
-    if plaid_primary:
-        mapped = _PLAID_CATEGORY_MAP.get(plaid_primary.upper())
-        if mapped:
-            return mapped
-
-    # Final fallback: amount sign
     return ("Revenue", True) if is_income else ("Miscellaneous", False)
-
-
-# ── Sync helper ───────────────────────────────────────────────────────────────
-
-def _txn_date(d) -> date:
-    """Coerce Plaid date field to Python date."""
-    if isinstance(d, date):
-        return d
-    return date.fromisoformat(str(d))
-
-
-async def _do_sync(conn, access_token: str, cursor) -> tuple[int, int, int, str]:
-    """Pull transactions from Plaid using /transactions/sync. Returns (added, modified, removed, new_cursor)."""
-    from plaid.model.transactions_sync_request import TransactionsSyncRequest
-
-    client   = _plaid_client()
-    added    = 0
-    modified = 0
-    removed  = 0
-    has_more = True
-
-    while has_more:
-        kwargs = {"access_token": access_token}
-        if cursor:
-            kwargs["cursor"] = cursor
-        resp = client.transactions_sync(TransactionsSyncRequest(**kwargs))
-
-        for txn in resp.added or []:
-            # Plaid: positive amount = debit (money out). We flip: negative stored = expense.
-            raw_amount    = float(txn.amount)
-            stored_amount = -raw_amount
-            name          = getattr(txn, "name", None) or getattr(txn, "merchant_name", None) or ""
-            pfc           = getattr(txn, "personal_finance_category", None)
-            plaid_primary = getattr(pfc, "primary", None) if pfc else None
-            category, is_income = _categorize(name, stored_amount, plaid_primary)
-            await conn.execute(
-                """
-                INSERT INTO transactions (plaid_transaction_id, date, description, amount, is_income, category, plaid_category)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (plaid_transaction_id) DO NOTHING
-                """,
-                txn.transaction_id,
-                _txn_date(txn.date),
-                name,
-                stored_amount,
-                is_income,
-                category,
-                plaid_primary,
-            )
-            added += 1
-
-        for txn in resp.modified or []:
-            raw_amount    = float(txn.amount)
-            stored_amount = -raw_amount
-            name          = getattr(txn, "name", None) or getattr(txn, "merchant_name", None) or ""
-            pfc           = getattr(txn, "personal_finance_category", None)
-            plaid_primary = getattr(pfc, "primary", None) if pfc else None
-            category, is_income = _categorize(name, stored_amount, plaid_primary)
-            await conn.execute(
-                """
-                UPDATE transactions
-                SET date=$2, description=$3, amount=$4, is_income=$5, category=$6, plaid_category=$7
-                WHERE plaid_transaction_id=$1
-                """,
-                txn.transaction_id,
-                _txn_date(txn.date),
-                name,
-                stored_amount,
-                is_income,
-                category,
-                plaid_primary,
-            )
-            modified += 1
-
-        for txn in resp.removed or []:
-            await conn.execute(
-                "DELETE FROM transactions WHERE plaid_transaction_id=$1",
-                txn.transaction_id,
-            )
-            removed += 1
-
-        cursor   = resp.next_cursor
-        has_more = resp.has_more
-
-    return added, modified, removed, cursor
 
 
 # ── Period helper ─────────────────────────────────────────────────────────────
@@ -203,89 +76,6 @@ def _since_date(days: int) -> date:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
-
-@router.post("/finances/plaid/link-token")
-async def create_link_token():
-    from plaid.model.link_token_create_request import LinkTokenCreateRequest
-    from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
-    from plaid.model.products import Products
-    from plaid.model.country_code import CountryCode
-
-    client = _plaid_client()
-    req = LinkTokenCreateRequest(
-        user=LinkTokenCreateRequestUser(client_user_id="dylan"),
-        client_name="DigiGrowth OS",
-        products=[Products("transactions")],
-        country_codes=[CountryCode("US")],
-        language="en",
-    )
-    resp = client.link_token_create(req)
-    return {"link_token": resp.link_token}
-
-
-@router.post("/finances/plaid/exchange")
-async def exchange_token(body: dict):
-    public_token     = body.get("public_token", "")
-    institution_name = body.get("institution_name", "Novo")
-
-    if not public_token:
-        raise HTTPException(status_code=400, detail="public_token required")
-
-    from plaid.model.item_public_token_exchange_request import ItemPublicTokenExchangeRequest
-
-    client = _plaid_client()
-    resp   = client.item_public_token_exchange(
-        ItemPublicTokenExchangeRequest(public_token=public_token)
-    )
-    access_token = resp.access_token
-    item_id      = resp.item_id
-
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        # Save token first — connection succeeds even if initial sync fails
-        await conn.execute(
-            """
-            INSERT INTO plaid_config (access_token, item_id, institution_name)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (item_id) DO UPDATE
-              SET access_token=$1, institution_name=$3
-            """,
-            access_token, item_id, institution_name,
-        )
-        # Initial sync — wrap in try/except so token save isn't rolled back on sync error
-        added = 0
-        try:
-            added, _mod, _rem, cursor = await _do_sync(conn, access_token, None)
-            await conn.execute(
-                "UPDATE plaid_config SET cursor=$1, last_synced_at=now() WHERE item_id=$2",
-                cursor, item_id,
-            )
-        except Exception as exc:
-            import traceback
-            traceback.print_exc()
-            return {"ok": True, "added": 0, "sync_error": str(exc)}
-
-    return {"ok": True, "added": added}
-
-
-@router.post("/finances/plaid/sync")
-async def sync_transactions():
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        cfg = await conn.fetchrow("SELECT * FROM plaid_config ORDER BY id LIMIT 1")
-        if not cfg:
-            raise HTTPException(status_code=404, detail="No Plaid account connected")
-
-        added, modified, removed, cursor = await _do_sync(
-            conn, cfg["access_token"], cfg["cursor"]
-        )
-        await conn.execute(
-            "UPDATE plaid_config SET cursor=$1, last_synced_at=now() WHERE id=$2",
-            cursor, cfg["id"],
-        )
-
-    return {"added": added, "modified": modified, "removed": removed}
-
 
 @router.get("/finances/summary")
 async def summary(days: int = 30):
@@ -420,13 +210,13 @@ async def transactions(
 
 @router.post("/finances/recategorize")
 async def recategorize():
-    """Re-run categorization rules on every transaction (no Plaid call needed)."""
+    """Re-run keyword categorization on all transactions."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT id, description, amount, plaid_category FROM transactions")
+        rows = await conn.fetch("SELECT id, description, amount FROM transactions")
         updated = 0
         for row in rows:
-            category, is_income = _categorize(row["description"], float(row["amount"]), row["plaid_category"])
+            category, is_income = _categorize(row["description"], float(row["amount"]))
             await conn.execute(
                 "UPDATE transactions SET category=$1, is_income=$2 WHERE id=$3",
                 category, is_income, row["id"],

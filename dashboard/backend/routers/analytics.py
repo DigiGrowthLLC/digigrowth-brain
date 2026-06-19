@@ -21,9 +21,7 @@ router = APIRouter()
 _SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 _EA_REPORTS_DIR = pathlib.Path(__file__).parent.parent.parent.parent / "executive-assistant" / "reports"
 
-POSITIVE_DISPOSITIONS = ("Appointment Booked", "Follow Up", "Send Info", "SMS Handoff", "Not Interested")
-PITCHED_DISPOSITIONS  = ("Appointment Booked", "Follow Up", "Send Info", "SMS Handoff", "Not Interested")
-NO_CONTACT_DISPOSITIONS = ("No Answer", "Voicemail")
+PITCHED_DISPOSITIONS = ("Appointment Booked", "Follow Up", "Send Info", "SMS Handoff", "Not Interested")
 
 
 def _since(days: int) -> datetime:
@@ -80,7 +78,6 @@ async def _calling_metrics(conn, since=None) -> dict:
         "total":             total,
         "answer_rate":       _pct(answered, total),
         "conversation_rate": _pct(pitched, answered),
-        "pitch_rate":        _pct(pitched, answered),
         "abr":               _pct(booked, total),
         "booked":            booked,
     }

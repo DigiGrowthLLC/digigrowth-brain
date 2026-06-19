@@ -8,10 +8,6 @@ from models import Contact, ContactUpdate, NoteAdd, DispositionUpdate, BulkActio
 router = APIRouter()
 
 
-def _row_to_contact(row) -> dict:
-    return dict(row)
-
-
 @router.get("/contacts")
 async def list_contacts(
     status: Optional[str] = Query(None),
