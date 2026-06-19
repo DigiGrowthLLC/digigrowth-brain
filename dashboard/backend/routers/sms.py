@@ -272,12 +272,13 @@ async def get_conversation(phone: str):
         )
 
     return {
-        "phone": phone,
-        "status": conv["status"],
-        "business": conv["business"],
-        "owner": conv["owner"],
-        "grade": conv["grade"],
-        "messages": [dict(m) for m in msgs_raw],
+        "phone":      phone,
+        "contact_id": conv["contact_id"],
+        "status":     conv["status"],
+        "business":   conv["business"],
+        "owner":      conv["owner"],
+        "grade":      conv["grade"],
+        "messages":   [dict(m) for m in msgs_raw],
     }
 
 
@@ -317,4 +318,13 @@ async def close_conversation(phone: str):
                 "UPDATE contacts SET status = 'appointment-booked', updated_at = now() WHERE id = $1",
                 row["contact_id"],
             )
+    return {"ok": True}
+
+
+@router.delete("/sms/conversations/{phone}")
+async def delete_conversation(phone: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM sms_messages WHERE phone = $1", phone)
+        await conn.execute("DELETE FROM sms_conversations WHERE phone = $1", phone)
     return {"ok": True}
