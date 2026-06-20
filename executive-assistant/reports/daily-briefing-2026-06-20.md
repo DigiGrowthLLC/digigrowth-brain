@@ -17,11 +17,10 @@
 
 | Time | Event | Duration |
 |---|---|---|
-| 1:00 PM | Work | — |
+| All-day | Review Call Recordings / Iterate Scripts | — |
+| 1:00 PM | Work | 5h 30m |
 
-All-day: Review Call Recordings / Iterate Scripts (carried from Friday reminder)
-
-Saturday — light calendar. Morning open until 1 PM.
+Committed: 5h 30m | Free: 4h (9:00 AM – 1:00 PM)
 
 ---
 
@@ -39,30 +38,20 @@ No separate weekly cold call / SMS volume tracker found in Drive.
 - V1.3: 84 initiated → 3 engaged → 0 booked
 - V1.4: 56 initiated → 0 engaged → 0 booked
 - No new SMS batch since May 1 — 7+ weeks without outbound SMS
-- ✅ Twilio Trust Hub approved — SMS unblocked at profile level
+- ✅ Twilio Trust Hub approved — SMS unblocked at profile level. A2P 10DLC next.
 
 ---
 
-## Yesterday's Performance (June 19)
+## Yesterday's Performance
 
-Score: not logged — all metrics FALSE, no score entered.
-
-This week: June 15: 3.0 | June 16: 5.0 | June 17: 5.5 | June 18: 6.0 | June 19: not logged | Week avg (logged days): 4.875
-
-**What you did well yesterday:**
-- No activity logged for June 19.
-
-**What to focus on improving today:**
-- Log today's metrics before end of day.
-- 6:30am Wake Up: ❌ → 0/19 days in June — not hit once.
+No data logged for yesterday.
 
 ---
 
 ## How to Use Your Day
 
-- **Morning (open until 1 PM):** Review Call Recordings / Iterate Scripts — all-day reminder for today. Pull recordings from Sales Performance Tracker (Calls 7, 10, 13, 15, 17 have recording links/notes).
-- **1:00 PM (Work block):** Move on Twilio A2P 10DLC registration — next step to fully unblock SMS. Alternatively, prep a new SMS batch for launch next week.
-- **Weekend:** No outreach calls. Use time for system/infra work (Twilio, SMS setup) and script iteration.
+- **9:00 AM – 1:00 PM (4h free block):** Today's all-day flag is "Review Call Recordings / Iterate Scripts." Pull recordings from the Sales Performance Tracker (Calls 7, 10, 13, 15, 17 have links/notes). Document what's working vs. not.
+- **1:00 PM – 6:30 PM (Work, 5h 30m):** Twilio Trust Hub approved — complete A2P 10DLC registration to fully unblock 10DLC SMS. Once registered, prep and queue next SMS batch.
 
 ---
 
