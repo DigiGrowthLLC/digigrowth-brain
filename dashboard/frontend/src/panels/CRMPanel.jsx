@@ -316,10 +316,12 @@ function ContactRow({ contact, checked, onCheck, onSelect }) {
   );
 }
 
-function ContactDrawer({ contact, onClose, onUpdate }) {
+function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
   const [status, setStatus] = useState(contact.status);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [addedToQueue, setAddedToQueue] = useState(false);
+  const [callingNow, setCallingNow] = useState(false);
 
   async function saveStatus(newStatus) {
     setSaving(true);
@@ -329,6 +331,33 @@ function ContactDrawer({ contact, onClose, onUpdate }) {
       body: JSON.stringify({ status: newStatus }),
     });
     setStatus(newStatus); onUpdate(); setSaving(false);
+  }
+
+  async function addToQueue() {
+    setSaving(true);
+    await fetch(`/api/contacts/${contact.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "dialer-lead" }),
+    });
+    setStatus("dialer-lead");
+    setAddedToQueue(true);
+    onUpdate();
+    setSaving(false);
+    setTimeout(() => setAddedToQueue(false), 2000);
+  }
+
+  async function callNow() {
+    setCallingNow(true);
+    try {
+      await fetch("/api/dialer/call-single", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: contact.id }),
+      });
+      if (onNavigate) onNavigate("dialer");
+    } catch {}
+    setCallingNow(false);
   }
 
   async function submitNote(e) {
@@ -424,6 +453,33 @@ function ContactDrawer({ contact, onClose, onUpdate }) {
             </div>
           </div>
 
+          {/* Dialer actions */}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={callNow} disabled={callingNow}
+              style={{
+                flex: 1, padding: "9px 12px", borderRadius: 8,
+                background: "rgba(58,123,213,0.15)", border: "1px solid rgba(58,123,213,0.35)",
+                color: "#5a9bf0", fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 12, fontWeight: 600, cursor: callingNow ? "not-allowed" : "pointer",
+                opacity: callingNow ? 0.6 : 1,
+              }}>
+              {callingNow ? "Starting…" : "📞 Call Now"}
+            </button>
+            {status !== "dialer-lead" && (
+              <button onClick={addToQueue} disabled={saving}
+                style={{
+                  flex: 1, padding: "9px 12px", borderRadius: 8,
+                  background: "rgba(20,200,130,0.1)", border: "1px solid rgba(20,200,130,0.25)",
+                  color: addedToQueue ? "#14c882" : "#5ad4a8",
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 12, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer",
+                  opacity: saving ? 0.6 : 1,
+                }}>
+                {addedToQueue ? "Added ✓" : "＋ Add to Queue"}
+              </button>
+            )}
+          </div>
+
           {/* Notes */}
           {contact.notes && (
             <div>
@@ -450,7 +506,7 @@ function ContactDrawer({ contact, onClose, onUpdate }) {
   );
 }
 
-export default function CRMPanel() {
+export default function CRMPanel({ onNavigate }) {
   const [contacts, setContacts]       = useState([]);
   const [total, setTotal]             = useState(0);
   const [loading, setLoading]         = useState(true);
@@ -757,7 +813,7 @@ export default function CRMPanel() {
 
       {selected && (
         <ContactDrawer contact={selected} onClose={() => setSelected(null)}
-          onUpdate={fetchContacts} />
+          onUpdate={fetchContacts} onNavigate={onNavigate} />
       )}
       {showAdd && (
         <AddContactModal onClose={() => setShowAdd(false)} onSaved={fetchContacts} />

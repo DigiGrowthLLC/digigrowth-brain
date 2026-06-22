@@ -229,7 +229,7 @@ export default function App() {
         background: "transparent",
       }}>
         {active === "home"     && <DashboardPanel />}
-        {active === "crm"      && <CRMPanel />}
+        {active === "crm"      && <CRMPanel onNavigate={setActive} />}
         {active === "sms"      && <SMSPanel />}
         {active === "dialer"   && <DialerPanel />}
         {active === "agents"    && <AgentsPanel />}

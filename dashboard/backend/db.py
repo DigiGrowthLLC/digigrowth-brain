@@ -28,6 +28,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 status      TEXT NOT NULL DEFAULT 'new',
                 call_attempts INTEGER NOT NULL DEFAULT 0,
                 last_called_at TIMESTAMPTZ,
+                follow_up_at TIMESTAMPTZ,
                 last_disposition TEXT,
                 notes       TEXT,
                 newsletter  BOOLEAN NOT NULL DEFAULT false,
@@ -153,6 +154,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS recurrence TEXT;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS doc_type TEXT NOT NULL DEFAULT 'sop';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS follow_up_at TIMESTAMPTZ;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_name TEXT;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_type TEXT;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS file_size BIGINT;

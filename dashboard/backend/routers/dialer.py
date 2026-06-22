@@ -158,7 +158,11 @@ async def session_init():
             FROM contacts
             WHERE phone IS NOT NULL
               AND status = 'dialer-lead'
-              AND (last_called_at IS NULL OR last_called_at < now() - interval '4 hours')
+              AND (
+                (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))
+                OR
+                (follow_up_at IS NOT NULL AND follow_up_at <= now())
+              )
             ORDER BY
               CASE grade WHEN 'A' THEN 1 WHEN 'B' THEN 2
                          WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END,
@@ -298,6 +302,23 @@ async def classify(body: dict):
                     """,
                     disposition, new_status, contact_id,
                 )
+                # Set follow_up_at for 30/90-day dispositions; clear it for all others
+                if disposition == "Follow Up 30 Day":
+                    await conn.execute(
+                        "UPDATE contacts SET call_attempts = 0, follow_up_at = now() + interval '30 days' WHERE id = $1",
+                        contact_id,
+                    )
+                elif disposition == "Follow Up 90 Day":
+                    await conn.execute(
+                        "UPDATE contacts SET call_attempts = 0, follow_up_at = now() + interval '90 days' WHERE id = $1",
+                        contact_id,
+                    )
+                else:
+                    await conn.execute(
+                        "UPDATE contacts SET follow_up_at = NULL WHERE id = $1",
+                        contact_id,
+                    )
+
                 if updated and disposition == "No Answer" and updated["call_attempts"] >= 3:
                     await conn.execute(
                         "UPDATE contacts SET status='sms-handoff' WHERE id=$1", contact_id,
@@ -317,7 +338,7 @@ async def classify(body: dict):
         # Update in-session stats
         with engine._session["lock"]:
             engine._session["stats"]["calls_made"] += 1
-            if disposition in ("Appointment Booked", "Follow Up", "Send Info"):
+            if disposition in ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Send Info"):
                 engine._session["stats"]["dms_reached"] += 1
 
     return {"ok": True}
@@ -381,6 +402,46 @@ async def end_session():
         engine._session["end_requested"] = True
     engine.close_session()
     return {"ok": True}
+
+
+@router.post("/dialer/call-single")
+async def call_single(body: dict):
+    """Init a one-lead session from the CRM panel for an individual callback."""
+    contact_id = (body.get("contact_id") or "").strip()
+    if not contact_id:
+        raise HTTPException(status_code=400, detail="contact_id required")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, phone, business, owner, grade, opener, email,
+                   website, city, state, call_attempts
+            FROM contacts
+            WHERE id = $1 AND phone IS NOT NULL
+            """,
+            contact_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Contact not found or has no phone")
+
+    config     = _load_dialer_config()
+    session_id = str(uuid.uuid4())[:8]
+    lead = {
+        "contact_id": str(row["id"]),
+        "phone":      row["phone"],
+        "business":   row["business"] or "",
+        "owner":      row["owner"] or "",
+        "grade":      row["grade"] or "",
+        "opener":     row["opener"] or "",
+        "email":      row["email"] or "",
+        "website":    row["website"] or "",
+        "city":       row["city"] or "",
+        "state":      row["state"] or "",
+        "attempts":   row["call_attempts"],
+    }
+    engine.init_session(session_id, config, [lead])
+    return {"ok": True, "session_id": session_id, "lead_count": 1}
 
 
 @router.get("/dialer/debug")
@@ -447,7 +508,11 @@ async def get_stats():
             SELECT COUNT(*) FROM contacts
             WHERE phone IS NOT NULL
               AND status = 'dialer-lead'
-              AND (last_called_at IS NULL OR last_called_at < now() - interval '4 hours')
+              AND (
+                (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))
+                OR
+                (follow_up_at IS NOT NULL AND follow_up_at <= now())
+              )
             """
         )
 
