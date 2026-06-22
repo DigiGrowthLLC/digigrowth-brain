@@ -465,19 +465,17 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
               }}>
               {callingNow ? "Starting…" : "📞 Call Now"}
             </button>
-            {status !== "dialer-lead" && (
-              <button onClick={addToQueue} disabled={saving}
-                style={{
-                  flex: 1, padding: "9px 12px", borderRadius: 8,
-                  background: "rgba(20,200,130,0.1)", border: "1px solid rgba(20,200,130,0.25)",
-                  color: addedToQueue ? "#14c882" : "#5ad4a8",
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 12, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer",
-                  opacity: saving ? 0.6 : 1,
-                }}>
-                {addedToQueue ? "Added ✓" : "＋ Add to Queue"}
-              </button>
-            )}
+            <button onClick={addToQueue} disabled={saving}
+              style={{
+                flex: 1, padding: "9px 12px", borderRadius: 8,
+                background: "rgba(20,200,130,0.1)", border: "1px solid rgba(20,200,130,0.25)",
+                color: addedToQueue ? "#14c882" : "#5ad4a8",
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 12, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer",
+                opacity: saving ? 0.6 : 1,
+              }}>
+              {addedToQueue ? "Added ✓" : "＋ Add to Queue"}
+            </button>
           </div>
 
           {/* Notes */}
