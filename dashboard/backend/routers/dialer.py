@@ -204,8 +204,9 @@ async def dial_batch():
         if engine._session.get("auto_dialed") and not engine._session.get("batch_had_answer"):
             return {"ok": True, "dialed": 0, "done": False, "note": "first batch auto-dialed"}
 
-        # Prepend any retry phones to the queue
-        retry_phones  = engine.get_and_clear_retry()
+        # Prepend any retry phones to the queue (inline to avoid nested lock deadlock)
+        retry_phones  = set(engine._session.get("needs_retry", set()))
+        engine._session["needs_retry"] = set()
         retry_leads   = [
             engine._session["leads_by_phone"][p]
             for p in retry_phones
