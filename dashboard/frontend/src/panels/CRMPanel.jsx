@@ -321,6 +321,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [addedToQueue, setAddedToQueue] = useState(false);
+  const [queueError, setQueueError] = useState("");
   const [callingNow, setCallingNow] = useState(false);
 
   async function saveStatus(newStatus) {
@@ -335,16 +336,27 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
 
   async function addToQueue() {
     setSaving(true);
-    await fetch(`/api/contacts/${contact.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "dialer-lead" }),
-    });
-    setStatus("dialer-lead");
-    setAddedToQueue(true);
-    onUpdate();
+    setQueueError("");
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "dialer-lead" }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        setQueueError(`Error ${res.status}: ${body}`);
+        setSaving(false);
+        return;
+      }
+      setStatus("dialer-lead");
+      setAddedToQueue(true);
+      onUpdate();
+      setTimeout(() => setAddedToQueue(false), 2000);
+    } catch (e) {
+      setQueueError(String(e));
+    }
     setSaving(false);
-    setTimeout(() => setAddedToQueue(false), 2000);
   }
 
   async function callNow() {
@@ -454,6 +466,12 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
           </div>
 
           {/* Dialer actions */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {queueError && (
+            <div style={{ fontSize: 11, color: "#f06060", fontFamily: "'Share Tech Mono', monospace", padding: "4px 0" }}>
+              {queueError}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={callNow} disabled={callingNow}
               style={{
@@ -476,6 +494,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
               }}>
               {addedToQueue ? "Added ✓" : "＋ Add to Queue"}
             </button>
+          </div>
           </div>
 
           {/* Notes */}
