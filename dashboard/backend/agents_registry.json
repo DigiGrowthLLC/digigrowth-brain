@@ -32,6 +32,14 @@
     "badge_class": "badge-amber"
   },
   {
+    "id": "content-creation",
+    "name": "Content Creation",
+    "description": "Social posts, ad copy, emails, and blog content for DigiGrowth",
+    "root_dir": "../../content-creation",
+    "color": "#e84040",
+    "badge_class": "badge-red"
+  },
+  {
     "id": "digiGrowth-os",
     "name": "DigiGrowth OS",
     "description": "Platform codebase — edit frontend, backend, and all agent files",
