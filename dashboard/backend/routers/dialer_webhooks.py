@@ -267,7 +267,9 @@ async def call_status(request: Request):
 
     with engine._session["lock"]:
         bridged_phone   = engine._session.get("bridged_phone", "") or ""
-        is_bridged_lead = norm == engine._norm(bridged_phone)
+        # Use last-10-digit match: status callback phone may lack the +1 prefix
+        # that Twilio's To field includes (e.g. "7542485326" vs "17542485326")
+        is_bridged_lead = norm[-10:] == engine._norm(bridged_phone)[-10:]
         ring_start      = engine._session["ring_start"].get(norm, now)
         dial_count      = engine._session["dial_count"].get(norm, 1)
 
