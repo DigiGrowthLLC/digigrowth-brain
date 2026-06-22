@@ -179,6 +179,107 @@ function ContactCard({ contactId, phone, onClose, onSaved }) {
   );
 }
 
+// ── Compose Modal ─────────────────────────────────────────────────────────────
+
+function ComposeModal({ onClose, onSent }) {
+  const [phone, setPhone]     = useState("");
+  const [body, setBody]       = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError]     = useState(null);
+
+  const handleSend = async () => {
+    const p = phone.trim().replace(/\s+/g, "");
+    const b = body.trim();
+    if (!p || !b) return;
+    setSending(true);
+    setError(null);
+    try {
+      const r = await fetch(API("/sms/send"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: p, body: b }),
+      });
+      if (!r.ok) { setError(await r.text()); return; }
+      onSent(p);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
+        backdropFilter: "blur(6px)", zIndex: 1000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="glass-card"
+        style={{ width: 420, padding: 0, overflow: "hidden" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ padding: "18px 22px 14px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>
+            New Message
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px" }}>×</button>
+        </div>
+
+        <div style={{ padding: "18px 22px" }}>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>TO (PHONE NUMBER)</div>
+            <input
+              className="dg-input"
+              type="tel"
+              placeholder="+1 555 000 0000"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+              autoFocus
+            />
+          </div>
+          <div style={{ marginBottom: 6 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>MESSAGE</div>
+            <textarea
+              className="dg-input"
+              rows={4}
+              placeholder="Type your message…"
+              value={body}
+              onChange={e => setBody(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSend(); }}
+              style={{ width: "100%", fontSize: 13, resize: "none", boxSizing: "border-box" }}
+            />
+          </div>
+          {error && (
+            <div style={{ marginBottom: 10, padding: "8px 12px", borderRadius: 8,
+              background: "rgba(220,60,60,0.08)", border: "1px solid rgba(220,60,60,0.2)",
+              fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#dc3c3c" }}>
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: "12px 22px 18px", display: "flex", gap: 10 }}>
+          <button onClick={onClose} className="btn btn-secondary" style={{ flex: 1, fontSize: 11 }}>Cancel</button>
+          <button
+            onClick={handleSend}
+            disabled={sending || !phone.trim() || !body.trim()}
+            className="btn btn-primary"
+            style={{ flex: 1, fontSize: 11 }}
+          >
+            {sending ? "Sending…" : "Send"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── Main panel ────────────────────────────────────────────────────────────────
 
 export default function SMSPanel() {
@@ -190,6 +291,7 @@ export default function SMSPanel() {
   const [loading, setLoading]     = useState(true);
   const [cardOpen, setCardOpen]   = useState(false);
   const [deleting, setDeleting]   = useState(false);
+  const [composing, setComposing] = useState(false);
   const bottomRef = useRef(null);
 
   const loadConvos = useCallback(async () => {
@@ -269,6 +371,17 @@ export default function SMSPanel() {
         />
       )}
 
+      {composing && (
+        <ComposeModal
+          onClose={() => setComposing(false)}
+          onSent={async (phone) => {
+            setComposing(false);
+            await loadConvos();
+            await openThread(phone);
+          }}
+        />
+      )}
+
       {/* Thread list */}
       <aside style={{
         width: 260, borderRight: "0.5px solid #1a2540",
@@ -279,8 +392,22 @@ export default function SMSPanel() {
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#f0f4ff" }}>
             SMS Inbox
           </div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80" }}>
-            {convos.length} THREADS
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80" }}>
+              {convos.length} THREADS
+            </div>
+            <button
+              onClick={() => setComposing(true)}
+              style={{
+                padding: "4px 10px", borderRadius: 6,
+                border: "1px solid rgba(58,123,213,0.35)",
+                background: "rgba(58,123,213,0.08)", color: "#3a7bd5",
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                cursor: "pointer", letterSpacing: "0.06em",
+              }}
+            >
+              + NEW
+            </button>
           </div>
         </div>
 
