@@ -83,7 +83,7 @@ async def update_contact(contact_id: str, body: ContactUpdate):
         if updates.get("status") == "dialer-lead":
             try:
                 await conn.execute(
-                    "UPDATE contacts SET follow_up_at = NULL, call_attempts = 0 WHERE id = $1",
+                    "UPDATE contacts SET follow_up_at = NULL, call_attempts = 0, last_called_at = NULL WHERE id = $1",
                     contact_id,
                 )
                 row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
