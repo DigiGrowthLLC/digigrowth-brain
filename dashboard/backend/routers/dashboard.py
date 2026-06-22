@@ -146,33 +146,28 @@ async def mark_read(msg_id: int):
 
 @router.get("/dashboard/client-messages")
 async def client_messages():
-    """Active SMS threads where the last message was inbound (client is waiting)."""
+    """Active SMS threads with inbound messages in the last 48 hours."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT sc.phone, sc.updated_at,
+            SELECT sc.phone,
                    c.business, c.owner, c.grade,
-                   (
-                     SELECT body FROM sms_messages
-                     WHERE phone = sc.phone
-                     ORDER BY sent_at DESC LIMIT 1
-                   ) AS last_message,
-                   (
-                     SELECT direction FROM sms_messages
-                     WHERE phone = sc.phone
-                     ORDER BY sent_at DESC LIMIT 1
-                   ) AS last_direction
+                   last_in.body AS last_message,
+                   last_in.sent_at AS last_inbound_at
             FROM sms_conversations sc
             LEFT JOIN contacts c ON c.id = sc.contact_id
+            LEFT JOIN LATERAL (
+                SELECT body, sent_at FROM sms_messages
+                WHERE phone = sc.phone AND direction = 'inbound'
+                ORDER BY sent_at DESC LIMIT 1
+            ) last_in ON true
             WHERE sc.status = 'active'
-            ORDER BY sc.updated_at DESC
+              AND last_in.sent_at >= now() - interval '48 hours'
+            ORDER BY last_in.sent_at DESC
             """
         )
-    return [
-        dict(r) for r in rows
-        if r["last_direction"] == "inbound"
-    ]
+    return [dict(r) for r in rows]
 
 
 # ── Chart data ───────────────────────────────────────────────────────────────

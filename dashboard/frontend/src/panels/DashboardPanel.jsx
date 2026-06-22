@@ -556,7 +556,7 @@ export default function DashboardPanel() {
                     {m.business || m.owner || m.phone}
                   </span>
                   <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80" }}>
-                    {timeAgo(m.updated_at)}
+                    {timeAgo(m.last_inbound_at)}
                   </span>
                 </div>
                 <div style={{ fontSize: 11, color: "#5a6f8f", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

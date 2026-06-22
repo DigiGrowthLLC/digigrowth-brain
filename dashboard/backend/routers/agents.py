@@ -627,7 +627,7 @@ def _load_skills(root: pathlib.Path, match_message: str = "") -> str:
                 first_line = ""
             if any(w in msg_lower for w in name_words.split()) or name_words in msg_lower:
                 try:
-                    content = path.read_text(errors="replace")[:6000]
+                    content = path.read_text(errors="replace")[:15000]
                     return f"### Active Skill: {name}\n\nExecute these instructions now:\n\n{content}"
                 except Exception:
                     pass
@@ -1020,6 +1020,12 @@ async def chat(agent_id: str, request: Request):
                             """,
                             agent_id,
                         )
+                        preview = accumulated_text[:200].strip()
+                        if preview:
+                            await conn.execute(
+                                "INSERT INTO agent_messages (agent, message) VALUES ($1, $2)",
+                                agent.get("name", agent_id), preview,
+                            )
                     yield f"data: {json.dumps({'type': 'done'})}\n\n"
                     return
 
