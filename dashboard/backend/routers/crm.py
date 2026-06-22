@@ -74,15 +74,21 @@ async def update_contact(contact_id: str, body: ContactUpdate):
 
     set_parts = [f"{k} = ${i+2}" for i, k in enumerate(updates)]
     set_parts.append("updated_at = now()")
-    # Re-entering the dialer queue: wipe follow_up_at and reset call counter
-    if updates.get("status") == "dialer-lead":
-        set_parts.append("follow_up_at = NULL")
-        set_parts.append("call_attempts = 0")
     sql = f"UPDATE contacts SET {', '.join(set_parts)} WHERE id = $1 RETURNING *"
     async with pool.acquire() as conn:
         row = await conn.fetchrow(sql, contact_id, *updates.values())
-    if not row:
-        raise HTTPException(status_code=404, detail="Contact not found")
+        if not row:
+            raise HTTPException(status_code=404, detail="Contact not found")
+        # Re-entering the dialer queue: wipe follow_up_at and reset call counter
+        if updates.get("status") == "dialer-lead":
+            try:
+                await conn.execute(
+                    "UPDATE contacts SET follow_up_at = NULL, call_attempts = 0 WHERE id = $1",
+                    contact_id,
+                )
+                row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
+            except Exception:
+                pass
     return dict(row)
 
 
