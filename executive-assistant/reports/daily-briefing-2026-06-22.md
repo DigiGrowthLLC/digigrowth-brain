@@ -6,63 +6,68 @@
 
 Inbox clear — no business emails in the last 24 hours.
 
+*(Note: dylanrg@digigrowthllc.com was not accessible via Gmail MCP — check manually if needed.)*
+
 ---
 
 ## Today's Schedule
 
-| Time | Event | Duration |
-|---|---|---|
-| 8:30 AM | Morning Routine | — |
-| 10:00 AM | Admin | 30 min |
-| 10:30 AM | Outreach | 2h |
-| 12:30 PM | MDR | 1h |
-| 1:30 PM | Growth | 3h |
-| 4:30 PM | Gym | — |
+- **8:30 AM – 10:00 AM** — Morning Routine (1h 30m) — Hydrate, move, mentally prime; review priorities
+- **10:00 AM – 10:30 AM** — Admin (30m) — Triage inbox, update CRM in GHL
+- **10:30 AM – 12:30 PM** — Outreach (2h) — Cold calls and follow-ups to fitness studio prospects
+- **12:30 PM – 1:30 PM** — MDR (1h) — Lunch away from screen, walk or stretch
+- **1:30 PM – 4:30 PM** — Growth (3h) — Deep work: content, system building, or skill acquisition
+- **4:30 PM – 6:30 PM** — Gym (2h)
 
-Full structured Monday. Biggest blocks: Outreach 10:30 AM (2h) → MDR 12:30 PM → Growth 1:30 PM (3h).
+Committed: 9h | Free: 0h (9:00 AM – 6:00 PM fully blocked)
 
 ---
 
-## Outreach
+## Outreach This Week
 
-No separate cold calling volume tracker found in Drive.
+No separate daily volume tracker found. The trackers below are cumulative.
 
 **Sales calls (DigiGrowth Sales Performance Tracker — cumulative):**
 - 18 booked | 9 showed (50% show rate) | 0 won | 8 lost | 0% close rate
-- Last call: 04/24/26 — 8 weeks without a new sales call booked
+- Last call: 04/24/26 — 9 weeks ago
 
-**Cold SMS (Cold SMS Tracker — cumulative):**
-- 440 initiated → 31 engaged → 1 booked
-- Last batch: 05/01/26 — 7+ weeks without outbound SMS
-- ✅ Twilio Trust Hub approved — A2P 10DLC registration is the remaining step
+**Cold SMS ((SMS) (2026) Cold SMS Tracker — cumulative):**
+- V1.1: 175 initiated → 22 engaged → 1 booked
+- V1.2: 125 initiated → 6 engaged → 0 booked
+- V1.3: 84 initiated → 3 engaged → 0 booked
+- V1.4: 56 initiated → 0 engaged → 0 booked
+- Last batch: 05/01/26 — 7+ weeks ago
+- Twilio Trust Hub approved — A2P 10DLC registration is the remaining step to fully unblock 10DLC SMS
+
+No week-over-week comparison available — no daily volume tracking exists. If a file tracks daily calls made or contacts reached, confirm the file name.
 
 ---
 
 ## Yesterday's Performance
 
-Tracker excludes weekends — no row for June 21. Last logged weekday: June 18th (Score: 6.0).
+No data logged for yesterday.
 
-June 18 → June 19: full drop-off — every metric went from TRUE to FALSE after a 3-day streak (Jun 16–18).
-
-This week's recent scores: Jun 16: 5.0 | Jun 17: 5.5 | Jun 18: 6.0 | Jun 19: not logged
-
-**What you did well (Jun 18):**
-- MR, Priority Work, Gym, Healthy Diet, MDR, Dopamine Reg, NTR, W? — all TRUE — best day of June
-
-**What to focus on today:**
-- 6:30am Wake Up: ❌ → 0/13 logged days in June — not hit once all month
-- Don't repeat June 19: full drop-off followed the 3-day streak — today is the reset
+*(June 21 was Sunday — tracker excludes weekends. Last logged weekday: June 18th, score 6/10. June 19th (Friday) was a blank row — all metrics FALSE, no score logged.)*
 
 ---
 
 ## How to Use Your Day
 
-- **8:30 AM — Morning Routine:** On schedule.
-- **10:00 AM — Admin (30 min):** Inbox check, CRM triage.
-- **10:30 AM — Outreach (2h):** First outreach block since 04/24. Priority: booking new sales calls — cold calls and/or queuing next SMS batch. Twilio A2P 10DLC registration still pending if SMS is the move.
-- **12:30 PM — MDR:** On schedule.
-- **1:30 PM — Growth (3h):** Script iteration, call recording review (Calls 7, 10, 13, 15, 17), or system building.
-- **4:30 PM — Gym:** On schedule.
+Day is fully scheduled — suggestions are for how to use existing blocks.
+
+- **Outreach block (10:30 AM – 12:30 PM, 2h) — Option 1:** Cold calls to fitness studios. 9 weeks since the last sales call (04/24). This is the first outreach block of the week — first option is to get back on the phones.
+- **Outreach block — Option 2:** Complete the A2P 10DLC registration with Twilio. Last remaining step before 10DLC SMS is fully active. Once registered, V1.5 can go live same day — directly unblocks the outbound SMS pipeline.
+- **Growth block (1:30 PM – 4:30 PM, 3h) — Option:** Review call recordings before returning to the phones (Calls 7, 10, 13, 15, 17 in Sales Performance Tracker). Alternatively, use this block to prep the next SMS contact list or review and send today's newsletter draft.
+
+---
+
+## Newsletter Preview
+
+**Subject:** Speed to lead: the #1 revenue unlock for studios
+**To:** Unknown — GHL API unavailable (dotenv module missing; run `pip install python-dotenv` in apptset-agent/ to restore)
+**Topic:** Why AI-powered "speed to lead" is the biggest revenue unlock for studios right now
+
+→ [Preview in Notion](https://app.notion.com/p/387d25c053ea817eaad9f346e612daac) — review and say "send the newsletter" to deploy.
 
 ---
 
