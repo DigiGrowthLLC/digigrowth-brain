@@ -119,7 +119,7 @@ def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
             status_callback=f"{base}/dialer/voice/status?session_id={session_id}&phone={phone}",
             status_callback_event=["no-answer", "busy", "failed", "completed", "canceled"],
             status_callback_method="POST",
-            timeout=config.get("call_timeout_seconds", 15),
+            timeout=config.get("call_timeout_seconds", 30),
             machine_detection="Enable",
         )
         print(f"  dialer: placed call to {to_num} — SID {call.sid}")
