@@ -337,6 +337,35 @@ async def _log_no_answer(phone: str):
 
 # ── Gatekeeper redirected into conference ────────────────────────────────────
 
+@router.post("/dialer/voice/amd-result")
+async def amd_result(request: Request):
+    """Async AMD callback — fires ~2-3s after answer with human/machine verdict."""
+    form        = await request.form()
+    answered_by = form.get("AnsweredBy", "")
+    call_sid    = form.get("CallSid", "")
+    phone       = request.query_params.get("phone") or form.get("To", "")
+
+    machines = ("machine_end_beep", "machine_end_silence", "machine_end_other", "fax")
+    if answered_by not in machines:
+        return Response("", status_code=204)
+
+    # Machine detected — hang up and unbridge if this call was already bridged
+    with engine._session["lock"]:
+        is_bridged = engine._session.get("bridged_sid") == call_sid
+
+    engine.hangup_call(call_sid)
+    print(f"  dialer: AMD — machine detected ({answered_by}) on {phone}, hanging up", flush=True)
+
+    if is_bridged:
+        with engine._session["lock"]:
+            engine._session["bridged"]             = False
+            engine._session["bridged_sid"]         = None
+            engine._session["bridged_phone"]       = None
+            engine._session["show_classification"] = True
+
+    return Response("", status_code=204)
+
+
 @router.post("/dialer/voice/gatekeeper-join")
 async def gatekeeper_join(request: Request):
     session_id = request.query_params.get("session_id") or engine._session.get("id")
