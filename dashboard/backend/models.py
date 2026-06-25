@@ -86,4 +86,5 @@ DISPOSITION_TO_STATUS = {
     "No Answer":          "dialer-lead",
     "SMS Handoff":        "sms-handoff",
     "Voicemail":          "voicemail",
+    "Gatekeeper":         "dialer-lead",
 }
