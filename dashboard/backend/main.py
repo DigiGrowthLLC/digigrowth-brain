@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 import integrations
 from db import get_pool
-from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops
+from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal
 
 security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
@@ -120,6 +120,7 @@ app.include_router(analytics.router,  prefix="/api", dependencies=[Depends(requi
 app.include_router(finances.router,   prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sops.router,       prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(public_sops.router)  # no auth — readable by team
+app.include_router(legal.router)        # no auth — Twilio campaign registration
 
 # Serve built frontend (populated by Railway build step)
 frontend_dist = os.path.join(os.path.dirname(__file__), "frontend/dist")
