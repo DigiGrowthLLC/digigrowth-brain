@@ -265,136 +265,100 @@ def scrape_state_leads(progress, scraped_ids, daily_limit):
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#  OWNER LOOKUP
+#  WEBSITE SCRAPER + OWNER LOOKUP (single pass — no Claude calls)
 # ════════════════════════════════════════════════════════════════════════════
 
-def find_owner_from_website(website_url, business_name):
-    if not website_url:
-        return ""
+_OWNER_PATTERNS = [
+    r"(?:Dr|Doctor)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})(?:\s*,?\s*DVM)?",
+    r"(?:Founded|Owned)\s+by\s+([A-Z][a-z]+\s+[A-Z][a-z]+)",
+    r"I(?:'m| am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*,?\s*(?:a\s+)?(?:mobile\s+)?vet",
+    r"(?:Owner|Veterinarian|Founder)[:\s]+([A-Z][a-z]+\s+[A-Z][a-z]+)",
+]
+
+def _valid_name(s):
+    words = s.strip().split()
+    return 2 <= len(words) <= 3 and words[0][0].isupper()
+
+def extract_owner_regex(text):
+    """Rule-based name extraction from any text block."""
+    for pattern in _OWNER_PATTERNS:
+        m = re.search(pattern, text)
+        if m and _valid_name(m.group(1)):
+            return m.group(1).strip()
+    return ""
+
+
+def scrape_website_full(url, max_words=600):
+    """Single-pass scrape of homepage + /about + /about-us.
+
+    Returns (owner_name, content_text) where owner_name comes from JSON-LD or
+    regex on page text (no Claude call). content_text is truncated for Claude
+    qualification. Replaces both find_owner_from_website() and scrape_website().
+    """
+    if not url:
+        return "", ""
     pages = [
-        website_url,
-        website_url.rstrip("/") + "/about",
-        website_url.rstrip("/") + "/about-us",
-        website_url.rstrip("/") + "/team",
-        website_url.rstrip("/") + "/our-team",
-        website_url.rstrip("/") + "/staff",
+        url.rstrip("/"),
+        url.rstrip("/") + "/about",
+        url.rstrip("/") + "/about-us",
     ]
-    all_text = []
-    for page in pages:
+    jsonld_owner = ""
+    text_chunks  = []
+    for page_url in pages:
         try:
-            res = requests.get(page, headers=HEADERS, timeout=8)
+            res = requests.get(page_url, headers=HEADERS, timeout=8)
             if res.status_code != 200:
                 continue
             soup = BeautifulSoup(res.text, "html.parser")
-            for script in soup.find_all("script", type="application/ld+json"):
-                try:
-                    data = json.loads(script.string)
-                    if isinstance(data, dict):
-                        for field in ["founder", "owner"]:
-                            if field in data:
-                                val = data[field]
-                                if isinstance(val, dict) and "name" in val:
-                                    return val["name"].strip()
-                                if isinstance(val, str) and val.strip():
-                                    return val.strip()
-                except Exception:
-                    continue
+            # JSON-LD structured data — fastest, most reliable
+            if not jsonld_owner:
+                for script in soup.find_all("script", type="application/ld+json"):
+                    try:
+                        data = json.loads(script.string or "")
+                        if isinstance(data, dict):
+                            for field in ("founder", "owner"):
+                                val = data.get(field)
+                                candidate = (val.get("name") if isinstance(val, dict) else val) or ""
+                                if candidate and _valid_name(candidate):
+                                    jsonld_owner = candidate.strip()
+                                    break
+                    except Exception:
+                        continue
             for tag in soup(["script", "style", "nav", "footer", "header"]):
                 tag.decompose()
-            all_text.append(soup.get_text(separator=" ", strip=True)[:800])
+            text_chunks.append(soup.get_text(separator=" ", strip=True))
         except Exception:
             continue
 
-    if not all_text:
-        return ""
+    all_text     = " ".join(text_chunks)
+    content_text = " ".join(all_text.split()[:max_words])
 
-    combined = " ".join(all_text)[:2000]
-    try:
-        response = client.messages.create(
-            model=config["model"],
-            max_tokens=50,
-            messages=[{"role": "user", "content": (
-                f"Read this text from a veterinary practice website called '{business_name}':\n\n{combined}\n\n"
-                f"Is there a real person clearly identified as owner, founder, or licensed veterinarian who owns the practice? "
-                f"If yes return ONLY their first and last name. If no return ONLY the word null."
-            )}]
-        )
-        result = response.content[0].text.strip()
-        if result.lower() in ["null", "none", ""]:
-            return ""
-        if len(result.split()) in [2, 3] and result[0].isupper():
-            return result
-    except Exception:
-        pass
-    return ""
+    if jsonld_owner:
+        return jsonld_owner, content_text
+
+    # Regex fallback on page text
+    name = extract_owner_regex(all_text)
+    return name, content_text
 
 
-def find_owner_from_maps(place_id, business_name):
-    try:
-        url    = "https://maps.googleapis.com/maps/api/place/details/json"
-        params = {"place_id": place_id, "fields": "reviews", "key": PLACES_KEY}
-        res    = requests.get(url, params=params, timeout=8)
-        data   = res.json()
-        if data.get("status") != "OK":
-            return ""
-        reviews     = data.get("result", {}).get("reviews", [])
-        review_text = " ".join([r.get("text", "") for r in reviews[:5]])
-        if not review_text.strip():
-            return ""
-        response = client.messages.create(
-            model=config["model"],
-            max_tokens=50,
-            messages=[{"role": "user", "content": (
-                f"Read these Google Maps reviews for '{business_name}':\n\n{review_text[:1500]}\n\n"
-                f"Is there a real person clearly identified as owner or veterinarian-owner? "
-                f"If yes return ONLY their first and last name. If no return ONLY the word null."
-            )}]
-        )
-        result = response.content[0].text.strip()
-        if result.lower() in ["null", "none", ""]:
-            return ""
-        if len(result.split()) in [2, 3] and result[0].isupper():
-            return result
-    except Exception:
-        pass
-    return ""
-
-
-def find_owner_name(business_name, place_id, website_url):
+def find_owner_name(business_name, reviews, website_url):
+    """Free owner lookup: JSON-LD → page regex → review regex. Zero Claude calls."""
     print(f"    🔍 Checking website...")
-    name = find_owner_from_website(website_url, business_name)
-    if name:
-        print(f"    ✅ Found on website: {name}")
-        return name
-    print(f"    🔍 Checking Maps reviews...")
-    name = find_owner_from_maps(place_id, business_name)
-    if name:
-        print(f"    ✅ Found on Maps: {name}")
-        return name
+    owner, content_text = scrape_website_full(website_url)
+    if owner:
+        print(f"    ✅ Found on website: {owner}")
+        return owner, content_text
+
+    # Regex on already-fetched Maps reviews (no extra API call)
+    if reviews:
+        review_text = " ".join(r.get("text", "") for r in reviews[:5])
+        owner = extract_owner_regex(review_text)
+        if owner:
+            print(f"    ✅ Found in reviews: {owner}")
+            return owner, content_text
+
     print(f"    ⚠️  No owner found")
-    return ""
-
-
-# ════════════════════════════════════════════════════════════════════════════
-#  WEBSITE SCRAPER
-# ════════════════════════════════════════════════════════════════════════════
-
-def scrape_website(url, max_words=600):
-    if not url:
-        return ""
-    text_chunks = []
-    for page in [url, url.rstrip("/") + "/about", url.rstrip("/") + "/about-us"]:
-        try:
-            res = requests.get(page, headers=HEADERS, timeout=8)
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, "html.parser")
-                for tag in soup(["script", "style", "nav", "footer", "header"]):
-                    tag.decompose()
-                text_chunks.append(soup.get_text(separator=" ", strip=True))
-        except Exception:
-            continue
-    combined = " ".join(text_chunks)
-    return " ".join(combined.split()[:max_words])
+    return "", content_text
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -457,7 +421,7 @@ def rule_based_filter(name, phone, website):
 #  DIGIGROWTH OS EXPORT
 # ════════════════════════════════════════════════════════════════════════════
 
-def push_to_os(leads):
+def push_to_os(leads, lead_status="dialer-lead"):
     if not leads:
         print("No qualified leads to push.")
         return
@@ -478,7 +442,7 @@ def push_to_os(leads):
             "grade":    lead["Grade"],
             "opener":   lead["Opener"],
             "notes":    lead["Grade Reason"],
-            "status":   "new",
+            "status":   lead_status,
             "tags":     ["mobile-vet"],
         }
         try:
@@ -488,23 +452,24 @@ def push_to_os(leads):
             time.sleep(0.3)
         except Exception as e:
             print(f"  ⚠️  OS push failed for {lead['Business Name']}: {e}")
-    print(f"✅ {pushed}/{len(leads)} leads pushed to DigiGrowth OS.")
+    print(f"✅ {pushed}/{len(leads)} leads pushed to DigiGrowth OS (status={lead_status}).")
 
 
 # ════════════════════════════════════════════════════════════════════════════
 #  MAIN PIPELINE
 # ════════════════════════════════════════════════════════════════════════════
 
-def run_pipeline():
+def run_pipeline(lead_status="dialer-lead"):
     if datetime.now().weekday() >= 5:
         print("⏸️  Weekend — skipping run.")
         return
     progress    = load_progress()
     scraped_ids = load_scraped_ids()
-    daily_limit = config.get("daily_lead_limit", 55)
+    daily_limit = config.get("daily_lead_limit", 10)
 
     print(f"📅 {datetime.now().strftime('%A, %B %d %Y')}")
     print(f"📊 Total leads scraped so far: {len(scraped_ids)}")
+    print(f"🏷️  Lead status: {lead_status}")
     print(f"\n🌎 Scraping Google Maps...")
 
     role   = open(ROLE_FILE, encoding="utf-8").read()
@@ -534,18 +499,19 @@ def run_pipeline():
         phone   = details.get("formatted_phone_number", "")
         website = details.get("website", "")
         address = details.get("formatted_address", lead.get("address", ""))
+        reviews = details.get("reviews", [])
 
         keep, reason = rule_based_filter(name, phone, website)
         if not keep:
             print(f"  ⏭️  Skipped: {reason}")
             continue
 
-        owner_name = find_owner_name(name, place_id, website)
+        # Single-pass scrape: owner extraction (JSON-LD → regex) + content text
+        owner_name, website_text = find_owner_name(name, reviews, website)
         if not owner_name:
             print(f"  ⏭️  Skipped: No owner found")
             continue
 
-        website_text = scrape_website(website)
         result, cached = qualify_lead(name, phone, website, owner_name, address, website_text, role, memory)
         if cached:
             cache_hits += 1
@@ -577,7 +543,7 @@ def run_pipeline():
         time.sleep(0.3)
 
     print(f"\n📊 Results: {len(qualified_leads)} qualified today | Cache hits: {cache_hits}/{processed}")
-    push_to_os(qualified_leads)
+    push_to_os(qualified_leads, lead_status)
     push_file(__file__, "progress.json")
     push_file(__file__, "scraped_ids.json")
 
@@ -587,8 +553,14 @@ def run_pipeline():
 # ════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "remember":
-        update_memory(" ".join(sys.argv[2:]))
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--status", default="dialer-lead",
+                        choices=["dialer-lead", "sms-handoff", "new"],
+                        help="CRM status for pushed leads")
+    args, remaining = parser.parse_known_args()
+
+    if remaining and remaining[0] == "remember":
+        update_memory(" ".join(remaining[1:]))
     else:
-        run_pipeline()
+        run_pipeline(args.status)

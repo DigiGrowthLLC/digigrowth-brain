@@ -1,6 +1,7 @@
 import asyncio
 import os
 import secrets
+import sys
 from contextlib import asynccontextmanager
 
 import httpx
@@ -72,6 +73,29 @@ async def _run_daily_briefing() -> None:
     print(f"[cron] daily-brief PDF: {result}")
 
 
+async def _run_leadgen() -> None:
+    """Check if a dialing session ran today, then launch the leadgen script."""
+    import pathlib
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        count = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM call_logs
+            WHERE (started_at AT TIME ZONE 'America/New_York')::date
+                  = (now() AT TIME ZONE 'America/New_York')::date
+            """
+        )
+    lead_status = "dialer-lead" if count > 0 else "sms-handoff"
+    print(f"[cron] leadgen starting — call_logs today={count}, status={lead_status}", flush=True)
+    script = pathlib.Path("/repo/leadgen-agent/run.py")
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, str(script), "--status", lead_status,
+        cwd=str(script.parent),
+    )
+    await proc.wait()
+    print(f"[cron] leadgen done — status={lead_status} rc={proc.returncode}", flush=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await get_pool()
@@ -89,6 +113,12 @@ async def lifespan(app: FastAPI):
         _run_daily_briefing,
         CronTrigger(hour=6, minute=1, timezone=eastern),
         id="daily-briefing-daily",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_leadgen,
+        CronTrigger(hour=20, minute=0, timezone=eastern, day_of_week="mon-fri"),
+        id="leadgen-daily",
         replace_existing=True,
     )
     scheduler.start()
