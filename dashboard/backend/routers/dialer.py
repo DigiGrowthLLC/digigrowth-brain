@@ -157,6 +157,7 @@ async def session_init():
                    website, city, state, call_attempts
             FROM contacts
             WHERE phone IS NOT NULL
+              AND phone <> ''
               AND status = 'dialer-lead'
               AND (
                 (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))
@@ -422,8 +423,12 @@ async def call_single(body: dict):
             """,
             contact_id,
         )
-    if not row:
-        raise HTTPException(status_code=404, detail="Contact not found or has no phone")
+        if not row:
+            raise HTTPException(status_code=404, detail="Contact not found or has no phone")
+        await conn.execute(
+            "UPDATE contacts SET last_called_at = now(), updated_at = now() WHERE id = $1",
+            contact_id,
+        )
 
     config     = _load_dialer_config()
     session_id = str(uuid.uuid4())[:8]
@@ -507,6 +512,7 @@ async def get_stats():
             """
             SELECT COUNT(*) FROM contacts
             WHERE phone IS NOT NULL
+              AND phone <> ''
               AND status = 'dialer-lead'
               AND (
                 (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))

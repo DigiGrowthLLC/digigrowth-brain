@@ -97,6 +97,8 @@ def _to_e164(phone: str) -> str:
 
 def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
     """Synchronous outbound call. Returns (phone, sid_or_None, error_or_None)."""
+    if not phone or not phone.strip():
+        return (phone, None, "skipped: phone number is empty")
     from_num = os.environ.get("TWILIO_PHONE_NUMBER") or config.get("twilio_phone_number", "")
     base = base_url.rstrip("/")
     if not base:
@@ -117,7 +119,7 @@ def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
             status_callback=f"{base}/dialer/voice/status?session_id={session_id}&phone={phone}",
             status_callback_event=["no-answer", "busy", "failed", "completed", "canceled"],
             status_callback_method="POST",
-            timeout=config.get("call_timeout_seconds", 30),
+            timeout=config.get("call_timeout_seconds", 15),
             machine_detection="Enable",
         )
         print(f"  dialer: placed call to {to_num} — SID {call.sid}")
@@ -174,9 +176,14 @@ def init_session(session_id: str, config_data: dict, leads: list) -> None:
 
 def close_session() -> None:
     with _session["lock"]:
+        dylan_sid   = _session.get("dylan_sid")
+        bridged_sid = _session.get("bridged_sid")
+        call_sids   = dict(_session.get("call_sids", {}))
+
         _session["active"]              = False
         _session["bridged"]             = False
         _session["bridged_phone"]       = None
+        _session["bridged_sid"]         = None
         _session["call_sids"]           = {}
         _session["dylan_sid"]           = None
         _session["pending"]             = None
@@ -189,6 +196,22 @@ def close_session() -> None:
         _session["machine_detected"]    = set()
         _session["gatekeeper_pending"]  = None
         _session["batch_had_answer"]    = False
+
+    # Hang up all active Twilio legs in a background thread so we don't block
+    # the async endpoint. Covers ringing leads (call_sids) + agent conference leg.
+    to_hangup = set(call_sids.values())
+    if bridged_sid:
+        to_hangup.add(bridged_sid)
+    if dylan_sid:
+        to_hangup.add(dylan_sid)
+
+    def _hangup_all():
+        for sid in to_hangup:
+            if sid:
+                hangup_call(sid)
+
+    if to_hangup:
+        threading.Thread(target=_hangup_all, daemon=True).start()
 
 
 def get_and_clear_retry() -> set:

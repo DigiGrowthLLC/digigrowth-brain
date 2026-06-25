@@ -487,7 +487,7 @@ const [notes, setNotes]                 = useState("");
                 ) : (
                   <button className="btn btn-secondary"
                     style={{ fontSize: 11, padding: "6px 16px", color: "#dc3c3c", borderColor: "rgba(220,60,60,0.3)" }}
-                    onClick={disconnectDevice}>
+                    onClick={endSession}>
                     Disconnect
                   </button>
                 )}

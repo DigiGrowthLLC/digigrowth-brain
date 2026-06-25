@@ -60,13 +60,15 @@ async def agent_join(request: Request):
 
 def _auto_first_dial_sync(session_id: str):
     """Fire the first dial-batch synchronously in a background thread."""
+    # Claim auto_dialed immediately so the frontend's dial-batch guard fires first
+    # and doesn't race this thread for the eligible_leads queue.
+    engine._session["auto_dialed"] = True
     print(f"  dialer: _auto_first_dial_sync STARTED session={session_id}", flush=True)
     _log.info(f"dialer: _auto_first_dial_sync STARTED session={session_id}")
     try:
-        _time.sleep(0.5)  # brief pause so the conference is fully set up
+        _time.sleep(0.05)  # 50ms — enough for conference to initialise
         print("  dialer: _auto_first_dial_sync AFTER SLEEP — acquiring lock", flush=True)
 
-        engine._session["auto_dialed"] = True  # set BEFORE lock to avoid deadlock risk
         active       = engine._session.get("active")
         current_id   = engine._session.get("id")
         print(f"  dialer: _auto_first_dial_sync — active={active} id={current_id}", flush=True)
@@ -80,8 +82,6 @@ def _auto_first_dial_sync(session_id: str):
 
         with engine._session["lock"]:
             print("  dialer: _auto_first_dial_sync — LOCK ACQUIRED", flush=True)
-            engine._session["auto_dialed"] = True
-
             max_lines = engine._session.get("max_lines", 5)
             batch     = engine._session["eligible_leads"][:max_lines]
             engine._session["eligible_leads"] = engine._session["eligible_leads"][max_lines:]
