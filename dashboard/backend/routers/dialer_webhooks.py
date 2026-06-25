@@ -151,40 +151,7 @@ async def _lead_answered_inner(request: Request):
 
     response = VoiceResponse()
 
-    # Confirmed voicemail or fax — drop immediately
-    if answered_by in ("machine_end_beep", "machine_end_silence", "machine_end_other", "fax"):
-        norm = engine._norm(phone)
-        with engine._session["lock"]:
-            engine._session["machine_detected"].add(norm)
-        response.hangup()
-        return Response(str(response), media_type="text/xml")
-
-    # machine_start = possible IVR/gatekeeper — hold silently for up to 60s
-    if answered_by == "machine_start":
-        with engine._session["lock"]:
-            if not engine._session["active"] or engine._session["bridged"]:
-                response.hangup()
-                return Response(str(response), media_type="text/xml")
-            norm_phone = engine._norm(phone)
-            lead_data  = next(
-                (l for l in engine._session.get("eligible_leads", [])
-                 if engine._norm(l.get("phone", "")) == norm_phone),
-                engine._session["leads_by_phone"].get(norm_phone, {}),
-            )
-            old_gk = engine._session.get("gatekeeper_pending")
-            engine._session["gatekeeper_pending"] = {
-                "sid": answered_sid, "phone": phone,
-                "lead": {**lead_data, "phone": phone},
-            }
-
-        if old_gk and old_gk.get("sid") != answered_sid:
-            engine.hangup_call(old_gk["sid"])
-
-        response.pause(length=60)
-        response.hangup()
-        return Response(str(response), media_type="text/xml")
-
-    # Human answered — bridge into conference
+    # Bridge into conference immediately — no AMD delay
     with engine._session["lock"]:
         if not engine._session["active"] or engine._session["bridged"]:
             response.say(
@@ -300,13 +267,8 @@ async def call_status(request: Request):
                 engine._session["ring_accum"].get(norm, 0.0) + ring_duration
             )
             ring_total = engine._session["ring_accum"][norm]
-            is_machine = norm in engine._session["machine_detected"]
 
-            if is_machine:
-                engine._session["needs_retry"].discard(norm)
-                engine._session["machine_detected"].discard(norm)
-                should_count = True
-            elif status == "completed":
+            if status == "completed":
                 engine._session["needs_retry"].discard(norm)
                 should_count = True
             elif ring_total < 30 and dial_count < 2:

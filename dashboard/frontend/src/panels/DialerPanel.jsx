@@ -523,12 +523,11 @@ const [notes, setNotes]                 = useState("");
             )}
 
             {/* Live mini-stats */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
               {[
-                { label: "Calls", value: liveStats.calls_made ?? 0 },
-                { label: "DMs",   value: liveStats.dms_reached ?? 0 },
-                { label: "Left",  value: liveStats.remaining ?? "—" },
-                { label: "Total", value: liveStats.total ?? "—" },
+                { label: "Calls Made", value: liveStats.calls_made ?? 0 },
+                { label: "Remaining",  value: liveStats.remaining ?? "—" },
+                { label: "In Queue",   value: session.leads_ready ?? "—" },
               ].map(({ label, value }) => (
                 <div key={label} style={{
                   background: "rgba(15,25,50,0.5)", borderRadius: 8, padding: "8px 10px",
@@ -757,12 +756,10 @@ const [notes, setNotes]                 = useState("");
       {/* ── Live Session Stats ── */}
       <div>
         <div className="sec-label">{session.active ? "Live Session" : "Last Session"}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
           <StatCard label="Calls Made"    value={session.calls_made} />
-          <StatCard label="DMs Reached"   value={session.dms_reached} />
           <StatCard label="Remaining"     value={session.remaining}
             sub={session.total_leads ? `OF ${session.total_leads}` : null} />
-          <StatCard label="Reach Rate"    value={session.calls_made > 0 ? `${session.reach_rate}%` : "—"} />
           <StatCard label="Ready to Dial" value={session.leads_ready ?? "—"}
             sub={session.leads_ready > 0 ? "IN QUEUE" : null} />
         </div>
