@@ -316,21 +316,6 @@ async def _log_no_answer(phone: str):
                     """,
                     "No Answer", new_status, contact_id,
                 )
-                if updated and updated["call_attempts"] >= 3:
-                    await conn.execute(
-                        "UPDATE contacts SET status='sms-handoff' WHERE id=$1", contact_id,
-                    )
-                    from routers.sms import _send_twilio
-                    owner = updated["owner"] or "there"
-                    msg = (
-                        f"Hey {owner}, this is Dylan from DigiGrowth — "
-                        "I tried reaching you a few times. Wanted to connect about growing "
-                        "your business online. Reply back if you'd like to chat!"
-                    )
-                    try:
-                        _send_twilio(updated["phone"], msg)
-                    except Exception:
-                        pass
     except Exception as e:
         print(f"  dialer: _log_no_answer failed for {phone}: {e}")
 
