@@ -66,11 +66,34 @@ def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
 
 
 async def _run_daily_briefing() -> None:
-    """Run the daily briefing agent, then email the result as a PDF."""
+    """Run the daily briefing agent, then pin the brief as the final chat message."""
+    import pathlib, json as _json
     await _trigger_agent_skill("executive-assistant", "Run the daily briefing", timeout=600)
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, integrations.save_daily_brief_pdf)
     print(f"[cron] daily-brief PDF: {result}")
+
+    # Pin the saved .md as the last chat message so it's always visible regardless
+    # of how many tool-call rows the agent run generated (chat loads last 20 rows).
+    reports_dir = pathlib.Path("/repo/executive-assistant/reports")
+    files = sorted(reports_dir.glob("daily-briefing-*.md"), reverse=True)
+    if not files:
+        return
+    brief_text = files[0].read_text(encoding="utf-8").strip()
+    if not brief_text:
+        return
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
+                "executive-assistant",
+                "assistant",
+                _json.dumps([{"type": "text", "text": brief_text}]),
+            )
+        print("[cron] daily-brief pinned to EA chat", flush=True)
+    except Exception as e:
+        print(f"[cron] daily-brief chat pin failed: {e}", flush=True)
 
 
 async def _run_leadgen() -> None:
