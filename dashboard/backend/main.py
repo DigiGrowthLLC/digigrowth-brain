@@ -95,6 +95,19 @@ async def _run_leadgen() -> None:
     await proc.wait()
     print(f"[cron] leadgen done — status={lead_status} rc={proc.returncode}", flush=True)
 
+    # SMS summary to owner
+    owner_phone = os.environ.get("OWNER_PHONE", "")
+    if owner_phone and proc.returncode == 0:
+        try:
+            async with pool.acquire() as conn:
+                added = await conn.fetchval(
+                    "SELECT COUNT(*) FROM contacts WHERE created_at > now() - interval '30 minutes'"
+                )
+            from routers.sms import _send_twilio
+            _send_twilio(owner_phone, f"Leadgen complete — {added} leads added as {lead_status}.")
+        except Exception as e:
+            print(f"[cron] leadgen SMS notify failed: {e}", flush=True)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
