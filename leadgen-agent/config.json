@@ -2,5 +2,6 @@
   "anthropic_api_key_env": "ANTHROPIC_API_KEY",
   "model": "claude-sonnet-4-6",
   "daily_lead_limit": 10,
-  "max_website_text_words": 600
+  "max_website_text_words": 600,
+  "enabled": false
 }

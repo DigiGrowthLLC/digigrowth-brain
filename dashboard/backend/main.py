@@ -98,7 +98,13 @@ async def _run_daily_briefing() -> None:
 
 async def _run_leadgen() -> None:
     """Check if a dialing session ran today, then launch the leadgen script."""
-    import pathlib
+    import pathlib, json as _json_cfg
+    cfg_path = pathlib.Path("/repo/leadgen-agent/config.json")
+    if cfg_path.exists():
+        cfg = _json_cfg.loads(cfg_path.read_text())
+        if not cfg.get("enabled", True):
+            print("[cron] leadgen skipped — disabled in config.json", flush=True)
+            return
     pool = await get_pool()
     async with pool.acquire() as conn:
         count = await conn.fetchval(
