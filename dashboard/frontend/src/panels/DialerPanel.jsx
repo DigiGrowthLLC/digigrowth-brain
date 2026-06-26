@@ -47,11 +47,14 @@ function escHtml(str) {
 }
 
 function fillScriptText(template, lead) {
+  const filled = (val, placeholder, color) =>
+    val ? `<span style="color:${color};font-weight:700">${escHtml(val)}</span>`
+        : `<span style="color:#e05c5c;font-weight:700">[${placeholder}]</span>`;
   let text = escHtml(template);
-  text = text.replace(/\[Name\]/gi,          `<span style="color:#14c882;font-weight:700">${escHtml(lead.owner    || "")}</span>`);
-  text = text.replace(/\[Practice Name\]/gi, `<span style="color:#14c882;font-weight:700">${escHtml(lead.business || "")}</span>`);
-  text = text.replace(/\[Studio Name\]/gi,   `<span style="color:#14c882;font-weight:700">${escHtml(lead.business || "")}</span>`);
-  text = text.replace(/\[custom opener\]/gi, `<span style="color:#5a9bf0;font-weight:700">${escHtml(lead.opener   || "")}</span>`);
+  text = text.replace(/\[Name\]/gi,          filled(lead.owner,    "Name",          "#14c882"));
+  text = text.replace(/\[Practice Name\]/gi, filled(lead.business, "Practice Name", "#14c882"));
+  text = text.replace(/\[Studio Name\]/gi,   filled(lead.business, "Studio Name",   "#14c882"));
+  text = text.replace(/\[custom opener\]/gi, filled(lead.opener,   "custom opener", "#5a9bf0"));
   text = text.replace(/\n/g, "<br>");
   return text;
 }
@@ -636,7 +639,7 @@ const [notes, setNotes]                 = useState("");
                   dangerouslySetInnerHTML={{ __html: filledScript }}
                   style={{
                     background: "#050d1a", borderRadius: 8, padding: "12px 14px",
-                    minHeight: 120, maxHeight: 260, overflowY: "auto",
+                    minHeight: 260, maxHeight: 520, overflowY: "auto",
                     fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
                     color: "#a0b8d0", lineHeight: 1.75, whiteSpace: "pre-wrap",
                     border: "1px solid rgba(58,123,213,0.15)",
@@ -648,7 +651,7 @@ const [notes, setNotes]                 = useState("");
                   placeholder={"Paste your call script here.\nUse [Name], [Practice Name], and [custom opener] as placeholders — they'll fill in automatically when a lead answers."}
                   value={scriptTemplate}
                   onChange={(e) => setScriptTemplate(e.target.value)}
-                  rows={6}
+                  rows={14}
                   style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, resize: "vertical", lineHeight: 1.7 }}
                 />
               )}
