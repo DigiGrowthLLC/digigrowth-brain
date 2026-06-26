@@ -275,9 +275,24 @@ _OWNER_PATTERNS = [
     r"(?:Owner|Veterinarian|Founder)[:\s]+([A-Z][a-z]+\s+[A-Z][a-z]+)",
 ]
 
+_NAME_STOPWORDS = {
+    "mobile", "veterinary", "veterinarian", "vet", "vets", "pet", "pets",
+    "animal", "animals", "care", "clinic", "hospital", "services", "service",
+    "house", "home", "call", "calls", "senior", "fear", "free", "certified",
+    "amazing", "award", "winning", "founded", "owned", "dr", "doctor",
+    "practice", "wellness", "health", "healing", "comfort", "compassionate",
+    "companion", "canine", "feline", "exotic", "emergency", "specialist",
+}
+
 def _valid_name(s):
     words = s.strip().split()
-    return 2 <= len(words) <= 3 and words[0][0].isupper()
+    if not (2 <= len(words) <= 3):
+        return False
+    if not words[0][0].isupper():
+        return False
+    if any(w.lower() in _NAME_STOPWORDS for w in words):
+        return False
+    return True
 
 def extract_owner_regex(text):
     """Rule-based name extraction from any text block."""
@@ -508,9 +523,6 @@ def run_pipeline(lead_status="dialer-lead"):
 
         # Single-pass scrape: owner extraction (JSON-LD → regex) + content text
         owner_name, website_text = find_owner_name(name, reviews, website)
-        if not owner_name:
-            print(f"  ⏭️  Skipped: No owner found")
-            continue
 
         result, cached = qualify_lead(name, phone, website, owner_name, address, website_text, role, memory)
         if cached:
@@ -519,6 +531,12 @@ def run_pipeline(lead_status="dialer-lead"):
         if result.get("qualified"):
             grade  = result.get("grade", "C")
             opener = result.get("opener") or ""
+            if opener and len(opener.split()) > 15:
+                print(f"  ⚠️  Opener too long ({len(opener.split())} words) — nulled")
+                opener = ""
+            if opener and "?" in opener:
+                print(f"  ⚠️  Opener has question mark — nulled")
+                opener = ""
             print(f"  ✅ Grade: {grade} | Owner: {owner_name} | Opener: {opener}")
             qualified_leads.append({
                 "Business Name":     name,

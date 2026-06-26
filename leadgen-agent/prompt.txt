@@ -73,35 +73,24 @@ OPENER RULES:
 The opener completes this exact sentence Dylan says on the call:
 "Hey [Name], this is Dylan — quick question for you. I was looking at [Practice Name], and I noticed [OPENER HERE]."
 
-Priority order for what to reference:
-1. A specific RESULT or OFFER they advertise (complimentary first visit, free new client consultation, wellness guarantee, new client special)
-2. A specific SERVICE or PROGRAM (in-home euthanasia, Fear Free certified, senior pet wellness plan, anxiety-free visits)
-3. A specific NICHE or PATIENT TYPE (cats only, senior dogs, end-of-life care, house call only)
-4. A specific METHOD or APPROACH (no waiting room, same-day scheduling, in-home exams, house call model)
-5. If nothing specific exists — return null
+The opener must state ONE of the following, in priority order:
+1. The main offer or promotion they are currently running (e.g. complimentary first visit, free new client consultation, new client special, welcome discount)
+2. If no offer exists — their main service (e.g. in-home end-of-life care, house call wellness exams, mobile spay and neuter)
+
+If neither can be found in the website text provided, return null.
 
 The opener must:
-- Be 15 words or fewer — this is a hard limit, count every word
+- Be 15 words or fewer — hard limit, count every word
 - Be a pure observation — no question, no question mark
-- Sound like something a real person casually noticed, not a summary of their website
-- Use "a" or "an" before a service or offer — NEVER "that", "the", or "your"
-- Reference something real and specific — never generic like "your great reviews"
-- Never mention the website, never say "I was browsing" or "I came across"
-- The opener is the observation only — no question. Dylan adds the question himself on the call.
+- Use "a" or "an" before a service or offer — NEVER "the" or "your"
+- Reference something real and specific from the website text provided
 
-BANNED — never write a question:
-No questions. No question marks. Ever.
-
-GOOD examples (read them after "I noticed" to hear how they flow):
+GOOD examples (read after "I noticed" to hear how they flow):
 - "you offer a complimentary first in-home wellness visit"
-- "you specialize in senior dog and cat care"
-- "you're Fear Free certified for in-home exams"
-- "you do in-home end-of-life care and euthanasia"
-- "you focus exclusively on cats"
 - "you offer a free new client consultation"
-- "you cap appointments to allow full in-home exam time"
-
-Notice: short, specific, just an observation. Dylan handles the conversation from there.
+- "you do in-home end-of-life care and euthanasia"
+- "you offer a mobile spay and neuter service"
+- "you specialize in in-home wellness exams for dogs and cats"
 
 ---
 
