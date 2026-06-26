@@ -518,7 +518,7 @@ const MODES = [
   { id: "plan",  label: "Plan",  desc: "Plans only — never writes files" },
 ];
 
-export default function AgentsPanel() {
+export default function AgentsPanel({ initialAgentId }) {
   const [agents, setAgents] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -537,9 +537,13 @@ export default function AgentsPanel() {
     if (r.ok) {
       const data = await r.json();
       setAgents(data);
+      if (initialAgentId) {
+        const match = data.find(a => a.id === initialAgentId || a.name === initialAgentId);
+        if (match) { setSelectedId(match.id); return; }
+      }
       if (data.length && !selectedId) setSelectedId(data[0].id);
     }
-  }, [selectedId]);
+  }, [selectedId, initialAgentId]);
 
   useEffect(() => { loadAgents(); }, []);
 

@@ -228,7 +228,7 @@ function CalendarWidget({ events, loading, error }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function DashboardPanel() {
+export default function DashboardPanel({ onNavigate }) {
   const [period, setPeriod]       = useState("all");
   const [stats, setStats]         = useState(null);
   const [agentMsgs, setAgentMsgs]   = useState([]);
@@ -512,12 +512,19 @@ export default function DashboardPanel() {
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO MESSAGES</div>
             )}
             {agentMsgs.map(m => (
-              <div key={m.id} onClick={() => !m.read && markRead(m.id)} style={{
-                padding: "10px 12px", borderRadius: 10, cursor: m.read ? "default" : "pointer",
+              <div key={m.id} onClick={() => {
+                onNavigate?.("agents", m.agent);
+                markRead(m.id);
+                setAgentMsgs(p => p.filter(x => x.id !== m.id));
+              }} style={{
+                padding: "10px 12px", borderRadius: 10, cursor: "pointer",
                 background: m.read ? "rgba(255,255,255,0.02)" : "rgba(58,123,213,0.06)",
                 border: `1px solid ${m.read ? "rgba(58,123,213,0.05)" : "rgba(58,123,213,0.15)"}`,
                 transition: "all 0.15s",
-              }}>
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(58,123,213,0.1)"}
+              onMouseLeave={e => e.currentTarget.style.background = m.read ? "rgba(255,255,255,0.02)" : "rgba(58,123,213,0.06)"}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                   <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>
                     {(m.agent ?? "system").toUpperCase()}
@@ -545,12 +552,19 @@ export default function DashboardPanel() {
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>ALL CAUGHT UP</div>
             )}
             {clientMsgs.map(m => (
-              <div key={m.phone} style={{
-                padding: "10px 12px", borderRadius: 10,
+              <div key={m.phone} onClick={() => {
+                onNavigate?.("sms", m.phone);
+                setClientMsgs(p => p.filter(x => x.phone !== m.phone));
+              }} style={{
+                padding: "10px 12px", borderRadius: 10, cursor: "pointer",
                 background: "rgba(240,160,40,0.04)",
                 border: "1px solid rgba(240,160,40,0.12)",
                 borderLeft: "3px solid #f0a028",
-              }}>
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(240,160,40,0.09)"}
+              onMouseLeave={e => e.currentTarget.style.background = "rgba(240,160,40,0.04)"}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: "#c4d0e8" }}>
                     {m.business || m.owner || m.phone}

@@ -282,7 +282,7 @@ function ComposeModal({ onClose, onSent }) {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export default function SMSPanel() {
+export default function SMSPanel({ initialPhone }) {
   const [convos, setConvos]       = useState([]);
   const [selected, setSelected]   = useState(null);
   const [thread, setThread]       = useState(null);
@@ -307,6 +307,10 @@ export default function SMSPanel() {
     const id = setInterval(loadConvos, 15000);
     return () => clearInterval(id);
   }, [loadConvos]);
+
+  useEffect(() => {
+    if (initialPhone) openThread(initialPhone);
+  }, [initialPhone]);
 
   const openThread = async (phone) => {
     setSelected(phone);

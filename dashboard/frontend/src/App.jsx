@@ -114,6 +114,12 @@ const LogoMark = () => (
 
 export default function App() {
   const [active, setActive] = useState("home");
+  const [navContext, setNavContext] = useState(null);
+
+  const navigateTo = (panel, ctx = null) => {
+    setNavContext(ctx);
+    setActive(panel);
+  };
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
@@ -228,11 +234,11 @@ export default function App() {
         flex: 1, overflow: "hidden", display: "flex", flexDirection: "column",
         background: "transparent",
       }}>
-        {active === "home"     && <DashboardPanel />}
+        {active === "home"     && <DashboardPanel onNavigate={navigateTo} />}
         {active === "crm"      && <CRMPanel onNavigate={setActive} />}
-        {active === "sms"      && <SMSPanel />}
+        {active === "sms"      && <SMSPanel initialPhone={navContext} />}
         {active === "dialer"   && <DialerPanel />}
-        {active === "agents"    && <AgentsPanel />}
+        {active === "agents"    && <AgentsPanel initialAgentId={navContext} />}
         {active === "analytics" && <AnalyticsPanel />}
         {active === "finances"  && <FinancesPanel />}
         {active === "todos"     && <TodoPanel />}
