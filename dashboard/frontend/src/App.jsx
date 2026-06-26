@@ -9,6 +9,7 @@ import AnalyticsPanel from "./panels/AnalyticsPanel.jsx";
 import FinancesPanel  from "./panels/FinancesPanel.jsx";
 import SOPsPanel      from "./panels/SOPsPanel.jsx";
 import TodoPanel      from "./panels/TodoPanel.jsx";
+import WebsitePanel  from "./panels/WebsitePanel.jsx";
 
 const NAV = [
   { id: "home",      label: "Dashboard", ready: true  },
@@ -19,6 +20,7 @@ const NAV = [
   { id: "todos",     label: "To-Do",     ready: true  },
   { id: "analytics", label: "Analytics", ready: true  },
   { id: "finances",  label: "Finances",  ready: true  },
+  { id: "website",   label: "Website",   ready: true  },
   { id: "sops",      label: "Business Resources", ready: true  },
   { id: "settings",  label: "Settings",  ready: true  },
 ];
@@ -86,6 +88,12 @@ const NAV_ICONS = {
     <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
       <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
       <path d="M5 5h6M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
+  website: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M2 8h12M8 2c-1.5 2-2.5 3.8-2.5 6s1 4 2.5 6M8 2c1.5 2 2.5 3.8 2.5 6s-1 4-2.5 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
     </svg>
   ),
   settings: (
@@ -242,9 +250,10 @@ export default function App() {
         {active === "analytics" && <AnalyticsPanel />}
         {active === "finances"  && <FinancesPanel />}
         {active === "todos"     && <TodoPanel />}
+        {active === "website"   && <WebsitePanel />}
         {active === "sops"      && <SOPsPanel />}
         {active === "settings"  && <SettingsPanel />}
-        {!["home","crm","sms","dialer","agents","todos","analytics","finances","sops","settings"].includes(active) && (
+        {!["home","crm","sms","dialer","agents","todos","analytics","finances","sops","settings","website"].includes(active) && (
           <div style={{
             flex: 1, display: "flex", flexDirection: "column",
             alignItems: "center", justifyContent: "center", gap: 10,
