@@ -95,18 +95,28 @@ async def _run_leadgen() -> None:
     await proc.wait()
     print(f"[cron] leadgen done — status={lead_status} rc={proc.returncode}", flush=True)
 
-    # SMS summary to owner
-    owner_phone = os.environ.get("OWNER_PHONE", "")
-    if owner_phone and proc.returncode == 0:
-        try:
-            async with pool.acquire() as conn:
-                added = await conn.fetchval(
-                    "SELECT COUNT(*) FROM contacts WHERE created_at > now() - interval '30 minutes'"
-                )
-            from routers.sms import _send_twilio
-            _send_twilio(owner_phone, f"Leadgen complete — {added} leads added as {lead_status}.")
-        except Exception as e:
-            print(f"[cron] leadgen SMS notify failed: {e}", flush=True)
+    # Post completion summary into the EA chat window
+    try:
+        async with pool.acquire() as conn:
+            added = await conn.fetchval(
+                "SELECT COUNT(*) FROM contacts WHERE created_at > now() - interval '30 minutes'"
+            )
+            status_label = "ready to dial" if lead_status == "dialer-lead" else "queued for SMS outreach"
+            ok_flag = "✅" if proc.returncode == 0 else "⚠️"
+            msg = (
+                f"{ok_flag} **Leadgen complete** — {added} leads added ({status_label})."
+                if proc.returncode == 0
+                else f"⚠️ Leadgen finished with errors (exit code {proc.returncode}). Check Railway logs."
+            )
+            import json as _json
+            await conn.execute(
+                "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
+                "executive-assistant",
+                "assistant",
+                _json.dumps([{"type": "text", "text": msg}]),
+            )
+    except Exception as e:
+        print(f"[cron] leadgen chat notify failed: {e}", flush=True)
 
 
 @asynccontextmanager
