@@ -156,7 +156,7 @@ async def _lead_answered_inner(request: Request):
         if not engine._session["active"] or engine._session["bridged"]:
             response.say(
                 "Sorry about that, we accidentally dialed you. Have a great day!",
-                voice="Polly.Matthew",
+                voice="alice",
             )
             response.hangup()
             return Response(str(response), media_type="text/xml")
@@ -202,7 +202,7 @@ async def _lead_answered_inner(request: Request):
 @router.post("/dialer/voice/lead-overflow")
 async def lead_overflow():
     response = VoiceResponse()
-    response.say("Sorry, I dialed the wrong number. Have a great day!", voice="Polly.Matthew")
+    response.say("Sorry, I dialed the wrong number. Have a great day!", voice="alice")
     response.hangup()
     return Response(str(response), media_type="text/xml")
 
