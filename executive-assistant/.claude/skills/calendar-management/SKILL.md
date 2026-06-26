@@ -65,7 +65,7 @@ Calculate all open time windows within the work day.
 |---|---|---|---|---|---|
 | Morning Routine | 1.5 hrs | 1 hr | Daily | Sage (2) | Always the first block. Never skip. |
 | MDR | 1 hr | 30 min | Daily | Banana (5) | Lunch and reset. Always guarantee at least 30 min. |
-| Outreach | 2 hrs | 1 hr | Mon–Fri | Tangerine (6) | |
+| Outreach | 1 hr | 30 min | Mon–Fri | Tangerine (6) | |
 | Admin | 30 min | 30 min | Daily | Graphite (8) | Email triage, Notion review, tool ops. |
 | Gym | 2 hrs | 2 hrs | Daily (soft) | Tomato (11) | Must end by 9:30PM. Drop entirely if no 2-hr window exists. |
 | Growth | 3 hrs | 1 hr | Daily | Blueberry (9) | Learning, content, system building. First to drop. |
