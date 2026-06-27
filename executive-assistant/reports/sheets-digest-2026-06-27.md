@@ -1,23 +1,27 @@
 # Sheets Digest — 2026-06-27
 
-## Summary
+## Files Read
+- **DigiGrowth Sales Performance Tracker** (modified 2026-06-08) — always read
+- No Cold Calling Metrics file opened in the last 24h — cold calling fields skipped
 
-Sheets Digest complete — 2026-06-27
-No cold calling sheet opened today. Sales tracker updated only.
-Updated: discovery_calls=18, shows=9, closes=0, total_revenue=0
+## Recent Files Scanned (last 24h)
+- V.2.3 Cold Calling Script — discarded (Google Doc, not a Cold Calling Metrics sheet)
 
-## Source
+## Data Extracted
 
-- **DigiGrowth Sales Performance Tracker** (last modified 2026-06-08) — all-time fields
-- No `[Month Year] DigiGrowth Cold Calling Metrics` file found in the last 24h
+### Sales Performance Tracker (all-time only)
+| Field | Value |
+|---|---|
+| appointments_booked | 18 |
+| shows | 9 |
+| closes | 0 |
+| total_revenue | $0 |
 
-## Stats Written to OS
+### Cold Calling Metrics
+No file matching `[Month Year] DigiGrowth Cold Calling Metrics` was opened in the last 24 hours. No cold calling fields updated.
 
-| Field | Value | Period |
-|---|---|---|
-| discovery_calls | 18 | all-time |
-| shows | 9 | all-time |
-| closes | 0 | all-time |
-| total_revenue | 0 | all-time |
-
-Cold calling fields (`calls_made`, `calls_answered`, `contacts_reached`, `appointments_booked`) unchanged from previous sync — no cold calling sheet opened today.
+## update_os_stats Called
+- appointments_booked=18
+- shows=9
+- closes=0
+- source_note: DigiGrowth Sales Performance Tracker (last modified 2026-06-08). No Cold Calling Metrics file opened in last 24h.
