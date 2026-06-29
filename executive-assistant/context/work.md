@@ -20,10 +20,7 @@ One package at **$1,500/month**. Includes:
 
 ## Tools
 
-- **Notion** — project and knowledge management
-- **GHL (GoHighLevel)** — CRM, automations, SMS/email
+- **DigiGrowth OS** — primary platform (CRM, analytics, SMS, dialer, agents)
 - **Google Sheets** — data tracking and reporting
-- **Google Docs** — documents and content
+- **Google Workspace** — Gmail, Calendar, Drive, Docs
 - **Claude** — AI assistant and automation layer
-- **Gmail** — primary email
-- **Google Calendar** — scheduling

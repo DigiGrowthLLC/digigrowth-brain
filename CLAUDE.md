@@ -11,10 +11,11 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 - `dashboard/backend/agents_registry.json` — agent metadata (id, name, root_dir, color)
 - `dashboard/Dockerfile` — multi-stage build: Node 20 Alpine (frontend) → Python 3.11-slim (backend + repo)
 - `railway.toml` — build/deploy config at repo root (`dockerfilePath = "dashboard/Dockerfile"`)
-- `executive-assistant/` — EA agent (calendar, email, priorities)
-- `apptset-agent/` — SMS appointment setter + newsletter
+- `executive-assistant/` — EA agent (calendar, email, priorities, daily briefing)
+- `content-agent/` — content creation (social posts, ad copy, videos, scripts)
 - `leadgen-agent/` — Google Maps scraper + lead qualifier
 - `parallel-dialer/` — Twilio parallel dialer (10 simultaneous calls)
+- `apptset-agent/` — SMS appointment setter + newsletter (legacy)
 - `shared/github_sync.py` — shared utility: push file changes to GitHub (git CLI → GitHub REST API fallback)
 
 ## Key Conventions

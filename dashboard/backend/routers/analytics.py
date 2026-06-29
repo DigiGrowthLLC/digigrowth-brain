@@ -1,11 +1,12 @@
 """
 Analytics router — mirrors the Notion KPI structure.
 
-GET /analytics/outreach?days=30  — per-channel table (calling + SMS + email), all-time + period
+GET /analytics/outreach?days=30  — per-channel table (calling + SMS + content), all-time + period
 GET /analytics/pipeline           — 6-stage acquisition funnel + grade breakdown + top states
 GET /analytics/sales              — sales statistics (reads sales_stats.json + DB)
 GET /analytics/calls?days=30      — calling detail: daily trend + disposition breakdown
 GET /analytics/sheets-digest      — most recent sheets-digest report file content + metadata
+PUT /analytics/content-stats      — manually update content creation stats (content_stats.json)
 """
 
 import json
@@ -14,12 +15,15 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 from db import get_pool
 
 router = APIRouter()
 
-_SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
-_EA_REPORTS_DIR = pathlib.Path(__file__).parent.parent.parent.parent / "executive-assistant" / "reports"
+_SALES_STATS_PATH   = pathlib.Path(__file__).parent.parent / "sales_stats.json"
+_CONTENT_STATS_PATH = pathlib.Path(__file__).parent.parent / "content_stats.json"
+_EA_REPORTS_DIR     = pathlib.Path(__file__).parent.parent.parent.parent / "executive-assistant" / "reports"
+
 
 PITCHED_DISPOSITIONS = ("Appointment Booked", "Follow Up", "Send Info", "SMS Handoff", "Not Interested")
 
@@ -52,6 +56,27 @@ def _load_sales_stats() -> dict:
     except Exception:
         return {"discovery_calls": 0, "strategy_sessions": 0, "closes": 0,
                 "shows": 0, "total_revenue": 0, "avg_deal_size": 0}
+
+
+def _load_content_stats() -> dict:
+    try:
+        return json.loads(_CONTENT_STATS_PATH.read_text())
+    except Exception:
+        return {
+            "posts_published": 0, "posts_published_7d": 0, "posts_published_30d": 0,
+            "videos_published": 0, "videos_published_7d": 0, "videos_published_30d": 0,
+            "total_views": 0, "total_views_7d": 0, "total_views_30d": 0,
+            "leads_from_content": 0, "leads_from_content_7d": 0, "leads_from_content_30d": 0,
+        }
+
+
+def _content_metrics(stats: dict, days: int) -> dict:
+    return {
+        "posts_published":    _sheet_stat(stats, "posts_published", days),
+        "videos_published":   _sheet_stat(stats, "videos_published", days),
+        "total_views":        _sheet_stat(stats, "total_views", days),
+        "leads_from_content": _sheet_stat(stats, "leads_from_content", days),
+    }
 
 
 async def _calling_metrics(conn, since=None) -> dict:
@@ -149,17 +174,15 @@ async def _sms_metrics(conn, since=None) -> dict:
 
 @router.get("/analytics/outreach")
 async def outreach(days: int = 30):
-    pool = await get_pool()
+    pool  = await get_pool()
     since = _since(days)
+    cs    = _load_content_stats()
 
     async with pool.acquire() as conn:
         calling_all    = await _calling_metrics(conn)
         calling_period = await _calling_metrics(conn, since)
         sms_all        = await _sms_metrics(conn)
         sms_period     = await _sms_metrics(conn, since)
-        newsletter_subs = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts WHERE newsletter = true"
-        )
 
     return {
         "period_days": days,
@@ -171,11 +194,35 @@ async def outreach(days: int = 30):
             "all_time": sms_all,
             "period":   sms_period,
         },
-        "email": {
-            "subscribers": newsletter_subs or 0,
-            "note": "Open/click tracking requires GHL webhook integration.",
+        "content": {
+            "all_time": _content_metrics(cs, 0),
+            "period":   _content_metrics(cs, days),
         },
     }
+
+
+class ContentStats(BaseModel):
+    posts_published:       int | None = None
+    posts_published_7d:    int | None = None
+    posts_published_30d:   int | None = None
+    videos_published:      int | None = None
+    videos_published_7d:   int | None = None
+    videos_published_30d:  int | None = None
+    total_views:           int | None = None
+    total_views_7d:        int | None = None
+    total_views_30d:       int | None = None
+    leads_from_content:    int | None = None
+    leads_from_content_7d: int | None = None
+    leads_from_content_30d: int | None = None
+
+
+@router.put("/analytics/content-stats")
+async def update_content_stats(body: ContentStats):
+    current = _load_content_stats()
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    current.update(updates)
+    _CONTENT_STATS_PATH.write_text(json.dumps(current, indent=2))
+    return {"ok": True, "stats": current}
 
 
 @router.get("/analytics/pipeline")

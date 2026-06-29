@@ -1,13 +1,14 @@
 # Current Priorities
 
-*Last updated: 2026-05-17*
+*Last updated: 2026-06-29*
 
 ## Daily Priority Order
 
-1. **Outreach** — cold calls, follow-ups, sales conversations (Mon–Fri)
-2. **Admin** — daily ops, inbox, CRM
-3. **Growth** — learning, content, system building
-4. **Gym** — daily if possible
+1. **Outreach** — cold calls, SMS follow-ups, sales conversations (Mon–Fri)
+2. **Content Creation** — social posts, videos, personal brand building
+3. **Admin** — inbox, CRM updates, daily ops
+4. **Growth** — learning, system building
+5. **Gym** — daily if possible
 
 ## Ongoing Goals
 

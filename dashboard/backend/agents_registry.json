@@ -32,10 +32,10 @@
     "badge_class": "badge-amber"
   },
   {
-    "id": "content-creation",
+    "id": "content-agent",
     "name": "Content Creation",
-    "description": "Social posts, ad copy, emails, and blog content for DigiGrowth",
-    "root_dir": "../../content-creation",
+    "description": "Social posts, ad copy, emails, videos, and blog content for DigiGrowth",
+    "root_dir": "../../content-agent",
     "color": "#e84040",
     "badge_class": "badge-red"
   },

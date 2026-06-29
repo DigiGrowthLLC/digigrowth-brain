@@ -101,51 +101,52 @@ function OutreachTable({ outreach, tab }) {
     );
   }
 
-  const call = outreach.calling?.[tab] ?? {};
-  const sms  = outreach.sms?.[tab]     ?? {};
+  const call    = outreach.calling?.[tab] ?? {};
+  const sms     = outreach.sms?.[tab]     ?? {};
+  const content = outreach.content?.[tab] ?? {};
 
   const rows = [
     {
-      label: "Total Outreach",
-      call: num(call.total),
-      sms:  num(sms.total_sent),
-      email: "—",
+      label:   "Total Outreach / Pieces",
+      call:    num(call.total),
+      sms:     num(sms.total_sent),
+      content: num((content.posts_published ?? 0) + (content.videos_published ?? 0)),
     },
     {
-      label: "Answer / Open Rate",
-      call: pct(call.answer_rate),
-      sms:  pct(sms.reply_rate),
-      email: "—",
-      isRate: true,
+      label:   "Answer / Reply Rate",
+      call:    pct(call.answer_rate),
+      sms:     pct(sms.reply_rate),
+      content: "—",
+      isRate:  true,
     },
     {
-      label: "Conversation Rate",
-      call: pct(call.conversation_rate),
-      sms:  pct(sms.conversation_rate),
-      email: "—",
-      isRate: true,
+      label:   "Conversation Rate",
+      call:    pct(call.conversation_rate),
+      sms:     pct(sms.conversation_rate),
+      content: "—",
+      isRate:  true,
     },
     {
-      label: "Engaged / Pitch Rate",
-      call: pct(call.pitch_rate),
-      sms:  pct(sms.engaged_rate),
-      email: "—",
-      isRate: true,
+      label:   "Engaged / Pitch Rate",
+      call:    pct(call.pitch_rate),
+      sms:     pct(sms.engaged_rate),
+      content: num(content.total_views),
+      isRate:  true,
     },
     {
-      label: "ABR",
-      call: pct(call.abr),
-      sms:  pct(sms.abr),
-      email: "—",
-      isRate: true,
+      label:   "ABR",
+      call:    pct(call.abr),
+      sms:     pct(sms.abr),
+      content: "—",
+      isRate:  true,
       highlight: true,
     },
     {
-      label: "Total Booked",
-      call: num(call.booked),
-      sms:  num(sms.booked),
-      email: "—",
-      isBig: true,
+      label:   "Total Booked",
+      call:    num(call.booked),
+      sms:     num(sms.booked),
+      content: num(content.leads_from_content),
+      isBig:   true,
     },
   ];
 
@@ -158,7 +159,7 @@ function OutreachTable({ outreach, tab }) {
         <div style={{ flex: 1.6, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>METRIC</div>
         <div style={{ ...colStyle, fontSize: 9, color: "#5a9bf0", letterSpacing: "0.1em" }}>SMS</div>
         <div style={{ ...colStyle, fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>COLD CALLING</div>
-        <div style={{ ...colStyle, fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>EMAIL</div>
+        <div style={{ ...colStyle, fontSize: 9, color: "#a78bfa", letterSpacing: "0.1em" }}>CONTENT</div>
       </div>
       {rows.map((r, i) => (
         <div key={i} style={{
@@ -174,14 +175,15 @@ function OutreachTable({ outreach, tab }) {
                         color: r.isBig ? "#14c882" : r.highlight ? "#14c882" : "#c4d0e8" }}>
             {r.call}
           </div>
-          <div style={{ ...colStyle, fontSize: 11, color: "#2a4a7a" }}>
-            {r.email}
+          <div style={{ ...colStyle, fontSize: r.isBig ? 16 : 12, fontWeight: r.isBig ? 700 : 500,
+                        color: r.isBig ? "#14c882" : r.highlight ? "#14c882" : "#8b7cf8" }}>
+            {r.content}
           </div>
         </div>
       ))}
-      {/* Email note */}
-      <div style={{ marginTop: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#1a3a60", letterSpacing: "0.08em" }}>
-        EMAIL · {outreach.email?.note ?? "GHL webhook integration needed for open/click tracking"}
+      {/* Content note */}
+      <div style={{ marginTop: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a2a60", letterSpacing: "0.08em" }}>
+        CONTENT · posts + videos tracked via OS · update via Analytics → Content Stats
       </div>
     </div>
   );

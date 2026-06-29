@@ -18,9 +18,8 @@ Client acquisition — everything you do should support getting DigiGrowth its f
 - **Gmail** — triage inbox, draft replies, surface what matters (dylangroenendijk@gmail.com)
 - **Google Calendar** — schedule meetings, flag conflicts, suggest time blocks
 - **Google Drive** — organize and retrieve files
-- **Notion** — project and knowledge management
-- **GHL (GoHighLevel)** — CRM, automations, SMS/email workflows
 - **Google Sheets** — data tracking and reporting
+- **DigiGrowth OS** — primary CRM, analytics, SMS, and dialer (Railway dashboard)
 
 ## Skills
 
