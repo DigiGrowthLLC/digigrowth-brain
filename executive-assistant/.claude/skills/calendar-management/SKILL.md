@@ -17,7 +17,7 @@ Do not ask for confirmation. Execute all steps and create events when done.
 
 ### Work Window
 
-- **Mon–Fri:** Day starts at 8:30AM, work window ends at 8PM EST
+- **Mon–Fri:** Day starts at 7:00AM, work window ends at 8PM EST
 - **Saturday–Sunday:** Day off by default — create no events and stop, unless a schedule override is active for that date, in which case work window ends at 6PM EST
 
 ---
@@ -85,7 +85,7 @@ When time is short, drop from the bottom up:
 
 #### Scheduling Rules
 
-1. **Morning Routine is always first** — starts at 8:30AM, 1 hr minimum. Preferred 1.5 hrs, but Outreach takes priority over the extra 30 min if time is tight.
+1. **Morning Routine is always first** — starts at 7:00AM, 1 hr minimum. Preferred 1.5 hrs, but Outreach takes priority over the extra 30 min if time is tight.
 2. **Natural daily order:** Morning Routine → Admin → Outreach → MDR → Growth → Gym → Meal Prep (Thu only). MDR always comes before Meal Prep. Place blocks in this sequence around any fixed commitments.
 3. **Preferred duration is a hard cap** — never extend a block beyond its preferred duration for any reason, including filling a gap. Max each block to its preferred duration, then stop.
 4. **Never compress a block below its minimum** — drop it entirely instead.
@@ -96,7 +96,7 @@ When time is short, drop from the bottom up:
 9. Sales calls are never pre-scheduled — prospects self-book, adjust around them.
 10. 15-minute pre-meeting buffer only (no post-meeting buffer), unless a Discount Tires shift requires its own buffers.
 
-**If a schedule override is active:** Use the override's `start` time instead of 8:30AM. Use only the blocks listed in `blocks`, in that order. The override block order is absolute — it overrides the natural daily order, MDR placement rules, and weekend/weekday ordering rules. Only these hard constraints still apply: no overlapping events, no block compressed below its minimum duration, all blocks must fall within the work window.
+**If a schedule override is active:** Use the override's `start` time instead of 7:00AM. Use only the blocks listed in `blocks`, in that order. The override block order is absolute — it overrides the natural daily order, MDR placement rules, and weekend/weekday ordering rules. Only these hard constraints still apply: no overlapping events, no block compressed below its minimum duration, all blocks must fall within the work window.
 
 Build a complete list of events to create with: title, start time, end time, and a 1–2 bullet description of what to focus on.
 
