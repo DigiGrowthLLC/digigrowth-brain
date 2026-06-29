@@ -852,6 +852,26 @@ async def delete_file_endpoint(agent_id: str, path: str):
     return {"ok": True, "git": git_status}
 
 
+# ── Direct message inject (used by cloud routines to post to chat) ────────────
+
+@router.post("/agents/{agent_id}/inject")
+async def inject_message(agent_id: str, payload: dict):
+    """Insert a message directly into agent chat history without triggering Claude."""
+    content = (payload.get("content") or "").strip()
+    role = payload.get("role", "assistant")
+    if not content:
+        raise HTTPException(status_code=400, detail="content required")
+    if role not in ("assistant", "user"):
+        raise HTTPException(status_code=400, detail="role must be assistant or user")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
+            agent_id, role, json.dumps([{"type": "text", "text": content}]),
+        )
+    return {"ok": True}
+
+
 # ── Chat history endpoints ────────────────────────────────────────────────────
 
 @router.get("/agents/{agent_id}/history")
