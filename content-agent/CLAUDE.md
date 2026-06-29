@@ -42,6 +42,7 @@ Skills live in `.claude/skills/`. Load the relevant skill for the task:
 - `social-post` — platform-specific post generation
 - `ad-copy` — paid ad copy frameworks
 - `email-sequence` — multi-email sequence writing
+- `transcribe` — transcribe video/audio files and optionally extract insights into a reference file
 
 ## Memory
 
