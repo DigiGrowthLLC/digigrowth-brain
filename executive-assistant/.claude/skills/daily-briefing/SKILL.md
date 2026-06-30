@@ -3,7 +3,8 @@
 Generates Dylan's daily morning briefing, saves it as a dated archive file, and delivers the full briefing as a formatted markdown message in the OS chat window.
 
 **Run manually:** Ask Claude to run the daily briefing.
-**Scheduled:** Runs automatically at 6:01 AM EST every day.
+**Scheduled:** Runs automatically at 6:03 AM ET, weekdays only (cloud trigger `EA Daily Briefing`).
+**Duplicate guard:** Before doing any work, the trigger checks git log for a same-day report committed in the last 3 hours — if found, it exits silently. Never re-run this skill manually within 3 hours of the scheduled run unless you want it to no-op.
 
 ---
 

@@ -1,7 +1,8 @@
 # Skill: Sheets Digest
 
-**Trigger:** Daily at 6AM EST (in parallel with daily-briefing), or on-demand
+**Trigger:** Weekdays at 5:57 AM ET (cloud trigger `EA Sheets Digest`, runs ~6 min before daily-briefing), or on-demand
 **Purpose:** Read Dylan's two target sheet types, extract outreach and sales metrics, and write them period-bucketed into the OS via `update_os_stats`.
+**Duplicate guard:** Before doing any work, the trigger checks git log for a same-day digest report committed in the last 3 hours — if found, it exits silently. Never re-run this skill manually within 3 hours of the scheduled run unless you want it to no-op.
 
 ---
 
