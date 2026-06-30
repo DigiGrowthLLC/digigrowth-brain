@@ -515,7 +515,7 @@ export default function DashboardPanel({ onNavigate }) {
               <div key={m.id} onClick={() => {
                 onNavigate?.("agents", m.agent);
                 markRead(m.id);
-                setAgentMsgs(p => p.filter(x => x.id !== m.id));
+                setAgentMsgs(p => p.map(x => x.id === m.id ? { ...x, read: true } : x));
               }} style={{
                 padding: "10px 12px", borderRadius: 10, cursor: "pointer",
                 background: m.read ? "rgba(255,255,255,0.02)" : "rgba(58,123,213,0.06)",

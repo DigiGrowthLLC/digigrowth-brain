@@ -869,6 +869,16 @@ async def inject_message(agent_id: str, payload: dict):
             "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
             agent_id, role, json.dumps([{"type": "text", "text": content}]),
         )
+        if role == "assistant":
+            preview = content[:200].strip()
+            if preview:
+                agent_label = next(
+                    (a["name"] for a in _load_registry() if a["id"] == agent_id), agent_id
+                )
+                await conn.execute(
+                    "INSERT INTO agent_messages (agent, message) VALUES ($1, $2)",
+                    agent_label, preview,
+                )
     return {"ok": True}
 
 

@@ -137,7 +137,7 @@ def close_session():
     ).start()
     threading.Thread(
         target=_os_post,
-        args=("/api/dashboard/agent-messages", {"agent": "dialer", "message": summary}),
+        args=("/api/dashboard/agent-messages", {"agent": "Parallel Dialer", "message": summary}),
         daemon=True,
     ).start()
 
