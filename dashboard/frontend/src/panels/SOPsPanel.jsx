@@ -433,7 +433,7 @@ export default function SOPsPanel() {
   };
 
   const deleteSOP = async (sop, e) => {
-    e.stopPropagation();
+    e?.stopPropagation();
     if (!window.confirm(`Delete "${sop.title}"?`)) return;
     await fetch(`/api/sops/${sop.id}`, { method: "DELETE" });
     if (selectedId === sop.id) {
@@ -488,6 +488,19 @@ export default function SOPsPanel() {
                 opacity: saving ? 0.6 : 1,
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+          )}
+          {selectedId !== null && !isNew && (
+            <button
+              onClick={() => deleteSOP(selectedItem)}
+              title="Delete this document"
+              style={{
+                background: "rgba(220,60,60,0.1)",
+                border: "1px solid rgba(220,60,60,0.3)",
+                borderRadius: 6, color: "#dc3c3c",
+                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+                fontSize: 12, padding: "6px 14px", cursor: "pointer",
+              }}
+            >Delete</button>
           )}
           <input ref={uploadRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
           <button
