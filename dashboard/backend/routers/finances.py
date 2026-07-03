@@ -348,15 +348,21 @@ async def _apply_recurring(conn) -> int:
 
         new_last = last
         while current <= today and (end is None or current <= end):
-            stored = float(rule["amount"]) if rule["is_income"] else -float(rule["amount"])
-            await conn.execute(
-                """
-                INSERT INTO transactions (date, description, amount, is_income, category, notes, recurring_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                """,
-                current, rule["description"], stored,
-                rule["is_income"], rule["category"], rule["notes"], rule["id"],
+            # Idempotency check — skip if already inserted (handles concurrent apply calls)
+            exists = await conn.fetchval(
+                "SELECT 1 FROM transactions WHERE recurring_id=$1 AND date=$2",
+                rule["id"], current,
             )
+            if not exists:
+                stored = float(rule["amount"]) if rule["is_income"] else -float(rule["amount"])
+                await conn.execute(
+                    """
+                    INSERT INTO transactions (date, description, amount, is_income, category, notes, recurring_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """,
+                    current, rule["description"], stored,
+                    rule["is_income"], rule["category"], rule["notes"], rule["id"],
+                )
             new_last = current
             current  = _advance(current, freq)
             total   += 1

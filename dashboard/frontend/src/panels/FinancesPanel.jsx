@@ -300,6 +300,7 @@ export default function FinancesPanel() {
   const [showAddForm, setShowAddForm]   = useState(false);
   const [deletingId, setDeletingId]     = useState(null);
   const [deletingRuleId, setDeletingRuleId] = useState(null);
+  const [hoveredTxn, setHoveredTxn]    = useState(null);
 
   const loadAll = useCallback(async (d = days) => {
     // Apply any pending recurring instances first, then load data
@@ -316,7 +317,6 @@ export default function FinancesPanel() {
     setRecurring(r ?? []);
   }, [days]);
 
-  useEffect(() => { loadAll(); }, []);
   useEffect(() => { loadAll(days); }, [days]);
 
   const handleTxnSaved = (newTxn) => {
@@ -673,12 +673,15 @@ export default function FinancesPanel() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
             {filteredTxns.map(t => (
-              <div key={t.id}>
+              <div key={t.id}
+                onMouseEnter={() => setHoveredTxn(t.id)}
+                onMouseLeave={() => setHoveredTxn(null)}
+              >
                 <div
                   onClick={() => setExpandedTxn(expandedTxn === t.id ? null : t.id)}
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "9px 0", borderBottom: "0.5px solid #1a2540",
+                    padding: "9px 0", borderBottom: expandedTxn === t.id ? "none" : "0.5px solid #1a2540",
                     cursor: "pointer",
                   }}
                 >
@@ -700,16 +703,34 @@ export default function FinancesPanel() {
                       </span>
                     </div>
                   </div>
-                  <span style={{
-                    fontFamily: "'Share Tech Mono', monospace", fontSize: 13, fontWeight: 700,
-                    color: t.is_income ? "#14c882" : "#f0a028",
-                    letterSpacing: "-0.01em",
-                  }}>
-                    {t.is_income ? "+" : "-"}{money(t.amount)}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{
+                      fontFamily: "'Share Tech Mono', monospace", fontSize: 13, fontWeight: 700,
+                      color: t.is_income ? "#14c882" : "#f0a028",
+                      letterSpacing: "-0.01em",
+                    }}>
+                      {t.is_income ? "+" : "-"}{money(t.amount)}
+                    </span>
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteTxn(t.id); }}
+                      disabled={deletingId === t.id}
+                      style={{
+                        padding: "3px 9px", borderRadius: 5,
+                        border: "1px solid rgba(220,60,60,0.25)",
+                        background: "rgba(220,60,60,0.06)", color: "#dc3c3c",
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
+                        cursor: "pointer", letterSpacing: "0.06em",
+                        opacity: deletingId === t.id ? 0.5 : hoveredTxn === t.id ? 1 : 0,
+                        transition: "opacity 0.15s",
+                        pointerEvents: hoveredTxn === t.id ? "auto" : "none",
+                      }}
+                    >
+                      {deletingId === t.id ? "…" : "✕"}
+                    </button>
+                  </div>
                 </div>
 
-                {/* Inline edit + delete row */}
+                {/* Inline edit row (category + notes) */}
                 {expandedTxn === t.id && (
                   <div style={{
                     padding: "10px 12px", background: "rgba(10,18,48,0.4)",
@@ -731,19 +752,6 @@ export default function FinancesPanel() {
                       defaultValue={t.notes || ""}
                       onBlur={e => updateTxn(t.id, { notes: e.target.value })}
                     />
-                    <button
-                      onClick={() => deleteTxn(t.id)}
-                      disabled={deletingId === t.id}
-                      style={{
-                        flexShrink: 0, padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(220,60,60,0.3)",
-                        background: "rgba(220,60,60,0.08)", color: "#dc3c3c",
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                        cursor: "pointer", letterSpacing: "0.06em",
-                        opacity: deletingId === t.id ? 0.5 : 1,
-                      }}
-                    >
-                      {deletingId === t.id ? "…" : "DELETE"}
-                    </button>
                   </div>
                 )}
               </div>
