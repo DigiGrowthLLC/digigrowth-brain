@@ -48,7 +48,7 @@ function PeriodToggle({ days, setDays }) {
       display: "flex", background: "rgba(10,18,48,0.7)",
       border: "1px solid rgba(58,123,213,0.1)", borderRadius: 12, padding: 4, gap: 2,
     }}>
-      {[[7,"7D"],[30,"30D"],[90,"90D"]].map(([d, label]) => (
+      {[[7,"7D"],[30,"30D"],[90,"90D"],[365,"1Y"]].map(([d, label]) => (
         <button key={d} onClick={() => setDays(d)} style={{
           fontFamily: "'Space Grotesk', sans-serif",
           fontSize: 11, fontWeight: 500, padding: "5px 14px",
