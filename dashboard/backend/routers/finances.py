@@ -112,6 +112,17 @@ async def categories(days: int = 30):
     since = _since_date(days)
     pool  = await get_pool()
 
+    # Choose aggregation granularity based on time window
+    if days <= 30:
+        trunc    = "day"
+        granularity = "daily"
+    elif days <= 90:
+        trunc    = "week"
+        granularity = "weekly"
+    else:
+        trunc    = "month"
+        granularity = "monthly"
+
     async with pool.acquire() as conn:
         cat_rows = await conn.fetch(
             """
@@ -124,15 +135,15 @@ async def categories(days: int = 30):
             """,
             since,
         )
-        daily_rows = await conn.fetch(
-            """
-            SELECT date,
+        trend_rows = await conn.fetch(
+            f"""
+            SELECT date_trunc('{trunc}', date)::date AS period,
                    COALESCE(SUM(amount) FILTER (WHERE is_income), 0)          AS income,
                    COALESCE(ABS(SUM(amount) FILTER (WHERE NOT is_income)), 0) AS expenses
             FROM transactions
             WHERE date >= $1
-            GROUP BY date
-            ORDER BY date
+            GROUP BY period
+            ORDER BY period
             """,
             since,
         )
@@ -148,13 +159,14 @@ async def categories(days: int = 30):
             }
             for r in cat_rows
         ],
+        "granularity": granularity,
         "daily": [
             {
-                "date":     str(r["date"]),
+                "date":     str(r["period"]),
                 "income":   round(float(r["income"]), 2),
                 "expenses": round(float(r["expenses"]), 2),
             }
-            for r in daily_rows
+            for r in trend_rows
         ],
     }
 

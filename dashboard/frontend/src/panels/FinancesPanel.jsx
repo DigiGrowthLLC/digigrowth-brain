@@ -517,7 +517,7 @@ export default function FinancesPanel() {
           Income vs Expenses
         </div>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em", marginBottom: 16 }}>
-          LAST {days} DAYS · DAILY
+          LAST {days === 365 ? "12 MONTHS" : `${days} DAYS`} · {(categories?.granularity ?? "daily").toUpperCase()}
         </div>
         <ResponsiveContainer width="100%" height={160}>
           <AreaChart data={categories?.daily ?? []} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
@@ -532,10 +532,23 @@ export default function FinancesPanel() {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
-            <XAxis dataKey="date" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-              axisLine={false} tickLine={false} tickFormatter={v => v ? v.slice(5) : ""} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
+              axisLine={false} tickLine={false}
+              tickFormatter={v => {
+                if (!v) return "";
+                if (days > 90) {
+                  // monthly: show "Jan", "Feb", etc.
+                  const d = new Date(v);
+                  return d.toLocaleString("en-US", { month: "short" });
+                }
+                // daily/weekly: show "MM-DD"
+                return v.slice(5);
+              }}
+            />
             <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-              axisLine={false} tickLine={false} />
+              axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
             <Tooltip content={<ChartTooltip />} />
             <Area type="monotone" dataKey="income"   name="Income"   stroke="#14c882" strokeWidth={2} fill="url(#fIncome)" />
             <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f0a028" strokeWidth={2} fill="url(#fExpense)" />
