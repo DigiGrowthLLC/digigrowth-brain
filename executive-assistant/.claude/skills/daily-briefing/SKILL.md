@@ -57,7 +57,10 @@ Search both inboxes:
 
 Query for each: `newer_than:1d -category:promotions -category:social -category:updates`
 
-Combine and deduplicate results. For each thread: sender name, subject, inbox, 1–2 sentence summary. Flag [ACTION] if a reply is needed, [URGENT] if time-sensitive. Skip newsletters, notifications, and receipts. Cap at 10 items.
+Combine and deduplicate results. For each thread: sender name, subject, inbox, 1–2 sentence summary. Flag **[ACTION]** if a reply is needed, **[URGENT]** if time-sensitive. Skip newsletters, notifications, and receipts. Cap at 10 items.
+
+Format each item as:
+- **Sender Name** *(inbox)* — Subject · Summary. **[ACTION]** / **[URGENT]** if applicable.
 
 If nothing relevant: "Inbox clear — no business emails in the last 24 hours."
 
@@ -66,6 +69,11 @@ If nothing relevant: "Inbox clear — no business emails in the last 24 hours."
 List all events for today (America/New_York timezone). For each: time (12-hour EST/EDT), title, duration, location or video link if present.
 
 Calculate total committed time and free time (assuming a 9 AM–6 PM workday).
+
+Format each event as:
+- `9:00 AM` **Event Title** — *1h* · Location or link if present
+
+Committed: `Xh Xm` · Free: `Xh Xm`
 
 If no events: "No events today — full day available."
 
@@ -100,12 +108,12 @@ Using the **Daily Input Tracker** data read in Step 3B, find yesterday's row spe
 
 **Output format — two bullet lists:**
 
-**What you did well yesterday:**
-- [Metric]: [value] — [brief factual note, e.g. "above this week's X avg"]
+**Wins yesterday:**
+- **Metric**: `value` — *brief factual note, e.g. "above this week's X avg"*
 - (list all metrics that were at or above average)
 
-**What to focus on improving today:**
-- [Metric]: [value yesterday] → target: [this week's average or best day value]
+**Focus today:**
+- **Metric**: `value yesterday` → target: `this week's average or best day value`
 - (list only metrics that were below average or missed)
 
 Rules:
@@ -135,56 +143,46 @@ If today is Monday: use the `manage-apptset-agent` skill to run the newsletter d
 
 ### Step 5 — Save and Deliver
 
-1. Call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (today's date) using the file format below
-2. Your chat response must be the **full briefing markdown** — copy exactly what you wrote to disk. Do not add any prefix, suffix, or commentary around it. Just the briefing content, starting with `# Morning Briefing`.
+1. Call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (today's date) using the file format below.
+2. After saving, output the **full briefing markdown as your chat response** — the exact same content you wrote to disk. Start with `# Morning Briefing`. No prefix, suffix, or commentary.
 
-**File format** (write this to disk — do NOT paste into chat):
+**File format** (also your chat response — output both):
+
+Formatting rules that apply throughout:
+- Times and numeric stats → wrap in `` `backticks` `` (renders monospace)
+- Key names, flags, and standout data → wrap in `**bold**`
+- De-emphasized notes, locations, durations → wrap in `*italic*`
+- Do NOT use `---` horizontal rules — the `##` section headers already create visual separation
 
 ---
 
 # Morning Briefing — [Day, Month Date]
 
----
-
-## Emails [last 24h]
+## Emails
 
 [Step 1 output]
 
----
-
-## Today's Schedule
+## Schedule
 
 [Step 2 output]
-
-Committed: Xh Xm | Free: Xh Xm
-
----
 
 ## Outreach This Week
 
 [Step 3 output]
 
----
-
 ## Yesterday's Performance
 
 [Step 3.5 output]
-
----
 
 ## How to Use Your Day
 
 [Step 4 output]
 
----
-
-[MONDAY ONLY — omit this section entirely on all other days]
+[MONDAY ONLY — include this section; omit entirely on all other days]
 
 ## Newsletter Preview
 
 [Step 4.5 output — subject, recipient count, and topic only]
-
----
 
 *Daily briefing — [Day, Month Date]*
 
