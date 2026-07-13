@@ -18,6 +18,10 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 - `apptset-agent/` — SMS appointment setter + newsletter (legacy)
 - `shared/github_sync.py` — shared utility: push file changes to GitHub (git CLI → GitHub REST API fallback)
 
+## External Repos
+
+- **Public marketing website** lives in a **separate** repo, not in `digigrowth-brain`: `github.com/dylangroenendijk-sys/digigrowth-website` (branch `master`), deployed on Vercel at `digigrowth-website.vercel.app`. React + Vite, inline-style components in `src/components/` + `src/pages/`, same dark navy/glassmorphism theme as the dashboard. Pushing to `master` auto-deploys to production via Vercel. `dashboard/frontend/src/panels/WebsitePanel.jsx` links to the Vercel dashboard and live site from within the internal app.
+
 ## Key Conventions
 
 - **Auth**: HTTPBasic (`DASHBOARD_PASSWORD` env var) applied to all `/api` routes
