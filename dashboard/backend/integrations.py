@@ -709,6 +709,27 @@ def save_daily_brief_pdf() -> str:
         return f"PDF generation failed: {exc}"
 
 
+def save_newsletter_draft_pdf() -> str:
+    """Read the latest newsletter draft MD, convert to PDF, and save it alongside the MD file."""
+    from pathlib import Path
+
+    reports_dir = Path(__file__).parent.parent.parent / "apptset-agent"
+    files = sorted(reports_dir.glob("newsletter-draft-*.md"), reverse=True)
+    if not files:
+        return "No newsletter draft file found — skipping PDF generation."
+
+    md_path = files[0]
+    pdf_path = md_path.with_suffix(".pdf")
+    md_text = md_path.read_text(encoding="utf-8")
+
+    try:
+        pdf_bytes = _md_to_pdf_bytes(md_text)
+        pdf_path.write_bytes(pdf_bytes)
+        return f"Saved newsletter draft PDF: {pdf_path.name}"
+    except Exception as exc:
+        return f"PDF generation failed: {exc}"
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 def execute_integration_tool(tool_name: str, tool_input: dict) -> str:

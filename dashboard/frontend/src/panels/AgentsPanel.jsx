@@ -204,7 +204,43 @@ function BriefingCard({ text, streaming }) {
   );
 }
 
+// ── Inline PDF embed ──────────────────────────────────────────────────────────
+
+const PDF_SLUG_ENDPOINTS = {
+  newsletter: "/agents/apptset-agent/newsletter-pdf",
+};
+
+function InlinePdfCard({ slug }) {
+  const endpoint = PDF_SLUG_ENDPOINTS[slug];
+  if (!endpoint) return null;
+  return (
+    <div style={{
+      width: "100%", borderRadius: 10, overflow: "hidden", marginTop: 8,
+      border: "1px solid rgba(58,123,213,0.25)",
+      background: "linear-gradient(160deg, rgba(12,22,58,0.98) 0%, rgba(7,12,35,0.96) 100%)",
+      boxShadow: "0 4px 32px rgba(0,0,0,0.35)",
+    }}>
+      <div style={{
+        background: "rgba(58,123,213,0.1)", borderBottom: "1px solid rgba(58,123,213,0.2)",
+        padding: "11px 16px", display: "flex", alignItems: "center", gap: 8,
+      }}>
+        <span style={{ color: "#3a7bd5", fontSize: 14, lineHeight: 1 }}>◈</span>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#c8dcff", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          PDF Preview
+        </span>
+      </div>
+      <embed
+        src={API(endpoint)}
+        type="application/pdf"
+        style={{ width: "100%", height: 560, display: "block", border: "none" }}
+      />
+    </div>
+  );
+}
+
 // ── Message bubble ────────────────────────────────────────────────────────────
+
+const PDF_MARKER_RE = /\[\[PDF:([\w-]+)\]\]/;
 
 function MessageBubble({ msg }) {
   const isUser = msg.role === "user";
@@ -212,10 +248,14 @@ function MessageBubble({ msg }) {
   // Skip pure tool_result user turns (internal API turns, not human messages)
   if (isUser && msg.content?.every(b => b.type === "tool_result")) return null;
 
-  const text = (msg.content || [])
+  const rawText = (msg.content || [])
     .filter(b => b.type === "text")
     .map(b => b.text)
     .join("");
+
+  const pdfMatch = rawText.match(PDF_MARKER_RE);
+  const pdfSlug = pdfMatch ? pdfMatch[1] : null;
+  const text = pdfSlug ? rawText.replace(PDF_MARKER_RE, "").trimEnd() : rawText;
 
   if (isUser) {
     return (
@@ -277,6 +317,7 @@ function MessageBubble({ msg }) {
           </div>
         )
       )}
+      {pdfSlug && !msg._streaming && <InlinePdfCard slug={pdfSlug} />}
     </div>
   );
 }

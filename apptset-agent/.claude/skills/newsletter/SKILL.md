@@ -12,7 +12,7 @@ Generates and delivers DigiGrowth's weekly AI-tip email to GHL contacts tagged `
 1. Picks this week's topic from a rotating list of AI client acquisition tips for fitness studios
 2. Generates a personalized email draft (uses `{{first_name}}` and `{{business_name}}` placeholders)
 3. Saves the draft to `newsletter_draft.json` for the Python send script
-4. Creates a Notion preview page and links to it from Saturday's daily brief
+4. Renders the draft as a PDF and posts it inline in the OS chat, linked from Saturday's daily brief
 5. On send trigger: runs `newsletter.py --send` which personalizes and delivers to every tagged contact
 
 ---
@@ -89,14 +89,11 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 
 Read `config.json` → `newsletter.booking_link`. Replace `[booking_link from config]` in the HTML with the actual URL before saving.
 
-**Before saving:** Read the existing `newsletter_draft.json` if it exists. If it has a `notion_page_id` field, archive the old Notion page now using `notion-update-page` with `archived: true`. This deletes the old draft from Notion before creating the new one.
-
-Write the draft to `newsletter_draft.json` (leave `notion_page_id` empty for now — it gets filled in Step 5):
+Write the draft to `newsletter_draft.json`:
 ```json
 {
   "subject": "...",
-  "html": "...",
-  "notion_page_id": ""
+  "html": "..."
 }
 ```
 
@@ -109,37 +106,74 @@ Append the used topic to `newsletter_topic_log.json`:
 ```
 If the file doesn't exist, create it with a single-item array.
 
-### Step 5 — Create Notion preview page
+### Step 5 — Render PDF preview and post inline to OS chat
 
-Create a new Notion page as a subpage of the Daily Brief (`355d25c0-53ea-8094-af4b-e13e20d48d3b`) using `notion-create-pages`.
+Build a Markdown review document with this exact structure:
 
-**After creating the page:** Update `newsletter_draft.json` to set `notion_page_id` to the new page's ID (the UUID returned by the create call).
+````
+# Newsletter Draft — [Month Date, Year]
 
-**Page title:** `Newsletter Draft — [Month Date, Year]`
+Review this draft. Tell your EA "send the newsletter" to deploy.
 
-**Page content (as Notion blocks, in order):**
-1. `callout`: "Review this draft. Tell your EA 'send the newsletter' to deploy."
-2. `heading_2`: "Subject" → `paragraph`: the subject line
-3. `heading_2`: "Recipients" → a Markdown table listing every contact by Name and Business (fetched in Step 2). Header row: `| Name | Business |`. One row per contact. If business is blank, use `—`. End with a `paragraph`: "[N] contacts tagged `newsletter` in GHL"
-4. `heading_2`: "Topic this week" → `paragraph`: the topic from Step 1
-5. `divider`
-6. `heading_2`: "Email Preview" — format the HTML body as readable Notion blocks:
-   - Opening line → `paragraph`
-   - Each body paragraph → `paragraph`
-   - CTA → `callout` block
-   - Sign-off → `paragraph`
-7. `divider`
-8. `heading_3`: "HTML Source" → `code` block (language: html): the full raw HTML (for copy-paste into a browser)
+## Subject
 
-After creating the page, retrieve its URL. Return this summary for the daily brief:
+[subject]
+
+## Recipients
+
+| Name | Business |
+| --- | --- |
+| ... one row per contact from Step 2, "—" if business is blank ... |
+
+[N] contacts tagged `newsletter` in GHL
+
+## Topic this week
+
+[topic from Step 1]
+
+---
+
+## Email Preview
+
+[opening line]
+
+[each body paragraph, one per line]
+
+[CTA line]
+
+[sign-off]
+
+---
+
+## HTML Source
+
+```html
+[the full raw HTML]
+```
+````
+
+Save this document to `apptset-agent/newsletter-draft-YYYY-MM-DD.md` (today's date). Overwrite any existing file with today's date.
+
+Generate the PDF by calling the backend's PDF endpoint (this reads the `.md` file just saved and renders/caches a matching `.pdf` alongside it):
+```bash
+curl -s -u "admin:$DASHBOARD_PASSWORD" https://digigrowth-brain-production.up.railway.app/api/agents/apptset-agent/newsletter-pdf -o /dev/null
+```
+
+Push both files (the repo is ephemeral on Railway — use `push_file()` from `shared/github_sync.py`, or `git add`/`commit`/`push` directly if running with git access):
+- `apptset-agent/newsletter-draft-YYYY-MM-DD.md`
+- `apptset-agent/newsletter-draft-YYYY-MM-DD.pdf`
+
+Return this summary for the daily brief:
 
 ```
 **Subject:** [subject]
 **To:** [N] contacts tagged `newsletter` in GHL
 **Topic:** [topic]
 
-→ [Preview in Notion]([page URL]) — review and say "send the newsletter" to deploy.
+[[PDF:newsletter]]
 ```
+
+The `[[PDF:newsletter]]` line is a literal marker — the OS chat frontend detects it and renders the PDF inline. Do not add a link, description, or any other text around it.
 
 ---
 
@@ -151,19 +185,7 @@ Run when Dylan says "send the newsletter" or when delegated by `manage-apptset-a
 
 Check that `newsletter_draft.json` exists. If it doesn't: "No draft found — run the newsletter draft first or ask me to draft it now." Stop.
 
-### Step 1.5 — Sync Notion edits before sending
-
-Read `notion_page_id` from `newsletter_draft.json`. If it exists, fetch the Notion page using `notion-fetch`.
-
-From the fetched page, extract:
-- The **subject**: text under the "Subject" heading
-- The **email body**: paragraphs under the "Email Preview" heading (reconstruct as HTML, preserving the `{{first_name}}` / `{{business_name}}` placeholders)
-
-Compare to the current `newsletter_draft.json`:
-- If the subject or body **differs** from what's saved in the JSON, report the differences clearly ("Notion subject differs: [old] → [new]", "Email body has been edited"). Update `newsletter_draft.json` with the Notion version before proceeding.
-- If they **match**, confirm "Draft matches Notion — no changes detected."
-
-This ensures any edits Dylan made directly in Notion are captured before the email goes out.
+If Dylan has given edit instructions directly (in chat), apply them to `newsletter_draft.json` now, then regenerate `apptset-agent/newsletter-draft-YYYY-MM-DD.md`/`.pdf` per Step 5 of Draft Mode before continuing.
 
 ### Step 2 — Send
 
@@ -221,6 +243,6 @@ Pick in order, skipping topics used in the last 20 weeks. Cycle back to 01 when 
 ## Edge Cases
 
 - **No contacts tagged newsletter:** Report "0 contacts tagged 'newsletter' in GHL — add the tag to leads before sending." Do not send.
-- **Python command fails (missing .env / API error):** Note it in the Notion preview. Still save the draft. Dylan can fix credentials and send manually later.
+- **Python command fails (missing .env / API error):** Note it in the saved draft markdown. Still save the draft. Dylan can fix credentials and send manually later.
 - **Draft already exists from this week:** Overwrite it. Always use the freshest draft.
 - **Topic log is corrupted / unparseable:** Treat as empty, start from topic 01.
