@@ -19,11 +19,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: |
-          pip install anthropic gspread google-auth requests beautifulsoup4 python-dotenv
-
-      - name: Write Google credentials
-        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > leadgen-agent/credentials.json
+        run: pip install -r leadgen-agent/requirements.txt
 
       - name: Run lead qualifier
         working-directory: leadgen-agent

@@ -10,7 +10,7 @@ Gives the EA direct control over the Lead Qualifier agent — read its state, up
 
 | File | What it controls |
 |---|---|
-| `config.json` | `daily_lead_limit`, `model`, `google_sheet_id`, `sheet_tab_name` |
+| `config.json` | `daily_lead_limit`, `model`, `max_website_text_words`, `enabled`, `anthropic_api_key_env` |
 | `memory.txt` | Blacklist, niche definition, target markets, opener criteria and examples |
 | `prompt.txt` | Qualification rules, grading criteria (A/B/C/D), opener rules, output format |
 | `role.txt` | Agent persona — rarely needs changing |
@@ -43,10 +43,13 @@ Runs are skipped automatically on weekends (the script checks `weekday()`).
 2. Also add the lowercase version to the `CHAIN_KEYWORDS` list in `run.py` so the pre-filter catches it before an API call is made
 
 ### Change the daily lead limit
-Edit `config.json` → `daily_lead_limit`. Current default: 55.
+Edit `config.json` → `daily_lead_limit`. Current default: 10.
 
 ### Change the model
-Edit `config.json` → `model`. Currently `claude-haiku-4-5-20251001`.
+Edit `config.json` → `model`. Currently `claude-sonnet-4-6`.
+
+### Pause the agent
+Edit `config.json` → set `enabled` to `false`. `run.py` checks this at the top of `run_pipeline()` and skips the run entirely (no API calls made). Set back to `true` to resume.
 
 ### Focus on a specific state
 Edit `progress.json` → set `current_state_index` to the index of the target state.
@@ -69,8 +72,7 @@ Both files are read fresh on each run — changes take effect immediately.
 *Dylan updates this section to give ongoing orders to the EA about this agent.*
 
 - Run on weekdays — currently triggered manually by Dylan or EA
-- Do not change the Google Sheet ID without Dylan confirming
-- Default lead limit is 55/day — only change if Dylan asks
+- Default lead limit is 10/day — only change if Dylan asks
 
 ---
 
@@ -80,4 +82,4 @@ Both files are read fresh on each run — changes take effect immediately.
 - The agent resumes mid-state via `progress.json` — no need to restart from scratch after an interruption
 - To fully reset (start over from Alabama): delete `progress.json` or set all index fields to 0
 - A typical run takes 5–15 minutes depending on rate limits and site scraping speed
-- The Google Sheet output is sorted A → B → C → D grade automatically
+- Qualified leads are pushed to the DigiGrowth OS CRM sorted A → B → C → D grade automatically (tagged `mobile-vet`, status defaults to `dialer-lead`)
