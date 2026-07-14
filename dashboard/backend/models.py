@@ -27,7 +27,11 @@ class Contact(BaseModel):
 class ContactUpdate(BaseModel):
     business: Optional[str] = None
     owner: Optional[str] = None
+    phone: Optional[str] = None
     email: Optional[str] = None
+    website: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
     grade: Optional[str] = None
     opener: Optional[str] = None
     status: Optional[str] = None

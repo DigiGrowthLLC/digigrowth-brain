@@ -316,6 +316,8 @@ function ContactRow({ contact, checked, onCheck, onSelect }) {
   );
 }
 
+const EDITABLE_FIELDS = ["business", "owner", "phone", "email", "website", "city", "state", "grade", "opener"];
+
 function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
   const [status, setStatus] = useState(contact.status);
   const [note, setNote] = useState("");
@@ -323,6 +325,45 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
   const [addedToQueue, setAddedToQueue] = useState(false);
   const [queueError, setQueueError] = useState("");
   const [callingNow, setCallingNow] = useState(false);
+
+  const [display, setDisplay] = useState(contact);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const [editErr, setEditErr] = useState("");
+
+  function setField(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  function startEditing() {
+    const initial = {};
+    for (const k of EDITABLE_FIELDS) initial[k] = display[k] || "";
+    setForm(initial);
+    setEditErr("");
+    setEditing(true);
+  }
+
+  async function saveEdits() {
+    setSaving(true); setEditErr("");
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, grade: form.grade || null }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setEditErr(d.detail || "Save failed.");
+        setSaving(false);
+        return;
+      }
+      const updated = await res.json();
+      setDisplay(updated);
+      onUpdate();
+      setEditing(false);
+    } catch (e) {
+      setEditErr(String(e));
+    }
+    setSaving(false);
+  }
 
   async function saveStatus(newStatus) {
     setSaving(true);
@@ -395,55 +436,137 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
       }}>
         {/* Header */}
         <div style={{ padding: "18px 20px", borderBottom: "0.5px solid #1a2540",
-                      display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
-              {contact.business || "Unknown"}
-            </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80",
-                          letterSpacing: "0.12em", marginTop: 3 }}>
-              {contact.owner || "—"} · {contact.phone}
-            </div>
+                      display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <input value={form.business} onChange={e => setField("business", e.target.value)}
+                className="dg-input" placeholder="Business name"
+                style={{ width: "100%", fontSize: 14, fontWeight: 700, marginBottom: 6 }} />
+            ) : (
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
+                {display.business || "Unknown"}
+              </div>
+            )}
+            {editing ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <input value={form.owner} onChange={e => setField("owner", e.target.value)}
+                  className="dg-input" placeholder="Owner" style={{ flex: 1, fontSize: 11 }} />
+                <input value={form.phone} onChange={e => setField("phone", e.target.value)}
+                  className="dg-input" placeholder="Phone" style={{ flex: 1, fontSize: 11 }} />
+              </div>
+            ) : (
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80",
+                            letterSpacing: "0.12em", marginTop: 3 }}>
+                {display.owner || "—"} · {display.phone}
+              </div>
+            )}
           </div>
-          <button onClick={onClose}
-            style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#3a5a80",
-                     background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>
-            ✕
-          </button>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            {!editing && (
+              <button onClick={startEditing}
+                style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a9bf0",
+                         background: "rgba(58,123,213,0.12)", border: "1px solid rgba(58,123,213,0.3)",
+                         borderRadius: 6, cursor: "pointer", padding: "5px 10px" }}>
+                ✎ Edit
+              </button>
+            )}
+            <button onClick={onClose}
+              style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#3a5a80",
+                       background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>
+              ✕
+            </button>
+          </div>
         </div>
 
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 20, flex: 1 }}>
 
           {/* Info grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
-            {[
-              ["Email", contact.email],
-              ["Website", contact.website],
-              ["City", contact.city],
-              ["State", contact.state],
-              ["Grade", contact.grade],
-              ["Calls", contact.call_attempts],
-              ["Last Disposition", contact.last_disposition],
-            ].filter(([, v]) => v != null && v !== "").map(([label, value]) => (
-              <div key={label}>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
-                              letterSpacing: "0.15em", marginBottom: 3 }}>
-                  {label.toUpperCase()}
+          {editing ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {[["Email", "email"], ["Website", "website"], ["City", "city"], ["State", "state"]].map(([label, key]) => (
+                <div key={key}>
+                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                                letterSpacing: "0.15em", marginBottom: 4 }}>
+                    {label.toUpperCase()}
+                  </div>
+                  <input value={form[key]} onChange={e => setField(key, e.target.value)}
+                    className="dg-input" style={{ width: "100%" }} />
                 </div>
-                <div style={{ fontSize: 12, color: "#8aaad0" }}>{String(value)}</div>
+              ))}
+              <div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                              letterSpacing: "0.15em", marginBottom: 4 }}>
+                  GRADE
+                </div>
+                <select value={form.grade} onChange={e => setField("grade", e.target.value)}
+                  className="dg-input" style={{ width: "100%", background: "#080c14" }}>
+                  <option value="">—</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                </select>
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
+              {[
+                ["Email", display.email],
+                ["Website", display.website],
+                ["City", display.city],
+                ["State", display.state],
+                ["Grade", display.grade],
+                ["Calls", display.call_attempts],
+                ["Last Disposition", display.last_disposition],
+              ].filter(([, v]) => v != null && v !== "").map(([label, value]) => (
+                <div key={label}>
+                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                                letterSpacing: "0.15em", marginBottom: 3 }}>
+                    {label.toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#8aaad0" }}>{String(value)}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Opener */}
-          {contact.opener && (
+          {editing ? (
+            <div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                            letterSpacing: "0.15em", marginBottom: 6 }}>
+                COLD CALL OPENER
+              </div>
+              <textarea value={form.opener} onChange={e => setField("opener", e.target.value)}
+                className="dg-input" rows={3} style={{ width: "100%", resize: "vertical", fontFamily: "inherit" }}
+                placeholder="Opening line for cold call…" />
+            </div>
+          ) : display.opener && (
             <div className="dg-surface" style={{ padding: "10px 14px" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
                             letterSpacing: "0.15em", marginBottom: 6 }}>
                 COLD CALL OPENER
               </div>
               <div style={{ fontSize: 12, color: "#8aaad0", fontStyle: "italic", lineHeight: 1.5 }}>
-                "{contact.opener}"
+                "{display.opener}"
+              </div>
+            </div>
+          )}
+
+          {editing && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {editErr && (
+                <div style={{ fontSize: 11, color: "#f06060", fontFamily: "'Share Tech Mono', monospace" }}>
+                  {editErr}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={saveEdits} disabled={saving} className="btn btn-primary" style={{ flex: 1 }}>
+                  {saving ? "Saving…" : "Save Changes"}
+                </button>
+                <button onClick={() => setEditing(false)} disabled={saving} className="btn btn-secondary" style={{ flex: 1 }}>
+                  Cancel
+                </button>
               </div>
             </div>
           )}
