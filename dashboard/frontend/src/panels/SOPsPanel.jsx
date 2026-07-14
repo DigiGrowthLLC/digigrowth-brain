@@ -55,9 +55,11 @@ const PROSE_CSS = `
     font-family: 'Space Grotesk', sans-serif;
   }
   .sop-prose p { font-size: 13.5px; line-height: 1.8; margin: 0 0 12px; }
-  .sop-prose ul { padding-left: 20px; margin: 0 0 12px; }
-  .sop-prose ol { padding-left: 20px; margin: 0 0 12px; }
-  .sop-prose li { font-size: 13.5px; line-height: 1.8; margin-bottom: 4px; }
+  .sop-prose ul { padding-left: 20px; margin: 0 0 12px; list-style-type: disc; }
+  .sop-prose ol { padding-left: 20px; margin: 0 0 12px; list-style-type: decimal; }
+  .sop-prose li { font-size: 13.5px; line-height: 1.8; margin-bottom: 4px; list-style-position: outside; }
+  .sop-prose ul ul { list-style-type: circle; }
+  .sop-prose ul ul ul { list-style-type: square; }
   .sop-prose strong { font-weight: 700; }
   .sop-prose em { font-style: italic; }
   .sop-prose s { opacity: 0.5; }
