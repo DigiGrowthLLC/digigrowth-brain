@@ -19,20 +19,37 @@ Owner/Vet Name: {owner_name}
 
 QUALIFICATION RULES:
 
-Default to QUALIFYING. It is better to over-qualify than under-qualify. The user will manually review all results.
+Suspected brick-and-mortar-only practices must be DISQUALIFIED — do not give the benefit of the doubt on this point. If the name and website text do not explicitly confirm a mobile, house call, or in-home service component, treat it as brick-and-mortar and disqualify, even without full certainty.
 
-Disqualify ONLY if you are highly confident one of these is true:
+Disqualify if ANY of these are true:
 - It is a confirmed corporate chain or franchise (VCA, Banfield, PetSmart Vets, BluePearl, Thrive Pet Healthcare, National Veterinary Associates, Vetco, PetIQ)
-- It is exclusively a brick-and-mortar clinic with zero mention of mobile, house call, or in-home services
+- There is no explicit mention of "mobile", "house call", "in-home", "we come to you", or equivalent anywhere in the name or website text — suspected brick-and-mortar, even without full certainty
 - It is an emergency or specialty-only animal hospital (not a general/wellness practice)
 - It is a university or teaching hospital
 - It is clearly corporate-owned with multiple clinic locations under a group brand
 
-Qualify if ANY of these are true:
-- "Mobile", "house call", "in-home", or "mobile vet" appears in the name or website
-- It is a small independent veterinary practice with a solo DVM owner
-- The website mentions flexible scheduling, home visits, or travel to clients
-- You are unsure — default to qualified
+Qualify ONLY if there is explicit, positive evidence of a mobile/in-home service model:
+- "Mobile", "house call", "in-home", or "mobile vet" appears in the name or website text
+- The website text explicitly describes home visits, traveling to clients, or a house-call service
+- It is a small independent veterinary practice where mobile/in-home visits are a real, stated part of the service — not assumed
+
+If you cannot find explicit evidence either way, DISQUALIFY as suspected brick-and-mortar. Uncertainty on this specific point means disqualify, not qualify.
+
+---
+
+OWNER VERIFICATION (required to qualify):
+
+A verified, real owner or veterinarian name is REQUIRED to qualify. Look for one in BOTH places:
+1. The "Owner/Vet Name" field in the input data
+2. The Website Text Snippets themselves (e.g. "Dr. Smith", "Founded by...", a bio, an "About" section) — even a surname alone next to "Dr." counts if it reads as a real person
+
+Disqualify if NEITHER source gives you a name you're confident is real. Reject as unverified:
+- Blank/empty input with nothing found in the website text either
+- A business term, generic phrase, garbled scraping artifact, or anything that does not clearly read as an actual person's name (e.g. "Ball Quality", "Learn More", "Our Team", "Resources Refer")
+
+Do not guess or fabricate. If you are unsure whether a name is real, disqualify.
+
+Whatever real name you verify (from either source), return it in the "verified_owner_name" output field — this becomes the name of record, so if the input field was blank but you found a real name in the website text, put that name there instead.
 
 ---
 
@@ -56,9 +73,9 @@ B — Good fit:
 - May serve broader animal types but companion animals are still primary
 
 C — Possible fit:
-- Vet practice with some indication of mobile or house call services but primary model unclear
-- Very generic website — hard to confirm niche or ownership type
-- Needs manual review to determine fit
+- Mobile or in-home service is explicitly confirmed, but whether it's independently owned or the exact primary/secondary role of the mobile service is unclear
+- Website confirms mobile/in-home but is otherwise very generic
+- Needs manual review on ownership/fit details — NOT for uncertainty about whether mobile/in-home exists at all (that case is disqualified per QUALIFICATION RULES)
 
 D — Weak fit:
 - Primarily brick-and-mortar, mobile is clearly a minor add-on
@@ -73,17 +90,24 @@ OPENER RULES:
 The opener completes this exact sentence Dylan says on the call:
 "Hey [Name], this is Dylan — quick question for you. I was looking at [Practice Name], and I noticed [OPENER HERE]."
 
-The opener must state ONE of the following, in priority order:
-1. The main offer or promotion they are currently running (e.g. complimentary first visit, free new client consultation, new client special, welcome discount)
-2. If no offer exists — their main service (e.g. in-home end-of-life care, house call wellness exams, mobile spay and neuter)
+Pull from the website text in this priority order — use the first one you can find:
+1. A specific offer or promotion (complimentary first visit, free new client consultation, new client special, welcome discount, wellness guarantee)
+2. A specific service or program (in-home end-of-life care, house call wellness exams, mobile spay and neuter, Fear Free certified, senior pet wellness plan)
+3. A specific niche or patient focus (cats only, senior dogs, end-of-life care, house-call-only practice)
+4. A specific method or approach (no waiting room, same-day scheduling, in-home exams, house call model)
 
-If neither can be found in the website text provided, return null.
+Only if NONE of the above can be found anywhere in the website text provided, return null. Do not fabricate or guess.
 
 The opener must:
 - Be 15 words or fewer — hard limit, count every word
 - Be a pure observation — no question, no question mark
 - Use "a" or "an" before a service or offer — NEVER "the" or "your"
 - Reference something real and specific from the website text provided
+- Read naturally and unambiguously when substituted into the full sentence above — silently read the ENTIRE sentence back before finalizing. If it sounds even slightly awkward, confusing, or like it doesn't quite make sense out loud, rewrite it or return null instead. Never ship an opener you're not confident reads smoothly in a live cold call.
+- Never use "you" and "your" together in a way that could refer to two different people (e.g. "you come to your home" is ambiguous about whose home) — describe the service directly instead (e.g. "you offer in-home visits", "you travel to clients' homes")
+
+BAD example (do not do this):
+- "you come directly to your home and eliminate the stress of a clinic visit" ❌ — "your home" is ambiguous and the sentence doesn't scan naturally when read aloud
 
 GOOD examples (read after "I noticed" to hear how they flow):
 - "you offer a complimentary first in-home wellness visit"
@@ -105,5 +129,6 @@ Respond only in raw JSON. No markdown, no explanation, no backticks.
   "disqualify_reason": "string or null",
   "niche_confirmed": true or false,
   "niche_notes": "one sentence on what type of practice this is",
-  "opener": "string or null"
+  "opener": "string or null",
+  "verified_owner_name": "string or null"
 }

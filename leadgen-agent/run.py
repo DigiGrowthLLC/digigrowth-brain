@@ -29,7 +29,7 @@ with open(CONFIG_FILE, "r", encoding="utf-8") as f:
     config = json.load(f)
 
 # ── API clients ───────────────────────────────────────────────────────────────
-client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+client = anthropic.Anthropic(api_key=os.environ[config.get("anthropic_api_key_env", "ANTHROPIC_API_KEY")])
 PLACES_KEY = os.environ["PLACES_API_KEY"]
 HEADERS    = {"User-Agent": "Mozilla/5.0"}
 
@@ -185,7 +185,7 @@ def get_place_details(place_id):
     url = "https://maps.googleapis.com/maps/api/place/details/json"
     params = {
         "place_id": place_id,
-        "fields": "name,formatted_phone_number,website,formatted_address,reviews",
+        "fields": "name,formatted_phone_number,website,formatted_address",
         "key": PLACES_KEY
     }
     try:
@@ -356,21 +356,13 @@ def scrape_website_full(url, max_words=600):
     return name, content_text
 
 
-def find_owner_name(business_name, reviews, website_url):
-    """Free owner lookup: JSON-LD → page regex → review regex. Zero Claude calls."""
+def find_owner_name(business_name, website_url, max_words=600):
+    """Free owner lookup: JSON-LD → page regex. Zero Claude calls."""
     print(f"    🔍 Checking website...")
-    owner, content_text = scrape_website_full(website_url)
+    owner, content_text = scrape_website_full(website_url, max_words)
     if owner:
         print(f"    ✅ Found on website: {owner}")
         return owner, content_text
-
-    # Regex on already-fetched Maps reviews (no extra API call)
-    if reviews:
-        review_text = " ".join(r.get("text", "") for r in reviews[:5])
-        owner = extract_owner_regex(review_text)
-        if owner:
-            print(f"    ✅ Found in reviews: {owner}")
-            return owner, content_text
 
     print(f"    ⚠️  No owner found")
     return "", content_text
@@ -421,14 +413,13 @@ def qualify_lead(business_name, phone, website_url, owner_name, address, website
 #  RULE-BASED PRE-FILTER
 # ════════════════════════════════════════════════════════════════════════════
 
-def rule_based_filter(name, phone, website):
+def rule_based_filter(phone, website):
+    # Chain names are already filtered out in scrape_state_leads() before a
+    # candidate ever reaches raw_leads, so no re-check needed here.
     if not phone:
         return False, "No phone number"
     if not website:
         return False, "No website"
-    for chain in CHAIN_KEYWORDS:
-        if chain in name.lower():
-            return False, f"Chain detected: {chain}"
     return True, ""
 
 
@@ -475,6 +466,9 @@ def push_to_os(leads, lead_status="dialer-lead"):
 # ════════════════════════════════════════════════════════════════════════════
 
 def run_pipeline(lead_status="dialer-lead"):
+    if not config.get("enabled", True):
+        print("⏸️  Agent disabled via config.json (set \"enabled\": true to resume) — skipping run.")
+        return
     if datetime.now().weekday() >= 5:
         print("⏸️  Weekend — skipping run.")
         return
@@ -514,22 +508,22 @@ def run_pipeline(lead_status="dialer-lead"):
         phone   = details.get("formatted_phone_number", "")
         website = details.get("website", "")
         address = details.get("formatted_address", lead.get("address", ""))
-        reviews = details.get("reviews", [])
 
-        keep, reason = rule_based_filter(name, phone, website)
+        keep, reason = rule_based_filter(phone, website)
         if not keep:
             print(f"  ⏭️  Skipped: {reason}")
             continue
 
         # Single-pass scrape: owner extraction (JSON-LD → regex) + content text
-        owner_name, website_text = find_owner_name(name, reviews, website)
+        owner_name, website_text = find_owner_name(name, website, config.get("max_website_text_words", 600))
 
         result, cached = qualify_lead(name, phone, website, owner_name, address, website_text, role, memory)
         if cached:
             cache_hits += 1
 
         if result.get("qualified"):
-            grade  = result.get("grade", "C")
+            grade      = result.get("grade", "C")
+            verified_owner = result.get("verified_owner_name") or ""
             opener = result.get("opener") or ""
             if opener and len(opener.split()) > 15:
                 print(f"  ⚠️  Opener too long ({len(opener.split())} words) — nulled")
@@ -537,14 +531,14 @@ def run_pipeline(lead_status="dialer-lead"):
             if opener and "?" in opener:
                 print(f"  ⚠️  Opener has question mark — nulled")
                 opener = ""
-            print(f"  ✅ Grade: {grade} | Owner: {owner_name} | Opener: {opener}")
+            print(f"  ✅ Grade: {grade} | Owner: {verified_owner} | Opener: {opener}")
             qualified_leads.append({
                 "Business Name":     name,
                 "Phone":             phone,
                 "Website":           website,
                 "Address":           address,
                 "Email":             "",
-                "Owner Name":        owner_name,
+                "Owner Name":        verified_owner,
                 "Grade":             grade,
                 "Grade Reason":      result.get("grade_reason", ""),
                 "Qualified":         "Yes",
