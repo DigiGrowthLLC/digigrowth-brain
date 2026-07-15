@@ -3,12 +3,16 @@ Shared GitHub file sync utility.
 
 Any agent script can call push_file() after modifying a file to ensure the
 change is persisted to GitHub — surviving Railway redeploys or machine switches.
+Call delete_file() after removing a file locally, for the same reason — without
+it, a locally-deleted file reappears on the next Railway redeploy since the
+container just re-checks-out whatever is still in GitHub.
 
 Usage:
-    from shared.github_sync import push_file
+    from shared.github_sync import push_file, delete_file
 
     push_file(__file__, "memory.txt")           # relative to calling script
     push_file("/absolute/path/to/file.json")    # absolute path also works
+    delete_file("/absolute/path/to/old_file.md")  # call after os.remove()/unlink()
 """
 
 import base64
@@ -62,6 +66,38 @@ def push_file(caller_or_path, relative_path: str = None, message: str = None) ->
     return _github_api_push(file_abs, message)
 
 
+def delete_file(caller_or_path, relative_path: str = None, message: str = None) -> str:
+    """
+    Delete a file from GitHub. Call this after removing it locally (os.remove()/
+    Path.unlink()) — without it, the file just reappears on the next Railway
+    redeploy since the container re-checks-out whatever is still in GitHub.
+
+    Same two calling styles as push_file(). The local file does not need to
+    still exist when this is called.
+
+    Returns a short status string ("committed and pushed", "deleted from GitHub",
+    "error: ...").
+    """
+    if relative_path is not None:
+        caller_dir = pathlib.Path(caller_or_path).parent
+        file_abs = (caller_dir / relative_path).resolve()
+    else:
+        file_abs = pathlib.Path(caller_or_path).resolve()
+
+    if message is None:
+        try:
+            rel = file_abs.relative_to(_REPO_ROOT)
+        except ValueError:
+            rel = file_abs.name
+        message = f"Agent delete: {rel}"
+
+    git_result = _try_git_delete(file_abs, message)
+    if git_result.startswith("ok"):
+        return "committed and pushed"
+
+    return _github_api_delete(file_abs, message)
+
+
 # ── Git CLI ───────────────────────────────────────────────────────────────────
 
 def _try_git(file_abs: pathlib.Path, message: str) -> str:
@@ -73,6 +109,52 @@ def _try_git(file_abs: pathlib.Path, message: str) -> str:
     try:
         r = subprocess.run(
             ["git", "add", rel], cwd=_REPO_ROOT,
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode != 0:
+            return f"git add failed: {r.stderr.strip()}"
+
+        diff = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            cwd=_REPO_ROOT, timeout=5,
+        )
+        if diff.returncode == 0:
+            return "ok: no changes"
+
+        r = subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=_REPO_ROOT, capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode != 0:
+            return f"git commit failed: {r.stderr.strip()}"
+
+        r = subprocess.run(
+            ["git", "push"],
+            cwd=_REPO_ROOT, capture_output=True, text=True, timeout=30,
+        )
+        if r.returncode != 0:
+            return f"git push failed: {r.stderr.strip()}"
+
+        return "ok: pushed"
+
+    except FileNotFoundError:
+        return "skip: git not found"
+    except subprocess.TimeoutExpired:
+        return "skip: git timed out"
+    except Exception as e:
+        return f"skip: {e}"
+
+
+def _try_git_delete(file_abs: pathlib.Path, message: str) -> str:
+    try:
+        rel = str(file_abs.relative_to(_REPO_ROOT))
+    except ValueError:
+        return "skip: path outside repo"
+
+    try:
+        # -A picks up deletions even though the file is already gone from disk
+        r = subprocess.run(
+            ["git", "add", "-A", "--", rel], cwd=_REPO_ROOT,
             capture_output=True, text=True, timeout=10,
         )
         if r.returncode != 0:
@@ -159,3 +241,46 @@ def _github_api_push(file_abs: pathlib.Path, message: str) -> str:
         return "pushed to GitHub"
     except Exception as e:
         return f"error pushing: {e}"
+
+
+def _github_api_delete(file_abs: pathlib.Path, message: str) -> str:
+    token = os.environ.get("GIT_TOKEN", "")
+    if not token:
+        return "no GIT_TOKEN set"
+
+    try:
+        rel = str(file_abs.relative_to(_REPO_ROOT))
+    except ValueError:
+        return "error: path outside repo"
+
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{rel}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+    }
+
+    # DELETE requires the current file's SHA
+    try:
+        req = urllib.request.Request(api_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            sha = json.loads(resp.read()).get("sha")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return "deleted from GitHub"  # already gone — nothing to do
+        return f"error getting SHA: {e}"
+
+    payload = {"message": message, "sha": sha}
+
+    try:
+        req = urllib.request.Request(
+            api_url,
+            data=json.dumps(payload).encode(),
+            headers=headers,
+            method="DELETE",
+        )
+        with urllib.request.urlopen(req, timeout=15):
+            pass
+        return "deleted from GitHub"
+    except Exception as e:
+        return f"error deleting: {e}"

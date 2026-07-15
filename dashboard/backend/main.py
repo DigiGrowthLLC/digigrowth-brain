@@ -147,6 +147,19 @@ async def _run_leadgen() -> None:
         print(f"[cron] leadgen chat notify failed: {e}", flush=True)
 
 
+async def _run_weekly_cleanup() -> None:
+    """Launch the weekly repo cleanup script. It handles its own reporting and
+    chat notification — see weekly-cleanup/run.py."""
+    script = pathlib.Path("/repo/weekly-cleanup/run.py")
+    print("[cron] weekly-cleanup starting", flush=True)
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, str(script),
+        cwd=str(script.parent),
+    )
+    await proc.wait()
+    print(f"[cron] weekly-cleanup done — rc={proc.returncode}", flush=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await get_pool()
@@ -170,6 +183,12 @@ async def lifespan(app: FastAPI):
         _run_leadgen,
         CronTrigger(hour=20, minute=0, timezone=eastern, day_of_week="mon-fri"),
         id="leadgen-daily",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _run_weekly_cleanup,
+        CronTrigger(hour=20, minute=0, timezone=eastern, day_of_week="sun"),
+        id="weekly-cleanup",
         replace_existing=True,
     )
     scheduler.start()

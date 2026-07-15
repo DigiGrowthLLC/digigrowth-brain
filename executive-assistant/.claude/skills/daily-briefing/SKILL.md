@@ -15,7 +15,8 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 3. Lists today's Google Calendar events
 4. Pulls cold calling / SMS outreach data from Google Drive
 5. Suggests how to use free time blocks based on the day's schedule and current priorities
-6. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
+6. On Mondays, surfaces anything the weekly cleanup job flagged for review
+7. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
 
 ---
 
@@ -141,6 +142,12 @@ Skip this step if today is not Monday.
 
 If today is Monday: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the Draft Mode steps in `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md`. Capture the final output: subject, recipient count, topic.
 
+### Step 4.6 — Pending Cleanup Approvals (Mondays only)
+
+Skip this step if today is not Monday.
+
+If today is Monday: use `list_files` on `reports/` to find files matching `weekly-cleanup-*.md`, then `read_file` the most recent one (should be from yesterday, Sunday). Extract its `## Needs Approval` section. If it says "Nothing pending." or is empty, skip this section entirely — do not include it in the brief.
+
 ### Step 5 — Save and Deliver
 
 1. Call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (today's date) using the file format below.
@@ -188,6 +195,12 @@ Formatting rules that apply throughout:
 
 [Step 4.5 output — subject, recipient count, and topic only]
 
+[MONDAY ONLY, AND ONLY IF NON-EMPTY — include this section; omit entirely otherwise]
+
+## Pending Cleanup Approvals
+
+[Step 4.6 output — the weekly cleanup report's "## Needs Approval" section, verbatim]
+
 *Daily briefing — [Day, Month Date]*
 
 ---
@@ -201,3 +214,4 @@ Formatting rules that apply throughout:
 - **Yesterday's row missing or blank:** Write "No data logged for yesterday." in the Yesterday's Performance section and continue.
 - **File write fails:** Retry once. If it fails again, deliver as chat only — do not loop.
 - **Weekend:** Run the full briefing. Dylan works weekends.
+- **No weekly-cleanup report found (Monday only):** Skip Step 4.6 and the Pending Cleanup Approvals section entirely — do not treat this as an error.
