@@ -1,11 +1,12 @@
 """
 Dashboard router — homepage stats, agent messages, client messages, todos.
 
-GET  /dashboard/summary?period=day|week|month  — calling + SMS stats
+GET  /dashboard/summary?period=day|week|month|all — calling + SMS stats
 GET  /dashboard/agent-messages                 — agent activity feed
 POST /dashboard/agent-messages                 — post a message (called by agents)
 POST /dashboard/agent-messages/{id}/read       — mark read
 GET  /dashboard/client-messages                — SMS threads waiting for reply
+GET  /dashboard/calendar                       — upcoming calendar events
 GET  /dashboard/todos                          — all todos
 POST /dashboard/todos                          — create todo
 PATCH /dashboard/todos/{id}                    — update text or toggle done
@@ -30,6 +31,7 @@ PERIOD_DELTA = {
     "day":   timedelta(days=1),
     "week":  timedelta(weeks=1),
     "month": timedelta(days=30),
+    "all":   timedelta(days=36500),  # ~100 years — matches analytics.py's all-time lookback
 }
 
 
@@ -168,33 +170,6 @@ async def client_messages():
             """
         )
     return [dict(r) for r in rows]
-
-
-# ── Chart data ───────────────────────────────────────────────────────────────
-
-@router.get("/dashboard/chart/calls")
-async def chart_calls(days: int = 30):
-    since = datetime.now(timezone.utc) - timedelta(days=days)
-    pool  = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT DATE(started_at) AS day,
-                   COUNT(*) AS calls,
-                   COUNT(*) FILTER (
-                       WHERE disposition IN ('Appointment Booked','Follow Up','Send Info')
-                   ) AS reached
-            FROM call_logs
-            WHERE started_at >= $1
-            GROUP BY DATE(started_at)
-            ORDER BY day
-            """,
-            since,
-        )
-    return [
-        {"date": str(r["day"]), "calls": r["calls"], "reached": r["reached"]}
-        for r in rows
-    ]
 
 
 # ── Calendar ─────────────────────────────────────────────────────────────────

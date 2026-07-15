@@ -9,8 +9,6 @@ Each tool function returns a plain string (used directly as tool_result content)
 """
 
 import base64
-import email as email_lib
-import json
 import os
 from email.mime.text import MIMEText
 
@@ -705,27 +703,6 @@ def save_daily_brief_pdf() -> str:
         pdf_bytes = _md_to_pdf_bytes(md_text)
         pdf_path.write_bytes(pdf_bytes)
         return f"Saved daily brief PDF: {pdf_path.name}"
-    except Exception as exc:
-        return f"PDF generation failed: {exc}"
-
-
-def save_newsletter_draft_pdf() -> str:
-    """Read the latest newsletter draft MD, convert to PDF, and save it alongside the MD file."""
-    from pathlib import Path
-
-    reports_dir = Path(__file__).parent.parent.parent / "apptset-agent"
-    files = sorted(reports_dir.glob("newsletter-draft-*.md"), reverse=True)
-    if not files:
-        return "No newsletter draft file found — skipping PDF generation."
-
-    md_path = files[0]
-    pdf_path = md_path.with_suffix(".pdf")
-    md_text = md_path.read_text(encoding="utf-8")
-
-    try:
-        pdf_bytes = _md_to_pdf_bytes(md_text)
-        pdf_path.write_bytes(pdf_bytes)
-        return f"Saved newsletter draft PDF: {pdf_path.name}"
     except Exception as exc:
         return f"PDF generation failed: {exc}"
 

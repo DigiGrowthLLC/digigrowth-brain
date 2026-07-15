@@ -23,7 +23,7 @@ import urllib.request
 
 import anthropic
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from db import get_pool
 from integrations import execute_integration_tool

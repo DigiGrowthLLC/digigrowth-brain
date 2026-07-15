@@ -7,12 +7,10 @@ PATCH /finances/transactions/{id}    — update category or notes
 GET  /finances/summary?days=30       — income / expenses / net / margin
 GET  /finances/categories?days=30    — expense breakdown by category + daily trend
 GET  /finances/transactions          — paginated transaction list with filters
-POST /finances/recategorize          — re-run keyword categorization on all transactions
 POST /finances/recurring             — create a recurring rule
 GET  /finances/recurring             — list active recurring rules
 DELETE /finances/recurring/{id}      — stop a recurring rule
 POST /finances/recurring/apply       — generate pending recurring instances
-POST /finances/plaid/purge           — delete all Plaid-imported data (one-time utility)
 """
 
 import calendar
@@ -22,52 +20,6 @@ from fastapi import APIRouter, HTTPException
 from db import get_pool
 
 router = APIRouter()
-
-# ── Auto-categorization ───────────────────────────────────────────────────────
-
-# Business keyword rules — checked first, override Plaid's generic categories
-_CATEGORY_RULES = [
-    # Technology — every digital tool used to run the business
-    (["aws", "amazon web", "railway.app", "vercel", "supabase", "heroku", "digitalocean",
-      "linode", "cloudflare", "render.com", "fly.io",
-      "twilio", "bandwidth", "vonage", "sinch", "ringcentral", "aircall", "dialpad",
-      "anthropic", "openai", "gpt", "perplexity", "mistral", "replicate", "elevenlabs",
-      "notion", "slack", "zoom", "loom", "figma", "canva", "adobe", "airtable", "zapier",
-      "hubspot", "salesforce", "pipedrive", "linear", "github", "jira", "clickup",
-      "namecheap", "godaddy", "google workspace", "gsuite", "g suite", "microsoft 365", "office 365",
-      "stripe fee", "paypal fee", "square fee", "braintree"], "Technology"),
-
-    # Advertising & Marketing — paid media + outbound tooling
-    (["google ads", "meta ads", "facebook ads", "instagram ads", "tiktok ads", "linkedin ads", "bing ads",
-      "apollo.io", "apollo ", "instantly", "smartlead", "lemlist", "hunter.io", "clay.com",
-      "leadiq", "lusha", "zoominfo", "snov", "woodpecker", "reply.io", "mailshake",
-      "semrush", "ahrefs", "mailchimp", "klaviyo"], "Advertising & Marketing"),
-
-    # Team & Labor — contractors, freelancers, future employees, payroll platforms
-    (["upwork", "fiverr", "toptal", "contractor", "freelance", "consulting fee",
-      "gusto", "rippling", "deel", "remote.com"], "Team & Labor"),
-
-    # Operations — accounting, office, insurance, overhead
-    (["quickbooks", "xero", "freshbooks", "bench", "wework", "regus", "insureon"], "Operations"),
-]
-
-_INCOME_KEYWORDS = ["ach credit", "wire credit", "direct deposit", "client payment", "invoice payment"]
-
-
-def _categorize(description: str, amount: float) -> tuple[str, bool]:
-    """Return (category, is_income) based on description keywords and amount sign."""
-    desc = (description or "").lower()
-    is_income = amount > 0
-
-    for keywords, category in _CATEGORY_RULES:
-        if any(kw in desc for kw in keywords):
-            return category, False
-
-    if is_income and any(kw in desc for kw in _INCOME_KEYWORDS):
-        return "Revenue", True
-
-    return ("Revenue", True) if is_income else ("Miscellaneous", False)
-
 
 # ── Period helper ─────────────────────────────────────────────────────────────
 
@@ -220,23 +172,6 @@ async def transactions(
     }
 
 
-@router.post("/finances/recategorize")
-async def recategorize():
-    """Re-run keyword categorization on all transactions."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT id, description, amount FROM transactions")
-        updated = 0
-        for row in rows:
-            category, is_income = _categorize(row["description"], float(row["amount"]))
-            await conn.execute(
-                "UPDATE transactions SET category=$1, is_income=$2 WHERE id=$3",
-                category, is_income, row["id"],
-            )
-            updated += 1
-    return {"recategorized": updated}
-
-
 @router.patch("/finances/transactions/{txn_id}")
 async def update_transaction(txn_id: int, body: dict):
     pool = await get_pool()
@@ -305,19 +240,6 @@ async def delete_transaction(txn_id: int):
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="Transaction not found")
     return {"ok": True}
-
-
-@router.post("/finances/plaid/purge")
-async def purge_plaid_data():
-    """Delete all Plaid-imported transactions and stored credentials."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        result = await conn.execute(
-            "DELETE FROM transactions WHERE plaid_transaction_id IS NOT NULL"
-        )
-        await conn.execute("DELETE FROM plaid_config")
-    deleted = int(result.split()[-1]) if result else 0
-    return {"deleted_transactions": deleted}
 
 
 # ── Recurring transactions ────────────────────────────────────────────────────

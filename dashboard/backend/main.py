@@ -1,5 +1,7 @@
 import asyncio
+import json
 import os
+import pathlib
 import secrets
 import sys
 from contextlib import asynccontextmanager
@@ -67,7 +69,6 @@ def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
 
 async def _run_daily_briefing() -> None:
     """Run the daily briefing agent, then pin the brief as the final chat message."""
-    import pathlib, json as _json
     await _trigger_agent_skill("executive-assistant", "Run the daily briefing", timeout=600)
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, integrations.save_daily_brief_pdf)
@@ -89,7 +90,7 @@ async def _run_daily_briefing() -> None:
                 "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
                 "executive-assistant",
                 "assistant",
-                _json.dumps([{"type": "text", "text": brief_text}]),
+                json.dumps([{"type": "text", "text": brief_text}]),
             )
         print("[cron] daily-brief pinned to EA chat", flush=True)
     except Exception as e:
@@ -98,10 +99,9 @@ async def _run_daily_briefing() -> None:
 
 async def _run_leadgen() -> None:
     """Check if a dialing session ran today, then launch the leadgen script."""
-    import pathlib, json as _json_cfg
     cfg_path = pathlib.Path("/repo/leadgen-agent/config.json")
     if cfg_path.exists():
-        cfg = _json_cfg.loads(cfg_path.read_text())
+        cfg = json.loads(cfg_path.read_text())
         if not cfg.get("enabled", True):
             print("[cron] leadgen skipped — disabled in config.json", flush=True)
             return
@@ -137,12 +137,11 @@ async def _run_leadgen() -> None:
                 if proc.returncode == 0
                 else f"⚠️ Leadgen finished with errors (exit code {proc.returncode}). Check Railway logs."
             )
-            import json as _json
             await conn.execute(
                 "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
                 "executive-assistant",
                 "assistant",
-                _json.dumps([{"type": "text", "text": msg}]),
+                json.dumps([{"type": "text", "text": msg}]),
             )
     except Exception as e:
         print(f"[cron] leadgen chat notify failed: {e}", flush=True)

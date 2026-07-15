@@ -512,7 +512,7 @@ async def get_stats():
         )
         reached = await conn.fetchval(
             "SELECT COUNT(*) FROM contacts WHERE last_disposition IN "
-            "('Appointment Booked', 'Follow Up', 'Send Info')"
+            "('Appointment Booked', 'Follow Up 30 Day', 'Follow Up 90 Day', 'Send Info')"
         )
         leads_ready = await conn.fetchval(
             """

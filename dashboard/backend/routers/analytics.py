@@ -4,28 +4,22 @@ Analytics router — mirrors the Notion KPI structure.
 GET /analytics/outreach?days=30  — per-channel table (calling + SMS + content), all-time + period
 GET /analytics/pipeline           — 6-stage acquisition funnel + grade breakdown + top states
 GET /analytics/sales              — sales statistics (reads sales_stats.json + DB)
-GET /analytics/calls?days=30      — calling detail: daily trend + disposition breakdown
-GET /analytics/sheets-digest      — most recent sheets-digest report file content + metadata
-PUT /analytics/content-stats      — manually update content creation stats (content_stats.json)
 """
 
 import json
 import pathlib
-import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter
-from pydantic import BaseModel
 from db import get_pool
 
 router = APIRouter()
 
 _SALES_STATS_PATH   = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 _CONTENT_STATS_PATH = pathlib.Path(__file__).parent.parent / "content_stats.json"
-_EA_REPORTS_DIR     = pathlib.Path(__file__).parent.parent.parent.parent / "executive-assistant" / "reports"
 
 
-PITCHED_DISPOSITIONS = ("Appointment Booked", "Follow Up", "Send Info", "SMS Handoff", "Not Interested")
+PITCHED_DISPOSITIONS = ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Send Info", "SMS Handoff", "Not Interested")
 
 
 def _since(days: int) -> datetime:
@@ -201,30 +195,6 @@ async def outreach(days: int = 30):
     }
 
 
-class ContentStats(BaseModel):
-    posts_published:       int | None = None
-    posts_published_7d:    int | None = None
-    posts_published_30d:   int | None = None
-    videos_published:      int | None = None
-    videos_published_7d:   int | None = None
-    videos_published_30d:  int | None = None
-    total_views:           int | None = None
-    total_views_7d:        int | None = None
-    total_views_30d:       int | None = None
-    leads_from_content:    int | None = None
-    leads_from_content_7d: int | None = None
-    leads_from_content_30d: int | None = None
-
-
-@router.put("/analytics/content-stats")
-async def update_content_stats(body: ContentStats):
-    current = _load_content_stats()
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
-    current.update(updates)
-    _CONTENT_STATS_PATH.write_text(json.dumps(current, indent=2))
-    return {"ok": True, "stats": current}
-
-
 @router.get("/analytics/pipeline")
 async def pipeline(days: int = 0):
     pool  = await get_pool()
@@ -313,59 +283,5 @@ async def sales_stats():
     }
 
 
-@router.get("/analytics/calls")
-async def calls_detail(days: int = 0):
-    pool      = await get_pool()
-    all_time  = (days == 0)
-    stats     = _load_sales_stats()
-    since     = _since(days) if not all_time else _since(36500)
-
-    async with pool.acquire() as conn:
-        dispo_rows = await conn.fetch(
-            """
-            SELECT disposition, COUNT(*) AS cnt
-            FROM call_logs WHERE started_at >= $1 AND disposition IS NOT NULL
-            GROUP BY disposition ORDER BY cnt DESC
-            """,
-            since,
-        )
-        daily_rows = await conn.fetch(
-            """
-            SELECT DATE(started_at) AS day, COUNT(*) AS calls,
-                   COUNT(*) FILTER (WHERE disposition NOT IN ('No Answer','Voicemail')) AS pickups
-            FROM call_logs WHERE started_at >= $1
-            GROUP BY DATE(started_at) ORDER BY day
-            """,
-            since,
-        )
-
-    return {
-        "total_calls": _sheet_stat(stats, "sheet_calls_made",         days),
-        "pickups":     _sheet_stat(stats, "sheet_calls_answered",     days),
-        "booked":      _sheet_stat(stats, "sheet_appointments_booked",days),
-        "by_disposition": [{"disposition": r["disposition"], "cnt": r["cnt"]} for r in dispo_rows],
-        "daily":          [{"date": str(r["day"]), "calls": r["calls"], "pickups": r["pickups"]} for r in daily_rows],
-    }
 
 
-@router.get("/analytics/sheets-digest")
-async def sheets_digest():
-    """Return the most recent sheets-digest report file content and metadata."""
-    if not _EA_REPORTS_DIR.exists():
-        return {"date": None, "content": None, "sheets": []}
-
-    files = sorted(_EA_REPORTS_DIR.glob("sheets-digest-*.md"), reverse=True)
-    if not files:
-        return {"date": None, "content": None, "sheets": []}
-
-    latest = files[0]
-    content = latest.read_text()
-
-    # Extract date from filename: sheets-digest-YYYY-MM-DD.md
-    m = re.search(r"sheets-digest-(\d{4}-\d{2}-\d{2})\.md$", latest.name)
-    date = m.group(1) if m else None
-
-    # Extract sheet names (lines starting with "## ")
-    sheets = [line[3:].strip() for line in content.splitlines() if line.startswith("## ")]
-
-    return {"date": date, "content": content, "sheets": sheets}
