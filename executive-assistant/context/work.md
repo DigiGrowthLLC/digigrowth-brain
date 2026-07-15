@@ -1,7 +1,7 @@
 # DigiGrowth
 
 **Type:** AI client acquisition agency
-**Niche:** Fitness and personal training studios
+**Niche:** Independent mobile and in-home veterinary practices
 **Stage:** Pre-revenue — building toward first client
 
 ## Core Service
@@ -11,7 +11,7 @@ One package at **$1,500/month**. Includes:
 - Meta ads management
 - Workflow automations
 - SMS and email marketing
-- Deliverable: 20-40 new intro sessions or fitness consultations per month per client
+- Deliverable: 20-40 new client appointments per month per client
 
 ## Revenue Goals
 

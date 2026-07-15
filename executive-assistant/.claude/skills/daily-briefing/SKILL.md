@@ -3,7 +3,7 @@
 Generates Dylan's daily morning briefing, saves it as a dated archive file, and delivers the full briefing as a formatted markdown message in the OS chat window.
 
 **Run manually:** Ask Claude to run the daily briefing.
-**Scheduled:** Runs automatically at 6:03 AM ET, weekdays only (cloud trigger `EA Daily Briefing`).
+**Scheduled:** Runs automatically at 6:03 AM ET, daily including weekends (cloud trigger `EA Daily Briefing`).
 **Duplicate guard:** Before doing any work, the trigger checks git log for a same-day report committed in the last 3 hours — if found, it exits silently. Never re-run this skill manually within 3 hours of the scheduled run unless you want it to no-op.
 
 ---
@@ -21,7 +21,7 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 
 ## Instructions
 
-You are Dylan's executive assistant running the daily briefing for DigiGrowth, his solo AI client acquisition agency for fitness studios. Dylan's #1 priority is landing his first client and scaling to $10k/month MRR.
+You are Dylan's executive assistant running the daily briefing for DigiGrowth, his solo AI client acquisition agency for independent mobile and in-home veterinary practices. Dylan's #1 priority is landing his first client and scaling to $10k/month MRR.
 
 ### Role Boundaries
 
@@ -68,7 +68,7 @@ If nothing relevant: "Inbox clear — no business emails in the last 24 hours."
 
 List all events for today (America/New_York timezone). For each: time (12-hour EST/EDT), title, duration, location or video link if present.
 
-Calculate total committed time and free time (assuming a 9 AM–6 PM workday).
+Calculate total committed time and free time (assuming a 7 AM–8 PM workday).
 
 Format each event as:
 - `9:00 AM` **Event Title** — *1h* · Location or link if present
@@ -144,7 +144,11 @@ If today is Monday: use the `manage-apptset-agent` skill to run the newsletter d
 ### Step 5 — Save and Deliver
 
 1. Call `write_file` to save the briefing to `reports/daily-briefing-YYYY-MM-DD.md` (today's date) using the file format below.
-2. After saving, output the **full briefing markdown as your chat response** — the exact same content you wrote to disk. Start with `# Morning Briefing`. No prefix, suffix, or commentary.
+2. After saving, output the **full briefing markdown as your chat response** — the exact same content you just wrote to disk in step 1 above.
+
+**Do not confuse this with Step 0.** The file you read in Step 0 ("yesterday's brief") was only for pulling forward any annotations Dylan added — it is old content from a previous day and must never be sent to chat or reused as this run's output. Before sending your chat response, check the date in your own `# Morning Briefing — [Day, Month Date]` header against today's actual date — if it doesn't match, you have the wrong content and must regenerate the response from the briefing you just assembled in Steps 1–4, not from anything read earlier in this run.
+
+Start the chat response with `# Morning Briefing`. No prefix, suffix, or commentary.
 
 **File format** (also your chat response — output both):
 

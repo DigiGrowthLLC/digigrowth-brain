@@ -10,7 +10,7 @@ Gives the EA direct control over the appointment-setting agent — manage the ne
 
 | File | What it controls |
 |---|---|
-| `config.json` | GHL location ID, SMS limits, booking link, Loom URL, newsletter settings |
+| `config.json` | GHL location ID, SMS limits, booking link, newsletter settings |
 | `ghl.py` | GHL API: contact lookup, tags, SMS send, newsletter lead fetch |
 | `sms_agent.py` | SMS stage machine, intent classification, send_outbound, check_followups |
 | `notion_messages.py` | Live Notion message fetcher — reads SMS sub-pages before every send |
@@ -21,7 +21,6 @@ Gives the EA direct control over the appointment-setting agent — manage the ne
 | `server.py` | Webhook server (InboundMessage + ContactTagUpdate) + follow-up scheduler |
 | `newsletter_draft.json` | This week's saved email draft — subject + HTML template |
 | `newsletter_topic_log.json` | Record of topics used and when — drives weekly rotation |
-| `.env` | API keys — never read aloud, never edit |
 | `.claude/skills/newsletter/SKILL.md` | Full newsletter skill — all draft and send logic |
 | `.claude/skills/sms-agent/SKILL.md` | SMS agent skill — status, review, import, sync Notion |
 
@@ -31,19 +30,19 @@ Gives the EA direct control over the appointment-setting agent — manage the ne
 
 ```bash
 # Send newsletter from the saved draft
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python newsletter.py --send
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python newsletter.py --send
 
 # Check SMS conversation stats
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python sms_stats.py
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python sms_stats.py
 
 # Import leads from Google Sheets manually
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python sheets_import.py
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python sheets_import.py
 
 # Start the webhook server (InboundMessage + ContactTagUpdate)
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python server.py
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python server.py
 
 # Check how many contacts are tagged 'newsletter' in GHL
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python -c "import json, ghl; c=json.load(open('config.json')); leads=ghl.get_newsletter_leads(c); print(len(leads))"
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python -c "import json, ghl; c=json.load(open('config.json')); leads=ghl.get_newsletter_leads(c); print(len(leads))"
 ```
 
 ---
@@ -71,9 +70,6 @@ In GHL, add the tag `newsletter` to the contact. No code changes needed.
 ### Update the booking link
 Edit `config.json` → `newsletter.booking_link` (and `sms_agent.booking_link` if using a different SMS link).
 
-### Update the Loom video URL
-Edit `config.json` → `sms_agent.loom_url`. The Notion SMS page's `loom` sub-page should reference this URL in its message text.
-
 ### Add a new newsletter topic
 Edit the newsletter SKILL.md → append to the Topic Rotation List.
 
@@ -89,10 +85,10 @@ Edit `config.json` → `sms_agent.max_followups`. Default is 3. To expand, also 
 - Newsletter drafts every Monday automatically as part of the daily briefing
 - Do not send the newsletter without Dylan's explicit approval — always preview in Notion first
 - Do not change `ghl_location_id` without Dylan confirming
-- Never read or output `.env` file contents
+- Never read aloud, output, or edit stored secrets
 
 ---
 
 ## Security
 
-`.env` is in `.gitignore`. Never commit API keys.
+Secrets live in the shared `digigrowth` Doppler vault (config `prd_apptset`), not a local `.env` file — never read aloud, never edit directly.

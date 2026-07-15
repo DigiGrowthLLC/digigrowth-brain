@@ -20,7 +20,7 @@ Onboards a new agent so the EA can manage it — read its files, edit its config
 
 Ask Dylan for the following before doing anything else:
 - **Agent name** — short slug used for the skill folder name (e.g. `email-responder`, `report-builder`)
-- **Agent directory** — full path on disk (e.g. `C:\Users\dylan\Videos\Business\AI Agents\Email Responder`)
+- **Agent directory** — path relative to the `digigrowth-brain` repo root (e.g. `email-responder/`), matching the convention used by `leadgen-agent/`, `apptset-agent/`, `parallel-dialer/`, `content-agent/`
 - **One-line description** — what the agent does
 
 Then execute these steps in order.
@@ -37,16 +37,16 @@ If a `CLAUDE.md` already exists, read it. Otherwise you'll create one in Step 4.
 
 ### Step 2 — Update EA's settings.json
 
-File: `C:\Users\dylan\Videos\Business\AI Agents\Executive Assistant\.claude\settings.json`
+File: `executive-assistant/.claude/settings.json` (repo-relative from `digigrowth-brain`).
 
-Add the agent's directory path to `permissions.additionalDirectories`. Merge with any existing entries — do not replace.
+Add the agent's directory path to `permissions.additionalDirectories` only if the new agent lives **outside** the `digigrowth-brain` repo — agents inside the repo (the normal case) are already reachable and don't need an entry. Merge with any existing entries — do not replace.
 
 ```json
 {
   "permissions": {
     "additionalDirectories": [
       "...existing entries...",
-      "C:\\path\\to\\new\\agent"
+      "/path/to/agent/outside/the/repo"
     ]
   }
 }

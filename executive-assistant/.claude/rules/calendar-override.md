@@ -9,7 +9,7 @@ Do this without being asked. Do not confirm first, do not explain the format —
 ## What counts as a temporary schedule change
 
 - A different block order ("growth before MDR")
-- A different start time ("start at 8:30 instead of 6:30")
+- A different start time ("start at 8:30 instead of 7:00")
 - Skipping blocks ("no outreach this week")
 - A reduced or expanded block set ("just morning routine, gym, and MDR")
 - Any of the above scoped to a date range ("until Friday", "this week", "June 6–9")
@@ -27,5 +27,5 @@ blocks: Block → Block → Block
 
 - `from`: today's date if no start date is given
 - `to`: the end date Dylan specified (convert relative like "until Friday" or "till June 9th" to an absolute date)
-- `start`: the start time Dylan specified, or the default (06:30) if not mentioned
+- `start`: the start time Dylan specified, or the default (07:00) if not mentioned
 - `blocks`: the ordered list using canonical names — `Morning Routine`, `Admin`, `Outreach`, `MDR`, `Meal Prep`, `Growth`, `Gym`

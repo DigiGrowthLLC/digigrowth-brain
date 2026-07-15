@@ -2,7 +2,7 @@
 
 Gives the EA direct control over the Lead Qualifier agent — read its state, update its config, and trigger runs.
 
-**Agent location:** `C:\Users\dylan\Videos\Business\AI Agents\Lead Qualifier`
+**Agent location:** `leadgen-agent/` in the `digigrowth-brain` repo.
 
 ---
 
@@ -16,20 +16,21 @@ Gives the EA direct control over the Lead Qualifier agent — read its state, up
 | `role.txt` | Agent persona — rarely needs changing |
 | `progress.json` | Current state/city/search term position — read to see where it left off |
 | `scraped_ids.json` | All processed place IDs — count to see total scraped |
-| `.env` | `ANTHROPIC_API_KEY`, `PLACES_API_KEY` — never read aloud, never edit |
+
+Secrets (`ANTHROPIC_API_KEY`, `PLACES_API_KEY`, `DASHBOARD_URL`, `DASHBOARD_PASSWORD`) live in the shared `digigrowth` Doppler vault (config `prd`), not a local `.env` file — never read aloud, never edit directly.
 
 ---
 
 ## Run Commands
 
 **Run the full pipeline:**
-```powershell
-cd "C:\Users\dylan\Videos\Business\AI Agents\Lead Qualifier"; python run.py
+```bash
+cd "$(git rev-parse --show-toplevel)/leadgen-agent" && doppler run -- python run.py
 ```
 
 **Append to agent memory (updates memory.txt):**
-```powershell
-cd "C:\Users\dylan\Videos\Business\AI Agents\Lead Qualifier"; python run.py remember "blacklist CrossFit gyms — not the right niche"
+```bash
+cd "$(git rev-parse --show-toplevel)/leadgen-agent" && doppler run -- python run.py remember "blacklist a new corporate vet chain — not the right niche"
 ```
 
 Runs are skipped automatically on weekends (the script checks `weekday()`).
@@ -78,7 +79,6 @@ Both files are read fresh on each run — changes take effect immediately.
 
 ## Notes
 
-- `credentials.json` is a Google service account key — never move, rename, or commit
 - The agent resumes mid-state via `progress.json` — no need to restart from scratch after an interruption
 - To fully reset (start over from Alabama): delete `progress.json` or set all index fields to 0
 - A typical run takes 5–15 minutes depending on rate limits and site scraping speed
