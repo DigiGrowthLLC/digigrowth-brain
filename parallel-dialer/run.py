@@ -3,18 +3,17 @@ Parallel Dialer — main entry point
 
 Usage:
   python run.py              Start a dialing session (loads leads from DigiGrowth OS CRM)
-  python run.py status       Show session stats
   python run.py test         Place a single test call to verify Twilio + webhook
-  python run.py newsletter   Generate and send the weekly AI newsletter
 
 Setup (first time):
-  1. cp .env.example .env and fill in Twilio + Anthropic keys
+  1. Secrets (Twilio + Anthropic keys) live in the shared "digigrowth" Doppler vault
+     (config prd_dialer) — run via `doppler run -- python run.py`
   2. Fill in config.json (phone numbers, os_api_url, calendly_url, webhook URL)
   3. pip install -r requirements.txt
   4. Start ngrok: ngrok http 5000
   5. Set webhook_base_url in config.json to your ngrok URL
-  6. python run.py test       — verify Twilio is wired up
-  7. python run.py            — start dialing
+  6. doppler run -- python run.py test  — verify Twilio is wired up
+  7. doppler run -- python run.py       — start dialing
 """
 
 import json
@@ -105,7 +104,7 @@ def _start_tunnel():
     """
     Start the ngrok tunnel automatically so the user only needs one terminal.
     Uses the static domain from webhook_base_url in config.json.
-    Requires NGROK_AUTH_TOKEN in .env (free ngrok account).
+    Requires NGROK_AUTH_TOKEN (free ngrok account) — set in Doppler.
     """
     from pyngrok import ngrok, conf as ngrok_conf
 
@@ -123,9 +122,8 @@ def _start_tunnel():
         domain = urlparse(base_url).netloc
 
     # Point pyngrok at the ngrok config where the auth token is stored
-    import os as _os
-    ngrok_cfg = _os.path.expanduser("~/Library/Application Support/ngrok/ngrok.yml")
-    if _os.path.exists(ngrok_cfg):
+    ngrok_cfg = os.path.expanduser("~/Library/Application Support/ngrok/ngrok.yml")
+    if os.path.exists(ngrok_cfg):
         ngrok_conf.get_default().config_path = ngrok_cfg
 
     try:
@@ -153,7 +151,7 @@ def _update_twiml_app():
     voice_url = f"{base_url}/voice/agent-join"
 
     if not app_sid:
-        print(f"  ⚠️  TWILIO_TWIML_APP_SID not set in .env")
+        print(f"  ⚠️  TWILIO_TWIML_APP_SID not set")
         print(f"     Create a TwiML App in Twilio Console and set its Voice URL to:")
         print(f"     {voice_url}")
         return
@@ -230,7 +228,7 @@ def run_session():
     print(f"✅ Connected — starting to dial {len(eligible)} leads")
     print("   Press Ctrl+C to stop\n")
 
-    max_lines    = config.get("max_parallel_lines", 10)
+    max_lines    = config.get("max_parallel_lines", 5)
     ring_timeout = config.get("call_timeout_seconds", 30)
 
     def _wait_for_batch():
@@ -376,17 +374,6 @@ def run_test():
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#  NEWSLETTER
-# ════════════════════════════════════════════════════════════════════════════
-
-def run_newsletter():
-    """Generate and send the weekly AI newsletter."""
-    import newsletter as newsletter_mod
-    _banner(f"Weekly Newsletter — {_now()}")
-    newsletter_mod.send_newsletter(config)
-
-
-# ════════════════════════════════════════════════════════════════════════════
 #  ENTRY POINT
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -395,7 +382,5 @@ if __name__ == "__main__":
 
     if cmd == "test":
         run_test()
-    elif cmd == "newsletter":
-        run_newsletter()
     else:
         run_session()

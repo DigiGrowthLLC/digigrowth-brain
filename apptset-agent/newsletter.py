@@ -24,19 +24,11 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
 from github_sync import push_file
 
+import ghl as ghl_mod
+
 load_dotenv()
 
-GHL_BASE   = "https://services.leadconnectorhq.com"
 DRAFT_FILE = Path(__file__).parent / "newsletter_draft.json"
-
-
-def _headers():
-    token = os.environ.get("GHL_PRIVATE_TOKEN") or os.environ.get("GHL_API_KEY", "")
-    return {
-        "Authorization": f"Bearer {token}",
-        "Content-Type":  "application/json",
-        "Version":       "2021-07-28",
-    }
 
 
 # ── Content generation ────────────────────────────────────────────────────────
@@ -125,46 +117,19 @@ def _load_draft():
 def _personalize(html_body, lead):
     """Replace {{first_name}} and {{business_name}} with contact-specific values."""
     first_name    = (lead.get("owner") or "").split()[0] if lead.get("owner") else "there"
-    business_name = lead.get("business") or "your studio"
+    business_name = lead.get("business") or "your practice"
     return html_body.replace("{{first_name}}", first_name).replace("{{business_name}}", business_name)
 
 
-def _get_or_create_conversation(location_id, contact_id):
-    """Return the GHL conversation ID for a contact."""
-    try:
-        r = requests.get(
-            f"{GHL_BASE}/conversations/search",
-            headers=_headers(),
-            params={"locationId": location_id, "contactId": contact_id},
-            timeout=10,
-        )
-        r.raise_for_status()
-        convos = r.json().get("conversations", [])
-        if convos:
-            return convos[0]["id"]
-
-        r2 = requests.post(
-            f"{GHL_BASE}/conversations",
-            headers=_headers(),
-            json={"locationId": location_id, "contactId": contact_id},
-            timeout=10,
-        )
-        r2.raise_for_status()
-        return r2.json().get("conversation", {}).get("id")
-    except Exception as e:
-        print(f"  ⚠️  Conversation lookup failed for {contact_id}: {e}")
-        return None
-
-
-def _send_to_contact(location_id, contact_id, subject, html_body):
+def _send_to_contact(config, contact_id, subject, html_body):
     """Send a single email via the GHL conversations messages API."""
-    conv_id = _get_or_create_conversation(location_id, contact_id)
+    conv_id = ghl_mod.get_or_create_conversation(config, contact_id)
     if not conv_id:
         return False
     try:
         r = requests.post(
-            f"{GHL_BASE}/conversations/messages",
-            headers=_headers(),
+            f"{ghl_mod.GHL_BASE}/conversations/messages",
+            headers=ghl_mod._headers(),
             json={
                 "type":           "Email",
                 "conversationId": conv_id,
@@ -189,8 +154,6 @@ def send_newsletter(config, subject=None, html_template=None):
 
     If subject/html_template are not provided, loads from newsletter_draft.json.
     """
-    import ghl as ghl_mod
-
     if subject is None or html_template is None:
         subject, html_template = _load_draft()
 
@@ -204,7 +167,6 @@ def send_newsletter(config, subject=None, html_template=None):
     print(f"  ✅ {len(leads)} newsletter recipients")
     print(f"📰 Newsletter: sending '{subject}' to {len(leads)} contacts...")
 
-    location_id = config.get("ghl_location_id", "")
     sent = failed = 0
 
     for lead in leads:
@@ -212,7 +174,7 @@ def send_newsletter(config, subject=None, html_template=None):
         if not contact_id:
             continue
         personalized_html = _personalize(html_template, lead)
-        if _send_to_contact(location_id, contact_id, subject, personalized_html):
+        if _send_to_contact(config, contact_id, subject, personalized_html):
             sent += 1
         else:
             failed += 1

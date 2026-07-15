@@ -8,10 +8,11 @@ Usage:
   python server.py --no-ngrok  Start server only (if you manage your own tunnel)
 
 First time setup:
-  1. cp .env.example .env and fill in keys
+  1. Secrets (ANTHROPIC_API_KEY, GHL_PRIVATE_TOKEN, NOTION_TOKEN, GOOGLE_CREDENTIALS_JSON) live in the
+     shared "digigrowth" Doppler vault (config prd_apptset) — run via `doppler run -- python server.py`
   2. pip install -r requirements.txt
   3. Set webhook_base_url in config.json to your ngrok/public URL
-  4. python server.py
+  4. doppler run -- python server.py
   5. In GHL → Settings → Integrations → Webhooks → Add two webhooks:
        URL: https://<your-url>/sms/incoming   Events: InboundMessage
        URL: https://<your-url>/tag-update     Events: ContactTagUpdate
@@ -22,7 +23,6 @@ import os
 import sys
 import threading
 import time
-from datetime import datetime
 
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 

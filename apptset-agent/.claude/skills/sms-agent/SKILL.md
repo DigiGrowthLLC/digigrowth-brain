@@ -12,7 +12,7 @@ Triggered by: "SMS status", "how are SMS conversations going?", "SMS stats"
 
 Run:
 ```bash
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python sms_stats.py
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python sms_stats.py
 ```
 
 Report the output cleanly — all-time totals, last-30-day totals, active conversations count, recent bookings.
@@ -25,13 +25,13 @@ Triggered by: "show SMS conversations", "review [name]'s SMS thread", "what stag
 
 ### List active conversations
 ```bash
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python sms_stats.py
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python sms_stats.py
 ```
 Pull the active conversations table from the output.
 
 ### Show a specific contact's thread
 ```bash
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python -c "
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python -c "
 import sqlite3, json
 db = 'sms_conversations.db'
 with sqlite3.connect(db) as conn:
@@ -57,7 +57,7 @@ Triggered by: "import leads from sheets", "run the Sheets import", "trigger lead
 
 Run:
 ```bash
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python sheets_import.py
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python sheets_import.py
 ```
 
 Report: how many new contacts created, how many already existed, how many tagged with sms-handoff.
@@ -70,7 +70,7 @@ Triggered by: "sync SMS stats", "update Notion with SMS stats", "push SMS number
 
 ### Step 1 — Get current stats
 ```bash
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && python sms_stats.py --json
+cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python sms_stats.py --json
 ```
 
 Parse the JSON output to get all_time and last_30 values.

@@ -16,7 +16,6 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
@@ -79,7 +78,7 @@ def run_import(config):
     creds_path = os.path.join(BASE_DIR, "credentials.json")
     if not os.path.exists(creds_path):
         print(f"  ⚠️  credentials.json not found at {creds_path}")
-        print("       Copy it from lead-qualifier/ and try again.")
+        print("       Generate a Google service-account key with Sheets access and place it here.")
         sys.exit(1)
 
     gc    = gspread.service_account(filename=creds_path)

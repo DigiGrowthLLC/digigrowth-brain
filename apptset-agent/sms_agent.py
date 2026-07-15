@@ -1,7 +1,7 @@
 """
 SMS Appointment Setting Agent — DM Conversion System
 
-Behavioural conversion funnel: opening → primed → engaged → cta → loom → booking → closed
+Behavioural conversion funnel: opening → primed → engaged → cta → booking → closed_booked
 Messages fetched live from Notion before every send (never cached).
 Intent classified by Claude Haiku (10 tokens). Objections handled free-form (80 tokens).
 Outbound: Mon-Fri only. Inbound replies: 24/7.
@@ -117,32 +117,15 @@ BOOKED_REPLY = (
     "Talk soon."
 )
 
-ADAPT_SYSTEM = """\
-You are Dylan from DigiGrowth texting a fitness studio owner.
-You have the opening chunk of your next message.
-
-Your job: make the minimum possible edit so this chunk flows naturally from what the prospect just said.
-
-Rules:
-- If they asked a question, answer it in ONE brief sentence at the very start, then continue with the template text
-- If they raised a concern or objection, acknowledge it in 3-5 words at the very start ("Yeah that's fair —", "Totally get that —"), then continue with the template text
-- If the template already flows fine as a response (no question, no objection), return it word for word
-- If the template includes a hedge like "feel free to cut me off" but they've already shown clear interest, drop that phrase only
-- Never rewrite, rephrase, or restructure the rest of the template
-- Never add new sentences, new offers, or closing questions
-- No emojis, no filler openers ("Great question", "Absolutely")
-- Output only the final message text — no labels, no explanation"""
-
-
 # ── Message sending helpers ───────────────────────────────────────────────────
 
 def _split_sentences(text, max_per_chunk=1):
     """
-    Split a message into SMS-sized chunks of max 2 sentences.
+    Split a message into SMS-sized chunks of max_per_chunk sentences (default 1).
     1. Split on explicit 'Message N:' labels Dylan uses in Notion
     2. For each part: collapse newlines into spaces (Notion soft returns are mid-sentence),
        then split on sentence-ending punctuation
-    3. Group sentences into chunks of max 2
+    3. Group sentences into chunks of max_per_chunk
     """
     # Step 1: split on explicit Message N: / Message #N: labels
     parts = re.split(r'(?i)\bMessage\s*#?\d+\s*:\s*', text)
@@ -167,12 +150,12 @@ def _split_sentences(text, max_per_chunk=1):
 
 def _send_sms_parts(config, contact_id, text, delay=10):
     """
-    Split text into chunks of max 3 sentences and send each with a delay between them.
+    Split text into per-sentence chunks and send each with a delay between them.
     Always waits `delay` seconds before the first send to simulate natural typing.
     """
     import ghl as ghl_mod
     chunks = _split_sentences(text)
-    for i, chunk in enumerate(chunks):
+    for chunk in chunks:
         time.sleep(delay)
         ghl_mod.send_sms(config, contact_id, chunk)
 
@@ -328,16 +311,6 @@ def _strip_call_cta(text):
     return " ".join(filtered).strip() if filtered else text
 
 
-_SIMPLE_REPLIES = {
-    "yes", "yep", "yeah", "sure", "ok", "okay", "yea", "yup",
-    "yes it is", "yes we do", "yes i do", "yes it does", "yes that's right",
-    "yes we are", "sounds good", "got it", "makes sense",
-}
-
-def _is_simple_reply(body):
-    """Return True if the prospect's message is a plain affirmative with no real content."""
-    return body.strip().lower().rstrip("?.!,") in _SIMPLE_REPLIES
-
 
 def _handle_objection(message, lead, stage, config):
     """Generate a 1-2 sentence empathetic objection response."""
@@ -399,39 +372,6 @@ def _naturalize_opener(template, lead):
         return template
 
 
-def _adapt_message(template, prospect_message, lead, stage, config):
-    """
-    Lightly rewrite a Notion template to flow naturally as a reply to the prospect.
-    At engaged/cta stages, injects reference page so Claude can answer questions accurately.
-    Falls back to the raw template if Claude fails.
-    """
-    from notion_messages import fetch_reference
-    first_name = (lead.get("owner") or "there").split()[0]
-    ref_section = ""
-    if stage in ("engaged", "cta"):
-        reference = fetch_reference(config.get("sms_agent", {}).get("reference_page_ids", []))
-        if reference:
-            ref_section = f"\n\nReference info (use only if the prospect asked a specific question the template doesn't answer — don't add it otherwise):\n{reference}"
-    prompt = (
-        f"Prospect first name: {first_name}\n"
-        f"Stage: {stage}\n"
-        f"What they just said: {prospect_message}\n\n"
-        f"Template to follow:\n{template}"
-        f"{ref_section}"
-    )
-    try:
-        resp = _claude.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=200,
-            system=[{"type": "text", "text": ADAPT_SYSTEM, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return resp.content[0].text.strip()
-    except Exception as e:
-        print(f"  ⚠️  Message adaptation failed, using template as-is: {e}")
-        return template
-
-
 # ── Outbound send ─────────────────────────────────────────────────────────────
 
 def send_outbound(config, contact_id, lead):
@@ -472,7 +412,6 @@ def send_outbound(config, contact_id, lead):
         print(f"  ⚠️  GHL SMS send failed for {phone}: {e}")
         return
 
-    now_utc = datetime.now(timezone.utc).isoformat()
     fup_due = (datetime.now(timezone.utc) + timedelta(hours=3)).isoformat()
 
     with _db_lock:
@@ -599,10 +538,7 @@ def handle_reply(from_phone, body, config):
             print(f"  ⚠️  Notion fetch failed: {e}")
             return
 
-        # Split template into chunks.
-        # Chunk 1 is adapted to flow naturally from what the prospect said.
-        # Chunks 2+ are sent verbatim (opener naturalization still applies).
-        import ghl as _ghl
+        # Split template into chunks and send verbatim (opener naturalization still applies).
         chunks = _split_sentences(template)
         print(f"  📋 Template split into {len(chunks)} chunk(s): {chunks}")
         sent_parts = []
@@ -614,7 +550,7 @@ def handle_reply(from_phone, body, config):
                     adapted = _naturalize_opener(adapted, lead)
                 print(f"  🔤 Chunk {i}: '{adapted[:100]}'")
                 time.sleep(10)
-                _ghl.send_sms(config, contact_id, adapted)
+                ghl_mod.send_sms(config, contact_id, adapted)
                 sent_parts.append(adapted)
                 print(f"  📤 Sent chunk {i}/{len(chunks)}: {adapted[:80]}")
             except Exception as e:
@@ -635,7 +571,6 @@ def handle_reply(from_phone, body, config):
         # No stage transition — prospect asked a question or expressed vague interest.
         # At engaged/cta stages, answer using reference pages and hold the stage.
         if stage in ("opening", "primed", "engaged", "cta") and intent in ("INTERESTED", "OBJECTION"):
-            import ghl as _ghl
             reply = _handle_objection(body, lead, stage, config)
             if reply:
                 reply_chunks = _split_sentences(reply)
@@ -643,7 +578,7 @@ def handle_reply(from_phone, body, config):
                 for chunk in reply_chunks:
                     try:
                         time.sleep(10)
-                        _ghl.send_sms(config, contact_id, chunk)
+                        ghl_mod.send_sms(config, contact_id, chunk)
                         sent_reply_parts.append(chunk)
                         print(f"  💬 Reference reply chunk: {chunk[:80]}")
                     except Exception as e:

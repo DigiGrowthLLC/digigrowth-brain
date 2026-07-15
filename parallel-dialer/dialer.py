@@ -44,31 +44,6 @@ def dial_lead(config, lead, session_id):
         return None
 
 
-# ════════════════════════════════════════════════════════════════════════════
-#  OUTBOUND CALL — DYLAN
-# ════════════════════════════════════════════════════════════════════════════
-
-def dial_dylan(config, session_id):
-    """
-    Call Dylan's phone at session start. He joins the conference and waits on
-    hold music. When a lead answers and joins, the call begins automatically.
-    Returns the Call SID or None.
-    """
-    base_url = config["webhook_base_url"].rstrip("/")
-    try:
-        call = _client().calls.create(
-            to=config["dylan_phone_number"],
-            from_=config["twilio_phone_number"],
-            url=f"{base_url}/voice/dylan-join?session_id={session_id}",
-            timeout=30,
-        )
-        print(f"  📱 Calling your phone — SID: {call.sid}")
-        return call.sid
-    except Exception as e:
-        print(f"  ❌ Failed to call Dylan: {e}")
-        return None
-
-
 def redirect_call(sid, url, method="POST"):
     """Redirect an active call to a new TwiML URL via Twilio REST API."""
     try:
@@ -86,7 +61,7 @@ def hangup_call(sid):
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#  PARALLEL BATCH DIAL  (Phase 2 — stubs ready for expansion)
+#  PARALLEL BATCH DIAL
 # ════════════════════════════════════════════════════════════════════════════
 
 def dial_batch(config, leads, session_id):
@@ -97,7 +72,7 @@ def dial_batch(config, leads, session_id):
     Returns dict of {phone: call_sid}.
     """
     from concurrent.futures import ThreadPoolExecutor
-    max_lines = config.get("max_parallel_lines", 10)
+    max_lines = config.get("max_parallel_lines", 5)
     batch     = leads[:max_lines]
     call_sids = {}
 

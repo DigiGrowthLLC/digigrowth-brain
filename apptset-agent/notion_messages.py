@@ -49,7 +49,7 @@ def _headers():
     token = os.environ.get("NOTION_TOKEN", "")
     if not token:
         raise RuntimeError(
-            "NOTION_TOKEN not set in .env — add your Notion integration token "
+            "NOTION_TOKEN not set — add your Notion integration token "
             "(notion.so/my-integrations) and share the SMS page with it."
         )
     return {

@@ -2,7 +2,7 @@
 
 Dials up to 5 leads simultaneously via Twilio, bridges the first answered call to Dylan's browser, classifies dispositions via button click, and logs everything to the DigiGrowth OS CRM. After 3 unanswered attempts, leads hand off automatically to the OS SMS appointment-setting workflow.
 
-**Run:** `python run.py`
+**Run:** `doppler run -- python run.py`
 
 ---
 
@@ -10,14 +10,15 @@ Dials up to 5 leads simultaneously via Twilio, bridges the first answered call t
 
 | File | Purpose |
 |---|---|
-| `run.py` | CLI entry point — start session, test, newsletter |
+| `run.py` | CLI entry point — start session, test |
 | `dialer.py` | Twilio: place outbound calls, manage conference, cancel overflow |
 | `webhook.py` | Flask server: handle all Twilio call events via TwiML, serve browser UI |
 | `leads.py` | Utility: phone number normalization |
 | `agent.html` | Browser UI: Twilio.Device client, disposition buttons, contact info display |
 | `config.json` | Settings — phone numbers, OS API URL, ngrok URL, Twilio config |
 | `memory.txt` | Agent memory — rules, notes, edge cases |
-| `.env` | Twilio API keys — never commit |
+
+Secrets (Twilio keys, `OS_API_PASSWORD`, `OS_API_URL`, `NGROK_AUTH_TOKEN`) live in the shared `digigrowth` Doppler vault (config `prd_dialer`), not a local `.env` file.
 
 ---
 
@@ -27,11 +28,10 @@ Dials up to 5 leads simultaneously via Twilio, bridges the first answered call t
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Set up env
-cp .env.example .env
-# Fill in: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_API_KEY_SID,
-#          TWILIO_API_KEY_SECRET, TWILIO_TWIML_APP_SID,
-#          OS_API_PASSWORD, NGROK_AUTH_TOKEN
+# 2. Set secrets in the shared Doppler vault (project digigrowth, config prd_dialer):
+#    TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_API_KEY_SID,
+#    TWILIO_API_KEY_SECRET, TWILIO_TWIML_APP_SID,
+#    OS_API_PASSWORD, OS_API_URL, NGROK_AUTH_TOKEN
 
 # 3. Fill in config.json
 #    - twilio_phone_number (your Twilio number)
@@ -42,10 +42,10 @@ cp .env.example .env
 # 4. Start ngrok (auto-started by run.py if NGROK_AUTH_TOKEN is set)
 
 # 5. Test the call bridge
-python run.py test
+doppler run -- python run.py test
 
 # 6. Start a real session
-python run.py
+doppler run -- python run.py
 ```
 
 ---
@@ -53,9 +53,8 @@ python run.py
 ## CLI Commands
 
 ```bash
-python run.py          # Start dialing session
-python run.py test     # Place a test call to verify Twilio + webhook setup
-python run.py newsletter  # Generate and send weekly AI newsletter
+doppler run -- python run.py       # Start dialing session
+doppler run -- python run.py test  # Place a test call to verify Twilio + webhook setup
 ```
 
 ---
@@ -84,7 +83,8 @@ python run.py newsletter  # Generate and send weekly AI newsletter
 | Disposition | OS Contact Status |
 |---|---|
 | Appointment Booked | `appointment-booked` |
-| Follow Up | `dialer-lead` |
+| Follow Up 30 Day | `dialer-lead` |
+| Follow Up 90 Day | `dialer-lead` |
 | Send Info | `send-info` |
 | Not Interested | `not-interested` |
 | No Answer | `dialer-lead` |
@@ -108,7 +108,9 @@ Twilio's `AnsweredBy` parameter is used to detect voicemails:
 
 ---
 
-## Environment Variables (`.env`)
+## Environment Variables (Doppler)
+
+Set in the shared `digigrowth` Doppler vault, config `prd_dialer` — never in a local file:
 
 ```
 TWILIO_ACCOUNT_SID=AC...
@@ -117,6 +119,7 @@ TWILIO_API_KEY_SID=SK...
 TWILIO_API_KEY_SECRET=...
 TWILIO_TWIML_APP_SID=AP...
 OS_API_PASSWORD=...        # same as DASHBOARD_PASSWORD on Railway
+OS_API_URL=...             # webhook.py posts dispositions/heartbeats here
 NGROK_AUTH_TOKEN=...       # free ngrok account token
 ```
 
@@ -124,4 +127,4 @@ NGROK_AUTH_TOKEN=...       # free ngrok account token
 
 ## Security
 
-`.env` is in `.gitignore`. Never commit it.
+Secrets live in Doppler, not in this repo. Never write them to a local `.env` file or commit them.

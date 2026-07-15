@@ -6,16 +6,15 @@ Requires a public URL (ngrok in dev): ngrok http 5000
 Set webhook_base_url in config.json to your ngrok URL.
 """
 
-import json
 import os
 import threading
 
 import requests
 from flask import Flask, request, Response, send_file, jsonify
-from twilio.twiml.voice_response import VoiceResponse, Dial, Conference, Gather, Say
+from twilio.twiml.voice_response import VoiceResponse
 
-import leads as leads_mod
 import dialer as dialer_mod
+from leads import _norm
 
 _OS_URL  = os.environ.get("OS_API_URL", "").rstrip("/")
 _OS_PASS = os.environ.get("OS_API_PASSWORD", "")
@@ -36,12 +35,7 @@ def _os_post(path, data):
         print(f"  ⚠️  OS API post failed ({path}): {e}")
 
 
-def _norm(phone):
-    """Strip +, spaces, dashes for phone number comparison."""
-    return phone.replace("+", "").replace(" ", "").replace("-", "")
-
-BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
 
@@ -97,7 +91,7 @@ def init_session(config, session_id):
         _session["batch_had_answer"]    = False
         _session["stats"]               = {"calls_made": 0, "dms_reached": 0}
         _session["eligible_leads"]      = []
-        _session["max_lines"]           = config.get("max_parallel_lines", 10)
+        _session["max_lines"]           = config.get("max_parallel_lines", 5)
         _session["end_requested"]       = False
     threading.Thread(
         target=_os_post,
@@ -222,7 +216,7 @@ def get_token():
     app_sid     = os.environ.get("TWILIO_TWIML_APP_SID", "")
 
     if not all([account_sid, api_key, api_secret, app_sid]):
-        return jsonify({"error": "Missing Twilio credentials — check .env for TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET, TWILIO_TWIML_APP_SID"}), 500
+        return jsonify({"error": "Missing Twilio credentials — check Doppler for TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET, TWILIO_TWIML_APP_SID"}), 500
 
     token = AccessToken(account_sid, api_key, api_secret, identity="agent", ttl=3600)
     grant = VoiceGrant(outgoing_application_sid=app_sid, incoming_allow=True)
@@ -416,8 +410,6 @@ def lead_answered():
     - Already bridged or session inactive: play "sorry wrong number" and hang up.
     - Human: add lead directly to the conference (Dylan is already there).
     """
-    from datetime import datetime, timezone
-
     try:
       return _lead_answered_inner()
     except Exception as exc:
@@ -613,8 +605,6 @@ def call_status():
             else:
                 _session["needs_retry"].discard(norm)
                 should_count = True
-
-        lead_state = {"phone": phone}
 
     if should_count:
         with _session["lock"]:

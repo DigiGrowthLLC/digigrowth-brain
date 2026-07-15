@@ -4,14 +4,12 @@
   "webhook_port": 5001,
   "ghl_location_id": "FVNoxxUHiEhxjgsdhvsV",
   "sms_agent": {
-    "max_messages": 15,
     "max_followups": 3,
     "booking_link": "https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn",
-    "reference_page_ids": ["36cd25c0-53ea-8168-a615-eca377f05dc5", "2d5d25c053ea80e68fccf38e0e175837"],
-    "persona": "Dylan from Digigrowth"
+    "reference_page_ids": ["36cd25c0-53ea-8168-a615-eca377f05dc5", "2d5d25c053ea80e68fccf38e0e175837"]
   },
   "newsletter": {
-    "topic_hint": "AI client acquisition for fitness studios",
+    "topic_hint": "AI client acquisition for independent mobile and in-home veterinary practices",
     "booking_link": "https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn",
     "from_name": "Dylan | Digigrowth"
   }

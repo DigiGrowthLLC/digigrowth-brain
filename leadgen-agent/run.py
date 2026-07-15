@@ -148,8 +148,9 @@ def read_memory():
 def update_memory(new_information):
     relevant_keywords = [
         "chain", "franchise", "blacklist", "niche", "market", "qualify",
-        "disqualify", "training", "gym", "studio", "fitness", "criteria",
-        "location", "target", "owner", "semi-private", "private"
+        "disqualify", "criteria", "location", "target", "owner",
+        "vet", "veterinary", "veterinarian", "mobile", "in-home", "house call",
+        "practice", "clinic", "hospital", "dvm"
     ]
     if not any(word in new_information.lower() for word in relevant_keywords):
         print("⚠️  Not saved — not relevant to lead generation or agent role.")
@@ -356,7 +357,7 @@ def scrape_website_full(url, max_words=600):
     return name, content_text
 
 
-def find_owner_name(business_name, website_url, max_words=600):
+def find_owner_name(website_url, max_words=600):
     """Free owner lookup: JSON-LD → page regex. Zero Claude calls."""
     print(f"    🔍 Checking website...")
     owner, content_text = scrape_website_full(website_url, max_words)
@@ -372,7 +373,7 @@ def find_owner_name(business_name, website_url, max_words=600):
 #  LEAD QUALIFIER
 # ════════════════════════════════════════════════════════════════════════════
 
-def qualify_lead(business_name, phone, website_url, owner_name, address, website_text, role, memory):
+def qualify_lead(business_name, phone, website_url, owner_name, website_text, role, memory):
     prompt   = open(PROMPT_FILE, encoding="utf-8").read()
     filled   = (
         prompt
@@ -515,9 +516,9 @@ def run_pipeline(lead_status="dialer-lead"):
             continue
 
         # Single-pass scrape: owner extraction (JSON-LD → regex) + content text
-        owner_name, website_text = find_owner_name(name, website, config.get("max_website_text_words", 600))
+        owner_name, website_text = find_owner_name(website, config.get("max_website_text_words", 600))
 
-        result, cached = qualify_lead(name, phone, website, owner_name, address, website_text, role, memory)
+        result, cached = qualify_lead(name, phone, website, owner_name, website_text, role, memory)
         if cached:
             cache_hits += 1
 
