@@ -497,7 +497,7 @@ export default function FinancesPanel() {
           Income vs Expenses
         </div>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em", marginBottom: 16 }}>
-          LAST {days === 365 ? "12 MONTHS" : `${days} DAYS`} · {(categories?.granularity ?? "daily").toUpperCase()}
+          LAST {days === 365 ? "12 MONTHS" : `${days} DAYS`} · CUMULATIVE · {(categories?.granularity ?? "daily").toUpperCase()}
         </div>
         <ResponsiveContainer width="100%" height={160}>
           <AreaChart data={categories?.daily ?? []} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>

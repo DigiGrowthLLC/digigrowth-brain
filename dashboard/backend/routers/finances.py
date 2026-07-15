@@ -137,14 +137,17 @@ async def categories(days: int = 30):
     total_expenses = sum(float(r["total"]) for r in cat_rows) or 1
 
     by_period = {r["period"]: r for r in trend_rows}
-    daily = [
-        {
+    cum_income = 0.0
+    cum_expenses = 0.0
+    daily = []
+    for p in _generate_periods(since, today, trunc):
+        cum_income   += float(by_period[p]["income"])   if p in by_period else 0.0
+        cum_expenses += float(by_period[p]["expenses"]) if p in by_period else 0.0
+        daily.append({
             "date":     str(p),
-            "income":   round(float(by_period[p]["income"]), 2)   if p in by_period else 0.0,
-            "expenses": round(float(by_period[p]["expenses"]), 2) if p in by_period else 0.0,
-        }
-        for p in _generate_periods(since, today, trunc)
-    ]
+            "income":   round(cum_income, 2),
+            "expenses": round(cum_expenses, 2),
+        })
 
     return {
         "expense_breakdown": [
