@@ -7,7 +7,6 @@ Keeps Python free of MCP dependencies.
 """
 
 import json
-import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
