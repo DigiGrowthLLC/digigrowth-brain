@@ -519,9 +519,11 @@ export default function FinancesPanel() {
               tickFormatter={v => {
                 if (!v) return "";
                 if (days > 90) {
-                  // monthly: show "Jan", "Feb", etc.
-                  const d = new Date(v);
-                  return d.toLocaleString("en-US", { month: "short" });
+                  // monthly: show "Jan", "Feb", etc. Parse the "YYYY-MM-DD" string
+                  // manually — new Date(v) parses as UTC midnight, which
+                  // shifts back a day (and a month label) in timezones behind UTC.
+                  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                  return MONTHS[parseInt(v.slice(5, 7), 10) - 1];
                 }
                 // daily/weekly: show "MM-DD"
                 return v.slice(5);

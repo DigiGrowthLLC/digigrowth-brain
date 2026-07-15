@@ -59,9 +59,43 @@ async def summary(days: int = 30):
     }
 
 
+def _week_start(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
+def _month_start(d: date) -> date:
+    return d.replace(day=1)
+
+
+def _generate_periods(since: date, today: date, trunc: str) -> list:
+    """Every bucket start-date in [since, today], inclusive, at the given
+    granularity — so the trend series has one point per period even when a
+    period has zero transactions, instead of silently skipping it."""
+    periods = []
+    if trunc == "day":
+        cur = since
+        while cur <= today:
+            periods.append(cur)
+            cur += timedelta(days=1)
+    elif trunc == "week":
+        cur = _week_start(since)
+        end = _week_start(today)
+        while cur <= end:
+            periods.append(cur)
+            cur = _advance(cur, "weekly")
+    else:
+        cur = _month_start(since)
+        end = _month_start(today)
+        while cur <= end:
+            periods.append(cur)
+            cur = _advance(cur, "monthly")
+    return periods
+
+
 @router.get("/finances/categories")
 async def categories(days: int = 30):
     since = _since_date(days)
+    today = datetime.now(timezone.utc).date()
     pool  = await get_pool()
 
     # Choose aggregation granularity based on time window
@@ -102,6 +136,16 @@ async def categories(days: int = 30):
 
     total_expenses = sum(float(r["total"]) for r in cat_rows) or 1
 
+    by_period = {r["period"]: r for r in trend_rows}
+    daily = [
+        {
+            "date":     str(p),
+            "income":   round(float(by_period[p]["income"]), 2)   if p in by_period else 0.0,
+            "expenses": round(float(by_period[p]["expenses"]), 2) if p in by_period else 0.0,
+        }
+        for p in _generate_periods(since, today, trunc)
+    ]
+
     return {
         "expense_breakdown": [
             {
@@ -112,14 +156,7 @@ async def categories(days: int = 30):
             for r in cat_rows
         ],
         "granularity": granularity,
-        "daily": [
-            {
-                "date":     str(r["period"]),
-                "income":   round(float(r["income"]), 2),
-                "expenses": round(float(r["expenses"]), 2),
-            }
-            for r in trend_rows
-        ],
+        "daily": daily,
     }
 
 
