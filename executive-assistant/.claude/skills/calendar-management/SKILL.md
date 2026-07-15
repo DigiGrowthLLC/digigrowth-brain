@@ -64,8 +64,8 @@ Calculate all open time windows within the work day.
 | Block | Preferred | Minimum | Days | Color (ID) | Notes |
 |---|---|---|---|---|---|
 | Morning Routine | 1.5 hrs | 1 hr | Daily | Sage (2) | Always the first block. Never skip. |
-| MDR | 1 hr | 30 min | Daily | Banana (5) | Lunch and reset. Always guarantee at least 30 min. | 
-| Outreach | 1 hr | 30 min | Mon–Fri | Tangerine (6) | |
+| MDR | 1 hr | 30 min | Daily | Banana (5) | Lunch and reset. Always guarantee at least 30 min. Never starts before 11:00 AM — hard floor. |
+| Outreach | 2 hrs | 30 min | Mon–Fri | Tangerine (6) | |
 | Admin | 30 min | 30 min | Daily | Graphite (8) | Email triage, Notion review, tool ops. |
 | Gym | 2 hrs | 2 hrs | Daily (soft) | Tomato (11) | Must end by 9:30PM. Drop entirely if no 2-hr window exists. |
 | Growth | 3 hrs | 1 hr | Daily | Blueberry (9) | Learning, content, system building. First to drop. |
@@ -76,7 +76,7 @@ Calculate all open time windows within the work day.
 When time is short, drop from the bottom up:
 
 1. Morning Routine minimum (1 hr) — never drop below 1 hr
-2. MDR minimum (30 min) — always reserve 30 min for lunch; if there's only 30 min left after Morning Routine, give it to MDR over Outreach
+2. MDR minimum (30 min) — always reserve 30 min for lunch, placed no earlier than 11:00 AM (hard floor, see Scheduling Rule 6). If the only free 30-min slot is right after Morning Routine and that slot falls before 11:00 AM, that slot goes to Outreach (or Admin) instead — MDR still gets its 30 min, just later, at or after 11:00 AM.
 3. Outreach — once MR and MDR minimums are reserved, Outreach takes priority over extending Morning Routine to 1.5 hrs or extending MDR to its full 1 hr; a full Outreach session beats a full Morning Routine or a full MDR
 4. Admin
 5. Meal Prep (Thu only) — hard block, cannot be dropped or shortened; takes priority over Growth; not a work block so can run up to 9:30PM
@@ -90,13 +90,13 @@ When time is short, drop from the bottom up:
 3. **Preferred duration is a hard cap** — never extend a block beyond its preferred duration for any reason, including filling a gap. Max each block to its preferred duration, then stop.
 4. **Never compress a block below its minimum** — drop it entirely instead.
 5. **Never leave a schedulable gap** — a gap is schedulable only if a block that has not yet reached its preferred duration can fill part or all of it. If no such block exists, leave the gap empty.
-6. **MDR placement:** MDR must always follow a primary work block — never place it directly after Admin alone. It goes after Outreach. If Outreach is dropped entirely due to time constraints, MDR goes after Growth. It is the midday reset between the morning work session and the afternoon.
+6. **MDR placement:** MDR must always follow a primary work block — never place it directly after Admin alone. It goes after Outreach. If Outreach is dropped entirely due to time constraints, MDR goes after Growth. It is the midday reset between the morning work session and the afternoon. **Hard floor: MDR may never start before 11:00 AM**, regardless of how early the preceding blocks finish. If the natural sequence would place MDR earlier than 11:00 AM, fill the gap first — extend Outreach/Admin up to their preferred durations, or schedule Growth (which has no time-of-day restriction) into the gap — rather than starting MDR early or leaving the gap empty. This floor overrides Scheduling Rule 5 (never leave a schedulable gap) only to the extent needed to keep MDR at or after 11:00 AM.
 7. **Thursday — Meal Prep:** Hard block, 1.5 hours. Place it after Gym (or after Growth if no Gym). MDR must always come before Meal Prep. Meal Prep is not a work block — it can extend up to 9:30PM regardless of the work window end. Takes priority over Growth — if time is short, Meal Prep stays and Growth drops.
 8. **Gym:** Schedule after all higher-priority blocks are at full capacity. Place in any available 2-hour window. Must end by 9:30PM. Before dropping Gym, check if shortening Growth below its preferred duration (but not below its 1-hr minimum) would open a 2-hr window — if yes, shorten Growth to make room. Only drop Gym entirely if no 2-hr window exists even with Growth at its minimum.
 9. Sales calls are never pre-scheduled — prospects self-book, adjust around them.
 10. 15-minute pre-meeting buffer only (no post-meeting buffer), unless a Discount Tires shift requires its own buffers.
 
-**If a schedule override is active:** Use the override's `start` time instead of 7:00AM. Use only the blocks listed in `blocks`, in that order. The override block order is absolute — it overrides the natural daily order, MDR placement rules, and weekend/weekday ordering rules. Only these hard constraints still apply: no overlapping events, no block compressed below its minimum duration, all blocks must fall within the work window.
+**If a schedule override is active:** Use the override's `start` time instead of 7:00AM. Use only the blocks listed in `blocks`, in that order. The override block order is absolute — it overrides the natural daily order, MDR placement rules, and weekend/weekday ordering rules. Only these hard constraints still apply: no overlapping events, no block compressed below its minimum duration, all blocks must fall within the work window, and MDR never starts before 11:00 AM.
 
 Build a complete list of events to create with: title, start time, end time, and a 1–2 bullet description of what to focus on.
 

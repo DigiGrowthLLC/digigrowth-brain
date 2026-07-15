@@ -499,7 +499,7 @@ export default function DashboardPanel({ onNavigate }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
 
         {/* Agent Messages */}
-        <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", minHeight: 280 }}>
+        <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", height: 280 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0" }}>
               Agent Activity
@@ -539,7 +539,7 @@ export default function DashboardPanel({ onNavigate }) {
         </div>
 
         {/* Needs Reply */}
-        <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", minHeight: 280 }}>
+        <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", height: 280 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0" }}>
               Needs Reply
