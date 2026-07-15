@@ -416,11 +416,15 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
   async function submitNote(e) {
     e.preventDefault();
     if (!note.trim()) return;
-    await fetch(`/api/contacts/${contact.id}/note`, {
+    const res = await fetch(`/api/contacts/${contact.id}/note`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: note }),
     });
+    if (res.ok) {
+      const { notes } = await res.json();
+      setDisplay(d => ({ ...d, notes }));
+    }
     setNote(""); onUpdate();
   }
 
@@ -621,7 +625,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
           </div>
 
           {/* Notes */}
-          {contact.notes && (
+          {display.notes && (
             <div>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
                             letterSpacing: "0.15em", marginBottom: 6 }}>
@@ -629,7 +633,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
               </div>
               <div className="dg-surface" style={{ padding: "10px 14px", fontSize: 12,
                                                    color: "#6080a8", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                {contact.notes}
+                {display.notes}
               </div>
             </div>
           )}

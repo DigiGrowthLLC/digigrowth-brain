@@ -3,8 +3,8 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-const API = (p) => `/api${p}`;
+import { API } from "../api.js";
+import PeriodToggle from "../components/PeriodToggle.jsx";
 
 const CATEGORIES = [
   "Revenue",
@@ -42,25 +42,7 @@ function ChartTooltip({ active, payload, label }) {
   );
 }
 
-function PeriodToggle({ days, setDays }) {
-  return (
-    <div style={{
-      display: "flex", background: "rgba(10,18,48,0.7)",
-      border: "1px solid rgba(58,123,213,0.1)", borderRadius: 12, padding: 4, gap: 2,
-    }}>
-      {[[7,"7D"],[30,"30D"],[90,"90D"],[365,"1Y"]].map(([d, label]) => (
-        <button key={d} onClick={() => setDays(d)} style={{
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontSize: 11, fontWeight: 500, padding: "5px 14px",
-          borderRadius: 9, border: "none", cursor: "pointer", transition: "all 0.15s",
-          background: days === d ? "linear-gradient(135deg, #2857a0 0%, #3a7bd5 100%)" : "transparent",
-          color: days === d ? "#fff" : "#4a6080",
-          boxShadow: days === d ? "0 2px 10px rgba(58,123,213,0.4)" : "none",
-        }}>{label}</button>
-      ))}
-    </div>
-  );
-}
+const FINANCES_PERIOD_OPTIONS = [[7,"7D"],[30,"30D"],[90,"90D"],[365,"1Y"]];
 
 function SummaryCard({ label, value, color, sub }) {
   return (
@@ -377,8 +359,6 @@ export default function FinancesPanel() {
     : summary.margin > 0  ? "#f0a028"
     : "#dc3c3c";
 
-  const totalExpenses = categories?.expense_breakdown?.reduce((s, r) => s + r.total, 0) || 1;
-
   if (!summary) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -418,7 +398,7 @@ export default function FinancesPanel() {
           >
             + Add Transaction
           </button>
-          <PeriodToggle days={days} setDays={setDays} />
+          <PeriodToggle days={days} setDays={setDays} options={FINANCES_PERIOD_OPTIONS} />
         </div>
       </div>
 

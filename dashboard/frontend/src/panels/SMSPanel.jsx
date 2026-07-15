@@ -1,18 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { API } from "../api.js";
 
-const API = (p) => `/api${p}`;
-
-const GRADES   = ["A", "B", "C", "D", "F"];
-const STATUSES = ["new", "contacted", "follow-up", "qualified", "appointment-booked", "not-interested", "do-not-call"];
-
-function timeAgo(ts) {
-  if (!ts) return "";
-  const d = new Date(ts), now = new Date(), diff = now - d;
-  if (diff < 60000) return "now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+const GRADES   = ["A", "B", "C", "D"];
+const STATUSES = ["new", "dialer-lead", "sms-handoff", "appointment-booked", "not-interested", "send-info", "voicemail"];
 
 function fmtMsgTime(ts) {
   if (!ts) return "";

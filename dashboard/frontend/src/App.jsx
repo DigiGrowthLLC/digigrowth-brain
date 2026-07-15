@@ -12,17 +12,17 @@ import TodoPanel      from "./panels/TodoPanel.jsx";
 import WebsitePanel  from "./panels/WebsitePanel.jsx";
 
 const NAV = [
-  { id: "home",      label: "Dashboard", ready: true  },
-  { id: "crm",       label: "CRM",       ready: true  },
-  { id: "dialer",    label: "Dialer",    ready: true  },
-  { id: "sms",       label: "SMS Inbox", ready: true  },
-  { id: "agents",    label: "Agents",    ready: true  },
-  { id: "todos",     label: "To-Do",     ready: true  },
-  { id: "analytics", label: "Analytics", ready: true  },
-  { id: "finances",  label: "Finances",  ready: true  },
-  { id: "website",   label: "Website",   ready: true  },
-  { id: "sops",      label: "Business Resources", ready: true  },
-  { id: "settings",  label: "Settings",  ready: true  },
+  { id: "home",      label: "Dashboard" },
+  { id: "crm",       label: "CRM" },
+  { id: "dialer",    label: "Dialer" },
+  { id: "sms",       label: "SMS Inbox" },
+  { id: "agents",    label: "Agents" },
+  { id: "todos",     label: "To-Do" },
+  { id: "analytics", label: "Analytics" },
+  { id: "finances",  label: "Finances" },
+  { id: "website",   label: "Website" },
+  { id: "sops",      label: "Business Resources" },
+  { id: "settings",  label: "Settings" },
 ];
 
 const NAV_ICONS = {
@@ -165,15 +165,15 @@ export default function App() {
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 3 }}>
-          {NAV.map(({ id, label, ready }) => {
+          {NAV.map(({ id, label }) => {
             const isActive = active === id;
             return (
               <button key={id}
-                onClick={() => ready && setActive(id)}
+                onClick={() => setActive(id)}
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 14px", borderRadius: 12,
-                  border: "none", cursor: ready ? "pointer" : "not-allowed",
+                  border: "none", cursor: "pointer",
                   background: isActive
                     ? "linear-gradient(90deg, #2857a0 0%, #3a7bd5 100%)"
                     : "transparent",
@@ -181,14 +181,14 @@ export default function App() {
                   transition: "all 0.2s", textAlign: "left",
                 }}
                 onMouseEnter={e => {
-                  if (!isActive && ready) e.currentTarget.style.background = "rgba(58,123,213,0.08)";
+                  if (!isActive) e.currentTarget.style.background = "rgba(58,123,213,0.08)";
                 }}
                 onMouseLeave={e => {
                   if (!isActive) e.currentTarget.style.background = "transparent";
                 }}
               >
                 <span style={{
-                  color: isActive ? "#6ab0ff" : ready ? "#3a5a80" : "#1e2f4a",
+                  color: isActive ? "#6ab0ff" : "#3a5a80",
                   display: "flex", flexShrink: 0,
                 }}>
                   {NAV_ICONS[id]}
@@ -196,19 +196,10 @@ export default function App() {
                 <span style={{
                   fontFamily: "'Space Grotesk', sans-serif",
                   fontSize: 13, fontWeight: isActive ? 600 : 400,
-                  color: isActive ? "#ffffff" : ready ? "#6080a8" : "#2a3a50",
+                  color: isActive ? "#ffffff" : "#6080a8",
                 }}>
                   {label}
                 </span>
-                {!ready && (
-                  <span style={{
-                    marginLeft: "auto",
-                    fontFamily: "'Share Tech Mono', monospace",
-                    fontSize: 8, color: "#1e2f4a", letterSpacing: "0.1em",
-                  }}>
-                    SOON
-                  </span>
-                )}
               </button>
             );
           })}
@@ -253,19 +244,6 @@ export default function App() {
         {active === "website"   && <WebsitePanel />}
         {active === "sops"      && <SOPsPanel />}
         {active === "settings"  && <SettingsPanel />}
-        {!["home","crm","sms","dialer","agents","todos","analytics","finances","sops","settings","website"].includes(active) && (
-          <div style={{
-            flex: 1, display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", gap: 10,
-          }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a3a60", letterSpacing: "0.2em" }}>
-              MODULE OFFLINE
-            </div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#1a2f52" }}>
-              Coming Soon
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );

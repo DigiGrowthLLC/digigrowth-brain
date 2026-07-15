@@ -3,10 +3,9 @@ import {
   LineChart, Line,
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell,
+  ResponsiveContainer,
 } from "recharts";
-
-const API = (p) => `/api${p}`;
+import { API } from "../api.js";
 
 function timeAgo(ts) {
   if (!ts) return "";

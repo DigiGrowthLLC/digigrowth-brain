@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-
-const API = (p) => `/api${p}`;
+import { API } from "../api.js";
 
 const TERM_PRESETS = [
   "pip list",

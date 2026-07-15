@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-
-const API = (p) => `/api${p}`;
+import { API } from "../api.js";
 
 const RECURRENCE_LABELS = {
   daily:    "↻ daily",

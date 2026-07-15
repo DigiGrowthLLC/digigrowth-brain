@@ -1,18 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { marked } from "marked";
-
-const API = (p) => `/api${p}`;
+import { API } from "../api.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function timeAgo(ts) {
-  if (!ts) return "";
-  const d = new Date(ts), now = new Date(), diff = now - d;
-  if (diff < 60000) return "just now";
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 function fmtMsgTime(ts) {
   if (!ts) return "";
@@ -20,45 +10,6 @@ function fmtMsgTime(ts) {
   if (diff < 86400000) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + ", " +
          d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-
-// ── Thinking block (collapsible) ─────────────────────────────────────────────
-
-function ThinkingBlock({ text, streaming }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div style={{
-      fontFamily: "'Share Tech Mono', monospace", fontSize: 11,
-      background: "rgba(30,10,50,0.7)", border: "1px solid rgba(140,80,220,0.2)",
-      borderRadius: 8, padding: "6px 10px", marginBottom: 4,
-      maxWidth: "85%",
-    }}>
-      <div
-        onClick={() => !streaming && setExpanded(e => !e)}
-        style={{
-          cursor: streaming ? "default" : "pointer",
-          display: "flex", alignItems: "center", gap: 6, color: streaming ? "#c080f0" : "#9060c8",
-        }}
-      >
-        <span style={{ display: "inline-block", animation: streaming ? "spin 1s linear infinite" : "none", fontSize: 13 }}>
-          {streaming ? "↻" : "◈"}
-        </span>
-        <span>{streaming ? "Thinking…" : "Thought process"}</span>
-        {!streaming && (
-          <span style={{ color: "#4a2a6a", marginLeft: "auto" }}>{expanded ? "▲" : "▼"}</span>
-        )}
-      </div>
-      {expanded && text && (
-        <div style={{
-          marginTop: 6, color: "#7a5a9a", maxHeight: 300, overflowY: "auto",
-          whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 10, lineHeight: 1.6,
-          borderTop: "1px solid rgba(140,80,220,0.1)", paddingTop: 6,
-        }}>
-          {text}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ── Tool block (collapsible) ──────────────────────────────────────────────────
@@ -283,9 +234,6 @@ function MessageBubble({ msg }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <style>{CHAT_STYLES}</style>
-      {msg.thinking !== undefined && (
-        <ThinkingBlock text={msg.thinking} streaming={msg._thinkingStreaming} />
-      )}
       {(msg.toolBlocks || []).map(tb => <ToolBlock key={tb.id} block={tb} />)}
       {(text || msg._streaming || msg._error) && (
         isBriefing ? (
@@ -608,7 +556,7 @@ export default function AgentsPanel({ initialAgentId }) {
     abortRef.current?.abort();
     abortRef.current = null;
     setMessages(prev => prev.map(m =>
-      m._streaming ? { ...m, _streaming: false, _thinkingStreaming: false } : m
+      m._streaming ? { ...m, _streaming: false } : m
     ));
     setStreaming(false);
   };
@@ -630,7 +578,7 @@ export default function AgentsPanel({ initialAgentId }) {
     setMessages(prev => [
       ...prev,
       { id: userId, role: "user", content: [{ type: "text", text: userText }] },
-      { id: streamId, role: "assistant", content: [{ type: "text", text: "" }], toolBlocks: [], thinking: undefined, _thinkingStreaming: false, _streaming: true },
+      { id: streamId, role: "assistant", content: [{ type: "text", text: "" }], toolBlocks: [], _streaming: true },
     ]);
 
     try {
@@ -666,19 +614,7 @@ export default function AgentsPanel({ initialAgentId }) {
           let evt;
           try { evt = JSON.parse(line.slice(6)); } catch { continue; }
 
-          if (evt.type === "thinking_start") {
-            setMessages(prev => prev.map(m =>
-              m.id === streamId ? { ...m, thinking: "", _thinkingStreaming: true } : m
-            ));
-          } else if (evt.type === "thinking_delta") {
-            setMessages(prev => prev.map(m =>
-              m.id === streamId ? { ...m, thinking: (m.thinking || "") + evt.text } : m
-            ));
-          } else if (evt.type === "thinking_done") {
-            setMessages(prev => prev.map(m =>
-              m.id === streamId ? { ...m, _thinkingStreaming: false } : m
-            ));
-          } else if (evt.type === "text_delta") {
+          if (evt.type === "text_delta") {
             setMessages(prev => prev.map(m =>
               m.id === streamId
                 ? { ...m, content: [{ type: "text", text: (m.content[0]?.text || "") + evt.text }] }

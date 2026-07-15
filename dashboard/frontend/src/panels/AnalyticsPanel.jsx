@@ -1,42 +1,10 @@
 import React, { useState, useEffect } from "react";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-
-const API = (p) => `/api${p}`;
-
-const DISPO_COLORS = {
-  "Appointment Booked": "#14c882",
-  "Follow Up":          "#5a9bf0",
-  "Send Info":          "#a080f0",
-  "Not Interested":     "#dc3c3c",
-  "No Answer":          "#3a4f6f",
-  "Voicemail":          "#f0a028",
-  "SMS Handoff":        "#a080f0",
-};
+import { API } from "../api.js";
+import PeriodToggle from "../components/PeriodToggle.jsx";
 
 function pct(v) { return v != null ? `${v}%` : "—"; }
 function num(v) { return v != null ? v : "—"; }
 function money(v) { return v != null ? `$${v.toLocaleString()}` : "—"; }
-
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: "rgba(10,18,48,0.95)", border: "1px solid rgba(58,123,213,0.2)",
-      borderRadius: 10, padding: "8px 14px", fontSize: 12,
-      fontFamily: "'Space Grotesk', sans-serif",
-    }}>
-      <div style={{ color: "#8aaad0", marginBottom: 4 }}>{label}</div>
-      {payload.map(p => (
-        <div key={p.dataKey} style={{ color: p.color, fontWeight: 600 }}>
-          {p.name}: {p.value}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function SecLabel({ children, style }) {
   return (
@@ -53,25 +21,7 @@ function MiniStat({ label, value, color }) {
   );
 }
 
-function PeriodToggle({ days, setDays }) {
-  return (
-    <div style={{
-      display: "flex", background: "rgba(10,18,48,0.7)",
-      border: "1px solid rgba(58,123,213,0.1)", borderRadius: 12, padding: 4, gap: 2,
-    }}>
-      {[[7,"7D"],[30,"30D"],[0,"All Time"]].map(([d, label]) => (
-        <button key={d} onClick={() => setDays(d)} style={{
-          fontFamily: "'Space Grotesk', sans-serif",
-          fontSize: 11, fontWeight: 500, padding: "5px 14px",
-          borderRadius: 9, border: "none", cursor: "pointer", transition: "all 0.15s",
-          background: days === d ? "linear-gradient(135deg, #2857a0 0%, #3a7bd5 100%)" : "transparent",
-          color: days === d ? "#fff" : "#4a6080",
-          boxShadow: days === d ? "0 2px 10px rgba(58,123,213,0.4)" : "none",
-        }}>{label}</button>
-      ))}
-    </div>
-  );
-}
+const ANALYTICS_PERIOD_OPTIONS = [[7,"7D"],[30,"30D"],[0,"All Time"]];
 
 function TabToggle({ value, onChange, options }) {
   return (
@@ -226,16 +176,12 @@ function FunnelBlock({ label, value, convRate, benchmark, color, isFirst }) {
 export default function AnalyticsPanel() {
   const [days, setDays]               = useState(0);
   const [outreach, setOutreach]       = useState(null);
-  const [calls, setCalls]             = useState(null);
   const [pipeline, setPipeline]       = useState(null);
   const [sales, setSales]             = useState(null);
   const [outreachTab, setOutreachTab] = useState("period");
 
   useEffect(() => {
-    Promise.all([
-      fetch(API(`/analytics/outreach?days=${days}`)).then(r => r.ok ? r.json() : null),
-      fetch(API(`/analytics/calls?days=${days}`)).then(r => r.ok ? r.json() : null),
-    ]).then(([o, c]) => { setOutreach(o); setCalls(c); });
+    fetch(API(`/analytics/outreach?days=${days}`)).then(r => r.ok ? r.json() : null).then(setOutreach);
   }, [days]);
 
   useEffect(() => {
@@ -246,7 +192,6 @@ export default function AnalyticsPanel() {
   }, [days]);
 
   const funnel = pipeline?.funnel ?? {};
-  const totalCalls = calls?.total_calls ?? 0;
 
   // Funnel conversion rates
   const dialedRate   = funnel.total_leads ? _pct(funnel.dialed,   funnel.total_leads) : null;
@@ -269,7 +214,7 @@ export default function AnalyticsPanel() {
             OUTREACH & ACQUISITION
           </div>
         </div>
-        <PeriodToggle days={days} setDays={setDays} />
+        <PeriodToggle days={days} setDays={setDays} options={ANALYTICS_PERIOD_OPTIONS} />
       </div>
 
       {/* ── Outreach & Appointment Setting ─────────────────────────── */}
