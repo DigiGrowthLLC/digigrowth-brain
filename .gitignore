@@ -2,6 +2,13 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Frontend build artifacts
+node_modules/
+dist/
+
+# OS junk
+.DS_Store
+
 # Secrets — never commit
 .env
 .env.*
