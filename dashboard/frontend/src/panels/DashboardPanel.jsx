@@ -260,7 +260,7 @@ export default function DashboardPanel({ onNavigate }) {
       fetch(API("/dashboard/client-messages")),
     ]);
     if (s.ok) setStats(await s.json());
-    if (a.ok) setAgentMsgs(await a.json());
+    if (a.ok) setAgentMsgs((await a.json()).filter(m => !m.read));
     if (c.ok) setClientMsgs(await c.json());
   };
 
@@ -272,14 +272,14 @@ export default function DashboardPanel({ onNavigate }) {
   }, [period]);
 
   const markRead = async (id) => {
+    setAgentMsgs(p => p.filter(m => m.id !== id));
     await fetch(API(`/dashboard/agent-messages/${id}/read`), { method: "POST" });
-    setAgentMsgs(p => p.map(m => m.id === id ? { ...m, read: true } : m));
   };
 
   const calling  = stats?.calling  ?? {};
   const sms      = stats?.sms      ?? {};
   const contacts = stats?.contacts ?? {};
-  const unread   = agentMsgs.filter(m => !m.read).length;
+  const unread   = agentMsgs.length;
 
   // Disposition bar data from chart
   const barData = [
@@ -514,15 +514,14 @@ export default function DashboardPanel({ onNavigate }) {
               <div key={m.id} onClick={() => {
                 onNavigate?.("agents", m.agent);
                 markRead(m.id);
-                setAgentMsgs(p => p.map(x => x.id === m.id ? { ...x, read: true } : x));
               }} style={{
                 padding: "10px 12px", borderRadius: 10, cursor: "pointer",
-                background: m.read ? "rgba(255,255,255,0.02)" : "rgba(58,123,213,0.06)",
-                border: `1px solid ${m.read ? "rgba(58,123,213,0.05)" : "rgba(58,123,213,0.15)"}`,
+                background: "rgba(58,123,213,0.06)",
+                border: "1px solid rgba(58,123,213,0.15)",
                 transition: "all 0.15s",
               }}
               onMouseEnter={e => e.currentTarget.style.background = "rgba(58,123,213,0.1)"}
-              onMouseLeave={e => e.currentTarget.style.background = m.read ? "rgba(255,255,255,0.02)" : "rgba(58,123,213,0.06)"}
+              onMouseLeave={e => e.currentTarget.style.background = "rgba(58,123,213,0.06)"}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                   <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>
@@ -532,7 +531,7 @@ export default function DashboardPanel({ onNavigate }) {
                     {timeAgo(m.created_at)}
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: m.read ? "#3a4f6f" : "#8aaad0", lineHeight: 1.4 }}>{m.message}</div>
+                <div style={{ fontSize: 12, color: "#8aaad0", lineHeight: 1.4 }}>{m.message}</div>
               </div>
             ))}
           </div>
