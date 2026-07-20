@@ -1,27 +1,46 @@
 name: Lead Qualifier — Daily Run
 
 on:
-  # schedule:
-  #   - cron: "0 11 * * 1-5"   # 6am ET, weekdays only — PAUSED
-  workflow_dispatch:          # allows manual trigger from GitHub UI
+  schedule:
+    - cron: "0 22 * * *"   # 6pm ET during EDT (UTC-4, roughly Mar-Nov)
+    - cron: "0 23 * * *"   # 6pm ET during EST (UTC-5, roughly Nov-Mar)
+  workflow_dispatch:      # allows manual trigger from GitHub UI
 
 jobs:
   run-leadgen:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Skip if not actually 6pm ET (avoids double-run across DST cron entries)
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            hour=$(TZ="America/New_York" date +%H)
+            if [ "$hour" = "18" ]; then
+              echo "run=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Checkout repo
+        if: steps.check.outputs.run == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Python
+        if: steps.check.outputs.run == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install dependencies
+        if: steps.check.outputs.run == 'true'
         run: pip install -r leadgen-agent/requirements.txt
 
       - name: Run lead qualifier
+        if: steps.check.outputs.run == 'true'
         working-directory: leadgen-agent
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

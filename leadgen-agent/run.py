@@ -167,36 +167,27 @@ def update_memory(new_information):
 #  GOOGLE MAPS SCRAPER
 # ════════════════════════════════════════════════════════════════════════════
 
+PLACES_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+PLACES_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri"
+
 def search_places(query):
-    url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-    params = {"query": query, "key": PLACES_KEY}
+    """Places API (New) searchText — returns name, address, phone, and website
+    in a single call, replacing the old Text Search + Place Details pair."""
+    headers = {
+        "Content-Type":    "application/json",
+        "X-Goog-Api-Key":  PLACES_KEY,
+        "X-Goog-FieldMask": PLACES_FIELD_MASK,
+    }
     try:
-        res  = requests.get(url, params=params, timeout=10)
+        res  = requests.post(PLACES_SEARCH_URL, headers=headers, json={"textQuery": query}, timeout=10)
         data = res.json()
-        if data.get("status") not in ["OK", "ZERO_RESULTS"]:
-            print(f"    ⚠️  API status: {data.get('status')} — {data.get('error_message','')}")
+        if "error" in data:
+            print(f"    ⚠️  API error: {data['error'].get('message','')}")
             return []
-        return data.get("results", [])
+        return data.get("places", [])
     except Exception as e:
         print(f"    ❌ Search error: {e}")
         return []
-
-
-def get_place_details(place_id):
-    url = "https://maps.googleapis.com/maps/api/place/details/json"
-    params = {
-        "place_id": place_id,
-        "fields": "name,formatted_phone_number,website,formatted_address",
-        "key": PLACES_KEY
-    }
-    try:
-        res  = requests.get(url, params=params, timeout=10)
-        data = res.json()
-        if data.get("status") == "OK":
-            return data.get("result", {})
-    except Exception:
-        pass
-    return {}
 
 
 def scrape_state_leads(progress, scraped_ids, daily_limit):
@@ -220,10 +211,10 @@ def scrape_state_leads(progress, scraped_ids, daily_limit):
             results = search_places(query)
 
             for place in results:
-                place_id = place.get("place_id")
+                place_id = place.get("id")
                 if not place_id or place_id in scraped_ids:
                     continue
-                name = place.get("name", "")
+                name = place.get("displayName", {}).get("text", "")
                 if any(chain in name.lower() for chain in CHAIN_KEYWORDS):
                     scraped_ids.add(place_id)
                     continue
@@ -231,7 +222,9 @@ def scrape_state_leads(progress, scraped_ids, daily_limit):
                 raw_leads.append({
                     "place_id": place_id,
                     "name":     name,
-                    "address":  place.get("formatted_address", ""),
+                    "address":  place.get("formattedAddress", ""),
+                    "phone":    place.get("internationalPhoneNumber", ""),
+                    "website":  place.get("websiteUri", ""),
                     "state":    state_name,
                     "city":     city
                 })
@@ -370,12 +363,16 @@ def find_owner_name(website_url, max_words=600):
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#  LEAD QUALIFIER
+#  LEAD QUALIFIER (Message Batches API — 50% cheaper than sync calls; this is
+#  a scheduled job with no need for real-time responses)
 # ════════════════════════════════════════════════════════════════════════════
 
-def qualify_lead(business_name, phone, website_url, owner_name, website_text, role, memory):
-    prompt   = open(PROMPT_FILE, encoding="utf-8").read()
-    filled   = (
+BATCH_POLL_INTERVAL_SEC = 20
+BATCH_MAX_WAIT_SEC      = 30 * 60
+
+def _qualify_message_params(business_name, phone, website_url, owner_name, website_text, role, memory):
+    prompt = open(PROMPT_FILE, encoding="utf-8").read()
+    filled = (
         prompt
         .replace("{business_name}", business_name)
         .replace("{phone}",         phone)
@@ -383,31 +380,73 @@ def qualify_lead(business_name, phone, website_url, owner_name, website_text, ro
         .replace("{owner_name}",    owner_name)
         .replace("{website_text}",  website_text)
     )
-    response = client.messages.create(
-        model=config["model"],
-        max_tokens=500,
-        system=[{
+    return {
+        "model": config["model"],
+        "max_tokens": 500,
+        "system": [{
             "type": "text",
             "text": f"{role}\n\nAgent memory and criteria:\n{memory}",
             "cache_control": {"type": "ephemeral"}
         }],
-        messages=[{"role": "user", "content": filled}]
-    )
-    usage = response.usage
-    cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
-    cache_write = getattr(usage, "cache_creation_input_tokens", 0) or 0
-    if cache_read or cache_write:
-        print(f"  💾 Cache: read={cache_read} write={cache_write}")
-    raw = response.content[0].text.strip()
+        "messages": [{"role": "user", "content": filled}]
+    }
+
+
+def _parse_qualify_response(raw_text):
     try:
-        return json.loads(raw.replace("```json", "").replace("```", "").strip()), cache_read > 0
+        return json.loads(raw_text.replace("```json", "").replace("```", "").strip())
     except json.JSONDecodeError:
         return {
             "qualified": False, "grade": "D",
             "grade_reason": "Parse error",
-            "disqualify_reason": f"Unparseable: {raw[:100]}",
+            "disqualify_reason": f"Unparseable: {raw_text[:100]}",
             "niche_confirmed": False, "niche_notes": "", "opener": None
-        }, cache_read > 0
+        }
+
+
+def qualify_leads_batch(candidates, role, memory):
+    """candidates: list of dicts with place_id/name/phone/website/owner_name/website_text.
+    Returns {place_id: parsed_result_dict} for every candidate submitted."""
+    if not candidates:
+        return {}
+
+    requests_payload = [
+        {
+            "custom_id": c["place_id"],
+            "params": _qualify_message_params(
+                c["name"], c["phone"], c["website"], c["owner_name"], c["website_text"], role, memory
+            )
+        }
+        for c in candidates
+    ]
+
+    print(f"  📦 Submitting batch of {len(requests_payload)} qualification requests...")
+    batch = client.messages.batches.create(requests=requests_payload)
+    print(f"  📦 Batch {batch.id} submitted — polling for completion...")
+
+    waited = 0
+    while batch.processing_status != "ended":
+        if waited >= BATCH_MAX_WAIT_SEC:
+            print(f"  ⚠️  Batch not finished after {BATCH_MAX_WAIT_SEC}s — proceeding with partial/no results.")
+            break
+        time.sleep(BATCH_POLL_INTERVAL_SEC)
+        waited += BATCH_POLL_INTERVAL_SEC
+        batch = client.messages.batches.retrieve(batch.id)
+
+    results = {}
+    if batch.processing_status == "ended":
+        for entry in client.messages.batches.results(batch.id):
+            if entry.result.type == "succeeded":
+                text = entry.result.message.content[0].text.strip()
+                results[entry.custom_id] = _parse_qualify_response(text)
+            else:
+                results[entry.custom_id] = {
+                    "qualified": False, "grade": "D",
+                    "grade_reason": "Batch error",
+                    "disqualify_reason": f"Batch result type: {entry.result.type}",
+                    "niche_confirmed": False, "niche_notes": "", "opener": None
+                }
+    return results
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -492,70 +531,77 @@ def run_pipeline(lead_status="dialer-lead"):
         print("❌ No raw leads found.")
         return
 
-    qualified_leads = []
-    processed       = 0
-    cache_hits      = 0
-
+    # Phase 1: free filtering + website scraping (no Claude cost). Places API
+    # (New) already returned phone/website in scrape_state_leads — no separate
+    # Details call needed.
+    candidates = []
     for lead in raw_leads:
-        if len(qualified_leads) >= daily_limit:
-            break
-
-        processed += 1
-        name      = lead["name"]
-        place_id  = lead["place_id"]
-        print(f"\n[{processed}/{len(raw_leads)}] Processing: {name}")
-
-        details = get_place_details(place_id)
-        phone   = details.get("formatted_phone_number", "")
-        website = details.get("website", "")
-        address = details.get("formatted_address", lead.get("address", ""))
+        name    = lead["name"]
+        phone   = lead.get("phone", "")
+        website = lead.get("website", "")
 
         keep, reason = rule_based_filter(phone, website)
         if not keep:
-            print(f"  ⏭️  Skipped: {reason}")
+            print(f"  ⏭️  Skipped {name}: {reason}")
             continue
 
-        # Single-pass scrape: owner extraction (JSON-LD → regex) + content text
         owner_name, website_text = find_owner_name(website, config.get("max_website_text_words", 600))
+        candidates.append({
+            **lead,
+            "phone": phone, "website": website,
+            "owner_name": owner_name, "website_text": website_text,
+        })
 
-        result, cached = qualify_lead(name, phone, website, owner_name, website_text, role, memory)
-        if cached:
-            cache_hits += 1
+    print(f"📋 Candidates passing rule filter: {len(candidates)}/{len(raw_leads)}")
 
-        if result.get("qualified"):
-            grade      = result.get("grade", "C")
-            verified_owner = result.get("verified_owner_name") or ""
-            opener = result.get("opener") or ""
-            if opener and len(opener.split()) > 15:
-                print(f"  ⚠️  Opener too long ({len(opener.split())} words) — nulled")
-                opener = ""
-            if opener and "?" in opener:
-                print(f"  ⚠️  Opener has question mark — nulled")
-                opener = ""
-            print(f"  ✅ Grade: {grade} | Owner: {verified_owner} | Opener: {opener}")
-            qualified_leads.append({
-                "Business Name":     name,
-                "Phone":             phone,
-                "Website":           website,
-                "Address":           address,
-                "Email":             "",
-                "Owner Name":        verified_owner,
-                "Grade":             grade,
-                "Grade Reason":      result.get("grade_reason", ""),
-                "Qualified":         "Yes",
-                "Niche Notes":       result.get("niche_notes", ""),
-                "Disqualify Reason": "",
-                "Opener":            opener,
-                "Notes":             "",
-                "State":             lead.get("state", ""),
-                "City":              lead.get("city", "")
-            })
-        else:
-            print(f"  ❌ Disqualified: {result.get('disqualify_reason')}")
+    # Phase 2: one batch of qualification calls (Message Batches API — 50%
+    # cheaper than synchronous calls; fine for a scheduled, non-interactive job)
+    results_by_id = qualify_leads_batch(candidates, role, memory)
 
-        time.sleep(0.3)
+    all_qualified = []
+    for c in candidates:
+        result = results_by_id.get(c["place_id"])
+        if not result:
+            continue
+        if not result.get("qualified"):
+            print(f"  ❌ Disqualified {c['name']}: {result.get('disqualify_reason')}")
+            continue
 
-    print(f"\n📊 Results: {len(qualified_leads)} qualified today | Cache hits: {cache_hits}/{processed}")
+        grade          = result.get("grade", "C")
+        verified_owner = result.get("verified_owner_name") or ""
+        opener         = result.get("opener") or ""
+        if opener and len(opener.split()) > 15:
+            print(f"  ⚠️  Opener too long ({len(opener.split())} words) — nulled")
+            opener = ""
+        if opener and "?" in opener:
+            print(f"  ⚠️  Opener has question mark — nulled")
+            opener = ""
+        print(f"  ✅ {c['name']} — Grade: {grade} | Owner: {verified_owner} | Opener: {opener}")
+        all_qualified.append({
+            "Business Name":     c["name"],
+            "Phone":             c["phone"],
+            "Website":           c["website"],
+            "Address":           c.get("address", ""),
+            "Email":             "",
+            "Owner Name":        verified_owner,
+            "Grade":             grade,
+            "Grade Reason":      result.get("grade_reason", ""),
+            "Qualified":         "Yes",
+            "Niche Notes":       result.get("niche_notes", ""),
+            "Disqualify Reason": "",
+            "Opener":            opener,
+            "Notes":             "",
+            "State":             c.get("state", ""),
+            "City":              c.get("city", "")
+        })
+
+    # Batching qualifies every candidate up front rather than stopping early,
+    # so cap to daily_limit here, keeping the best grades.
+    grade_order = {"A": 0, "B": 1, "C": 2, "D": 3}
+    all_qualified.sort(key=lambda r: grade_order.get(r.get("Grade", "D"), 3))
+    qualified_leads = all_qualified[:daily_limit]
+
+    print(f"\n📊 Results: {len(all_qualified)} qualified, pushing top {len(qualified_leads)} (limit={daily_limit})")
     push_to_os(qualified_leads, lead_status)
     push_file(__file__, "progress.json")
     push_file(__file__, "scraped_ids.json")
