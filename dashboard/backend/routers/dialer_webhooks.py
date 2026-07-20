@@ -333,6 +333,12 @@ async def amd_result(request: Request):
     call_sid    = form.get("CallSid", "")
     phone       = request.query_params.get("phone") or form.get("To", "")
 
+    # Always log the raw verdict — Twilio's AMD can report "human", "unknown",
+    # or an intermediate "machine_start" that never gets a final machine_end_*
+    # follow-up, all of which silently skip the auto-hangup below. Logging
+    # every value (not just matches) is what makes that diagnosable.
+    print(f"  dialer: AMD result — AnsweredBy={answered_by!r} on {phone}", flush=True)
+
     machines = ("machine_end_beep", "machine_end_silence", "machine_end_other", "fax")
     if answered_by not in machines:
         return Response("", status_code=204)

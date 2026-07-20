@@ -110,6 +110,7 @@ const [notes, setNotes]                 = useState("");
       if (!r.ok) { const t = await r.text().catch(() => ""); setErrMsg(`dial-batch ${r.status}: ${t}`); return; }
       const d = await r.json();
       if (d.errors?.length) { setErrMsg(`Twilio error: ${d.errors[0]}`); return; }
+      if (d.busy) return; // a call is still live/awaiting classification — nothing to do yet
       if (!d.dialed) {
         setDialMsg("No eligible leads right now — checking again shortly…");
         retryTimerRef.current = setTimeout(() => {

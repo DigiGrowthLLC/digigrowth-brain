@@ -299,6 +299,14 @@ async def dial_batch():
         if engine._session.get("auto_dialed") and not engine._session.get("batch_had_answer"):
             return {"ok": True, "dialed": 0, "done": False, "note": "first batch auto-dialed"}
 
+        # Guard: never start a new batch while a lead is currently bridged or
+        # sitting in classify (awaiting a disposition click). Nothing else
+        # enforces this — a stray/duplicate dial-batch call (e.g. a page
+        # refresh re-triggering the connect flow) would otherwise dial 5 more
+        # numbers on top of an already-live call.
+        if engine._session.get("bridged") or engine._session.get("show_classification"):
+            return {"ok": True, "dialed": 0, "done": False, "busy": True}
+
     # Top up the queue from the CRM before batching, so batches stay at full
     # strength instead of draining the leads fetched at session start.
     await _top_up_queue()
