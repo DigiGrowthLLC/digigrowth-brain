@@ -304,13 +304,20 @@ async def classify(body: dict):
         engine._session["connected_at"]      = None
 
     if pending:
-        phone = pending.get("phone", "")
+        phone      = pending.get("phone", "")
+        contact_id = pending.get("contact_id")
 
         # Write to DB directly (same logic as log_disposition)
         pool = await get_pool()
         async with pool.acquire() as conn:
-            contact = await conn.fetchrow("SELECT id FROM contacts WHERE phone = $1", phone)
-            contact_id = contact["id"] if contact else None
+            if not contact_id:
+                # Fallback: match by normalized phone (Twilio's E.164 "To" vs.
+                # the CRM's stored format, e.g. Google Places' "(754) 291-5582").
+                contact = await conn.fetchrow(
+                    "SELECT id FROM contacts WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1",
+                    engine._norm(phone),
+                )
+                contact_id = contact["id"] if contact else None
 
             await conn.execute(
                 "INSERT INTO call_logs (contact_id, disposition, notes) VALUES ($1, $2, $3)",

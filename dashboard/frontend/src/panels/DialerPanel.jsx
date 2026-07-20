@@ -517,17 +517,18 @@ const [notes, setNotes]                 = useState("");
               {[
                 { label: "Calls Made", value: liveStats.calls_made ?? 0 },
                 { label: "Remaining",  value: liveStats.remaining ?? "—" },
-                { label: "In Queue",   value: session.leads_ready ?? "—" },
-              ].map(({ label, value }) => (
-                <div key={label} style={{
+                { label: "In Queue",   value: session.leads_ready ?? "—", onClick: () => setQueueOpen(true) },
+              ].map(({ label, value, onClick }) => (
+                <div key={label} onClick={onClick} style={{
                   background: "rgba(15,25,50,0.5)", borderRadius: 8, padding: "8px 10px",
                   border: "1px solid #1a2540", textAlign: "center",
+                  cursor: onClick ? "pointer" : "default",
                 }}>
                   <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
                     {value}
                   </div>
                   <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.12em", marginTop: 2 }}>
-                    {label}
+                    {label}{onClick ? " ▸" : ""}
                   </div>
                 </div>
               ))}
@@ -852,66 +853,73 @@ const [notes, setNotes]                 = useState("");
         </div>
       </div>
 
-      {/* ── Queue ── */}
-      <div className="glass-card" style={{ padding: 0, overflow: "hidden" }}>
-        <div onClick={() => setQueueOpen(o => !o)} style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 16px", cursor: "pointer",
-          borderBottom: queueOpen ? "1px solid rgba(58,123,213,0.1)" : "none",
+      {/* ── Queue modal ── */}
+      {queueOpen && (
+        <div onClick={(e) => e.target === e.currentTarget && setQueueOpen(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.14em" }}>QUEUE</span>
-            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a3a50" }}>
-              {sessionActive ? `${queueLeads.length} waiting` : "no active session"}
-            </span>
-          </div>
-          <span style={{ fontSize: 10, color: "#2a4a7a" }}>{queueOpen ? "▲" : "▼"}</span>
-        </div>
-        {queueOpen && (
-          <div style={{ padding: "12px 14px" }}>
-            {!sessionActive ? (
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-                START A SESSION TO SEE THE QUEUE
-              </div>
-            ) : queueLoading && queueLeads.length === 0 ? (
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-                LOADING…
-              </div>
-            ) : queueLeads.length === 0 ? (
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-                QUEUE EMPTY
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 320, overflowY: "auto" }}>
-                {queueLeads.map((lead, i) => (
-                  <div key={lead.contact_id || i} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "8px 0", borderBottom: "0.5px solid #1a2540",
-                  }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: "#8aaad0" }}>
-                        {lead.business || lead.owner || lead.phone || "Unknown"}
+          <div style={{
+            background: "#0d1830", border: "1px solid #1a2540", borderRadius: 12,
+            width: "100%", maxWidth: 520, maxHeight: "80vh",
+            display: "flex", flexDirection: "column", overflow: "hidden",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                           padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff" }}>
+                Queue{sessionActive ? ` — ${queueLeads.length} waiting` : ""}
+              </span>
+              <button onClick={() => setQueueOpen(false)} style={{
+                background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540",
+                borderRadius: 6, color: "#5a6f8f", width: 30, height: 30, cursor: "pointer", fontSize: 16,
+              }}>✕</button>
+            </div>
+            <div style={{ padding: "12px 20px", overflowY: "auto" }}>
+              {!sessionActive ? (
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+                  START A SESSION TO SEE THE QUEUE
+                </div>
+              ) : queueLoading && queueLeads.length === 0 ? (
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+                  LOADING…
+                </div>
+              ) : queueLeads.length === 0 ? (
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+                  QUEUE EMPTY
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  {queueLeads.map((lead, i) => (
+                    <div key={lead.contact_id || i} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "8px 0", borderBottom: "0.5px solid #1a2540",
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: "#8aaad0" }}>
+                          {lead.business || lead.owner || lead.phone || "Unknown"}
+                        </div>
+                        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginTop: 2 }}>
+                          {lead.phone}
+                        </div>
                       </div>
-                      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginTop: 2 }}>
-                        {lead.phone}
-                      </div>
+                      {lead.grade && (
+                        <span style={{
+                          fontFamily: "'Share Tech Mono', monospace", fontSize: 11, fontWeight: 700,
+                          padding: "2px 8px", borderRadius: 20,
+                          color: GRADE_COLORS[lead.grade] || "#8aaad0",
+                          background: "rgba(30,47,80,0.6)",
+                          border: `1px solid ${GRADE_COLORS[lead.grade] || "#1a2540"}33`,
+                        }}>{lead.grade}</span>
+                      )}
                     </div>
-                    {lead.grade && (
-                      <span style={{
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 11, fontWeight: 700,
-                        padding: "2px 8px", borderRadius: 20,
-                        color: GRADE_COLORS[lead.grade] || "#8aaad0",
-                        background: "rgba(30,47,80,0.6)",
-                        border: `1px solid ${GRADE_COLORS[lead.grade] || "#1a2540"}33`,
-                      }}>{lead.grade}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -41,7 +41,14 @@ _session = {
 
 
 def _norm(phone: str) -> str:
-    return phone.replace("+", "").replace(" ", "").replace("-", "")
+    """
+    Normalize to the last 10 digits so lookups aren't broken by formatting
+    differences — CRM numbers come in as "(754) 291-5582" (Google Places
+    format) while Twilio's call events report E.164 "+17542915582". Stripping
+    to digits-only and taking the last 10 makes both sides comparable.
+    """
+    digits = "".join(c for c in (phone or "") if c.isdigit())
+    return digits[-10:]
 
 
 # ── Twilio REST helpers ────────────────────────────────────────────────────────

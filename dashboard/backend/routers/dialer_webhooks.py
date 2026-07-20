@@ -234,9 +234,7 @@ async def call_status(request: Request):
 
     with engine._session["lock"]:
         bridged_phone   = engine._session.get("bridged_phone", "") or ""
-        # Use last-10-digit match: status callback phone may lack the +1 prefix
-        # that Twilio's To field includes (e.g. "7542485326" vs "17542485326")
-        is_bridged_lead = norm[-10:] == engine._norm(bridged_phone)[-10:]
+        is_bridged_lead = norm == engine._norm(bridged_phone)
         ring_start      = engine._session["ring_start"].get(norm, now)
         dial_count      = engine._session["dial_count"].get(norm, 1)
 
@@ -295,7 +293,12 @@ async def _log_no_answer(phone: str):
         from models import DISPOSITION_TO_STATUS
         pool = await get_pool()
         async with pool.acquire() as conn:
-            contact = await conn.fetchrow("SELECT id FROM contacts WHERE phone = $1", phone)
+            # Match by normalized phone (Twilio's E.164 "To" vs. the CRM's
+            # stored format, e.g. Google Places' "(754) 291-5582").
+            contact = await conn.fetchrow(
+                "SELECT id FROM contacts WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1",
+                engine._norm(phone),
+            )
             contact_id = contact["id"] if contact else None
             await conn.execute(
                 "INSERT INTO call_logs (contact_id, disposition) VALUES ($1, $2)",
