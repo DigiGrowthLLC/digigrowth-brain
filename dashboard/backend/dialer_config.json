@@ -4,6 +4,5 @@
   "max_parallel_lines": 5,
   "call_timeout_seconds": 30,
   "os_api_url": "https://digigrowth-brain-production.up.railway.app",
-  "calendly_url": "https://calendly.com/dylanrg-digigrowthllc/30min",
-  "webhook_port": 5000
+  "calendly_url": "https://calendly.com/dylanrg-digigrowthllc/30min"
 }

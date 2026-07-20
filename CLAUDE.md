@@ -9,12 +9,12 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 - `dashboard/backend/main.py` — app entry, router registration, HTTPBasic auth
 - `dashboard/backend/db.py` — asyncpg pool + schema creation
 - `dashboard/backend/agents_registry.json` — agent metadata (id, name, root_dir, color)
+- `dashboard/backend/dialer_engine.py` + `dashboard/backend/routers/dialer.py` + `dashboard/backend/routers/dialer_webhooks.py` — Twilio parallel dialer (up to 10 simultaneous calls), browser-based via `dashboard/frontend/src/panels/DialerPanel.jsx` and Twilio Voice JS SDK — no separate local script or ngrok needed
 - `dashboard/Dockerfile` — multi-stage build: Node 20 Alpine (frontend) → Python 3.11-slim (backend + repo)
 - `railway.toml` — build/deploy config at repo root (`dockerfilePath = "dashboard/Dockerfile"`)
 - `executive-assistant/` — EA agent (calendar, email, priorities, daily briefing)
 - `content-agent/` — content creation (social posts, ad copy, videos, scripts)
 - `leadgen-agent/` — Google Maps scraper + lead qualifier
-- `parallel-dialer/` — Twilio parallel dialer (10 simultaneous calls)
 - `apptset-agent/` — SMS appointment setter + newsletter (legacy)
 - `shared/github_sync.py` — shared utility: push file changes to GitHub (git CLI → GitHub REST API fallback)
 

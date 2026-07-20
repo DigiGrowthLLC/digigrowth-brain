@@ -19,7 +19,6 @@ COPY . .
 # Install Python deps (dashboard + all agents run in this container)
 RUN pip install --no-cache-dir \
     -r dashboard/backend/requirements.txt \
-    -r parallel-dialer/requirements.txt \
     -r leadgen-agent/requirements.txt \
     -r apptset-agent/requirements.txt \
     -r weekly-cleanup/requirements.txt

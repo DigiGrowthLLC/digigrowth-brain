@@ -78,7 +78,8 @@ class DispositionUpdate(BaseModel):
 
 VALID_STATUSES = {
     "new", "dialer-lead", "sms-handoff",
-    "appointment-booked", "not-interested", "send-info", "voicemail"
+    "appointment-booked", "not-interested", "send-info", "voicemail",
+    "gatekeeper-blocked",
 }
 
 DISPOSITION_TO_STATUS = {
@@ -89,6 +90,10 @@ DISPOSITION_TO_STATUS = {
     "Send Info":          "send-info",
     "No Answer":          "dialer-lead",
     "SMS Handoff":        "sms-handoff",
+    # Voicemail counts as a dial + 6h cooldown, then cycles back into the
+    # queue (dialer/queue eligibility query includes 'voicemail' status).
     "Voicemail":          "voicemail",
-    "Gatekeeper":         "dialer-lead",
+    # Gatekeeper is terminal — never re-enters the dialer queue, unlike a
+    # plain no-answer/voicemail. Distinct from "not-interested" for reporting.
+    "Gatekeeper":         "gatekeeper-blocked",
 }

@@ -5,6 +5,7 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   GET  /api/dialer/session       — live session state (polled every 1s by frontend)
   POST /api/dialer/session/init  — start session, load leads into engine
   POST /api/dialer/dial-batch    — dial next batch of leads
+  GET  /api/dialer/queue         — leads waiting in the current session's queue
   POST /api/dialer/classify      — log disposition after a call
   POST /api/dialer/end-call      — hang up the active bridged call
   POST /api/dialer/gatekeeper/connect  — redirect held gatekeeper into conference
@@ -13,7 +14,6 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   POST /api/dialer/end-session   — request session end
 """
 
-import asyncio
 import json
 import os
 import pathlib
@@ -21,7 +21,6 @@ import time as _time
 import uuid
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
 
 import dialer_engine as engine
 from db import get_pool
@@ -29,8 +28,21 @@ from models import DISPOSITION_TO_STATUS
 
 router = APIRouter()
 
-_DIALER_DIR = (pathlib.Path(__file__).parent.parent.parent.parent / "parallel-dialer").resolve()
-_CONFIG_FILE = _DIALER_DIR / "config.json"
+_CONFIG_FILE = pathlib.Path(__file__).parent.parent / "dialer_config.json"
+
+# Shared eligibility filter for the dialer queue: has a phone number, is
+# actively a dialer lead (or a logged voicemail — still eligible, just gated
+# by cooldown) and either past its 6h cooldown or its follow-up date has arrived.
+_ELIGIBLE_WHERE = """
+    phone IS NOT NULL
+    AND phone <> ''
+    AND status IN ('dialer-lead', 'voicemail')
+    AND (
+      (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))
+      OR
+      (follow_up_at IS NOT NULL AND follow_up_at <= now())
+    )
+"""
 
 
 def _load_dialer_config() -> dict:
@@ -41,35 +53,20 @@ def _load_dialer_config() -> dict:
         return {}
 
 
-# ── Terminal exec ─────────────────────────────────────────────────────────────
-
-@router.post("/dialer/exec")
-async def exec_dialer_command(body: dict):
-    """Run a shell command in parallel-dialer/. Streams stdout+stderr as SSE."""
-    command = (body.get("command") or "").strip()
-    if not command:
-        raise HTTPException(status_code=400, detail="command required")
-
-    async def _stream():
-        try:
-            proc = await asyncio.create_subprocess_shell(
-                command,
-                cwd=str(_DIALER_DIR),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-            )
-            async for line in proc.stdout:
-                yield f"data: {json.dumps({'type': 'output', 'text': line.decode(errors='replace')})}\n\n"
-            await proc.wait()
-            yield f"data: {json.dumps({'type': 'done', 'code': proc.returncode})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-
-    return StreamingResponse(
-        _stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+def _row_to_lead(r) -> dict:
+    return {
+        "contact_id": str(r["id"]),
+        "phone":      r["phone"],
+        "business":   r["business"] or "",
+        "owner":      r["owner"] or "",
+        "grade":      r["grade"] or "",
+        "opener":     r["opener"] or "",
+        "email":      r["email"] or "",
+        "website":    r["website"] or "",
+        "city":       r["city"] or "",
+        "state":      r["state"] or "",
+        "attempts":   r["call_attempts"],
+    }
 
 
 # ── Twilio access token (browser Twilio.Device) ───────────────────────────────
@@ -152,18 +149,11 @@ async def session_init():
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """
+            f"""
             SELECT id, phone, business, owner, grade, opener, email,
                    website, city, state, call_attempts
             FROM contacts
-            WHERE phone IS NOT NULL
-              AND phone <> ''
-              AND status = 'dialer-lead'
-              AND (
-                (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))
-                OR
-                (follow_up_at IS NOT NULL AND follow_up_at <= now())
-              )
+            WHERE {_ELIGIBLE_WHERE}
             ORDER BY
               CASE grade WHEN 'A' THEN 1 WHEN 'B' THEN 2
                          WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END,
@@ -172,25 +162,59 @@ async def session_init():
             """,
         )
 
-    leads = [
-        {
-            "contact_id": str(r["id"]),
-            "phone":      r["phone"],
-            "business":   r["business"] or "",
-            "owner":      r["owner"] or "",
-            "grade":      r["grade"] or "",
-            "opener":     r["opener"] or "",
-            "email":      r["email"] or "",
-            "website":    r["website"] or "",
-            "city":       r["city"] or "",
-            "state":      r["state"] or "",
-            "attempts":   r["call_attempts"],
-        }
-        for r in rows
-    ]
+    leads = [_row_to_lead(r) for r in rows]
 
     engine.init_session(session_id, config, leads)
     return {"ok": True, "session_id": session_id, "lead_count": len(leads)}
+
+
+async def _top_up_queue():
+    """
+    Pull more eligible leads from the CRM into the in-memory queue when it's
+    running low, instead of letting the session just end once the leads
+    fetched at session start are exhausted (newly-eligible leads and
+    cooldown-expired leads get picked up this way).
+    """
+    with engine._session["lock"]:
+        seen      = set(engine._session["leads_by_phone"].keys())
+        queue_len = len(engine._session["eligible_leads"])
+        max_lines = engine._session.get("max_lines", 10)
+    if queue_len >= max_lines:
+        return
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""
+            SELECT id, phone, business, owner, grade, opener, email,
+                   website, city, state, call_attempts
+            FROM contacts
+            WHERE {_ELIGIBLE_WHERE}
+            ORDER BY
+              CASE grade WHEN 'A' THEN 1 WHEN 'B' THEN 2
+                         WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END,
+              call_attempts ASC
+            LIMIT 500
+            """,
+        )
+
+    fresh = [_row_to_lead(r) for r in rows if engine._norm(r["phone"]) not in seen]
+    if not fresh:
+        return
+
+    with engine._session["lock"]:
+        engine._session["eligible_leads"].extend(fresh)
+        for lead in fresh:
+            engine._session["leads_by_phone"][engine._norm(lead["phone"])] = lead
+        engine._session["total_leads"] += len(fresh)
+
+
+@router.get("/dialer/queue")
+async def get_queue():
+    """Leads currently waiting in the in-memory queue, not yet dialed this session."""
+    with engine._session["lock"]:
+        leads = list(engine._session.get("eligible_leads", []))
+    return {"leads": leads, "count": len(leads)}
 
 
 @router.post("/dialer/dial-batch")
@@ -209,6 +233,11 @@ async def dial_batch():
         if engine._session.get("auto_dialed") and not engine._session.get("batch_had_answer"):
             return {"ok": True, "dialed": 0, "done": False, "note": "first batch auto-dialed"}
 
+    # Top up the queue from the CRM before batching, so batches stay at full
+    # strength instead of draining the leads fetched at session start.
+    await _top_up_queue()
+
+    with engine._session["lock"]:
         # Prepend any retry phones to the queue (inline to avoid nested lock deadlock)
         retry_phones  = set(engine._session.get("needs_retry", set()))
         engine._session["needs_retry"] = set()
@@ -320,28 +349,6 @@ async def classify(body: dict):
                         contact_id,
                     )
 
-                # Gatekeeper 3-strike: after 3 Gatekeeper selections, auto-SMS and move to sms-handoff
-                if disposition == "Gatekeeper" and updated:
-                    gk_count = await conn.fetchval(
-                        "SELECT COUNT(*) FROM call_logs WHERE contact_id = $1 AND disposition = 'Gatekeeper'",
-                        contact_id,
-                    )
-                    if gk_count >= 3:
-                        await conn.execute(
-                            "UPDATE contacts SET status='sms-handoff' WHERE id=$1", contact_id,
-                        )
-                        from routers.sms import _send_twilio
-                        owner = updated["owner"] or "there"
-                        msg = (
-                            f"Hey {owner}, this is Dylan from DigiGrowth — "
-                            "I tried reaching you a few times. Wanted to connect about growing "
-                            "your business online. Reply back if you'd like to chat!"
-                        )
-                        try:
-                            _send_twilio(updated["phone"], msg)
-                        except Exception:
-                            pass
-
         # Update in-session stats
         with engine._session["lock"]:
             engine._session["stats"]["calls_made"] += 1
@@ -438,19 +445,7 @@ async def call_single(body: dict):
 
     config     = _load_dialer_config()
     session_id = str(uuid.uuid4())[:8]
-    lead = {
-        "contact_id": str(row["id"]),
-        "phone":      row["phone"],
-        "business":   row["business"] or "",
-        "owner":      row["owner"] or "",
-        "grade":      row["grade"] or "",
-        "opener":     row["opener"] or "",
-        "email":      row["email"] or "",
-        "website":    row["website"] or "",
-        "city":       row["city"] or "",
-        "state":      row["state"] or "",
-        "attempts":   row["call_attempts"],
-    }
+    lead = _row_to_lead(row)
     engine.init_session(session_id, config, [lead])
     return {"ok": True, "session_id": session_id, "lead_count": 1}
 
@@ -515,17 +510,7 @@ async def get_stats():
             "('Appointment Booked', 'Follow Up 30 Day', 'Follow Up 90 Day', 'Send Info')"
         )
         leads_ready = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM contacts
-            WHERE phone IS NOT NULL
-              AND phone <> ''
-              AND status = 'dialer-lead'
-              AND (
-                (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))
-                OR
-                (follow_up_at IS NOT NULL AND follow_up_at <= now())
-              )
-            """
+            f"SELECT COUNT(*) FROM contacts WHERE {_ELIGIBLE_WHERE}"
         )
 
     with engine._session["lock"]:

@@ -59,7 +59,7 @@ function fillScriptText(template, lead) {
   return text;
 }
 
-const TERM_PRESETS = ["python run.py newsletter", "ls -la", "pip list | grep twilio"];
+const DIALPAD_KEYS = ["1","2","3","4","5","6","7","8","9","*","0","#"];
 
 export default function DialerPanel() {
   const [stats, setStats]       = useState(null);
@@ -81,12 +81,10 @@ const [notes, setNotes]                 = useState("");
   const [errMsg, setErrMsg]     = useState("");
   const prevStatusRef   = useRef(null);
   const needsFirstDial  = useRef(false);
-  // Terminal
-  const [termOpen, setTermOpen]       = useState(false);
-  const [termCmd, setTermCmd]         = useState("");
-  const [termOutput, setTermOutput]   = useState("");
-  const [termRunning, setTermRunning] = useState(false);
-  const termBottomRef = useRef(null);
+  // Queue viewer
+  const [queueOpen, setQueueOpen]   = useState(false);
+  const [queueLeads, setQueueLeads] = useState([]);
+  const [queueLoading, setQueueLoading] = useState(false);
   const deviceRef     = useRef(null);
   const activeCallRef = useRef(null);
 
@@ -174,7 +172,22 @@ const [notes, setNotes]                 = useState("");
     }
   }, [sess?.status, sess?.current_lead]);
 
-  useEffect(() => { termBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [termOutput]);
+  // ── Queue viewer ──────────────────────────────────────────────────────────────
+  const loadQueue = useCallback(async () => {
+    setQueueLoading(true);
+    try {
+      const r = await fetch(API("/dialer/queue"));
+      if (r.ok) setQueueLeads((await r.json()).leads || []);
+    } catch {}
+    setQueueLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!queueOpen || !sessionActive) return;
+    loadQueue();
+    const id = setInterval(loadQueue, 5000);
+    return () => clearInterval(id);
+  }, [queueOpen, sessionActive, loadQueue]);
 
   // ── Start Session ────────────────────────────────────────────────────────────
   const startSession = async () => {
@@ -320,37 +333,9 @@ const [notes, setNotes]                 = useState("");
     loadStats();
   };
 
-  // ── Terminal ──────────────────────────────────────────────────────────────────
-  const runCommand = async (cmd) => {
-    const c = (cmd || termCmd).trim();
-    if (!c || termRunning) return;
-    setTermOutput(prev => prev + `\n$ ${c}\n`);
-    setTermRunning(true);
-    try {
-      const resp = await fetch(API("/dialer/exec"), {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: c }),
-      });
-      if (!resp.ok) { setTermOutput(prev => prev + `[HTTP ${resp.status}]\n`); return; }
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n"); buf = lines.pop();
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          let evt; try { evt = JSON.parse(line.slice(6)); } catch { continue; }
-          if (evt.type === "output") setTermOutput(prev => prev + evt.text);
-          else if (evt.type === "done") setTermOutput(prev => prev + (evt.code ? `[exit ${evt.code}]\n` : ""));
-          else if (evt.type === "error") setTermOutput(prev => prev + `[error: ${evt.message}]\n`);
-        }
-      }
-    } catch (e) {
-      setTermOutput(prev => prev + `[fetch error: ${e.message}]\n`);
-    } finally { setTermRunning(false); }
+  // ── Dial pad (DTMF) ───────────────────────────────────────────────────────────
+  const pressDigit = (digit) => {
+    try { activeCallRef.current?.sendDigits(digit); } catch {}
   };
 
   // ── Derived ───────────────────────────────────────────────────────────────────
@@ -615,6 +600,25 @@ const [notes, setNotes]                 = useState("");
               </div>
             )}
 
+            {/* Dial pad — send DTMF tones for IVR menus ("press 1 for...") */}
+            {liveStatus === "connected" && (
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8,
+                maxWidth: 220, margin: "0 auto",
+              }}>
+                {DIALPAD_KEYS.map(key => (
+                  <button key={key} onClick={() => pressDigit(key)} style={{
+                    background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540",
+                    color: "#8aaad0", borderRadius: 8, padding: "10px 0",
+                    fontSize: 15, fontWeight: 600, cursor: "pointer",
+                    fontFamily: "'Share Tech Mono', monospace",
+                  }}>
+                    {key}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Script section */}
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -848,53 +852,63 @@ const [notes, setNotes]                 = useState("");
         </div>
       </div>
 
-      {/* ── Terminal ── */}
+      {/* ── Queue ── */}
       <div className="glass-card" style={{ padding: 0, overflow: "hidden" }}>
-        <div onClick={() => setTermOpen(o => !o)} style={{
+        <div onClick={() => setQueueOpen(o => !o)} style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "10px 16px", cursor: "pointer",
-          borderBottom: termOpen ? "1px solid rgba(58,123,213,0.1)" : "none",
+          borderBottom: queueOpen ? "1px solid rgba(58,123,213,0.1)" : "none",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.14em" }}>TERMINAL</span>
-            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a3a50" }}>parallel-dialer/</span>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.14em" }}>QUEUE</span>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a3a50" }}>
+              {sessionActive ? `${queueLeads.length} waiting` : "no active session"}
+            </span>
           </div>
-          <span style={{ fontSize: 10, color: "#2a4a7a" }}>{termOpen ? "▲" : "▼"}</span>
+          <span style={{ fontSize: 10, color: "#2a4a7a" }}>{queueOpen ? "▲" : "▼"}</span>
         </div>
-        {termOpen && (
-          <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {TERM_PRESETS.map(p => (
-                <button key={p} onClick={() => { setTermCmd(p); runCommand(p); }} disabled={termRunning} style={{
-                  fontFamily: "'Share Tech Mono', monospace", fontSize: 9, padding: "4px 10px", borderRadius: 6,
-                  background: "rgba(58,123,213,0.08)", border: "1px solid rgba(58,123,213,0.2)",
-                  color: "#3a7bd5", cursor: termRunning ? "not-allowed" : "pointer",
-                  opacity: termRunning ? 0.5 : 1, letterSpacing: "0.05em",
-                }}>{p}</button>
-              ))}
-            </div>
-            {termOutput && (
-              <div style={{
-                background: "#050d1a", borderRadius: 8, padding: "10px 12px",
-                maxHeight: 280, overflowY: "auto",
-                fontFamily: "'Share Tech Mono', monospace", fontSize: 11,
-                color: "#7aaad0", whiteSpace: "pre-wrap", wordBreak: "break-all",
-                border: "1px solid rgba(58,123,213,0.1)",
-              }}>
-                {termOutput}<div ref={termBottomRef} />
+        {queueOpen && (
+          <div style={{ padding: "12px 14px" }}>
+            {!sessionActive ? (
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+                START A SESSION TO SEE THE QUEUE
+              </div>
+            ) : queueLoading && queueLeads.length === 0 ? (
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+                LOADING…
+              </div>
+            ) : queueLeads.length === 0 ? (
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+                QUEUE EMPTY
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, maxHeight: 320, overflowY: "auto" }}>
+                {queueLeads.map((lead, i) => (
+                  <div key={lead.contact_id || i} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "8px 0", borderBottom: "0.5px solid #1a2540",
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: "#8aaad0" }}>
+                        {lead.business || lead.owner || lead.phone || "Unknown"}
+                      </div>
+                      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginTop: 2 }}>
+                        {lead.phone}
+                      </div>
+                    </div>
+                    {lead.grade && (
+                      <span style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 11, fontWeight: 700,
+                        padding: "2px 8px", borderRadius: 20,
+                        color: GRADE_COLORS[lead.grade] || "#8aaad0",
+                        background: "rgba(30,47,80,0.6)",
+                        border: `1px solid ${GRADE_COLORS[lead.grade] || "#1a2540"}33`,
+                      }}>{lead.grade}</span>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
-            <div style={{ display: "flex", gap: 8 }}>
-              <input className="dg-input" style={{ flex: 1, fontFamily: "'Share Tech Mono', monospace", fontSize: 12 }}
-                placeholder="enter command..." value={termCmd}
-                onChange={e => setTermCmd(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && runCommand()} disabled={termRunning} />
-              <button className="btn btn-primary" onClick={() => runCommand()}
-                disabled={termRunning || !termCmd.trim()} style={{ minWidth: 60, fontSize: 11 }}>
-                {termRunning ? "…" : "RUN"}
-              </button>
-              <button className="btn btn-secondary" onClick={() => setTermOutput("")} style={{ fontSize: 11 }}>CLR</button>
-            </div>
           </div>
         )}
       </div>
