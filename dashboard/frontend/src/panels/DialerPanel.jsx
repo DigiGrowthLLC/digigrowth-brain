@@ -835,7 +835,7 @@ const [notes, setNotes]                 = useState("");
                                          padding: "8px 0", borderBottom: "0.5px solid #1a2540" }}>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 500, color: "#8aaad0" }}>
-                        {r.business || r.owner || r.phone || "Unknown"}
+                        {r.owner || r.business || r.phone || "Unknown"}
                       </div>
                       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginTop: 2 }}>
                         {fmt(r.started_at)}
@@ -897,8 +897,11 @@ const [notes, setNotes]                 = useState("");
                     }}>
                       <div>
                         <div style={{ fontSize: 12, fontWeight: 500, color: "#8aaad0" }}>
-                          {lead.business || lead.owner || lead.phone || "Unknown"}
+                          {lead.owner || lead.business || lead.phone || "Unknown"}
                         </div>
+                        {lead.owner && lead.business && (
+                          <div style={{ fontSize: 10, color: "#5a6f8f", marginTop: 1 }}>{lead.business}</div>
+                        )}
                         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginTop: 2 }}>
                           {lead.phone}
                         </div>

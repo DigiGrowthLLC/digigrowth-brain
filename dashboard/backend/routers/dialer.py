@@ -211,9 +211,28 @@ async def _top_up_queue():
 
 @router.get("/dialer/queue")
 async def get_queue():
-    """Leads currently waiting in the in-memory queue, not yet dialed this session."""
-    with engine._session["lock"]:
-        leads = list(engine._session.get("eligible_leads", []))
+    """
+    Leads currently eligible to be dialed, queried live from the CRM.
+    Matches the "In Queue" stat tile exactly (same _ELIGIBLE_WHERE) — unlike
+    the in-memory eligible_leads prefetch, which drops a lead the instant
+    it's dialed, before its disposition (and CRM status) is even set.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""
+            SELECT id, phone, business, owner, grade, opener, email,
+                   website, city, state, call_attempts
+            FROM contacts
+            WHERE {_ELIGIBLE_WHERE}
+            ORDER BY
+              CASE grade WHEN 'A' THEN 1 WHEN 'B' THEN 2
+                         WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END,
+              call_attempts ASC
+            LIMIT 500
+            """,
+        )
+    leads = [_row_to_lead(r) for r in rows]
     return {"leads": leads, "count": len(leads)}
 
 
