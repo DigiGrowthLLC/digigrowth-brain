@@ -36,6 +36,14 @@ def dial_lead(config, lead, session_id):
             status_callback_method="POST",
             timeout=config.get("call_timeout_seconds", 30),
             machine_detection="Enable",
+            # Tuned to reduce AMD false positives/negatives (voicemail vs. gatekeeper vs.
+            # human getting misclassified). Twilio's AMD is inherently probabilistic — this
+            # narrows the error rate, it doesn't eliminate it. Override any of these via
+            # config.json if particular lead lists need different tuning.
+            machine_detection_timeout=config.get("amd_timeout_seconds", 25),
+            machine_detection_speech_threshold=config.get("amd_speech_threshold_ms", 2400),
+            machine_detection_speech_end_threshold=config.get("amd_speech_end_threshold_ms", 1800),
+            machine_detection_silence_timeout=config.get("amd_silence_timeout_ms", 5000),
         )
         print(f"  📞 Dialing {lead['business']} ({lead['phone']}) — SID: {call.sid}")
         return call.sid

@@ -703,9 +703,9 @@
     <div id="script-section">
       <div class="script-label">
         Call Script
-        <span class="script-hint">[Name] · [Studio Name] · [custom opener] auto-fill on answer</span>
+        <span class="script-hint">[Name] · [Business Name] · [custom opener] auto-fill on answer</span>
       </div>
-      <textarea id="script-editor" placeholder="Paste your call script here. Use [Name], [Studio Name], and [custom opener] as placeholders — they'll be replaced with the prospect's details the moment they answer."></textarea>
+      <textarea id="script-editor" placeholder="Paste your call script here. Use [Name], [Business Name] (or [Practice Name] / [Studio Name]), and [custom opener] as placeholders — they'll be replaced with the prospect's details the moment they answer."></textarea>
       <div id="script-display" class="hidden"></div>
     </div>
 
@@ -1123,9 +1123,9 @@
     const editor  = document.getElementById('script-editor');
     const display = document.getElementById('script-display');
     let text = escHtml(editor.value);
-    text = text.replace(/\[Name\]/gi,          `<span class="script-fill">${escHtml(lead.owner    || '')}</span>`);
-    text = text.replace(/\[Studio Name\]/gi,   `<span class="script-fill">${escHtml(lead.business || '')}</span>`);
-    text = text.replace(/\[custom opener\]/gi, `<span class="script-fill">${escHtml(lead.opener   || '')}</span>`);
+    text = text.replace(/\[Name\]/gi,                                `<span class="script-fill">${escHtml(lead.owner    || '')}</span>`);
+    text = text.replace(/\[(?:Studio|Practice|Business) Name\]/gi,   `<span class="script-fill">${escHtml(lead.business || '')}</span>`);
+    text = text.replace(/\[custom opener\]/gi,                       `<span class="script-fill">${escHtml(lead.opener   || '')}</span>`);
     text = text.replace(/\n/g, '<br>');
     display.innerHTML = text;
     editor.classList.add('hidden');

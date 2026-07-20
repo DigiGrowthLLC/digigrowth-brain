@@ -39,6 +39,8 @@ When saving a file, confirm what was saved and where.
 
 Skills live in `.claude/skills/`. Load the relevant skill for the task:
 - `transcribe` — transcribe video/audio files and optionally extract insights into a reference file
+- `video-creation` — full video template: intake questions, pre-production, script (with all hook/storytelling/retention frameworks), inline visual direction, B-roll list
+- `video-overlay` — HyperFrames branded talking-head overlay agent: brand glass cards, bulleted graphics, hook centred below chin, audio mux, DigiGrowth visual system
 
 Not yet built as skills (handled ad hoc via the instructions above until built out): platform-specific social posts, paid ad copy, multi-email sequences.
 

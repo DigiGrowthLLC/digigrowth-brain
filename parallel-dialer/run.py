@@ -72,6 +72,18 @@ def _os_get(path, params=None):
         return None
 
 
+def _fetch_more_leads(exclude_phones):
+    """
+    Re-query the CRM for eligible leads, filtering out anyone already pulled
+    into this session (so we don't re-dial someone whose CRM status hasn't
+    caught up yet). Used to top the queue back up mid-session instead of
+    just draining the leads fetched at session start.
+    """
+    result = _os_get("/api/dialer/leads", params={"limit": 500})
+    fresh  = result.get("leads", []) if result else []
+    return [l for l in fresh if leads_mod._norm(l["phone"]) not in exclude_phones]
+
+
 def _git_pull():
     import subprocess
     result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=BASE_DIR + "/..")
@@ -192,6 +204,7 @@ def run_session():
         return
 
     print(f"📊 {len(eligible)} leads eligible for dialing")
+    seen_phones = {leads_mod._norm(l["phone"]) for l in eligible}
 
     # Generate session ID
     session_id = str(uuid.uuid4())[:8]
@@ -261,13 +274,29 @@ def run_session():
     try:
         i         = 0
         batch_num = 0
-        while i < len(eligible):
+        while True:
             # Respect live lines setting from browser dropdown
             with webhook._session["lock"]:
                 if webhook._session.get("end_requested"):
                     print("\n⏹️  Session ended from browser")
                     break
                 current_max = webhook._session.get("max_lines", max_lines)
+
+            # Top up the queue from the CRM whenever it's running low, so batches
+            # stay at full strength instead of just draining the list fetched at
+            # session start (picks up newly-eligible leads and expired cooldowns).
+            if len(eligible) - i < current_max:
+                more = _fetch_more_leads(seen_phones)
+                if more:
+                    eligible.extend(more)
+                    seen_phones.update(leads_mod._norm(l["phone"]) for l in more)
+                    webhook.set_eligible_leads(eligible)
+                    webhook.set_total_leads(len(eligible))
+                    print(f"  🔄 Topped up queue with {len(more)} lead(s) from CRM — {len(eligible) - i} in queue")
+
+            if i >= len(eligible):
+                print("\n✅ No more eligible leads in CRM. Ending session.")
+                break
 
             batch      = eligible[i:i + current_max]
             batch_num += 1
