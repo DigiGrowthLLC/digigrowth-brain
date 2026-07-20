@@ -85,14 +85,9 @@ const [notes, setNotes]                 = useState("");
   const [errMsg, setErrMsg]     = useState("");
   const prevStatusRef   = useRef(null);
   const needsFirstDial  = useRef(false);
-  // Queue viewer
-  const [queueOpen, setQueueOpen]   = useState(false);
-  const [queueLeads, setQueueLeads] = useState([]);
-  const [queueLoading, setQueueLoading] = useState(false);
-  // Calls-made viewer
-  const [callsOpen, setCallsOpen]       = useState(false);
-  const [sessionCalls, setSessionCalls] = useState([]);
-  const [callsLoading, setCallsLoading] = useState(false);
+  // Generic drill-down list modal — every clickable stat tile opens this,
+  // fed by whichever endpoint corresponds to that stat.
+  const [listModal, setListModal] = useState(null); // { title, kind: 'leads'|'calls', url, items, loading }
   const deviceRef     = useRef(null);
   const activeCallRef = useRef(null);
 
@@ -207,39 +202,31 @@ const [notes, setNotes]                 = useState("");
     }
   }, [sess?.status, sess?.current_lead]);
 
-  // ── Queue viewer (live CRM eligibility — not tied to a session) ──────────────
-  const loadQueue = useCallback(async () => {
-    setQueueLoading(true);
+  // ── Generic drill-down list modal ─────────────────────────────────────────────
+  const openList = (title, kind, url) => setListModal({ title, kind, url, items: [], loading: true });
+
+  const loadList = useCallback(async (kind, url) => {
     try {
-      const r = await fetch(API("/dialer/queue"));
-      if (r.ok) setQueueLeads((await r.json()).leads || []);
-    } catch {}
-    setQueueLoading(false);
+      const r = await fetch(API(url));
+      if (!r.ok) return [];
+      const d = await r.json();
+      return (kind === "calls" ? d.calls : d.leads) || [];
+    } catch { return []; }
   }, []);
 
   useEffect(() => {
-    if (!queueOpen) return;
-    loadQueue();
-    const id = setInterval(loadQueue, 5000);
-    return () => clearInterval(id);
-  }, [queueOpen, loadQueue]);
-
-  // ── Calls-made viewer (current or most recently ended session) ──────────────
-  const loadSessionCalls = useCallback(async () => {
-    setCallsLoading(true);
-    try {
-      const r = await fetch(API("/dialer/session/calls"));
-      if (r.ok) setSessionCalls((await r.json()).calls || []);
-    } catch {}
-    setCallsLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (!callsOpen) return;
-    loadSessionCalls();
-    const id = setInterval(loadSessionCalls, 5000);
-    return () => clearInterval(id);
-  }, [callsOpen, loadSessionCalls]);
+    if (!listModal) return;
+    let cancelled = false;
+    (async () => {
+      const items = await loadList(listModal.kind, listModal.url);
+      if (!cancelled) setListModal(m => m && { ...m, items, loading: false });
+    })();
+    const id = setInterval(async () => {
+      const items = await loadList(listModal.kind, listModal.url);
+      if (!cancelled) setListModal(m => m && { ...m, items, loading: false });
+    }, 5000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [listModal?.url, listModal?.kind, loadList]);
 
   // ── Start Session ────────────────────────────────────────────────────────────
   const startSession = async () => {
@@ -576,9 +563,9 @@ const [notes, setNotes]                 = useState("");
             {/* Live mini-stats */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
               {[
-                { label: "Calls Made", value: liveStats.calls_made ?? 0 },
-                { label: "Remaining",  value: liveStats.remaining ?? "—" },
-                { label: "In Queue",   value: session.leads_ready ?? "—", onClick: () => setQueueOpen(true) },
+                { label: "Calls Made", value: liveStats.calls_made ?? 0, onClick: () => openList("Calls Made", "calls", "/dialer/session/calls") },
+                { label: "Remaining",  value: liveStats.remaining ?? "—", onClick: () => openList("Remaining", "leads", "/dialer/session/queue") },
+                { label: "In Queue",   value: session.leads_ready ?? "—", onClick: () => openList("Ready to Dial", "leads", "/dialer/queue") },
               ].map(({ label, value, onClick }) => (
                 <div key={label} onClick={onClick} style={{
                   background: "rgba(15,25,50,0.5)", borderRadius: 8, padding: "8px 10px",
@@ -849,11 +836,11 @@ const [notes, setNotes]                 = useState("");
       <div>
         <div className="sec-label">{session.active ? "Live Session" : "Last Session"}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-          <StatCard label="Calls Made"    value={session.calls_made} onClick={() => setCallsOpen(true)} />
+          <StatCard label="Calls Made"    value={session.calls_made} onClick={() => openList("Calls Made", "calls", "/dialer/session/calls")} />
           <StatCard label="Remaining"     value={session.remaining}
-            sub={session.total_leads ? `OF ${session.total_leads}` : null} />
+            sub={session.total_leads ? `OF ${session.total_leads}` : null} onClick={() => openList("Remaining", "leads", "/dialer/session/queue")} />
           <StatCard label="Ready to Dial" value={session.leads_ready ?? "—"}
-            sub={session.leads_ready > 0 ? "IN QUEUE" : null} onClick={() => setQueueOpen(true)} />
+            sub={session.leads_ready > 0 ? "IN QUEUE" : null} onClick={() => openList("Ready to Dial", "leads", "/dialer/queue")} />
         </div>
       </div>
 
@@ -877,9 +864,11 @@ const [notes, setNotes]                 = useState("");
                 const pct    = totalCalls ? Math.round(d.cnt / totalCalls * 100) : 0;
                 const colors = DISPO_COLORS[d.disposition] ?? { text: "#5a6f8f" };
                 return (
-                  <div key={d.disposition}>
+                  <div key={d.disposition}
+                    onClick={() => openList(d.disposition, "calls", `/dialer/history/by-disposition/${encodeURIComponent(d.disposition)}`)}
+                    style={{ cursor: "pointer" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 12, color: colors.text }}>{d.disposition}</span>
+                      <span style={{ fontSize: 12, color: colors.text }}>{d.disposition} ▸</span>
                       <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
                         {d.cnt} ({pct}%)
                       </span>
@@ -893,12 +882,12 @@ const [notes, setNotes]                 = useState("");
             </div>
           )}
           <div style={{ marginTop: 14, paddingTop: 12, borderTop: "0.5px solid #1a2540", display: "flex", gap: 16 }}>
-            <div>
-              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>BOOKED </span>
+            <div onClick={() => openList("Booked", "leads", "/dialer/history/booked")} style={{ cursor: "pointer" }}>
+              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>BOOKED ▸ </span>
               <span style={{ fontSize: 14, fontWeight: 700, color: "#14c882" }}>{history.total_booked ?? 0}</span>
             </div>
-            <div>
-              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>REACHED </span>
+            <div onClick={() => openList("Reached", "leads", "/dialer/history/reached")} style={{ cursor: "pointer" }}>
+              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>REACHED ▸ </span>
               <span style={{ fontSize: 14, fontWeight: 700, color: "#5a9bf0" }}>{history.total_reached ?? 0}</span>
             </div>
           </div>
@@ -935,9 +924,9 @@ const [notes, setNotes]                 = useState("");
         </div>
       </div>
 
-      {/* ── Queue modal ── */}
-      {queueOpen && (
-        <div onClick={(e) => e.target === e.currentTarget && setQueueOpen(false)} style={{
+      {/* ── Generic drill-down list modal ── */}
+      {listModal && (
+        <div onClick={(e) => e.target === e.currentTarget && setListModal(null)} style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24,
         }}>
@@ -950,25 +939,50 @@ const [notes, setNotes]                 = useState("");
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                            padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0 }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff" }}>
-                Ready to Dial — {queueLeads.length} waiting
+                {listModal.title} — {listModal.items.length}
               </span>
-              <button onClick={() => setQueueOpen(false)} style={{
+              <button onClick={() => setListModal(null)} style={{
                 background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540",
                 borderRadius: 6, color: "#5a6f8f", width: 30, height: 30, cursor: "pointer", fontSize: 16,
               }}>✕</button>
             </div>
             <div style={{ padding: "12px 20px", overflowY: "auto" }}>
-              {queueLoading && queueLeads.length === 0 ? (
+              {listModal.loading && listModal.items.length === 0 ? (
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
                   LOADING…
                 </div>
-              ) : queueLeads.length === 0 ? (
+              ) : listModal.items.length === 0 ? (
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-                  QUEUE EMPTY
+                  NOTHING HERE
+                </div>
+              ) : listModal.kind === "calls" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  {listModal.items.map((call, i) => {
+                    const colors = DISPO_COLORS[call.disposition] ?? { text: "#3a4f6f" };
+                    return (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "8px 0", borderBottom: "0.5px solid #1a2540",
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: "#8aaad0" }}>
+                            {call.owner || call.business || call.phone || "Unknown"}
+                          </div>
+                          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginTop: 2 }}>
+                            {fmt(call.started_at)}
+                          </div>
+                        </div>
+                        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
+                                        letterSpacing: "0.08em", color: colors.text }}>
+                          {(call.disposition ?? "—").toUpperCase()}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                  {queueLeads.map((lead, i) => (
+                  {listModal.items.map((lead, i) => (
                     <div key={lead.contact_id || i} style={{
                       display: "flex", alignItems: "center", justifyContent: "space-between",
                       padding: "8px 0", borderBottom: "0.5px solid #1a2540",
@@ -995,68 +1009,6 @@ const [notes, setNotes]                 = useState("");
                       )}
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Calls Made modal ── */}
-      {callsOpen && (
-        <div onClick={(e) => e.target === e.currentTarget && setCallsOpen(false)} style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
-          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24,
-        }}>
-          <div style={{
-            background: "#0d1830", border: "1px solid #1a2540", borderRadius: 12,
-            width: "100%", maxWidth: 520, maxHeight: "80vh",
-            display: "flex", flexDirection: "column", overflow: "hidden",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                           padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff" }}>
-                Calls Made — {sessionCalls.length}
-              </span>
-              <button onClick={() => setCallsOpen(false)} style={{
-                background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540",
-                borderRadius: 6, color: "#5a6f8f", width: 30, height: 30, cursor: "pointer", fontSize: 16,
-              }}>✕</button>
-            </div>
-            <div style={{ padding: "12px 20px", overflowY: "auto" }}>
-              {callsLoading && sessionCalls.length === 0 ? (
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-                  LOADING…
-                </div>
-              ) : sessionCalls.length === 0 ? (
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-                  NO CALLS YET THIS SESSION
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                  {sessionCalls.map((call, i) => {
-                    const colors = DISPO_COLORS[call.disposition] ?? { text: "#3a4f6f" };
-                    return (
-                      <div key={i} style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "8px 0", borderBottom: "0.5px solid #1a2540",
-                      }}>
-                        <div>
-                          <div style={{ fontSize: 12, fontWeight: 500, color: "#8aaad0" }}>
-                            {call.owner || call.business || call.phone || "Unknown"}
-                          </div>
-                          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginTop: 2 }}>
-                            {fmt(call.started_at)}
-                          </div>
-                        </div>
-                        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
-                                        letterSpacing: "0.08em", color: colors.text }}>
-                          {(call.disposition ?? "—").toUpperCase()}
-                        </span>
-                      </div>
-                    );
-                  })}
                 </div>
               )}
             </div>

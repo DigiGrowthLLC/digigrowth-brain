@@ -261,6 +261,18 @@ async def get_queue():
     return {"leads": leads, "count": len(leads)}
 
 
+@router.get("/dialer/session/queue")
+async def get_session_queue():
+    """
+    Leads still sitting in *this session's* in-memory prefetch batch, not
+    yet dialed — matches the "Remaining" stat exactly (drops a lead the
+    instant it's dialed, unlike /dialer/queue's live CRM count).
+    """
+    with engine._session["lock"]:
+        leads = list(engine._session.get("eligible_leads", []))
+    return {"leads": leads, "count": len(leads)}
+
+
 @router.post("/dialer/dial-batch")
 async def dial_batch():
     """Dial the next batch of leads. Called by the frontend after each classification."""
@@ -563,6 +575,66 @@ async def debug_config():
     }
 
 
+_REACHED_DISPOSITIONS = ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Send Info")
+
+
+@router.get("/dialer/history/booked")
+async def get_history_booked():
+    """Contacts behind the all-time 'Booked' stat."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, phone, business, owner, grade, opener, email,
+                   website, city, state, call_attempts
+            FROM contacts
+            WHERE status = 'appointment-booked'
+            ORDER BY updated_at DESC
+            LIMIT 200
+            """,
+        )
+    return {"leads": [_row_to_lead(r) for r in rows]}
+
+
+@router.get("/dialer/history/reached")
+async def get_history_reached():
+    """Contacts behind the all-time 'Reached' stat."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, phone, business, owner, grade, opener, email,
+                   website, city, state, call_attempts
+            FROM contacts
+            WHERE last_disposition = ANY($1::text[])
+            ORDER BY updated_at DESC
+            LIMIT 200
+            """,
+            list(_REACHED_DISPOSITIONS),
+        )
+    return {"leads": [_row_to_lead(r) for r in rows]}
+
+
+@router.get("/dialer/history/by-disposition/{disposition}")
+async def get_history_by_disposition(disposition: str):
+    """Call log entries behind one row of the all-time breakdown."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT cl.disposition, cl.notes, cl.started_at,
+                   c.business, c.owner, c.phone, c.grade
+            FROM call_logs cl
+            LEFT JOIN contacts c ON c.id = cl.contact_id
+            WHERE cl.disposition = $1
+            ORDER BY cl.started_at DESC NULLS LAST
+            LIMIT 200
+            """,
+            disposition,
+        )
+    return {"calls": [dict(r) for r in rows]}
+
+
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 @router.get("/dialer/stats")
@@ -596,8 +668,8 @@ async def get_stats():
             "SELECT COUNT(*) FROM contacts WHERE status = 'appointment-booked'"
         )
         reached = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts WHERE last_disposition IN "
-            "('Appointment Booked', 'Follow Up 30 Day', 'Follow Up 90 Day', 'Send Info')"
+            "SELECT COUNT(*) FROM contacts WHERE last_disposition = ANY($1::text[])",
+            list(_REACHED_DISPOSITIONS),
         )
         leads_ready = await conn.fetchval(
             f"SELECT COUNT(*) FROM contacts WHERE {_ELIGIBLE_WHERE}"
