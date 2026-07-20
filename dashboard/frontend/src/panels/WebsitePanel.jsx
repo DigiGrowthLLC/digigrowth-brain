@@ -1,7 +1,8 @@
 import React from "react";
 
-const VERCEL_URL = "https://vercel.com/digi-growth/digigrowth-website";
-const SITE_URL   = "https://digigrowth-website.vercel.app";
+const VERCEL_URL    = "https://vercel.com/digi-growth/digigrowth-website";
+const SITE_URL      = "https://digigrowth-website.vercel.app";
+const ANALYTICS_URL = "https://vercel.com/digi-growth/digigrowth-website/analytics";
 
 export default function WebsitePanel() {
   return (
@@ -24,7 +25,7 @@ export default function WebsitePanel() {
       </div>
 
       {/* Cards row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, maxWidth: 700 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, maxWidth: 1040 }}>
 
         {/* Vercel Dashboard */}
         <a
@@ -136,6 +137,62 @@ export default function WebsitePanel() {
               fontSize: 11, color: "#14c882", fontWeight: 600,
             }}>
               Open Site <span style={{ fontSize: 13 }}>→</span>
+            </div>
+          </div>
+        </a>
+
+        {/* Analytics */}
+        <a
+          href={ANALYTICS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ textDecoration: "none" }}
+        >
+          <div className="glass-card" style={{
+            padding: "28px 28px",
+            cursor: "pointer",
+            transition: "all 0.2s",
+            border: "1px solid rgba(180,120,255,0.15)",
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.borderColor = "rgba(180,120,255,0.4)";
+            e.currentTarget.style.background  = "rgba(30,15,55,0.95)";
+            e.currentTarget.style.transform   = "translateY(-3px)";
+            e.currentTarget.style.boxShadow   = "0 12px 40px rgba(0,0,0,0.3)";
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.borderColor = "rgba(180,120,255,0.15)";
+            e.currentTarget.style.background  = "";
+            e.currentTarget.style.transform   = "translateY(0)";
+            e.currentTarget.style.boxShadow   = "";
+          }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10,
+                background: "linear-gradient(135deg, #2a1a40, #3d1d55)",
+                border: "1px solid rgba(180,120,255,0.2)",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}>
+                <svg viewBox="0 0 24 24" fill="none" width={16} height={16}>
+                  <path d="M4 20V10M12 20V4M20 20v-7" stroke="#b478ff" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#d0dcf0" }}>Analytics</div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a3a80", letterSpacing: "0.1em", marginTop: 2 }}>
+                  VISITORS · TRAFFIC · CONVERSIONS
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: "#5a6f8f", lineHeight: 1.6 }}>
+              View visitor traffic, page views, and top sources from Vercel Web Analytics.
+            </div>
+            <div style={{
+              marginTop: 16, display: "inline-flex", alignItems: "center", gap: 6,
+              fontSize: 11, color: "#b478ff", fontWeight: 600,
+            }}>
+              Open Analytics <span style={{ fontSize: 13 }}>→</span>
             </div>
           </div>
         </a>
