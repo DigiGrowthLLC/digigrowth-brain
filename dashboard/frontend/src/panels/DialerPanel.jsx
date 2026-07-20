@@ -91,18 +91,33 @@ const [notes, setNotes]                 = useState("");
   const [paused, setPaused]       = useState(false);
   const deviceRef     = useRef(null);
   const activeCallRef = useRef(null);
+  const pausedRef        = useRef(false);
+  const sessionActiveRef = useRef(false);
+  const retryTimerRef    = useRef(null);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
+  useEffect(() => { sessionActiveRef.current = sessionActive; }, [sessionActive]);
+  useEffect(() => () => clearTimeout(retryTimerRef.current), []);
 
   // ── Fire the next batch of calls — shared by first-connect, auto-advance
-  // after a classification, and manually resuming from a pause. ────────────────
+  // after a classification, and manually resuming from a pause. If nothing
+  // was dialed, don't give up permanently: a lead can come back into
+  // eligibility mid-session (retry, cooldown expiry), so keep checking back
+  // instead of stalling forever on a stale "no leads" verdict. ────────────────
   const fireDialBatch = useCallback(async () => {
+    clearTimeout(retryTimerRef.current);
     try {
       const r = await fetch(API("/dialer/dial-batch"), { method: "POST" });
       if (!r.ok) { const t = await r.text().catch(() => ""); setErrMsg(`dial-batch ${r.status}: ${t}`); return; }
       const d = await r.json();
-      if (d.errors?.length)         setErrMsg(`Twilio error: ${d.errors[0]}`);
-      else if (d.done && !d.dialed) setDialMsg("No leads with status 'dialer-lead' — update lead statuses in CRM first.");
-      else if (!d.dialed)           setDialMsg("0 calls placed — check Railway logs for Twilio errors.");
-      else                          setDialMsg(`🔊 Ringing ${d.dialed} line${d.dialed > 1 ? "s" : ""} simultaneously → ${(d.phones||[]).join(", ")}`);
+      if (d.errors?.length) { setErrMsg(`Twilio error: ${d.errors[0]}`); return; }
+      if (!d.dialed) {
+        setDialMsg("No eligible leads right now — checking again shortly…");
+        retryTimerRef.current = setTimeout(() => {
+          if (sessionActiveRef.current && !pausedRef.current) fireDialBatch();
+        }, 20000);
+        return;
+      }
+      setDialMsg(`🔊 Ringing ${d.dialed} line${d.dialed > 1 ? "s" : ""} simultaneously → ${(d.phones||[]).join(", ")}`);
     } catch (e) { setErrMsg("dial-batch: " + e.message); }
   }, []);
 
@@ -365,6 +380,7 @@ const [notes, setNotes]                 = useState("");
 
   const endSession = () => {
     // Reset UI immediately — don't wait for backend
+    clearTimeout(retryTimerRef.current);
     disconnectDevice();
     setSessionActive(false);
     setSess(null);

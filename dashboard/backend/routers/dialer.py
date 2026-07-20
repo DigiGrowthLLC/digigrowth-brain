@@ -199,11 +199,21 @@ async def _top_up_queue():
     running low, instead of letting the session just end once the leads
     fetched at session start are exhausted (newly-eligible leads and
     cooldown-expired leads get picked up this way).
+
+    Dedup against what's actually in-flight right now (queued, ringing, or on
+    the line) — NOT against leads_by_phone, which only ever grows for the
+    whole session. A lead that got overflow-canceled and retried back into
+    'dialer-lead' with its cooldown cleared is genuinely eligible again; if
+    we excluded anyone ever seen this session, it would be permanently
+    stranded — eligible in the CRM but never re-added to the dial queue.
     """
     with engine._session["lock"]:
-        seen      = set(engine._session["leads_by_phone"].keys())
-        queue_len = len(engine._session["eligible_leads"])
-        max_lines = engine._session.get("max_lines", 10)
+        in_queue    = {engine._norm(l["phone"]) for l in engine._session["eligible_leads"]}
+        in_flight   = {engine._norm(p) for p in engine._session.get("call_sids", {}).keys()}
+        bridged     = engine._session.get("bridged_phone")
+        exclude     = in_queue | in_flight | ({engine._norm(bridged)} if bridged else set())
+        queue_len   = len(engine._session["eligible_leads"])
+        max_lines   = engine._session.get("max_lines", 10)
     if queue_len >= max_lines:
         return
 
@@ -223,7 +233,7 @@ async def _top_up_queue():
             """,
         )
 
-    fresh = [_row_to_lead(r) for r in rows if engine._norm(r["phone"]) not in seen]
+    fresh = [_row_to_lead(r) for r in rows if engine._norm(r["phone"]) not in exclude]
     if not fresh:
         return
 
