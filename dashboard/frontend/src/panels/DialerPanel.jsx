@@ -88,8 +88,32 @@ const [notes, setNotes]                 = useState("");
   // Generic drill-down list modal — every clickable stat tile opens this,
   // fed by whichever endpoint corresponds to that stat.
   const [listModal, setListModal] = useState(null); // { title, kind: 'leads'|'calls', url, items, loading }
+  const [paused, setPaused]       = useState(false);
   const deviceRef     = useRef(null);
   const activeCallRef = useRef(null);
+
+  // ── Fire the next batch of calls — shared by first-connect, auto-advance
+  // after a classification, and manually resuming from a pause. ────────────────
+  const fireDialBatch = useCallback(async () => {
+    try {
+      const r = await fetch(API("/dialer/dial-batch"), { method: "POST" });
+      if (!r.ok) { const t = await r.text().catch(() => ""); setErrMsg(`dial-batch ${r.status}: ${t}`); return; }
+      const d = await r.json();
+      if (d.errors?.length)         setErrMsg(`Twilio error: ${d.errors[0]}`);
+      else if (d.done && !d.dialed) setDialMsg("No leads with status 'dialer-lead' — update lead statuses in CRM first.");
+      else if (!d.dialed)           setDialMsg("0 calls placed — check Railway logs for Twilio errors.");
+      else                          setDialMsg(`🔊 Ringing ${d.dialed} line${d.dialed > 1 ? "s" : ""} simultaneously → ${(d.phones||[]).join(", ")}`);
+    } catch (e) { setErrMsg("dial-batch: " + e.message); }
+  }, []);
+
+  const togglePause = () => {
+    setPaused(p => {
+      const next = !p;
+      // Resuming while sitting idle in a paused wait — kick off the next batch.
+      if (!next && sess?.status === "waiting") fireDialBatch();
+      return next;
+    });
+  };
 
   // ── Load saved call script once on mount ─────────────────────────────────────
   useEffect(() => {
@@ -150,16 +174,7 @@ const [notes, setNotes]                 = useState("");
         // browser dropping fetch calls made inside WebRTC event callbacks
         if (needsFirstDial.current && data.active && data.status === "waiting") {
           needsFirstDial.current = false;
-          fetch(API("/dialer/dial-batch"), { method: "POST" })
-            .then(async r2 => {
-              if (!r2.ok) { const t = await r2.text().catch(() => ""); setErrMsg(`dial-batch ${r2.status}: ${t}`); return; }
-              const d = await r2.json();
-              if (d.errors?.length)        setErrMsg(`Twilio error: ${d.errors[0]}`);
-              else if (d.done && !d.dialed) setDialMsg("No leads with status 'dialer-lead' — update lead statuses in CRM first.");
-              else if (!d.dialed)           setDialMsg("0 calls placed — check Railway logs for Twilio errors.");
-              else                          setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}… → ${(d.phones||[]).join(", ")}`);
-            })
-            .catch(e => setErrMsg("dial-batch: " + e.message));
+          fireDialBatch();
         }
       } catch (e) { if (e.name !== "AbortError") console.warn("session poll:", e); }
     }, 1000);
@@ -172,19 +187,11 @@ const [notes, setNotes]                 = useState("");
     const prev = prevStatusRef.current;
     prevStatusRef.current = sess.status;
 
-    // After classify → waiting: fire next batch
+    // After classify → waiting: fire next batch (unless paused)
     if (prev === "classify" && sess.status === "waiting" && !sess.end_requested) {
       setDialMsg("");
-      fetch(API("/dialer/dial-batch"), { method: "POST" })
-        .then(async r => {
-          if (!r.ok) { const t = await r.text().catch(() => ""); setErrMsg(`dial-batch ${r.status}: ${t}`); return; }
-          const d = await r.json();
-          if (d.errors && d.errors.length > 0) setErrMsg(`Twilio error: ${d.errors[0]}`);
-          else if (d.done && d.dialed === 0)   setDialMsg("No more leads in queue.");
-          else if (d.dialed === 0)             setDialMsg("0 calls placed — check Railway logs.");
-          else                                 setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}… → ${(d.phones||[]).join(", ")}`);
-        })
-        .catch(e => setErrMsg("dial-batch: " + e.message));
+      if (paused) setDialMsg("⏸ Paused — click Resume to keep dialing.");
+      else        fireDialBatch();
     }
 
     // Lead connected: fill script
@@ -234,6 +241,7 @@ const [notes, setNotes]                 = useState("");
     setLeadCount(null);
     setDialMsg("");
     setErrMsg("");
+    setPaused(false);
     try {
       const r = await fetch(API("/dialer/session/init"), { method: "POST" });
       const d = await r.json();
@@ -306,16 +314,7 @@ const [notes, setNotes]                 = useState("");
         setTimeout(() => {
           if (!needsFirstDial.current) return; // session poll already claimed it
           needsFirstDial.current = false;
-          fetch(API("/dialer/dial-batch"), { method: "POST" })
-            .then(async r2 => {
-              if (!r2.ok) { const t = await r2.text().catch(() => ""); setErrMsg(`dial-batch ${r2.status}: ${t}`); return; }
-              const d = await r2.json();
-              if (d.errors?.length)         setErrMsg(`Twilio error: ${d.errors[0]}`);
-              else if (d.done && !d.dialed) setDialMsg("No leads with status 'dialer-lead' — update lead statuses in CRM first.");
-              else if (!d.dialed)           setDialMsg("0 calls placed — check Railway logs for Twilio errors.");
-              else                          setDialMsg(`Dialing ${d.dialed} lead${d.dialed > 1 ? "s" : ""}… → ${(d.phones||[]).join(", ")}`);
-            })
-            .catch(e => setErrMsg("dial-batch: " + e.message));
+          fireDialBatch();
         }, 0);
       });
       call.on("cancel",     () => { setConnecting(false); setErrMsg("Call was canceled before connecting — TwiML App may have failed"); });
@@ -374,6 +373,7 @@ const [notes, setNotes]                 = useState("");
     setErrMsg("");
     setScriptFilled(false);
     setFilledScript("");
+    setPaused(false);
     prevStatusRef.current  = null;
     needsFirstDial.current = false;
     // Fire backend cleanup in background
@@ -405,6 +405,7 @@ const [notes, setNotes]                 = useState("");
 
   const statusLabel = liveStatus === "connected" ? "LIVE CALL"
                     : liveStatus === "classify"  ? "CLASSIFY"
+                    : paused && liveStatus === "waiting" ? "⏸ PAUSED"
                     : liveStatus === "waiting"   ? "DIALING…"
                     : "IDLE";
 
@@ -523,11 +524,24 @@ const [notes, setNotes]                 = useState("");
                     {connecting ? "Connecting…" : "Connect"}
                   </button>
                 ) : (
-                  <button className="btn btn-secondary"
-                    style={{ fontSize: 11, padding: "6px 16px", color: "#dc3c3c", borderColor: "rgba(220,60,60,0.3)" }}
-                    onClick={endSession}>
-                    Disconnect
-                  </button>
+                  <>
+                    <button
+                      className="btn btn-secondary"
+                      style={{
+                        fontSize: 11, padding: "6px 16px",
+                        color: paused ? "#f0a028" : "#8aaad0",
+                        borderColor: paused ? "rgba(240,160,40,0.4)" : undefined,
+                      }}
+                      onClick={togglePause}
+                    >
+                      {paused ? "▶ Resume" : "⏸ Pause"}
+                    </button>
+                    <button className="btn btn-secondary"
+                      style={{ fontSize: 11, padding: "6px 16px", color: "#dc3c3c", borderColor: "rgba(220,60,60,0.3)" }}
+                      onClick={endSession}>
+                      Disconnect
+                    </button>
+                  </>
                 )}
 
                 <button
