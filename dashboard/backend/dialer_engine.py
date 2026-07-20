@@ -7,6 +7,7 @@ No FastAPI routes here — pure state + helpers.
 import asyncio
 import os
 import threading
+import urllib.parse
 from datetime import datetime, timezone
 
 
@@ -119,18 +120,23 @@ def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
         return (phone, None, err)
     to_num = _to_e164(phone)
     print(f"  dialer: dialing {phone} → {to_num} (from {from_num})")
+    # URL-encode: raw DB phone formats ("(619) 226-7297") and even E.164's bare
+    # "+" are invalid/ambiguous in a raw query string, which silently broke
+    # Twilio's ability to call back to these URLs at all (no-answer logging,
+    # retry logic, and AMD voicemail hangups all depend on these firing).
+    phone_param = urllib.parse.quote(to_num, safe="")
     try:
         call = _client().calls.create(
             to=to_num,
             from_=from_num,
             url=f"{base}/dialer/voice/lead-answered?session_id={session_id}",
-            status_callback=f"{base}/dialer/voice/status?session_id={session_id}&phone={phone}",
+            status_callback=f"{base}/dialer/voice/status?session_id={session_id}&phone={phone_param}",
             status_callback_event=["no-answer", "busy", "failed", "completed", "canceled"],
             status_callback_method="POST",
             timeout=config.get("call_timeout_seconds", 30),
             machine_detection="Enable",
             async_amd=True,
-            async_amd_status_callback=f"{base}/dialer/voice/amd-result?session_id={session_id}&phone={phone}",
+            async_amd_status_callback=f"{base}/dialer/voice/amd-result?session_id={session_id}&phone={phone_param}",
             async_amd_status_callback_method="POST",
             machine_detection_speech_threshold=1000,
             machine_detection_speech_end_threshold=500,
