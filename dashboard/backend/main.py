@@ -22,40 +22,6 @@ security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
 
 
-async def _trigger_agent_skill(agent_id: str, message: str, timeout: int = 300) -> None:
-    """Call the agent chat endpoint from the scheduler (self-call via localhost).
-    Retries once after 60s if the first attempt fails.
-    History is self-healed by the chat endpoint before every run.
-    """
-    port = os.environ.get("PORT", "8000")
-    url = f"http://localhost:{port}/api/agents/{agent_id}/chat"
-
-    async def _run() -> bool:
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream(
-                    "POST", url,
-                    auth=("admin", DASHBOARD_PASSWORD),
-                    json={"message": message, "mode": "auto"},
-                ) as resp:
-                    async for line in resp.aiter_lines():
-                        if '"type": "error"' in line:
-                            print(f"[cron] {agent_id} stream error: {line[:200]}")
-                            return False
-            return True
-        except Exception as exc:
-            print(f"[cron] {agent_id} / '{message}' attempt failed: {exc}")
-            return False
-
-    success = await _run()
-    if not success:
-        print(f"[cron] {agent_id} / '{message}' — retrying in 60s")
-        await asyncio.sleep(60)
-        ok = await _run()
-        if not ok:
-            print(f"[cron] {agent_id} / '{message}' — retry also failed, will try again next scheduled run")
-
-
 def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
     ok = secrets.compare_digest(credentials.password.encode(), DASHBOARD_PASSWORD.encode())
     if not ok:
@@ -67,22 +33,59 @@ def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
     return credentials.username
 
 
-async def _run_daily_briefing() -> None:
-    """Run the daily briefing agent, then pin the brief as the final chat message."""
-    await _trigger_agent_skill("executive-assistant", "Run the daily briefing", timeout=600)
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, integrations.save_daily_brief_pdf)
-    print(f"[cron] daily-brief PDF: {result}")
+def _today_eastern() -> str:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
 
-    # Pin the saved .md as the last chat message so it's always visible regardless
-    # of how many tool-call rows the agent run generated (chat loads last 20 rows).
-    reports_dir = pathlib.Path("/repo/executive-assistant/reports")
-    files = sorted(reports_dir.glob("daily-briefing-*.md"), reverse=True)
-    if not files:
+
+async def _fetch_report_from_github(rel_path: str, job_label: str) -> str | None:
+    """Read a file committed by a Claude cloud routine straight from the
+    GitHub API. The routines run under the Claude subscription (not the
+    metered API) but their sandbox can't reach Railway directly, so they only
+    commit their report to GitHub — Railway already talks to the GitHub API
+    for github_push_file, so this closes the loop from that side instead.
+    """
+    import base64
+
+    repo = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+    token = os.environ.get("GIT_TOKEN", "")
+    api_url = f"https://api.github.com/repos/{repo}/contents/{rel_path}"
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(api_url, headers=headers)
+        if resp.status_code == 404:
+            print(f"[cron] {job_label}: {rel_path} not on GitHub yet — routine may still be running", flush=True)
+            return None
+        resp.raise_for_status()
+        text = base64.b64decode(resp.json()["content"]).decode("utf-8").strip()
+    except Exception as e:
+        print(f"[cron] {job_label}: GitHub fetch failed: {e}", flush=True)
+        return None
+
+    if not text:
+        return None
+
+    # Mirror to local disk — Railway's container isn't git-synced, so nothing
+    # else (PDF export, file browser) sees the routine's GitHub commit otherwise.
+    local_path = pathlib.Path("/repo") / rel_path
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_text(text, encoding="utf-8")
+    return text
+
+
+async def _post_report_from_github(filename_prefix: str, job_label: str, after: callable = None) -> None:
+    """Fetch today's report (EA Sheets Digest / EA Daily Briefing) and paste
+    it into the EA chat window — a plain read + DB insert, no LLM call."""
+    rel_path = f"executive-assistant/reports/{filename_prefix}-{_today_eastern()}.md"
+    report_text = await _fetch_report_from_github(rel_path, job_label)
+    if report_text is None:
         return
-    brief_text = files[0].read_text(encoding="utf-8").strip()
-    if not brief_text:
-        return
+
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
@@ -90,11 +93,19 @@ async def _run_daily_briefing() -> None:
                 "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
                 "executive-assistant",
                 "assistant",
-                json.dumps([{"type": "text", "text": brief_text}]),
+                json.dumps([{"type": "text", "text": report_text}]),
             )
-        print("[cron] daily-brief pinned to EA chat", flush=True)
+        print(f"[cron] {job_label}: posted to EA chat", flush=True)
     except Exception as e:
-        print(f"[cron] daily-brief chat pin failed: {e}", flush=True)
+        print(f"[cron] {job_label}: chat insert failed: {e}", flush=True)
+
+    if after is not None:
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, after)
+            print(f"[cron] {job_label}: {result}", flush=True)
+        except Exception as e:
+            print(f"[cron] {job_label}: post-step failed: {e}", flush=True)
 
 
 async def _run_leadgen() -> None:
@@ -147,17 +158,27 @@ async def _run_leadgen() -> None:
         print(f"[cron] leadgen chat notify failed: {e}", flush=True)
 
 
-async def _run_weekly_cleanup() -> None:
-    """Launch the weekly repo cleanup script. It handles its own reporting and
-    chat notification — see weekly-cleanup/run.py."""
-    script = pathlib.Path("/repo/weekly-cleanup/run.py")
-    print("[cron] weekly-cleanup starting", flush=True)
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable, str(script),
-        cwd=str(script.parent),
-    )
-    await proc.wait()
-    print(f"[cron] weekly-cleanup done — rc={proc.returncode}", flush=True)
+async def _post_weekly_cleanup_report() -> None:
+    """Pick up the weekly cleanup report committed by the 'EA Weekly Cleanup'
+    cloud routine (runs Sundays ~8:04pm ET under the Claude subscription) and
+    post an activity-feed line — mirrors the old notify_dashboard() behavior
+    from weekly-cleanup/run.py, which this routine replaces."""
+    today = _today_eastern()
+    rel_path = f"executive-assistant/reports/weekly-cleanup-{today}.md"
+    report_text = await _fetch_report_from_github(rel_path, "weekly-cleanup")
+    if report_text is None:
+        return
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO agent_messages (agent, message) VALUES ($1, $2)",
+                "Weekly Cleanup",
+                f"Weekly cleanup complete for {today} — see reports/weekly-cleanup-{today}.md",
+            )
+        print("[cron] weekly-cleanup: posted to activity feed", flush=True)
+    except Exception as e:
+        print(f"[cron] weekly-cleanup: activity feed insert failed: {e}", flush=True)
 
 
 @asynccontextmanager
@@ -166,16 +187,24 @@ async def lifespan(app: FastAPI):
 
     scheduler = AsyncIOScheduler()
     eastern = "America/New_York"
+    # Sheets digest and daily briefing now run as Claude Code cloud routines
+    # ("EA Sheets Digest" 5:57am ET, "EA Daily Briefing" 6:03am ET) under the
+    # subscription plan instead of the metered API. These jobs just pick up
+    # the finished report from GitHub and paste it into the EA chat — see
+    # _post_report_from_github. Times are staggered after the routines to
+    # give them time to finish.
     scheduler.add_job(
-        _trigger_agent_skill,
-        CronTrigger(hour=6, minute=0, timezone=eastern),
-        args=["executive-assistant", "Run the sheets digest"],
+        _post_report_from_github,
+        CronTrigger(hour=6, minute=15, timezone=eastern, day_of_week="mon-fri"),
+        args=["sheets-digest", "sheets-digest"],
         id="sheets-digest-daily",
         replace_existing=True,
     )
     scheduler.add_job(
-        _run_daily_briefing,
-        CronTrigger(hour=6, minute=1, timezone=eastern),
+        _post_report_from_github,
+        CronTrigger(hour=6, minute=30, timezone=eastern, day_of_week="mon-fri"),
+        args=["daily-briefing", "daily-briefing"],
+        kwargs={"after": integrations.save_daily_brief_pdf},
         id="daily-briefing-daily",
         replace_existing=True,
     )
@@ -186,8 +215,8 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
-        _run_weekly_cleanup,
-        CronTrigger(hour=20, minute=0, timezone=eastern, day_of_week="sun"),
+        _post_weekly_cleanup_report,
+        CronTrigger(hour=20, minute=30, timezone=eastern, day_of_week="sun"),
         id="weekly-cleanup",
         replace_existing=True,
     )
