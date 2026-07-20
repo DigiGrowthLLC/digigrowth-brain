@@ -145,6 +145,12 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             CREATE INDEX IF NOT EXISTS idx_sops_visibility ON sops(visibility);
+
+            CREATE TABLE IF NOT EXISTS dialer_settings (
+                key        TEXT PRIMARY KEY,
+                value      TEXT,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""

@@ -7,6 +7,7 @@ No FastAPI routes here — pure state + helpers.
 import asyncio
 import os
 import threading
+from datetime import datetime, timezone
 
 
 # ── In-process session state ───────────────────────────────────────────────────
@@ -24,6 +25,7 @@ _session = {
     "show_classification":  False,
     "total_leads":          0,
     "connected_at":         None,
+    "session_start_time":   None,    # kept after close_session() so "last session" queries still work
     # Ring-time tracking
     "ring_start":           {},      # norm_phone → float (unix time when dialed)
     "ring_accum":           {},      # norm_phone → float (total seconds ringing)
@@ -182,6 +184,7 @@ def init_session(session_id: str, config_data: dict, leads: list) -> None:
         _session["max_lines"]           = config_data.get("max_parallel_lines", 5)
         _session["end_requested"]       = False
         _session["auto_dialed"]         = False
+        _session["session_start_time"]  = datetime.now(timezone.utc)
 
 
 def close_session() -> None:

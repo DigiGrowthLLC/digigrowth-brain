@@ -29,10 +29,10 @@ const DISPO_BUTTONS = [
 const GRADE_COLORS = { A: "#14c882", B: "#5a9bf0", C: "#f0a028", D: "#dc3c3c" };
 const CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min";
 
-function StatCard({ label, value, sub }) {
+function StatCard({ label, value, sub, onClick }) {
   return (
-    <div className="stat-card">
-      <div className="stat-card-label">{label}</div>
+    <div className="stat-card" onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
+      <div className="stat-card-label">{label}{onClick ? " ▸" : ""}</div>
       <div className="stat-card-value">{value ?? "—"}</div>
       {sub && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", marginTop: 2 }}>{sub}</div>}
     </div>
@@ -76,6 +76,8 @@ const [notes, setNotes]                 = useState("");
   const [bookingOpen, setBookingOpen]     = useState(false);
   // Script
   const [scriptTemplate, setScriptTemplate] = useState("");
+  const [savedScript, setSavedScript]       = useState("");
+  const [scriptSaving, setScriptSaving]     = useState(false);
   const [filledScript, setFilledScript]     = useState("");
   const [scriptFilled, setScriptFilled]     = useState(false);
   // Dial / error feedback
@@ -87,8 +89,39 @@ const [notes, setNotes]                 = useState("");
   const [queueOpen, setQueueOpen]   = useState(false);
   const [queueLeads, setQueueLeads] = useState([]);
   const [queueLoading, setQueueLoading] = useState(false);
+  // Calls-made viewer
+  const [callsOpen, setCallsOpen]       = useState(false);
+  const [sessionCalls, setSessionCalls] = useState([]);
+  const [callsLoading, setCallsLoading] = useState(false);
   const deviceRef     = useRef(null);
   const activeCallRef = useRef(null);
+
+  // ── Load saved call script once on mount ─────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(API("/dialer/script"));
+        if (r.ok) {
+          const { script } = await r.json();
+          setScriptTemplate(script || "");
+          setSavedScript(script || "");
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const saveScript = async () => {
+    setScriptSaving(true);
+    try {
+      await fetch(API("/dialer/script"), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ script: scriptTemplate }),
+      });
+      setSavedScript(scriptTemplate);
+    } catch {}
+    setScriptSaving(false);
+  };
 
   // ── Stats poll (5s) ─────────────────────────────────────────────────────────
   const loadStats = useCallback(async () => {
@@ -174,7 +207,7 @@ const [notes, setNotes]                 = useState("");
     }
   }, [sess?.status, sess?.current_lead]);
 
-  // ── Queue viewer ──────────────────────────────────────────────────────────────
+  // ── Queue viewer (live CRM eligibility — not tied to a session) ──────────────
   const loadQueue = useCallback(async () => {
     setQueueLoading(true);
     try {
@@ -185,11 +218,28 @@ const [notes, setNotes]                 = useState("");
   }, []);
 
   useEffect(() => {
-    if (!queueOpen || !sessionActive) return;
+    if (!queueOpen) return;
     loadQueue();
     const id = setInterval(loadQueue, 5000);
     return () => clearInterval(id);
-  }, [queueOpen, sessionActive, loadQueue]);
+  }, [queueOpen, loadQueue]);
+
+  // ── Calls-made viewer (current or most recently ended session) ──────────────
+  const loadSessionCalls = useCallback(async () => {
+    setCallsLoading(true);
+    try {
+      const r = await fetch(API("/dialer/session/calls"));
+      if (r.ok) setSessionCalls((await r.json()).calls || []);
+    } catch {}
+    setCallsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!callsOpen) return;
+    loadSessionCalls();
+    const id = setInterval(loadSessionCalls, 5000);
+    return () => clearInterval(id);
+  }, [callsOpen, loadSessionCalls]);
 
   // ── Start Session ────────────────────────────────────────────────────────────
   const startSession = async () => {
@@ -644,9 +694,30 @@ const [notes, setNotes]                 = useState("");
                   </span>
                 )}
                 {!scriptFilled && (
-                  <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a3a50" }}>
-                    [Name] [Practice Name] [custom opener]
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a3a50" }}>
+                      [Name] [Practice Name] [custom opener]
+                    </span>
+                    {scriptTemplate !== savedScript && (
+                      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#f0a028", letterSpacing: "0.08em" }}>
+                        UNSAVED
+                      </span>
+                    )}
+                    <button
+                      onClick={saveScript}
+                      disabled={scriptSaving || scriptTemplate === savedScript}
+                      style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 10, fontWeight: 600,
+                        padding: "3px 10px", borderRadius: 6,
+                        background: scriptTemplate === savedScript ? "rgba(30,47,80,0.4)" : "rgba(20,200,130,0.12)",
+                        border: `1px solid ${scriptTemplate === savedScript ? "#1a2540" : "rgba(20,200,130,0.3)"}`,
+                        color: scriptTemplate === savedScript ? "#3a5a80" : "#14c882",
+                        cursor: (scriptSaving || scriptTemplate === savedScript) ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {scriptSaving ? "SAVING…" : "SAVE"}
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -778,11 +849,11 @@ const [notes, setNotes]                 = useState("");
       <div>
         <div className="sec-label">{session.active ? "Live Session" : "Last Session"}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-          <StatCard label="Calls Made"    value={session.calls_made} />
+          <StatCard label="Calls Made"    value={session.calls_made} onClick={() => setCallsOpen(true)} />
           <StatCard label="Remaining"     value={session.remaining}
             sub={session.total_leads ? `OF ${session.total_leads}` : null} />
           <StatCard label="Ready to Dial" value={session.leads_ready ?? "—"}
-            sub={session.leads_ready > 0 ? "IN QUEUE" : null} />
+            sub={session.leads_ready > 0 ? "IN QUEUE" : null} onClick={() => setQueueOpen(true)} />
         </div>
       </div>
 
@@ -879,7 +950,7 @@ const [notes, setNotes]                 = useState("");
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
                            padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0 }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff" }}>
-                Queue{sessionActive ? ` — ${queueLeads.length} waiting` : ""}
+                Ready to Dial — {queueLeads.length} waiting
               </span>
               <button onClick={() => setQueueOpen(false)} style={{
                 background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540",
@@ -887,11 +958,7 @@ const [notes, setNotes]                 = useState("");
               }}>✕</button>
             </div>
             <div style={{ padding: "12px 20px", overflowY: "auto" }}>
-              {!sessionActive ? (
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-                  START A SESSION TO SEE THE QUEUE
-                </div>
-              ) : queueLoading && queueLeads.length === 0 ? (
+              {queueLoading && queueLeads.length === 0 ? (
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
                   LOADING…
                 </div>
@@ -928,6 +995,68 @@ const [notes, setNotes]                 = useState("");
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Calls Made modal ── */}
+      {callsOpen && (
+        <div onClick={(e) => e.target === e.currentTarget && setCallsOpen(false)} style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24,
+        }}>
+          <div style={{
+            background: "#0d1830", border: "1px solid #1a2540", borderRadius: 12,
+            width: "100%", maxWidth: 520, maxHeight: "80vh",
+            display: "flex", flexDirection: "column", overflow: "hidden",
+            boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                           padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff" }}>
+                Calls Made — {sessionCalls.length}
+              </span>
+              <button onClick={() => setCallsOpen(false)} style={{
+                background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540",
+                borderRadius: 6, color: "#5a6f8f", width: 30, height: 30, cursor: "pointer", fontSize: 16,
+              }}>✕</button>
+            </div>
+            <div style={{ padding: "12px 20px", overflowY: "auto" }}>
+              {callsLoading && sessionCalls.length === 0 ? (
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+                  LOADING…
+                </div>
+              ) : sessionCalls.length === 0 ? (
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+                  NO CALLS YET THIS SESSION
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  {sessionCalls.map((call, i) => {
+                    const colors = DISPO_COLORS[call.disposition] ?? { text: "#3a4f6f" };
+                    return (
+                      <div key={i} style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "8px 0", borderBottom: "0.5px solid #1a2540",
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: "#8aaad0" }}>
+                            {call.owner || call.business || call.phone || "Unknown"}
+                          </div>
+                          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginTop: 2 }}>
+                            {fmt(call.started_at)}
+                          </div>
+                        </div>
+                        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
+                                        letterSpacing: "0.08em", color: colors.text }}>
+                          {(call.disposition ?? "—").toUpperCase()}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

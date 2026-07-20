@@ -95,6 +95,29 @@ async def get_token():
     return {"token": token.to_jwt()}
 
 
+@router.get("/dialer/script")
+async def get_script():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = 'call_script'")
+    return {"script": row["value"] if row else ""}
+
+
+@router.put("/dialer/script")
+async def save_script(body: dict):
+    script = body.get("script", "")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO dialer_settings (key, value, updated_at) VALUES ('call_script', $1, now())
+            ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
+            """,
+            script,
+        )
+    return {"ok": True}
+
+
 # ── Native OS session management ──────────────────────────────────────────────
 
 @router.get("/dialer/session")
@@ -490,6 +513,31 @@ async def call_single(body: dict):
     lead = _row_to_lead(row)
     engine.init_session(session_id, config, [lead])
     return {"ok": True, "session_id": session_id, "lead_count": 1}
+
+
+@router.get("/dialer/session/calls")
+async def get_session_calls():
+    """Call log entries from the current (or most recently ended) session,
+    for the 'Calls Made' stat's drill-down — matched by session start time
+    since call_logs isn't itself keyed by session_id."""
+    with engine._session["lock"]:
+        start = engine._session.get("session_start_time")
+    if not start:
+        return {"calls": []}
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT cl.disposition, cl.notes, cl.started_at,
+                   c.business, c.owner, c.phone, c.grade
+            FROM call_logs cl
+            LEFT JOIN contacts c ON c.id = cl.contact_id
+            WHERE cl.started_at >= $1
+            ORDER BY cl.started_at DESC
+            """,
+            start,
+        )
+    return {"calls": [dict(r) for r in rows]}
 
 
 @router.get("/dialer/debug")
