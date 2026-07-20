@@ -304,10 +304,19 @@ const [notes, setNotes]                 = useState("");
   const classify = async (disposition) => {
     setClassifying(true);
     try {
+      // Send the lead's identity explicitly — don't rely solely on the
+      // server's in-memory "pending" state, which a session transition
+      // (end/restart) can clear out from under a still-in-flight classify
+      // click, silently turning it into a no-op.
+      const lead = sess?.current_lead;
       await fetch(API("/dialer/classify"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disposition, notes }),
+        body: JSON.stringify({
+          disposition, notes,
+          contact_id: lead?.contact_id,
+          phone: lead?.phone,
+        }),
       });
       setNotes("");
       if (disposition === "Appointment Booked") setBookingOpen(true);

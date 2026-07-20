@@ -314,20 +314,24 @@ async def dial_batch():
 
 @router.post("/dialer/classify")
 async def classify(body: dict):
-    """Log disposition for the current pending lead and clear classification state."""
+    """Log disposition for the given lead and clear classification state."""
     disposition = (body.get("disposition") or "No Answer").strip()
     notes       = (body.get("notes") or "").strip() or None
 
     with engine._session["lock"]:
-        pending                              = engine._session.get("pending")
+        pending                              = engine._session.get("pending") or {}
         engine._session["show_classification"] = False
         engine._session["pending"]           = None
         engine._session["connected_at"]      = None
 
-    if pending:
-        phone      = pending.get("phone", "")
-        contact_id = pending.get("contact_id")
+    # Prefer the lead identity the client sent with the click over the
+    # server's in-memory "pending" state — an unrelated session transition
+    # (end/restart) can clear "pending" out from under a still-in-flight
+    # classify request, which previously made it silently do nothing.
+    contact_id = body.get("contact_id") or pending.get("contact_id")
+    phone      = body.get("phone") or pending.get("phone", "")
 
+    if contact_id or phone:
         # Write to DB directly (same logic as log_disposition)
         pool = await get_pool()
         async with pool.acquire() as conn:
