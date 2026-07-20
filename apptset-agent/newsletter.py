@@ -40,22 +40,22 @@ def generate_content(config):
     that are replaced per-contact at send time.
     """
     client       = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-    topic_hint   = config.get("newsletter", {}).get("topic_hint", "AI client acquisition for fitness studios")
+    topic_hint   = config.get("newsletter", {}).get("topic_hint", "AI client acquisition for mobile and in-home veterinary practices")
     from_name    = config.get("newsletter", {}).get("from_name", "Dylan | Digigrowth")
     booking_link = config.get("newsletter", {}).get("booking_link") or config.get("sms_agent", {}).get("booking_link", "")
     week_str     = date.today().strftime("%B %d, %Y")
 
     prompt = f"""\
-Write a short weekly email newsletter for fitness studio owners from {from_name}.
+Write a short weekly email newsletter for owners of independent mobile and in-home veterinary practices from {from_name}.
 Topic this week: {topic_hint}
 Week of: {week_str}
 
-Use {{{{first_name}}}} where you address the reader by name and {{{{business_name}}}} where you reference their studio.
+Use {{{{first_name}}}} where you address the reader by name and {{{{business_name}}}} where you reference their practice.
 These are literal placeholders — include them exactly as shown.
 
 Structure (in order):
 1. Subject line — specific, curiosity-driven, under 60 chars, no spam words
-2. Opening — "Hey {{{{first_name}}}}," then 1-2 sentences on a real pain point or surprising stat about AI adoption in fitness
+2. Opening — "Hey {{{{first_name}}}}," then 1-2 sentences on a real pain point or surprising stat about AI adoption for mobile/in-home veterinary practices
 3. Main tip — ONE actionable insight about using AI for client acquisition (3-5 sentences). Be specific and concrete.
 4. CTA — "Want me to put together a custom AI + marketing plan for {{{{business_name}}}}? Book a quick discovery call → {booking_link if booking_link else '[BOOKING_LINK]'}"
 6. Sign-off — casual, from {from_name}
