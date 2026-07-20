@@ -30,6 +30,11 @@ const GRADE_BADGE = {
   D: "badge-red",
 };
 
+function fmtLastCalled(ts) {
+  if (!ts) return null;
+  return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 // ── CSV parser ────────────────────────────────────────────────────────────────
 
 function parseCsvLine(line) {
@@ -307,6 +312,9 @@ function ContactRow({ contact, checked, onCheck, onSelect }) {
       </td>
       <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a6f8f", textAlign: "center" }} onClick={() => onSelect(contact)}>
         {contact.call_attempts}
+      </td>
+      <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a6f8f", whiteSpace: "nowrap" }} onClick={() => onSelect(contact)}>
+        {fmtLastCalled(contact.last_called_at) || <span style={{ color: "#1a2f52" }}>never</span>}
       </td>
       <td style={{ padding: "10px 14px", fontSize: 11, color: "#5a6f8f", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} onClick={() => onSelect(contact)}>
         {contact.last_disposition || <span style={{ color: "#1a2f52" }}>—</span>}
@@ -911,7 +919,7 @@ export default function CRMPanel({ onNavigate }) {
                     style={{ accentColor: "#3a7bd5", width: 13, height: 13, cursor: "pointer" }}
                   />
                 </th>
-                {["Business","Owner","Phone","Grade","Status","Calls","Last Disposition","State"].map(h => (
+                {["Business","Owner","Phone","Grade","Status","Calls","Last Called","Last Disposition","State"].map(h => (
                   <th key={h} style={{
                     padding: "8px 14px", textAlign: "left",
                     fontFamily: "'Share Tech Mono', monospace",
