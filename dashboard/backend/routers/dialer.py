@@ -32,11 +32,13 @@ _CONFIG_FILE = pathlib.Path(__file__).parent.parent / "dialer_config.json"
 
 # Shared eligibility filter for the dialer queue: has a phone number, is
 # actively a dialer lead (or a logged voicemail — still eligible, just gated
-# by cooldown) and either past its 6h cooldown or its follow-up date has arrived.
+# by cooldown), isn't tagged not-qualified, and either past its 6h cooldown
+# or its follow-up date has arrived.
 _ELIGIBLE_WHERE = """
     phone IS NOT NULL
     AND phone <> ''
     AND status IN ('dialer-lead', 'voicemail')
+    AND NOT ('not-qualified' = ANY(tags))
     AND (
       (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))
       OR
@@ -372,6 +374,16 @@ async def classify(body: dict):
                 else:
                     await conn.execute(
                         "UPDATE contacts SET follow_up_at = NULL WHERE id = $1",
+                        contact_id,
+                    )
+
+                # Not Qualified: tag instead of a status change, so it's excluded
+                # from the dial queue (_ELIGIBLE_WHERE) permanently regardless of
+                # whatever status the contact is otherwise in.
+                if disposition == "Not Qualified":
+                    await conn.execute(
+                        "UPDATE contacts SET tags = array_append(tags, 'not-qualified'), updated_at = now() "
+                        "WHERE id = $1 AND NOT ('not-qualified' = ANY(tags))",
                         contact_id,
                     )
 
