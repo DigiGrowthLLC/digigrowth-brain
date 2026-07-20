@@ -1,9 +1,10 @@
 # Newsletter
 
-Generates and delivers DigiGrowth's weekly AI-tip email to GHL contacts tagged `newsletter`. Draft runs every Monday as part of the morning briefing. Dylan reviews and manually triggers the send.
+Generates DigiGrowth's weekly AI-tip email for contacts flagged `newsletter` in the DigiGrowth OS CRM. Draft runs every Monday as part of the morning briefing.
 
-**Run manually:** Ask the EA to "draft the newsletter" or "send the newsletter." The EA delegates here via `manage-apptset-agent`.
+**Run manually:** Ask the EA to "draft the newsletter." The EA delegates here via `manage-apptset-agent`.
 **Scheduled (draft):** Runs automatically every Monday as part of the daily briefing (Step 4.5).
+**Send Mode is currently disabled.** GoHighLevel (the old sending mechanism) is no longer in use and nothing has replaced it yet — Draft Mode still works, but there is no way to actually deliver the email right now. See "Send Mode" below.
 
 ---
 
@@ -45,21 +46,20 @@ Compare the log against the topic list below. Pick the **first topic not used in
 
 ### Step 2 — Get recipient list
 
-Run:
-```bash
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python -c "
-import json, ghl
-c = json.load(open('config.json'))
-leads = ghl.get_newsletter_leads(c)
-print(len(leads))
-for l in leads:
-    print(l.get('owner',''), '|', l.get('business',''))
-"
+`read_file` on `apptset-agent/newsletter_recipients.json` (repo-relative, already pulled by this run's guard step). It's exported nightly by Railway from the DigiGrowth OS CRM (`contacts` table, `newsletter = true`) — see `dashboard/backend/main.py`'s `_export_newsletter_contacts` job — so no live API call is needed here.
+
+Format:
+```json
+{
+  "count": 12,
+  "recipients": [{"owner": "...", "business": "...", "email": "..."}, ...],
+  "exported_at": "2026-07-21T09:45:00+00:00"
+}
 ```
 
-Parse the output: first line is the count, subsequent lines are `name | business` pairs. Store both the count and the full list for use in Step 5.
+Store `count` and the `owner`/`business` pairs for use in Step 5.
 
-If the command fails (API error, no env vars), set count to "unknown" and list to empty. Continue.
+If the file doesn't exist or fails to parse, set count to "unknown" and list to empty. Continue.
 
 ### Step 3 — Generate this week's email
 
@@ -72,7 +72,7 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 - Centered div, max-width 600px, font-family sans-serif, line-height 1.6, inline styles
 - Use `{{first_name}}` where you'd address them by name (replaced per contact at send time)
 - Use `{{business_name}}` where you'd reference their studio (replaced per contact at send time)
-- **Use HTML entities for all non-ASCII characters** — never paste raw Unicode. Em dash → `&mdash;`, smart quotes → `&ldquo;` / `&rdquo;`, apostrophe → `&#39;` or `&apos;`. This prevents garbled symbols (â€") when GHL renders the email.
+- **Use HTML entities for all non-ASCII characters** — never paste raw Unicode. Em dash → `&mdash;`, smart quotes → `&ldquo;` / `&rdquo;`, apostrophe → `&#39;` or `&apos;`. This prevents garbled symbols (â€") when an email client renders the HTML.
 - **Paragraph spacing:** every `<p>` tag must have `style="margin:0;"` and be followed by a `<br>` tag before the next paragraph. Do NOT rely on CSS margin/padding for spacing between paragraphs — email clients collapse it. Use explicit `<br>` tags between every paragraph block.
 - **Bold key phrases:** wrap the most important stats, numbers, and action phrases in `<strong>` tags so readers scanning quickly know what matters. Aim for 4-7 bolded phrases per email (e.g. response time stats, sequence steps, outcome metrics, the core benefit).
 
@@ -113,7 +113,7 @@ Build a Markdown review document with this exact structure:
 ````
 # Newsletter Draft — [Month Date, Year]
 
-Review this draft. Tell your EA "send the newsletter" to deploy.
+Review this draft. Sending is currently disabled (see "Send Mode" below) — this is preview-only for now.
 
 ## Subject
 
@@ -125,7 +125,7 @@ Review this draft. Tell your EA "send the newsletter" to deploy.
 | --- | --- |
 | ... one row per contact from Step 2, "—" if business is blank ... |
 
-[N] contacts tagged `newsletter` in GHL
+[N] contacts flagged `newsletter` in the DigiGrowth OS
 
 ## Topic this week
 
@@ -167,8 +167,9 @@ Return this summary for the daily brief:
 
 ```
 **Subject:** [subject]
-**To:** [N] contacts tagged `newsletter` in GHL
+**To:** [N] contacts flagged `newsletter` in the DigiGrowth OS
 **Topic:** [topic]
+**Note:** Sending is currently disabled — draft only. See Send Mode.
 
 [[PDF:newsletter]]
 ```
@@ -177,37 +178,11 @@ The `[[PDF:newsletter]]` line is a literal marker — the OS chat frontend detec
 
 ---
 
-## Send Mode
+## Send Mode — currently disabled
 
-Run when Dylan says "send the newsletter" or when delegated by `manage-apptset-agent`.
+`newsletter.py --send` and `apptset-agent/ghl.py` sent email through GoHighLevel's conversations API. Dylan no longer uses GHL, and nothing has replaced it yet, so **do not run `newsletter.py --send`** — it will fail (missing/invalid GHL credentials) or, worse, silently no-op.
 
-### Step 1 — Confirm draft exists
-
-Check that `newsletter_draft.json` exists. If it doesn't: "No draft found — run the newsletter draft first or ask me to draft it now." Stop.
-
-If Dylan has given edit instructions directly (in chat), apply them to `newsletter_draft.json` now, then regenerate `apptset-agent/newsletter-draft-YYYY-MM-DD.md`/`.pdf` per Step 5 of Draft Mode before continuing.
-
-### Step 2 — Send
-
-Run:
-```bash
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python newsletter.py --send
-```
-
-For a **test send** to a single contact, run instead:
-```bash
-cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python newsletter.py --send --test-contact "Name"
-```
-
-Capture and report the output (sent count, failed count).
-
-### Step 3 — Log the decision
-
-Read the subject from `newsletter_draft.json`. Append to `executive-assistant/decisions/log.md`:
-
-```
-[YYYY-MM-DD] DECISION: Sent weekly newsletter | REASONING: Saturday draft reviewed and approved by Dylan | CONTEXT: Subject: "[subject]" | Recipients: [N sent]
-```
+If Dylan says "send the newsletter": tell him sending isn't wired up yet and ask what he wants to send through (e.g. Twilio email/SMS via the OS's existing integration, a transactional email API, manual export for a bulk-email tool). Do not attempt to fix or work around this yourself — the recipient list (`newsletter_recipients.json`, sourced from the OS CRM) and the draft content are ready; only actual delivery is unresolved.
 
 ---
 
@@ -242,7 +217,7 @@ Pick in order, skipping topics used in the last 20 weeks. Cycle back to 01 when 
 
 ## Edge Cases
 
-- **No contacts tagged newsletter:** Report "0 contacts tagged 'newsletter' in GHL — add the tag to leads before sending." Do not send.
-- **Python command fails (missing credentials / API error):** Note it in the saved draft markdown. Still save the draft. Dylan can fix credentials and send manually later.
+- **No contacts flagged `newsletter`:** Report "0 contacts flagged `newsletter` in the DigiGrowth OS — flag contacts in the CRM before drafting." Still save the draft.
+- **`newsletter_recipients.json` missing or unparseable:** Note it in the saved draft markdown (count "unknown", empty recipient table). Still save the draft — this file is exported nightly by Railway, so a missing file usually means the export job hasn't run yet or failed; check Railway logs.
 - **Draft already exists from this week:** Overwrite it. Always use the freshest draft.
 - **Topic log is corrupted / unparseable:** Treat as empty, start from topic 01.

@@ -158,6 +158,71 @@ async def _run_leadgen() -> None:
         print(f"[cron] leadgen chat notify failed: {e}", flush=True)
 
 
+async def _push_file_to_github(rel_path: str, content: str, message: str) -> str:
+    """Write a file to GitHub via the REST API (get current SHA, then PUT)."""
+    import base64
+
+    repo = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+    token = os.environ.get("GIT_TOKEN", "")
+    if not token:
+        return "no GIT_TOKEN set"
+    api_url = f"https://api.github.com/repos/{repo}/contents/{rel_path}"
+    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        sha = None
+        resp = await client.get(api_url, headers=headers)
+        if resp.status_code == 200:
+            sha = resp.json().get("sha")
+        elif resp.status_code != 404:
+            return f"error getting SHA: {resp.status_code}"
+
+        payload = {"message": message, "content": base64.b64encode(content.encode()).decode()}
+        if sha:
+            payload["sha"] = sha
+        put_resp = await client.put(api_url, headers=headers, json=payload)
+        if put_resp.status_code not in (200, 201):
+            return f"error pushing: {put_resp.status_code} {put_resp.text[:200]}"
+    return "pushed to GitHub"
+
+
+async def _export_newsletter_contacts() -> None:
+    """Export contacts flagged `newsletter = true` in the OS CRM to a
+    git-tracked JSON file the newsletter skill's cloud routine can read via
+    `git pull` — it can't reach Railway's API directly (sandboxed network),
+    so this closes the loop from Railway's side, same pattern as the report
+    pickups above. Replaces the old GHL-based recipient lookup (GHL is no
+    longer in use)."""
+    from datetime import datetime, timezone
+
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT owner, business, email FROM contacts WHERE newsletter = true ORDER BY business"
+            )
+    except Exception as e:
+        print(f"[cron] newsletter-export: DB query failed: {e}", flush=True)
+        return
+
+    payload = {
+        "count": len(rows),
+        "recipients": [{"owner": r["owner"], "business": r["business"], "email": r["email"]} for r in rows],
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+    }
+    content = json.dumps(payload, indent=2)
+
+    local_path = pathlib.Path("/repo/apptset-agent/newsletter_recipients.json")
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_text(content, encoding="utf-8")
+
+    status = await _push_file_to_github(
+        "apptset-agent/newsletter_recipients.json", content,
+        f"Newsletter recipient export: {len(rows)} contacts",
+    )
+    print(f"[cron] newsletter-export: {len(rows)} contacts ({status})", flush=True)
+
+
 async def _post_weekly_cleanup_report() -> None:
     """Pick up the weekly cleanup report committed by the 'EA Weekly Cleanup'
     cloud routine (runs Sundays ~8:04pm ET under the Claude subscription) and
@@ -193,6 +258,12 @@ async def lifespan(app: FastAPI):
     # the finished report from GitHub and paste it into the EA chat — see
     # _post_report_from_github. Times are staggered after the routines to
     # give them time to finish.
+    scheduler.add_job(
+        _export_newsletter_contacts,
+        CronTrigger(hour=5, minute=45, timezone=eastern),
+        id="newsletter-contacts-export-daily",
+        replace_existing=True,
+    )
     scheduler.add_job(
         _post_report_from_github,
         CronTrigger(hour=6, minute=15, timezone=eastern, day_of_week="mon-fri"),
