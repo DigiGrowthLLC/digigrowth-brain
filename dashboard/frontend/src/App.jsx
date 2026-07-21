@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import DashboardPanel from "./panels/DashboardPanel.jsx";
 import CRMPanel       from "./panels/CRMPanel.jsx";
 import SMSPanel       from "./panels/SMSPanel.jsx";
@@ -11,6 +11,8 @@ import SOPsPanel      from "./panels/SOPsPanel.jsx";
 import TodoPanel      from "./panels/TodoPanel.jsx";
 import WebsitePanel  from "./panels/WebsitePanel.jsx";
 import IncomingCallWidget from "./IncomingCallWidget.jsx";
+import CallScreen     from "./CallScreen.jsx";
+import useIncomingCall from "./useIncomingCall.js";
 
 const NAV = [
   { id: "home",      label: "Dashboard" },
@@ -124,10 +126,27 @@ const LogoMark = () => (
 export default function App() {
   const [active, setActive] = useState("home");
   const [navContext, setNavContext] = useState(null);
+  const prevActiveRef = useRef("home");
 
   const navigateTo = (panel, ctx = null) => {
     setNavContext(ctx);
     setActive(panel);
+  };
+
+  const { incoming, activeCall, callInfo, answer, decline, hangUp } = useIncomingCall();
+
+  // Answering an inbound call jumps to the dedicated call screen; hanging up
+  // (from anywhere) returns to whichever tab was open before the call.
+  useEffect(() => {
+    if (activeCall && active !== "call") {
+      prevActiveRef.current = active;
+      setActive("call");
+    }
+  }, [activeCall]);
+
+  const handleHangUp = () => {
+    hangUp();
+    setActive(prevActiveRef.current);
   };
 
   return (
@@ -245,9 +264,19 @@ export default function App() {
         {active === "website"   && <WebsitePanel />}
         {active === "sops"      && <SOPsPanel />}
         {active === "settings"  && <SettingsPanel />}
+        {active === "call"      && <CallScreen callInfo={callInfo} onHangUp={handleHangUp} />}
       </main>
 
-      <IncomingCallWidget />
+      <IncomingCallWidget
+        incoming={incoming}
+        activeCall={activeCall}
+        callInfo={callInfo}
+        onAnswer={answer}
+        onDecline={decline}
+        onHangUp={handleHangUp}
+        onReturnToCall={() => setActive("call")}
+        showMiniBar={active !== "call"}
+      />
     </div>
   );
 }
