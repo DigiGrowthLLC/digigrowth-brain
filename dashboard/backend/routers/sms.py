@@ -251,6 +251,13 @@ async def get_conversation(phone: str):
         if not conv:
             return {"phone": phone, "messages": [], "status": "active"}
 
+        # Viewing the thread counts as reading it — clears it from the
+        # dashboard's "Needs Reply" list (same read-tracking pattern as
+        # Agent Activity's mark-read).
+        await conn.execute(
+            "UPDATE sms_conversations SET last_read_at = now() WHERE phone = $1", phone
+        )
+
         msgs_raw = await conn.fetch(
             "SELECT direction, body, sent_at FROM sms_messages WHERE phone = $1 ORDER BY sent_at",
             phone,

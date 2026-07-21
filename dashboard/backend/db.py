@@ -168,4 +168,5 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS github_path TEXT;
             ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
             ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS phone TEXT;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ;
         """)

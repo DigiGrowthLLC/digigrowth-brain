@@ -148,7 +148,12 @@ async def mark_read(msg_id: int):
 
 @router.get("/dashboard/client-messages")
 async def client_messages():
-    """Active SMS threads with inbound messages in the last 48 hours."""
+    """
+    Active SMS threads with an inbound message in the last 48 hours that
+    hasn't been read yet — opening the thread in the SMS panel sets
+    last_read_at, which drops it off this list, same as Agent Activity's
+    read tracking.
+    """
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -166,6 +171,7 @@ async def client_messages():
             ) last_in ON true
             WHERE sc.status = 'active'
               AND last_in.sent_at >= now() - interval '48 hours'
+              AND (sc.last_read_at IS NULL OR sc.last_read_at < last_in.sent_at)
             ORDER BY last_in.sent_at DESC
             """
         )
