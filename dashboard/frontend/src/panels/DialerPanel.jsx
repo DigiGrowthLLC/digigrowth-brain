@@ -730,14 +730,14 @@ const [notes, setNotes]                 = useState("");
             {/* Dial pad — send DTMF tones for IVR menus ("press 1 for...") */}
             {liveStatus === "connected" && (
               <div style={{
-                display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8,
-                maxWidth: 220, margin: "0 auto",
+                display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12,
+                maxWidth: 340, margin: "0 auto",
               }}>
                 {DIALPAD_KEYS.map(key => (
                   <button key={key} onClick={() => pressDigit(key)} style={{
                     background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540",
-                    color: "#8aaad0", borderRadius: 8, padding: "10px 0",
-                    fontSize: 15, fontWeight: 600, cursor: "pointer",
+                    color: "#8aaad0", borderRadius: 8, padding: "14px 0",
+                    fontSize: 17, fontWeight: 600, cursor: "pointer",
                     fontFamily: "'Share Tech Mono', monospace",
                   }}>
                     {key}
