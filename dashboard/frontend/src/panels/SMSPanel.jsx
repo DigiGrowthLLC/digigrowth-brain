@@ -143,22 +143,33 @@ export default function SMSPanel({ initialPhone }) {
     if (initialPhone) openThread(initialPhone);
   }, [initialPhone]);
 
-  const openThread = async (phone) => {
-    setSelected(phone);
-    setThread(null);
+  // Silently refetch the currently-open thread — used by background polling
+  // and post-action refreshes, where blanking the view first (openThread's
+  // setThread(null)) would cause a visible flash every few seconds.
+  const refreshThread = async (phone) => {
     try {
       const r = await fetch(API(`/sms/conversations/${encodeURIComponent(phone)}`));
       if (r.ok) setThread(await r.json());
     } catch {}
   };
 
+  const openThread = async (phone) => {
+    setSelected(phone);
+    setThread(null);
+    await refreshThread(phone);
+  };
+
   useEffect(() => {
     if (!selected) return;
-    const id = setInterval(() => openThread(selected), 8000);
+    const id = setInterval(() => refreshThread(selected), 8000);
     return () => clearInterval(id);
   }, [selected]);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [thread?.messages]);
+  // Only auto-scroll when the message count actually grows — every poll
+  // returns a fresh array reference even with no new messages, so keying
+  // off the array itself would re-trigger a smooth-scroll every 8s.
+  const msgCount = thread?.messages?.length ?? 0;
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgCount]);
 
   const sendReply = async () => {
     if (!replyText.trim() || !selected) return;
@@ -169,7 +180,7 @@ export default function SMSPanel({ initialPhone }) {
         body: JSON.stringify({ phone: selected, body: replyText.trim() }),
       });
       setReplyText("");
-      await openThread(selected);
+      await refreshThread(selected);
       await loadConvos();
     } catch {}
     setSending(false);
@@ -178,7 +189,7 @@ export default function SMSPanel({ initialPhone }) {
   const closeConvo = async () => {
     if (!selected) return;
     await fetch(API(`/sms/conversations/${encodeURIComponent(selected)}/close`), { method: "POST" });
-    await openThread(selected);
+    await refreshThread(selected);
     await loadConvos();
   };
 
@@ -202,7 +213,7 @@ export default function SMSPanel({ initialPhone }) {
           contactId={thread?.contact_id}
           phone={selected}
           onClose={() => setCardOpen(false)}
-          onSaved={() => openThread(selected)}
+          onSaved={() => refreshThread(selected)}
         />
       )}
 
