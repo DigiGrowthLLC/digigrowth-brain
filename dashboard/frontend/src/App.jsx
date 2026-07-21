@@ -135,8 +135,7 @@ export default function App() {
 
   const { incoming, activeCall, callInfo, answer, decline, hangUp } = useIncomingCall();
 
-  // Answering an inbound call jumps to the dedicated call screen; hanging up
-  // (from anywhere) returns to whichever tab was open before the call.
+  // Answering an inbound call jumps to the dedicated call screen.
   useEffect(() => {
     if (activeCall && active !== "call") {
       prevActiveRef.current = active;
@@ -144,10 +143,18 @@ export default function App() {
     }
   }, [activeCall]);
 
+  // Ending the call (from CallScreen's End Call, or the mini bar elsewhere)
+  // always lands on the call screen so the disposition can still be logged —
+  // it does NOT navigate away, since the call may have ended with nothing
+  // dispositioned yet. Only actually logging a disposition (CallScreen's
+  // onDone) returns to whichever tab was open before the call.
   const handleHangUp = () => {
     hangUp();
-    setActive(prevActiveRef.current);
+    prevActiveRef.current = active === "call" ? prevActiveRef.current : active;
+    setActive("call");
   };
+
+  const handleDone = () => setActive(prevActiveRef.current);
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
@@ -264,7 +271,7 @@ export default function App() {
         {active === "website"   && <WebsitePanel />}
         {active === "sops"      && <SOPsPanel />}
         {active === "settings"  && <SettingsPanel />}
-        {active === "call"      && <CallScreen callInfo={callInfo} onHangUp={handleHangUp} />}
+        {active === "call"      && <CallScreen callInfo={callInfo} live={!!activeCall} onHangUp={handleHangUp} onDone={handleDone} />}
       </main>
 
       <IncomingCallWidget
