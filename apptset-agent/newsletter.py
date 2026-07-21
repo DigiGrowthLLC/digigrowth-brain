@@ -1,13 +1,13 @@
 """
-AI Weekly Newsletter
+AI Weekly Newsletter — draft generation only.
 
-Fetches all GHL contacts tagged 'newsletter', generates content with Claude,
-and delivers personalized emails via GHL's conversations email API.
+Generates content with Claude for contacts flagged 'newsletter' in the DigiGrowth OS CRM.
+Delivery is unresolved: this used to send via GHL's conversations email API, but Dylan no
+longer uses GHL and nothing has replaced it. See apptset-agent/.claude/skills/newsletter/SKILL.md
+("Send Mode — currently disabled") before wiring up a new send path.
 
 Usage:
   python newsletter.py --preview   # generate draft + save to newsletter_draft.json (no send)
-  python newsletter.py --send      # send from existing newsletter_draft.json
-  python newsletter.py             # generate + send immediately (original behavior)
 """
 
 import argparse
@@ -18,13 +18,10 @@ from datetime import date
 from pathlib import Path
 
 import anthropic
-import requests
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
 from github_sync import push_file
-
-import ghl as ghl_mod
 
 load_dotenv()
 
@@ -42,7 +39,7 @@ def generate_content(config):
     client       = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
     topic_hint   = config.get("newsletter", {}).get("topic_hint", "AI client acquisition for mobile and in-home veterinary practices")
     from_name    = config.get("newsletter", {}).get("from_name", "Dylan | Digigrowth")
-    booking_link = config.get("newsletter", {}).get("booking_link") or config.get("sms_agent", {}).get("booking_link", "")
+    booking_link = config.get("newsletter", {}).get("booking_link", "")
     week_str     = date.today().strftime("%B %d, %Y")
 
     prompt = f"""\
@@ -88,7 +85,7 @@ Inline all styles. Keep {{{{first_name}}}} and {{{{business_name}}}} as literal 
     return parsed["subject"], parsed["html"]
 
 
-# ── Draft save/load ───────────────────────────────────────────────────────────
+# ── Draft save ────────────────────────────────────────────────────────────────
 
 def draft_newsletter(config):
     """Generate content and save to newsletter_draft.json. Does not send."""
@@ -102,102 +99,14 @@ def draft_newsletter(config):
     return subject, html_body
 
 
-def _load_draft():
-    """Load draft from newsletter_draft.json. Returns (subject, html) or raises."""
-    if not DRAFT_FILE.exists():
-        raise FileNotFoundError(
-            f"No draft found at {DRAFT_FILE}. Run with --preview first to generate one."
-        )
-    data = json.loads(DRAFT_FILE.read_text())
-    return data["subject"], data["html"]
-
-
-# ── Sending ───────────────────────────────────────────────────────────────────
-
-def _personalize(html_body, lead):
-    """Replace {{first_name}} and {{business_name}} with contact-specific values."""
-    first_name    = (lead.get("owner") or "").split()[0] if lead.get("owner") else "there"
-    business_name = lead.get("business") or "your practice"
-    return html_body.replace("{{first_name}}", first_name).replace("{{business_name}}", business_name)
-
-
-def _send_to_contact(config, contact_id, subject, html_body):
-    """Send a single email via the GHL conversations messages API."""
-    conv_id = ghl_mod.get_or_create_conversation(config, contact_id)
-    if not conv_id:
-        return False
-    try:
-        r = requests.post(
-            f"{ghl_mod.GHL_BASE}/conversations/messages",
-            headers=ghl_mod._headers(),
-            json={
-                "type":           "Email",
-                "conversationId": conv_id,
-                "contactId":      contact_id,
-                "subject":        subject,
-                "html":           html_body,
-                "direction":      "outbound",
-            },
-            timeout=15,
-        )
-        r.raise_for_status()
-        return True
-    except Exception as e:
-        print(f"  ⚠️  Email send failed for {contact_id}: {e}")
-        return False
-
-
-# ── Main entry ────────────────────────────────────────────────────────────────
-
-def send_newsletter(config, subject=None, html_template=None):
-    """Fetch newsletter leads and deliver personalized emails.
-
-    If subject/html_template are not provided, loads from newsletter_draft.json.
-    """
-    if subject is None or html_template is None:
-        subject, html_template = _load_draft()
-
-    print("📰 Newsletter: fetching recipients from GHL...")
-    leads = ghl_mod.get_newsletter_leads(config)
-
-    if not leads:
-        print("  ⚠️  No contacts tagged 'newsletter' in GHL. Add the tag and retry.")
-        return
-
-    print(f"  ✅ {len(leads)} newsletter recipients")
-    print(f"📰 Newsletter: sending '{subject}' to {len(leads)} contacts...")
-
-    sent = failed = 0
-
-    for lead in leads:
-        contact_id = lead.get("contact_id")
-        if not contact_id:
-            continue
-        personalized_html = _personalize(html_template, lead)
-        if _send_to_contact(config, contact_id, subject, personalized_html):
-            sent += 1
-        else:
-            failed += 1
-
-    print(f"  ✅ Done — {sent} sent, {failed} failed")
-
-
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="DigiGrowth weekly newsletter")
-    group  = parser.add_mutually_exclusive_group()
-    group.add_argument("--preview", action="store_true", help="Generate draft only, save to newsletter_draft.json")
-    group.add_argument("--send",    action="store_true", help="Send from existing newsletter_draft.json")
+    parser = argparse.ArgumentParser(description="DigiGrowth weekly newsletter (draft only)")
+    parser.add_argument("--preview", action="store_true", help="Generate draft only, save to newsletter_draft.json")
     args = parser.parse_args()
 
     with open(Path(__file__).parent / "config.json") as f:
         config = json.load(f)
 
-    if args.preview:
-        draft_newsletter(config)
-    elif args.send:
-        send_newsletter(config)
-    else:
-        subject, html_body = draft_newsletter(config)
-        send_newsletter(config, subject=subject, html_template=html_body)
+    draft_newsletter(config)

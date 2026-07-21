@@ -1,5 +1,5 @@
 """
-SMS Inbox router — Twilio inbound webhooks + AI auto-reply + manual send.
+SMS Inbox router — Twilio inbound webhooks + opening-message handoff + manual send.
 
 Endpoints (all under /api except the public webhook):
   POST /webhooks/sms           — Twilio posts inbound SMS here (no auth)
@@ -7,13 +7,15 @@ Endpoints (all under /api except the public webhook):
   GET  /api/sms/conversations/{phone} — thread messages
   POST /api/sms/send           — manual outbound send
   POST /api/sms/conversations/{phone}/close — mark closed / booked
+
+No AI auto-reply: once a contact enters "sms-handoff" status, send_opening_message()
+sends a single opener. All further replies land in the inbox for manual response only.
 """
 
 import json
 import os
 from datetime import datetime, timezone
 
-import anthropic
 from fastapi import APIRouter, Request, Response
 from twilio.rest import Client as TwilioClient
 
@@ -22,32 +24,7 @@ from db import get_pool
 router         = APIRouter()   # authenticated API routes
 webhook_router = APIRouter()  # public Twilio webhook
 
-_claude = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
-
-SYSTEM_PROMPT = """\
-You are a professional appointment setter texting on behalf of Dylan from Digigrowth \
-— a digital marketing agency that helps local businesses grow online and get more customers.
-
-You're texting a business owner who was cold-called but couldn't be reached. Your goal is to \
-warm them up, answer questions, handle objections, and book a 15-minute discovery call.
-
-Rules:
-- Keep replies SHORT (1-3 sentences). This is SMS, not email.
-- Be conversational, friendly, and human — never sound like a bot.
-- Don't push too hard. If they say no, acknowledge it gracefully.
-- When the prospect agrees to a call, share the booking link and confirm they received it.
-
-After every reply, output a JSON status line on its own line at the very end:
-{"status": "ongoing"}   — conversation is still open
-{"status": "APPOINTMENT_BOOKED"}  — prospect has clearly agreed and received the booking link
-
-Only use APPOINTMENT_BOOKED after you've shared the link and they've acknowledged it.\
-"""
-
-BOOKING_LINK = os.environ.get(
-    "BOOKING_LINK",
-    "https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn",
-)
+OPENING_MESSAGE = "Hey is this {first_name}?"
 
 
 def _twilio():
@@ -63,51 +40,6 @@ def _send_twilio(to: str, body: str):
         from_=os.environ["TWILIO_PHONE_NUMBER"],
         body=body,
     )
-
-
-def _call_claude(messages: list, contact: dict) -> tuple[str, str]:
-    """Return (reply_text, status). Status is 'ongoing' or 'APPOINTMENT_BOOKED'."""
-    context = (
-        f"Prospect info:\n"
-        f"- Name: {contact.get('owner') or 'there'}\n"
-        f"- Business: {contact.get('business') or 'their business'}\n"
-        f"- City: {contact.get('city') or ''}\n"
-        f"- Lead grade: {contact.get('grade') or 'C'} (A = highest priority)\n"
-        f"- Opener note: {contact.get('opener') or ''}\n\n"
-        f"Booking link: {BOOKING_LINK}\n\n"
-        "Keep replies under 160 characters when possible. "
-        "Always end with the JSON status line on its own line."
-    )
-
-    claude_messages = [
-        {"role": "user",      "content": f"[Session context]\n{context}"},
-        {"role": "assistant", "content": "Understood. I'll respond as the appointment setter."},
-    ] + messages
-
-    response = _claude.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=300,
-        system=[{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
-        messages=claude_messages,
-    )
-
-    full_text = response.content[0].text.strip()
-    lines = full_text.splitlines()
-    status = "ongoing"
-    reply = full_text
-
-    for i in range(len(lines) - 1, -1, -1):
-        stripped = lines[i].strip()
-        if stripped.startswith("{") and stripped.endswith("}"):
-            try:
-                parsed = json.loads(stripped)
-                status = parsed.get("status", "ongoing")
-                reply = "\n".join(lines[:i]).strip()
-                break
-            except json.JSONDecodeError:
-                pass
-
-    return reply, status
 
 
 async def _get_or_create_conversation(conn, phone: str) -> dict:
@@ -174,6 +106,7 @@ async def _store_message(conn, phone: str, role: str, body: str):
 
 @webhook_router.post("/webhooks/sms")
 async def twilio_inbound(request: Request):
+    """Store the inbound reply for manual review in the SMS panel. No auto-reply."""
     form = await request.form()
     from_phone = form.get("From", "")
     body       = (form.get("Body") or "").strip()
@@ -184,49 +117,40 @@ async def twilio_inbound(request: Request):
     pool = await get_pool()
     async with pool.acquire() as conn:
         conv = await _get_or_create_conversation(conn, from_phone)
-
-        if conv["status"] == "closed":
-            return Response(content="", media_type="text/plain")
-
-        await _store_message(conn, from_phone, "user", body)
-
-        messages = json.loads(conv["messages"] if isinstance(conv["messages"], str) else "[]")
-        messages.append({"role": "user", "content": body})
-
-        contact = {}
-        if conv["contact_id"]:
-            row = await conn.fetchrow(
-                "SELECT business, owner, city, grade, opener FROM contacts WHERE id = $1",
-                conv["contact_id"],
-            )
-            if row:
-                contact = dict(row)
-
-        try:
-            reply, ai_status = _call_claude(messages, contact)
-        except Exception as e:
-            print(f"Claude error for {from_phone}: {e}")
-            return Response(content="", media_type="text/plain")
-
-        await _store_message(conn, from_phone, "assistant", reply)
-
-        if ai_status == "APPOINTMENT_BOOKED":
-            await conn.execute(
-                "UPDATE sms_conversations SET status = 'closed' WHERE phone = $1",
-                from_phone,
-            )
-            if conv["contact_id"]:
-                await conn.execute(
-                    "UPDATE contacts SET status = 'appointment-booked', updated_at = now() WHERE id = $1",
-                    conv["contact_id"],
-                )
-
-    try:
-        _send_twilio(from_phone, reply)
-    except Exception as e:
-        print(f"Twilio send error for {from_phone}: {e}")
+        if conv["status"] != "closed":
+            await _store_message(conn, from_phone, "user", body)
 
     return Response(content="", media_type="text/plain")
+
+
+# ── Opening-message handoff (called from crm.py when status → sms-handoff) ──
+
+async def send_opening_message(contact: dict) -> bool:
+    """
+    Send the one-time opener to a lead that just entered sms-handoff status.
+    contact needs at least "phone"; "owner" is used for the first-name greeting.
+    Returns True if the message was sent.
+    """
+    phone = (contact.get("phone") or "").strip()
+    if not phone:
+        return False
+
+    first_name = (contact.get("owner") or "").split()[0] if contact.get("owner") else "there"
+    body = OPENING_MESSAGE.format(first_name=first_name)
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        conv = await _get_or_create_conversation(conn, phone)
+        if conv["status"] == "closed":
+            return False
+        try:
+            _send_twilio(phone, body)
+        except Exception as e:
+            print(f"Twilio send error (opening message) for {phone}: {e}")
+            return False
+        await _store_message(conn, phone, "assistant", body)
+
+    return True
 
 
 # ── Authenticated API endpoints ───────────────────────────────────────────────

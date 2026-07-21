@@ -4,8 +4,19 @@ from typing import Optional
 from fastapi import APIRouter, Query, HTTPException
 from db import get_pool
 from models import Contact, ContactUpdate, NoteAdd, DispositionUpdate, BulkAction, VALID_STATUSES, DISPOSITION_TO_STATUS
+from routers import sms as sms_router
 
 router = APIRouter()
+
+HANDOFF_STATUS = "sms-handoff"
+
+
+async def _fire_handoff(contact: dict):
+    """Fire the one-time SMS opener; swallow errors so a Twilio hiccup never breaks the caller's request."""
+    try:
+        await sms_router.send_opening_message(contact)
+    except Exception as e:
+        print(f"sms-handoff opener failed for {contact.get('phone')}: {e}")
 
 
 @router.get("/contacts")
@@ -76,6 +87,7 @@ async def update_contact(contact_id: str, body: ContactUpdate):
     set_parts.append("updated_at = now()")
     sql = f"UPDATE contacts SET {', '.join(set_parts)} WHERE id = $1 RETURNING *"
     async with pool.acquire() as conn:
+        prev = await conn.fetchrow("SELECT status FROM contacts WHERE id = $1", contact_id)
         row = await conn.fetchrow(sql, contact_id, *updates.values())
         if not row:
             raise HTTPException(status_code=404, detail="Contact not found")
@@ -89,6 +101,10 @@ async def update_contact(contact_id: str, body: ContactUpdate):
                 row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
             except Exception:
                 pass
+
+    if updates.get("status") == HANDOFF_STATUS and (not prev or prev["status"] != HANDOFF_STATUS):
+        await _fire_handoff(dict(row))
+
     return dict(row)
 
 
@@ -151,11 +167,18 @@ async def bulk_action(body: BulkAction):
         elif body.action == "set_status":
             if body.value not in VALID_STATUSES:
                 raise HTTPException(status_code=400, detail=f"Invalid status: {body.value}")
-            result = await conn.execute(
-                "UPDATE contacts SET status = $1, updated_at = now() WHERE id = ANY($2::text[])",
+            rows = await conn.fetch(
+                """
+                UPDATE contacts SET status = $1, updated_at = now()
+                WHERE id = ANY($2::text[]) AND status IS DISTINCT FROM $1
+                RETURNING id, phone, owner
+                """,
                 body.value, ids,
             )
-            affected = int(result.split()[-1])
+            affected = len(rows)
+            if body.value == HANDOFF_STATUS:
+                for r in rows:
+                    await _fire_handoff(dict(r))
 
         else:
             raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}")
@@ -188,7 +211,7 @@ async def log_disposition(contact_id: str, body: DispositionUpdate):
     new_status = DISPOSITION_TO_STATUS.get(body.disposition, "dialer-lead")
     async with pool.acquire() as conn:
         async with conn.transaction():
-            contact = await conn.fetchrow("SELECT id FROM contacts WHERE id = $1", contact_id)
+            contact = await conn.fetchrow("SELECT id, phone, owner FROM contacts WHERE id = $1", contact_id)
             if not contact:
                 raise HTTPException(status_code=404, detail="Contact not found")
             await conn.execute(
@@ -210,6 +233,10 @@ async def log_disposition(contact_id: str, body: DispositionUpdate):
                 """,
                 contact_id, new_status, body.disposition,
             )
+
+    if new_status == HANDOFF_STATUS:
+        await _fire_handoff(dict(contact))
+
     return {"ok": True, "new_status": new_status}
 
 
@@ -242,13 +269,21 @@ async def create_contact(body: Contact):
                 grade = EXCLUDED.grade,
                 opener = EXCLUDED.opener,
                 updated_at = now()
-            RETURNING *
+            RETURNING *, (xmax = 0) AS was_inserted
             """,
             contact_id, body.business, body.owner, body.phone, body.email,
             body.website, body.city, body.state, body.grade, body.opener,
             body.status, body.notes, body.newsletter,
         )
-    return dict(row)
+
+    result = dict(row)
+    was_inserted = result.pop("was_inserted")
+    # Status is only ever set on insert here (conflict path doesn't touch status),
+    # so a fresh sms-handoff row always means a lead that just needs its opener.
+    if was_inserted and result.get("status") == HANDOFF_STATUS:
+        await _fire_handoff(result)
+
+    return result
 
 
 @router.post("/contacts/import")
@@ -298,6 +333,8 @@ async def import_contacts(body: dict):
             )
             if result["was_inserted"]:
                 inserted += 1
+                if (c.get("status") or "new").strip() == HANDOFF_STATUS:
+                    await _fire_handoff({"phone": phone, "owner": (c.get("owner") or "").strip()})
             else:
                 updated += 1
 
