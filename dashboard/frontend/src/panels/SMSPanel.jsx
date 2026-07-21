@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API } from "../api.js";
 
 const GRADES   = ["A", "B", "C", "D"];
-const STATUSES = ["new", "dialer-lead", "sms-handoff", "appointment-booked", "not-interested", "send-info", "voicemail"];
+const STATUSES = ["new", "dialer-lead", "sms-handoff", "appointment-booked", "not-interested", "send-info", "voicemail", "manual-followup"];
 
 function fmtMsgTime(ts) {
   if (!ts) return "";

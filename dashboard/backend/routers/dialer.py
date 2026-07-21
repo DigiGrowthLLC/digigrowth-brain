@@ -25,6 +25,7 @@ from fastapi import APIRouter, HTTPException
 import dialer_engine as engine
 from db import get_pool
 from models import DISPOSITION_TO_STATUS
+from routers import sms as sms_router
 
 router = APIRouter()
 
@@ -417,22 +418,12 @@ async def classify(body: dict):
                     """,
                     disposition, new_status, contact_id,
                 )
-                # Set follow_up_at for 30/90-day dispositions; clear it for all others
-                if disposition == "Follow Up 30 Day":
-                    await conn.execute(
-                        "UPDATE contacts SET call_attempts = 0, follow_up_at = now() + interval '30 days' WHERE id = $1",
-                        contact_id,
-                    )
-                elif disposition == "Follow Up 90 Day":
-                    await conn.execute(
-                        "UPDATE contacts SET call_attempts = 0, follow_up_at = now() + interval '90 days' WHERE id = $1",
-                        contact_id,
-                    )
-                else:
-                    await conn.execute(
-                        "UPDATE contacts SET follow_up_at = NULL WHERE id = $1",
-                        contact_id,
-                    )
+                # Manual follow-up carries no automatic re-dial date — Dylan follows
+                # up himself. Clear follow_up_at for all other dispositions.
+                await conn.execute(
+                    "UPDATE contacts SET follow_up_at = NULL WHERE id = $1",
+                    contact_id,
+                )
 
                 # Not Qualified: tag instead of a status change, so it's excluded
                 # from the dial queue (_ELIGIBLE_WHERE) permanently regardless of
@@ -444,10 +435,17 @@ async def classify(body: dict):
                         contact_id,
                     )
 
+                # SMS Handoff: fire the one-time Twilio opener immediately.
+                if disposition == "SMS Handoff" and updated:
+                    try:
+                        await sms_router.send_opening_message(dict(updated))
+                    except Exception as e:
+                        print(f"sms-handoff opener failed for {updated['phone']}: {e}")
+
         # Update in-session stats
         with engine._session["lock"]:
             engine._session["stats"]["calls_made"] += 1
-            if disposition in ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Send Info"):
+            if disposition in ("Appointment Booked", "Follow Up (Manual)", "Send Info"):
                 engine._session["stats"]["dms_reached"] += 1
 
     return {"ok": True}
@@ -593,7 +591,7 @@ async def debug_config():
     }
 
 
-_REACHED_DISPOSITIONS = ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Send Info")
+_REACHED_DISPOSITIONS = ("Appointment Booked", "Follow Up (Manual)", "Send Info")
 
 
 @router.get("/dialer/history/booked")

@@ -79,13 +79,11 @@ class DispositionUpdate(BaseModel):
 VALID_STATUSES = {
     "new", "dialer-lead", "sms-handoff",
     "appointment-booked", "not-interested", "send-info", "voicemail",
-    "gatekeeper-blocked",
+    "gatekeeper-blocked", "manual-followup",
 }
 
 DISPOSITION_TO_STATUS = {
     "Appointment Booked": "appointment-booked",
-    "Follow Up 30 Day":   "dialer-lead",
-    "Follow Up 90 Day":   "dialer-lead",
     "Not Interested":     "not-interested",
     "Send Info":          "send-info",
     "No Answer":          "dialer-lead",
@@ -96,4 +94,8 @@ DISPOSITION_TO_STATUS = {
     # Gatekeeper is terminal — never re-enters the dialer queue, unlike a
     # plain no-answer/voicemail. Distinct from "not-interested" for reporting.
     "Gatekeeper":         "gatekeeper-blocked",
+    # Manual follow-up is terminal from the dialer's perspective — not in
+    # _ELIGIBLE_WHERE's status list, so it never gets auto re-dialed. Dylan
+    # follows up himself rather than the system re-queueing it.
+    "Follow Up (Manual)": "manual-followup",
 }

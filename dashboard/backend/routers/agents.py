@@ -100,6 +100,30 @@ def github_push_file(file_abs: pathlib.Path, agent_name: str, operation: str) ->
     except Exception as e:
         return f"github error: {e}"
 
+async def crm_list_followups(limit: int = 20) -> str:
+    """Contacts flagged 'Follow Up (Manual)' by the dialer — not lost, not closed."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT business, owner, phone, last_disposition, last_called_at
+            FROM contacts
+            WHERE last_disposition = 'Follow Up (Manual)'
+            ORDER BY last_called_at ASC NULLS LAST
+            LIMIT $1
+            """,
+            limit,
+        )
+    if not rows:
+        return "No contacts currently flagged for follow-up in the OS."
+    lines = []
+    for r in rows:
+        name = r["business"] or r["owner"] or r["phone"] or "Unknown"
+        called = r["last_called_at"].strftime("%Y-%m-%d") if r["last_called_at"] else "no call logged"
+        lines.append(f"{name} — {r['last_disposition']} — last called {called} — {r['phone'] or ''}")
+    return "\n".join(lines)
+
+
 BLOCKED_FILENAMES = {".env", "credentials.json", "settings.local.json"}
 SKIP_DIRS = {"node_modules", "__pycache__", ".venv", "venv", ".mypy_cache", ".pytest_cache"}
 
@@ -339,6 +363,21 @@ TOOLS = [
                 "contacts_reached_7d":   {"type": "integer", "description": "Contacts reached in last 7 days"},
                 "appointments_booked_7d":{"type": "integer", "description": "Appointments booked in last 7 days"},
                 "source_note":           {"type": "string",  "description": "Brief note on which sheet(s) this data came from"},
+            },
+        },
+    },
+    {
+        "name": "crm_list_followups",
+        "description": (
+            "List CRM contacts in the DigiGrowth OS whose last call disposition is 'Follow Up (Manual)' "
+            "— i.e. prospects flagged for a manual follow-up during a dialer call, as opposed "
+            "to leads marked lost/not-interested or already closed. Returns business/owner name, phone, "
+            "disposition, and last call date, oldest first."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "default": 20, "description": "Max contacts to return"},
             },
         },
     },
@@ -1098,9 +1137,12 @@ async def chat(agent_id: str, request: Request):
                 for block in final_message.content:
                     if block.type != "tool_use":
                         continue
-                    result = await asyncio.to_thread(
-                        _execute_tool, agent, block.name, block.input
-                    )
+                    if block.name == "crm_list_followups":
+                        result = await crm_list_followups(block.input.get("limit", 20))
+                    else:
+                        result = await asyncio.to_thread(
+                            _execute_tool, agent, block.name, block.input
+                        )
                     yield f"data: {json.dumps({'type': 'tool_result', 'tool_use_id': block.id, 'tool_name': block.name, 'result': result[:3000]})}\n\n"
                     tool_results.append({
                         "type": "tool_result",

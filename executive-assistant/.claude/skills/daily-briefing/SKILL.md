@@ -14,9 +14,10 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 2. Surfaces business-relevant emails from the last 24 hours (both inboxes)
 3. Lists today's Google Calendar events
 4. Pulls cold calling / SMS outreach data from Google Drive
-5. Suggests how to use free time blocks based on the day's schedule and current priorities
-6. On Mondays, surfaces anything the weekly cleanup job flagged for review
-7. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
+5. Pulls this week's sales numbers (shows, closes, discovery calls, revenue) from the Sales Performance Tracker
+6. Suggests how to use free time blocks based on the day's schedule and current priorities
+7. On Mondays, surfaces anything the weekly cleanup job flagged for review
+8. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
 
 ---
 
@@ -82,7 +83,9 @@ If no events: "No events today — full day available."
 
 Search Google Drive for two separate files:
 
-**A) Cold calling / SMS outreach tracker** — look for a file containing columns like "calls made", "contacts reached", "SMS sent", "appointments booked", or similar outreach metrics. It may be named something like "[Month] Outreach Tracker", "Call Tracker", or similar. Search for files owned by Dylan (`dylangroenendijk@gmail.com`) with "tracker" in the title, excluding the Daily Input Tracker.
+**A) Cold calling / SMS outreach tracker** — look for a file containing columns like "calls made", "contacts reached", "SMS sent", "appointments booked", or similar outreach metrics. It may be named something like "[Month] Outreach Tracker", "Call Tracker", "[Month Year] DigiGrowth Cold Calling Metrics", or similar. Search for files owned by Dylan (`dylangroenendijk@gmail.com`) with "tracker" or "metrics" in the title, excluding the Daily Input Tracker.
+
+**Never substitute the "DigiGrowth Sales Performance Tracker" for this section, under any circumstance — even if the outreach tracker is missing, empty, or stale.** That file holds sales pipeline data (shows/closes/discovery calls/revenue), not outreach activity, and belongs only in the separate Sales This Week section (Step 3.7). If the real outreach tracker can't be found, use the fallback message below — do not fall back to any other tracker.
 
 If found and it contains outreach columns (calls, contacts, SMS, appointments):
 - Summarize this week's numbers for each column
@@ -123,6 +126,37 @@ Rules:
 - If all metrics were zero or missing, write "No activity logged yesterday." for both lists
 - Cap each list at 4 items — prioritize the biggest gaps
 
+### Step 3.7 — Sales This Week
+
+Search Google Drive for the file named exactly **"DigiGrowth Sales Performance Tracker"**, owned by Dylan. Read it and extract the current all-time cumulative totals for: **shows**, **closes**, **discovery calls**, **total revenue**. This is the same sheet the `sheets-digest` skill reads — it has no date column, so these are running totals, not weekly rows.
+
+To get this week's numbers, diff against last week's snapshot:
+
+1. Use `list_files` on `reports/` to find `daily-briefing-*.md` from **7 days ago** (today's date minus 7). If that exact file doesn't exist, use the closest available file from 6–8 days ago.
+2. In that file's "Sales This Week" section, find the snapshot line (format below) and read its all-time totals.
+3. This week's numbers = today's totals − that snapshot's totals, for each metric.
+
+**Output format:**
+- **Shows**: `this week` *(vs. `all-time total`)*
+- **Closes**: `this week` *(vs. `all-time total`)*
+- **Discovery calls**: `this week` *(vs. `all-time total`)*
+- **Revenue**: `$this week` *(vs. `$all-time total`)*
+
+Always end the section with a snapshot line for next week's diff, exactly in this format:
+`*Snapshot: shows=X, closes=Y, discovery_calls=Z, total_revenue=W*`
+
+If no prior snapshot is found (e.g. first run): show only the all-time totals and write "No prior snapshot — showing all-time totals. Weekly comparison starts next run." Still include the snapshot line.
+
+If the Sales Performance Tracker itself isn't found: "Sales Performance Tracker not found in Drive."
+
+**Follow-up candidates:** While reading the tracker's individual prospect rows (not just the aggregate totals), build a list of names eligible for a follow-up suggestion in Step 4. A prospect is eligible **only if both** are true:
+- They showed up to the call (a "showed" / "show" indicator is set for that row)
+- The outcome column next to their name is **blank or something other than "Lost" or "Win"** (e.g. "Reschedule", "Callback", "Follow up", "Pending")
+
+**Never include a prospect marked "Lost"** — that's a dead lead, not a follow-up candidate. Also exclude anyone marked "Win" — they're already closed, not a follow-up target. If no rows qualify, the candidate list is empty; do not invent names or fall back to "Lost" rows.
+
+**Also call the `crm_list_followups` tool** to get prospects flagged for follow-up directly in the DigiGrowth OS (dialer disposition "Follow Up (Manual)" — set when Dylan logs that disposition on a call). Add these to the same candidate list used in Step 4. This is a separate source from the sales tracker rows above — include both, but do not duplicate a name that appears in both sources. If the tool returns no contacts, note that and move on — don't treat it as an error.
+
 ### Step 4 — Time Suggestions
 
 Based on the free time blocks from Step 2 and Dylan's #1 priority (client acquisition — outreach, sales calls, closing), surface 2–3 options for those blocks.
@@ -130,6 +164,7 @@ Based on the free time blocks from Step 2 and Dylan's #1 priority (client acquis
 - Only suggest activities that connect to client acquisition or DigiGrowth operations
 - Ground every suggestion in specific time blocks from the calendar
 - Frame as options, not directives
+- If suggesting follow-up with named prospects, **only use names from the Step 3.7 follow-up candidate list** (sales tracker rows that showed up and aren't Lost/Win, plus OS dialer contacts flagged "Follow Up (Manual)" via `crm_list_followups`). Never suggest following up with a prospect marked "Lost" in the sales tracker or not-interested/gatekeeper-blocked in the OS. If the candidate list is empty, suggest general follow-up activity (e.g. "review open leads") without naming anyone.
 
 Examples:
 - "3 hours open before your noon call. One option: outbound prospecting."
@@ -185,6 +220,10 @@ Formatting rules that apply throughout:
 
 [Step 3.5 output]
 
+## Sales This Week
+
+[Step 3.7 output]
+
 ## How to Use Your Day
 
 [Step 4 output]
@@ -210,6 +249,8 @@ Formatting rules that apply throughout:
 - **Gmail returns no results:** Write "Inbox clear" and continue.
 - **Calendar unavailable:** Write "Calendar unavailable — check manually" and continue.
 - **No cold calling tracker in Drive:** Write the Step 3A fallback message and continue. Still attempt to read the Daily Input Tracker for Step 3.5.
+- **No Sales Performance Tracker in Drive:** Write the Step 3.7 fallback message and continue. Do not substitute it with the outreach tracker or omit the section.
+- **No 7-day-old briefing found for Step 3.7:** Show all-time totals only, per the Step 3.7 fallback, and still write the snapshot line.
 - **No Daily Input Tracker in Drive:** Write "No habit data found." in Yesterday's Performance and continue.
 - **Yesterday's row missing or blank:** Write "No data logged for yesterday." in the Yesterday's Performance section and continue.
 - **File write fails:** Retry once. If it fails again, deliver as chat only — do not loop.

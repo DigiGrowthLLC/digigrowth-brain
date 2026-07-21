@@ -10,6 +10,7 @@ const STATUSES = [
   { value: "send-info",          label: "SEND INFO" },
   { value: "voicemail",          label: "VOICEMAIL" },
   { value: "gatekeeper-blocked", label: "GATEKEEPER" },
+  { value: "manual-followup",    label: "MANUAL F/U" },
 ];
 
 const STATUS_BADGE = {
@@ -21,6 +22,7 @@ const STATUS_BADGE = {
   "send-info":          "badge-amber",
   "voicemail":          "badge-amber",
   "gatekeeper-blocked": "badge-orange",
+  "manual-followup":    "badge-amber",
 };
 
 const GRADE_BADGE = {
