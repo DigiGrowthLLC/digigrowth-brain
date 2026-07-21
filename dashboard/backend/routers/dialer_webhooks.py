@@ -8,6 +8,8 @@ Mounted at root (no /api prefix) so URLs match what Twilio expects:
   POST /dialer/voice/lead-overflow
   POST /dialer/voice/status
   POST /dialer/voice/gatekeeper-join
+  POST /dialer/voice/incoming         — phone number's "a call comes in" webhook (inbound callbacks)
+  POST /dialer/voice/incoming-status  — fires after the inbound Dial ends
 """
 
 import logging
@@ -372,3 +374,80 @@ async def gatekeeper_join(request: Request):
         beep=False,
     )
     return Response(str(response), media_type="text/xml")
+
+
+# ── Inbound callback from a prospect — rings Dylan's browser directly ───────
+
+@router.post("/dialer/voice/incoming")
+async def incoming_call(request: Request):
+    """
+    Twilio's phone-number-level "a call comes in" webhook (separate from the
+    TwiML App's Voice URL, which only handles the browser's outbound leg-join).
+    Resolves the caller to a contact and rings the "agent" Client identity so
+    IncomingCallWidget's globally-registered Device fires an "incoming" event.
+    """
+    form  = await request.form()
+    phone = form.get("From", "")
+
+    name = business = contact_id = ""
+    try:
+        from db import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            # Same normalized-phone match used for no-answer logging above —
+            # Twilio's E.164 "From" vs. the CRM's free-form stored number.
+            contact = await conn.fetchrow(
+                "SELECT id, business, owner, phone FROM contacts "
+                "WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1",
+                engine._norm(phone),
+            )
+        if contact:
+            name       = contact["owner"] or ""
+            business   = contact["business"] or ""
+            contact_id = str(contact["id"])
+    except Exception as e:
+        print(f"  dialer: incoming_call contact lookup failed for {phone}: {e}")
+
+    print(f"  dialer: incoming call from {phone} ({name or business or 'unknown'})", flush=True)
+
+    response = VoiceResponse()
+    dial = response.dial(
+        timeout=25,
+        action=f"/dialer/voice/incoming-status?phone={phone}",
+    )
+    client = dial.client("agent")
+    client.parameter(name="name", value=name)
+    client.parameter(name="business", value=business)
+    client.parameter(name="phone", value=phone)
+    client.parameter(name="contactId", value=contact_id)
+    return Response(str(response), media_type="text/xml")
+
+
+@router.post("/dialer/voice/incoming-status")
+async def incoming_status(request: Request):
+    """Fires after the inbound Dial ends, however it ends. Only log a miss —
+    an answered call already gets logged via /dialer/classify when Dylan
+    dispositions it same as any other call."""
+    form   = await request.form()
+    status = form.get("DialCallStatus", "")
+    phone  = request.query_params.get("phone", "") or form.get("To", "")
+
+    if status == "completed" or not phone:
+        return Response("", status_code=204)
+
+    try:
+        from db import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            contact = await conn.fetchrow(
+                "SELECT id FROM contacts WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1",
+                engine._norm(phone),
+            )
+            await conn.execute(
+                "INSERT INTO call_logs (contact_id, disposition) VALUES ($1, $2)",
+                contact["id"] if contact else None, "Missed Callback",
+            )
+    except Exception as e:
+        print(f"  dialer: incoming_status log failed for {phone}: {e}")
+
+    return Response("", status_code=204)

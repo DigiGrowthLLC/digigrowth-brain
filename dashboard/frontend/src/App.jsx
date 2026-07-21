@@ -10,6 +10,7 @@ import FinancesPanel  from "./panels/FinancesPanel.jsx";
 import SOPsPanel      from "./panels/SOPsPanel.jsx";
 import TodoPanel      from "./panels/TodoPanel.jsx";
 import WebsitePanel  from "./panels/WebsitePanel.jsx";
+import IncomingCallWidget from "./IncomingCallWidget.jsx";
 
 const NAV = [
   { id: "home",      label: "Dashboard" },
@@ -245,6 +246,8 @@ export default function App() {
         {active === "sops"      && <SOPsPanel />}
         {active === "settings"  && <SettingsPanel />}
       </main>
+
+      <IncomingCallWidget />
     </div>
   );
 }
