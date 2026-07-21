@@ -95,15 +95,27 @@ export default function useIncomingCall() {
     try {
       call.accept();
       setActiveCall(call);
-      call.on("disconnect", () => { setActiveCall(null); setCallInfo(null); });
-      call.on("error", (e) => {
-        console.warn("Incoming call error:", e);
-        setActiveCall(null);
-        setCallInfo(null);
-      });
+
+      // callInfo (contact name/business/phone/contactId) stays set after the
+      // call ends — CallScreen still needs it for the post-call disposition
+      // and to keep the contact card linked. Only clearing activeCall here.
+      const end = () => setActiveCall(null);
+      call.on("disconnect", end);
+      call.on("error", (e) => { console.warn("Incoming call error:", e); end(); });
+
+      // Belt-and-suspenders: also poll the call's actual status. If Twilio's
+      // "disconnect" event doesn't reliably reach this leg when the OTHER
+      // party hangs up, this still catches it within a couple seconds
+      // instead of the call screen showing "on call" forever.
+      const statusPoll = setInterval(() => {
+        if (call.status() === "closed") {
+          clearInterval(statusPoll);
+          end();
+        }
+      }, 2000);
+      call.on("disconnect", () => clearInterval(statusPoll));
     } catch (e) {
       console.warn("Failed to accept incoming call:", e);
-      setCallInfo(null);
     }
   }, []);
 
@@ -116,8 +128,11 @@ export default function useIncomingCall() {
 
   const hangUp = useCallback(() => {
     setActiveCall((call) => { try { call?.disconnect(); } catch {} return null; });
-    setCallInfo(null);
   }, []);
 
-  return { incoming, activeCall, callInfo, answer, decline, hangUp };
+  // callInfo is cleared explicitly once the rep is actually done with this
+  // call (disposition logged, or CallScreen otherwise dismissed).
+  const clearCallInfo = useCallback(() => setCallInfo(null), []);
+
+  return { incoming, activeCall, callInfo, answer, decline, hangUp, clearCallInfo };
 }

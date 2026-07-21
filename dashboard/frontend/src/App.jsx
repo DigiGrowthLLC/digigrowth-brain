@@ -133,7 +133,7 @@ export default function App() {
     setActive(panel);
   };
 
-  const { incoming, activeCall, callInfo, answer, decline, hangUp } = useIncomingCall();
+  const { incoming, activeCall, callInfo, answer, decline, hangUp, clearCallInfo } = useIncomingCall();
 
   // Answering an inbound call jumps to the dedicated call screen.
   useEffect(() => {
@@ -154,7 +154,10 @@ export default function App() {
     setActive("call");
   };
 
-  const handleDone = () => setActive(prevActiveRef.current);
+  const handleDone = () => {
+    clearCallInfo();
+    setActive(prevActiveRef.current);
+  };
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
