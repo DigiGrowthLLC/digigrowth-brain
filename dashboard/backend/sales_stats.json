@@ -5,10 +5,18 @@
   "shows": 9,
   "total_revenue": 0,
   "avg_deal_size": 0,
-  "last_sheet_sync": "2026-07-20T09:59:18.820693",
-  "last_sheet_sync_note": "DigiGrowth Sales Performance Tracker (all-time, last entry Call 18 Xander Aguirre 4/24/26). No cold calling sheet opened in last 24h.",
-  "sheet_calls_made": 3727,
-  "sheet_contacts_reached": 287,
+  "last_sheet_sync": "2026-07-21T10:00:22.154403",
+  "last_sheet_sync_note": "DigiGrowth Sales Performance Tracker (all-time, last entry Call 18 Xander Aguirre 4/24/26). July 2026 DigiGrowth Cold Calling Metrics: 1 session logged 07/20/26 (16 calls, 2 answered, 1 reached, 0 booked).",
+  "sheet_calls_made": 3743,
+  "sheet_contacts_reached": 288,
   "sheet_appointments_booked": 18,
-  "sheet_calls_answered": 545
+  "sheet_calls_answered": 547,
+  "sheet_calls_made_7d": 16,
+  "sheet_calls_made_30d": 16,
+  "sheet_calls_answered_7d": 2,
+  "sheet_calls_answered_30d": 2,
+  "sheet_contacts_reached_7d": 1,
+  "sheet_contacts_reached_30d": 1,
+  "sheet_appointments_booked_7d": 0,
+  "sheet_appointments_booked_30d": 0
 }
