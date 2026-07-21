@@ -81,7 +81,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "#f0f4ff" }}>
-              {contact?.business || contact?.owner || phone}
+              {contact?.owner || contact?.business || phone}
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.1em", marginTop: 3 }}>
               {phone}{contact?.grade ? ` · GRADE ${contact.grade}` : ""}
