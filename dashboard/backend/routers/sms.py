@@ -48,17 +48,40 @@ def _send_twilio(to: str, body: str):
     )
 
 
+def _phone_match(col: str, param: str) -> str:
+    """
+    Normalized-phone match fragment (last 10 digits) — CRM numbers come in as
+    "(754) 291-5582" (Google Places format) while Twilio's inbound webhook
+    always reports E.164 "+17542915582". Same approach as dialer.py.
+    `param` is the query's positional placeholder (e.g. "$1") holding the
+    phone value to compare `col` against.
+    """
+    return (
+        f"right(regexp_replace({col}, '\\D', '', 'g'), 10) = "
+        f"right(regexp_replace({param}, '\\D', '', 'g'), 10)"
+    )
+
+
 async def _get_or_create_conversation(conn, phone: str) -> dict:
+    """
+    Resolve `phone` (any format) to its one canonical conversation, matching
+    by normalized digits so an inbound E.164 reply lands in the same thread
+    an outbound message created under the CRM's stored phone format.
+    """
     row = await conn.fetchrow(
-        "SELECT * FROM sms_conversations WHERE phone = $1", phone
+        f"SELECT * FROM sms_conversations WHERE {_phone_match('phone', '$1')}", phone
     )
     if row:
         return dict(row)
 
     contact = await conn.fetchrow(
-        "SELECT id, business, owner, city, grade, opener FROM contacts WHERE phone = $1",
+        f"SELECT id, business, owner, city, grade, opener, phone FROM contacts "
+        f"WHERE {_phone_match('phone', '$1')}",
         phone,
     )
+    # Prefer the contact's own stored phone as the canonical key so any future
+    # outbound send (which always uses contact.phone) matches this same row.
+    canonical_phone = contact["phone"] if contact and contact["phone"] else phone
     contact_id = contact["id"] if contact else None
 
     await conn.execute(
@@ -67,11 +90,11 @@ async def _get_or_create_conversation(conn, phone: str) -> dict:
         VALUES ($1, $2, '[]', 'active')
         """,
         contact_id,
-        phone,
+        canonical_phone,
     )
     return {
         "contact_id": contact_id,
-        "phone": phone,
+        "phone": canonical_phone,
         "messages": "[]",
         "status": "active",
     }
@@ -79,20 +102,24 @@ async def _get_or_create_conversation(conn, phone: str) -> dict:
 
 async def _store_message(conn, phone: str, role: str, body: str):
     conv = await conn.fetchrow(
-        "SELECT messages FROM sms_conversations WHERE phone = $1", phone
+        f"SELECT messages, phone FROM sms_conversations WHERE {_phone_match('phone', '$1')}", phone
     )
     msgs = json.loads(conv["messages"]) if conv else []
     msgs.append({"role": role, "content": body, "ts": datetime.now(timezone.utc).isoformat()})
 
+    # Store against the conversation's own canonical phone (not necessarily
+    # the format `phone` arrived in) if a conversation already exists.
+    canonical_phone = conv["phone"] if conv else phone
+
     await conn.execute(
-        "UPDATE sms_conversations SET messages = $1, updated_at = now() WHERE phone = $2",
+        f"UPDATE sms_conversations SET messages = $1, updated_at = now() WHERE {_phone_match('phone', '$2')}",
         json.dumps(msgs),
-        phone,
+        canonical_phone,
     )
 
     direction = "inbound" if role == "user" else "outbound"
     contact_row = await conn.fetchrow(
-        "SELECT id FROM contacts WHERE phone = $1", phone
+        f"SELECT id FROM contacts WHERE {_phone_match('phone', '$1')}", canonical_phone
     )
     contact_id = contact_row["id"] if contact_row else None
 
@@ -102,7 +129,7 @@ async def _store_message(conn, phone: str, role: str, body: str):
         VALUES ($1, $2, $3, $4)
         """,
         contact_id,
-        phone,
+        canonical_phone,
         direction,
         body,
     )
