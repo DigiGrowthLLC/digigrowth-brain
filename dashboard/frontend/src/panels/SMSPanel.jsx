@@ -274,7 +274,7 @@ export default function SMSPanel({ initialPhone }) {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: "#c4d0e8", overflow: "hidden",
                                textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                  {c.business || c.owner || c.phone}
+                  {c.owner || c.business || c.phone}
                 </span>
                 <span className={`badge ${c.status === "closed" ? "badge-green" : "badge-blue"}`}
                   style={{ marginLeft: 6, flexShrink: 0 }}>
@@ -318,7 +318,7 @@ export default function SMSPanel({ initialPhone }) {
                   fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#f0f4ff",
                   display: "flex", alignItems: "center", gap: 6,
                 }}>
-                  {thread?.business || thread?.owner || selected}
+                  {thread?.owner || thread?.business || selected}
                   <span style={{
                     fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: "#3a7bd5",
                     padding: "2px 6px", borderRadius: 4, background: "rgba(58,123,213,0.1)",
