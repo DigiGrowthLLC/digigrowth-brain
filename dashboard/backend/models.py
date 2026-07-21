@@ -84,6 +84,8 @@ VALID_STATUSES = {
 
 DISPOSITION_TO_STATUS = {
     "Appointment Booked": "appointment-booked",
+    "Follow Up 30 Day":   "dialer-lead",
+    "Follow Up 90 Day":   "dialer-lead",
     "Not Interested":     "not-interested",
     "Send Info":          "send-info",
     "No Answer":          "dialer-lead",

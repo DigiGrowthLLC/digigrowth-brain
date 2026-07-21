@@ -19,7 +19,7 @@ _SALES_STATS_PATH   = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 _CONTENT_STATS_PATH = pathlib.Path(__file__).parent.parent / "content_stats.json"
 
 
-PITCHED_DISPOSITIONS = ("Appointment Booked", "Follow Up (Manual)", "Send Info", "SMS Handoff", "Not Interested")
+PITCHED_DISPOSITIONS = ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Follow Up (Manual)", "Send Info", "SMS Handoff", "Not Interested")
 
 
 def _since(days: int) -> datetime:
