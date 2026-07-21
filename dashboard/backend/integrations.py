@@ -135,7 +135,7 @@ INFO_EMAIL_SUBJECT = "Info as promised"
 
 INFO_EMAIL_BODY = """{first_name},
 
-Here's the link: https://digigrowth-website.vercel.app
+Here's the link: https://digigrowthllc.com
 
 Quick summary of what we do: we help mobile vet practices bring in 5-15k in new \
 business in 6 weeks using Meta ads, database reactivation, and an AI system that \

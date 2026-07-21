@@ -1,7 +1,7 @@
 import React from "react";
 
 const VERCEL_URL    = "https://vercel.com/digi-growth/digigrowth-website";
-const SITE_URL      = "https://digigrowth-website.vercel.app";
+const SITE_URL      = "https://digigrowthllc.com";
 const ANALYTICS_URL = "https://vercel.com/digi-growth/digigrowth-website/analytics";
 
 export default function WebsitePanel() {

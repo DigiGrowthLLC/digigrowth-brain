@@ -27,7 +27,7 @@ webhook_router = APIRouter()  # public Twilio webhook
 OPENING_MESSAGE = "Hey is this {first_name}?"
 
 INFO_MESSAGE = (
-    "Hey {first_name}, here's that info — https://digigrowth-website.vercel.app. "
+    "Hey {first_name}, here's that info — https://digigrowthllc.com. "
     "Take a look and let me know what stands out. If it makes sense to chat more, "
     "I'll follow up in a couple days."
 )

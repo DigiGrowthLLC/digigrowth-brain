@@ -20,7 +20,7 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 
 ## External Repos
 
-- **Public marketing website** lives in a **separate** repo, not in `digigrowth-brain`: `github.com/dylangroenendijk-sys/digigrowth-website` (branch `master`), deployed on Vercel at `digigrowth-website.vercel.app`. React + Vite, inline-style components in `src/components/` + `src/pages/`, same dark navy/glassmorphism theme as the dashboard. Pushing to `master` auto-deploys to production via Vercel. `dashboard/frontend/src/panels/WebsitePanel.jsx` links to the Vercel dashboard and live site from within the internal app.
+- **Public marketing website** lives in a **separate** repo, not in `digigrowth-brain`: `github.com/dylangroenendijk-sys/digigrowth-website` (branch `master`), deployed on Vercel (project `digigrowth-website`), live at the custom domain `digigrowthllc.com` (the underlying `digigrowth-website.vercel.app` deployment URL still resolves too, via Vercel's default domain). React + Vite, inline-style components in `src/components/` + `src/pages/`, same dark navy/glassmorphism theme as the dashboard. Pushing to `master` auto-deploys to production via Vercel. `dashboard/frontend/src/panels/WebsitePanel.jsx` links to the Vercel dashboard and live site from within the internal app.
 
 ## Key Conventions
 
