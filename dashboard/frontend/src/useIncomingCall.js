@@ -5,8 +5,10 @@ import { API } from "./api.js";
 // the Dialer panel's own session-scoped Device, so an inbound callback rings
 // through no matter which tab is open. Mounted once at the App level.
 export default function useIncomingCall() {
-  const [incoming, setIncoming] = useState(null); // CallInvite, awaiting answer/decline
-  const [activeCall, setActiveCall] = useState(null); // live Call, once answered
+  // @twilio/voice-sdk v2 has no separate CallInvite — the "incoming" event
+  // hands over the actual Call object, ringing and awaiting accept()/reject().
+  const [incoming, setIncoming] = useState(null); // ringing Call, awaiting answer/decline
+  const [activeCall, setActiveCall] = useState(null); // same Call, once answered
   const [callInfo, setCallInfo] = useState(null); // { name, business, phone, contactId }
   const deviceRef = useRef(null);
   const incomingRef = useRef(null);
@@ -44,9 +46,9 @@ export default function useIncomingCall() {
           }
         });
 
-        device.on("incoming", (callInvite) => {
+        device.on("incoming", (call) => {
           try {
-            const params = callInvite.customParameters instanceof Map ? callInvite.customParameters : new Map();
+            const params = call.customParameters instanceof Map ? call.customParameters : new Map();
             const info = {
               name: params.get("name") || "",
               business: params.get("business") || "",
@@ -54,7 +56,7 @@ export default function useIncomingCall() {
               contactId: params.get("contactId") || "",
             };
             setCallInfo(info);
-            setIncoming(callInvite);
+            setIncoming(call);
 
             if (window.Notification && Notification.permission === "granted") {
               const label = info.name || info.business || info.phone || "Unknown caller";
@@ -84,11 +86,14 @@ export default function useIncomingCall() {
   }, []);
 
   const answer = useCallback(() => {
-    const inv = incomingRef.current;
-    if (!inv) return;
+    // In @twilio/voice-sdk v2, the "incoming" event hands over the actual
+    // Call object (there's no separate CallInvite) — accept() mutates it in
+    // place and returns undefined, it does NOT hand back a new Call.
+    const call = incomingRef.current;
+    if (!call) return;
     setIncoming(null); // hide the popup immediately — accept() only ever fires once
     try {
-      const call = inv.accept();
+      call.accept();
       setActiveCall(call);
       call.on("disconnect", () => { setActiveCall(null); setCallInfo(null); });
       call.on("error", (e) => {
@@ -103,10 +108,10 @@ export default function useIncomingCall() {
   }, []);
 
   const decline = useCallback(() => {
-    const inv = incomingRef.current;
+    const call = incomingRef.current;
     setIncoming(null);
     setCallInfo(null);
-    try { inv?.reject(); } catch (e) { console.warn("Failed to reject incoming call:", e); }
+    try { call?.reject(); } catch (e) { console.warn("Failed to reject incoming call:", e); }
   }, []);
 
   const hangUp = useCallback(() => {
