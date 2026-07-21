@@ -376,6 +376,7 @@ async def classify(body: dict):
     """Log disposition for the given lead and clear classification state."""
     disposition = (body.get("disposition") or "No Answer").strip()
     notes       = (body.get("notes") or "").strip() or None
+    direction   = "inbound" if body.get("direction") == "inbound" else "outbound"
 
     with engine._session["lock"]:
         pending                              = engine._session.get("pending") or {}
@@ -410,8 +411,8 @@ async def classify(body: dict):
                 contact_id = contact["id"] if contact else None
 
             await conn.execute(
-                "INSERT INTO call_logs (contact_id, disposition, notes) VALUES ($1, $2, $3)",
-                contact_id, disposition, notes,
+                "INSERT INTO call_logs (contact_id, disposition, notes, direction, phone) VALUES ($1, $2, $3, $4, $5)",
+                contact_id, disposition, notes, direction, phone or None,
             )
 
             if contact_id:
@@ -687,6 +688,27 @@ async def get_history_reached():
             list(_REACHED_DISPOSITIONS),
         )
     return {"leads": [_row_to_lead(r) for r in rows]}
+
+
+@router.get("/dialer/incoming-calls")
+async def get_incoming_calls(limit: int = 20):
+    """Recent inbound callbacks — both missed and answered/dispositioned."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT cl.disposition, cl.notes, cl.started_at,
+                   COALESCE(c.phone, cl.phone) AS phone,
+                   c.business, c.owner, c.grade
+            FROM call_logs cl
+            LEFT JOIN contacts c ON c.id = cl.contact_id
+            WHERE cl.direction = 'inbound'
+            ORDER BY cl.started_at DESC NULLS LAST
+            LIMIT $1
+            """,
+            limit,
+        )
+    return {"calls": [dict(r) for r in rows]}
 
 
 @router.get("/dialer/history/by-disposition/{disposition}")

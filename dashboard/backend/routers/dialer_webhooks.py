@@ -452,8 +452,8 @@ async def incoming_status(request: Request):
                 engine._norm(phone),
             )
             await conn.execute(
-                "INSERT INTO call_logs (contact_id, disposition) VALUES ($1, $2)",
-                contact["id"] if contact else None, "Missed Callback",
+                "INSERT INTO call_logs (contact_id, disposition, direction, phone) VALUES ($1, $2, 'inbound', $3)",
+                contact["id"] if contact else None, "Missed Callback", phone,
             )
     except Exception as e:
         print(f"  dialer: incoming_status log failed for {phone}: {e}")

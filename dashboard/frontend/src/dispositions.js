@@ -14,6 +14,7 @@ export const DISPO_COLORS = {
   "Gatekeeper":         { text: "#f07028", bg: "rgba(240,112,40,0.08)", border: "rgba(240,112,40,0.2)" },
   "Not Qualified":      { text: "#8a5cf0", bg: "rgba(138,92,240,0.08)", border: "rgba(138,92,240,0.2)" },
   "Follow Up (Manual)": { text: "#f0a028", bg: "rgba(240,160,40,0.08)", border: "rgba(240,160,40,0.2)" },
+  "Missed Callback":    { text: "#dc3c3c", bg: "rgba(220,60,60,0.08)",  border: "rgba(220,60,60,0.2)"  },
 };
 
 export const DISPO_BUTTONS = [

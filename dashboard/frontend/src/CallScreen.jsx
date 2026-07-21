@@ -42,6 +42,7 @@ export default function CallScreen({ callInfo, live, onHangUp, onDone }) {
           disposition, notes,
           contact_id: callInfo?.contactId,
           phone: callInfo?.phone,
+          direction: "inbound",
         }),
       });
       setNotes("");

@@ -152,6 +152,21 @@ const [notes, setNotes]                 = useState("");
     return () => clearInterval(id);
   }, [loadStats]);
 
+  // ── Incoming calls poll (15s) — missed + answered callbacks ─────────────────
+  const [incomingCalls, setIncomingCalls] = useState([]);
+  const loadIncomingCalls = useCallback(async () => {
+    try {
+      const r = await fetch(API("/dialer/incoming-calls"));
+      if (r.ok) setIncomingCalls((await r.json()).calls ?? []);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadIncomingCalls();
+    const id = setInterval(loadIncomingCalls, 15000);
+    return () => clearInterval(id);
+  }, [loadIncomingCalls]);
+
   // ── Session poll (1s while active) ──────────────────────────────────────────
   useEffect(() => {
     if (!sessionActive) return;
@@ -963,6 +978,49 @@ const [notes, setNotes]                 = useState("");
                     <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
                                     letterSpacing: "0.08em", color: colors.text }}>
                       {(r.disposition ?? "—").toUpperCase()}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="glass-card" style={{ padding: 16 }}>
+          <div className="sec-label">Incoming Calls</div>
+          {incomingCalls.length === 0 ? (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>NO CALLBACKS YET</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 1, overflowY: "auto", maxHeight: 280 }}>
+              {incomingCalls.map((r, i) => {
+                const missed = r.disposition === "Missed Callback";
+                const colors = DISPO_COLORS[r.disposition] ?? { text: "#3a4f6f" };
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                                         padding: "8px 0", borderBottom: "0.5px solid #1a2540" }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: "#8aaad0" }}>
+                        {r.owner || r.business || r.phone || "Unknown"}
+                      </div>
+                      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginTop: 2 }}>
+                        {fmt(r.started_at)}
+                      </div>
+                    </div>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 700,
+                        letterSpacing: "0.08em", padding: "2px 6px", borderRadius: 4,
+                        color: missed ? "#dc3c3c" : "#14c882",
+                        background: missed ? "rgba(220,60,60,0.1)" : "rgba(20,200,130,0.1)",
+                      }}>
+                        {missed ? "MISSED" : "ANSWERED"}
+                      </span>
+                      {!missed && (
+                        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
+                                        letterSpacing: "0.08em", color: colors.text }}>
+                          {(r.disposition ?? "—").toUpperCase()}
+                        </span>
+                      )}
                     </span>
                   </div>
                 );
