@@ -131,6 +131,35 @@ def gmail_send(to: str, subject: str, body: str) -> str:
         return f"Gmail error: {e}"
 
 
+INFO_EMAIL_SUBJECT = "More on DigiGrowth"
+
+INFO_EMAIL_BODY = """Hi {first_name},
+
+Thanks for the chat. Quick rundown on DigiGrowth:
+
+We help independent mobile and in-home veterinary practices book 20-40 new \
+client appointments a month, for a flat $1,500/month. That covers:
+- Meta ads management
+- Workflow automations
+- SMS and email marketing
+
+More info here: https://digigrowth-website.vercel.app
+
+Happy to answer any questions — just reply to this email.
+
+Dylan
+DigiGrowth
+"""
+
+
+def send_info_email(to: str, owner: str | None, business: str | None) -> str:
+    """Send the "Send Info" disposition's follow-up email — website + company blurb."""
+    first_name = (owner or "").split()[0] if owner else "there"
+    subject = INFO_EMAIL_SUBJECT if not business else f"{INFO_EMAIL_SUBJECT} — for {business}"
+    body = INFO_EMAIL_BODY.format(first_name=first_name)
+    return gmail_send(to, subject, body)
+
+
 def gmail_create_draft(to: str, subject: str, body: str) -> str:
     try:
         svc = _gmail_service()

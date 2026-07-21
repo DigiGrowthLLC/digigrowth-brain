@@ -14,15 +14,18 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   POST /api/dialer/end-session   — request session end
 """
 
+import asyncio
 import json
 import os
 import pathlib
 import time as _time
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
 import dialer_engine as engine
+import integrations
 from db import get_pool
 from models import DISPOSITION_TO_STATUS
 from routers import sms as sms_router
@@ -33,13 +36,14 @@ _CONFIG_FILE = pathlib.Path(__file__).parent.parent / "dialer_config.json"
 
 # Shared eligibility filter for the dialer queue: has a phone number, is
 # actively a dialer lead (or a logged voicemail — still eligible, just gated
-# by cooldown), isn't tagged not-qualified, and either past its 6h cooldown
-# or its follow-up date has arrived.
+# by cooldown), isn't tagged not-qualified or not-interested (permanent
+# exclusions regardless of status), and either past its 6h cooldown or its
+# follow-up date has arrived.
 _ELIGIBLE_WHERE = """
     phone IS NOT NULL
     AND phone <> ''
     AND status IN ('dialer-lead', 'voicemail')
-    AND NOT ('not-qualified' = ANY(tags))
+    AND NOT (tags && ARRAY['not-qualified', 'not-interested'])
     AND (
       (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))
       OR
@@ -69,6 +73,7 @@ def _row_to_lead(r) -> dict:
         "city":       r["city"] or "",
         "state":      r["state"] or "",
         "attempts":   r["call_attempts"],
+        "notes":      r["notes"] or "",
     }
 
 
@@ -177,7 +182,7 @@ async def session_init():
         rows = await conn.fetch(
             f"""
             SELECT id, phone, business, owner, grade, opener, email,
-                   website, city, state, call_attempts
+                   website, city, state, call_attempts, notes
             FROM contacts
             WHERE {_ELIGIBLE_WHERE}
             ORDER BY
@@ -223,7 +228,7 @@ async def _top_up_queue():
         rows = await conn.fetch(
             f"""
             SELECT id, phone, business, owner, grade, opener, email,
-                   website, city, state, call_attempts
+                   website, city, state, call_attempts, notes
             FROM contacts
             WHERE {_ELIGIBLE_WHERE}
             ORDER BY
@@ -258,7 +263,7 @@ async def get_queue():
         rows = await conn.fetch(
             f"""
             SELECT id, phone, business, owner, grade, opener, email,
-                   website, city, state, call_attempts
+                   website, city, state, call_attempts, notes
             FROM contacts
             WHERE {_ELIGIBLE_WHERE}
             ORDER BY
@@ -414,7 +419,7 @@ async def classify(body: dict):
                         status           = COALESCE($2, status),
                         updated_at       = now()
                     WHERE id = $3
-                    RETURNING call_attempts, phone, owner
+                    RETURNING call_attempts, phone, owner, email, business
                     """,
                     disposition, new_status, contact_id,
                 )
@@ -437,14 +442,16 @@ async def classify(body: dict):
                         contact_id,
                     )
 
-                # Not Qualified: tag instead of a status change, so it's excluded
-                # from the dial queue (_ELIGIBLE_WHERE) permanently regardless of
-                # whatever status the contact is otherwise in.
-                if disposition == "Not Qualified":
+                # Not Qualified / Not Interested: tag instead of relying only on the
+                # status change, so the contact is excluded from the dial queue
+                # (_ELIGIBLE_WHERE) permanently, even if status is ever reset
+                # elsewhere (e.g. a manual CRM edit or bulk action).
+                if disposition in ("Not Qualified", "Not Interested"):
+                    tag = "not-qualified" if disposition == "Not Qualified" else "not-interested"
                     await conn.execute(
-                        "UPDATE contacts SET tags = array_append(tags, 'not-qualified'), updated_at = now() "
-                        "WHERE id = $1 AND NOT ('not-qualified' = ANY(tags))",
-                        contact_id,
+                        "UPDATE contacts SET tags = array_append(tags, $2), updated_at = now() "
+                        "WHERE id = $1 AND NOT ($2 = ANY(tags))",
+                        contact_id, tag,
                     )
 
                 # SMS Handoff: fire the one-time Twilio opener immediately.
@@ -454,10 +461,43 @@ async def classify(body: dict):
                     except Exception as e:
                         print(f"sms-handoff opener failed for {updated['phone']}: {e}")
 
+                # Send Info: text and email the prospect DigiGrowth's website and a
+                # short company blurb. Independent sends — one failing shouldn't
+                # block the other.
+                if disposition == "Send Info" and updated:
+                    try:
+                        await sms_router.send_info_message(dict(updated))
+                    except Exception as e:
+                        print(f"send-info SMS failed for {updated['phone']}: {e}")
+                    if updated.get("email"):
+                        try:
+                            result = await asyncio.to_thread(
+                                integrations.send_info_email,
+                                updated["email"], updated.get("owner"), updated.get("business"),
+                            )
+                            if not result.startswith("Sent email"):
+                                print(f"send-info email to {updated['email']} did not send: {result}")
+                        except Exception as e:
+                            print(f"send-info email failed for {updated['email']}: {e}")
+
+                # Append call notes to the contact card (visible in CRM/dialer/SMS
+                # panels), timestamped and tagged with the disposition for context.
+                if notes:
+                    entry = f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d')}] {disposition}: {notes}"
+                    await conn.execute(
+                        """
+                        UPDATE contacts
+                        SET notes = CASE WHEN notes IS NULL OR notes = '' THEN $2 ELSE notes || E'\\n' || $2 END,
+                            updated_at = now()
+                        WHERE id = $1
+                        """,
+                        contact_id, entry,
+                    )
+
         # Update in-session stats
         with engine._session["lock"]:
             engine._session["stats"]["calls_made"] += 1
-            if disposition in ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Follow Up (Manual)", "Send Info"):
+            if disposition in ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Follow Up (Manual)", "Send Info", "Not Interested"):
                 engine._session["stats"]["dms_reached"] += 1
 
     return {"ok": True}
@@ -535,7 +575,7 @@ async def call_single(body: dict):
         row = await conn.fetchrow(
             """
             SELECT id, phone, business, owner, grade, opener, email,
-                   website, city, state, call_attempts
+                   website, city, state, call_attempts, notes
             FROM contacts
             WHERE id = $1 AND phone IS NOT NULL
             """,
@@ -603,7 +643,7 @@ async def debug_config():
     }
 
 
-_REACHED_DISPOSITIONS = ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Follow Up (Manual)", "Send Info")
+_REACHED_DISPOSITIONS = ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Follow Up (Manual)", "Send Info", "Not Interested")
 
 
 @router.get("/dialer/history/booked")
@@ -614,7 +654,7 @@ async def get_history_booked():
         rows = await conn.fetch(
             """
             SELECT id, phone, business, owner, grade, opener, email,
-                   website, city, state, call_attempts
+                   website, city, state, call_attempts, notes
             FROM contacts
             WHERE status = 'appointment-booked'
             ORDER BY updated_at DESC
@@ -632,7 +672,7 @@ async def get_history_reached():
         rows = await conn.fetch(
             """
             SELECT id, phone, business, owner, grade, opener, email,
-                   website, city, state, call_attempts
+                   website, city, state, call_attempts, notes
             FROM contacts
             WHERE last_disposition = ANY($1::text[])
             ORDER BY updated_at DESC

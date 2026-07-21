@@ -26,6 +26,13 @@ webhook_router = APIRouter()  # public Twilio webhook
 
 OPENING_MESSAGE = "Hey is this {first_name}?"
 
+INFO_MESSAGE = (
+    "Hey {first_name}, here's a bit more on DigiGrowth — we help independent mobile "
+    "and in-home vet practices book 20-40 new client appointments a month through "
+    "Meta ads, automations, and SMS/email marketing. More info: "
+    "https://digigrowth-website.vercel.app"
+)
+
 
 def _twilio():
     return TwilioClient(
@@ -147,6 +154,34 @@ async def send_opening_message(contact: dict) -> bool:
             _send_twilio(phone, body)
         except Exception as e:
             print(f"Twilio send error (opening message) for {phone}: {e}")
+            return False
+        await _store_message(conn, phone, "assistant", body)
+
+    return True
+
+
+async def send_info_message(contact: dict) -> bool:
+    """
+    Send the "Send Info" text — website + a one-line pitch. Unlike the sms-handoff
+    opener, this doesn't require sms-handoff status; it fires for any contact the
+    dialer disposition "Send Info" is logged against. Returns True if sent.
+    """
+    phone = (contact.get("phone") or "").strip()
+    if not phone:
+        return False
+
+    first_name = (contact.get("owner") or "").split()[0] if contact.get("owner") else "there"
+    body = INFO_MESSAGE.format(first_name=first_name)
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        conv = await _get_or_create_conversation(conn, phone)
+        if conv["status"] == "closed":
+            return False
+        try:
+            _send_twilio(phone, body)
+        except Exception as e:
+            print(f"Twilio send error (info message) for {phone}: {e}")
             return False
         await _store_message(conn, phone, "assistant", body)
 
