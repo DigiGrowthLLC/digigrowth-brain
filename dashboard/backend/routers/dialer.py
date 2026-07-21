@@ -379,9 +379,15 @@ async def classify(body: dict):
 
     with engine._session["lock"]:
         pending                              = engine._session.get("pending") or {}
+        still_bridged                        = engine._session.get("bridged", False)
         engine._session["show_classification"] = False
-        engine._session["pending"]           = None
-        engine._session["connected_at"]      = None
+        # Only clear the lead card / call timer if the call has actually ended.
+        # A disposition can now be logged live mid-call (e.g. booking an
+        # appointment without hanging up) — in that case the call is still
+        # bridged and the UI should keep showing the lead and timer.
+        if not still_bridged:
+            engine._session["pending"]      = None
+            engine._session["connected_at"] = None
 
     # Prefer the lead identity the client sent with the click over the
     # server's in-memory "pending" state — an unrelated session transition

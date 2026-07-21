@@ -30,7 +30,9 @@ const DISPO_BUTTONS = [
 ];
 
 const GRADE_COLORS = { A: "#14c882", B: "#5a9bf0", C: "#f0a028", D: "#dc3c3c" };
-const CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min";
+// ?month= pins Calendly to the current month so it always opens on today's
+// month instead of drifting to a hardcoded one.
+const CALENDLY_URL = `https://calendly.com/dylanrg-digigrowthllc/30min?month=${new Date().toISOString().slice(0, 7)}`;
 
 function StatCard({ label, value, sub, onClick }) {
   return (
@@ -88,6 +90,11 @@ const [notes, setNotes]                 = useState("");
   const [errMsg, setErrMsg]     = useState("");
   const prevStatusRef   = useRef(null);
   const needsFirstDial  = useRef(false);
+  // Set when "Appointment Booked" is logged live, mid-call (not via the
+  // post-hangup classify screen) — lets the classify-transition effect
+  // auto-resolve the mandatory post-hangup disposition instead of asking
+  // the rep to classify the same call twice.
+  const bookedLiveRef   = useRef(false);
   // Generic drill-down list modal — every clickable stat tile opens this,
   // fed by whichever endpoint corresponds to that stat.
   const [listModal, setListModal] = useState(null); // { title, kind: 'leads'|'calls', url, items, loading }
@@ -211,6 +218,13 @@ const [notes, setNotes]                 = useState("");
       setDialMsg("");
       if (paused) setDialMsg("⏸ Paused — click Resume to keep dialing.");
       else        fireDialBatch();
+    }
+
+    // Already booked live during the call — auto-resolve the mandatory
+    // post-hangup classification instead of asking again.
+    if (prev !== "classify" && sess.status === "classify" && bookedLiveRef.current) {
+      bookedLiveRef.current = false;
+      classify("Appointment Booked");
     }
 
     // Lead connected: fill script
@@ -379,6 +393,16 @@ const [notes, setNotes]                 = useState("");
     setClassifying(false);
   };
 
+  // Log "Appointment Booked" live, mid-call — doesn't hang up. The backend
+  // keeps the lead card/timer showing since the call is still bridged; the
+  // classify-transition effect above auto-resolves the disposition again
+  // (silently) once the rep actually ends the call, so they aren't asked
+  // to classify the same call twice.
+  const bookLive = () => {
+    bookedLiveRef.current = true;
+    classify("Appointment Booked");
+  };
+
   const connectGK = () => fetch(API("/dialer/gatekeeper/connect"), { method: "POST" }).catch(() => {});
   const declineGK = () => fetch(API("/dialer/gatekeeper/decline"), { method: "POST" }).catch(() => {});
 
@@ -396,6 +420,7 @@ const [notes, setNotes]                 = useState("");
     setPaused(false);
     prevStatusRef.current  = null;
     needsFirstDial.current = false;
+    bookedLiveRef.current  = false;
     // Fire backend cleanup in background
     fetch(API("/dialer/end-session"), { method: "POST" }).catch(() => {});
     loadStats();
@@ -667,12 +692,31 @@ const [notes, setNotes]                 = useState("");
                     </span>
                   )}
                 </div>
+                {currentLead.notes && (
+                  <div style={{ borderTop: "1px solid #1a2540", paddingTop: 8 }}>
+                    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5",
+                                   letterSpacing: "0.12em", marginBottom: 4 }}>
+                      PRIOR NOTES
+                    </div>
+                    <div style={{ fontSize: 12, color: "#8aaad0", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                      {currentLead.notes}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* End Call */}
+            {/* End Call + live "Appointment Booked" (books without hanging up) */}
             {liveStatus === "connected" && (
-              <div style={{ display: "flex", justifyContent: "center" }}>
+              <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
+                <button onClick={bookLive} disabled={classifying} style={{
+                  background: "rgba(20,200,130,0.12)", border: "1px solid rgba(20,200,130,0.3)",
+                  color: "#14c882", borderRadius: 6, padding: "10px 24px",
+                  fontSize: 13, fontWeight: 600, cursor: classifying ? "not-allowed" : "pointer",
+                  opacity: classifying ? 0.5 : 1,
+                }}>
+                  ✅ Appointment Booked
+                </button>
                 <button onClick={endCall} style={{
                   background: "rgba(220,60,60,0.12)", border: "1px solid rgba(220,60,60,0.3)",
                   color: "#dc3c3c", borderRadius: 6, padding: "10px 32px",
