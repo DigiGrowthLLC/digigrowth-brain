@@ -17,6 +17,7 @@ import sys
 import threading
 import time as _time
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
@@ -410,12 +411,18 @@ async def incoming_call(request: Request):
 
     print(f"  dialer: incoming call from {phone} ({name or business or 'unknown'})", flush=True)
 
+    # No `action` on the Dial — that attribute continues the SAME call with
+    # whatever TwiML it returns, and a bare 204 there is invalid TwiML and
+    # plays "an application error has occurred" to the caller once the Dial
+    # ends. status_callback on the Client noun is fire-and-forget instead —
+    # Twilio doesn't use its response to control the call, just for logging.
     response = VoiceResponse()
-    dial = response.dial(
-        timeout=25,
-        action=f"/dialer/voice/incoming-status?phone={phone}",
+    dial = response.dial(timeout=25)
+    client = dial.client(
+        "agent",
+        status_callback=f"/dialer/voice/incoming-status?phone={quote(phone)}",
+        status_callback_event="completed",
     )
-    client = dial.client("agent")
     client.parameter(name="name", value=name)
     client.parameter(name="business", value=business)
     client.parameter(name="phone", value=phone)
@@ -425,11 +432,12 @@ async def incoming_call(request: Request):
 
 @router.post("/dialer/voice/incoming-status")
 async def incoming_status(request: Request):
-    """Fires after the inbound Dial ends, however it ends. Only log a miss —
-    an answered call already gets logged via /dialer/classify when Dylan
-    dispositions it same as any other call."""
+    """Fire-and-forget status_callback from the Client noun — its response is
+    NOT used to control the call, so this only ever needs to log. Only log a
+    miss — an answered call already gets logged via /dialer/classify when
+    Dylan dispositions it same as any other call."""
     form   = await request.form()
-    status = form.get("DialCallStatus", "")
+    status = form.get("CallStatus", "")
     phone  = request.query_params.get("phone", "") or form.get("To", "")
 
     if status == "completed" or not phone:

@@ -9,6 +9,8 @@ export default function useIncomingCall() {
   const [activeCall, setActiveCall] = useState(null); // live Call, once answered
   const [callInfo, setCallInfo] = useState(null); // { name, business, phone, contactId }
   const deviceRef = useRef(null);
+  const incomingRef = useRef(null);
+  useEffect(() => { incomingRef.current = incoming; }, [incoming]);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,18 +45,23 @@ export default function useIncomingCall() {
         });
 
         device.on("incoming", (callInvite) => {
-          const params = callInvite.customParameters || new Map();
-          setCallInfo({
-            name: params.get("name") || "",
-            business: params.get("business") || "",
-            phone: params.get("phone") || "",
-            contactId: params.get("contactId") || "",
-          });
-          setIncoming(callInvite);
+          try {
+            const params = callInvite.customParameters instanceof Map ? callInvite.customParameters : new Map();
+            const info = {
+              name: params.get("name") || "",
+              business: params.get("business") || "",
+              phone: params.get("phone") || "",
+              contactId: params.get("contactId") || "",
+            };
+            setCallInfo(info);
+            setIncoming(callInvite);
 
-          if (window.Notification && Notification.permission === "granted") {
-            const label = params.get("name") || params.get("business") || params.get("phone") || "Unknown caller";
-            new Notification("Incoming call", { body: label });
+            if (window.Notification && Notification.permission === "granted") {
+              const label = info.name || info.business || info.phone || "Unknown caller";
+              new Notification("Incoming call", { body: label });
+            }
+          } catch (e) {
+            console.warn("Failed to handle incoming call event:", e);
           }
         });
 
@@ -77,19 +84,29 @@ export default function useIncomingCall() {
   }, []);
 
   const answer = useCallback(() => {
-    setIncoming((inv) => {
-      if (!inv) return inv;
+    const inv = incomingRef.current;
+    if (!inv) return;
+    setIncoming(null); // hide the popup immediately — accept() only ever fires once
+    try {
       const call = inv.accept();
       setActiveCall(call);
       call.on("disconnect", () => { setActiveCall(null); setCallInfo(null); });
-      call.on("error",      () => { setActiveCall(null); setCallInfo(null); });
-      return null;
-    });
+      call.on("error", (e) => {
+        console.warn("Incoming call error:", e);
+        setActiveCall(null);
+        setCallInfo(null);
+      });
+    } catch (e) {
+      console.warn("Failed to accept incoming call:", e);
+      setCallInfo(null);
+    }
   }, []);
 
   const decline = useCallback(() => {
-    setIncoming((inv) => { inv?.reject(); return null; });
+    const inv = incomingRef.current;
+    setIncoming(null);
     setCallInfo(null);
+    try { inv?.reject(); } catch (e) { console.warn("Failed to reject incoming call:", e); }
   }, []);
 
   const hangUp = useCallback(() => {
