@@ -4,7 +4,7 @@
 
 - **HighLevel** *(dylanrg@digigrowthllc.com)* — Your agency subscription has been scheduled for cancellation · GoHighLevel account (relationship `#0-577-825`) is scheduled for cancellation on `August 20, 2026`. Email includes a "Manage Account" link to abort the cancellation if he wants to keep the account active. **[ACTION]**
 
-*(Only `dylanrg@digigrowthllc.com` is reachable via the connected Gmail account; `dylangroenendijk@gmail.com` returned no messages, consistent with prior days.)*
+*(Only `dylanrg@digigrowthllc.com` is reachable via the connected Gmail account; `dylangroenendijk@gmail.com` returned no messages, consistent with prior days. Two other items landed in the last 24h — a Fireflies.ai daily digest and a cold marketing pitch — neither is business-actionable.)*
 
 ## Schedule
 
@@ -51,8 +51,8 @@ No prior snapshot found in reports from 7 days ago — showing all-time totals. 
 
 ## How to Use Your Day
 
-- **30m open, 1:30–2:00 PM.** One option: log a quick outreach session — no calls have been logged since 07/21.
-- **1h open, 6:30–7:30 PM.** One option: extend today's `9:00 AM` outreach block's results — this week's `30` dials produced `0` bookings, so added volume is the clearest lever toward the >10% booking target.
+- **30m open, 1:30–2:00 PM.** Last night's reflection names **"Outreach 3 Days in a Row"** as the current goal (deadline Monday), and no session was logged yesterday (07/22) — one option: a short outreach session to keep the streak alive.
+- **1h open, 6:30–7:30 PM.** One option: additional dials — this week's `30` dials produced `0` bookings, so added volume is the clearest lever toward the >10% booking target and the reflection goal above.
 - No named follow-up candidates — all showed prospects in the sales tracker are marked Lost, and the OS dialer follow-up list wasn't available this run.
 
 *Daily briefing — Thursday, July 23*
