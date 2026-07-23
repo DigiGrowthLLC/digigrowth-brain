@@ -30,7 +30,7 @@ cd "$(git rev-parse --show-toplevel)/leadgen-agent" && doppler run -- python run
 
 **Append to agent memory (updates memory.txt):**
 ```bash
-cd "$(git rev-parse --show-toplevel)/leadgen-agent" && doppler run -- python run.py remember "blacklist a new corporate vet chain — not the right niche"
+cd "$(git rev-parse --show-toplevel)/leadgen-agent" && doppler run -- python run.py remember "blacklist a new corporate PT chain — not the right niche"
 ```
 
 Runs are skipped automatically on weekends (the script checks `weekday()`).
@@ -82,4 +82,4 @@ Both files are read fresh on each run — changes take effect immediately.
 - The agent resumes mid-state via `progress.json` — no need to restart from scratch after an interruption
 - To fully reset (start over from Alabama): delete `progress.json` or set all index fields to 0
 - A typical run takes 5–15 minutes depending on rate limits and site scraping speed
-- Qualified leads are pushed to the DigiGrowth OS CRM sorted A → B → C → D grade automatically (tagged `mobile-vet`, status defaults to `dialer-lead`)
+- Qualified leads are pushed to the DigiGrowth OS CRM sorted A → B → C → D grade automatically (tagged `mobile-pt`, status defaults to `dialer-lead`)

@@ -1,6 +1,6 @@
 # DigiGrowth Brain
 
-Dylan Groenendijk's AI agent workspace for DigiGrowth — a solo AI client acquisition agency for independent mobile and in-home veterinary practices.
+Dylan Groenendijk's AI agent workspace for DigiGrowth — a solo AI client acquisition agency for independent service-based businesses.
 
 ## Structure
 

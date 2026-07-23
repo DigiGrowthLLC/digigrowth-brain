@@ -1,7 +1,7 @@
 # DigiGrowth
 
 **Type:** AI client acquisition agency
-**Niche:** Independent mobile and in-home veterinary practices
+**Niche:** Independent service-based businesses
 **Stage:** Pre-revenue — building toward first client
 
 ## Core Service

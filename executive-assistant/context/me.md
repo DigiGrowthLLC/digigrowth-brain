@@ -8,7 +8,7 @@
 
 ## What He Does
 
-Runs DigiGrowth, an AI-powered client acquisition agency that helps independent mobile and in-home veterinary practices book 20-40 new client appointments per month.
+Runs DigiGrowth, an AI-powered client acquisition agency that helps independent service-based businesses book 20-40 new client appointments per month.
 
 ## #1 Priority
 
