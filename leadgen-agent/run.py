@@ -88,21 +88,20 @@ US_STATES = {
 }
 
 SEARCH_TERMS = [
-    "mobile veterinarian",
-    "mobile vet",
-    "in-home vet",
-    "house call vet",
-    "mobile animal hospital",
-    "mobile pet clinic",
-    "in-home veterinary"
+    "mobile physical therapist",
+    "mobile physical therapy",
+    "in-home physical therapy",
+    "house call physical therapist",
+    "mobile PT clinic",
+    "in-home PT",
+    "mobile rehabilitation therapy"
 ]
 
 CHAIN_KEYWORDS = [
-    "vca animal", "banfield", "petsmart vets", "vetco", "bluepearl",
-    "thrive pet", "petiq", "lap of love", "national veterinary",
-    "humane society", "spca", "aspca", "animal shelter",
-    "animal emergency", "emergency animal", "university veterinary",
-    "college of veterinary"
+    "ati physical therapy", "athletico", "us physical therapy", "select physical therapy",
+    "select medical", "ivy rehab", "fyzical therapy", "cora physical therapy",
+    "novacare rehabilitation", "results physiotherapy", "bayada home health",
+    "interim healthcare", "amedisys", "lhc group", "encompass health"
 ]
 
 
@@ -149,8 +148,8 @@ def update_memory(new_information):
     relevant_keywords = [
         "chain", "franchise", "blacklist", "niche", "market", "qualify",
         "disqualify", "criteria", "location", "target", "owner",
-        "vet", "veterinary", "veterinarian", "mobile", "in-home", "house call",
-        "practice", "clinic", "hospital", "dvm"
+        "physical therapist", "physical therapy", "pt", "dpt", "mobile", "in-home", "house call",
+        "practice", "clinic", "hospital", "rehab"
     ]
     if not any(word in new_information.lower() for word in relevant_keywords):
         print("⚠️  Not saved — not relevant to lead generation or agent role.")
@@ -263,19 +262,19 @@ def scrape_state_leads(progress, scraped_ids, daily_limit):
 # ════════════════════════════════════════════════════════════════════════════
 
 _OWNER_PATTERNS = [
-    r"(?:Dr|Doctor)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})(?:\s*,?\s*DVM)?",
+    r"(?:Dr|Doctor)\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})(?:\s*,?\s*(?:DPT|PT))?",
     r"(?:Founded|Owned)\s+by\s+([A-Z][a-z]+\s+[A-Z][a-z]+)",
-    r"I(?:'m| am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*,?\s*(?:a\s+)?(?:mobile\s+)?vet",
-    r"(?:Owner|Veterinarian|Founder)[:\s]+([A-Z][a-z]+\s+[A-Z][a-z]+)",
+    r"I(?:'m| am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*,?\s*(?:a\s+)?(?:mobile\s+)?(?:physical therapist|PT)",
+    r"(?:Owner|Physical Therapist|Founder)[:\s]+([A-Z][a-z]+\s+[A-Z][a-z]+)",
 ]
 
 _NAME_STOPWORDS = {
-    "mobile", "veterinary", "veterinarian", "vet", "vets", "pet", "pets",
-    "animal", "animals", "care", "clinic", "hospital", "services", "service",
-    "house", "home", "call", "calls", "senior", "fear", "free", "certified",
+    "mobile", "physical", "therapy", "therapist", "therapists", "pt", "dpt",
+    "rehab", "rehabilitation", "care", "clinic", "hospital", "services", "service",
+    "house", "home", "call", "calls", "senior", "free", "certified",
     "amazing", "award", "winning", "founded", "owned", "dr", "doctor",
     "practice", "wellness", "health", "healing", "comfort", "compassionate",
-    "companion", "canine", "feline", "exotic", "emergency", "specialist",
+    "orthopedic", "sports", "geriatric", "specialist",
 }
 
 def _valid_name(s):
@@ -489,7 +488,7 @@ def push_to_os(leads, lead_status="dialer-lead"):
             "opener":   lead["Opener"],
             "notes":    lead["Grade Reason"],
             "status":   lead_status,
-            "tags":     ["mobile-vet"],
+            "tags":     ["mobile-pt"],
         }
         try:
             r = requests.post(f"{base_url}/api/contacts", auth=auth, json=body, timeout=10)

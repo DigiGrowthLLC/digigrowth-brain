@@ -18,7 +18,7 @@
   {
     "id": "leadgen-agent",
     "name": "Lead Qualifier",
-    "description": "Scrapes and qualifies mobile/in-home veterinary practices from Maps",
+    "description": "Scrapes and qualifies mobile/in-home physical therapy practices from Maps",
     "root_dir": "../../leadgen-agent",
     "color": "#3a7bd5",
     "badge_class": "badge-blue"

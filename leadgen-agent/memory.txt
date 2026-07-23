@@ -1,13 +1,13 @@
 MEMORY FILE — Lead Qualifier Agent
-Last updated: 2026-06-16
+Last updated: 2026-07-23
 
 CHAIN / FRANCHISE BLACKLIST:
-VCA, VCA Animal Hospitals, Banfield, Banfield Pet Hospital, PetSmart Vets, Vetco, BluePearl, Thrive Pet Healthcare, National Veterinary Associates, PetIQ, Lap of Love, ASPCA, Humane Society, SPCA, Animal Protective League
+ATI Physical Therapy, Athletico, US Physical Therapy, Select Physical Therapy, Select Medical, Ivy Rehab, FYZICAL, CORA Physical Therapy, NovaCare Rehabilitation, Results Physiotherapy, BAYADA Home Health, Interim HealthCare, Amedisys, LHC Group, Encompass Health
 
 NICHE DEFINITION:
-Qualified = independently owned mobile or in-home veterinary practice where house-call or in-home visits are the PRIMARY or a core service. Focuses on companion animals (dogs and cats). Owner-operated with a small team (1–6 staff). No in-house marketing team or agency.
+Qualified = independently owned mobile or in-home physical therapy practice where house-call or in-home visits are the PRIMARY or a core service. Focuses on general orthopedic, post-surgical, or geriatric patients. Owner-operated with a small team (1–6 staff). No in-house marketing team or agency.
 
-Disqualified = corporate-owned or franchise vet clinics, brick-and-mortar-only practices with no mobile component, emergency/specialty-only animal hospitals, university or teaching hospitals, equine-only or exotic-only practices, practices with active paid advertising or an in-house marketing coordinator.
+Disqualified = corporate-owned or franchise PT clinics, brick-and-mortar-only practices with no mobile component, hospital-based or specialty-only clinics (e.g. sports-performance-only), university or teaching hospital PT programs, practices with active paid advertising or an in-house marketing coordinator.
 
 CURRENT TARGET MARKETS:
 All US states — priority on Sun Belt markets: Florida, Texas, Georgia, South Carolina, North Carolina, Arizona, Tennessee, Virginia
@@ -17,16 +17,16 @@ DISQUALIFIER SIGNALS (check website and social):
 - Has a marketing coordinator or agency listed
 - Corporate group ownership mentioned (multiple locations under one brand)
 - Brick-and-mortar only — no mention of mobile, house call, or in-home
-- Exotic animal only or equine only (wrong animal focus)
-- Emergency or specialty hospital (no general wellness/primary care)
+- Sports-performance-only or pediatric-only (narrow specialty focus)
+- Hospital-based or specialty rehab center (no general orthopedic/geriatric care)
 
 GOOD LEAD SIGNALS:
-- "House call", "in-home", "mobile vet", or "we come to you" on website or in business name
-- Independent DVM owner (Dr. [Name]'s Mobile Vet, [Name] Veterinary House Calls)
+- "House call", "in-home", "mobile PT", or "we come to you" on website or in business name
+- Independent PT/DPT owner (Dr. [Name]'s Mobile Physical Therapy, [Name] PT House Calls)
 - Website exists but minimal paid marketing evidence
 - Google reviews but no recent social media posts (30+ days since last post)
 - Suburban service area listed with radius or zip codes
-- Companion animals: dogs and cats as primary patient focus
+- General orthopedic, post-surgical, or geriatric patients as primary focus
 
 AGENCY CONTEXT:
 COLD CALL OPENER CRITERIA:
@@ -41,10 +41,10 @@ ARTICLE RULE: Always use "a" or "an" before the service, offer, or specialty. NE
   ❌ "you offer your complimentary first in-home wellness visit"
 
 Priority order for what to pull from the website:
-1. A specific RESULT or OFFER they advertise (complimentary first visit, free new client consultation, new client special, wellness guarantee)
-2. A specific SERVICE or PROGRAM (in-home euthanasia, Fear Free certified, senior pet wellness plan, anxiety-free home visits)
-3. A specific NICHE or PATIENT TYPE (cats only, senior dogs, end-of-life care, house call only practice)
-4. A specific METHOD or APPROACH (no waiting room, same-day scheduling, in-home exams, house call model)
+1. A specific RESULT or OFFER they advertise (complimentary first visit, free consultation, new patient special)
+2. A specific SERVICE or PROGRAM (in-home post-surgical rehab, fall-risk assessments, senior mobility program, balance and gait training)
+3. A specific NICHE or PATIENT TYPE (post-surgical only, senior/geriatric patients, house call only practice)
+4. A specific METHOD or APPROACH (no waiting room, same-day scheduling, in-home sessions, house call model)
 5. If nothing specific exists — return null. Do not fabricate.
 
 OPENER TONE RULES:
@@ -57,14 +57,13 @@ OPENER TONE RULES:
 - Observation only — no question. Dylan handles the question on the call.
 
 OPENER EXAMPLES (use these as style reference — observation only, no question):
-✅ "you offer a complimentary first in-home wellness visit"
-✅ "you specialize in senior dog and cat care"
-✅ "you're Fear Free certified for in-home exams"
-✅ "you do in-home end-of-life care and euthanasia appointments"
-✅ "you focus exclusively on cats"
-✅ "you offer a free new client consultation for new pet owners"
-✅ "you cap appointments to allow a full in-home exam every visit"
-✅ "you run a senior pet wellness plan for dogs over eight"
+✅ "you offer a complimentary first in-home evaluation"
+✅ "you specialize in senior mobility and fall prevention"
+✅ "you do in-home post-surgical rehab appointments"
+✅ "you focus exclusively on post-surgical patients"
+✅ "you offer a free consultation for new patients"
+✅ "you cap appointments to allow a full in-home session every visit"
+✅ "you run a senior mobility program for adults over sixty-five"
 
 DYNAMIC MEMORY LOG:
 [Agent will append new entries below this line during runtime]

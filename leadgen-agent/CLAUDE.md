@@ -1,6 +1,6 @@
 # Lead Qualifier Agent
 
-Scrapes independent mobile/in-home veterinary practices from Google Maps, qualifies them using Claude AI, and pushes qualified leads into the DigiGrowth OS CRM (`/api/contacts`, tagged `mobile-vet`) for the dialer to work.
+Scrapes independent mobile/in-home physical therapy practices from Google Maps, qualifies them using Claude AI, and pushes qualified leads into the DigiGrowth OS CRM (`/api/contacts`, tagged `mobile-pt`) for the dialer to work.
 
 **Managed by:** Dylan's Executive Assistant — see `.claude/skills/manage-lead-qualifier/SKILL.md` in the `digigrowth-brain` repo
 **Run via:** `doppler run -- python run.py`
