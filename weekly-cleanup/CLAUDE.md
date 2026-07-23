@@ -14,7 +14,7 @@ Runs every Sunday at ~8:04pm ET. Scans the whole repo for dead code, redundant/c
 
 ## Safety Model
 
-Unlike the old script (which had a code-enforced narrow tool set — no raw Bash, 15-file/40-tool-call hard caps), the cloud routine runs with full Claude Code tool access (Bash, Edit, Write, etc.) under prompted — not code-enforced — restrictions. Dylan's explicit call: it may make any edit it judges improves quality, efficiency, cost-effectiveness, or security, as long as it (a) does not change how anything currently built actually behaves, and (b) never touches or exposes secrets, credentials, or other sensitive information (`.env`, `credentials.json`, `settings.local.json` are off-limits). Anything outside high confidence goes to the "Needs Approval" section of the report instead of being touched directly.
+Unlike the old script (which had a code-enforced narrow tool set — no raw Bash, 15-file/40-tool-call hard caps), the cloud routine runs with full Claude Code tool access (Bash, Edit, Write, etc.) under prompted — not code-enforced — restrictions. Dylan's explicit call: it may make any edit it judges improves quality, efficiency, cost-effectiveness, or security, as long as it (a) does not change how anything currently built actually behaves, and (b) never touches or exposes secrets, credentials, or other sensitive information (`.env`, `credentials.json`, `settings.local.json` are off-limits — all real secrets live in the shared `digigrowth` Doppler vault, not in this repo). Anything outside high confidence goes to the "Needs Approval" section of the report instead of being touched directly.
 
 ## Delivery
 

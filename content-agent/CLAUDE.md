@@ -44,6 +44,10 @@ Skills live in `.claude/skills/`. Load the relevant skill for the task:
 
 Not yet built as skills (handled ad hoc via the instructions above until built out): platform-specific social posts, paid ad copy, multi-email sequences.
 
+## Secrets
+
+All passwords and API keys (`DASHBOARD_PASSWORD`, `DASHBOARD_URL`, `ANTHROPIC_API_KEY`, etc.) live in the shared `digigrowth` Doppler vault (config `prd` for production) — never in a local `.env` file. Fetch a value with `doppler secrets get <NAME> --project digigrowth --config prd --plain` rather than reading `.env`.
+
 ## Memory
 
 Save recurring preferences, brand decisions, and copy frameworks to `memory.md` in this directory. Reference it at the start of every session.

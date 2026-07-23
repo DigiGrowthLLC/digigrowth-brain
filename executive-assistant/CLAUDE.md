@@ -21,6 +21,10 @@ Client acquisition — everything you do should support getting DigiGrowth its f
 - **Google Sheets** — data tracking and reporting
 - **DigiGrowth OS** — primary CRM, analytics, SMS, and dialer (Railway dashboard)
 
+## Secrets
+
+All passwords and API keys (`DASHBOARD_PASSWORD`, `DASHBOARD_URL`, `ANTHROPIC_API_KEY`, etc.) live in the shared `digigrowth` Doppler vault (config `prd` for production) — never in a local `.env` file. Fetch a value with `doppler secrets get <NAME> --project digigrowth --config prd --plain` rather than reading `.env` or asking Dylan to paste it.
+
 ## Skills
 
 Skills live in `.claude/skills/`. Each skill is a folder: `.claude/skills/skill-name/SKILL.md`

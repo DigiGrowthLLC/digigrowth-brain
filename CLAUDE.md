@@ -28,6 +28,7 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 - **SSE streaming**: always use `fetch()` + `ReadableStream` — never `EventSource` (can't POST with auth)
 - **File persistence on Railway**: write to disk + call `github_push_file()` — Railway containers are ephemeral, `.git/` is absent, so git CLI fails; GitHub REST API is the only persistence path
 - **Agent chat history**: stored in `agent_chats` table (JSONB `content` = full Anthropic content blocks to preserve tool_use/tool_result alternation)
+- **Secrets**: all API keys and passwords (`ANTHROPIC_API_KEY`, `DASHBOARD_PASSWORD`, `DASHBOARD_URL`, `PLACES_API_KEY`, etc.) live in the shared `digigrowth` Doppler vault (project `digigrowth`, config `prd` for production), not in any local `.env` file. Fetch via `doppler secrets get <NAME> --project digigrowth --config prd --plain`. Railway pulls the same vault at deploy time.
 - **NEVER touch**: `.env`, `credentials.json`, `settings.local.json`
 
 ## Frontend Patterns
