@@ -32,6 +32,7 @@ _session = {
     "ring_accum":           {},      # norm_phone → float (total seconds ringing)
     "dial_count":           {},      # norm_phone → int (times dialed this session)
     "needs_retry":          set(),   # norm_phones with < 30s ring, need re-dial
+    "dispositioned":        set(),   # norm_phones already given a disposition this session — never re-added to needs_retry/top-up
     "gatekeeper_pending":   None,    # {"sid", "phone", "lead"} — held call
     "batch_had_answer":     False,
     "max_lines":            5,
@@ -181,6 +182,7 @@ def init_session(session_id: str, config_data: dict, leads: list) -> None:
         _session["ring_accum"]          = {}
         _session["dial_count"]          = {}
         _session["needs_retry"]         = set()
+        _session["dispositioned"]       = set()
         _session["gatekeeper_pending"]  = None
         _session["batch_had_answer"]    = False
         _session["stats"]               = {"calls_made": 0, "dms_reached": 0}
@@ -212,6 +214,7 @@ def close_session() -> None:
         _session["ring_accum"]          = {}
         _session["dial_count"]          = {}
         _session["needs_retry"]         = set()
+        _session["dispositioned"]       = set()
         _session["gatekeeper_pending"]  = None
         _session["batch_had_answer"]    = False
 

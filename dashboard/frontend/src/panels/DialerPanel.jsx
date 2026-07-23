@@ -73,9 +73,11 @@ const [notes, setNotes]                 = useState("");
   const activeCallRef = useRef(null);
   const pausedRef        = useRef(false);
   const sessionActiveRef = useRef(false);
+  const statusRef        = useRef(null);
   const retryTimerRef    = useRef(null);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
   useEffect(() => { sessionActiveRef.current = sessionActive; }, [sessionActive]);
+  useEffect(() => { statusRef.current = sess?.status ?? null; }, [sess?.status]);
   useEffect(() => () => clearTimeout(retryTimerRef.current), []);
 
   // ── Fire the next batch of calls — shared by first-connect, auto-advance
@@ -99,6 +101,14 @@ const [notes, setNotes]                 = useState("");
         return;
       }
       setDialMsg(`🔊 Ringing ${d.dialed} line${d.dialed > 1 ? "s" : ""} simultaneously → ${(d.phones||[]).join(", ")}`);
+      // Fallback: if nobody in this batch gets bridged (whole batch goes to
+      // no-answer, which never transitions status away from "waiting"),
+      // nothing else would ever fire the next batch and dialing would just
+      // stall once the queue drains. Recheck after the batch should have
+      // resolved (ring timeout + AMD buffer) and fire the next one ourselves.
+      retryTimerRef.current = setTimeout(() => {
+        if (sessionActiveRef.current && !pausedRef.current && statusRef.current === "waiting") fireDialBatch();
+      }, 35000);
     } catch (e) { setErrMsg("dial-batch: " + e.message); }
   }, []);
 

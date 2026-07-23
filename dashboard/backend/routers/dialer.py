@@ -214,10 +214,11 @@ async def _top_up_queue():
     stranded — eligible in the CRM but never re-added to the dial queue.
     """
     with engine._session["lock"]:
-        in_queue    = {engine._norm(l["phone"]) for l in engine._session["eligible_leads"]}
-        in_flight   = {engine._norm(p) for p in engine._session.get("call_sids", {}).keys()}
-        bridged     = engine._session.get("bridged_phone")
-        exclude     = in_queue | in_flight | ({engine._norm(bridged)} if bridged else set())
+        in_queue     = {engine._norm(l["phone"]) for l in engine._session["eligible_leads"]}
+        in_flight    = {engine._norm(p) for p in engine._session.get("call_sids", {}).keys()}
+        bridged      = engine._session.get("bridged_phone")
+        dispositioned = set(engine._session.get("dispositioned", set()))
+        exclude     = in_queue | in_flight | dispositioned | ({engine._norm(bridged)} if bridged else set())
         queue_len   = len(engine._session["eligible_leads"])
         max_lines   = engine._session.get("max_lines", 10)
     if queue_len >= max_lines:
@@ -321,10 +322,11 @@ async def dial_batch():
         # Prepend any retry phones to the queue (inline to avoid nested lock deadlock)
         retry_phones  = set(engine._session.get("needs_retry", set()))
         engine._session["needs_retry"] = set()
+        dispositioned = engine._session.get("dispositioned", set())
         retry_leads   = [
             engine._session["leads_by_phone"][p]
             for p in retry_phones
-            if p in engine._session["leads_by_phone"]
+            if p in engine._session["leads_by_phone"] and p not in dispositioned
         ]
         if retry_leads:
             engine._session["eligible_leads"] = retry_leads + engine._session["eligible_leads"]
@@ -503,6 +505,13 @@ async def classify(body: dict):
 
         # Update in-session stats
         with engine._session["lock"]:
+            # Mark dispositioned so the short-ring retry queue and CRM top-up
+            # can't re-add this phone later this session — both only look at
+            # ring duration / DB cooldown timing, neither of which reflects a
+            # disposition logged just now (last_called_at hasn't propagated
+            # through their stale in-memory lead snapshot).
+            engine._session["dispositioned"].add(engine._norm(phone))
+            engine._session["needs_retry"].discard(engine._norm(phone))
             engine._session["stats"]["calls_made"] += 1
             if disposition in ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Follow Up (Manual)", "Send Info", "Not Interested"):
                 engine._session["stats"]["dms_reached"] += 1
