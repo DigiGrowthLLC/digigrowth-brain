@@ -15,9 +15,10 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 3. Lists today's Google Calendar events
 4. Pulls cold calling / SMS outreach data from Google Drive
 5. Pulls this week's sales numbers (shows, closes, discovery calls, revenue) from the Sales Performance Tracker
-6. Suggests how to use free time blocks based on the day's schedule and current priorities
-7. On Mondays, surfaces anything the weekly cleanup job flagged for review
-8. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
+6. Reads last night's Daily Reflection doc and grounds today's time suggestions in the goals/priorities Dylan wrote down
+7. Suggests how to use free time blocks based on the day's schedule and current priorities
+8. On Mondays, surfaces anything the weekly cleanup job flagged for review
+9. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
 
 ---
 
@@ -157,12 +158,21 @@ If the Sales Performance Tracker itself isn't found: "Sales Performance Tracker 
 
 **Also call the `crm_list_followups` tool** to get prospects flagged for follow-up directly in the DigiGrowth OS (dialer disposition "Follow Up (Manual)" — set when Dylan logs that disposition on a call). Add these to the same candidate list used in Step 4. This is a separate source from the sales tracker rows above — include both, but do not duplicate a name that appears in both sources. If the tool returns no contacts, note that and move on — don't treat it as an error.
 
+### Step 3.8 — Daily Reflection (Goals Context)
+
+Search Google Drive for the most recent **Daily Reflection** doc, titled in the format `MM/DD/YY Daily Reflection` (e.g. `07/22/26 Daily Reflection`), owned by Dylan. Search for files with "Daily Reflection" in the title and pick the one with the latest date in the title (this should normally be last night's entry, i.e. yesterday's date) — do not rely on Drive's "modified time" alone since the title date is authoritative.
+
+Read the doc and extract only what's relevant to goals, priorities, and focus areas for today — e.g. what Dylan said he wants to focus on, obstacles he flagged, or priorities he named. This is raw input for Step 4, not its own section — do not quote the whole doc or include personal/unrelated reflection content.
+
+If no Daily Reflection doc is found, or the most recent one is more than 2 days old: note internally "No recent daily reflection found" and skip — Step 4 falls back to its existing calendar/priority-based logic only.
+
 ### Step 4 — Time Suggestions
 
 Based on the free time blocks from Step 2 and Dylan's #1 priority (client acquisition — outreach, sales calls, closing), surface 2–3 options for those blocks.
 
 - Only suggest activities that connect to client acquisition or DigiGrowth operations
 - Ground every suggestion in specific time blocks from the calendar
+- If Step 3.8 found a recent Daily Reflection entry, prioritize suggestions that align with the goals/focus areas Dylan named in it over generic outreach suggestions — e.g. if he wrote he wants to focus on follow-ups today, lead with that over cold prospecting. Still ground the suggestion in an actual free time block; do not invent one.
 - Frame as options, not directives
 - If suggesting follow-up with named prospects, **only use names from the Step 3.7 follow-up candidate list** (sales tracker rows that showed up and aren't Lost/Win, plus OS dialer contacts flagged "Follow Up (Manual)" via `crm_list_followups`). Never suggest following up with a prospect marked "Lost" in the sales tracker or not-interested/gatekeeper-blocked in the OS. If the candidate list is empty, suggest general follow-up activity (e.g. "review open leads") without naming anyone.
 
@@ -252,6 +262,7 @@ Formatting rules that apply throughout:
 - **No Sales Performance Tracker in Drive:** Write the Step 3.7 fallback message and continue. Do not substitute it with the outreach tracker or omit the section.
 - **No 7-day-old briefing found for Step 3.7:** Show all-time totals only, per the Step 3.7 fallback, and still write the snapshot line.
 - **No Daily Input Tracker in Drive:** Write "No habit data found." in Yesterday's Performance and continue.
+- **No Daily Reflection doc found, or most recent one is stale (>2 days old):** Skip Step 3.8 silently; Step 4 falls back to calendar/priority-based suggestions only. Do not mention the missing doc in the briefing.
 - **Yesterday's row missing or blank:** Write "No data logged for yesterday." in the Yesterday's Performance section and continue.
 - **File write fails:** Retry once. If it fails again, deliver as chat only — do not loop.
 - **Weekend:** Run the full briefing. Dylan works weekends.
