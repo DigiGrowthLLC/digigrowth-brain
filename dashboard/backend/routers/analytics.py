@@ -19,9 +19,6 @@ _SALES_STATS_PATH   = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 _CONTENT_STATS_PATH = pathlib.Path(__file__).parent.parent / "content_stats.json"
 
 
-PITCHED_DISPOSITIONS = ("Appointment Booked", "Follow Up 30 Day", "Follow Up 90 Day", "Follow Up (Manual)", "Send Info", "SMS Handoff", "Not Interested")
-
-
 def _since(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -73,32 +70,19 @@ def _content_metrics(stats: dict, days: int) -> dict:
     }
 
 
-async def _calling_metrics(conn, since=None) -> dict:
-    """Return calling funnel metrics. If since is None, returns all-time."""
-    where = "WHERE started_at >= $1" if since else ""
-    params = [since] if since else []
-
-    row = await conn.fetchrow(
-        f"""
-        SELECT
-            COUNT(*) AS total,
-            COUNT(*) FILTER (WHERE disposition NOT IN ('No Answer','Voicemail')) AS answered,
-            COUNT(*) FILTER (WHERE disposition IN {str(PITCHED_DISPOSITIONS).replace('[','(').replace(']',')')}) AS pitched,
-            COUNT(*) FILTER (WHERE disposition = 'Appointment Booked') AS booked
-        FROM call_logs {where}
-        """,
-        *params,
-    )
-    total   = row["total"]   or 0
-    answered = row["answered"] or 0
-    pitched  = row["pitched"]  or 0
-    booked   = row["booked"]   or 0
+def _calling_metrics(stats: dict, days: int) -> dict:
+    """Cold calling metrics — sourced from the daily Sheets Digest (sales_stats.json),
+    not the dialer DB, since the sheets are the system of record for cold calling."""
+    calls_made          = _sheet_stat(stats, "sheet_calls_made", days)
+    calls_answered      = _sheet_stat(stats, "sheet_calls_answered", days)
+    contacts_reached    = _sheet_stat(stats, "sheet_contacts_reached", days)
+    appointments_booked = _sheet_stat(stats, "sheet_appointments_booked", days)
     return {
-        "total":             total,
-        "answer_rate":       _pct(answered, total),
-        "conversation_rate": _pct(pitched, answered),
-        "abr":               _pct(booked, total),
-        "booked":            booked,
+        "total":             calls_made,
+        "answer_rate":       _pct(calls_answered, calls_made),
+        "conversation_rate": _pct(contacts_reached, calls_answered),
+        "abr":               _pct(appointments_booked, calls_made),
+        "booked":            appointments_booked,
     }
 
 
@@ -180,18 +164,17 @@ async def outreach(days: int = 30):
     pool  = await get_pool()
     since = _since(days)
     cs    = _load_content_stats()
+    sales = _load_sales_stats()
 
     async with pool.acquire() as conn:
-        calling_all    = await _calling_metrics(conn)
-        calling_period = await _calling_metrics(conn, since)
         sms_all        = await _sms_metrics(conn)
         sms_period     = await _sms_metrics(conn, since)
 
     return {
         "period_days": days,
         "calling": {
-            "all_time": calling_all,
-            "period":   calling_period,
+            "all_time": _calling_metrics(sales, 0),
+            "period":   _calling_metrics(sales, days),
         },
         "sms": {
             "all_time": sms_all,

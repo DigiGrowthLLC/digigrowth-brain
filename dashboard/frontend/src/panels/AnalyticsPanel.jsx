@@ -23,25 +23,6 @@ function MiniStat({ label, value, color }) {
 
 const ANALYTICS_PERIOD_OPTIONS = [[7,"7D"],[30,"30D"],[0,"All Time"]];
 
-function TabToggle({ value, onChange, options }) {
-  return (
-    <div style={{
-      display: "flex", background: "rgba(10,18,48,0.5)",
-      border: "1px solid rgba(58,123,213,0.1)", borderRadius: 8, padding: 3, gap: 2,
-    }}>
-      {options.map(([v, label]) => (
-        <button key={v} onClick={() => onChange(v)} style={{
-          fontFamily: "'Share Tech Mono', monospace",
-          fontSize: 9, fontWeight: 500, padding: "4px 12px", letterSpacing: "0.08em",
-          borderRadius: 6, border: "none", cursor: "pointer", transition: "all 0.15s",
-          background: value === v ? "rgba(58,123,213,0.3)" : "transparent",
-          color: value === v ? "#6ab0ff" : "#2a4a7a",
-        }}>{label}</button>
-      ))}
-    </div>
-  );
-}
-
 function OutreachTable({ outreach, tab }) {
   if (!outreach) {
     return (
@@ -138,8 +119,11 @@ function OutreachTable({ outreach, tab }) {
           </div>
         </div>
       ))}
-      {/* Content note */}
-      <div style={{ marginTop: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a2a60", letterSpacing: "0.08em" }}>
+      {/* Source notes */}
+      <div style={{ marginTop: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
+        COLD CALLING · synced daily from Google Sheets (Sheets Digest skill)
+      </div>
+      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a2a60", letterSpacing: "0.08em" }}>
         CONTENT · posts + videos tracked via OS · update via Analytics → Content Stats
       </div>
     </div>
@@ -185,7 +169,6 @@ export default function AnalyticsPanel() {
   const [outreach, setOutreach]       = useState(null);
   const [pipeline, setPipeline]       = useState(null);
   const [sales, setSales]             = useState(null);
-  const [outreachTab, setOutreachTab] = useState("period");
 
   useEffect(() => {
     fetch(API(`/analytics/outreach?days=${days}`)).then(r => r.ok ? r.json() : null).then(setOutreach);
@@ -226,15 +209,8 @@ export default function AnalyticsPanel() {
 
       {/* ── Outreach & Appointment Setting ─────────────────────────── */}
       <div className="glass-card" style={{ padding: "20px 22px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <SecLabel style={{ marginBottom: 0 }}>Outreach & Appointment Setting</SecLabel>
-          <TabToggle
-            value={outreachTab}
-            onChange={setOutreachTab}
-            options={[["all_time","ALL TIME"],["period",`LAST ${days}D`]]}
-          />
-        </div>
-        <OutreachTable outreach={outreach} tab={outreachTab} />
+        <SecLabel>Outreach & Appointment Setting</SecLabel>
+        <OutreachTable outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
       </div>
 
       {/* ── 6-Stage Acquisition Funnel ─────────────────────────────── */}
