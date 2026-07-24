@@ -9,7 +9,7 @@ const STATUSES = ["new", "dialer-lead", "sms-handoff", "appointment-booked", "no
 // the SMS inbox. `variant="inline"` renders just the card content with no
 // overlay/backdrop, for embedding directly in a screen (e.g. the live call
 // screen) — Cancel is omitted since there's nothing to dismiss back to.
-export default function ContactCard({ contactId, phone, onClose, onSaved, variant = "modal" }) {
+export default function ContactCard({ contactId, phone, onClose, onSaved, variant = "modal", hideHeader = false }) {
   const [contact, setContact] = useState(null);
   const [form, setForm]       = useState(null);
   const [saving, setSaving]   = useState(false);
@@ -30,7 +30,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
     setError(null);
     try {
       const patch = {};
-      const editable = ["business", "owner", "phone", "email", "website", "city", "state", "grade", "notes", "status"];
+      const editable = ["business", "owner", "phone", "email", "website", "city", "state", "grade", "opener", "notes", "status"];
       for (const k of editable) {
         if (form[k] !== contact[k]) patch[k] = form[k] ?? null;
       }
@@ -77,27 +77,29 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
   const body = (
     <>
       {/* Header */}
-      <div style={{ padding: variant === "inline" ? "0 0 16px" : "20px 24px 16px", borderBottom: "0.5px solid #1a2540", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "#f0f4ff" }}>
-              {contact?.owner || contact?.business || phone}
+      {!hideHeader && (
+        <div style={{ padding: variant === "inline" ? "0 0 16px" : "20px 24px 16px", borderBottom: "0.5px solid #1a2540", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "#f0f4ff" }}>
+                {contact?.owner || contact?.business || phone}
+              </div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.1em", marginTop: 3 }}>
+                {phone}{contact?.grade ? ` · GRADE ${contact.grade}` : ""}
+              </div>
             </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.1em", marginTop: 3 }}>
-              {phone}{contact?.grade ? ` · GRADE ${contact.grade}` : ""}
-            </div>
+            {variant === "modal" && (
+              <button onClick={onClose} style={{
+                background: "transparent", border: "none", color: "#3a5a80",
+                cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px",
+              }}>×</button>
+            )}
           </div>
-          {variant === "modal" && (
-            <button onClick={onClose} style={{
-              background: "transparent", border: "none", color: "#3a5a80",
-              cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px",
-            }}>×</button>
-          )}
         </div>
-      </div>
+      )}
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: "auto", padding: variant === "inline" ? "16px 0 0" : "20px 24px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: variant === "inline" ? (hideHeader ? "0" : "16px 0 0") : "20px 24px" }}>
         {!form ? (
           contactId ? (
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>
@@ -119,6 +121,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
               <Field label="STATE" k="state" />
               <Field label="GRADE" k="grade" options={GRADES} />
             </div>
+            <Field label="CUSTOM OPENER" k="opener" />
             <Field label="STATUS" k="status" options={STATUSES} />
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 4 }}>NOTES</div>

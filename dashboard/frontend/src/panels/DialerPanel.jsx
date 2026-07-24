@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API } from "../api.js";
 import { DISPO_COLORS, DISPO_BUTTONS, CALENDLY_URL } from "../dispositions.js";
+import ContactCard from "../ContactCard.jsx";
 
 const GRADE_COLORS = { A: "#14c882", B: "#5a9bf0", C: "#f0a028", D: "#dc3c3c" };
 
@@ -669,35 +670,15 @@ const [notes, setNotes]                 = useState("");
                     )}
                   </div>
                 </div>
-                {currentLead.opener && (
-                  <div style={{ fontSize: 12, color: "#5a9bf0", fontStyle: "italic",
-                                 borderTop: "1px solid #1a2540", paddingTop: 8 }}>
-                    {currentLead.opener}
-                  </div>
-                )}
-                <div style={{ display: "flex", gap: 12 }}>
-                  {currentLead.phone && (
-                    <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
-                      {currentLead.phone}
-                    </span>
-                  )}
-                  {currentLead.city && (
-                    <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
-                      {[currentLead.city, currentLead.state].filter(Boolean).join(", ")}
-                    </span>
-                  )}
+                <div style={{ borderTop: "1px solid #1a2540", paddingTop: 10 }}>
+                  <ContactCard
+                    key={currentLead.contact_id || currentLead.phone}
+                    contactId={currentLead.contact_id}
+                    phone={currentLead.phone}
+                    variant="inline"
+                    hideHeader
+                  />
                 </div>
-                {currentLead.notes && (
-                  <div style={{ borderTop: "1px solid #1a2540", paddingTop: 8 }}>
-                    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5",
-                                   letterSpacing: "0.12em", marginBottom: 4 }}>
-                      PRIOR NOTES
-                    </div>
-                    <div style={{ fontSize: 12, color: "#8aaad0", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
-                      {currentLead.notes}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
