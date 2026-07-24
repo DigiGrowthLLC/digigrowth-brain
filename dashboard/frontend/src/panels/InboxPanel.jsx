@@ -10,8 +10,6 @@ function fmtMsgTime(ts) {
          d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-// ── Compose Modal ─────────────────────────────────────────────────────────────
-
 function convoBadge(c) {
   if (c.status === "closed") {
     return c.disposition === "not_interested"
@@ -23,6 +21,13 @@ function convoBadge(c) {
   }
   return { label: "ACTIVE", cls: "badge-blue" };
 }
+
+const CHANNEL_CHIP = {
+  sms:   { label: "SMS",  bg: "rgba(20,200,130,0.12)", color: "#14c882" },
+  email: { label: "MAIL", bg: "rgba(160,110,240,0.12)", color: "#a06ef0" },
+};
+
+// ── Compose Modal ─────────────────────────────────────────────────────────────
 
 function ComposeModal({ onClose, onSent }) {
   const [channel, setChannel] = useState("sms");
@@ -45,8 +50,9 @@ function ComposeModal({ onClose, onSent }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone: p, body: b }),
         });
-        if (!r.ok) { setError(await r.text()); return; }
-        onSent({ channel: "sms", thread_key: p });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.ok) { setError(data.error || "Failed to send"); return; }
+        onSent({ contactId: data.contact_id });
       } catch (e) {
         setError(e.message);
       } finally {
@@ -65,7 +71,7 @@ function ComposeModal({ onClose, onSent }) {
         });
         const data = await r.json().catch(() => ({}));
         if (!r.ok || !data.ok) { setError(data.error || "Failed to send"); return; }
-        onSent({ channel: "email", thread_key: data.thread_id });
+        onSent({ contactId: data.contact_id });
       } catch (e) {
         setError(e.message);
       } finally {
@@ -180,8 +186,9 @@ function ComposeModal({ onClose, onSent }) {
 
 export default function InboxPanel({ initialTarget }) {
   const [convos, setConvos]       = useState([]);
-  const [selected, setSelected]   = useState(null); // {channel, thread_key}
+  const [selected, setSelected]   = useState(null); // contact_id
   const [thread, setThread]       = useState(null);
+  const [replyChannel, setReplyChannel]   = useState("sms");
   const [replyText, setReplyText] = useState("");
   const [replySubject, setReplySubject] = useState("");
   const [sending, setSending]     = useState(false);
@@ -200,6 +207,7 @@ export default function InboxPanel({ initialTarget }) {
   const [tagFilter, setTagFilter]         = useState(null);
 
   const bottomRef = useRef(null);
+  const autoOpenedRef = useRef(false);
 
   const [availableTags, setAvailableTags] = useState([]);
 
@@ -228,32 +236,38 @@ export default function InboxPanel({ initialTarget }) {
     return () => clearInterval(id);
   }, [loadConvos]);
 
+  // Deep-link from toasts/dashboard widgets, which only carry a phone number —
+  // resolve it to a contact once the conversation list has loaded.
   useEffect(() => {
-    if (initialTarget?.phone) openThread({ channel: initialTarget.channel || "sms", thread_key: initialTarget.phone });
-    else if (initialTarget?.threadId) openThread({ channel: initialTarget.channel || "email", thread_key: initialTarget.threadId });
-  }, [initialTarget]);
-
-  const threadPath = (item) =>
-    item.channel === "email"
-      ? `/email/conversations/${encodeURIComponent(item.thread_key)}`
-      : `/sms/conversations/${encodeURIComponent(item.thread_key)}`;
+    if (!initialTarget || autoOpenedRef.current) return;
+    if (initialTarget.contactId) {
+      autoOpenedRef.current = true;
+      openThread(initialTarget.contactId);
+    } else if (initialTarget.phone && convos.length > 0) {
+      const match = convos.find(c => c.phone === initialTarget.phone);
+      if (match) {
+        autoOpenedRef.current = true;
+        openThread(match.contact_id);
+      }
+    }
+  }, [initialTarget, convos]);
 
   // Silently refetch the currently-open thread — used by background polling
   // and post-action refreshes, where blanking the view first (openThread's
   // setThread(null)) would cause a visible flash every few seconds.
-  const refreshThread = async (item) => {
+  const refreshThread = async (contactId) => {
     try {
-      const r = await fetch(API(threadPath(item)));
+      const r = await fetch(API(`/inbox/contact/${encodeURIComponent(contactId)}`));
       if (r.ok) setThread(await r.json());
     } catch {}
   };
 
-  const openThread = async (item) => {
-    setSelected(item);
+  const openThread = async (contactId) => {
+    setSelected(contactId);
     setThread(null);
     setSeqOpen(false);
     setReplySubject("");
-    await refreshThread(item);
+    await refreshThread(contactId);
   };
 
   useEffect(() => {
@@ -262,11 +276,22 @@ export default function InboxPanel({ initialTarget }) {
     return () => clearInterval(id);
   }, [selected]);
 
+  // Default the reply channel to whichever channel this contact most
+  // recently used — a fresh contact card falls back to whichever channel
+  // has a usable address.
   useEffect(() => {
-    if (thread?.subject && selected?.channel === "email") {
-      setReplySubject(thread.subject.toLowerCase().startsWith("re:") ? thread.subject : `Re: ${thread.subject}`);
+    if (!thread) return;
+    const lastChannel = thread.messages?.length ? thread.messages[thread.messages.length - 1].channel : null;
+    if (lastChannel) setReplyChannel(lastChannel);
+    else if (thread.phone) setReplyChannel("sms");
+    else if (thread.email) setReplyChannel("email");
+  }, [thread?.contact_id]);
+
+  useEffect(() => {
+    if (thread?.email_subject && replyChannel === "email") {
+      setReplySubject(thread.email_subject.toLowerCase().startsWith("re:") ? thread.email_subject : `Re: ${thread.email_subject}`);
     }
-  }, [thread, selected]);
+  }, [thread, replyChannel]);
 
   // Only auto-scroll when the message count actually grows — every poll
   // returns a fresh array reference even with no new messages, so keying
@@ -275,21 +300,21 @@ export default function InboxPanel({ initialTarget }) {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgCount]);
 
   const sendReply = async () => {
-    if (!replyText.trim() || !selected) return;
+    if (!replyText.trim() || !selected || !thread) return;
     setSending(true);
     try {
-      if (selected.channel === "sms") {
+      if (replyChannel === "sms") {
         await fetch(API("/sms/send"), {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: selected.thread_key, body: replyText.trim() }),
+          body: JSON.stringify({ phone: thread.phone, body: replyText.trim() }),
         });
       } else {
         await fetch(API("/email/send"), {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            thread_id: selected.thread_key,
-            to: thread?.email,
-            subject: replySubject || thread?.subject || "",
+            thread_id: thread.email_thread_id || "",
+            to: thread.email,
+            subject: replySubject || thread.email_subject || "",
             body: replyText.trim(),
           }),
         });
@@ -307,7 +332,7 @@ export default function InboxPanel({ initialTarget }) {
     setSeqLoading(true);
     setSeqError(null);
     try {
-      const r = await fetch(API(`/sms/sequence/${encodeURIComponent(selected.thread_key)}`));
+      const r = await fetch(API(`/sms/sequence/${encodeURIComponent(thread.phone)}`));
       const data = await r.json();
       if (!data.ok) {
         setSeqError("Failed to load sequence.");
@@ -330,8 +355,7 @@ export default function InboxPanel({ initialTarget }) {
 
   const closeConvo = async (disposition) => {
     if (!selected) return;
-    const base = selected.channel === "email" ? "/email/conversations" : "/sms/conversations";
-    await fetch(API(`${base}/${encodeURIComponent(selected.thread_key)}/close`), {
+    await fetch(API(`/inbox/contact/${encodeURIComponent(selected)}/close`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ disposition }),
@@ -342,8 +366,7 @@ export default function InboxPanel({ initialTarget }) {
 
   const toggleInterested = async () => {
     if (!selected) return;
-    const base = selected.channel === "email" ? "/email/conversations" : "/sms/conversations";
-    await fetch(API(`${base}/${encodeURIComponent(selected.thread_key)}/interested`), { method: "POST" });
+    await fetch(API(`/inbox/contact/${encodeURIComponent(selected)}/interested`), { method: "POST" });
     await refreshThread(selected);
     await loadConvos();
   };
@@ -352,8 +375,7 @@ export default function InboxPanel({ initialTarget }) {
     if (!selected) return;
     setDeleting(true);
     try {
-      const base = selected.channel === "email" ? "/email/conversations" : "/sms/conversations";
-      await fetch(API(`${base}/${encodeURIComponent(selected.thread_key)}`), { method: "DELETE" });
+      await fetch(API(`/inbox/contact/${encodeURIComponent(selected)}`), { method: "DELETE" });
       setSelected(null);
       setThread(null);
       await loadConvos();
@@ -373,7 +395,7 @@ export default function InboxPanel({ initialTarget }) {
       {cardOpen && (
         <ContactCard
           contactId={thread?.contact_id}
-          phone={selected?.channel === "sms" ? selected.thread_key : undefined}
+          phone={thread?.phone}
           onClose={() => setCardOpen(false)}
           onSaved={() => refreshThread(selected)}
         />
@@ -382,10 +404,10 @@ export default function InboxPanel({ initialTarget }) {
       {composing && (
         <ComposeModal
           onClose={() => setComposing(false)}
-          onSent={async (item) => {
+          onSent={async ({ contactId }) => {
             setComposing(false);
             await loadConvos();
-            await openThread(item);
+            if (contactId) await openThread(contactId);
           }}
         />
       )}
@@ -458,9 +480,9 @@ export default function InboxPanel({ initialTarget }) {
             </div>
           )}
           {convos.map(c => {
-            const isSel = selected?.channel === c.channel && selected?.thread_key === c.thread_key;
+            const isSel = selected === c.contact_id;
             return (
-              <button key={`${c.channel}:${c.thread_key}`} onClick={() => openThread({ channel: c.channel, thread_key: c.thread_key })}
+              <button key={c.contact_id} onClick={() => openThread(c.contact_id)}
                 style={{
                   width: "100%", textAlign: "left", padding: "12px 16px",
                   cursor: "pointer",
@@ -476,23 +498,24 @@ export default function InboxPanel({ initialTarget }) {
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
                   <span style={{ fontSize: 13, fontWeight: 500, color: "#c4d0e8", overflow: "hidden",
                                  textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                    {c.owner || c.business || c.thread_key}
+                    {c.owner || c.business || c.phone || c.email}
                   </span>
-                  <span style={{
-                    fontFamily: "'Share Tech Mono', monospace", fontSize: 8, letterSpacing: "0.05em",
-                    padding: "2px 5px", borderRadius: 4, marginLeft: 6, flexShrink: 0,
-                    background: c.channel === "email" ? "rgba(160,110,240,0.12)" : "rgba(20,200,130,0.12)",
-                    color: c.channel === "email" ? "#a06ef0" : "#14c882",
-                  }}>
-                    {c.channel === "email" ? "MAIL" : "SMS"}
-                  </span>
+                  {c.channels.map(ch => (
+                    <span key={ch} style={{
+                      fontFamily: "'Share Tech Mono', monospace", fontSize: 8, letterSpacing: "0.05em",
+                      padding: "2px 5px", borderRadius: 4, marginLeft: 4, flexShrink: 0,
+                      background: CHANNEL_CHIP[ch].bg, color: CHANNEL_CHIP[ch].color,
+                    }}>
+                      {CHANNEL_CHIP[ch].label}
+                    </span>
+                  ))}
                   <span className={`badge ${convoBadge(c).cls}`}
                     style={{ marginLeft: 6, flexShrink: 0 }}>
                     {convoBadge(c).label}
                   </span>
                 </div>
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
-                  {c.channel === "email" ? (c.subject || c.thread_key) : c.thread_key}
+                  {c.phone || c.email}
                 </div>
                 {c.last_message && (
                   <div style={{ fontSize: 11, color: "#3a4f6f", marginTop: 4,
@@ -529,7 +552,7 @@ export default function InboxPanel({ initialTarget }) {
                   fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#f0f4ff",
                   display: "flex", alignItems: "center", gap: 6,
                 }}>
-                  {thread?.owner || thread?.business || selected.thread_key}
+                  {thread?.owner || thread?.business || thread?.phone || thread?.email}
                   <span style={{
                     fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: "#3a7bd5",
                     padding: "2px 6px", borderRadius: 4, background: "rgba(58,123,213,0.1)",
@@ -538,9 +561,8 @@ export default function InboxPanel({ initialTarget }) {
                 </div>
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80",
                               letterSpacing: "0.1em", marginTop: 2 }}>
-                  {selected.channel === "email" ? (thread?.email || selected.thread_key) : selected.thread_key}
+                  {[thread?.phone, thread?.email].filter(Boolean).join(" · ")}
                   {thread?.grade ? ` · GRADE ${thread.grade}` : ""}
-                  {selected.channel === "email" && thread?.subject ? ` · ${thread.subject}` : ""}
                 </div>
               </div>
 
@@ -592,6 +614,7 @@ export default function InboxPanel({ initialTarget }) {
               )}
               {thread?.messages?.map((m, i) => {
                 const isOut = m.direction === "outbound";
+                const chip = CHANNEL_CHIP[m.channel];
                 return (
                   <div key={i} style={{ display: "flex", justifyContent: isOut ? "flex-end" : "flex-start" }}>
                     <div style={{
@@ -599,12 +622,21 @@ export default function InboxPanel({ initialTarget }) {
                       background: isOut ? "#1f3d70" : "#0d1626",
                       border: `0.5px solid ${isOut ? "#2857a0" : "#1a2540"}`,
                     }}>
-                      {selected.channel === "email" && m.subject && (
-                        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                                      color: isOut ? "#7fa8dd" : "#6a8ab0", marginBottom: 4 }}>
-                          {m.subject}
-                        </div>
-                      )}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                        <span style={{
+                          fontFamily: "'Share Tech Mono', monospace", fontSize: 8, letterSpacing: "0.05em",
+                          padding: "1px 5px", borderRadius: 4,
+                          background: chip.bg, color: chip.color,
+                        }}>
+                          {chip.label}
+                        </span>
+                        {m.channel === "email" && m.subject && (
+                          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                                        color: isOut ? "#7fa8dd" : "#6a8ab0" }}>
+                            {m.subject}
+                          </span>
+                        )}
+                      </div>
                       <div style={{ fontSize: 13, color: isOut ? "#c8dcff" : "#8aaad0", lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
                         {m.body}
                       </div>
@@ -622,7 +654,25 @@ export default function InboxPanel({ initialTarget }) {
             {/* Reply box */}
             {thread?.status !== "closed" ? (
               <div style={{ position: "relative", padding: "12px 20px", borderTop: "0.5px solid #1a2540", flexShrink: 0 }}>
-                {selected.channel === "email" && (
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  {["sms", "email"].map(ch => {
+                    const available = ch === "sms" ? !!thread?.phone : !!thread?.email;
+                    return (
+                      <button key={ch} onClick={() => available && setReplyChannel(ch)} disabled={!available}
+                        style={{
+                          padding: "4px 10px", borderRadius: 6,
+                          border: `1px solid ${replyChannel === ch ? "rgba(58,123,213,0.6)" : "rgba(58,123,213,0.2)"}`,
+                          background: replyChannel === ch ? "rgba(58,123,213,0.15)" : "transparent",
+                          color: available ? (replyChannel === ch ? "#3a7bd5" : "#5a6f8f") : "#2a3a52",
+                          fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
+                          cursor: available ? "pointer" : "not-allowed",
+                        }}>
+                        {ch === "sms" ? "SMS" : "EMAIL"}
+                      </button>
+                    );
+                  })}
+                </div>
+                {replyChannel === "email" && (
                   <input
                     className="dg-input"
                     type="text"
@@ -633,7 +683,7 @@ export default function InboxPanel({ initialTarget }) {
                   />
                 )}
                 <div style={{ display: "flex", gap: 8 }}>
-                  {selected.channel === "sms" && (
+                  {replyChannel === "sms" && (
                     <button onClick={openSequence} className="btn btn-ghost" style={{ fontSize: 10, alignSelf: "flex-end" }}>
                       SEQUENCE
                     </button>

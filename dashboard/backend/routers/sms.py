@@ -337,10 +337,10 @@ async def manual_send(payload: dict):
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await _get_or_create_conversation(conn, phone)
+        conv = await _get_or_create_conversation(conn, phone)
         await _store_message(conn, phone, "assistant", body)
 
-    return {"ok": True}
+    return {"ok": True, "contact_id": conv.get("contact_id")}
 
 
 _CLOSE_DISPOSITION_TO_CONTACT_STATUS = {

@@ -5,13 +5,18 @@ that matches an existing contacts.email value are synced — this is a
 prospect-communication tool, not a general email client.
 
 Endpoints (all under /api):
-  GET  /api/email/conversations               — list threads
+  GET  /api/email/conversations               — list email threads (channel-only, used internally)
   GET  /api/email/conversations/{thread_id}    — thread messages
   POST /api/email/send                         — reply / new thread
   POST /api/email/conversations/{thread_id}/close
   POST /api/email/conversations/{thread_id}/interested
   POST /api/email/sync                         — manual sync trigger (testing)
-  GET  /api/inbox/conversations                — merged SMS + Email list, filterable
+  GET  /api/inbox/tags                         — distinct contact tags, for the filter dropdown
+  GET  /api/inbox/conversations                — contact-grouped SMS + Email list, filterable
+  GET  /api/inbox/contact/{contact_id}         — one contact's merged SMS + Email message stream
+  POST /api/inbox/contact/{contact_id}/close
+  POST /api/inbox/contact/{contact_id}/interested
+  DELETE /api/inbox/contact/{contact_id}
 
 sync_gmail_job() is registered on the app's APScheduler (main.py) to run
 every ~60s. It never raises — a bad poll just logs and waits for the next tick.
@@ -266,7 +271,7 @@ async def manual_email_send(payload: dict):
             contact_id, new_thread_id, to, subject, body, sent["id"],
         )
 
-    return {"ok": True, "thread_id": new_thread_id}
+    return {"ok": True, "thread_id": new_thread_id, "contact_id": contact_id}
 
 
 @router.post("/email/conversations/{thread_id}/close")
@@ -321,7 +326,13 @@ async def delete_email_conversation(thread_id: str):
     return {"ok": True}
 
 
-# ── Merged Inbox endpoint (SMS + Email) ───────────────────────────────────────
+# ── Merged Inbox (SMS + Email, grouped by contact) ────────────────────────────
+#
+# Both channels are threaded per-contact, not per-channel: one row per
+# prospect in the thread list, and a single chronological message stream
+# (each message tagged with its channel) in the detail view. This matches
+# the mental model of "one conversation with this person," not "one
+# conversation per communication method."
 
 _SINCE_INTERVAL = {"today": "1 day", "7d": "7 days", "30d": "30 days"}
 
@@ -338,57 +349,216 @@ async def list_inbox_tags():
     return [r["tag"] for r in rows]
 
 
+def _merge_contact_row(grouped: dict, r: dict, channel: str):
+    cid = r["contact_id"]
+    if not cid:
+        return  # scope: only known-contact threads are ever synced/created
+    g = grouped.get(cid)
+    if not g:
+        g = grouped[cid] = {
+            "contact_id": cid, "business": r["business"], "owner": r["owner"],
+            "phone": r["phone"], "email": r["email"], "tags": r["tags"] or [],
+            "channels": [], "last_message": None, "updated_at": None,
+            "status": "closed", "disposition": None,
+        }
+    if channel not in g["channels"]:
+        g["channels"].append(channel)
+    if g["updated_at"] is None or (r["updated_at"] and r["updated_at"] > g["updated_at"]):
+        g["updated_at"] = r["updated_at"]
+        g["last_message"] = r["last_message"]
+    if r["status"] != "closed":
+        g["status"] = "active"
+        if r["disposition"] == "interested":
+            g["disposition"] = "interested"
+    elif g["status"] == "closed" and g["disposition"] is None:
+        g["disposition"] = r["disposition"]
+
+
 @router.get("/inbox/conversations")
 async def list_inbox_conversations(channel: str = "all", since: str = "all", tag: Optional[str] = None):
     pool = await get_pool()
+    grouped: dict = {}
     async with pool.acquire() as conn:
-        rows = []
-
         if channel in ("all", "sms"):
-            clauses = []
+            clauses = ["sc.contact_id IS NOT NULL"]
             args: list = []
             if since in _SINCE_INTERVAL:
                 clauses.append(f"sc.updated_at >= now() - interval '{_SINCE_INTERVAL[since]}'")
             if tag:
                 args.append(tag)
                 clauses.append(f"${len(args)} = ANY(c.tags)")
-            where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
             sms_rows = await conn.fetch(
                 f"""
-                SELECT 'sms' AS channel, sc.phone AS thread_key, sc.status, sc.disposition, sc.updated_at,
-                       c.business, c.owner, c.tags,
+                SELECT sc.contact_id, sc.status, sc.disposition, sc.updated_at,
+                       c.business, c.owner, c.phone, c.email, c.tags,
                        (SELECT body FROM sms_messages WHERE phone = sc.phone
                         ORDER BY sent_at DESC LIMIT 1) AS last_message
                 FROM sms_conversations sc
                 LEFT JOIN contacts c ON c.id = sc.contact_id
-                {where}
+                WHERE {' AND '.join(clauses)}
                 """,
                 *args,
             )
-            rows.extend(dict(r) for r in sms_rows)
+            for r in sms_rows:
+                _merge_contact_row(grouped, dict(r), "sms")
 
         if channel in ("all", "email"):
-            clauses = []
-            args: list = []
+            clauses = ["ec.contact_id IS NOT NULL"]
+            args = []
             if since in _SINCE_INTERVAL:
                 clauses.append(f"ec.updated_at >= now() - interval '{_SINCE_INTERVAL[since]}'")
             if tag:
                 args.append(tag)
                 clauses.append(f"${len(args)} = ANY(c.tags)")
-            where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
             email_rows = await conn.fetch(
                 f"""
-                SELECT 'email' AS channel, ec.thread_id AS thread_key, ec.status, ec.disposition, ec.updated_at,
-                       c.business, c.owner, c.tags, ec.subject,
+                SELECT ec.contact_id, ec.status, ec.disposition, ec.updated_at,
+                       c.business, c.owner, c.phone, c.email, c.tags,
                        (SELECT body FROM email_messages WHERE thread_id = ec.thread_id
                         ORDER BY sent_at DESC LIMIT 1) AS last_message
                 FROM email_conversations ec
                 LEFT JOIN contacts c ON c.id = ec.contact_id
-                {where}
+                WHERE {' AND '.join(clauses)}
                 """,
                 *args,
             )
-            rows.extend(dict(r) for r in email_rows)
+            for r in email_rows:
+                _merge_contact_row(grouped, dict(r), "email")
 
+    rows = list(grouped.values())
     rows.sort(key=lambda r: r["updated_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     return rows
+
+
+@router.get("/inbox/contact/{contact_id}")
+async def get_contact_thread(contact_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow(
+            "SELECT id, business, owner, phone, email, grade, tags FROM contacts WHERE id = $1", contact_id
+        )
+        if not contact:
+            return {"contact_id": contact_id, "messages": []}
+
+        sms_msgs = await conn.fetch(
+            "SELECT direction, body, sent_at FROM sms_messages WHERE contact_id = $1 ORDER BY sent_at", contact_id
+        )
+        email_msgs = await conn.fetch(
+            "SELECT direction, subject, body, sent_at FROM email_messages WHERE contact_id = $1 ORDER BY sent_at",
+            contact_id,
+        )
+        sms_conv = await conn.fetchrow(
+            "SELECT status, disposition FROM sms_conversations WHERE contact_id = $1", contact_id
+        )
+        email_conv = await conn.fetchrow(
+            """SELECT thread_id, subject, status, disposition FROM email_conversations
+               WHERE contact_id = $1 ORDER BY updated_at DESC LIMIT 1""",
+            contact_id,
+        )
+
+        await conn.execute("UPDATE sms_conversations SET last_read_at = now() WHERE contact_id = $1", contact_id)
+        await conn.execute("UPDATE email_conversations SET last_read_at = now() WHERE contact_id = $1", contact_id)
+
+    messages = [
+        {"channel": "sms", "direction": m["direction"], "body": m["body"], "sent_at": m["sent_at"]}
+        for m in sms_msgs
+    ] + [
+        {"channel": "email", "direction": m["direction"], "subject": m["subject"], "body": m["body"], "sent_at": m["sent_at"]}
+        for m in email_msgs
+    ]
+    messages.sort(key=lambda m: m["sent_at"])
+
+    sms_active = sms_conv and sms_conv["status"] != "closed"
+    email_active = email_conv and email_conv["status"] != "closed"
+    status = "active" if (sms_active or email_active) else "closed"
+    if sms_active and sms_conv["disposition"] == "interested":
+        disposition = "interested"
+    elif email_active and email_conv["disposition"] == "interested":
+        disposition = "interested"
+    elif status == "closed":
+        disposition = (sms_conv["disposition"] if sms_conv else None) or (email_conv["disposition"] if email_conv else None)
+    else:
+        disposition = None
+
+    return {
+        "contact_id": contact_id,
+        "business": contact["business"],
+        "owner": contact["owner"],
+        "grade": contact["grade"],
+        "phone": contact["phone"],
+        "email": contact["email"],
+        "status": status,
+        "disposition": disposition,
+        "sms_status": sms_conv["status"] if sms_conv else None,
+        "sms_disposition": sms_conv["disposition"] if sms_conv else None,
+        "email_thread_id": email_conv["thread_id"] if email_conv else None,
+        "email_subject": email_conv["subject"] if email_conv else None,
+        "email_status": email_conv["status"] if email_conv else None,
+        "email_disposition": email_conv["disposition"] if email_conv else None,
+        "messages": messages,
+    }
+
+
+@router.post("/inbox/contact/{contact_id}/close")
+async def close_contact_threads(contact_id: str, payload: Optional[dict] = None):
+    disposition = (payload or {}).get("disposition", "booked")
+    if disposition not in _CLOSE_DISPOSITION_TO_CONTACT_STATUS:
+        disposition = "booked"
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE sms_conversations SET status = 'closed', disposition = $2, updated_at = now() "
+            "WHERE contact_id = $1 AND status != 'closed'",
+            contact_id, disposition,
+        )
+        await conn.execute(
+            "UPDATE email_conversations SET status = 'closed', disposition = $2, updated_at = now() "
+            "WHERE contact_id = $1 AND status != 'closed'",
+            contact_id, disposition,
+        )
+        await conn.execute(
+            "UPDATE contacts SET status = $2, updated_at = now() WHERE id = $1",
+            contact_id, _CLOSE_DISPOSITION_TO_CONTACT_STATUS[disposition],
+        )
+    return {"ok": True}
+
+
+@router.post("/inbox/contact/{contact_id}/interested")
+async def toggle_contact_interested(contact_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT bool_or(disposition = 'interested') AS any_interested
+            FROM (
+                SELECT disposition FROM sms_conversations WHERE contact_id = $1 AND status != 'closed'
+                UNION ALL
+                SELECT disposition FROM email_conversations WHERE contact_id = $1 AND status != 'closed'
+            ) t
+            """,
+            contact_id,
+        )
+        new_disposition = None if (row and row["any_interested"]) else "interested"
+        await conn.execute(
+            "UPDATE sms_conversations SET disposition = $2, updated_at = now() "
+            "WHERE contact_id = $1 AND status != 'closed'",
+            contact_id, new_disposition,
+        )
+        await conn.execute(
+            "UPDATE email_conversations SET disposition = $2, updated_at = now() "
+            "WHERE contact_id = $1 AND status != 'closed'",
+            contact_id, new_disposition,
+        )
+    return {"ok": True, "disposition": new_disposition}
+
+
+@router.delete("/inbox/contact/{contact_id}")
+async def delete_contact_threads(contact_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM sms_messages WHERE contact_id = $1", contact_id)
+        await conn.execute("DELETE FROM sms_conversations WHERE contact_id = $1", contact_id)
+        await conn.execute("DELETE FROM email_messages WHERE contact_id = $1", contact_id)
+        await conn.execute("DELETE FROM email_conversations WHERE contact_id = $1", contact_id)
+    return {"ok": True}
