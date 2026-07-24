@@ -12,6 +12,8 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   POST /api/dialer/gatekeeper/decline  — hang up held gatekeeper
   POST /api/dialer/set-lines     — update max parallel lines
   POST /api/dialer/end-session   — request session end
+  GET  /api/dialer/info-template — "Send Info" SMS/email templates
+  PUT  /api/dialer/info-template — save "Send Info" SMS/email templates
 """
 
 import asyncio
@@ -121,6 +123,46 @@ async def save_script(body: dict):
             """,
             script,
         )
+    return {"ok": True}
+
+
+# ── "Send Info" disposition templates (edited from Business Resources ────────
+# → Outreach Templates). Stored in the same key/value table as the call
+# script; sms.send_info_message() and integrations.send_info_email() read
+# these keys at send time, falling back to their hardcoded defaults if a key
+# has never been saved.
+
+@router.get("/dialer/info-template")
+async def get_info_template():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key IN ('info_sms', 'info_email_subject', 'info_email_body')"
+        )
+    values = {r["key"]: r["value"] for r in rows}
+    return {
+        "sms":           values.get("info_sms", sms_router.INFO_MESSAGE),
+        "email_subject": values.get("info_email_subject", integrations.INFO_EMAIL_SUBJECT),
+        "email_body":    values.get("info_email_body", integrations.INFO_EMAIL_BODY),
+    }
+
+
+@router.put("/dialer/info-template")
+async def save_info_template(body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for key, value in (
+            ("info_sms", body.get("sms", "")),
+            ("info_email_subject", body.get("email_subject", "")),
+            ("info_email_body", body.get("email_body", "")),
+        ):
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+                """,
+                key, value,
+            )
     return {"ok": True}
 
 
@@ -480,8 +522,7 @@ async def classify(body: dict):
                         print(f"send-info SMS failed for {updated['phone']}: {e}")
                     if updated.get("email"):
                         try:
-                            result = await asyncio.to_thread(
-                                integrations.send_info_email,
+                            result = await integrations.send_info_email(
                                 updated["email"], updated.get("owner"), updated.get("business"),
                             )
                             if not result.startswith("Sent email"):

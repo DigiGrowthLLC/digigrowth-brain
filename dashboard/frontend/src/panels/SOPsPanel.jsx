@@ -278,10 +278,151 @@ function FormatBar({ editor }) {
 }
 
 const SUBSECTIONS = [
-  { id: "sop",          label: "SOPs",               subtitle: "STANDARD OPERATING PROCEDURES", newLabel: "New SOP",        placeholder: "SOP title..." },
-  { id: "business_doc", label: "Business Documents",  subtitle: "CONTRACTS · PROPOSALS · DOCS",  newLabel: "New Document",   placeholder: "Document title..." },
-  { id: "recording",    label: "Recordings",          subtitle: "CALLS · DEMOS · RECORDINGS",    newLabel: "New Recording",  placeholder: "Recording title..." },
+  { id: "sop",                label: "SOPs",               subtitle: "STANDARD OPERATING PROCEDURES", newLabel: "New SOP",      placeholder: "SOP title..." },
+  { id: "business_doc",       label: "Business Documents",  subtitle: "CONTRACTS · PROPOSALS · DOCS",  newLabel: "New Document", placeholder: "Document title..." },
+  { id: "outreach_templates", label: "Outreach Templates",  subtitle: "\"SEND INFO\" SMS · EMAIL",     custom: true },
 ];
+
+// ── Outreach Templates editor ───────────────────────────────────────────────
+// Editable SMS + email templates sent by the dialer's "Send Info" call
+// disposition (dashboard/backend/routers/sms.py send_info_message() and
+// integrations.py send_info_email()). Both read these from the
+// dialer_settings table at send time via GET /api/dialer/info-template —
+// this is the editor for that same store.
+function OutreachTemplatesEditor() {
+  const [sms, setSms] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [saved, setSaved] = useState({ sms: "", emailSubject: "", emailBody: "" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/dialer/info-template");
+      if (r.ok) {
+        const data = await r.json();
+        setSms(data.sms || "");
+        setEmailSubject(data.email_subject || "");
+        setEmailBody(data.email_body || "");
+        setSaved({ sms: data.sms || "", emailSubject: data.email_subject || "", emailBody: data.email_body || "" });
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const dirty = sms !== saved.sms || emailSubject !== saved.emailSubject || emailBody !== saved.emailBody;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/info-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sms, email_subject: emailSubject, email_body: emailBody }),
+      });
+      if (r.ok) {
+        setSaved({ sms, emailSubject, emailBody });
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = {
+    width: "100%", background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+    padding: "10px 12px", color: "#e8f0ff",
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    outline: "none", resize: "vertical", boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block", marginBottom: 6,
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+    color: "#3a5a80", letterSpacing: "0.12em",
+  };
+  const hintStyle = {
+    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 11, color: "#4a6a8a",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+          Sent automatically whenever a call is dispositioned <strong style={{ color: "#a080f0" }}>Send Info</strong>. Edits apply to the very next send.
+        </span>
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={save}
+          disabled={saving || !dirty}
+          style={{
+            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <div>
+          <label style={labelStyle}>SMS MESSAGE</label>
+          <textarea
+            value={sms}
+            onChange={e => setSms(e.target.value)}
+            rows={4}
+            placeholder="Hey {first_name}, here's that info — https://digigrowthllc.com..."
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the contact's first name.</div>
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
+          <label style={labelStyle}>EMAIL SUBJECT</label>
+          <input
+            value={emailSubject}
+            onChange={e => setEmailSubject(e.target.value)}
+            placeholder="Info as promised"
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>The contact's business name is appended automatically (e.g. "Info as promised — Acme Co").</div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>EMAIL BODY</label>
+          <textarea
+            value={emailBody}
+            onChange={e => setEmailBody(e.target.value)}
+            rows={10}
+            placeholder={"{first_name},\n\nHere's the link: https://digigrowthllc.com..."}
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the contact's first name.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Main panel ───────────────────────────────────────────────────────────────
 export default function SOPsPanel() {
@@ -326,9 +467,10 @@ export default function SOPsPanel() {
   });
 
   const fetchSOPs = useCallback(async () => {
+    if (section.custom) { setSops([]); return; }
     const r = await fetch(`/api/sops?doc_type=${activeSection}`);
     if (r.ok) setSops(await r.json());
-  }, [activeSection]);
+  }, [activeSection, section.custom]);
 
   useEffect(() => { fetchSOPs(); }, [fetchSOPs]);
 
@@ -471,10 +613,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {savedFlash && (
+          {!section.custom && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {showEditor && !selectedItem?.file_name && (
+          {!section.custom && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -491,7 +633,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {selectedId !== null && !isNew && (
+          {!section.custom && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -504,28 +646,32 @@ export default function SOPsPanel() {
               }}
             >Delete</button>
           )}
-          <input ref={uploadRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
-          <button
-            onClick={() => uploadRef.current?.click()}
-            disabled={uploading}
-            style={{
-              background: "rgba(58,123,213,0.12)",
-              border: "1px solid rgba(58,123,213,0.25)",
-              borderRadius: 6, color: "#6ab0ff",
-              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-              fontSize: 12, padding: "6px 14px", cursor: uploading ? "not-allowed" : "pointer",
-              opacity: uploading ? 0.6 : 1,
-            }}
-          >{uploading ? "Uploading…" : "↑ Upload"}</button>
-          <button
-            onClick={startNew}
-            style={{
-              background: "linear-gradient(90deg, #2857a0, #3a7bd5)",
-              border: "none", borderRadius: 6, color: "#fff",
-              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-              fontSize: 12, padding: "6px 14px", cursor: "pointer",
-            }}
-          >+ {section.newLabel}</button>
+          {!section.custom && (
+            <>
+              <input ref={uploadRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
+              <button
+                onClick={() => uploadRef.current?.click()}
+                disabled={uploading}
+                style={{
+                  background: "rgba(58,123,213,0.12)",
+                  border: "1px solid rgba(58,123,213,0.25)",
+                  borderRadius: 6, color: "#6ab0ff",
+                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+                  fontSize: 12, padding: "6px 14px", cursor: uploading ? "not-allowed" : "pointer",
+                  opacity: uploading ? 0.6 : 1,
+                }}
+              >{uploading ? "Uploading…" : "↑ Upload"}</button>
+              <button
+                onClick={startNew}
+                style={{
+                  background: "linear-gradient(90deg, #2857a0, #3a7bd5)",
+                  border: "none", borderRadius: 6, color: "#fff",
+                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+                  fontSize: 12, padding: "6px 14px", cursor: "pointer",
+                }}
+              >+ {section.newLabel}</button>
+            </>
+          )}
         </div>
       </div>
 
@@ -561,7 +707,12 @@ export default function SOPsPanel() {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "0 0 12px" }}>
-          {isNew && (
+          {section.custom && (
+            <div style={{ padding: "20px 16px", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a6a", textAlign: "center", letterSpacing: "0.1em", lineHeight: 1.8 }}>
+              SMS + EMAIL SENT ON<br />"SEND INFO" DISPOSITION
+            </div>
+          )}
+          {!section.custom && isNew && (
             <div style={{
               margin: "0 8px 8px",
               padding: "7px 12px",
@@ -574,7 +725,7 @@ export default function SOPsPanel() {
               + {section.newLabel}
             </div>
           )}
-          {Object.keys(grouped).length === 0 && !isNew && (
+          {!section.custom && Object.keys(grouped).length === 0 && !isNew && (
             <div style={{ padding: "20px 16px", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a6a", textAlign: "center", letterSpacing: "0.1em" }}>
               NO {section.label.toUpperCase()} YET
             </div>
@@ -631,7 +782,9 @@ export default function SOPsPanel() {
 
         {/* Editor / file viewer pane */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {!showEditor ? (
+          {section.custom ? (
+            <OutreachTemplatesEditor />
+          ) : !showEditor ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>
                 SELECT OR CREATE A {section.label.toUpperCase().replace(/S$/, "")}

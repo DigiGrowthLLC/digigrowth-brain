@@ -8,11 +8,14 @@ Credentials via env vars:
 Each tool function returns a plain string (used directly as tool_result content).
 """
 
+import asyncio
 import base64
 import os
 from email.mime.text import MIMEText
 
 import httpx
+
+from db import get_pool
 
 _MISSING_GOOGLE = (
     "Google not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, "
@@ -149,12 +152,25 @@ DigiGrowth
 """
 
 
-def send_info_email(to: str, owner: str | None, business: str | None) -> str:
-    """Send the "Send Info" disposition's follow-up email — website + company blurb."""
+async def send_info_email(to: str, owner: str | None, business: str | None) -> str:
+    """Send the "Send Info" disposition's follow-up email — website + company blurb.
+    Subject/body are editable from Business Resources → Outreach Templates
+    (stored in dialer_settings); falls back to the defaults below if never saved.
+    """
     first_name = (owner or "").split()[0] if owner else "there"
-    subject = f"{INFO_EMAIL_SUBJECT} — {business}" if business else INFO_EMAIL_SUBJECT
-    body = INFO_EMAIL_BODY.format(first_name=first_name)
-    return gmail_send(to, subject, body)
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key IN ('info_email_subject', 'info_email_body')"
+        )
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    subject_template = values.get("info_email_subject", INFO_EMAIL_SUBJECT)
+    body_template = values.get("info_email_body", INFO_EMAIL_BODY)
+
+    subject = f"{subject_template} — {business}" if business else subject_template
+    body = body_template.replace("{first_name}", first_name)
+    return await asyncio.to_thread(gmail_send, to, subject, body)
 
 
 def gmail_create_draft(to: str, subject: str, body: str) -> str:
