@@ -13,6 +13,7 @@ import WebsitePanel  from "./panels/WebsitePanel.jsx";
 import IncomingCallWidget from "./IncomingCallWidget.jsx";
 import CallScreen     from "./CallScreen.jsx";
 import useIncomingCall from "./useIncomingCall.js";
+import logoWordmark from "./assets/logo-wordmark.png";
 
 const NAV = [
   { id: "home",      label: "Dashboard" },
@@ -108,19 +109,7 @@ const NAV_ICONS = {
 };
 
 const LogoMark = () => (
-  <div style={{
-    width: 38, height: 38, flexShrink: 0,
-    background: "linear-gradient(135deg, #1a3a6b 0%, #2857a0 100%)",
-    borderRadius: 10,
-    border: "1px solid rgba(58,123,213,0.3)",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    boxShadow: "0 4px 12px rgba(40,87,160,0.4)",
-  }}>
-    <svg viewBox="0 0 22 22" fill="none" width={18} height={18}>
-      <path d="M4 18L11 4L18 18" stroke="#6ab0ff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M6.5 13h9" stroke="#3a7bd5" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
-  </div>
+  <img src={logoWordmark} alt="DigiGrowth" style={{ height: 26, flexShrink: 0, display: "block" }} />
 );
 
 export default function App() {
@@ -173,23 +162,22 @@ export default function App() {
 
         {/* Brand */}
         <div style={{ padding: "22px 18px 20px", borderBottom: "1px solid rgba(58,123,213,0.07)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <LogoMark />
-            <div>
-              <div style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 15, fontWeight: 700,
-                color: "#f0f4ff", letterSpacing: "-0.01em", lineHeight: 1.2,
-              }}>
-                DigiGrowth OS
-              </div>
-              <div style={{
-                fontFamily: "'Share Tech Mono', monospace",
-                fontSize: 9, color: "#2a4a7a", letterSpacing: "0.14em", marginTop: 2,
-              }}>
-                CLIENT ACQ. PLATFORM
-              </div>
-            </div>
+            <span style={{
+              fontFamily: "'Share Tech Mono', monospace",
+              fontSize: 9, fontWeight: 600, color: "#5a9bf0", letterSpacing: "0.1em",
+              padding: "2px 6px", borderRadius: 4, background: "rgba(58,123,213,0.12)",
+              border: "1px solid rgba(58,123,213,0.25)",
+            }}>
+              OS
+            </span>
+          </div>
+          <div style={{
+            fontFamily: "'Share Tech Mono', monospace",
+            fontSize: 9, color: "#2a4a7a", letterSpacing: "0.14em", marginTop: 8,
+          }}>
+            CLIENT ACQ. PLATFORM
           </div>
         </div>
 
