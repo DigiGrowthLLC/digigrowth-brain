@@ -14,6 +14,7 @@ import IncomingCallWidget from "./IncomingCallWidget.jsx";
 import CallScreen     from "./CallScreen.jsx";
 import useIncomingCall from "./useIncomingCall.js";
 import useSmsNotifications from "./useSmsNotifications.js";
+import SmsToasts, { AUTO_DISMISS_MS } from "./SmsToasts.jsx";
 import logoWordmark from "./assets/logo-wordmark.png";
 
 const NAV = [
@@ -124,8 +125,23 @@ export default function App() {
   };
 
   const { incoming, activeCall, callInfo, answer, decline, hangUp, clearCallInfo } = useIncomingCall();
-  const { permission: smsNotifPermission, requestPermission: requestSmsNotifPermission } =
-    useSmsNotifications((phone) => navigateTo("sms", phone));
+
+  const [smsToasts, setSmsToasts] = useState([]);
+  const dismissToast = (id) => setSmsToasts(list => list.filter(t => t.id !== id));
+  useSmsNotifications((convo) => {
+    const id = `${convo.phone}-${convo.updated_at}`;
+    setSmsToasts(list => [...list, {
+      id,
+      phone: convo.phone,
+      label: convo.owner || convo.business || convo.phone,
+      body: convo.last_message,
+    }]);
+    setTimeout(() => dismissToast(id), AUTO_DISMISS_MS);
+  });
+  const openSmsToast = (t) => {
+    dismissToast(t.id);
+    navigateTo("sms", t.phone);
+  };
 
   // Answering an inbound call jumps to the dedicated call screen.
   useEffect(() => {
@@ -218,49 +234,6 @@ export default function App() {
           })}
         </nav>
 
-        {/* SMS notification permission prompt — only until granted/denied */}
-        {smsNotifPermission === "default" && (
-          <div style={{
-            margin: "0 12px 12px",
-            padding: "12px 14px",
-            borderRadius: 14,
-            background: "rgba(240,160,40,0.08)",
-            border: "1px solid rgba(240,160,40,0.25)",
-          }}>
-            <div style={{
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 11, fontWeight: 600, color: "#f0a028", marginBottom: 8,
-            }}>
-              Enable text popups?
-            </div>
-            <button
-              onClick={requestSmsNotifPermission}
-              style={{
-                width: "100%", padding: "7px 10px", borderRadius: 8,
-                border: "1px solid rgba(240,160,40,0.4)",
-                background: "rgba(240,160,40,0.14)", color: "#f0a028",
-                fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                letterSpacing: "0.06em", cursor: "pointer",
-              }}
-            >
-              ENABLE NOTIFICATIONS
-            </button>
-          </div>
-        )}
-        {smsNotifPermission === "denied" && (
-          <div style={{
-            margin: "0 12px 12px",
-            padding: "10px 14px",
-            borderRadius: 14,
-            background: "rgba(220,60,60,0.06)",
-            border: "1px solid rgba(220,60,60,0.2)",
-            fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-            color: "#dc3c3c", lineHeight: 1.5,
-          }}>
-            Text popups are blocked — allow notifications for this site in your browser's site settings.
-          </div>
-        )}
-
         {/* Bottom card (Need help style) */}
         <div style={{
           margin: "0 12px 16px",
@@ -313,6 +286,8 @@ export default function App() {
         onReturnToCall={() => setActive("call")}
         showMiniBar={active !== "call"}
       />
+
+      <SmsToasts toasts={smsToasts} onOpen={openSmsToast} onDismiss={dismissToast} />
     </div>
   );
 }
