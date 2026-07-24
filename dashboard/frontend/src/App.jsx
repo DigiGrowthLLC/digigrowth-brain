@@ -162,16 +162,8 @@ export default function App() {
 
         {/* Brand */}
         <div style={{ padding: "22px 18px 20px", borderBottom: "1px solid rgba(58,123,213,0.07)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center" }}>
             <LogoMark />
-            <span style={{
-              fontFamily: "'Share Tech Mono', monospace",
-              fontSize: 9, fontWeight: 600, color: "#5a9bf0", letterSpacing: "0.1em",
-              padding: "2px 6px", borderRadius: 4, background: "rgba(58,123,213,0.12)",
-              border: "1px solid rgba(58,123,213,0.25)",
-            }}>
-              OS
-            </span>
           </div>
           <div style={{
             fontFamily: "'Share Tech Mono', monospace",
