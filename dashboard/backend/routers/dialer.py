@@ -139,13 +139,15 @@ async def get_info_template():
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT key, value FROM dialer_settings WHERE key IN ('info_sms', 'info_email_subject', 'info_email_body')"
+            "SELECT key, value FROM dialer_settings WHERE key IN "
+            "('info_sms', 'info_email_subject', 'info_email_body', 'info_category')"
         )
     values = {r["key"]: r["value"] for r in rows}
     return {
         "sms":           values.get("info_sms", sms_router.INFO_MESSAGE),
         "email_subject": values.get("info_email_subject", integrations.INFO_EMAIL_SUBJECT),
         "email_body":    values.get("info_email_body", integrations.INFO_EMAIL_BODY),
+        "category":      values.get("info_category") or "General",
     }
 
 
@@ -157,6 +159,7 @@ async def save_info_template(body: dict):
             ("info_sms", body.get("sms", "")),
             ("info_email_subject", body.get("email_subject", "")),
             ("info_email_body", body.get("email_body", "")),
+            ("info_category", body.get("category", "General")),
         ):
             await conn.execute(
                 """
@@ -179,10 +182,12 @@ async def get_sequence_template():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
-            [f"seq_{key}" for key, _ in sms_router.SEQUENCE_STEPS],
+            [f"seq_{key}" for key, _ in sms_router.SEQUENCE_STEPS] + ["sequence_category"],
         )
     values = {r["key"]: r["value"] for r in rows}
-    return {key: values.get(f"seq_{key}", "") for key, _ in sms_router.SEQUENCE_STEPS}
+    result = {key: values.get(f"seq_{key}", "") for key, _ in sms_router.SEQUENCE_STEPS}
+    result["category"] = values.get("sequence_category") or "General"
+    return result
 
 
 @router.put("/dialer/sequence-template")
@@ -197,6 +202,13 @@ async def save_sequence_template(body: dict):
                 """,
                 f"seq_{key}", body.get(key, ""),
             )
+        await conn.execute(
+            """
+            INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+            """,
+            "sequence_category", body.get("category", "General"),
+        )
     return {"ok": True}
 
 

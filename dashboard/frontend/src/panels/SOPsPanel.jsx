@@ -289,13 +289,64 @@ const SUBSECTIONS = [
 // below), since the dialer's "Send Info" disposition reads from that store,
 // not from `sops`.
 const SEND_INFO_PSEUDO_ID = "__send_info__";
-const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email)", category: "Dialer", sendInfo: true };
+const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email)", sendInfo: true };
 
 // Same pattern as SEND_INFO_ITEM above, for the SMS inbox's "SEQUENCE"
 // dropdown (SMSPanel.jsx) — backed by GET/PUT /api/dialer/sequence-template
 // (see SmsSequenceEditor below), not `sops`.
 const SMS_SEQUENCE_PSEUDO_ID = "__sms_sequence__";
-const SMS_SEQUENCE_ITEM = { id: SMS_SEQUENCE_PSEUDO_ID, title: "SMS Sequence", category: "Dialer", smsSequence: true };
+const SMS_SEQUENCE_ITEM = { id: SMS_SEQUENCE_PSEUDO_ID, title: "SMS Sequence", smsSequence: true };
+
+// ── Shared category picker ──────────────────────────────────────────────────
+// Same select-or-type-a-new-one pattern as the regular document editor's
+// category control (see the main doc editor's title/meta row below), factored
+// out so the pinned Send Info / SMS Sequence pseudo-docs can offer the same
+// "same options as the general document would have" category picker.
+function CategoryPicker({ categories, category, setCategory, customCatMode, setCustomCatMode, onCommit }) {
+  if (customCatMode) {
+    return (
+      <input
+        value={category}
+        onChange={e => setCategory(e.target.value)}
+        placeholder="Category name"
+        autoFocus
+        onBlur={() => { if (!category.trim()) { setCustomCatMode(false); setCategory(categories[0] || "General"); } }}
+        onKeyDown={e => { if (e.key === "Enter") { setCustomCatMode(false); onCommit?.(); } }}
+        style={{
+          width: 130, background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(58,123,213,0.3)", borderRadius: 6,
+          padding: "6px 10px", color: "#9ab8d8",
+          fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, outline: "none",
+        }}
+      />
+    );
+  }
+  return (
+    <select
+      value={category}
+      onChange={e => {
+        if (e.target.value === "__new__") {
+          setCustomCatMode(true);
+          setCategory("");
+        } else {
+          setCategory(e.target.value);
+        }
+      }}
+      style={{
+        background: "#0d1a3a",
+        border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+        padding: "6px 10px", color: "#9ab8d8",
+        fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, outline: "none",
+        cursor: "pointer", flexShrink: 0,
+      }}
+    >
+      {[...new Set([...categories, ...(category ? [category] : [])])].map(c => (
+        <option key={c} value={c} style={{ background: "#0d1a3a" }}>{c}</option>
+      ))}
+      <option value="__new__" style={{ background: "#0d1a3a" }}>+ New category…</option>
+    </select>
+  );
+}
 
 // ── Outreach Templates editor ───────────────────────────────────────────────
 // Editable SMS + email templates sent by the dialer's "Send Info" call
@@ -303,11 +354,13 @@ const SMS_SEQUENCE_ITEM = { id: SMS_SEQUENCE_PSEUDO_ID, title: "SMS Sequence", c
 // integrations.py send_info_email()). Both read these from the
 // dialer_settings table at send time via GET /api/dialer/info-template —
 // this is the editor for that same store.
-function OutreachTemplatesEditor() {
+function OutreachTemplatesEditor({ categories, onCategoryChange }) {
   const [sms, setSms] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
-  const [saved, setSaved] = useState({ sms: "", emailSubject: "", emailBody: "" });
+  const [category, setCategory] = useState("General");
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [saved, setSaved] = useState({ sms: "", emailSubject: "", emailBody: "", category: "General" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -320,13 +373,15 @@ function OutreachTemplatesEditor() {
         setSms(data.sms || "");
         setEmailSubject(data.email_subject || "");
         setEmailBody(data.email_body || "");
-        setSaved({ sms: data.sms || "", emailSubject: data.email_subject || "", emailBody: data.email_body || "" });
+        setCategory(data.category || "General");
+        setSaved({ sms: data.sms || "", emailSubject: data.email_subject || "", emailBody: data.email_body || "", category: data.category || "General" });
+        onCategoryChange?.(data.category || "General");
       }
       setLoading(false);
     })();
   }, []);
 
-  const dirty = sms !== saved.sms || emailSubject !== saved.emailSubject || emailBody !== saved.emailBody;
+  const dirty = sms !== saved.sms || emailSubject !== saved.emailSubject || emailBody !== saved.emailBody || category !== saved.category;
 
   const save = async () => {
     setSaving(true);
@@ -334,10 +389,11 @@ function OutreachTemplatesEditor() {
       const r = await fetch("/api/dialer/info-template", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sms, email_subject: emailSubject, email_body: emailBody }),
+        body: JSON.stringify({ sms, email_subject: emailSubject, email_body: emailBody, category }),
       });
       if (r.ok) {
-        setSaved({ sms, emailSubject, emailBody });
+        setSaved({ sms, emailSubject, emailBody, category });
+        onCategoryChange?.(category);
         setSavedFlash(true);
         setTimeout(() => setSavedFlash(false), 2500);
       }
@@ -380,6 +436,13 @@ function OutreachTemplatesEditor() {
         <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
           Sent automatically whenever a call is dispositioned <strong style={{ color: "#a080f0" }}>Send Info</strong>. Edits apply to the very next send.
         </span>
+        <CategoryPicker
+          categories={categories}
+          category={category}
+          setCategory={setCategory}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
         {savedFlash && (
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
         )}
@@ -452,9 +515,10 @@ const SMS_SEQUENCE_STEPS = [
   { key: "cta", label: "5. Booking Link" },
 ];
 
-function SmsSequenceEditor() {
-  const [values, setValues] = useState({});
-  const [saved, setSaved] = useState({});
+function SmsSequenceEditor({ categories, onCategoryChange }) {
+  const [values, setValues] = useState({ category: "General" });
+  const [saved, setSaved] = useState({ category: "General" });
+  const [customCatMode, setCustomCatMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -466,12 +530,13 @@ function SmsSequenceEditor() {
         const data = await r.json();
         setValues(data);
         setSaved(data);
+        onCategoryChange?.(data.category || "General");
       }
       setLoading(false);
     })();
   }, []);
 
-  const dirty = SMS_SEQUENCE_STEPS.some(s => (values[s.key] || "") !== (saved[s.key] || ""));
+  const dirty = [...SMS_SEQUENCE_STEPS.map(s => s.key), "category"].some(k => (values[k] || "") !== (saved[k] || ""));
 
   const save = async () => {
     setSaving(true);
@@ -483,6 +548,7 @@ function SmsSequenceEditor() {
       });
       if (r.ok) {
         setSaved(values);
+        onCategoryChange?.(values.category || "General");
         setSavedFlash(true);
         setTimeout(() => setSavedFlash(false), 2500);
       }
@@ -525,6 +591,13 @@ function SmsSequenceEditor() {
         <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
           Shown as the <strong style={{ color: "#a080f0" }}>SEQUENCE</strong> dropdown in the SMS inbox. Leave a step blank to skip it.
         </span>
+        <CategoryPicker
+          categories={categories}
+          category={values.category || "General"}
+          setCategory={c => setValues(v => ({ ...v, category: c }))}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
         {savedFlash && (
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
         )}
@@ -568,6 +641,8 @@ function SmsSequenceEditor() {
 export default function SOPsPanel() {
   const [activeSection, setActiveSection] = useState("sop");
   const [sops, setSops] = useState([]);
+  const [sendInfoCategory, setSendInfoCategory] = useState("General");
+  const [seqCategory, setSeqCategory] = useState("General");
   const [selectedId, setSelectedId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isNew, setIsNew] = useState(false);
@@ -846,7 +921,7 @@ export default function SOPsPanel() {
           {activeSection === "outreach_templates" && (
             <div>
               <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                {SEND_INFO_ITEM.category}
+                {sendInfoCategory}
               </div>
               <div
                 onClick={() => openSOP(SEND_INFO_ITEM)}
@@ -867,6 +942,9 @@ export default function SOPsPanel() {
                   color: selectedId === SEND_INFO_PSEUDO_ID ? "#e8f0ff" : "#7a9cc0",
                   fontWeight: selectedId === SEND_INFO_PSEUDO_ID ? 600 : 400,
                 }}>{SEND_INFO_ITEM.title}</span>
+              </div>
+              <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                {seqCategory}
               </div>
               <div
                 onClick={() => openSOP(SMS_SEQUENCE_ITEM)}
@@ -962,9 +1040,9 @@ export default function SOPsPanel() {
         {/* Editor / file viewer pane */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {selectedItem?.sendInfo ? (
-            <OutreachTemplatesEditor />
+            <OutreachTemplatesEditor categories={categories} onCategoryChange={setSendInfoCategory} />
           ) : selectedItem?.smsSequence ? (
-            <SmsSequenceEditor />
+            <SmsSequenceEditor categories={categories} onCategoryChange={setSeqCategory} />
           ) : !showEditor ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>
