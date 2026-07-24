@@ -91,11 +91,14 @@ async def update_contact(contact_id: str, body: ContactUpdate):
         row = await conn.fetchrow(sql, contact_id, *updates.values())
         if not row:
             raise HTTPException(status_code=404, detail="Contact not found")
-        # Re-entering the dialer queue: wipe follow_up_at and reset call counter
+        # Re-entering the dialer queue: only clear follow_up_at (the cooldown
+        # that would otherwise keep it out of the eligible-leads query) —
+        # call_attempts/last_called_at are call history and must survive
+        # being re-added to the queue, not reset to look like a fresh lead.
         if updates.get("status") == "dialer-lead":
             try:
                 await conn.execute(
-                    "UPDATE contacts SET follow_up_at = NULL, call_attempts = 0, last_called_at = NULL WHERE id = $1",
+                    "UPDATE contacts SET follow_up_at = NULL WHERE id = $1",
                     contact_id,
                 )
                 row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)

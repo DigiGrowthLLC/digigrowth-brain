@@ -637,47 +637,37 @@ const [notes, setNotes]                 = useState("");
               ))}
             </div>
 
-            {/* Lead Card */}
+            {/* Lead identity strip */}
             {currentLead && (liveStatus === "connected" || liveStatus === "classify") && (
               <div style={{
                 background: "rgba(15,25,50,0.6)", borderRadius: 10, padding: "14px 16px",
-                border: "1px solid rgba(58,123,213,0.2)", display: "flex", flexDirection: "column", gap: 8,
+                border: "1px solid rgba(58,123,213,0.2)", display: "flex",
+                alignItems: "flex-start", justifyContent: "space-between", gap: 8,
               }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
-                      {currentLead.owner || "—"}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#5a6f8f", marginTop: 2 }}>{currentLead.business || "—"}</div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
+                    {currentLead.owner || "—"}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {currentLead.grade && (
-                      <span style={{
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 11, fontWeight: 700,
-                        padding: "2px 8px", borderRadius: 20,
-                        color: GRADE_COLORS[currentLead.grade] || "#8aaad0",
-                        background: "rgba(30,47,80,0.6)",
-                        border: `1px solid ${GRADE_COLORS[currentLead.grade] || "#1a2540"}33`,
-                      }}>{currentLead.grade}</span>
-                    )}
-                    {currentLead.gatekeeper && (
-                      <span style={{
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                        padding: "2px 8px", borderRadius: 20,
-                        background: "rgba(240,100,20,0.1)", color: "#f0a028",
-                        border: "1px solid rgba(240,100,20,0.3)",
-                      }}>GATEKEEPER</span>
-                    )}
-                  </div>
+                  <div style={{ fontSize: 12, color: "#5a6f8f", marginTop: 2 }}>{currentLead.business || "—"}</div>
                 </div>
-                <div style={{ borderTop: "1px solid #1a2540", paddingTop: 10 }}>
-                  <ContactCard
-                    key={currentLead.contact_id || currentLead.phone}
-                    contactId={currentLead.contact_id}
-                    phone={currentLead.phone}
-                    variant="inline"
-                    hideHeader
-                  />
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {currentLead.grade && (
+                    <span style={{
+                      fontFamily: "'Share Tech Mono', monospace", fontSize: 11, fontWeight: 700,
+                      padding: "2px 8px", borderRadius: 20,
+                      color: GRADE_COLORS[currentLead.grade] || "#8aaad0",
+                      background: "rgba(30,47,80,0.6)",
+                      border: `1px solid ${GRADE_COLORS[currentLead.grade] || "#1a2540"}33`,
+                    }}>{currentLead.grade}</span>
+                  )}
+                  {currentLead.gatekeeper && (
+                    <span style={{
+                      fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                      padding: "2px 8px", borderRadius: 20,
+                      background: "rgba(240,100,20,0.1)", color: "#f0a028",
+                      border: "1px solid rgba(240,100,20,0.3)",
+                    }}>GATEKEEPER</span>
+                  )}
                 </div>
               </div>
             )}
@@ -784,6 +774,23 @@ const [notes, setNotes]                 = useState("");
                 />
               )}
             </div>
+
+            {/* Prospect Information — full editable contact card */}
+            {currentLead && (liveStatus === "connected" || liveStatus === "classify") && (
+              <div style={{
+                background: "rgba(15,25,50,0.6)", borderRadius: 10, padding: "14px 16px",
+                border: "1px solid rgba(58,123,213,0.2)",
+              }}>
+                <div className="sec-label" style={{ marginBottom: 10 }}>Prospect Information</div>
+                <ContactCard
+                  key={currentLead.contact_id || currentLead.phone}
+                  contactId={currentLead.contact_id}
+                  phone={currentLead.phone}
+                  variant="inline"
+                  hideHeader
+                />
+              </div>
+            )}
 
             {/* Classification panel */}
             {liveStatus === "classify" && (

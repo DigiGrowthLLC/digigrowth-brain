@@ -236,8 +236,12 @@ async def call_status(request: Request):
     should_count = False
 
     with engine._session["lock"]:
-        bridged_phone   = engine._session.get("bridged_phone", "") or ""
-        is_bridged_lead = norm == engine._norm(bridged_phone)
+        # Compare by CallSid, not phone — with parallel lines it's possible
+        # for a non-bridged leg (e.g. an overflow call Twilio reports back
+        # as "completed" rather than "canceled", or a retry leg) to share
+        # the bridged lead's phone number. Matching on phone alone would
+        # falsely unbridge a still-live call out from under the agent.
+        is_bridged_lead = call_sid == (engine._session.get("bridged_sid") or "")
         ring_start      = engine._session["ring_start"].get(norm, now)
         dial_count      = engine._session["dial_count"].get(norm, 1)
 
