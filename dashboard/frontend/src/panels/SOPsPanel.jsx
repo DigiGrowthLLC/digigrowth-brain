@@ -280,8 +280,16 @@ function FormatBar({ editor }) {
 const SUBSECTIONS = [
   { id: "sop",                label: "SOPs",               subtitle: "STANDARD OPERATING PROCEDURES", newLabel: "New SOP",      placeholder: "SOP title..." },
   { id: "business_doc",       label: "Business Documents",  subtitle: "CONTRACTS · PROPOSALS · DOCS",  newLabel: "New Document", placeholder: "Document title..." },
-  { id: "outreach_templates", label: "Outreach Templates",  subtitle: "\"SEND INFO\" SMS · EMAIL",     custom: true },
+  { id: "outreach_templates", label: "Outreach Templates",  subtitle: "SMS · EMAIL · SCRIPTS",          newLabel: "New Template", placeholder: "Template title..." },
 ];
+
+// Pinned pseudo-document at the top of the Outreach Templates list — not a
+// row in the `sops` table. Opening it shows the dedicated SMS/email editor
+// backed by GET/PUT /api/dialer/info-template (see OutreachTemplatesEditor
+// below), since the dialer's "Send Info" disposition reads from that store,
+// not from `sops`.
+const SEND_INFO_PSEUDO_ID = "__send_info__";
+const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email)", category: "Dialer", sendInfo: true };
 
 // ── Outreach Templates editor ───────────────────────────────────────────────
 // Editable SMS + email templates sent by the dialer's "Send Info" call
@@ -467,10 +475,9 @@ export default function SOPsPanel() {
   });
 
   const fetchSOPs = useCallback(async () => {
-    if (section.custom) { setSops([]); return; }
     const r = await fetch(`/api/sops?doc_type=${activeSection}`);
     if (r.ok) setSops(await r.json());
-  }, [activeSection, section.custom]);
+  }, [activeSection]);
 
   useEffect(() => { fetchSOPs(); }, [fetchSOPs]);
 
@@ -495,12 +502,13 @@ export default function SOPsPanel() {
     if (dirty && !window.confirm("Discard unsaved changes?")) return;
     setSelectedId(sop.id);
     setSelectedItem(sop);
-    setTitle(sop.title);
-    setCategory(sop.category || "General");
-    setVisibility(sop.visibility || "private");
     setIsNew(false);
     setDirty(false);
     setCustomCatMode(false);
+    if (sop.sendInfo) return;
+    setTitle(sop.title);
+    setCategory(sop.category || "General");
+    setVisibility(sop.visibility || "private");
     if (!sop.file_name) {
       setContent(toHTML(sop.content));
       requestAnimationFrame(() => editor?.commands.focus());
@@ -613,10 +621,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!section.custom && savedFlash && (
+          {!selectedItem?.sendInfo && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!section.custom && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -633,7 +641,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!section.custom && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -646,32 +654,28 @@ export default function SOPsPanel() {
               }}
             >Delete</button>
           )}
-          {!section.custom && (
-            <>
-              <input ref={uploadRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
-              <button
-                onClick={() => uploadRef.current?.click()}
-                disabled={uploading}
-                style={{
-                  background: "rgba(58,123,213,0.12)",
-                  border: "1px solid rgba(58,123,213,0.25)",
-                  borderRadius: 6, color: "#6ab0ff",
-                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-                  fontSize: 12, padding: "6px 14px", cursor: uploading ? "not-allowed" : "pointer",
-                  opacity: uploading ? 0.6 : 1,
-                }}
-              >{uploading ? "Uploading…" : "↑ Upload"}</button>
-              <button
-                onClick={startNew}
-                style={{
-                  background: "linear-gradient(90deg, #2857a0, #3a7bd5)",
-                  border: "none", borderRadius: 6, color: "#fff",
-                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-                  fontSize: 12, padding: "6px 14px", cursor: "pointer",
-                }}
-              >+ {section.newLabel}</button>
-            </>
-          )}
+          <input ref={uploadRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
+          <button
+            onClick={() => uploadRef.current?.click()}
+            disabled={uploading}
+            style={{
+              background: "rgba(58,123,213,0.12)",
+              border: "1px solid rgba(58,123,213,0.25)",
+              borderRadius: 6, color: "#6ab0ff",
+              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+              fontSize: 12, padding: "6px 14px", cursor: uploading ? "not-allowed" : "pointer",
+              opacity: uploading ? 0.6 : 1,
+            }}
+          >{uploading ? "Uploading…" : "↑ Upload"}</button>
+          <button
+            onClick={startNew}
+            style={{
+              background: "linear-gradient(90deg, #2857a0, #3a7bd5)",
+              border: "none", borderRadius: 6, color: "#fff",
+              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+              fontSize: 12, padding: "6px 14px", cursor: "pointer",
+            }}
+          >+ {section.newLabel}</button>
         </div>
       </div>
 
@@ -707,12 +711,35 @@ export default function SOPsPanel() {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "0 0 12px" }}>
-          {section.custom && (
-            <div style={{ padding: "20px 16px", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a6a", textAlign: "center", letterSpacing: "0.1em", lineHeight: 1.8 }}>
-              SMS + EMAIL SENT ON<br />"SEND INFO" DISPOSITION
+          {activeSection === "outreach_templates" && (
+            <div>
+              <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                {SEND_INFO_ITEM.category}
+              </div>
+              <div
+                onClick={() => openSOP(SEND_INFO_ITEM)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 16px", cursor: "pointer",
+                  background: selectedId === SEND_INFO_PSEUDO_ID ? "linear-gradient(90deg, rgba(40,87,160,0.35), rgba(58,123,213,0.2))" : "transparent",
+                  borderLeft: selectedId === SEND_INFO_PSEUDO_ID ? "2px solid #3a7bd5" : "2px solid transparent",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={e => { if (selectedId !== SEND_INFO_PSEUDO_ID) e.currentTarget.style.background = "rgba(58,123,213,0.07)"; }}
+                onMouseLeave={e => { if (selectedId !== SEND_INFO_PSEUDO_ID) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>☎</span>
+                <span style={{
+                  flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
+                  color: selectedId === SEND_INFO_PSEUDO_ID ? "#e8f0ff" : "#7a9cc0",
+                  fontWeight: selectedId === SEND_INFO_PSEUDO_ID ? 600 : 400,
+                }}>{SEND_INFO_ITEM.title}</span>
+              </div>
+              <div style={{ borderBottom: "1px solid rgba(58,123,213,0.1)", margin: "8px 0" }} />
             </div>
           )}
-          {!section.custom && isNew && (
+          {isNew && (
             <div style={{
               margin: "0 8px 8px",
               padding: "7px 12px",
@@ -725,7 +752,7 @@ export default function SOPsPanel() {
               + {section.newLabel}
             </div>
           )}
-          {!section.custom && Object.keys(grouped).length === 0 && !isNew && (
+          {Object.keys(grouped).length === 0 && !isNew && activeSection !== "outreach_templates" && (
             <div style={{ padding: "20px 16px", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a6a", textAlign: "center", letterSpacing: "0.1em" }}>
               NO {section.label.toUpperCase()} YET
             </div>
@@ -782,7 +809,7 @@ export default function SOPsPanel() {
 
         {/* Editor / file viewer pane */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {section.custom ? (
+          {selectedItem?.sendInfo ? (
             <OutreachTemplatesEditor />
           ) : !showEditor ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
