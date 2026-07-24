@@ -124,6 +124,27 @@ async def crm_list_followups(limit: int = 20) -> str:
     return "\n".join(lines)
 
 
+async def os_sms_outreach_stats() -> str:
+    """Live SMS funnel numbers (sent/reply/interested/booked) for 7d/30d/all-time."""
+    from datetime import datetime, timedelta, timezone
+    from routers.analytics import _sms_metrics
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        stats_7d  = await _sms_metrics(conn, datetime.now(timezone.utc) - timedelta(days=7))
+        stats_30d = await _sms_metrics(conn, datetime.now(timezone.utc) - timedelta(days=30))
+        stats_all = await _sms_metrics(conn)
+
+    def _line(label, s):
+        return (f"{label}: {s['total_sent']} sent, {s['reply_rate']}% replied, "
+                f"{s['interested_rate']}% interested, {s['booked']} booked")
+
+    if not stats_all["total_sent"]:
+        return "No SMS activity in the OS yet."
+
+    return "\n".join([_line("Last 7 days", stats_7d), _line("Last 30 days", stats_30d), _line("All-time", stats_all)])
+
+
 BLOCKED_FILENAMES = {".env", "credentials.json", "settings.local.json"}
 SKIP_DIRS = {"node_modules", "__pycache__", ".venv", "venv", ".mypy_cache", ".pytest_cache"}
 
@@ -380,6 +401,16 @@ TOOLS = [
                 "limit": {"type": "integer", "default": 20, "description": "Max contacts to return"},
             },
         },
+    },
+    {
+        "name": "os_sms_outreach_stats",
+        "description": (
+            "Live SMS outreach funnel numbers from the DigiGrowth OS (sms_messages/sms_conversations "
+            "tables) — messages sent, reply rate, interested rate, and appointments booked, for the "
+            "last 7 days, last 30 days, and all-time. Use this for the SMS half of the daily briefing's "
+            "Outreach section (cold calling numbers still come from the Google Drive tracker)."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
     },
     # ── Notion ─────────────────────────────────────────────────────────────────
     {
@@ -1139,6 +1170,8 @@ async def chat(agent_id: str, request: Request):
                         continue
                     if block.name == "crm_list_followups":
                         result = await crm_list_followups(block.input.get("limit", 20))
+                    elif block.name == "os_sms_outreach_stats":
+                        result = await os_sms_outreach_stats()
                     else:
                         result = await asyncio.to_thread(
                             _execute_tool, agent, block.name, block.input

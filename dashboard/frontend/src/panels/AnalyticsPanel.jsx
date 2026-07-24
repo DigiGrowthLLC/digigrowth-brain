@@ -84,6 +84,13 @@ function OutreachTable({ outreach, tab }) {
       isRate:  true,
     },
     {
+      label:   "Interested",
+      call:    "—",
+      sms:     pct(sms.interested_rate),
+      content: "—",
+      isRate:  true,
+    },
+    {
       label:   "ABR",
       call:    pct(call.abr),
       sms:     pct(sms.abr),

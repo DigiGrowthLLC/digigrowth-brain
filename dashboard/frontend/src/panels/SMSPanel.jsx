@@ -12,6 +12,18 @@ function fmtMsgTime(ts) {
 
 // ── Compose Modal ─────────────────────────────────────────────────────────────
 
+function convoBadge(c) {
+  if (c.status === "closed") {
+    return c.disposition === "not_interested"
+      ? { label: "NOT INTERESTED", cls: "badge-red" }
+      : { label: "BOOKED", cls: "badge-green" };
+  }
+  if (c.disposition === "interested") {
+    return { label: "INTERESTED", cls: "badge-amber" };
+  }
+  return { label: "ACTIVE", cls: "badge-blue" };
+}
+
 function ComposeModal({ onClose, onSent }) {
   const [phone, setPhone]     = useState("");
   const [body, setBody]       = useState("");
@@ -186,9 +198,20 @@ export default function SMSPanel({ initialPhone }) {
     setSending(false);
   };
 
-  const closeConvo = async () => {
+  const closeConvo = async (disposition) => {
     if (!selected) return;
-    await fetch(API(`/sms/conversations/${encodeURIComponent(selected)}/close`), { method: "POST" });
+    await fetch(API(`/sms/conversations/${encodeURIComponent(selected)}/close`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ disposition }),
+    });
+    await refreshThread(selected);
+    await loadConvos();
+  };
+
+  const toggleInterested = async () => {
+    if (!selected) return;
+    await fetch(API(`/sms/conversations/${encodeURIComponent(selected)}/interested`), { method: "POST" });
     await refreshThread(selected);
     await loadConvos();
   };
@@ -287,9 +310,9 @@ export default function SMSPanel({ initialPhone }) {
                                textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                   {c.owner || c.business || c.phone}
                 </span>
-                <span className={`badge ${c.status === "closed" ? "badge-green" : "badge-blue"}`}
+                <span className={`badge ${convoBadge(c).cls}`}
                   style={{ marginLeft: 6, flexShrink: 0 }}>
-                  {c.status === "closed" ? "BOOKED" : "ACTIVE"}
+                  {convoBadge(c).label}
                 </span>
               </div>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
@@ -344,10 +367,25 @@ export default function SMSPanel({ initialPhone }) {
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {thread?.status !== "closed" && (
-                  <button onClick={closeConvo} className="btn btn-ghost"
-                    style={{ fontSize: 10, borderColor: "rgba(20,200,130,0.35)", color: "#14c882" }}>
-                    MARK BOOKED
-                  </button>
+                  <>
+                    <button onClick={toggleInterested} className="btn btn-ghost"
+                      style={{
+                        fontSize: 10,
+                        borderColor: thread?.disposition === "interested" ? "rgba(240,160,40,0.6)" : "rgba(240,160,40,0.35)",
+                        color: "#f0a028",
+                        background: thread?.disposition === "interested" ? "rgba(240,160,40,0.12)" : "transparent",
+                      }}>
+                      {thread?.disposition === "interested" ? "★ INTERESTED" : "MARK INTERESTED"}
+                    </button>
+                    <button onClick={() => closeConvo("booked")} className="btn btn-ghost"
+                      style={{ fontSize: 10, borderColor: "rgba(20,200,130,0.35)", color: "#14c882" }}>
+                      MARK BOOKED
+                    </button>
+                    <button onClick={() => closeConvo("not_interested")} className="btn btn-ghost"
+                      style={{ fontSize: 10, borderColor: "rgba(220,60,60,0.35)", color: "#dc3c3c" }}>
+                      NOT INTERESTED
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={deleteConvo}
@@ -414,10 +452,15 @@ export default function SMSPanel({ initialPhone }) {
                 </button>
               </div>
             ) : (
-              <div style={{ padding: "12px 20px", borderTop: "0.5px solid #1a2540",
-                            textAlign: "center", fontFamily: "'Share Tech Mono', monospace",
-                            fontSize: 10, color: "#14c882", letterSpacing: "0.18em" }}>
-                APPOINTMENT BOOKED · CONVERSATION CLOSED
+              <div style={{
+                padding: "12px 20px", borderTop: "0.5px solid #1a2540",
+                textAlign: "center", fontFamily: "'Share Tech Mono', monospace",
+                fontSize: 10, letterSpacing: "0.18em",
+                color: thread?.disposition === "not_interested" ? "#dc3c3c" : "#14c882",
+              }}>
+                {thread?.disposition === "not_interested"
+                  ? "NOT INTERESTED · CONVERSATION CLOSED"
+                  : "APPOINTMENT BOOKED · CONVERSATION CLOSED"}
               </div>
             )}
           </>

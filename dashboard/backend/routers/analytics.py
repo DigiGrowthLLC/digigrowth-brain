@@ -150,8 +150,14 @@ async def _sms_metrics(conn, since=None) -> dict:
         WHERE (SELECT COUNT(*) FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.direction='inbound') >= 2
         """
     )
-    closed = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE status='closed' {time_filter}", *params
+    booked = await conn.fetchval(
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE disposition='booked' {time_filter}", *params
+    )
+    not_interested = await conn.fetchval(
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE disposition='not_interested' {time_filter}", *params
+    )
+    interested = await conn.fetchval(
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE disposition IN ('interested','booked') {time_filter}", *params
     )
 
     return {
@@ -159,8 +165,11 @@ async def _sms_metrics(conn, since=None) -> dict:
         "reply_rate":        _pct(replied, total_convos),
         "conversation_rate": _pct(replied, total_convos),
         "engaged_rate":      _pct(engaged, total_convos),
-        "abr":               _pct(closed, total_convos),
-        "booked":            closed or 0,
+        "interested":        interested or 0,
+        "interested_rate":   _pct(interested, total_convos),
+        "not_interested":    not_interested or 0,
+        "abr":               _pct(booked, total_convos),
+        "booked":            booked or 0,
     }
 
 

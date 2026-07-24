@@ -6,7 +6,8 @@ Endpoints (all under /api except the public webhook):
   GET  /api/sms/conversations  — list all threads
   GET  /api/sms/conversations/{phone} — thread messages
   POST /api/sms/send           — manual outbound send
-  POST /api/sms/conversations/{phone}/close — mark closed / booked
+  POST /api/sms/conversations/{phone}/close — close thread ({"disposition": "booked"|"not_interested"})
+  POST /sms/conversations/{phone}/interested — toggle the interested flag on an active thread
 
 No AI auto-reply: once a contact enters "sms-handoff" status, send_opening_message()
 sends a single opener. All further replies land in the inbox for manual response only.
@@ -15,6 +16,7 @@ sends a single opener. All further replies land in the inbox for manual response
 import json
 import os
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Request, Response
 from twilio.rest import Client as TwilioClient
@@ -197,10 +199,13 @@ async def send_info_message(contact: dict) -> bool:
         return False
 
     first_name = (contact.get("owner") or "").split()[0] if contact.get("owner") else "there"
-    body = INFO_MESSAGE.format(first_name=first_name)
 
     pool = await get_pool()
     async with pool.acquire() as conn:
+        template_row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = 'info_sms'")
+        template = template_row["value"] if template_row and template_row["value"] else INFO_MESSAGE
+        body = template.replace("{first_name}", first_name)
+
         conv = await _get_or_create_conversation(conn, phone)
         if conv["status"] == "closed":
             return False
@@ -222,7 +227,7 @@ async def list_conversations():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT sc.id, sc.phone, sc.status, sc.updated_at,
+            SELECT sc.id, sc.phone, sc.status, sc.disposition, sc.updated_at,
                    c.business, c.owner,
                    (SELECT body FROM sms_messages
                     WHERE phone = sc.phone
@@ -249,7 +254,7 @@ async def get_conversation(phone: str):
             phone,
         )
         if not conv:
-            return {"phone": phone, "messages": [], "status": "active"}
+            return {"phone": phone, "messages": [], "status": "active", "disposition": None}
 
         # Viewing the thread counts as reading it — clears it from the
         # dashboard's "Needs Reply" list (same read-tracking pattern as
@@ -264,13 +269,14 @@ async def get_conversation(phone: str):
         )
 
     return {
-        "phone":      phone,
-        "contact_id": conv["contact_id"],
-        "status":     conv["status"],
-        "business":   conv["business"],
-        "owner":      conv["owner"],
-        "grade":      conv["grade"],
-        "messages":   [dict(m) for m in msgs_raw],
+        "phone":       phone,
+        "contact_id":  conv["contact_id"],
+        "status":      conv["status"],
+        "disposition": conv["disposition"],
+        "business":    conv["business"],
+        "owner":       conv["owner"],
+        "grade":       conv["grade"],
+        "messages":    [dict(m) for m in msgs_raw],
     }
 
 
@@ -294,23 +300,57 @@ async def manual_send(payload: dict):
     return {"ok": True}
 
 
+_CLOSE_DISPOSITION_TO_CONTACT_STATUS = {
+    "booked":        "appointment-booked",
+    "not_interested": "not-interested",
+}
+
+
 @router.post("/sms/conversations/{phone}/close")
-async def close_conversation(phone: str):
+async def close_conversation(phone: str, payload: Optional[dict] = None):
+    """Close a thread. `disposition` is 'booked' (default) or 'not_interested' —
+    determines both the closed-thread badge and the linked contact's status."""
+    disposition = (payload or {}).get("disposition", "booked")
+    if disposition not in _CLOSE_DISPOSITION_TO_CONTACT_STATUS:
+        disposition = "booked"
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE sms_conversations SET status = 'closed', updated_at = now() WHERE phone = $1",
-            phone,
+            "UPDATE sms_conversations SET status = 'closed', disposition = $2, updated_at = now() WHERE phone = $1",
+            phone, disposition,
         )
         row = await conn.fetchrow(
             "SELECT contact_id FROM sms_conversations WHERE phone = $1", phone
         )
         if row and row["contact_id"]:
             await conn.execute(
-                "UPDATE contacts SET status = 'appointment-booked', updated_at = now() WHERE id = $1",
-                row["contact_id"],
+                "UPDATE contacts SET status = $2, updated_at = now() WHERE id = $1",
+                row["contact_id"], _CLOSE_DISPOSITION_TO_CONTACT_STATUS[disposition],
             )
     return {"ok": True}
+
+
+@router.post("/sms/conversations/{phone}/interested")
+async def toggle_interested(phone: str):
+    """Toggle the 'interested' flag on an active (not yet closed) thread.
+    Doesn't close the thread or touch the linked contact's status."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT status, disposition FROM sms_conversations WHERE phone = $1", phone
+        )
+        if not row:
+            return {"ok": False, "error": "conversation not found"}
+        if row["status"] == "closed":
+            return {"ok": False, "error": "conversation is closed"}
+
+        new_disposition = None if row["disposition"] == "interested" else "interested"
+        await conn.execute(
+            "UPDATE sms_conversations SET disposition = $2, updated_at = now() WHERE phone = $1",
+            phone, new_disposition,
+        )
+    return {"ok": True, "disposition": new_disposition}
 
 
 @router.delete("/sms/conversations/{phone}")

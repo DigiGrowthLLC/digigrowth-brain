@@ -13,7 +13,7 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 1. Reads yesterday's brief and saves any new info Dylan added to his context files
 2. Surfaces business-relevant emails from the last 24 hours (both inboxes)
 3. Lists today's Google Calendar events
-4. Pulls cold calling / SMS outreach data from Google Drive
+4. Pulls cold calling data from Google Drive and live SMS outreach stats from the DigiGrowth OS
 5. Pulls this week's sales numbers (shows, closes, discovery calls, revenue) from the Sales Performance Tracker
 6. Reads last night's Daily Reflection doc and grounds today's time suggestions in the goals/priorities Dylan wrote down
 7. Suggests how to use free time blocks based on the day's schedule and current priorities
@@ -82,18 +82,22 @@ If no events: "No events today — full day available."
 
 ### Step 3 — Cold Calling / SMS Outreach Data
 
-Search Google Drive for two separate files:
+This section has two independent sources — **cold calling numbers still come from the Google Drive tracker (3A)**; **SMS numbers now come live from the DigiGrowth OS (3A-SMS)**, not Drive. Do not mix the two: never substitute one source's numbers into the other's line.
 
-**A) Cold calling / SMS outreach tracker** — look for a file containing columns like "calls made", "contacts reached", "SMS sent", "appointments booked", or similar outreach metrics. It may be named something like "[Month] Outreach Tracker", "Call Tracker", "[Month Year] DigiGrowth Cold Calling Metrics", or similar. Search for files owned by Dylan (`dylangroenendijk@gmail.com`) with "tracker" or "metrics" in the title, excluding the Daily Input Tracker.
+**A) Cold calling tracker (Drive)** — search Google Drive for a file containing columns like "calls made", "contacts reached", "appointments booked", or similar cold-calling metrics. It may be named something like "[Month] Outreach Tracker", "Call Tracker", "[Month Year] DigiGrowth Cold Calling Metrics", or similar. Search for files owned by Dylan (`dylangroenendijk@gmail.com`) with "tracker" or "metrics" in the title, excluding the Daily Input Tracker.
 
 **Never substitute the "DigiGrowth Sales Performance Tracker" for this section, under any circumstance — even if the outreach tracker is missing, empty, or stale.** That file holds sales pipeline data (shows/closes/discovery calls/revenue), not outreach activity, and belongs only in the separate Sales This Week section (Step 3.7). If the real outreach tracker can't be found, use the fallback message below — do not fall back to any other tracker.
 
-If found and it contains outreach columns (calls, contacts, SMS, appointments):
+If found and it contains cold-calling columns (calls, contacts, appointments):
 - Summarize this week's numbers for each column
 - Compare to last week's numbers if available
 - Note the biggest gap or opportunity (e.g. "Call volume dropped 30% week-over-week")
 
-If not found or no outreach-specific columns exist: "No cold calling or SMS outreach tracker found in Drive. If a separate file tracks calls made, contacts reached, or SMS sent, confirm the file name."
+If not found or no cold-calling columns exist: "No cold calling tracker found in Drive. If a separate file tracks calls made or contacts reached, confirm the file name."
+
+**A-SMS) SMS outreach (live from OS)** — call the `os_sms_outreach_stats` tool. It returns messages sent, reply rate, interested rate, and appointments booked for the last 7 days, last 30 days, and all-time, computed directly from the OS's own `sms_messages`/`sms_conversations` tables. Report the 7-day figures as the headline, with the all-time total in parentheses. This tool result is the sole source for SMS numbers in the briefing — do not look for SMS columns in the Drive tracker even if present.
+
+If the tool returns "No SMS activity in the OS yet.": write that verbatim and continue — don't treat it as an error, and don't fall back to Drive for this line.
 
 **B) Daily Input Tracker** — search for the file named **"[Month] Daily Input Tracker"** (e.g. "June Daily Input Tracker"), owned by Dylan. Read and store its data — this is a **habits tracker** (wake time, morning routine, gym, healthy diet, etc.) used only in Step 3.5 below. Do **not** display habits data in this Outreach section.
 
@@ -259,6 +263,7 @@ Formatting rules that apply throughout:
 - **Gmail returns no results:** Write "Inbox clear" and continue.
 - **Calendar unavailable:** Write "Calendar unavailable — check manually" and continue.
 - **No cold calling tracker in Drive:** Write the Step 3A fallback message and continue. Still attempt to read the Daily Input Tracker for Step 3.5.
+- **`os_sms_outreach_stats` returns no activity:** Write "No SMS activity in the OS yet." for the SMS line and continue — don't treat it as an error, don't fall back to Drive.
 - **No Sales Performance Tracker in Drive:** Write the Step 3.7 fallback message and continue. Do not substitute it with the outreach tracker or omit the section.
 - **No 7-day-old briefing found for Step 3.7:** Show all-time totals only, per the Step 3.7 fallback, and still write the snapshot line.
 - **No Daily Input Tracker in Drive:** Write "No habit data found." in Yesterday's Performance and continue.
