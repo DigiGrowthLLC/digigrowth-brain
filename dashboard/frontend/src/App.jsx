@@ -109,7 +109,7 @@ const NAV_ICONS = {
 };
 
 const LogoMark = () => (
-  <img src={logoWordmark} alt="DigiGrowth" style={{ height: 26, flexShrink: 0, display: "block" }} />
+  <img src={logoWordmark} alt="DigiGrowth" style={{ height: 36, flexShrink: 0, display: "block" }} />
 );
 
 export default function App() {
