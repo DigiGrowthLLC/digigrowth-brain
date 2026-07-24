@@ -568,6 +568,9 @@ def run_pipeline(lead_status="dialer-lead"):
 
         grade          = result.get("grade", "C")
         verified_owner = result.get("verified_owner_name") or ""
+        if not _valid_name(verified_owner):
+            print(f"  ❌ Disqualified {c['name']}: no verified owner name (model said qualified, overriding)")
+            continue
         opener         = result.get("opener") or ""
         if opener and len(opener.split()) > 15:
             print(f"  ⚠️  Opener too long ({len(opener.split())} words) — nulled")
@@ -594,13 +597,13 @@ def run_pipeline(lead_status="dialer-lead"):
             "City":              c.get("city", "")
         })
 
-    # Batching qualifies every candidate up front rather than stopping early,
-    # so cap to daily_limit here, keeping the best grades.
+    # daily_limit is a target for scraping volume (raw_leads collection), not
+    # a hard cap on pushes — every qualified lead from the batch gets pushed.
     grade_order = {"A": 0, "B": 1, "C": 2, "D": 3}
     all_qualified.sort(key=lambda r: grade_order.get(r.get("Grade", "D"), 3))
-    qualified_leads = all_qualified[:daily_limit]
+    qualified_leads = all_qualified
 
-    print(f"\n📊 Results: {len(all_qualified)} qualified, pushing top {len(qualified_leads)} (limit={daily_limit})")
+    print(f"\n📊 Results: {len(qualified_leads)} qualified, pushing all (target={daily_limit})")
     push_to_os(qualified_leads, lead_status)
     push_file(__file__, "progress.json")
     push_file(__file__, "scraped_ids.json")
