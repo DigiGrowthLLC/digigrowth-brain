@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -16,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 import integrations
 from db import get_pool
-from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal
+from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox
 
 security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
@@ -291,6 +292,12 @@ async def lifespan(app: FastAPI):
         id="weekly-cleanup",
         replace_existing=True,
     )
+    scheduler.add_job(
+        email_inbox.sync_gmail_job,
+        IntervalTrigger(seconds=60),
+        id="email-inbox-sync",
+        replace_existing=True,
+    )
     scheduler.start()
 
     yield
@@ -311,6 +318,7 @@ app.add_middleware(
 app.include_router(crm.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms.webhook_router)         # public — Twilio SMS webhooks
+app.include_router(email_inbox.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(dialer_webhooks.router)     # public — Twilio voice webhooks
 app.include_router(dialer.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(dashboard.router, prefix="/api", dependencies=[Depends(require_auth)])

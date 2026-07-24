@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import DashboardPanel from "./panels/DashboardPanel.jsx";
 import CRMPanel       from "./panels/CRMPanel.jsx";
-import SMSPanel       from "./panels/SMSPanel.jsx";
+import InboxPanel     from "./panels/InboxPanel.jsx";
 import DialerPanel    from "./panels/DialerPanel.jsx";
 import AgentsPanel    from "./panels/AgentsPanel.jsx";
 import SettingsPanel  from "./panels/SettingsPanel.jsx";
@@ -21,7 +21,7 @@ const NAV = [
   { id: "home",      label: "Dashboard" },
   { id: "crm",       label: "CRM" },
   { id: "dialer",    label: "Dialer" },
-  { id: "sms",       label: "SMS Inbox" },
+  { id: "inbox",     label: "Inbox" },
   { id: "agents",    label: "Agents" },
   { id: "todos",     label: "To-Do" },
   { id: "analytics", label: "Analytics" },
@@ -53,7 +53,7 @@ const NAV_ICONS = {
       <path d="M3 2h2.5l1 3-1.5 1c.667 1.333 2 2.667 3.333 3.333L9.5 7.833l3 1V11.5c0 .828-.672 1.5-1.5 1.5C5.373 13 2 8.627 2 3.5 2 2.672 2.672 2 3.5 2H3z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   ),
-  sms: (
+  inbox: (
     <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
       <path d="M13 2H3a1 1 0 00-1 1v7a1 1 0 001 1h2v2.5L8 11h5a1 1 0 001-1V3a1 1 0 00-1-1z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
       <path d="M5 6.5h6M5 8.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
@@ -140,7 +140,7 @@ export default function App() {
   });
   const openSmsToast = (t) => {
     dismissToast(t.id);
-    navigateTo("sms", t.phone);
+    navigateTo("inbox", { channel: "sms", phone: t.phone });
   };
 
   // Answering an inbound call jumps to the dedicated call screen.
@@ -264,7 +264,7 @@ export default function App() {
       }}>
         {active === "home"     && <DashboardPanel onNavigate={navigateTo} />}
         {active === "crm"      && <CRMPanel onNavigate={setActive} />}
-        {active === "sms"      && <SMSPanel initialPhone={navContext} />}
+        {active === "inbox"    && <InboxPanel initialTarget={navContext} />}
         {active === "dialer"   && <DialerPanel />}
         {active === "agents"    && <AgentsPanel initialAgentId={navContext} />}
         {active === "analytics" && <AnalyticsPanel />}

@@ -551,7 +551,7 @@ export default function DashboardPanel({ onNavigate }) {
             )}
             {clientMsgs.map(m => (
               <div key={m.phone} onClick={() => {
-                onNavigate?.("sms", m.phone);
+                onNavigate?.("inbox", { channel: "sms", phone: m.phone });
                 setClientMsgs(p => p.filter(x => x.phone !== m.phone));
               }} style={{
                 padding: "10px 12px", borderRadius: 10, cursor: "pointer",

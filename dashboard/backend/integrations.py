@@ -173,6 +173,17 @@ async def send_info_email(to: str, owner: str | None, business: str | None) -> s
     return await asyncio.to_thread(gmail_send, to, subject, body)
 
 
+def gmail_send_reply(to: str, subject: str, body: str, thread_id: str) -> dict:
+    """Send a reply that threads correctly in Gmail (keyed by `thread_id`)."""
+    svc = _gmail_service()
+    msg = MIMEText(body)
+    msg["to"] = to
+    msg["subject"] = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    sent = svc.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()
+    return {"id": sent["id"], "threadId": sent["threadId"]}
+
+
 def gmail_create_draft(to: str, subject: str, body: str) -> str:
     try:
         svc = _gmail_service()

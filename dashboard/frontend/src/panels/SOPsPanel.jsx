@@ -292,7 +292,7 @@ const SEND_INFO_PSEUDO_ID = "__send_info__";
 const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email)", sendInfo: true };
 
 // Same pattern as SEND_INFO_ITEM above, for the SMS inbox's "SEQUENCE"
-// dropdown (SMSPanel.jsx) — backed by GET/PUT /api/dialer/sequence-template
+// dropdown (InboxPanel.jsx) — backed by GET/PUT /api/dialer/sequence-template
 // (see SmsSequenceEditor below), not `sops`.
 const SMS_SEQUENCE_PSEUDO_ID = "__sms_sequence__";
 const SMS_SEQUENCE_ITEM = { id: SMS_SEQUENCE_PSEUDO_ID, title: "SMS Sequence", smsSequence: true };
@@ -502,8 +502,8 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
 }
 
 // ── SMS Sequence editor ─────────────────────────────────────────────────────
-// Fixed-step outreach script shown as the SMS inbox's "SEQUENCE" dropdown
-// (SMSPanel.jsx). Each step is a labeled text box, stored under
+// Fixed-step outreach script shown as the Inbox's "SEQUENCE" dropdown
+// (InboxPanel.jsx). Each step is a labeled text box, stored under
 // dialer_settings key f"seq_{key}" via GET/PUT /api/dialer/sequence-template
 // (routers/dialer.py). Step keys/labels/order must match
 // routers/sms.py SEQUENCE_STEPS.

@@ -64,6 +64,31 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            CREATE TABLE IF NOT EXISTS email_messages (
+                id               SERIAL PRIMARY KEY,
+                contact_id       TEXT REFERENCES contacts(id) ON DELETE CASCADE,
+                thread_id        TEXT NOT NULL,
+                email            TEXT NOT NULL,
+                direction        TEXT NOT NULL,
+                subject          TEXT,
+                body             TEXT NOT NULL,
+                gmail_message_id TEXT UNIQUE NOT NULL,
+                sent_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE IF NOT EXISTS email_conversations (
+                id           SERIAL PRIMARY KEY,
+                contact_id   TEXT REFERENCES contacts(id) ON DELETE CASCADE,
+                thread_id    TEXT UNIQUE NOT NULL,
+                email        TEXT NOT NULL,
+                subject      TEXT,
+                status       TEXT NOT NULL DEFAULT 'active',
+                disposition  TEXT,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                last_read_at TIMESTAMPTZ
+            );
+
             CREATE TABLE IF NOT EXISTS todos (
                 id         SERIAL PRIMARY KEY,
                 text       TEXT NOT NULL,
@@ -131,6 +156,8 @@ async def _create_schema(pool: asyncpg.Pool):
             CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts(phone);
             CREATE INDEX IF NOT EXISTS idx_call_logs_contact ON call_logs(contact_id);
             CREATE INDEX IF NOT EXISTS idx_sms_messages_contact ON sms_messages(contact_id);
+            CREATE INDEX IF NOT EXISTS idx_email_messages_thread ON email_messages(thread_id);
+            CREATE INDEX IF NOT EXISTS idx_email_messages_contact ON email_messages(contact_id);
             CREATE INDEX IF NOT EXISTS idx_agent_chats_agent ON agent_chats(agent_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
 

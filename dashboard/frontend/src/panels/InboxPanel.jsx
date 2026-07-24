@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { API } from "../api.js";
 import ContactCard from "../ContactCard.jsx";
 
@@ -25,29 +25,52 @@ function convoBadge(c) {
 }
 
 function ComposeModal({ onClose, onSent }) {
-  const [phone, setPhone]     = useState("");
+  const [channel, setChannel] = useState("sms");
+  const [to, setTo]           = useState("");
+  const [subject, setSubject] = useState("");
   const [body, setBody]       = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError]     = useState(null);
 
   const handleSend = async () => {
-    const p = phone.trim().replace(/\s+/g, "");
     const b = body.trim();
-    if (!p || !b) return;
-    setSending(true);
-    setError(null);
-    try {
-      const r = await fetch(API("/sms/send"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: p, body: b }),
-      });
-      if (!r.ok) { setError(await r.text()); return; }
-      onSent(p);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setSending(false);
+    if (channel === "sms") {
+      const p = to.trim().replace(/\s+/g, "");
+      if (!p || !b) return;
+      setSending(true);
+      setError(null);
+      try {
+        const r = await fetch(API("/sms/send"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: p, body: b }),
+        });
+        if (!r.ok) { setError(await r.text()); return; }
+        onSent({ channel: "sms", thread_key: p });
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setSending(false);
+      }
+    } else {
+      const addr = to.trim();
+      if (!addr || !b) return;
+      setSending(true);
+      setError(null);
+      try {
+        const r = await fetch(API("/email/send"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ thread_id: "", to: addr, subject: subject.trim(), body: b }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.ok) { setError(data.error || "Failed to send"); return; }
+        onSent({ channel: "email", thread_key: data.thread_id });
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setSending(false);
+      }
     }
   };
 
@@ -73,18 +96,48 @@ function ComposeModal({ onClose, onSent }) {
         </div>
 
         <div style={{ padding: "18px 22px" }}>
+          <div style={{ marginBottom: 14, display: "flex", gap: 8 }}>
+            {["sms", "email"].map(c => (
+              <button key={c} onClick={() => setChannel(c)}
+                style={{
+                  flex: 1, padding: "6px 0", borderRadius: 6,
+                  border: `1px solid ${channel === c ? "rgba(58,123,213,0.6)" : "rgba(58,123,213,0.2)"}`,
+                  background: channel === c ? "rgba(58,123,213,0.15)" : "transparent",
+                  color: channel === c ? "#3a7bd5" : "#5a6f8f",
+                  fontFamily: "'Share Tech Mono', monospace", fontSize: 10, letterSpacing: "0.08em",
+                  cursor: "pointer",
+                }}>
+                {c === "sms" ? "SMS" : "EMAIL"}
+              </button>
+            ))}
+          </div>
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>TO (PHONE NUMBER)</div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>
+              {channel === "sms" ? "TO (PHONE NUMBER)" : "TO (EMAIL ADDRESS)"}
+            </div>
             <input
               className="dg-input"
-              type="tel"
-              placeholder="+1 555 000 0000"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
+              type={channel === "sms" ? "tel" : "email"}
+              placeholder={channel === "sms" ? "+1 555 000 0000" : "prospect@example.com"}
+              value={to}
+              onChange={e => setTo(e.target.value)}
               style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
               autoFocus
             />
           </div>
+          {channel === "email" && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>SUBJECT</div>
+              <input
+                className="dg-input"
+                type="text"
+                placeholder="Subject"
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+              />
+            </div>
+          )}
           <div style={{ marginBottom: 6 }}>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>MESSAGE</div>
             <textarea
@@ -110,7 +163,7 @@ function ComposeModal({ onClose, onSent }) {
           <button onClick={onClose} className="btn btn-secondary" style={{ flex: 1, fontSize: 11 }}>Cancel</button>
           <button
             onClick={handleSend}
-            disabled={sending || !phone.trim() || !body.trim()}
+            disabled={sending || !to.trim() || !body.trim()}
             className="btn btn-primary"
             style={{ flex: 1, fontSize: 11 }}
           >
@@ -125,11 +178,12 @@ function ComposeModal({ onClose, onSent }) {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
-export default function SMSPanel({ initialPhone }) {
+export default function InboxPanel({ initialTarget }) {
   const [convos, setConvos]       = useState([]);
-  const [selected, setSelected]   = useState(null);
+  const [selected, setSelected]   = useState(null); // {channel, thread_key}
   const [thread, setThread]       = useState(null);
   const [replyText, setReplyText] = useState("");
+  const [replySubject, setReplySubject] = useState("");
   const [sending, setSending]     = useState(false);
   const [loading, setLoading]     = useState(true);
   const [cardOpen, setCardOpen]   = useState(false);
@@ -140,15 +194,27 @@ export default function SMSPanel({ initialPhone }) {
   const [seqSteps, setSeqSteps]     = useState([]);
   const [seqTitle, setSeqTitle]     = useState("");
   const [seqError, setSeqError]     = useState(null);
+
+  const [channelFilter, setChannelFilter] = useState("all");
+  const [timeFilter, setTimeFilter]       = useState("all");
+  const [tagFilter, setTagFilter]         = useState(null);
+
   const bottomRef = useRef(null);
+
+  const availableTags = useMemo(
+    () => [...new Set(convos.flatMap(c => c.tags || []))].sort(),
+    [convos]
+  );
 
   const loadConvos = useCallback(async () => {
     try {
-      const r = await fetch(API("/sms/conversations"));
+      const params = new URLSearchParams({ channel: channelFilter, since: timeFilter });
+      if (tagFilter) params.set("tag", tagFilter);
+      const r = await fetch(API(`/inbox/conversations?${params.toString()}`));
       if (r.ok) setConvos(await r.json());
     } catch {}
     setLoading(false);
-  }, []);
+  }, [channelFilter, timeFilter, tagFilter]);
 
   useEffect(() => {
     loadConvos();
@@ -157,24 +223,31 @@ export default function SMSPanel({ initialPhone }) {
   }, [loadConvos]);
 
   useEffect(() => {
-    if (initialPhone) openThread(initialPhone);
-  }, [initialPhone]);
+    if (initialTarget?.phone) openThread({ channel: initialTarget.channel || "sms", thread_key: initialTarget.phone });
+    else if (initialTarget?.threadId) openThread({ channel: initialTarget.channel || "email", thread_key: initialTarget.threadId });
+  }, [initialTarget]);
+
+  const threadPath = (item) =>
+    item.channel === "email"
+      ? `/email/conversations/${encodeURIComponent(item.thread_key)}`
+      : `/sms/conversations/${encodeURIComponent(item.thread_key)}`;
 
   // Silently refetch the currently-open thread — used by background polling
   // and post-action refreshes, where blanking the view first (openThread's
   // setThread(null)) would cause a visible flash every few seconds.
-  const refreshThread = async (phone) => {
+  const refreshThread = async (item) => {
     try {
-      const r = await fetch(API(`/sms/conversations/${encodeURIComponent(phone)}`));
+      const r = await fetch(API(threadPath(item)));
       if (r.ok) setThread(await r.json());
     } catch {}
   };
 
-  const openThread = async (phone) => {
-    setSelected(phone);
+  const openThread = async (item) => {
+    setSelected(item);
     setThread(null);
     setSeqOpen(false);
-    await refreshThread(phone);
+    setReplySubject("");
+    await refreshThread(item);
   };
 
   useEffect(() => {
@@ -182,6 +255,12 @@ export default function SMSPanel({ initialPhone }) {
     const id = setInterval(() => refreshThread(selected), 8000);
     return () => clearInterval(id);
   }, [selected]);
+
+  useEffect(() => {
+    if (thread?.subject && selected?.channel === "email") {
+      setReplySubject(thread.subject.toLowerCase().startsWith("re:") ? thread.subject : `Re: ${thread.subject}`);
+    }
+  }, [thread, selected]);
 
   // Only auto-scroll when the message count actually grows — every poll
   // returns a fresh array reference even with no new messages, so keying
@@ -193,10 +272,22 @@ export default function SMSPanel({ initialPhone }) {
     if (!replyText.trim() || !selected) return;
     setSending(true);
     try {
-      await fetch(API("/sms/send"), {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: selected, body: replyText.trim() }),
-      });
+      if (selected.channel === "sms") {
+        await fetch(API("/sms/send"), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: selected.thread_key, body: replyText.trim() }),
+        });
+      } else {
+        await fetch(API("/email/send"), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            thread_id: selected.thread_key,
+            to: thread?.email,
+            subject: replySubject || thread?.subject || "",
+            body: replyText.trim(),
+          }),
+        });
+      }
       setReplyText("");
       await refreshThread(selected);
       await loadConvos();
@@ -210,7 +301,7 @@ export default function SMSPanel({ initialPhone }) {
     setSeqLoading(true);
     setSeqError(null);
     try {
-      const r = await fetch(API(`/sms/sequence/${encodeURIComponent(selected)}`));
+      const r = await fetch(API(`/sms/sequence/${encodeURIComponent(selected.thread_key)}`));
       const data = await r.json();
       if (!data.ok) {
         setSeqError("Failed to load sequence.");
@@ -233,7 +324,8 @@ export default function SMSPanel({ initialPhone }) {
 
   const closeConvo = async (disposition) => {
     if (!selected) return;
-    await fetch(API(`/sms/conversations/${encodeURIComponent(selected)}/close`), {
+    const base = selected.channel === "email" ? "/email/conversations" : "/sms/conversations";
+    await fetch(API(`${base}/${encodeURIComponent(selected.thread_key)}/close`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ disposition }),
@@ -244,7 +336,8 @@ export default function SMSPanel({ initialPhone }) {
 
   const toggleInterested = async () => {
     if (!selected) return;
-    await fetch(API(`/sms/conversations/${encodeURIComponent(selected)}/interested`), { method: "POST" });
+    const base = selected.channel === "email" ? "/email/conversations" : "/sms/conversations";
+    await fetch(API(`${base}/${encodeURIComponent(selected.thread_key)}/interested`), { method: "POST" });
     await refreshThread(selected);
     await loadConvos();
   };
@@ -253,12 +346,19 @@ export default function SMSPanel({ initialPhone }) {
     if (!selected) return;
     setDeleting(true);
     try {
-      await fetch(API(`/sms/conversations/${encodeURIComponent(selected)}`), { method: "DELETE" });
+      const base = selected.channel === "email" ? "/email/conversations" : "/sms/conversations";
+      await fetch(API(`${base}/${encodeURIComponent(selected.thread_key)}`), { method: "DELETE" });
       setSelected(null);
       setThread(null);
       await loadConvos();
     } catch {}
     setDeleting(false);
+  };
+
+  const selectStyle = {
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
+    background: "#0d1626", color: "#c4d0e8", border: "1px solid #1a2540",
+    borderRadius: 6, padding: "5px 8px", cursor: "pointer",
   };
 
   return (
@@ -267,7 +367,7 @@ export default function SMSPanel({ initialPhone }) {
       {cardOpen && (
         <ContactCard
           contactId={thread?.contact_id}
-          phone={selected}
+          phone={selected?.channel === "sms" ? selected.thread_key : undefined}
           onClose={() => setCardOpen(false)}
           onSaved={() => refreshThread(selected)}
         />
@@ -276,23 +376,23 @@ export default function SMSPanel({ initialPhone }) {
       {composing && (
         <ComposeModal
           onClose={() => setComposing(false)}
-          onSent={async (phone) => {
+          onSent={async (item) => {
             setComposing(false);
             await loadConvos();
-            await openThread(phone);
+            await openThread(item);
           }}
         />
       )}
 
       {/* Thread list */}
       <aside style={{
-        width: 260, borderRight: "0.5px solid #1a2540",
+        width: 280, borderRight: "0.5px solid #1a2540",
         display: "flex", flexDirection: "column", flexShrink: 0,
       }}>
         <div style={{ padding: "14px 16px", borderBottom: "0.5px solid #1a2540",
                       display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#f0f4ff" }}>
-            SMS Inbox
+            Inbox
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80" }}>
@@ -313,6 +413,39 @@ export default function SMSPanel({ initialPhone }) {
           </div>
         </div>
 
+        {/* Filter bar */}
+        <div style={{ padding: "10px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
+              <option value="all">ALL CHANNELS</option>
+              <option value="sms">SMS ONLY</option>
+              <option value="email">EMAIL ONLY</option>
+            </select>
+            <select value={timeFilter} onChange={e => setTimeFilter(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
+              <option value="all">ALL TIME</option>
+              <option value="today">TODAY</option>
+              <option value="7d">LAST 7 DAYS</option>
+              <option value="30d">LAST 30 DAYS</option>
+            </select>
+          </div>
+          {availableTags.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {availableTags.map(t => (
+                <button key={t} onClick={() => setTagFilter(tagFilter === t ? null : t)}
+                  style={{
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, letterSpacing: "0.04em",
+                    padding: "3px 8px", borderRadius: 10, cursor: "pointer",
+                    border: `1px solid ${tagFilter === t ? "rgba(58,123,213,0.7)" : "rgba(58,123,213,0.25)"}`,
+                    background: tagFilter === t ? "rgba(58,123,213,0.2)" : "transparent",
+                    color: tagFilter === t ? "#c8dcff" : "#5a6f8f",
+                  }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div style={{ flex: 1, overflowY: "auto" }}>
           {loading && (
             <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
@@ -324,41 +457,52 @@ export default function SMSPanel({ initialPhone }) {
               NO CONVERSATIONS
             </div>
           )}
-          {convos.map(c => (
-            <button key={c.phone} onClick={() => openThread(c.phone)}
-              style={{
-                width: "100%", textAlign: "left", padding: "12px 16px",
-                cursor: "pointer",
-                background: selected === c.phone ? "#0d1626" : "transparent",
-                borderBottom: "0.5px solid #1a2540",
-                borderLeft: selected === c.phone ? "2px solid #3a7bd5" : "2px solid transparent",
-                borderTop: "none", borderRight: "none",
-                transition: "all 0.1s",
-              }}
-              onMouseEnter={e => { if (selected !== c.phone) e.currentTarget.style.background = "#0a1020"; }}
-              onMouseLeave={e => { if (selected !== c.phone) e.currentTarget.style.background = "transparent"; }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
-                <span style={{ fontSize: 13, fontWeight: 500, color: "#c4d0e8", overflow: "hidden",
-                               textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                  {c.owner || c.business || c.phone}
-                </span>
-                <span className={`badge ${convoBadge(c).cls}`}
-                  style={{ marginLeft: 6, flexShrink: 0 }}>
-                  {convoBadge(c).label}
-                </span>
-              </div>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
-                {c.phone}
-              </div>
-              {c.last_message && (
-                <div style={{ fontSize: 11, color: "#3a4f6f", marginTop: 4,
-                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {c.last_message}
+          {convos.map(c => {
+            const isSel = selected?.channel === c.channel && selected?.thread_key === c.thread_key;
+            return (
+              <button key={`${c.channel}:${c.thread_key}`} onClick={() => openThread({ channel: c.channel, thread_key: c.thread_key })}
+                style={{
+                  width: "100%", textAlign: "left", padding: "12px 16px",
+                  cursor: "pointer",
+                  background: isSel ? "#0d1626" : "transparent",
+                  borderBottom: "0.5px solid #1a2540",
+                  borderLeft: isSel ? "2px solid #3a7bd5" : "2px solid transparent",
+                  borderTop: "none", borderRight: "none",
+                  transition: "all 0.1s",
+                }}
+                onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = "#0a1020"; }}
+                onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = "transparent"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "#c4d0e8", overflow: "hidden",
+                                 textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                    {c.owner || c.business || c.thread_key}
+                  </span>
+                  <span style={{
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 8, letterSpacing: "0.05em",
+                    padding: "2px 5px", borderRadius: 4, marginLeft: 6, flexShrink: 0,
+                    background: c.channel === "email" ? "rgba(160,110,240,0.12)" : "rgba(20,200,130,0.12)",
+                    color: c.channel === "email" ? "#a06ef0" : "#14c882",
+                  }}>
+                    {c.channel === "email" ? "MAIL" : "SMS"}
+                  </span>
+                  <span className={`badge ${convoBadge(c).cls}`}
+                    style={{ marginLeft: 6, flexShrink: 0 }}>
+                    {convoBadge(c).label}
+                  </span>
                 </div>
-              )}
-            </button>
-          ))}
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
+                  {c.channel === "email" ? (c.subject || c.thread_key) : c.thread_key}
+                </div>
+                {c.last_message && (
+                  <div style={{ fontSize: 11, color: "#3a4f6f", marginTop: 4,
+                                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.last_message}
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
       </aside>
 
@@ -385,7 +529,7 @@ export default function SMSPanel({ initialPhone }) {
                   fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#f0f4ff",
                   display: "flex", alignItems: "center", gap: 6,
                 }}>
-                  {thread?.owner || thread?.business || selected}
+                  {thread?.owner || thread?.business || selected.thread_key}
                   <span style={{
                     fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: "#3a7bd5",
                     padding: "2px 6px", borderRadius: 4, background: "rgba(58,123,213,0.1)",
@@ -394,7 +538,9 @@ export default function SMSPanel({ initialPhone }) {
                 </div>
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80",
                               letterSpacing: "0.1em", marginTop: 2 }}>
-                  {selected}{thread?.grade ? ` · GRADE ${thread.grade}` : ""}
+                  {selected.channel === "email" ? (thread?.email || selected.thread_key) : selected.thread_key}
+                  {thread?.grade ? ` · GRADE ${thread.grade}` : ""}
+                  {selected.channel === "email" && thread?.subject ? ` · ${thread.subject}` : ""}
                 </div>
               </div>
 
@@ -449,11 +595,17 @@ export default function SMSPanel({ initialPhone }) {
                 return (
                   <div key={i} style={{ display: "flex", justifyContent: isOut ? "flex-end" : "flex-start" }}>
                     <div style={{
-                      maxWidth: 320, padding: "9px 13px", borderRadius: isOut ? "8px 8px 2px 8px" : "8px 8px 8px 2px",
+                      maxWidth: 420, padding: "9px 13px", borderRadius: isOut ? "8px 8px 2px 8px" : "8px 8px 8px 2px",
                       background: isOut ? "#1f3d70" : "#0d1626",
                       border: `0.5px solid ${isOut ? "#2857a0" : "#1a2540"}`,
                     }}>
-                      <div style={{ fontSize: 13, color: isOut ? "#c8dcff" : "#8aaad0", lineHeight: 1.4 }}>
+                      {selected.channel === "email" && m.subject && (
+                        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                                      color: isOut ? "#7fa8dd" : "#6a8ab0", marginBottom: 4 }}>
+                          {m.subject}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 13, color: isOut ? "#c8dcff" : "#8aaad0", lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
                         {m.body}
                       </div>
                       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
@@ -469,23 +621,37 @@ export default function SMSPanel({ initialPhone }) {
 
             {/* Reply box */}
             {thread?.status !== "closed" ? (
-              <div style={{ position: "relative", padding: "12px 20px", borderTop: "0.5px solid #1a2540", flexShrink: 0, display: "flex", gap: 8 }}>
-                <button onClick={openSequence} className="btn btn-ghost" style={{ fontSize: 10, alignSelf: "flex-end" }}>
-                  SEQUENCE
-                </button>
-                <textarea
-                  value={replyText}
-                  onChange={e => setReplyText(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply(); }}
-                  placeholder="Type a reply… (⌘↵ to send)"
-                  rows={2}
-                  className="dg-input"
-                  style={{ flex: 1, resize: "none", fontSize: 13 }}
-                />
-                <button onClick={sendReply} disabled={sending || !replyText.trim()}
-                  className="btn btn-primary" style={{ alignSelf: "flex-end" }}>
-                  {sending ? "..." : "SEND"}
-                </button>
+              <div style={{ position: "relative", padding: "12px 20px", borderTop: "0.5px solid #1a2540", flexShrink: 0 }}>
+                {selected.channel === "email" && (
+                  <input
+                    className="dg-input"
+                    type="text"
+                    placeholder="Subject"
+                    value={replySubject}
+                    onChange={e => setReplySubject(e.target.value)}
+                    style={{ width: "100%", fontSize: 12, marginBottom: 8, boxSizing: "border-box" }}
+                  />
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  {selected.channel === "sms" && (
+                    <button onClick={openSequence} className="btn btn-ghost" style={{ fontSize: 10, alignSelf: "flex-end" }}>
+                      SEQUENCE
+                    </button>
+                  )}
+                  <textarea
+                    value={replyText}
+                    onChange={e => setReplyText(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply(); }}
+                    placeholder="Type a reply… (⌘↵ to send)"
+                    rows={2}
+                    className="dg-input"
+                    style={{ flex: 1, resize: "none", fontSize: 13 }}
+                  />
+                  <button onClick={sendReply} disabled={sending || !replyText.trim()}
+                    className="btn btn-primary" style={{ alignSelf: "flex-end" }}>
+                    {sending ? "..." : "SEND"}
+                  </button>
+                </div>
 
                 {seqOpen && (
                   <div style={{
