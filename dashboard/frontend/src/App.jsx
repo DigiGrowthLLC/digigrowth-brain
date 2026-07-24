@@ -13,6 +13,7 @@ import WebsitePanel  from "./panels/WebsitePanel.jsx";
 import IncomingCallWidget from "./IncomingCallWidget.jsx";
 import CallScreen     from "./CallScreen.jsx";
 import useIncomingCall from "./useIncomingCall.js";
+import useSmsNotifications from "./useSmsNotifications.js";
 import logoWordmark from "./assets/logo-wordmark.png";
 
 const NAV = [
@@ -123,6 +124,7 @@ export default function App() {
   };
 
   const { incoming, activeCall, callInfo, answer, decline, hangUp, clearCallInfo } = useIncomingCall();
+  useSmsNotifications((phone) => navigateTo("sms", phone));
 
   // Answering an inbound call jumps to the dedicated call screen.
   useEffect(() => {

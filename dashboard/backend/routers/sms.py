@@ -231,7 +231,10 @@ async def list_conversations():
                    c.business, c.owner,
                    (SELECT body FROM sms_messages
                     WHERE phone = sc.phone
-                    ORDER BY sent_at DESC LIMIT 1) AS last_message
+                    ORDER BY sent_at DESC LIMIT 1) AS last_message,
+                   (SELECT direction FROM sms_messages
+                    WHERE phone = sc.phone
+                    ORDER BY sent_at DESC LIMIT 1) AS last_direction
             FROM sms_conversations sc
             LEFT JOIN contacts c ON c.id = sc.contact_id
             ORDER BY sc.updated_at DESC NULLS LAST
