@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { API } from "./api.js";
 
 const SEEN_KEY = "dg_sms_last_seen"; // { [phone]: updated_at ISO string }
@@ -8,15 +8,25 @@ const SEEN_KEY = "dg_sms_last_seen"; // { [phone]: updated_at ISO string }
 // inbound message that lands while the tab is open — even if the user is
 // on a different panel. Seen state persists in localStorage so a reload
 // doesn't re-notify for messages already surfaced.
+//
+// Permission is NOT requested automatically: browsers (Chrome in
+// particular) silently suppress permission prompts that aren't triggered
+// by a real user click, so `requestPermission` is exposed for the caller
+// to wire up to an actual button.
 export default function useSmsNotifications(onOpenThread) {
   const onOpenThreadRef = useRef(onOpenThread);
   useEffect(() => { onOpenThreadRef.current = onOpenThread; }, [onOpenThread]);
 
-  useEffect(() => {
-    if (window.Notification && Notification.permission === "default") {
-      Notification.requestPermission().catch(() => {});
-    }
+  const [permission, setPermission] = useState(
+    window.Notification ? Notification.permission : "unsupported"
+  );
 
+  const requestPermission = useCallback(() => {
+    if (!window.Notification) return;
+    Notification.requestPermission().then(setPermission).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     let firstPoll = true;
 
@@ -66,4 +76,6 @@ export default function useSmsNotifications(onOpenThread) {
     const id = setInterval(() => { if (!cancelled) poll(); }, 15000);
     return () => { cancelled = true; clearInterval(id); };
   }, []);
+
+  return { permission, requestPermission };
 }
