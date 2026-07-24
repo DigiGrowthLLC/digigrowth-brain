@@ -97,22 +97,23 @@ async def _sync_gmail_once() -> dict:
             )
             headers = {h["name"].lower(): h["value"] for h in full["payload"].get("headers", [])}
             from_addr = _extract_email(headers.get("from", ""))
-            to_addrs = [_extract_email(a) for a in headers.get("to", "").split(",")]
             subject = headers.get("subject", "(no subject)")
             thread_id = full["threadId"]
             internal_ts = int(full.get("internalDate", "0")) // 1000
             newest_ts = max(newest_ts, internal_ts)
 
+            # Scope: only messages actually sent BY a known prospect (their
+            # stored contacts.email) land in the Inbox. We deliberately do NOT
+            # also match on the "to" header — this account's own inbox address
+            # can end up stored as *some* contact's email (e.g. a test/self
+            # entry), and matching "to" would then pull in the account owner's
+            # entire personal inbox. Outbound replies sent through the Inbox's
+            # own reply box are recorded directly by /email/send instead.
             contact_id, counterparty, direction = None, None, None
             if from_addr and from_addr in contact_by_email:
                 contact_id, counterparty, direction = contact_by_email[from_addr], from_addr, "inbound"
-            else:
-                for addr in to_addrs:
-                    if addr and addr in contact_by_email:
-                        contact_id, counterparty, direction = contact_by_email[addr], addr, "outbound"
-                        break
             if not contact_id:
-                continue  # not a known-contact thread — skip per scope rule
+                continue  # not a known-prospect inbound message — skip per scope rule
 
             body = integrations._extract_body(full["payload"]) or full.get("snippet", "")
             matched += 1
