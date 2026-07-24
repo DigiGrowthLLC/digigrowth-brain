@@ -230,8 +230,8 @@ async def pipeline(days: int = 0):
             "answered": _sheet_stat(sales, "sheet_calls_answered",    days),
             "pitched":  _sheet_stat(sales, "sheet_contacts_reached",  days),
             "booked":   _sheet_stat(sales, "sheet_appointments_booked", days),
-            "shows":    sales.get("shows", 0) if all_time else 0,
-            "closes":   sales.get("closes", 0) if all_time else 0,
+            "shows":    _sheet_stat(sales, "shows",  days),
+            "closes":   _sheet_stat(sales, "closes", days),
         },
         "by_grade":       by_grade,
         "top_states":     [{"state": r["state"], "cnt": r["cnt"]} for r in state_rows],
@@ -241,15 +241,17 @@ async def pipeline(days: int = 0):
 
 
 @router.get("/analytics/sales")
-async def sales_stats():
+async def sales_stats(days: int = 0):
     pool  = await get_pool()
     stats = _load_sales_stats()
 
     async with pool.acquire() as conn:
         total_leads = await conn.fetchval("SELECT COUNT(*) FROM contacts")
 
-    discovery = stats.get("discovery_calls", 0)
-    closes    = stats.get("closes", 0)
+    discovery = _sheet_stat(stats, "discovery_calls", days)
+    closes    = _sheet_stat(stats, "closes",           days)
+    revenue   = _sheet_stat(stats, "total_revenue",    days)
+    shows     = _sheet_stat(stats, "shows",            days)
 
     sheet_sync = None
     if stats.get("last_sheet_sync"):
@@ -268,9 +270,9 @@ async def sales_stats():
         "strategy_sessions": stats.get("strategy_sessions", 0),
         "closes":            closes,
         "close_rate":        _pct(closes, discovery),
-        "total_revenue":     stats.get("total_revenue", 0),
-        "avg_deal_size":     stats.get("avg_deal_size", 0),
-        "shows":             stats.get("shows", 0),
+        "total_revenue":     revenue,
+        "avg_deal_size":     round(revenue / closes) if closes else 0,
+        "shows":             shows,
         "sheet_sync":        sheet_sync,
     }
 

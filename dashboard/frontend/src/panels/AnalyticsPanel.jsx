@@ -177,7 +177,7 @@ export default function AnalyticsPanel() {
   useEffect(() => {
     Promise.all([
       fetch(API(`/analytics/pipeline?days=${days}`)).then(r => r.ok ? r.json() : null),
-      fetch(API("/analytics/sales")).then(r => r.ok ? r.json() : null),
+      fetch(API(`/analytics/sales?days=${days}`)).then(r => r.ok ? r.json() : null),
     ]).then(([p, s]) => { setPipeline(p); setSales(s); });
   }, [days]);
 
