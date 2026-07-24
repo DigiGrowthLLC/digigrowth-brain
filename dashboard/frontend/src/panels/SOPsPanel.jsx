@@ -445,11 +445,11 @@ function OutreachTemplatesEditor() {
 // (routers/dialer.py). Step keys/labels/order must match
 // routers/sms.py SEQUENCE_STEPS.
 const SMS_SEQUENCE_STEPS = [
-  { key: "curiosity_opener", label: "CURIOSITY OPENER" },
-  { key: "relevance", label: "RELEVANCE + PERMISSION TO OPT OUT" },
-  { key: "guarantee", label: "GUARANTEE + MATH (CLOSE-RATE ADJUSTED)" },
-  { key: "ask", label: "THE ASK" },
-  { key: "cta", label: "CTA" },
+  { key: "curiosity_opener", label: "1. Initial Message" },
+  { key: "relevance", label: "2. Primed Message" },
+  { key: "guarantee", label: "3. Engaged Message" },
+  { key: "ask", label: "4. Call To Action" },
+  { key: "cta", label: "5. Booking Link" },
 ];
 
 function SmsSequenceEditor() {
@@ -499,9 +499,9 @@ function SmsSequenceEditor() {
     outline: "none", resize: "vertical", boxSizing: "border-box",
   };
   const labelStyle = {
-    display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
+    display: "block", marginBottom: 8,
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
+    color: "#e8f0ff", letterSpacing: "0.01em",
   };
   const hintStyle = {
     marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",

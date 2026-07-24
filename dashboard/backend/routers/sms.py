@@ -35,11 +35,11 @@ OPENING_MESSAGE = "Hey is this {first_name}?"
 # f"seq_{key}". Order here is the order shown in the SMS inbox's
 # SEQUENCE dropdown (routers/sms.py get_sequence()).
 SEQUENCE_STEPS = [
-    ("curiosity_opener", "Curiosity Opener"),
-    ("relevance", "Relevance + Permission To Opt Out"),
-    ("guarantee", "Guarantee + Math (Close-Rate Adjusted)"),
-    ("ask", "The Ask"),
-    ("cta", "CTA"),
+    ("curiosity_opener", "1. Initial Message"),
+    ("relevance", "2. Primed Message"),
+    ("guarantee", "3. Engaged Message"),
+    ("ask", "4. Call To Action"),
+    ("cta", "5. Booking Link"),
 ]
 
 INFO_MESSAGE = (
