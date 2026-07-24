@@ -266,16 +266,22 @@ async def create_contact(body: Contact):
                  grade, opener, status, notes, newsletter)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
             ON CONFLICT (phone) DO UPDATE SET
-                business = EXCLUDED.business,
-                owner = EXCLUDED.owner,
-                email = EXCLUDED.email,
-                grade = EXCLUDED.grade,
-                opener = EXCLUDED.opener,
+                business = COALESCE(EXCLUDED.business, contacts.business),
+                owner = COALESCE(EXCLUDED.owner, contacts.owner),
+                email = COALESCE(EXCLUDED.email, contacts.email),
+                grade = COALESCE(EXCLUDED.grade, contacts.grade),
+                opener = COALESCE(EXCLUDED.opener, contacts.opener),
                 updated_at = now()
             RETURNING *, (xmax = 0) AS was_inserted
             """,
-            contact_id, body.business, body.owner, body.phone, body.email,
-            body.website, body.city, body.state, body.grade, body.opener,
+            contact_id,
+            (body.business or "").strip() or None,
+            (body.owner or "").strip() or None,
+            body.phone,
+            (body.email or "").strip() or None,
+            body.website, body.city, body.state,
+            (body.grade or "").strip().upper() or None,
+            (body.opener or "").strip() or None,
             body.status, body.notes, body.newsletter,
         )
 
