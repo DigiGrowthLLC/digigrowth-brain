@@ -22,11 +22,25 @@ from fastapi import APIRouter, Request, Response
 from twilio.rest import Client as TwilioClient
 
 from db import get_pool
+from merge_fields import apply_merge_fields
 
 router         = APIRouter()   # authenticated API routes
 webhook_router = APIRouter()  # public Twilio webhook
 
 OPENING_MESSAGE = "Hey is this {first_name}?"
+
+# Fixed SMS sequence steps, editable in Business Resources → Outreach
+# Templates → SMS Sequence (dialer.py's /dialer/sequence-template
+# GET/PUT). Each step's body is stored under dialer_settings key
+# f"seq_{key}". Order here is the order shown in the SMS inbox's
+# SEQUENCE dropdown (routers/sms.py get_sequence()).
+SEQUENCE_STEPS = [
+    ("curiosity_opener", "Curiosity Opener"),
+    ("relevance", "Relevance + Permission To Opt Out"),
+    ("guarantee", "Guarantee + Math (Close-Rate Adjusted)"),
+    ("ask", "The Ask"),
+    ("cta", "CTA"),
+]
 
 INFO_MESSAGE = (
     "Hey {first_name}, here's that info — https://digigrowthllc.com. "
@@ -281,6 +295,32 @@ async def get_conversation(phone: str):
         "grade":       conv["grade"],
         "messages":    [dict(m) for m in msgs_raw],
     }
+
+
+@router.get("/sms/sequence/{phone}")
+async def get_sequence(phone: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
+            [f"seq_{key}" for key, _ in SEQUENCE_STEPS],
+        )
+        values = {r["key"]: r["value"] for r in rows}
+
+        contact = await conn.fetchrow(
+            f"SELECT owner, business, opener FROM contacts WHERE {_phone_match('phone', '$1')}",
+            phone,
+        )
+
+    contact_dict = dict(contact) if contact else None
+    steps = []
+    for key, label in SEQUENCE_STEPS:
+        body = (values.get(f"seq_{key}") or "").strip()
+        if not body:
+            continue
+        steps.append({"label": label, "text": apply_merge_fields(body, contact_dict)})
+
+    return {"ok": True, "sequence_title": "SMS Sequence", "steps": steps}
 
 
 @router.post("/sms/send")

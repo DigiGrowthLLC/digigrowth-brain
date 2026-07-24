@@ -291,6 +291,12 @@ const SUBSECTIONS = [
 const SEND_INFO_PSEUDO_ID = "__send_info__";
 const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email)", category: "Dialer", sendInfo: true };
 
+// Same pattern as SEND_INFO_ITEM above, for the SMS inbox's "SEQUENCE"
+// dropdown (SMSPanel.jsx) — backed by GET/PUT /api/dialer/sequence-template
+// (see SmsSequenceEditor below), not `sops`.
+const SMS_SEQUENCE_PSEUDO_ID = "__sms_sequence__";
+const SMS_SEQUENCE_ITEM = { id: SMS_SEQUENCE_PSEUDO_ID, title: "SMS Sequence", category: "Dialer", smsSequence: true };
+
 // ── Outreach Templates editor ───────────────────────────────────────────────
 // Editable SMS + email templates sent by the dialer's "Send Info" call
 // disposition (dashboard/backend/routers/sms.py send_info_message() and
@@ -432,6 +438,132 @@ function OutreachTemplatesEditor() {
   );
 }
 
+// ── SMS Sequence editor ─────────────────────────────────────────────────────
+// Fixed-step outreach script shown as the SMS inbox's "SEQUENCE" dropdown
+// (SMSPanel.jsx). Each step is a labeled text box, stored under
+// dialer_settings key f"seq_{key}" via GET/PUT /api/dialer/sequence-template
+// (routers/dialer.py). Step keys/labels/order must match
+// routers/sms.py SEQUENCE_STEPS.
+const SMS_SEQUENCE_STEPS = [
+  { key: "curiosity_opener", label: "CURIOSITY OPENER" },
+  { key: "relevance", label: "RELEVANCE + PERMISSION TO OPT OUT" },
+  { key: "guarantee", label: "GUARANTEE + MATH (CLOSE-RATE ADJUSTED)" },
+  { key: "ask", label: "THE ASK" },
+  { key: "cta", label: "CTA" },
+];
+
+function SmsSequenceEditor() {
+  const [values, setValues] = useState({});
+  const [saved, setSaved] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/dialer/sequence-template");
+      if (r.ok) {
+        const data = await r.json();
+        setValues(data);
+        setSaved(data);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const dirty = SMS_SEQUENCE_STEPS.some(s => (values[s.key] || "") !== (saved[s.key] || ""));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/sequence-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (r.ok) {
+        setSaved(values);
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = {
+    width: "100%", background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+    padding: "10px 12px", color: "#e8f0ff",
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    outline: "none", resize: "vertical", boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block", marginBottom: 6,
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+    color: "#3a5a80", letterSpacing: "0.12em",
+  };
+  const hintStyle = {
+    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 11, color: "#4a6a8a",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+          Shown as the <strong style={{ color: "#a080f0" }}>SEQUENCE</strong> dropdown in the SMS inbox. Leave a step blank to skip it.
+        </span>
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={save}
+          disabled={saving || !dirty}
+          style={{
+            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {SMS_SEQUENCE_STEPS.map((s, i) => (
+          <div key={s.key} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
+            <label style={labelStyle}>{s.label}</label>
+            <textarea
+              value={values[s.key] || ""}
+              onChange={e => setValues(v => ({ ...v, [s.key]: e.target.value }))}
+              rows={4}
+              placeholder="Type this step's message..."
+              style={fieldStyle}
+            />
+            <div style={hintStyle}>
+              Use <code style={{ color: "#6ab0ff" }}>{"{{name}}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{{business}}"}</code>, or <code style={{ color: "#6ab0ff" }}>{"{{opener}}"}</code> — or bracket form <code style={{ color: "#6ab0ff" }}>[Name]</code> / <code style={{ color: "#6ab0ff" }}>[Custom Opener]</code> — to insert the contact's info.
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main panel ───────────────────────────────────────────────────────────────
 export default function SOPsPanel() {
   const [activeSection, setActiveSection] = useState("sop");
@@ -505,7 +637,7 @@ export default function SOPsPanel() {
     setIsNew(false);
     setDirty(false);
     setCustomCatMode(false);
-    if (sop.sendInfo) return;
+    if (sop.sendInfo || sop.smsSequence) return;
     setTitle(sop.title);
     setCategory(sop.category || "General");
     setVisibility(sop.visibility || "private");
@@ -621,10 +753,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && savedFlash && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -641,7 +773,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!selectedItem?.sendInfo && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -736,6 +868,26 @@ export default function SOPsPanel() {
                   fontWeight: selectedId === SEND_INFO_PSEUDO_ID ? 600 : 400,
                 }}>{SEND_INFO_ITEM.title}</span>
               </div>
+              <div
+                onClick={() => openSOP(SMS_SEQUENCE_ITEM)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 16px", cursor: "pointer",
+                  background: selectedId === SMS_SEQUENCE_PSEUDO_ID ? "linear-gradient(90deg, rgba(40,87,160,0.35), rgba(58,123,213,0.2))" : "transparent",
+                  borderLeft: selectedId === SMS_SEQUENCE_PSEUDO_ID ? "2px solid #3a7bd5" : "2px solid transparent",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={e => { if (selectedId !== SMS_SEQUENCE_PSEUDO_ID) e.currentTarget.style.background = "rgba(58,123,213,0.07)"; }}
+                onMouseLeave={e => { if (selectedId !== SMS_SEQUENCE_PSEUDO_ID) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>💬</span>
+                <span style={{
+                  flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
+                  color: selectedId === SMS_SEQUENCE_PSEUDO_ID ? "#e8f0ff" : "#7a9cc0",
+                  fontWeight: selectedId === SMS_SEQUENCE_PSEUDO_ID ? 600 : 400,
+                }}>{SMS_SEQUENCE_ITEM.title}</span>
+              </div>
               <div style={{ borderBottom: "1px solid rgba(58,123,213,0.1)", margin: "8px 0" }} />
             </div>
           )}
@@ -811,6 +963,8 @@ export default function SOPsPanel() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {selectedItem?.sendInfo ? (
             <OutreachTemplatesEditor />
+          ) : selectedItem?.smsSequence ? (
+            <SmsSequenceEditor />
           ) : !showEditor ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>

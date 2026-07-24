@@ -135,6 +135,11 @@ export default function SMSPanel({ initialPhone }) {
   const [cardOpen, setCardOpen]   = useState(false);
   const [deleting, setDeleting]   = useState(false);
   const [composing, setComposing] = useState(false);
+  const [seqOpen, setSeqOpen]       = useState(false);
+  const [seqLoading, setSeqLoading] = useState(false);
+  const [seqSteps, setSeqSteps]     = useState([]);
+  const [seqTitle, setSeqTitle]     = useState("");
+  const [seqError, setSeqError]     = useState(null);
   const bottomRef = useRef(null);
 
   const loadConvos = useCallback(async () => {
@@ -168,6 +173,7 @@ export default function SMSPanel({ initialPhone }) {
   const openThread = async (phone) => {
     setSelected(phone);
     setThread(null);
+    setSeqOpen(false);
     await refreshThread(phone);
   };
 
@@ -196,6 +202,33 @@ export default function SMSPanel({ initialPhone }) {
       await loadConvos();
     } catch {}
     setSending(false);
+  };
+
+  const openSequence = async () => {
+    if (seqOpen) { setSeqOpen(false); return; }
+    setSeqOpen(true);
+    setSeqLoading(true);
+    setSeqError(null);
+    try {
+      const r = await fetch(API(`/sms/sequence/${encodeURIComponent(selected)}`));
+      const data = await r.json();
+      if (!data.ok) {
+        setSeqError("Failed to load sequence.");
+        setSeqSteps([]);
+      } else {
+        setSeqSteps(data.steps);
+        setSeqTitle(data.sequence_title);
+      }
+    } catch {
+      setSeqError("Failed to load sequence.");
+      setSeqSteps([]);
+    }
+    setSeqLoading(false);
+  };
+
+  const applyStep = (text) => {
+    setReplyText(text);
+    setSeqOpen(false);
   };
 
   const closeConvo = async (disposition) => {
@@ -436,7 +469,10 @@ export default function SMSPanel({ initialPhone }) {
 
             {/* Reply box */}
             {thread?.status !== "closed" ? (
-              <div style={{ padding: "12px 20px", borderTop: "0.5px solid #1a2540", flexShrink: 0, display: "flex", gap: 8 }}>
+              <div style={{ position: "relative", padding: "12px 20px", borderTop: "0.5px solid #1a2540", flexShrink: 0, display: "flex", gap: 8 }}>
+                <button onClick={openSequence} className="btn btn-ghost" style={{ fontSize: 10, alignSelf: "flex-end" }}>
+                  SEQUENCE
+                </button>
                 <textarea
                   value={replyText}
                   onChange={e => setReplyText(e.target.value)}
@@ -450,6 +486,53 @@ export default function SMSPanel({ initialPhone }) {
                   className="btn btn-primary" style={{ alignSelf: "flex-end" }}>
                   {sending ? "..." : "SEND"}
                 </button>
+
+                {seqOpen && (
+                  <div style={{
+                    position: "absolute", bottom: "100%", left: 20, marginBottom: 8,
+                    background: "#0d1830", border: "1px solid rgba(58,123,213,0.4)",
+                    borderRadius: 12, padding: "10px 0", width: 320, maxHeight: 320, overflowY: "auto",
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.6)", zIndex: 500,
+                  }}>
+                    <div style={{
+                      padding: "4px 16px 8px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
+                      fontWeight: 600, color: "#f0f4ff", borderBottom: "0.5px solid #1a2540",
+                    }}>
+                      {seqTitle || "Sequence"}
+                    </div>
+                    {seqLoading && (
+                      <div style={{ padding: "12px 16px", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
+                        LOADING...
+                      </div>
+                    )}
+                    {seqError && (
+                      <div style={{ padding: "12px 16px", fontSize: 12, color: "#dc3c3c" }}>{seqError}</div>
+                    )}
+                    {!seqLoading && !seqError && seqSteps.length === 0 && (
+                      <div style={{ padding: "12px 16px", fontSize: 12, color: "#5a6f8f" }}>
+                        No sequence steps filled in yet — add them in Business Resources → Outreach Templates → SMS Sequence.
+                      </div>
+                    )}
+                    {seqSteps.map((s, i) => (
+                      <button key={i} onClick={() => applyStep(s.text)}
+                        style={{
+                          display: "block", width: "100%", textAlign: "left",
+                          padding: "10px 16px", background: "transparent", border: "none", cursor: "pointer",
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "#0a1020"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#c4d0e8" }}>{s.label}</div>
+                        <div style={{
+                          fontSize: 11, color: "#5a6f8f", marginTop: 2,
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>
+                          {s.text}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{
