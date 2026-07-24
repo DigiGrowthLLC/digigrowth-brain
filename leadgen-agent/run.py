@@ -578,6 +578,12 @@ def run_pipeline(lead_status="dialer-lead"):
         if opener and "?" in opener:
             print(f"  ⚠️  Opener has question mark — nulled")
             opener = ""
+        # Rule: a lead with no custom opener doesn't get pushed to the OS —
+        # better to drop it here than hand off a generic/cold lead with
+        # nothing personalized to open with.
+        if not opener:
+            print(f"  ❌ Disqualified {c['name']}: no usable custom opener")
+            continue
         print(f"  ✅ {c['name']} — Grade: {grade} | Owner: {verified_owner} | Opener: {opener}")
         all_qualified.append({
             "Business Name":     c["name"],

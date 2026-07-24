@@ -19,6 +19,10 @@ Scrapes independent mobile/in-home physical therapy practices from Google Maps, 
 
 Secrets (`ANTHROPIC_API_KEY`, `PLACES_API_KEY`, `DASHBOARD_URL`, `DASHBOARD_PASSWORD`) live in the shared `digigrowth` Doppler vault (config `prd`), not a local `.env` file.
 
+## Qualification Rules
+
+- A lead is **not pushed** to the OS if it has no usable custom opener (`run.py`, `run_pipeline()`) — better to drop a cold/generic lead here than hand it to the dialer with nothing personalized to open with.
+
 ## Security
 
 Secrets live in Doppler, not in this repo. Never write them to a local `.env` file or commit them.
