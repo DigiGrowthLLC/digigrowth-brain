@@ -49,8 +49,27 @@ def _extract_email(header_value: str) -> str:
 async def _sync_gmail_once() -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
-        contacts = await conn.fetch("SELECT id, email FROM contacts WHERE email IS NOT NULL AND email != ''")
-        contact_by_email = {c["email"].strip().lower(): c["id"] for c in contacts if c["email"]}
+        # Clean up any conversations/messages left over from a looser match
+        # (e.g. a contact with a blank/whitespace email used to false-match
+        # unparseable recipient headers) — re-validate against current contacts.
+        await conn.execute(
+            """
+            DELETE FROM email_conversations ec
+            WHERE NOT EXISTS (
+                SELECT 1 FROM contacts c
+                WHERE c.id = ec.contact_id AND lower(trim(c.email)) = lower(trim(ec.email))
+            )
+            """
+        )
+        await conn.execute(
+            """
+            DELETE FROM email_messages em
+            WHERE NOT EXISTS (SELECT 1 FROM email_conversations ec WHERE ec.thread_id = em.thread_id)
+            """
+        )
+
+        contacts = await conn.fetch("SELECT id, email FROM contacts WHERE email IS NOT NULL AND trim(email) != ''")
+        contact_by_email = {c["email"].strip().lower(): c["id"] for c in contacts if c["email"] and c["email"].strip()}
         if not contact_by_email:
             return {"fetched": 0, "matched": 0, "skipped": 0}
 
@@ -85,11 +104,11 @@ async def _sync_gmail_once() -> dict:
             newest_ts = max(newest_ts, internal_ts)
 
             contact_id, counterparty, direction = None, None, None
-            if from_addr in contact_by_email:
+            if from_addr and from_addr in contact_by_email:
                 contact_id, counterparty, direction = contact_by_email[from_addr], from_addr, "inbound"
             else:
                 for addr in to_addrs:
-                    if addr in contact_by_email:
+                    if addr and addr in contact_by_email:
                         contact_id, counterparty, direction = contact_by_email[addr], addr, "outbound"
                         break
             if not contact_id:
@@ -304,6 +323,18 @@ async def delete_email_conversation(thread_id: str):
 # ── Merged Inbox endpoint (SMS + Email) ───────────────────────────────────────
 
 _SINCE_INTERVAL = {"today": "1 day", "7d": "7 days", "30d": "30 days"}
+
+
+@router.get("/inbox/tags")
+async def list_inbox_tags():
+    """Full universe of contact tags, independent of the currently-filtered
+    conversation list — powers the Inbox tag filter dropdown."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT DISTINCT unnest(tags) AS tag FROM contacts WHERE tags <> '{}' ORDER BY 1"
+        )
+    return [r["tag"] for r in rows]
 
 
 @router.get("/inbox/conversations")

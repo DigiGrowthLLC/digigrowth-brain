@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API } from "../api.js";
 import ContactCard from "../ContactCard.jsx";
 
@@ -201,10 +201,16 @@ export default function InboxPanel({ initialTarget }) {
 
   const bottomRef = useRef(null);
 
-  const availableTags = useMemo(
-    () => [...new Set(convos.flatMap(c => c.tags || []))].sort(),
-    [convos]
-  );
+  const [availableTags, setAvailableTags] = useState([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(API("/inbox/tags"));
+        if (r.ok) setAvailableTags(await r.json());
+      } catch {}
+    })();
+  }, []);
 
   const loadConvos = useCallback(async () => {
     try {
@@ -428,22 +434,16 @@ export default function InboxPanel({ initialTarget }) {
               <option value="30d">LAST 30 DAYS</option>
             </select>
           </div>
-          {availableTags.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {availableTags.map(t => (
-                <button key={t} onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                  style={{
-                    fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, letterSpacing: "0.04em",
-                    padding: "3px 8px", borderRadius: 10, cursor: "pointer",
-                    border: `1px solid ${tagFilter === t ? "rgba(58,123,213,0.7)" : "rgba(58,123,213,0.25)"}`,
-                    background: tagFilter === t ? "rgba(58,123,213,0.2)" : "transparent",
-                    color: tagFilter === t ? "#c8dcff" : "#5a6f8f",
-                  }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-          )}
+          <select
+            value={tagFilter || ""}
+            onChange={e => setTagFilter(e.target.value || null)}
+            style={{ ...selectStyle, width: "100%" }}
+          >
+            <option value="">ALL TAGS</option>
+            {availableTags.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
