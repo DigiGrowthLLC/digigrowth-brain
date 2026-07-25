@@ -39,10 +39,17 @@ jobs:
         if: steps.check.outputs.run == 'true'
         run: pip install -r leadgen-agent/requirements.txt
 
+      - name: Install Doppler CLI
+        if: steps.check.outputs.run == 'true'
+        uses: dopplerhq/cli-action@v3
+
       - name: Run lead qualifier
         if: steps.check.outputs.run == 'true'
         working-directory: leadgen-agent
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
-        run: python run.py
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        # Pulls ANTHROPIC_API_KEY, PLACES_API_KEY, DASHBOARD_URL, and
+        # DASHBOARD_PASSWORD live from the digigrowth/prd Doppler config —
+        # same command used to run this locally — instead of duplicating
+        # secrets into GitHub Actions one by one.
+        run: doppler run -- python run.py
