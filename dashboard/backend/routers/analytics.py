@@ -290,10 +290,17 @@ async def pipeline(days: int = 0):
     # at every stage, not cold-calling-only. Shows/closes are already
     # cross-channel (logged manually in the Sales Performance Tracker
     # regardless of source), so those two are untouched.
-    dialed   = _sheet_stat(sales, "sheet_calls_made",          days) + sms["initial_sent"]
-    answered = _sheet_stat(sales, "sheet_calls_answered",      days) + sms["replied"]
-    pitched  = _sheet_stat(sales, "sheet_contacts_reached",    days) + sms["engaged"]
-    booked   = _sheet_stat(sales, "sheet_appointments_booked", days) + sms["booked"]
+    #
+    # "Booked" is the one stage that can't just be calling+SMS summed: some
+    # booked appointments come from channels this OS doesn't track at all
+    # (e.g. DM campaigns), so a bottom-up sum would under-count. discovery_calls
+    # is the manually-logged, authoritative cross-channel total from the Sales
+    # Performance Tracker — same source Sales Statistics' "Appointments Booked"
+    # already uses — so use that instead of sheet_appointments_booked + sms.booked.
+    dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["initial_sent"]
+    answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]
+    pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["engaged"]
+    booked   = _sheet_stat(sales, "discovery_calls",        days)
 
     return {
         "funnel": {
