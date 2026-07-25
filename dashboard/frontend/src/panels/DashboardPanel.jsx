@@ -281,12 +281,13 @@ export default function DashboardPanel({ onNavigate }) {
   const contacts = stats?.contacts ?? {};
   const unread   = agentMsgs.length;
 
-  // Disposition bar data from chart
+  // Disposition bar data from chart — channel-agnostic (calling + SMS)
+  // totals, matching the Analytics tab's 6-Stage Acquisition Funnel.
   const barData = [
-    { name: "Calls",   value: calling.calls_made  ?? 0, fill: "#3a7bd5" },
-    { name: "Reached", value: calling.dms_reached  ?? 0, fill: "#14c882" },
-    { name: "Booked",  value: calling.booked        ?? 0, fill: "#f0a028" },
-    { name: "SMS",     value: sms.active             ?? 0, fill: "#a080f0" },
+    { name: "Outreach", value: calling.total_outreach     ?? 0, fill: "#3a7bd5" },
+    { name: "Reached",  value: calling.total_reached       ?? 0, fill: "#14c882" },
+    { name: "Booked",   value: calling.total_appointments  ?? 0, fill: "#f0a028" },
+    { name: "SMS",      value: sms.active                   ?? 0, fill: "#a080f0" },
   ];
 
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -326,14 +327,14 @@ export default function DashboardPanel({ onNavigate }) {
 
       {/* ── Row 1: 4 Stat Cards ────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-        <TopStatCard label="Calls Made"    value={calling.calls_made}  iconKey="dialer"
-          delta={calling.calls_made > 0 ? `${calling.calls_made} dials` : null} positive={true} />
-        <TopStatCard label="DMs Reached"   value={calling.dms_reached} iconKey="reach"
-          delta={calling.calls_made > 0 ? `${calling.reach_rate}% rate` : null} positive={true} />
-        <TopStatCard label="Appointments"  value={calling.booked}      iconKey="booked"
-          delta={calling.booked > 0 ? "booked" : null} positive={true} />
-        <TopStatCard label="ABR"
-          value={calling.calls_made > 0 ? `${((calling.booked / calling.calls_made) * 100).toFixed(1)}%` : "—"}
+        <TopStatCard label="Total Outreach"    value={calling.total_outreach}  iconKey="dialer"
+          delta={calling.total_outreach > 0 ? `${calling.total_outreach} touches` : null} positive={true} />
+        <TopStatCard label="Total Reached"     value={calling.total_reached}   iconKey="reach"
+          delta={calling.total_outreach > 0 ? `${((calling.total_reached / calling.total_outreach) * 100).toFixed(1)}% rate` : null} positive={true} />
+        <TopStatCard label="Total Appointments" value={calling.total_appointments} iconKey="booked"
+          delta={calling.total_appointments > 0 ? "booked" : null} positive={true} />
+        <TopStatCard label="Total ABR"
+          value={calling.total_outreach > 0 ? `${calling.total_abr}%` : "—"}
           iconKey="sms"
           delta="appt booking rate" positive={true} />
       </div>
@@ -361,7 +362,7 @@ export default function DashboardPanel({ onNavigate }) {
         <div className="glass-card" style={{ padding: "22px 24px" }}>
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: "#d0dcf0" }}>
-              Calls Overview
+              Outreach Overview
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882", letterSpacing: "0.1em", marginTop: 3 }}>
               {PERIOD_LABEL[period]}
@@ -369,10 +370,10 @@ export default function DashboardPanel({ onNavigate }) {
           </div>
           {(() => {
             const funnelData = [
-              { stage: "Dialed",   value: calling.calls_made     ?? 0 },
-              { stage: "Answered", value: calling.calls_answered ?? 0 },
-              { stage: "Reached",  value: calling.dms_reached    ?? 0 },
-              { stage: "Booked",   value: calling.booked         ?? 0 },
+              { stage: "Outreach", value: calling.total_outreach    ?? 0 },
+              { stage: "Answered", value: calling.total_answered     ?? 0 },
+              { stage: "Reached",  value: calling.total_reached      ?? 0 },
+              { stage: "Booked",   value: calling.total_appointments ?? 0 },
             ];
             const hasData = funnelData.some(d => d.value > 0);
             return hasData ? (
@@ -453,22 +454,22 @@ export default function DashboardPanel({ onNavigate }) {
               background: "linear-gradient(135deg, #3a7bd5, #6ab0ff)",
               WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
             }}>
-              {calling.calls_made > 0 ? `${calling.reach_rate}%` : "—"}
+              {calling.total_outreach > 0 ? `${((calling.total_reached / calling.total_outreach) * 100).toFixed(1)}%` : "—"}
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
                           color: "#3a5a80", letterSpacing: "0.12em", marginTop: 8 }}>
-              DMS / CALLS MADE
+              REACHED / TOTAL OUTREACH
             </div>
           </div>
           <div className="dg-divider" style={{ margin: "12px 0" }} />
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <div>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.12em" }}>DIALS</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#c4d0e8", marginTop: 2 }}>{calling.calls_made ?? 0}</div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.12em" }}>OUTREACH</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#c4d0e8", marginTop: 2 }}>{calling.total_outreach ?? 0}</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.12em" }}>REACHED</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#14c882", marginTop: 2 }}>{calling.dms_reached ?? 0}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#14c882", marginTop: 2 }}>{calling.total_reached ?? 0}</div>
             </div>
           </div>
         </div>
