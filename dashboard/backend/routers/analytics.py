@@ -209,7 +209,6 @@ async def _sms_metrics(conn, since=None) -> dict:
         "initial_sent":      initial_sent or 0,
         "replied":           replied or 0,
         "reply_rate":        _pct(replied, initial_sent),
-        "conversation_rate": _pct(replied, initial_sent),
         "engaged":           engaged or 0,
         "engaged_rate":      _pct(engaged, initial_sent),
         "interested_sent":   interested_sent or 0,
