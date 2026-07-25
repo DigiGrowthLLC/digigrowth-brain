@@ -35,56 +35,60 @@ PLACES_KEY = os.environ["PLACES_API_KEY"]
 HEADERS    = {"User-Agent": "Mozilla/5.0"}
 
 # ── US States ─────────────────────────────────────────────────────────────────
+# Ordered by population/market density (biggest first) rather than
+# alphabetically — the scraper works through this list in order, so this
+# controls which markets get hit soonest. Small/rural states are still
+# fully covered, just later in the cycle (see scrape_state_leads()).
 US_STATES = {
-    "Alabama": ["Birmingham", "Montgomery", "Huntsville", "Mobile", "Tuscaloosa"],
-    "Alaska": ["Anchorage", "Fairbanks", "Juneau"],
-    "Arizona": ["Phoenix", "Tucson", "Scottsdale", "Mesa", "Chandler"],
-    "Arkansas": ["Little Rock", "Fort Smith", "Fayetteville", "Springdale", "Jonesboro"],
     "California": ["Los Angeles", "San Diego", "San Jose", "San Francisco", "Sacramento", "Fresno", "Oakland"],
-    "Colorado": ["Denver", "Colorado Springs", "Aurora", "Fort Collins", "Boulder"],
-    "Connecticut": ["Bridgeport", "New Haven", "Hartford", "Stamford"],
-    "Delaware": ["Wilmington", "Dover", "Newark"],
-    "Florida": ["Jacksonville", "Miami", "Tampa", "Orlando", "St. Petersburg", "Hialeah"],
-    "Georgia": ["Atlanta", "Augusta", "Columbus", "Macon", "Savannah"],
-    "Hawaii": ["Honolulu", "Pearl City", "Hilo"],
-    "Idaho": ["Boise", "Meridian", "Nampa", "Idaho Falls"],
-    "Illinois": ["Chicago", "Aurora", "Rockford", "Joliet", "Naperville"],
-    "Indiana": ["Indianapolis", "Fort Wayne", "Evansville", "South Bend"],
-    "Iowa": ["Des Moines", "Cedar Rapids", "Davenport", "Sioux City"],
-    "Kansas": ["Wichita", "Overland Park", "Kansas City", "Topeka"],
-    "Kentucky": ["Louisville", "Lexington", "Bowling Green", "Owensboro"],
-    "Louisiana": ["New Orleans", "Baton Rouge", "Shreveport", "Lafayette"],
-    "Maine": ["Portland", "Lewiston", "Bangor"],
-    "Maryland": ["Baltimore", "Frederick", "Rockville", "Gaithersburg"],
-    "Massachusetts": ["Boston", "Worcester", "Springfield", "Cambridge", "Lowell"],
-    "Michigan": ["Detroit", "Grand Rapids", "Warren", "Sterling Heights", "Lansing"],
-    "Minnesota": ["Minneapolis", "Saint Paul", "Rochester", "Duluth"],
-    "Mississippi": ["Jackson", "Gulfport", "Southaven", "Hattiesburg"],
-    "Missouri": ["Kansas City", "Saint Louis", "Springfield", "Columbia"],
-    "Montana": ["Billings", "Missoula", "Great Falls", "Bozeman"],
-    "Nebraska": ["Omaha", "Lincoln", "Bellevue", "Grand Island"],
-    "Nevada": ["Las Vegas", "Henderson", "Reno", "North Las Vegas"],
-    "New Hampshire": ["Manchester", "Nashua", "Concord"],
-    "New Jersey": ["Newark", "Jersey City", "Paterson", "Elizabeth", "Trenton"],
-    "New Mexico": ["Albuquerque", "Las Cruces", "Rio Rancho", "Santa Fe"],
-    "New York": ["New York City", "Buffalo", "Rochester", "Yonkers", "Syracuse"],
-    "North Carolina": ["Charlotte", "Raleigh", "Greensboro", "Durham", "Winston-Salem"],
-    "North Dakota": ["Fargo", "Bismarck", "Grand Forks"],
-    "Ohio": ["Columbus", "Cleveland", "Cincinnati", "Toledo", "Akron"],
-    "Oklahoma": ["Oklahoma City", "Tulsa", "Norman", "Broken Arrow"],
-    "Oregon": ["Portland", "Salem", "Eugene", "Gresham", "Hillsboro"],
-    "Pennsylvania": ["Philadelphia", "Pittsburgh", "Allentown", "Erie", "Reading"],
-    "Rhode Island": ["Providence", "Cranston", "Warwick", "Pawtucket"],
-    "South Carolina": ["Columbia", "Charleston", "North Charleston", "Mount Pleasant"],
-    "South Dakota": ["Sioux Falls", "Rapid City", "Aberdeen"],
-    "Tennessee": ["Nashville", "Memphis", "Knoxville", "Chattanooga", "Clarksville"],
     "Texas": ["Houston", "San Antonio", "Dallas", "Austin", "Fort Worth", "El Paso", "Arlington"],
-    "Utah": ["Salt Lake City", "West Valley City", "Provo", "West Jordan", "Orem"],
-    "Vermont": ["Burlington", "South Burlington", "Rutland"],
+    "Florida": ["Jacksonville", "Miami", "Tampa", "Orlando", "St. Petersburg", "Hialeah"],
+    "New York": ["New York City", "Buffalo", "Rochester", "Yonkers", "Syracuse"],
+    "Pennsylvania": ["Philadelphia", "Pittsburgh", "Allentown", "Erie", "Reading"],
+    "Illinois": ["Chicago", "Aurora", "Rockford", "Joliet", "Naperville"],
+    "Ohio": ["Columbus", "Cleveland", "Cincinnati", "Toledo", "Akron"],
+    "Georgia": ["Atlanta", "Augusta", "Columbus", "Macon", "Savannah"],
+    "North Carolina": ["Charlotte", "Raleigh", "Greensboro", "Durham", "Winston-Salem"],
+    "Michigan": ["Detroit", "Grand Rapids", "Warren", "Sterling Heights", "Lansing"],
+    "New Jersey": ["Newark", "Jersey City", "Paterson", "Elizabeth", "Trenton"],
     "Virginia": ["Virginia Beach", "Norfolk", "Chesapeake", "Richmond", "Arlington"],
     "Washington": ["Seattle", "Spokane", "Tacoma", "Vancouver", "Bellevue"],
-    "West Virginia": ["Charleston", "Huntington", "Morgantown"],
+    "Arizona": ["Phoenix", "Tucson", "Scottsdale", "Mesa", "Chandler"],
+    "Massachusetts": ["Boston", "Worcester", "Springfield", "Cambridge", "Lowell"],
+    "Tennessee": ["Nashville", "Memphis", "Knoxville", "Chattanooga", "Clarksville"],
+    "Indiana": ["Indianapolis", "Fort Wayne", "Evansville", "South Bend"],
+    "Missouri": ["Kansas City", "Saint Louis", "Springfield", "Columbia"],
+    "Maryland": ["Baltimore", "Frederick", "Rockville", "Gaithersburg"],
     "Wisconsin": ["Milwaukee", "Madison", "Green Bay", "Kenosha", "Racine"],
+    "Colorado": ["Denver", "Colorado Springs", "Aurora", "Fort Collins", "Boulder"],
+    "Minnesota": ["Minneapolis", "Saint Paul", "Rochester", "Duluth"],
+    "South Carolina": ["Columbia", "Charleston", "North Charleston", "Mount Pleasant"],
+    "Alabama": ["Birmingham", "Montgomery", "Huntsville", "Mobile", "Tuscaloosa"],
+    "Louisiana": ["New Orleans", "Baton Rouge", "Shreveport", "Lafayette"],
+    "Kentucky": ["Louisville", "Lexington", "Bowling Green", "Owensboro"],
+    "Oregon": ["Portland", "Salem", "Eugene", "Gresham", "Hillsboro"],
+    "Oklahoma": ["Oklahoma City", "Tulsa", "Norman", "Broken Arrow"],
+    "Connecticut": ["Bridgeport", "New Haven", "Hartford", "Stamford"],
+    "Utah": ["Salt Lake City", "West Valley City", "Provo", "West Jordan", "Orem"],
+    "Iowa": ["Des Moines", "Cedar Rapids", "Davenport", "Sioux City"],
+    "Nevada": ["Las Vegas", "Henderson", "Reno", "North Las Vegas"],
+    "Arkansas": ["Little Rock", "Fort Smith", "Fayetteville", "Springdale", "Jonesboro"],
+    "Mississippi": ["Jackson", "Gulfport", "Southaven", "Hattiesburg"],
+    "Kansas": ["Wichita", "Overland Park", "Kansas City", "Topeka"],
+    "New Mexico": ["Albuquerque", "Las Cruces", "Rio Rancho", "Santa Fe"],
+    "Nebraska": ["Omaha", "Lincoln", "Bellevue", "Grand Island"],
+    "West Virginia": ["Charleston", "Huntington", "Morgantown"],
+    "Idaho": ["Boise", "Meridian", "Nampa", "Idaho Falls"],
+    "Hawaii": ["Honolulu", "Pearl City", "Hilo"],
+    "New Hampshire": ["Manchester", "Nashua", "Concord"],
+    "Maine": ["Portland", "Lewiston", "Bangor"],
+    "Montana": ["Billings", "Missoula", "Great Falls", "Bozeman"],
+    "Rhode Island": ["Providence", "Cranston", "Warwick", "Pawtucket"],
+    "Delaware": ["Wilmington", "Dover", "Newark"],
+    "South Dakota": ["Sioux Falls", "Rapid City", "Aberdeen"],
+    "North Dakota": ["Fargo", "Bismarck", "Grand Forks"],
+    "Alaska": ["Anchorage", "Fairbanks", "Juneau"],
+    "Vermont": ["Burlington", "South Burlington", "Rutland"],
     "Wyoming": ["Cheyenne", "Casper", "Laramie"]
 }
 
@@ -104,6 +108,38 @@ CHAIN_KEYWORDS = [
     "novacare rehabilitation", "results physiotherapy", "bayada home health",
     "interim healthcare", "amedisys", "lhc group", "encompass health"
 ]
+
+# Free, pre-AI disqualification signal — Google Places "New" API returns a
+# `types` list at no extra cost (same pricing tier as the fields we already
+# request), so we ask for it and reject obvious non-PT institutional
+# categories before a candidate is even counted toward the raw-lead cap,
+# let alone sent to the (paid, batched) AI qualification call.
+NON_PT_PLACE_TYPES = {
+    "hospital", "home_health_care_service", "nursing_home", "hospice",
+    "urgent_care_center", "medical_clinic", "chiropractor", "government_office",
+}
+
+# Same idea applied to the business name — catches obvious non-PT/institutional
+# businesses even when Google's type data is missing or too generic (e.g.
+# "health") to safely filter on alone. Kept conservative/specific so a
+# legitimate small PT practice with "rehab"/"therapy"/"wellness" in its name
+# never gets caught by this.
+NON_PT_NAME_KEYWORDS = [
+    "hospital", "home health", "nursing home", "skilled nursing", "hospice",
+    "urgent care", "behavioral health", "addiction", "mental health",
+    "psychiatric", "chiropractic", "chiropractor", "home care",
+]
+
+
+def _looks_like_non_pt(name: str, types: list) -> bool:
+    """Cheap pre-AI filter: True if this is obviously not an independent PT
+    practice (hospital, home health agency, chiropractor, etc.) based on
+    Places API type data or the business name alone — no API/model cost."""
+    types_lower = {t.lower() for t in (types or [])}
+    if types_lower & NON_PT_PLACE_TYPES:
+        return True
+    name_lower = name.lower()
+    return any(kw in name_lower for kw in NON_PT_NAME_KEYWORDS)
 
 
 
@@ -168,7 +204,7 @@ def update_memory(new_information):
 # ════════════════════════════════════════════════════════════════════════════
 
 PLACES_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
-PLACES_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri"
+PLACES_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.types"
 
 def search_places(query):
     """Places API (New) searchText — returns name, address, phone, and website
@@ -190,8 +226,18 @@ def search_places(query):
         return []
 
 
-def scrape_state_leads(progress, scraped_ids, daily_limit):
-    raw_leads  = []
+# Safety bound on how many states a single run will cross while topping up
+# the raw-lead pool — protects runtime/API cost if the cursor lands on a long
+# stretch of very low-yield markets back to back. Coverage isn't affected:
+# the cursor just resumes exactly where it left off on the next run.
+MAX_STATES_PER_RUN = 10
+
+
+def _scrape_current_state(progress, scraped_ids, raw_leads, cap):
+    """Scrapes from the current city/term position onward within the
+    current state, appending pre-filtered candidates to raw_leads. Returns
+    True if the cap was reached (caller should stop), False if this state
+    was fully exhausted without reaching it (caller should advance state)."""
     state_name = progress["states"][progress["current_state_index"]]
     cities     = list(US_STATES[state_name])
 
@@ -214,9 +260,14 @@ def scrape_state_leads(progress, scraped_ids, daily_limit):
                 place_id = place.get("id")
                 if not place_id or place_id in scraped_ids:
                     continue
-                name = place.get("displayName", {}).get("text", "")
+                name  = place.get("displayName", {}).get("text", "")
+                types = place.get("types", [])
                 if any(chain in name.lower() for chain in CHAIN_KEYWORDS):
                     scraped_ids.add(place_id)
+                    continue
+                if _looks_like_non_pt(name, types):
+                    scraped_ids.add(place_id)
+                    print(f"    ⏭️  Skipped (obviously not independent PT): {name}")
                     continue
                 scraped_ids.add(place_id)
                 raw_leads.append({
@@ -228,12 +279,12 @@ def scrape_state_leads(progress, scraped_ids, daily_limit):
                     "state":    state_name,
                     "city":     city
                 })
-                if len(raw_leads) >= daily_limit * 6:
+                if len(raw_leads) >= cap:
                     progress["current_city_index"] = city_index
                     progress["current_term_index"] = term_index
                     save_progress(progress)
                     save_scraped_ids(scraped_ids)
-                    return raw_leads
+                    return True
 
             term_index += 1
 
@@ -255,6 +306,25 @@ def scrape_state_leads(progress, scraped_ids, daily_limit):
 
     save_progress(progress)
     save_scraped_ids(scraped_ids)
+    return False
+
+
+def scrape_state_leads(progress, scraped_ids, daily_limit):
+    """Tops up the raw-lead pool to daily_limit*6, crossing into as many
+    subsequent states as needed (bounded by MAX_STATES_PER_RUN) so a run
+    landing on a low-yield market still comes back with a full candidate
+    pool instead of stopping the moment the current state runs dry."""
+    raw_leads = []
+    cap       = daily_limit * 6
+
+    for _ in range(MAX_STATES_PER_RUN):
+        reached_cap = _scrape_current_state(progress, scraped_ids, raw_leads, cap)
+        if reached_cap:
+            break
+    else:
+        print(f"⚠️  Crossed {MAX_STATES_PER_RUN} states this run without filling the pool "
+              f"({len(raw_leads)}/{cap}) — stopping here for today.")
+
     return raw_leads
 
 
