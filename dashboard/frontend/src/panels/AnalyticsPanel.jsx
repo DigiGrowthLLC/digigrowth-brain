@@ -3,10 +3,6 @@ import { API } from "../api.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
 
 function pct(v) { return v != null ? `${v}%` : "—"; }
-// Shows the underlying count alongside the rate (e.g. "0% (0/1)") so a
-// denominator-only change (e.g. just sent the Initial Message, no reply yet)
-// is visible even while the percentage itself is still 0%.
-function pctFrac(v, n, d) { return v != null ? `${v}% (${n ?? 0}/${d ?? 0})` : "—"; }
 function num(v) { return v != null ? v : "—"; }
 function money(v) { return v != null ? `$${v.toLocaleString()}` : "—"; }
 
@@ -66,14 +62,14 @@ function OutreachTable({ outreach, tab }) {
     },
     {
       label:   "Engaged / Pitch Rate",
-      call:    pctFrac(call.pitch_rate, call.pitches, call.total),
+      call:    pct(call.pitch_rate),
       sms:     pct(sms.engaged_rate),
       content: num(content.total_views),
       isRate:  true,
     },
     {
       label:   "Interested / Resonation Rate",
-      call:    pctFrac(call.resonation_rate, call.resonations, call.pitches),
+      call:    pct(call.resonation_rate),
       sms:     pct(sms.interested_rate),
       content: "—",
       isRate:  true,
