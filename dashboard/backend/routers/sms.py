@@ -116,7 +116,7 @@ async def _get_or_create_conversation(conn, phone: str) -> dict:
     }
 
 
-async def _store_message(conn, phone: str, role: str, body: str):
+async def _store_message(conn, phone: str, role: str, body: str, stage: str | None = None):
     conv = await conn.fetchrow(
         f"SELECT messages, phone FROM sms_conversations WHERE {_phone_match('phone', '$1')}", phone
     )
@@ -141,13 +141,14 @@ async def _store_message(conn, phone: str, role: str, body: str):
 
     await conn.execute(
         """
-        INSERT INTO sms_messages (contact_id, phone, direction, body)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO sms_messages (contact_id, phone, direction, body, stage)
+        VALUES ($1, $2, $3, $4, $5)
         """,
         contact_id,
         canonical_phone,
         direction,
         body,
+        stage,
     )
 
 
@@ -197,7 +198,7 @@ async def send_opening_message(contact: dict) -> bool:
         except Exception as e:
             print(f"Twilio send error (opening message) for {phone}: {e}")
             return False
-        await _store_message(conn, phone, "assistant", body)
+        await _store_message(conn, phone, "assistant", body, stage="curiosity_opener")
 
     return True
 
@@ -318,7 +319,7 @@ async def get_sequence(phone: str):
         body = (values.get(f"seq_{key}") or "").strip()
         if not body:
             continue
-        steps.append({"label": label, "text": apply_merge_fields(body, contact_dict)})
+        steps.append({"key": key, "label": label, "text": apply_merge_fields(body, contact_dict)})
 
     return {"ok": True, "sequence_title": "SMS Sequence", "steps": steps}
 
@@ -330,6 +331,10 @@ async def manual_send(payload: dict):
     if not phone or not body:
         return {"ok": False, "error": "phone and body required"}
 
+    stage = payload.get("stage")
+    if stage not in {key for key, _ in SEQUENCE_STEPS}:
+        stage = None
+
     try:
         _send_twilio(phone, body)
     except Exception as e:
@@ -338,7 +343,7 @@ async def manual_send(payload: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
         conv = await _get_or_create_conversation(conn, phone)
-        await _store_message(conn, phone, "assistant", body)
+        await _store_message(conn, phone, "assistant", body, stage=stage)
 
     return {"ok": True, "contact_id": conv.get("contact_id")}
 

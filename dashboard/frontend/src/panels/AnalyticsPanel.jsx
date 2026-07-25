@@ -121,6 +121,9 @@ function OutreachTable({ outreach, tab }) {
       ))}
       {/* Source notes */}
       <div style={{ marginTop: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
+        SMS · rates are % of {num(sms.initial_sent)} contacts sent the Initial Message (stage-tagged sends only, tracked from launch)
+      </div>
+      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
         COLD CALLING · synced daily from Google Sheets (Sheets Digest skill)
       </div>
       <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a2a60", letterSpacing: "0.08em" }}>

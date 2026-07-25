@@ -87,73 +87,106 @@ def _calling_metrics(stats: dict, days: int) -> dict:
 
 
 async def _sms_metrics(conn, since=None) -> dict:
-    """Return SMS funnel metrics. If since is None, returns all-time."""
-    time_filter = "AND sc.created_at >= $1" if since else ""
-    msg_filter  = "AND sent_at >= $1"       if since else ""
+    """
+    Return SMS funnel metrics. If since is None, returns all-time.
+
+    Every rate is a percentage of `initial_sent` — distinct contacts who were
+    sent the "Initial Message" (stage='curiosity_opener') sequence step, since
+    that's the top of the funnel. `since` filters on when that initial-stage
+    message was sent, not on conversation/reply timestamps, so the funnel
+    reflects "of the people who entered the sequence in this window, what
+    happened to them" rather than filtering each stage independently.
+
+    Messages only get a `stage` tag when the agent explicitly used the
+    SEQUENCE dropdown (see sms.py); freeform/edited sends have stage=NULL and
+    are excluded from the funnel but still counted in total_sent.
+    """
+    msg_filter = "AND sent_at >= $1" if since else ""
     params = [since] if since else []
 
     total_sent = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_messages WHERE direction='outbound' {msg_filter}", *params
     )
-    total_convos = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE true {time_filter}", *params
+
+    initial_sent = await conn.fetchval(
+        f"""
+        SELECT COUNT(DISTINCT phone) FROM sms_messages
+        WHERE direction='outbound' AND stage='curiosity_opener' {msg_filter}
+        """,
+        *params,
     )
+
     replied = await conn.fetchval(
         f"""
-        SELECT COUNT(DISTINCT sc.id) FROM sms_conversations sc
-        WHERE EXISTS (
-            SELECT 1 FROM sms_messages sm
-            WHERE sm.phone = sc.phone AND sm.direction='inbound'
-            {('AND sm.sent_at >= $1' if since else '')}
+        SELECT COUNT(DISTINCT init.phone)
+        FROM sms_messages init
+        WHERE init.direction='outbound' AND init.stage='curiosity_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
+        AND EXISTS (
+            SELECT 1 FROM sms_messages reply
+            WHERE reply.phone = init.phone AND reply.direction='inbound'
+            AND reply.sent_at > init.sent_at
         )
-        {time_filter}
         """,
         *params,
-    ) if since else await conn.fetchval(
-        """
-        SELECT COUNT(DISTINCT sc.id) FROM sms_conversations sc
-        WHERE EXISTS (
-            SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.direction='inbound'
-        )
-        """
     )
+
     engaged = await conn.fetchval(
         f"""
-        SELECT COUNT(DISTINCT sc.id) FROM sms_conversations sc
-        WHERE (
-            SELECT COUNT(*) FROM sms_messages sm
-            WHERE sm.phone = sc.phone AND sm.direction='inbound'
-            {('AND sm.sent_at >= $1' if since else '')}
-        ) >= 2
-        {time_filter}
+        SELECT COUNT(DISTINCT init.phone)
+        FROM sms_messages init
+        WHERE init.direction='outbound' AND init.stage='curiosity_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
+        AND EXISTS (
+            SELECT 1 FROM sms_messages guar
+            WHERE guar.phone = init.phone AND guar.direction='outbound' AND guar.stage='guarantee'
+            AND EXISTS (
+                SELECT 1 FROM sms_messages reply
+                WHERE reply.phone = guar.phone AND reply.direction='inbound'
+                AND reply.sent_at > guar.sent_at
+            )
+        )
         """,
         *params,
-    ) if since else await conn.fetchval(
-        """
-        SELECT COUNT(DISTINCT sc.id) FROM sms_conversations sc
-        WHERE (SELECT COUNT(*) FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.direction='inbound') >= 2
-        """
     )
-    booked = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE disposition='booked' {time_filter}", *params
+
+    interested_sent = await conn.fetchval(
+        f"""
+        SELECT COUNT(DISTINCT init.phone)
+        FROM sms_messages init
+        WHERE init.direction='outbound' AND init.stage='curiosity_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
+        AND EXISTS (
+            SELECT 1 FROM sms_messages a
+            WHERE a.phone = init.phone AND a.direction='outbound' AND a.stage='ask'
+        )
+        """,
+        *params,
     )
-    not_interested = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE disposition='not_interested' {time_filter}", *params
+
+    booked_of_initial = await conn.fetchval(
+        f"""
+        SELECT COUNT(DISTINCT init.phone)
+        FROM sms_messages init
+        JOIN sms_conversations sc ON sc.phone = init.phone
+        WHERE init.direction='outbound' AND init.stage='curiosity_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
+        AND sc.disposition = 'booked'
+        """,
+        *params,
     )
-    interested = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE disposition IN ('interested','booked') {time_filter}", *params
+
+    booked_total = await conn.fetchval(
+        f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='booked' "
+        f"{'AND created_at >= $1' if since else ''}",
+        *params,
     )
 
     return {
         "total_sent":        total_sent   or 0,
-        "reply_rate":        _pct(replied, total_convos),
-        "conversation_rate": _pct(replied, total_convos),
-        "engaged_rate":      _pct(engaged, total_convos),
-        "interested":        interested or 0,
-        "interested_rate":   _pct(interested, total_convos),
-        "not_interested":    not_interested or 0,
-        "abr":               _pct(booked, total_convos),
-        "booked":            booked or 0,
+        "initial_sent":      initial_sent or 0,
+        "reply_rate":        _pct(replied, initial_sent),
+        "conversation_rate": _pct(replied, initial_sent),
+        "engaged_rate":      _pct(engaged, initial_sent),
+        "interested_rate":   _pct(interested_sent, initial_sent),
+        "abr":               _pct(booked_of_initial, initial_sent),
+        "booked":            booked_total or 0,
     }
 
 

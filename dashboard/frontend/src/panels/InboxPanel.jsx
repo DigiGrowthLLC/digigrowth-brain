@@ -190,6 +190,8 @@ export default function InboxPanel({ initialTarget }) {
   const [thread, setThread]       = useState(null);
   const [replyChannel, setReplyChannel]   = useState("sms");
   const [replyText, setReplyText] = useState("");
+  const [appliedStage, setAppliedStage] = useState(null);
+  const [appliedStageLabel, setAppliedStageLabel] = useState(null);
   const [replySubject, setReplySubject] = useState("");
   const [sending, setSending]     = useState(false);
   const [loading, setLoading]     = useState(true);
@@ -267,6 +269,8 @@ export default function InboxPanel({ initialTarget }) {
     setThread(null);
     setSeqOpen(false);
     setReplySubject("");
+    setAppliedStage(null);
+    setAppliedStageLabel(null);
     await refreshThread(contactId);
   };
 
@@ -306,7 +310,11 @@ export default function InboxPanel({ initialTarget }) {
       if (replyChannel === "sms") {
         await fetch(API("/sms/send"), {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: thread.phone, body: replyText.trim() }),
+          body: JSON.stringify({
+            phone: thread.phone,
+            body: replyText.trim(),
+            ...(appliedStage ? { stage: appliedStage } : {}),
+          }),
         });
       } else {
         await fetch(API("/email/send"), {
@@ -320,6 +328,8 @@ export default function InboxPanel({ initialTarget }) {
         });
       }
       setReplyText("");
+      setAppliedStage(null);
+      setAppliedStageLabel(null);
       await refreshThread(selected);
       await loadConvos();
     } catch {}
@@ -348,8 +358,10 @@ export default function InboxPanel({ initialTarget }) {
     setSeqLoading(false);
   };
 
-  const applyStep = (text) => {
-    setReplyText(text);
+  const applyStep = (step) => {
+    setReplyText(step.text);
+    setAppliedStage(step.key);
+    setAppliedStageLabel(step.label);
     setSeqOpen(false);
   };
 
@@ -688,9 +700,17 @@ export default function InboxPanel({ initialTarget }) {
                       SEQUENCE
                     </button>
                   )}
+                  {replyChannel === "sms" && appliedStageLabel && (
+                    <div style={{
+                      alignSelf: "flex-end", fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                      color: "#3a7bd5", padding: "0 4px", whiteSpace: "nowrap",
+                    }}>
+                      TAGGED: {appliedStageLabel}
+                    </div>
+                  )}
                   <textarea
                     value={replyText}
-                    onChange={e => setReplyText(e.target.value)}
+                    onChange={e => { if (appliedStage) { setAppliedStage(null); setAppliedStageLabel(null); } setReplyText(e.target.value); }}
                     onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply(); }}
                     placeholder="Type a reply… (⌘↵ to send)"
                     rows={2}
@@ -730,7 +750,7 @@ export default function InboxPanel({ initialTarget }) {
                       </div>
                     )}
                     {seqSteps.map((s, i) => (
-                      <button key={i} onClick={() => applyStep(s.text)}
+                      <button key={i} onClick={() => applyStep(s)}
                         style={{
                           display: "block", width: "100%", textAlign: "left",
                           padding: "10px 16px", background: "transparent", border: "none", cursor: "pointer",

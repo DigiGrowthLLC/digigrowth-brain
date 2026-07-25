@@ -197,4 +197,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS phone TEXT;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS disposition TEXT;
+            ALTER TABLE sms_messages ADD COLUMN IF NOT EXISTS stage TEXT;
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;
         """)
