@@ -34,41 +34,35 @@ function OutreachTable({ outreach, tab }) {
 
   const call    = outreach.calling?.[tab] ?? {};
   const sms     = outreach.sms?.[tab]     ?? {};
-  const content = outreach.content?.[tab] ?? {};
 
   const rows = [
     {
       label:   "Total Outreach / Pieces",
       call:    num(call.total),
       sms:     num(sms.total_sent),
-      content: num((content.posts_published ?? 0) + (content.videos_published ?? 0)),
     },
     {
       label:   "Answer / Reply Rate",
       call:    pct(call.answer_rate),
       sms:     pct(sms.reply_rate),
-      content: "—",
       isRate:  true,
     },
     {
       label:   "Engaged / Pitch Rate",
       call:    pct(call.pitch_rate),
       sms:     pct(sms.engaged_rate),
-      content: num(content.total_views),
       isRate:  true,
     },
     {
       label:   "Interested / Resonation Rate",
       call:    pct(call.resonation_rate),
       sms:     pct(sms.interested_rate),
-      content: "—",
       isRate:  true,
     },
     {
       label:   "ABR",
       call:    pct(call.abr),
       sms:     pct(sms.abr),
-      content: "—",
       isRate:  true,
       highlight: true,
     },
@@ -76,7 +70,6 @@ function OutreachTable({ outreach, tab }) {
       label:   "Total Booked",
       call:    num(call.booked),
       sms:     num(sms.booked),
-      content: num(content.leads_from_content),
       isBig:   true,
     },
   ];
@@ -90,7 +83,6 @@ function OutreachTable({ outreach, tab }) {
         <div style={{ flex: 1.6, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>METRIC</div>
         <div style={{ ...colStyle, fontSize: 9, color: "#5a9bf0", letterSpacing: "0.1em" }}>SMS</div>
         <div style={{ ...colStyle, fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>COLD CALLING</div>
-        <div style={{ ...colStyle, fontSize: 9, color: "#a78bfa", letterSpacing: "0.1em" }}>CONTENT</div>
       </div>
       {rows.map((r, i) => (
         <div key={i} style={{
@@ -106,10 +98,6 @@ function OutreachTable({ outreach, tab }) {
                         color: r.isBig ? "#14c882" : r.highlight ? "#14c882" : "#c4d0e8" }}>
             {r.call}
           </div>
-          <div style={{ ...colStyle, fontSize: r.isBig ? 16 : 12, fontWeight: r.isBig ? 700 : 500,
-                        color: r.isBig ? "#14c882" : r.highlight ? "#14c882" : "#8b7cf8" }}>
-            {r.content}
-          </div>
         </div>
       ))}
       {/* Source notes */}
@@ -118,9 +106,6 @@ function OutreachTable({ outreach, tab }) {
       </div>
       <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
         COLD CALLING · synced daily from Google Sheets (Sheets Digest skill)
-      </div>
-      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a2a60", letterSpacing: "0.08em" }}>
-        CONTENT · posts + videos tracked via OS · update via Analytics → Content Stats
       </div>
     </div>
   );
@@ -215,7 +200,7 @@ export default function AnalyticsPanel() {
         <div style={{ display: "flex", alignItems: "stretch", gap: 0, marginTop: 4 }}>
           <FunnelBlock isFirst label="Total Leads" value={funnel.total_leads} convRate={null}
             color="90,155,240" />
-          <FunnelBlock label="Dialed" value={funnel.dialed} convRate={dialedRate}
+          <FunnelBlock label="Total Outreach" value={funnel.dialed} convRate={dialedRate}
             benchmark={null} color="90,155,240" />
           <FunnelBlock label="Answered" value={funnel.answered} convRate={answeredRate}
             benchmark="10–15%" color="20,200,130" />
