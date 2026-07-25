@@ -100,12 +100,22 @@ async def _sms_metrics(conn, since=None) -> dict:
     Messages only get a `stage` tag when the agent explicitly used the
     SEQUENCE dropdown (see sms.py); freeform/edited sends have stage=NULL and
     are excluded from the funnel but still counted in total_sent.
+
+    `total_sent` ("Total Outreach / Pieces") excludes Initial-Message sends —
+    those are the funnel's entry point and are reflected in initial_sent /
+    reply_rate instead, not double-counted as raw outreach volume.
     """
     msg_filter = "AND sent_at >= $1" if since else ""
     params = [since] if since else []
 
+    # Excludes Initial-Message sends — those feed initial_sent/reply_rate below,
+    # not the raw "Total Outreach / Pieces" count.
     total_sent = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_messages WHERE direction='outbound' {msg_filter}", *params
+        f"""
+        SELECT COUNT(*) FROM sms_messages
+        WHERE direction='outbound' AND (stage IS NULL OR stage != 'curiosity_opener') {msg_filter}
+        """,
+        *params,
     )
 
     initial_sent = await conn.fetchval(
