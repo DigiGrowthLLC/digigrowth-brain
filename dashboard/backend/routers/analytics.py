@@ -101,30 +101,36 @@ async def _sms_metrics(conn, since=None) -> dict:
     """
     Return SMS funnel metrics. If since is None, returns all-time.
 
-    Every rate is a percentage of `initial_sent` — distinct contacts who were
-    sent the "Initial Message" (stage='curiosity_opener') sequence step, since
-    that's the top of the funnel. `since` filters on when that initial-stage
-    message was sent, not on conversation/reply timestamps, so the funnel
-    reflects "of the people who entered the sequence in this window, what
-    happened to them" rather than filtering each stage independently.
+    Every metric is SEND-based, not reply-based — a stage counts the moment
+    it's sent, since in practice each later-stage send is itself the signal
+    that the prior step landed (e.g. "1. Initial Message" is only ever sent
+    manually after the lead replies to the automatic opener, so its send
+    IS the reply signal — no need to separately verify an inbound message).
 
-    Messages only get a `stage` tag when the agent explicitly used the
-    SEQUENCE dropdown (see sms.py); freeform/edited sends have stage=NULL and
-    are excluded from the funnel but still counted in total_sent.
+    Funnel population / denominator for every rate = `initial_sent`, the
+    count of distinct contacts sent the automatic opener (stage='auto_opener',
+    see send_opening_message() in sms.py) — that's the true top of the SMS
+    funnel, since every handed-off lead gets it automatically.
 
-    `total_sent` ("Total Outreach / Pieces") excludes Initial-Message sends —
-    those are the funnel's entry point and are reflected in initial_sent /
-    reply_rate instead, not double-counted as raw outreach volume.
+    "1. Initial Message" through "5. Booking Link" (SEQUENCE_STEPS in sms.py,
+    stage keys curiosity_opener/relevance/guarantee/ask/cta) are only tagged
+    when an agent explicitly picks that step from the Inbox SEQUENCE dropdown
+    before sending — freeform/edited sends have stage=NULL and don't count
+    toward any funnel stage.
+
+    `since` filters on when the auto-opener was sent, not on when later
+    stages landed, so the funnel reflects "of the leads contacted in this
+    window, how far did they get" rather than filtering each stage
+    independently by date.
     """
     msg_filter = "AND sent_at >= $1" if since else ""
     params = [since] if since else []
 
-    # Excludes Initial-Message sends — those feed initial_sent/reply_rate below,
-    # not the raw "Total Outreach / Pieces" count.
+    # "Total Outreach / Pieces" = the automatic opener, the true first touch.
     total_sent = await conn.fetchval(
         f"""
         SELECT COUNT(*) FROM sms_messages
-        WHERE direction='outbound' AND (stage IS NULL OR stage != 'curiosity_opener') {msg_filter}
+        WHERE direction='outbound' AND stage='auto_opener' {msg_filter}
         """,
         *params,
     )
@@ -132,48 +138,47 @@ async def _sms_metrics(conn, since=None) -> dict:
     initial_sent = await conn.fetchval(
         f"""
         SELECT COUNT(DISTINCT phone) FROM sms_messages
-        WHERE direction='outbound' AND stage='curiosity_opener' {msg_filter}
+        WHERE direction='outbound' AND stage='auto_opener' {msg_filter}
         """,
         *params,
     )
 
+    # Answer/Reply + Conversation Rate: "1. Initial Message" was sent — that
+    # send only happens after the lead replied to the auto-opener, so it IS
+    # the reply signal.
     replied = await conn.fetchval(
         f"""
         SELECT COUNT(DISTINCT init.phone)
         FROM sms_messages init
-        WHERE init.direction='outbound' AND init.stage='curiosity_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
+        WHERE init.direction='outbound' AND init.stage='auto_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
         AND EXISTS (
-            SELECT 1 FROM sms_messages reply
-            WHERE reply.phone = init.phone AND reply.direction='inbound'
-            AND reply.sent_at > init.sent_at
+            SELECT 1 FROM sms_messages step
+            WHERE step.phone = init.phone AND step.direction='outbound' AND step.stage='curiosity_opener'
         )
         """,
         *params,
     )
 
+    # Engaged: "3. Engaged Message" was sent to this lead.
     engaged = await conn.fetchval(
         f"""
         SELECT COUNT(DISTINCT init.phone)
         FROM sms_messages init
-        WHERE init.direction='outbound' AND init.stage='curiosity_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
+        WHERE init.direction='outbound' AND init.stage='auto_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
         AND EXISTS (
-            SELECT 1 FROM sms_messages guar
-            WHERE guar.phone = init.phone AND guar.direction='outbound' AND guar.stage='guarantee'
-            AND EXISTS (
-                SELECT 1 FROM sms_messages reply
-                WHERE reply.phone = guar.phone AND reply.direction='inbound'
-                AND reply.sent_at > guar.sent_at
-            )
+            SELECT 1 FROM sms_messages step
+            WHERE step.phone = init.phone AND step.direction='outbound' AND step.stage='guarantee'
         )
         """,
         *params,
     )
 
+    # Interested: "4. Call To Action" was sent to this lead.
     interested_sent = await conn.fetchval(
         f"""
         SELECT COUNT(DISTINCT init.phone)
         FROM sms_messages init
-        WHERE init.direction='outbound' AND init.stage='curiosity_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
+        WHERE init.direction='outbound' AND init.stage='auto_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
         AND EXISTS (
             SELECT 1 FROM sms_messages a
             WHERE a.phone = init.phone AND a.direction='outbound' AND a.stage='ask'
@@ -187,7 +192,7 @@ async def _sms_metrics(conn, since=None) -> dict:
         SELECT COUNT(DISTINCT init.phone)
         FROM sms_messages init
         JOIN sms_conversations sc ON sc.phone = init.phone
-        WHERE init.direction='outbound' AND init.stage='curiosity_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
+        WHERE init.direction='outbound' AND init.stage='auto_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
         AND sc.disposition = 'booked'
         """,
         *params,

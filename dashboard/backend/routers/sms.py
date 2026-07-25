@@ -180,6 +180,13 @@ async def send_opening_message(contact: dict) -> bool:
     Send the one-time opener to a lead that just entered sms-handoff status.
     contact needs at least "phone"; "owner" is used for the first-name greeting.
     Returns True if the message was sent.
+
+    Tagged stage="auto_opener" — distinct from the 5 SEQUENCE_STEPS keys.
+    This is the true top of the SMS funnel (every lead gets this automatically);
+    "1. Initial Message" (stage="curiosity_opener") is a separate, later,
+    manually-sent step in the sequence that only goes out after this opener
+    gets a reply. Keeping them as different stage values avoids conflating
+    "total leads contacted" with "leads who replied and got the next step".
     """
     phone = (contact.get("phone") or "").strip()
     if not phone:
@@ -198,7 +205,7 @@ async def send_opening_message(contact: dict) -> bool:
         except Exception as e:
             print(f"Twilio send error (opening message) for {phone}: {e}")
             return False
-        await _store_message(conn, phone, "assistant", body, stage="curiosity_opener")
+        await _store_message(conn, phone, "assistant", body, stage="auto_opener")
 
     return True
 

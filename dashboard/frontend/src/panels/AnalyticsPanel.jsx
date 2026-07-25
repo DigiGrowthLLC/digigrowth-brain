@@ -50,7 +50,7 @@ function OutreachTable({ outreach, tab }) {
     {
       label:   "Answer / Reply Rate",
       call:    pct(call.answer_rate),
-      sms:     pctFrac(sms.reply_rate, sms.replied, sms.initial_sent),
+      sms:     pct(sms.reply_rate),
       content: "—",
       isRate:  true,
     },
@@ -60,28 +60,28 @@ function OutreachTable({ outreach, tab }) {
       // by design (not a bug). SMS's conversation rate is real and stays.
       label:   "Conversation Rate",
       call:    "—",
-      sms:     pctFrac(sms.conversation_rate, sms.replied, sms.initial_sent),
+      sms:     pct(sms.conversation_rate),
       content: "—",
       isRate:  true,
     },
     {
       label:   "Engaged / Pitch Rate",
       call:    pctFrac(call.pitch_rate, call.pitches, call.total),
-      sms:     pctFrac(sms.engaged_rate, sms.engaged, sms.initial_sent),
+      sms:     pct(sms.engaged_rate),
       content: num(content.total_views),
       isRate:  true,
     },
     {
       label:   "Interested / Resonation Rate",
       call:    pctFrac(call.resonation_rate, call.resonations, call.pitches),
-      sms:     pctFrac(sms.interested_rate, sms.interested_sent, sms.initial_sent),
+      sms:     pct(sms.interested_rate),
       content: "—",
       isRate:  true,
     },
     {
       label:   "ABR",
       call:    pct(call.abr),
-      sms:     pctFrac(sms.abr, sms.booked_of_initial, sms.initial_sent),
+      sms:     pct(sms.abr),
       content: "—",
       isRate:  true,
       highlight: true,
@@ -128,7 +128,7 @@ function OutreachTable({ outreach, tab }) {
       ))}
       {/* Source notes */}
       <div style={{ marginTop: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
-        SMS · rates are % of {num(sms.initial_sent)} contacts sent the Initial Message (stage-tagged sends only, tracked from launch)
+        SMS · rates are % of {num(sms.initial_sent)} leads sent the automatic opener; each stage counts as soon as it's sent, not on reply (tracked from launch)
       </div>
       <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
         COLD CALLING · synced daily from Google Sheets (Sheets Digest skill)
