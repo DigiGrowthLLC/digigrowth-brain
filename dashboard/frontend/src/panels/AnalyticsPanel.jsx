@@ -55,22 +55,25 @@ function OutreachTable({ outreach, tab }) {
       isRate:  true,
     },
     {
+      // Cold calling never had a real conversation rate — the sheets don't
+      // track a distinct "conversation" stage, so this column is always "—"
+      // by design (not a bug). SMS's conversation rate is real and stays.
       label:   "Conversation Rate",
-      call:    pct(call.conversation_rate),
+      call:    "—",
       sms:     pctFrac(sms.conversation_rate, sms.replied, sms.initial_sent),
       content: "—",
       isRate:  true,
     },
     {
       label:   "Engaged / Pitch Rate",
-      call:    pct(call.pitch_rate),
+      call:    pctFrac(call.pitch_rate, call.pitches, call.total),
       sms:     pctFrac(sms.engaged_rate, sms.engaged, sms.initial_sent),
       content: num(content.total_views),
       isRate:  true,
     },
     {
-      label:   "Interested",
-      call:    "—",
+      label:   "Interested / Resonation Rate",
+      call:    pctFrac(call.resonation_rate, call.resonations, call.pitches),
       sms:     pctFrac(sms.interested_rate, sms.interested_sent, sms.initial_sent),
       content: "—",
       isRate:  true,

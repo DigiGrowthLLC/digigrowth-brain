@@ -72,17 +72,28 @@ def _content_metrics(stats: dict, days: int) -> dict:
 
 def _calling_metrics(stats: dict, days: int) -> dict:
     """Cold calling metrics — sourced from the daily Sheets Digest (sales_stats.json),
-    not the dialer DB, since the sheets are the system of record for cold calling."""
+    not the dialer DB, since the sheets are the system of record for cold calling.
+
+    Rate formulas match the KPI panel on the source "DigiGrowth Cold Calling
+    Metrics" sheets exactly (verified against real sheet data):
+      - Pitch Rate (PR)      = contacts_reached ÷ calls_made
+                                (the sheet's own Totals row calls contacts_reached "Pitches")
+      - Resonation Rate (RR) = resonations ÷ contacts_reached
+    """
     calls_made          = _sheet_stat(stats, "sheet_calls_made", days)
     calls_answered      = _sheet_stat(stats, "sheet_calls_answered", days)
     contacts_reached    = _sheet_stat(stats, "sheet_contacts_reached", days)
+    resonations         = _sheet_stat(stats, "sheet_resonations", days)
     appointments_booked = _sheet_stat(stats, "sheet_appointments_booked", days)
     return {
-        "total":             calls_made,
-        "answer_rate":       _pct(calls_answered, calls_made),
-        "conversation_rate": _pct(contacts_reached, calls_answered),
-        "abr":               _pct(appointments_booked, calls_made),
-        "booked":            appointments_booked,
+        "total":            calls_made,
+        "answer_rate":      _pct(calls_answered, calls_made),
+        "pitch_rate":       _pct(contacts_reached, calls_made),
+        "resonation_rate":  _pct(resonations, contacts_reached),
+        "pitches":          contacts_reached,
+        "resonations":      resonations,
+        "abr":              _pct(appointments_booked, calls_made),
+        "booked":           appointments_booked,
     }
 
 
