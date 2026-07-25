@@ -3,6 +3,10 @@ import { API } from "../api.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
 
 function pct(v) { return v != null ? `${v}%` : "—"; }
+// Shows the underlying count alongside the rate (e.g. "0% (0/1)") so a
+// denominator-only change (e.g. just sent the Initial Message, no reply yet)
+// is visible even while the percentage itself is still 0%.
+function pctFrac(v, n, d) { return v != null ? `${v}% (${n ?? 0}/${d ?? 0})` : "—"; }
 function num(v) { return v != null ? v : "—"; }
 function money(v) { return v != null ? `$${v.toLocaleString()}` : "—"; }
 
@@ -46,35 +50,35 @@ function OutreachTable({ outreach, tab }) {
     {
       label:   "Answer / Reply Rate",
       call:    pct(call.answer_rate),
-      sms:     pct(sms.reply_rate),
+      sms:     pctFrac(sms.reply_rate, sms.replied, sms.initial_sent),
       content: "—",
       isRate:  true,
     },
     {
       label:   "Conversation Rate",
       call:    pct(call.conversation_rate),
-      sms:     pct(sms.conversation_rate),
+      sms:     pctFrac(sms.conversation_rate, sms.replied, sms.initial_sent),
       content: "—",
       isRate:  true,
     },
     {
       label:   "Engaged / Pitch Rate",
       call:    pct(call.pitch_rate),
-      sms:     pct(sms.engaged_rate),
+      sms:     pctFrac(sms.engaged_rate, sms.engaged, sms.initial_sent),
       content: num(content.total_views),
       isRate:  true,
     },
     {
       label:   "Interested",
       call:    "—",
-      sms:     pct(sms.interested_rate),
+      sms:     pctFrac(sms.interested_rate, sms.interested_sent, sms.initial_sent),
       content: "—",
       isRate:  true,
     },
     {
       label:   "ABR",
       call:    pct(call.abr),
-      sms:     pct(sms.abr),
+      sms:     pctFrac(sms.abr, sms.booked_of_initial, sms.initial_sent),
       content: "—",
       isRate:  true,
       highlight: true,
