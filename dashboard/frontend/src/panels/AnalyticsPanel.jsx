@@ -237,7 +237,7 @@ export default function AnalyticsPanel() {
       <div>
         <SecLabel>Sales Statistics</SecLabel>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-          <MiniStat label="Appointments Booked" value={num(funnel.booked)}   color="#5a9bf0" />
+          <MiniStat label="Appointments Booked" value={num(sales?.discovery_calls)} color="#5a9bf0" />
           <MiniStat label="Discovery Calls"     value={num(sales?.shows)}   color="#5a9bf0" />
           <MiniStat label="Show Rate"           value={funnel.booked ? `${Math.round((sales?.shows ?? 0) / funnel.booked * 100)}%` : "—"} color="#14c882" />
           <MiniStat label="Close Rate"          value={sales?.close_rate != null ? `${sales.close_rate}%` : "—"} color="#14c882" />
