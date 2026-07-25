@@ -261,6 +261,7 @@ async def pipeline(days: int = 0):
         total_leads = await conn.fetchval("SELECT COUNT(*) FROM contacts")
         new_week    = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", week_ago)
         new_month   = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", month_ago)
+        sms         = await _sms_metrics(conn, None if all_time else _since(days))
         grade_rows  = await conn.fetch(
             """
             SELECT grade,
@@ -285,13 +286,22 @@ async def pipeline(days: int = 0):
         for r in grade_rows
     ]
 
+    # Funnel is channel-agnostic — cold calling (sheets) + SMS (DB) combined
+    # at every stage, not cold-calling-only. Shows/closes are already
+    # cross-channel (logged manually in the Sales Performance Tracker
+    # regardless of source), so those two are untouched.
+    dialed   = _sheet_stat(sales, "sheet_calls_made",          days) + sms["initial_sent"]
+    answered = _sheet_stat(sales, "sheet_calls_answered",      days) + sms["replied"]
+    pitched  = _sheet_stat(sales, "sheet_contacts_reached",    days) + sms["engaged"]
+    booked   = _sheet_stat(sales, "sheet_appointments_booked", days) + sms["booked"]
+
     return {
         "funnel": {
             "total_leads": ((sales.get("sheet_calls_made") or 0) + (total_leads or 0)) if all_time else (total_leads or 0),
-            "dialed":   _sheet_stat(sales, "sheet_calls_made",        days),
-            "answered": _sheet_stat(sales, "sheet_calls_answered",    days),
-            "pitched":  _sheet_stat(sales, "sheet_contacts_reached",  days),
-            "booked":   _sheet_stat(sales, "sheet_appointments_booked", days),
+            "dialed":   dialed,
+            "answered": answered,
+            "pitched":  pitched,
+            "booked":   booked,
             "shows":    _sheet_stat(sales, "shows",  days),
             "closes":   _sheet_stat(sales, "closes", days),
         },
