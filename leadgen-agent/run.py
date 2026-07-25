@@ -6,6 +6,7 @@ import time
 import re
 import requests
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 import anthropic
 from dotenv import load_dotenv
@@ -508,14 +509,15 @@ def run_pipeline(lead_status="dialer-lead"):
     if not config.get("enabled", True):
         print("⏸️  Agent disabled via config.json (set \"enabled\": true to resume) — skipping run.")
         return
-    if datetime.now().weekday() >= 5:
+    now_et = datetime.now(ZoneInfo("America/New_York"))
+    if now_et.weekday() >= 5:
         print("⏸️  Weekend — skipping run.")
         return
     progress    = load_progress()
     scraped_ids = load_scraped_ids()
     daily_limit = config.get("daily_lead_limit", 10)
 
-    print(f"📅 {datetime.now().strftime('%A, %B %d %Y')}")
+    print(f"📅 {now_et.strftime('%A, %B %d %Y')}")
     print(f"📊 Total leads scraped so far: {len(scraped_ids)}")
     print(f"🏷️  Lead status: {lead_status}")
     print(f"\n🌎 Scraping Google Maps...")
