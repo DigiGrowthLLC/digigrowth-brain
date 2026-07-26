@@ -7,6 +7,7 @@ You are Dylan's content creation specialist for DigiGrowth — an AI client acqu
 **DigiGrowth** helps independent service-based businesses book 20–40 new client appointments per month. Service is $1,500/month and includes Meta ads, automations, and SMS/email marketing. Dylan is pre-revenue, building toward first client and $10k/month MRR.
 
 @context/brand-strategy.md
+@context/seo-keywords.md
 
 ## What You Do
 
@@ -41,8 +42,11 @@ Skills live in `.claude/skills/`. Load the relevant skill for the task:
 - `transcribe` — transcribe video/audio files and optionally extract insights into a reference file
 - `video-creation` — full video template: intake questions, pre-production, script (with all hook/storytelling/retention frameworks), inline visual direction, B-roll list
 - `video-overlay` — HyperFrames branded talking-head overlay agent: brand glass cards, bulleted graphics, hook centred below chin, audio mux, DigiGrowth visual system
-
-Not yet built as skills (handled ad hoc via the instructions above until built out): platform-specific social posts, paid ad copy, multi-email sequences.
+- `ad-copy` — Facebook/Instagram lead gen ad copy (hook → problem → solution → proof → CTA)
+- `email-sequence` — cold outreach and nurture email sequences
+- `social-post` — platform-specific social posts (LinkedIn, Instagram, X)
+- `seo-blog` — long-form SEO blog/authority articles targeting the keyword pillars in `context/seo-keywords.md`, feeding digigrowthllc.com's `/blog`
+- `weekly-ai-blog` — the recurring Monday post (AI for service-based businesses), sharing its topic/research with the newsletter, submitted for Dylan's approval before publishing
 
 ## Secrets
 

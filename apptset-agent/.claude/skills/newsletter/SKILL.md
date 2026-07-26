@@ -11,10 +11,12 @@ Generates DigiGrowth's weekly AI-tip email for contacts flagged `newsletter` in 
 ## What This Skill Does
 
 1. Picks this week's topic from a rotating list of AI client acquisition tips for independent service-based businesses
-2. Generates a personalized email draft (uses `{{first_name}}` and `{{business_name}}` placeholders)
-3. Saves the draft to `newsletter_draft.json` for the Python send script
-4. Renders the draft as a PDF and posts it inline in the OS chat, linked from Saturday's daily brief
-5. On send trigger: runs `newsletter.py --send` which personalizes and delivers to every tagged contact
+2. Runs one web search on that topic and caches the findings (`weekly_research_cache.json`) — shared with `content-agent`'s `weekly-ai-blog` skill so both pieces of content are grounded in the same research without a second search
+3. Generates a personalized email draft (uses `{{first_name}}` and `{{business_name}}` placeholders)
+4. Saves the draft to `newsletter_draft.json` for the Python send script
+5. Renders the draft as a PDF and posts it inline in the OS chat, linked from Monday's daily brief
+6. Submits the draft for approval via the dashboard's approvals API, so Dylan gets a live Approve/Decline control in chat
+7. On send trigger: runs `newsletter.py --send` which personalizes and delivers to every tagged contact (currently unwired — see Send Mode)
 
 ---
 
@@ -44,6 +46,23 @@ Read `newsletter_topic_log.json`. If the file doesn't exist, treat it as an empt
 
 Compare the log against the topic list below. Pick the **first topic not used in the last 20 entries**. If all 20 have been used recently, restart from topic 01.
 
+### Step 1.5 — Research this week's topic (shared with the blog post)
+
+Do **one web search** on this week's topic (e.g. "AI lead follow-up automation small business 2026 statistics") to ground the email in real, current data instead of writing from memory alone. Pull 2-4 concrete facts/stats, each with its source URL.
+
+Save the findings to `apptset-agent/weekly_research_cache.json`:
+```json
+{
+  "date": "YYYY-MM-DD",
+  "topic": "topic text from Step 1",
+  "findings": ["concrete fact or stat", "..."],
+  "sources": ["https://...", "..."]
+}
+```
+Overwrite any existing file — always use this week's fresh research. `content-agent`'s `weekly-ai-blog` skill reads this same file so the blog post covers the same ground without a second search — one search, two pieces of content.
+
+If the search turns up nothing useful for this topic, write `findings: []` and continue — Step 3 falls back to writing from general knowledge for this week only.
+
 ### Step 2 — Get recipient list
 
 `read_file` on `apptset-agent/newsletter_recipients.json` (repo-relative, already pulled by this run's guard step). It's exported nightly by Railway from the DigiGrowth OS CRM (`contacts` table, `newsletter = true`) — see `dashboard/backend/main.py`'s `_export_newsletter_contacts` job — so no live API call is needed here.
@@ -63,7 +82,7 @@ If the file doesn't exist or fails to parse, set count to "unknown" and list to 
 
 ### Step 3 — Generate this week's email
 
-Write the email yourself — do not delegate to newsletter.py for generation. Use the topic from Step 1 as the core insight.
+Write the email yourself — do not delegate to newsletter.py for generation. Use the topic from Step 1 as the core insight, grounded in the findings saved in Step 1.5 — reference at least one concrete fact/stat from `weekly_research_cache.json` instead of writing purely from memory.
 
 **Subject:** Specific and curiosity-driven. Under 60 characters. No spam words (free, win, guarantee, etc.). Reference the topic concretely.
 
@@ -163,18 +182,32 @@ Push both files (the repo is ephemeral on Railway — use `push_file()` from `sh
 - `apptset-agent/newsletter-draft-YYYY-MM-DD.md`
 - `apptset-agent/newsletter-draft-YYYY-MM-DD.pdf`
 
+### Step 6 — Submit for approval
+
+Call the dashboard's approvals endpoint so Dylan gets a real Approve/Decline control in chat instead of just a static preview:
+
+```bash
+curl -s -u "admin:$DASHBOARD_PASSWORD" -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"newsletter","title":"[subject]","summary":"[topic] — [N] recipients","payload":{"date":"YYYY-MM-DD"}}' \
+  https://digigrowth-brain-production.up.railway.app/api/approvals
+```
+
+This returns `{"id": <n>, ...}`. Note that id for the marker below.
+
 Return this summary for the daily brief:
 
 ```
 **Subject:** [subject]
 **To:** [N] contacts flagged `newsletter` in the DigiGrowth OS
 **Topic:** [topic]
-**Note:** Sending is currently disabled — draft only. See Send Mode.
+**Note:** Approving marks this ready to send — actual sending isn't wired up yet (see Send Mode below); approval today just confirms the draft is good.
 
 [[PDF:newsletter]]
+[[APPROVAL:<id>]]
 ```
 
-The `[[PDF:newsletter]]` line is a literal marker — the OS chat frontend detects it and renders the PDF inline. Do not add a link, description, or any other text around it.
+Both marker lines are literal — the OS chat frontend detects `[[PDF:newsletter]]` and renders the PDF inline, and detects `[[APPROVAL:<id>]]` and renders live Approve/Decline buttons. Replace `<id>` with the actual id returned above. Do not add a link, description, or any other text around either marker line.
 
 ---
 

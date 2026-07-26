@@ -189,9 +189,93 @@ function InlinePdfCard({ slug }) {
   );
 }
 
+// ── Approval card (approve/decline for a pending blog/newsletter draft) ──────
+
+function ApprovalCard({ id }) {
+  const [approval, setApproval] = useState(null);
+  const [deciding, setDeciding] = useState(false);
+
+  useEffect(() => {
+    fetch(API(`/approvals/${id}`))
+      .then(r => r.ok ? r.json() : null)
+      .then(setApproval)
+      .catch(() => {});
+  }, [id]);
+
+  const decide = async (decision) => {
+    setDeciding(true);
+    try {
+      const r = await fetch(API(`/approvals/${id}/decide`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      if (r.ok) setApproval(await r.json());
+    } finally {
+      setDeciding(false);
+    }
+  };
+
+  if (!approval) return null;
+
+  const decided = approval.status !== "pending";
+  const label = approval.status === "approved" ? "Approved ✓" : approval.status === "declined" ? "Declined ✗" : null;
+
+  return (
+    <div style={{
+      width: "100%", borderRadius: 10, marginTop: 8, padding: "12px 16px",
+      border: "1px solid rgba(58,123,213,0.25)",
+      background: "linear-gradient(160deg, rgba(12,22,58,0.98) 0%, rgba(7,12,35,0.96) 100%)",
+      boxShadow: "0 4px 32px rgba(0,0,0,0.35)",
+    }}>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#c8dcff", marginBottom: 8 }}>
+        {approval.title}
+      </div>
+      {approval.summary && (
+        <div style={{ fontSize: 12, color: "#8aaad0", marginBottom: 10 }}>{approval.summary}</div>
+      )}
+      {decided ? (
+        <div style={{
+          fontSize: 12, fontWeight: 700,
+          color: approval.status === "approved" ? "#14c882" : "#dc3c3c",
+        }}>
+          {label}
+          {approval.result && <span style={{ fontWeight: 400, color: "#6080a8", marginLeft: 8 }}>{approval.result}</span>}
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => decide("approve")}
+            disabled={deciding}
+            style={{
+              padding: "6px 16px", borderRadius: 6, border: "1px solid rgba(20,200,130,0.4)",
+              background: "rgba(20,200,130,0.12)", color: "#14c882", fontSize: 12, fontWeight: 700,
+              cursor: deciding ? "default" : "pointer",
+            }}
+          >
+            Approve
+          </button>
+          <button
+            onClick={() => decide("decline")}
+            disabled={deciding}
+            style={{
+              padding: "6px 16px", borderRadius: 6, border: "1px solid rgba(220,60,60,0.4)",
+              background: "rgba(220,60,60,0.1)", color: "#dc3c3c", fontSize: 12, fontWeight: 700,
+              cursor: deciding ? "default" : "pointer",
+            }}
+          >
+            Decline
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Message bubble ────────────────────────────────────────────────────────────
 
 const PDF_MARKER_RE = /\[\[PDF:([\w-]+)\]\]/;
+const APPROVAL_MARKER_RE = /\[\[APPROVAL:(\d+)\]\]/;
 
 function MessageBubble({ msg }) {
   const isUser = msg.role === "user";
@@ -206,7 +290,9 @@ function MessageBubble({ msg }) {
 
   const pdfMatch = rawText.match(PDF_MARKER_RE);
   const pdfSlug = pdfMatch ? pdfMatch[1] : null;
-  const text = pdfSlug ? rawText.replace(PDF_MARKER_RE, "").trimEnd() : rawText;
+  const approvalMatch = rawText.match(APPROVAL_MARKER_RE);
+  const approvalId = approvalMatch ? approvalMatch[1] : null;
+  const text = rawText.replace(PDF_MARKER_RE, "").replace(APPROVAL_MARKER_RE, "").trimEnd();
 
   if (isUser) {
     return (
@@ -266,6 +352,7 @@ function MessageBubble({ msg }) {
         )
       )}
       {pdfSlug && !msg._streaming && <InlinePdfCard slug={pdfSlug} />}
+      {approvalId && !msg._streaming && <ApprovalCard id={approvalId} />}
     </div>
   );
 }

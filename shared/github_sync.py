@@ -243,6 +243,88 @@ def _github_api_push(file_abs: pathlib.Path, message: str) -> str:
         return f"error pushing: {e}"
 
 
+def push_content_to_repo(repo: str, path_in_repo: str, content: str, message: str) -> str:
+    """
+    Push a string's content to a file in ANY GitHub repo via the Contents API —
+    no local checkout of that repo required. Use this for cross-repo publishing
+    (e.g. pushing a blog post into digigrowth-website from a routine that only
+    has digigrowth-brain checked out).
+
+    Always uses the REST API (never local git), since local git only makes sense
+    for the current repo. Requires GIT_TOKEN to have access to the target repo.
+
+    Returns a short status string ("pushed to GitHub", "error: ...").
+    """
+    token = os.environ.get("GIT_TOKEN", "")
+    if not token:
+        return "error: no GIT_TOKEN set"
+
+    api_url = f"https://api.github.com/repos/{repo}/contents/{path_in_repo}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+    }
+
+    sha = None
+    try:
+        req = urllib.request.Request(api_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            sha = json.loads(resp.read()).get("sha")
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            return f"error getting SHA: {e}"
+
+    content_b64 = base64.b64encode(content.encode("utf-8")).decode()
+    payload: dict = {"message": message, "content": content_b64}
+    if sha:
+        payload["sha"] = sha
+
+    try:
+        req = urllib.request.Request(
+            api_url,
+            data=json.dumps(payload).encode(),
+            headers=headers,
+            method="PUT",
+        )
+        with urllib.request.urlopen(req, timeout=15):
+            pass
+        return "pushed to GitHub"
+    except Exception as e:
+        return f"error pushing: {e}"
+
+
+def fetch_content_from_repo(repo: str, path_in_repo: str) -> str:
+    """
+    Fetch a file's raw text content from ANY GitHub repo via the Contents API.
+    Pair with push_content_to_repo() for a fetch-modify-push cycle on a file in
+    a repo that isn't checked out locally (e.g. reading digigrowth-website's
+    blog-posts.json before prepending a new post).
+
+    Returns the file's text content, or raises FileNotFoundError if it doesn't
+    exist, or RuntimeError for any other failure.
+    """
+    token = os.environ.get("GIT_TOKEN", "")
+    if not token:
+        raise RuntimeError("no GIT_TOKEN set")
+
+    api_url = f"https://api.github.com/repos/{repo}/contents/{path_in_repo}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+    }
+
+    try:
+        req = urllib.request.Request(api_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            return base64.b64decode(data["content"]).decode("utf-8")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise FileNotFoundError(f"{path_in_repo} not found in {repo}")
+        raise RuntimeError(f"error fetching {path_in_repo} from {repo}: {e}")
+
+
 def _github_api_delete(file_abs: pathlib.Path, message: str) -> str:
     token = os.environ.get("GIT_TOKEN", "")
     if not token:

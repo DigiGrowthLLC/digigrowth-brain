@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 import integrations
 from db import get_pool
-from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox
+from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, approvals
 
 security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
@@ -327,6 +327,7 @@ app.include_router(settings.router,   prefix="/api", dependencies=[Depends(requi
 app.include_router(analytics.router,  prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(finances.router,   prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sops.router,       prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(approvals.router,  prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(public_sops.router)  # no auth — readable by team
 app.include_router(legal.router)        # no auth — Twilio campaign registration
 

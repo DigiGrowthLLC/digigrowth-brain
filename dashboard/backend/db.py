@@ -178,6 +178,19 @@ async def _create_schema(pool: asyncpg.Pool):
                 value      TEXT,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
+
+            CREATE TABLE IF NOT EXISTS pending_approvals (
+                id         SERIAL PRIMARY KEY,
+                kind       TEXT NOT NULL,
+                title      TEXT NOT NULL,
+                summary    TEXT,
+                payload    JSONB NOT NULL DEFAULT '{}',
+                status     TEXT NOT NULL DEFAULT 'pending',
+                result     TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                decided_at TIMESTAMPTZ
+            );
+            CREATE INDEX IF NOT EXISTS idx_pending_approvals_status ON pending_approvals(status);
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""
