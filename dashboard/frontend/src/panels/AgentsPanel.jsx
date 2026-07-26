@@ -12,6 +12,34 @@ function fmtMsgTime(ts) {
          d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
+// Splits message text into ordered {type:"text"|"pdf"|"approval", ...} chunks so
+// [[PDF:...]] / [[APPROVAL:...]] markers render as cards inline, exactly where they
+// sit in the source text, instead of being stripped out and appended after everything.
+// Supports any number of markers in one message (not just the first).
+const MARKER_RE = /\[\[(PDF|APPROVAL):([\w-]+)\]\]/g;
+
+function splitMessageSegments(rawText) {
+  const segments = [];
+  let lastIndex = 0;
+  let match;
+  MARKER_RE.lastIndex = 0;
+  while ((match = MARKER_RE.exec(rawText)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: "text", content: rawText.slice(lastIndex, match.index) });
+    }
+    segments.push(match[1] === "PDF" ? { type: "pdf", slug: match[2] } : { type: "approval", id: match[2] });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < rawText.length) {
+    segments.push({ type: "text", content: rawText.slice(lastIndex) });
+  }
+  return segments;
+}
+
+function stripMarkers(rawText) {
+  return rawText.replace(MARKER_RE, "").trim();
+}
+
 // ── Tool block (collapsible) ──────────────────────────────────────────────────
 
 function ToolBlock({ block }) {
@@ -94,7 +122,7 @@ const CHAT_STYLES = `
 
 // ── Briefing card ─────────────────────────────────────────────────────────────
 
-function BriefingCard({ text, streaming }) {
+function BriefingCard({ segments, text, streaming }) {
   const dateMatch = text.match(/^# Morning Briefing\s*[—\-–]\s*(.+)/m);
   const dateLabel = dateMatch ? dateMatch[1].trim() : "";
 
@@ -127,8 +155,6 @@ function BriefingCard({ text, streaming }) {
     );
   }
 
-  const html = marked.parse(text);
-
   return (
     <div style={{
       width: "100%", borderRadius: 10, overflow: "hidden",
@@ -150,7 +176,15 @@ function BriefingCard({ text, streaming }) {
           </span>
         )}
       </div>
-      <div className="brief-body" dangerouslySetInnerHTML={{ __html: html }} />
+      {segments.map((seg, i) => {
+        if (seg.type === "pdf") {
+          return <div key={i} style={{ padding: "8px 16px" }}><InlinePdfCard slug={seg.slug} /></div>;
+        }
+        if (seg.type === "approval") {
+          return <div key={i} style={{ padding: "8px 16px" }}><ApprovalCard id={seg.id} /></div>;
+        }
+        return <div key={i} className="brief-body" dangerouslySetInnerHTML={{ __html: marked.parse(seg.content) }} />;
+      })}
     </div>
   );
 }
@@ -294,61 +328,63 @@ function ApprovalCard({ id }) {
         <div style={{ fontSize: 12, color: "#8aaad0", marginBottom: 10 }}>{approval.summary}</div>
       )}
 
-      <button
-        onClick={() => setExpanded(e => !e)}
-        style={{
-          padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(58,123,213,0.35)",
-          background: "rgba(58,123,213,0.1)", color: "#8ab4f0", fontSize: 12, fontWeight: 700,
-          cursor: "pointer", marginBottom: expanded ? 0 : 10,
-        }}
-      >
-        {expanded ? "Hide draft ▲" : "View full draft ▼"}
-      </button>
-
-      {expanded && <ApprovalDraftPreview approval={approval} />}
-
-      {decided ? (
+      {decided && (
         <div style={{
-          fontSize: 12, fontWeight: 700, marginTop: 10,
+          fontSize: 12, fontWeight: 700, marginBottom: 10,
           color: approval.status === "approved" ? "#14c882" : "#dc3c3c",
         }}>
           {label}
           {approval.result && <span style={{ fontWeight: 400, color: "#6080a8", marginLeft: 8 }}>{approval.result}</span>}
         </div>
-      ) : (
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button
-            onClick={() => decide("approve")}
-            disabled={deciding}
-            style={{
-              padding: "6px 16px", borderRadius: 6, border: "1px solid rgba(20,200,130,0.4)",
-              background: "rgba(20,200,130,0.12)", color: "#14c882", fontSize: 12, fontWeight: 700,
-              cursor: deciding ? "default" : "pointer",
-            }}
-          >
-            Approve
-          </button>
-          <button
-            onClick={() => decide("decline")}
-            disabled={deciding}
-            style={{
-              padding: "6px 16px", borderRadius: 6, border: "1px solid rgba(220,60,60,0.4)",
-              background: "rgba(220,60,60,0.1)", color: "#dc3c3c", fontSize: 12, fontWeight: 700,
-              cursor: deciding ? "default" : "pointer",
-            }}
-          >
-            Decline
-          </button>
-        </div>
+      )}
+
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(58,123,213,0.35)",
+          background: "rgba(58,123,213,0.1)", color: "#8ab4f0", fontSize: 12, fontWeight: 700,
+          cursor: "pointer",
+        }}
+      >
+        {expanded ? "Hide draft ▲" : "View full draft ▼"}
+      </button>
+
+      {expanded && (
+        <>
+          <ApprovalDraftPreview approval={approval} />
+          {!decided && (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => decide("approve")}
+                disabled={deciding}
+                style={{
+                  padding: "6px 16px", borderRadius: 6, border: "1px solid rgba(20,200,130,0.4)",
+                  background: "rgba(20,200,130,0.12)", color: "#14c882", fontSize: 12, fontWeight: 700,
+                  cursor: deciding ? "default" : "pointer",
+                }}
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => decide("decline")}
+                disabled={deciding}
+                style={{
+                  padding: "6px 16px", borderRadius: 6, border: "1px solid rgba(220,60,60,0.4)",
+                  background: "rgba(220,60,60,0.1)", color: "#dc3c3c", fontSize: 12, fontWeight: 700,
+                  cursor: deciding ? "default" : "pointer",
+                }}
+              >
+                Decline
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
 // ── Message bubble ────────────────────────────────────────────────────────────
-
-const PDF_MARKER_RE = /\[\[PDF:([\w-]+)\]\]/;
-const APPROVAL_MARKER_RE = /\[\[APPROVAL:(\d+)\]\]/;
 
 function MessageBubble({ msg }) {
   const isUser = msg.role === "user";
@@ -361,11 +397,8 @@ function MessageBubble({ msg }) {
     .map(b => b.text)
     .join("");
 
-  const pdfMatch = rawText.match(PDF_MARKER_RE);
-  const pdfSlug = pdfMatch ? pdfMatch[1] : null;
-  const approvalMatch = rawText.match(APPROVAL_MARKER_RE);
-  const approvalId = approvalMatch ? approvalMatch[1] : null;
-  const text = rawText.replace(PDF_MARKER_RE, "").replace(APPROVAL_MARKER_RE, "").trimEnd();
+  const text = stripMarkers(rawText);
+  const segments = splitMessageSegments(rawText);
 
   if (isUser) {
     return (
@@ -396,7 +429,7 @@ function MessageBubble({ msg }) {
       {(msg.toolBlocks || []).map(tb => <ToolBlock key={tb.id} block={tb} />)}
       {(text || msg._streaming || msg._error) && (
         isBriefing ? (
-          <BriefingCard text={text} streaming={msg._streaming} />
+          <BriefingCard segments={segments} text={text} streaming={msg._streaming} />
         ) : (
           <div style={{
             maxWidth: "85%", padding: "10px 14px",
@@ -411,7 +444,11 @@ function MessageBubble({ msg }) {
                 <span style={{ display: "inline-block", animation: "blink 0.9s step-end infinite", marginLeft: 1, color: "#3a7bd5" }}>▋</span>
               </div>
             ) : (
-              <div className="md-content" dangerouslySetInnerHTML={{ __html: marked.parse(text || "") }} />
+              segments.map((seg, i) => {
+                if (seg.type === "pdf") return <InlinePdfCard key={i} slug={seg.slug} />;
+                if (seg.type === "approval") return <ApprovalCard key={i} id={seg.id} />;
+                return <div key={i} className="md-content" dangerouslySetInnerHTML={{ __html: marked.parse(seg.content) }} />;
+              })
             )}
             {msg._error && (
               <div style={{ fontSize: 11, color: "#dc3c3c", marginTop: text ? 4 : 0 }}>Error: {msg._error}</div>
@@ -424,8 +461,6 @@ function MessageBubble({ msg }) {
           </div>
         )
       )}
-      {pdfSlug && !msg._streaming && <InlinePdfCard slug={pdfSlug} />}
-      {approvalId && !msg._streaming && <ApprovalCard id={approvalId} />}
     </div>
   );
 }
