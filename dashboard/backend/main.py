@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 import integrations
 from db import get_pool
-from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, approvals, tags
+from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, approvals, tags, newsletter
 
 security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
@@ -224,6 +224,55 @@ async def _export_newsletter_contacts() -> None:
     print(f"[cron] newsletter-export: {len(rows)} contacts ({status})", flush=True)
 
 
+NEWSLETTER_DAILY_CAP = 25   # safe range for an established single mailbox is ~25-50/day
+NEWSLETTER_BATCH_SIZE = 4    # sent per run — small batches, not a blast
+
+
+async def _process_newsletter_queue() -> None:
+    """Send a small batch of queued newsletter emails, respecting a daily cap,
+    so a big prospect list goes out gradually over days instead of all at once
+    (mass-blasting from a single mailbox is what tanks domain reputation, not
+    the total list size). Runs every ~25 min during business hours on weekdays
+    — see the CronTrigger below."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            sent_today = await conn.fetchval(
+                """SELECT COUNT(*) FROM newsletter_send_queue
+                   WHERE status = 'sent'
+                   AND (sent_at AT TIME ZONE 'America/New_York')::date
+                       = (now() AT TIME ZONE 'America/New_York')::date"""
+            )
+            remaining = NEWSLETTER_DAILY_CAP - sent_today
+            if remaining <= 0:
+                return
+
+            batch = await conn.fetch(
+                """SELECT id, email, subject, html FROM newsletter_send_queue
+                   WHERE status = 'queued' ORDER BY queued_at ASC LIMIT $1""",
+                min(NEWSLETTER_BATCH_SIZE, remaining),
+            )
+            if not batch:
+                return
+
+            for row in batch:
+                result = await asyncio.to_thread(
+                    integrations.gmail_send_html, row["email"], row["subject"], row["html"]
+                )
+                ok = result.startswith("Sent email")
+                await conn.execute(
+                    """UPDATE newsletter_send_queue
+                       SET status = $1, error = $2, sent_at = CASE WHEN $1 = 'sent' THEN now() ELSE sent_at END
+                       WHERE id = $3""",
+                    "sent" if ok else "failed", None if ok else result, row["id"],
+                )
+                await asyncio.sleep(3)  # small gap between sends within a batch, not a burst
+
+        print(f"[cron] newsletter-queue: sent {len(batch)} (today's total will be {sent_today + len(batch)}/{NEWSLETTER_DAILY_CAP})", flush=True)
+    except Exception as e:
+        print(f"[cron] newsletter-queue: failed: {e}", flush=True)
+
+
 async def _post_weekly_cleanup_report() -> None:
     """Pick up the weekly cleanup report committed by the 'EA Weekly Cleanup'
     cloud routine (runs Sundays ~8:04pm ET under the Claude subscription) and
@@ -298,6 +347,12 @@ async def lifespan(app: FastAPI):
         id="email-inbox-sync",
         replace_existing=True,
     )
+    scheduler.add_job(
+        _process_newsletter_queue,
+        CronTrigger(minute="*/25", hour="9-17", day_of_week="mon-fri", timezone=eastern),
+        id="newsletter-queue-processor",
+        replace_existing=True,
+    )
     scheduler.start()
 
     yield
@@ -331,6 +386,7 @@ app.include_router(approvals.router,  prefix="/api", dependencies=[Depends(requi
 app.include_router(tags.router,       prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(public_sops.router)  # no auth — readable by team
 app.include_router(legal.router)        # no auth — Twilio campaign registration
+app.include_router(newsletter.router, prefix="/api")  # no auth — clicked from an email link
 
 # Serve built frontend (populated by Railway build step)
 frontend_dist = os.path.join(os.path.dirname(__file__), "frontend/dist")

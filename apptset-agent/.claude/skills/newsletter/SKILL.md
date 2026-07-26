@@ -4,7 +4,10 @@ Generates DigiGrowth's weekly AI-tip email for contacts flagged `newsletter` in 
 
 **Run manually:** Ask the EA to "draft the newsletter." The EA delegates here via `manage-apptset-agent`.
 **Scheduled (draft):** Runs automatically every Monday as part of the daily briefing (Step 4.5).
-**Send Mode is currently disabled.** GoHighLevel (the old sending mechanism) is no longer in use and nothing has replaced it yet — Draft Mode still works, but there is no way to actually deliver the email right now. See "Send Mode" below.
+**Sending is live**, via Gmail API (`dylanrg@digigrowthllc.com`) — not a single blast. Approving the
+draft queues one personalized email per newsletter-flagged contact, and a scheduled backend job
+sends them gradually (~25/day cap, small batches every ~25 min during business hours) to protect the
+sending mailbox's domain reputation. See "Delivery" below.
 
 ---
 
@@ -16,7 +19,7 @@ Generates DigiGrowth's weekly AI-tip email for contacts flagged `newsletter` in 
 4. Saves the draft to `newsletter_draft.json` for the Python send script
 5. Renders the draft as a PDF and posts it inline in the OS chat, linked from Monday's daily brief
 6. Submits the draft for approval via the dashboard's approvals API, so Dylan gets a live Approve/Decline control in chat
-7. On send trigger: runs `newsletter.py --send` which personalizes and delivers to every tagged contact (currently unwired — see Send Mode)
+7. On Approve: the backend queues one personalized email per newsletter-flagged contact and sends them gradually (~25/day, small batches through the day) via Gmail API — see "Delivery" below. `newsletter.py`/`ghl.py` are legacy and unused; ignore them.
 
 ---
 
@@ -91,6 +94,9 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 - Centered div, max-width 600px, font-family sans-serif, line-height 1.6, inline styles
 - Use `{{first_name}}` where you'd address them by name (replaced per contact at send time)
 - Use `{{business_name}}` where you'd reference their studio (replaced per contact at send time)
+- Use `{{unsubscribe_link}}` as the `href` of a real unsubscribe link in the footer (replaced per
+  contact with a working one-click unsubscribe URL when queued — see Step 6). Do NOT write "Reply
+  STOP to unsubscribe" — that's an SMS convention and does nothing on email.
 - **Use HTML entities for all non-ASCII characters** — never paste raw Unicode. Em dash → `&mdash;`, smart quotes → `&ldquo;` / `&rdquo;`, apostrophe → `&#39;` or `&apos;`. This prevents garbled symbols (â€") when an email client renders the HTML.
 - **Paragraph spacing:** every `<p>` tag must have `style="margin:0;"` and be followed by a `<br>` tag before the next paragraph. Do NOT rely on CSS margin/padding for spacing between paragraphs — email clients collapse it. Use explicit `<br>` tags between every paragraph block.
 - **Bold key phrases:** wrap the most important stats, numbers, and action phrases in `<strong>` tags so readers scanning quickly know what matters. Aim for 4-7 bolded phrases per email (e.g. response time stats, sequence steps, outcome metrics, the core benefit).
@@ -100,7 +106,10 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 2. ONE actionable insight about using AI for client acquisition tied to this week's topic (3-5 sentences, concrete and specific — no fluff)
 3. CTA: "Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call — [booking_link from config]"
 5. Casual sign-off from "Dylan | Digigrowth"
-6. Footer: small plain-text unsubscribe note
+6. Footer (required, CAN-SPAM): a real `<a href="{{unsubscribe_link}}">Unsubscribe</a>` link, plus
+   the mailing address from `config.json` → `newsletter.mailing_address` if set. If that field is
+   empty, still include the unsubscribe link but flag to Dylan in your summary that the mailing
+   address needs to be added before this is fully compliant — don't invent an address.
 
 **Tone:** Direct, friendly, trusted expert who knows AI and service-based business marketing. No hype. No buzzwords. Under 90 seconds to read.
 
@@ -132,7 +141,8 @@ Build a Markdown review document with this exact structure:
 ````
 # Newsletter Draft — [Month Date, Year]
 
-Review this draft. Sending is currently disabled (see "Send Mode" below) — this is preview-only for now.
+Review this draft. Approving it queues a personalized send to every contact flagged `newsletter` —
+delivered gradually (~25/day), not all at once. See "Delivery" below.
 
 ## Subject
 
@@ -217,7 +227,7 @@ Return this summary for the daily brief:
 **Subject:** [subject]
 **To:** [N] contacts flagged `newsletter` in the DigiGrowth OS
 **Topic:** [topic]
-**Note:** Approving marks this ready to send — actual sending isn't wired up yet (see Send Mode below); approval today just confirms the draft is good.
+**Note:** Approving queues a personalized send to every contact flagged `newsletter` in the OS. Delivery is gradual (~25/day cap, spread through business hours) to protect domain reputation — not an instant blast.
 
 [[PDF:newsletter]]
 [[APPROVAL:<id>]]
@@ -227,11 +237,18 @@ Both marker lines are literal — the OS chat frontend detects `[[PDF:newsletter
 
 ---
 
-## Send Mode — currently disabled
+## Delivery — how sending actually works
 
-`newsletter.py --send` and `apptset-agent/ghl.py` sent email through GoHighLevel's conversations API. Dylan no longer uses GHL, and nothing has replaced it yet, so **do not run `newsletter.py --send`** — it will fail (missing/invalid GHL credentials) or, worse, silently no-op.
+Approving a newsletter approval (`kind: "newsletter"`) triggers `dashboard/backend/routers/approvals.py`'s `_enqueue_newsletter()`:
+1. Reads every contact where `newsletter = true` directly from the OS CRM (live query, not the nightly-exported `newsletter_recipients.json` file — that file is only for this skill's own Step 2 preview).
+2. Personalizes `{{first_name}}`, `{{business_name}}`, and `{{unsubscribe_link}}` per contact and inserts one row per contact into the `newsletter_send_queue` table. **Nothing is sent yet at this point.**
+3. A scheduled job in `dashboard/backend/main.py` (`_process_newsletter_queue`, cron `*/25 9-17 * * mon-fri` ET) sends a small batch (4) off the queue via `integrations.gmail_send_html()` — real Gmail API send from `dylanrg@digigrowthllc.com` — capped at `NEWSLETTER_DAILY_CAP` (25) sends/day total. A big list spreads across multiple days automatically; it never blasts everything from a single approval.
 
-If Dylan says "send the newsletter": tell him sending isn't wired up yet and ask what he wants to send through (e.g. Twilio email/SMS via the OS's existing integration, a transactional email API, manual export for a bulk-email tool). Do not attempt to fix or work around this yourself — the recipient list (`newsletter_recipients.json`, sourced from the OS CRM) and the draft content are ready; only actual delivery is unresolved.
+`newsletter.py --send` and `apptset-agent/ghl.py` are legacy — they used GoHighLevel, which is no longer in use. Ignore them; do not run `newsletter.py --send`.
+
+If Dylan asks to check on send status: query `newsletter_send_queue` (status `queued`/`sent`/`failed`, `error` column has the failure reason if any).
+
+**Before real prospect volume ramps up**, `config.json` → `newsletter.mailing_address` needs to be filled in for CAN-SPAM compliance — flag this if it's still empty and Dylan asks about sending to a real list.
 
 ---
 

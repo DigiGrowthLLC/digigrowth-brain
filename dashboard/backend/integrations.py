@@ -134,6 +134,23 @@ def gmail_send(to: str, subject: str, body: str) -> str:
         return f"Gmail error: {e}"
 
 
+def gmail_send_html(to: str, subject: str, html: str) -> str:
+    """Same as gmail_send but for an HTML body (newsletter sends) — MIMEText
+    defaults to plain text, which would send the HTML tags as literal text."""
+    try:
+        svc = _gmail_service()
+        msg = MIMEText(html, "html")
+        msg["to"] = to
+        msg["subject"] = subject
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+        return f"Sent email to {to}: {subject}"
+    except RuntimeError as e:
+        return str(e)
+    except Exception as e:
+        return f"Gmail error: {e}"
+
+
 INFO_EMAIL_SUBJECT = "Info as promised"
 
 INFO_EMAIL_BODY = """{first_name},

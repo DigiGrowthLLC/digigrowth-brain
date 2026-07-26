@@ -198,6 +198,20 @@ async def _create_schema(pool: asyncpg.Pool):
                 decided_at TIMESTAMPTZ
             );
             CREATE INDEX IF NOT EXISTS idx_pending_approvals_status ON pending_approvals(status);
+
+            CREATE TABLE IF NOT EXISTS newsletter_send_queue (
+                id          SERIAL PRIMARY KEY,
+                approval_id INTEGER REFERENCES pending_approvals(id) ON DELETE SET NULL,
+                contact_id  TEXT REFERENCES contacts(id) ON DELETE CASCADE,
+                email       TEXT NOT NULL,
+                subject     TEXT NOT NULL,
+                html        TEXT NOT NULL,
+                status      TEXT NOT NULL DEFAULT 'queued',
+                error       TEXT,
+                queued_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                sent_at     TIMESTAMPTZ
+            );
+            CREATE INDEX IF NOT EXISTS idx_newsletter_queue_status ON newsletter_send_queue(status);
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""

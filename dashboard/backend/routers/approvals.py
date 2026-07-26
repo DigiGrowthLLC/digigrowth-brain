@@ -14,6 +14,8 @@ router = APIRouter()
 
 _WEBSITE_REPO = "dylangroenendijk-sys/digigrowth-website"
 _BLOG_POSTS_PATH = "src/content/blog-posts.json"
+_API_BASE = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app")
+NEWSLETTER_DAILY_CAP = 25  # keep in sync with the cap in main.py's queue processor
 
 _COLS = "id, kind, title, summary, payload, status, result, created_at, decided_at"
 
@@ -100,6 +102,46 @@ def _publish_blog_post(payload: dict) -> str:
         return f"error: {e}"
 
 
+async def _enqueue_newsletter(conn, approval_id: int, payload: dict) -> str:
+    """Personalize the draft per newsletter-flagged contact and drop each into
+    newsletter_send_queue — actual sending happens gradually via the scheduled
+    queue processor in main.py, not all at once here, to protect the sending
+    mailbox's domain reputation as the list grows."""
+    subject = payload.get("subject")
+    html = payload.get("html")
+    if not subject or not html:
+        return "error: draft has no subject/html attached — nothing queued"
+
+    contacts = await conn.fetch(
+        "SELECT id, owner, business, email FROM contacts WHERE newsletter = true AND email IS NOT NULL AND email != ''"
+    )
+    if not contacts:
+        return "0 contacts flagged newsletter in the DigiGrowth OS — nothing queued"
+
+    for c in contacts:
+        first_name = (c["owner"] or "there").split(" ")[0]
+        business_name = c["business"] or "your business"
+        unsubscribe_link = f"{_API_BASE}/api/newsletter/unsubscribe/{c['id']}"
+        personalized_subject = (
+            subject.replace("{{first_name}}", first_name).replace("{{business_name}}", business_name)
+        )
+        personalized_html = (
+            html.replace("{{first_name}}", first_name)
+                .replace("{{business_name}}", business_name)
+                .replace("{{unsubscribe_link}}", unsubscribe_link)
+        )
+        await conn.execute(
+            """INSERT INTO newsletter_send_queue (approval_id, contact_id, email, subject, html)
+               VALUES ($1, $2, $3, $4, $5)""",
+            approval_id, c["id"], c["email"], personalized_subject, personalized_html,
+        )
+
+    return (
+        f"queued {len(contacts)} email(s) for gradual delivery "
+        f"(~{NEWSLETTER_DAILY_CAP}/day cap, paced through business hours — not sent all at once)"
+    )
+
+
 @router.post("/approvals")
 async def create_approval(body: CreateApproval):
     if body.kind not in ("blog", "newsletter"):
@@ -146,7 +188,7 @@ async def decide_approval(approval_id: int, body: DecideApproval):
         if body.decision == "approve" and approval["kind"] == "blog":
             result = _publish_blog_post(approval["payload"])
         elif body.decision == "approve" and approval["kind"] == "newsletter":
-            result = "approved — sending isn't wired up yet, this only marks the draft as reviewed"
+            result = await _enqueue_newsletter(conn, approval_id, approval["payload"])
 
         new_status = "approved" if body.decision == "approve" else "declined"
         updated = await conn.fetchrow(

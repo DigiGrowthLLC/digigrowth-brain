@@ -16,12 +16,14 @@ to run or manage here for SMS anymore.
 
 | File | What it controls |
 |---|---|
-| `config.json` | Newsletter topic hint, booking link, from-name |
-| `newsletter.py` | Newsletter draft generation (`--preview`). No send path — see Send Mode below. |
+| `config.json` | Newsletter topic hint, booking link, from-name, mailing address (required for CAN-SPAM once sending is live) |
+| `newsletter.py` | Legacy — GHL-based, unused. Real sending is the approvals-queue mechanism below. |
 | `newsletter_draft.json` | This week's saved email draft — subject + HTML template |
 | `newsletter_topic_log.json` | Record of topics used and when — drives weekly rotation |
-| `newsletter_recipients.json` | Nightly export from the OS CRM (`contacts` table, `newsletter = true`) |
-| `.claude/skills/newsletter/SKILL.md` | Full newsletter skill — all draft and send logic |
+| `newsletter_recipients.json` | Nightly export from the OS CRM (`contacts` table, `newsletter = true`) — preview only |
+| `.claude/skills/newsletter/SKILL.md` | Full newsletter skill — draft generation and the delivery mechanism |
+| `dashboard/backend/routers/approvals.py` | `_enqueue_newsletter()` — queues one email per contact on Approve |
+| `dashboard/backend/main.py` | `_process_newsletter_queue` cron job — actually sends, ~25/day cap, gradual |
 
 ---
 
@@ -40,7 +42,11 @@ cd "$(git rev-parse --show-toplevel)/apptset-agent" && doppler run -- python new
 Follow the **Draft Mode** steps in `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md`. That skill is the source of truth for all newsletter logic — topic rotation, email generation (written inline by the agent, not delegated to `newsletter.py`), PDF preview, and draft saving.
 
 ### Send this week's newsletter
-Sending is **not wired up** — GHL was the old delivery mechanism and nothing has replaced it. If Dylan asks to send, tell him it isn't resolved yet and ask what he wants to send through (Twilio email/SMS, a transactional email API, manual export). See the newsletter skill's "Send Mode" section.
+Sending happens by clicking **Approve** on the newsletter's approval card in chat — nothing else to
+run manually. That queues one personalized email per contact flagged `newsletter`, and a scheduled
+job sends them gradually (~25/day) via Gmail API, not all at once. See the newsletter skill's
+"Delivery" section for the full mechanism. Check `newsletter_send_queue` (via the OS CRM/DB) for
+send status if Dylan asks.
 
 ### Add a lead to the newsletter list
 Flag the contact `newsletter = true` in the DigiGrowth OS CRM. No code changes needed.
