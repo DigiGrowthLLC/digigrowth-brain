@@ -112,8 +112,13 @@ async def _enqueue_newsletter(conn, approval_id: int, payload: dict) -> str:
     if not subject or not html:
         return "error: draft has no subject/html attached — nothing queued"
 
+    # A contact counts as subscribed via either the boolean flag or the "Newsletter"
+    # tag — the dialer's auto-opt-in (Follow Up 30/90 Day dispositions) only sets the
+    # tag, not the boolean, so checking just one misses contacts opted in that way.
     contacts = await conn.fetch(
-        "SELECT id, owner, business, email FROM contacts WHERE newsletter = true AND email IS NOT NULL AND email != ''"
+        """SELECT id, owner, business, email FROM contacts
+           WHERE (newsletter = true OR 'Newsletter' = ANY(tags))
+           AND email IS NOT NULL AND email != ''"""
     )
     if not contacts:
         return "0 contacts flagged newsletter in the DigiGrowth OS — nothing queued"

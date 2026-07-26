@@ -200,7 +200,9 @@ async def _export_newsletter_contacts() -> None:
         pool = await get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT owner, business, email FROM contacts WHERE newsletter = true ORDER BY business"
+                """SELECT owner, business, email FROM contacts
+                   WHERE (newsletter = true OR 'Newsletter' = ANY(tags))
+                   ORDER BY business"""
             )
     except Exception as e:
         print(f"[cron] newsletter-export: DB query failed: {e}", flush=True)
