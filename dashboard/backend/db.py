@@ -179,6 +179,13 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            CREATE TABLE IF NOT EXISTS tags (
+                id         SERIAL PRIMARY KEY,
+                name       TEXT UNIQUE NOT NULL,
+                color      TEXT NOT NULL DEFAULT '#3a7bd5',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
             CREATE TABLE IF NOT EXISTS pending_approvals (
                 id         SERIAL PRIMARY KEY,
                 kind       TEXT NOT NULL,

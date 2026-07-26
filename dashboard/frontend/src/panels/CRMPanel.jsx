@@ -32,6 +32,105 @@ const GRADE_BADGE = {
   D: "badge-red",
 };
 
+const DEFAULT_TAG_COLOR = "#3a7bd5";
+const TAG_COLOR_PRESETS = ["#3a7bd5", "#5a9a5a", "#e0a030", "#e05555", "#a05ae0", "#5adcc8", "#e05a9e", "#8a9dc0"];
+
+function TagChip({ name, color, onRemove }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      padding: "2px 8px", borderRadius: 10,
+      background: `${color}22`, border: `0.5px solid ${color}80`,
+      color, fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+      whiteSpace: "nowrap",
+    }}>
+      {name}
+      {onRemove && (
+        <span onClick={e => { e.stopPropagation(); onRemove(); }}
+          style={{ cursor: "pointer", opacity: 0.7, fontSize: 10, lineHeight: 1 }}>✕</span>
+      )}
+    </span>
+  );
+}
+
+// ── Manage Tags Modal ─────────────────────────────────────────────────────────
+
+function ManageTagsModal({ tags, onClose, onChanged }) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(DEFAULT_TAG_COLOR);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function createTag(e) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true); setErr("");
+    const res = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), color }),
+    });
+    if (res.ok) { setName(""); setColor(DEFAULT_TAG_COLOR); onChanged(); }
+    else { const d = await res.json().catch(() => ({})); setErr(d.detail || "Failed to create tag."); }
+    setSaving(false);
+  }
+
+  async function deleteTag(tag) {
+    if (!window.confirm(`Delete tag "${tag.name}"? It will be removed from all contacts.`)) return;
+    await fetch(`/api/tags/${tag.id}`, { method: "DELETE" });
+    onChanged();
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(4,8,16,0.85)" }} onClick={onClose} />
+      <div style={{ position: "relative", background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 8, width: 420, maxHeight: "80vh", overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>Manage Tags</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 14 }}>✕</button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {tags.length === 0 && (
+            <div style={{ fontSize: 12, color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace" }}>No tags yet.</div>
+          )}
+          {tags.map(t => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", background: "#060a14", border: "0.5px solid #121e36", borderRadius: 6 }}>
+              <TagChip name={t.name} color={t.color} />
+              <span style={{ marginLeft: "auto" }} />
+              <button onClick={() => deleteTag(t)}
+                style={{ background: "none", border: "none", color: "#5a3a3a", cursor: "pointer", fontSize: 11, fontFamily: "'Share Tech Mono', monospace" }}>
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <form onSubmit={createTag} style={{ display: "flex", flexDirection: "column", gap: 10, borderTop: "0.5px solid #1a2540", paddingTop: 16 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.15em" }}>NEW TAG</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Tag name…"
+              className="dg-input" style={{ flex: 1 }} />
+            <input type="color" value={color} onChange={e => setColor(e.target.value)}
+              style={{ width: 36, height: 34, padding: 2, background: "#080c14", border: "0.5px solid #1a2540", borderRadius: 4, cursor: "pointer" }} />
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {TAG_COLOR_PRESETS.map(c => (
+              <button type="button" key={c} onClick={() => setColor(c)}
+                style={{ width: 18, height: 18, borderRadius: "50%", background: c, cursor: "pointer",
+                         border: c === color ? "2px solid #f0f4ff" : "1px solid rgba(255,255,255,0.2)" }} />
+            ))}
+          </div>
+          {err && <div style={{ fontSize: 12, color: "#e05555" }}>{err}</div>}
+          <button type="submit" className="btn btn-primary" disabled={saving || !name.trim()}>
+            {saving ? "Saving…" : "+ Create Tag"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function fmtLastCalled(ts) {
   if (!ts) return null;
   return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -278,7 +377,7 @@ function ImportModal({ onClose, onImported }) {
   );
 }
 
-function ContactRow({ contact, checked, onCheck, onSelect }) {
+function ContactRow({ contact, checked, onCheck, onSelect, tagColor }) {
   return (
     <tr
       style={{ borderBottom: "0.5px solid #1a2540", cursor: "pointer", transition: "background 0.1s", background: checked ? "rgba(40,87,160,0.1)" : "transparent" }}
@@ -324,13 +423,20 @@ function ContactRow({ contact, checked, onCheck, onSelect }) {
       <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a4f6f" }} onClick={() => onSelect(contact)}>
         {contact.state || "—"}
       </td>
+      <td style={{ padding: "10px 14px", maxWidth: 200 }} onClick={() => onSelect(contact)}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {(contact.tags || []).length > 0
+            ? contact.tags.map(t => <TagChip key={t} name={t} color={tagColor(t)} />)
+            : <span style={{ color: "#1a2f52" }}>—</span>}
+        </div>
+      </td>
     </tr>
   );
 }
 
 const EDITABLE_FIELDS = ["business", "owner", "phone", "email", "website", "city", "state", "grade", "opener"];
 
-function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
+function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor, onTagsChanged }) {
   const [status, setStatus] = useState(contact.status);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -342,6 +448,54 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
   const [editErr, setEditErr] = useState("");
+  const [tagPick, setTagPick] = useState("");
+  const [newTagName, setNewTagName] = useState("");
+
+  async function addTag(tagName) {
+    const name = tagName.trim();
+    if (!name) return;
+    const res = await fetch(`/api/contacts/${contact.id}/tags`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tag: name }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setDisplay(updated);
+      onUpdate();
+    }
+  }
+
+  async function removeTag(tagName) {
+    const res = await fetch(`/api/contacts/${contact.id}/tags/${encodeURIComponent(tagName)}`, { method: "DELETE" });
+    if (res.ok) {
+      const updated = await res.json();
+      setDisplay(updated);
+      onUpdate();
+    }
+  }
+
+  async function addExistingTag() {
+    if (!tagPick) return;
+    await addTag(tagPick);
+    setTagPick("");
+  }
+
+  async function createAndAddTag(e) {
+    e.preventDefault();
+    const name = newTagName.trim();
+    if (!name) return;
+    const res = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      onTagsChanged();
+      await addTag(name);
+      setNewTagName("");
+    }
+  }
 
   function setField(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -604,6 +758,40 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate }) {
             </div>
           </div>
 
+          {/* Tags */}
+          <div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                          letterSpacing: "0.15em", marginBottom: 10 }}>
+              TAGS
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {(display.tags || []).length > 0
+                ? display.tags.map(t => (
+                    <TagChip key={t} name={t} color={tagColor(t)} onRemove={() => removeTag(t)} />
+                  ))
+                : <span style={{ fontSize: 11, color: "#3a5a80" }}>No tags yet.</span>}
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <select value={tagPick} onChange={e => setTagPick(e.target.value)}
+                className="dg-input" style={{ flex: 1, background: "#080c14" }}>
+                <option value="">— add existing tag —</option>
+                {tags.filter(t => !(display.tags || []).includes(t.name)).map(t => (
+                  <option key={t.id} value={t.name}>{t.name}</option>
+                ))}
+              </select>
+              <button type="button" onClick={addExistingTag} disabled={!tagPick} className="btn btn-secondary" style={{ fontSize: 11 }}>
+                Add
+              </button>
+            </div>
+            <form onSubmit={createAndAddTag} style={{ display: "flex", gap: 6, marginTop: 6 }}>
+              <input value={newTagName} onChange={e => setNewTagName(e.target.value)}
+                placeholder="New tag name…" className="dg-input" style={{ flex: 1 }} />
+              <button type="submit" className="btn btn-ghost" disabled={!newTagName.trim()} style={{ fontSize: 11 }}>
+                + Create
+              </button>
+            </form>
+          </div>
+
           {/* Dialer actions */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {queueError && (
@@ -667,12 +855,29 @@ export default function CRMPanel({ onNavigate }) {
   const [total, setTotal]             = useState(0);
   const [loading, setLoading]         = useState(true);
   const [activeStatus, setActiveStatus] = useState("all");
+  const [activeTag, setActiveTag]     = useState("");
   const [search, setSearch]           = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [offset, setOffset]           = useState(0);
   const [selected, setSelected]       = useState(null);
   const [showAdd, setShowAdd]         = useState(false);
   const [showImport, setShowImport]   = useState(false);
+  const [showManageTags, setShowManageTags] = useState(false);
+  const [tags, setTags]               = useState([]);
+
+  const fetchTags = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tags");
+      setTags(await res.json());
+    } catch { setTags([]); }
+  }, []);
+
+  useEffect(() => { fetchTags(); }, [fetchTags]);
+
+  const tagColor = useCallback(
+    name => tags.find(t => t.name === name)?.color || DEFAULT_TAG_COLOR,
+    [tags]
+  );
 
   // ── Selection state ──
   const [checkedIds, setCheckedIds]   = useState(new Set());
@@ -691,6 +896,7 @@ export default function CRMPanel({ onNavigate }) {
     setLoading(true);
     const params = new URLSearchParams({ limit: LIMIT, offset });
     if (activeStatus !== "all") params.set("status", activeStatus);
+    if (activeTag) params.set("tag", activeTag);
     if (search) params.set("search", search);
     try {
       const res  = await fetch(`/api/contacts?${params}`);
@@ -699,7 +905,7 @@ export default function CRMPanel({ onNavigate }) {
       setTotal(data.total || 0);
     } catch { setContacts([]); }
     setLoading(false);
-  }, [activeStatus, search, offset]);
+  }, [activeStatus, activeTag, search, offset]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -792,26 +998,36 @@ export default function CRMPanel({ onNavigate }) {
           </form>
           <button onClick={() => setShowAdd(true)} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>+ Add Contact</button>
           <button onClick={() => setShowImport(true)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>↑ Import CSV</button>
+          <button onClick={() => setShowManageTags(true)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>🏷 Manage Tags</button>
         </div>
       </div>
 
       {/* Status filters */}
       <div style={{ padding: "8px 20px", borderBottom: "0.5px solid #1a2540",
-                    display: "flex", gap: 4, overflowX: "auto", flexShrink: 0 }}>
-        {STATUSES.map(({ value, label }) => (
-          <button key={value} onClick={() => handleStatus(value)}
-            style={{
-              fontFamily: "'Share Tech Mono', monospace",
-              fontSize: 10, letterSpacing: "0.1em",
-              padding: "5px 10px", borderRadius: 3, border: "0.5px solid",
-              cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s",
-              background: activeStatus === value ? "#2857a0" : "transparent",
-              borderColor: activeStatus === value ? "#3a7bd5" : "#1a2f52",
-              color: activeStatus === value ? "#c8dcff" : "#3a5a80",
-            }}>
-            {label}
-          </button>
-        ))}
+                    display: "flex", gap: 10, alignItems: "center", overflowX: "auto", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 4 }}>
+          {STATUSES.map(({ value, label }) => (
+            <button key={value} onClick={() => handleStatus(value)}
+              style={{
+                fontFamily: "'Share Tech Mono', monospace",
+                fontSize: 10, letterSpacing: "0.1em",
+                padding: "5px 10px", borderRadius: 3, border: "0.5px solid",
+                cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s",
+                background: activeStatus === value ? "#2857a0" : "transparent",
+                borderColor: activeStatus === value ? "#3a7bd5" : "#1a2f52",
+                color: activeStatus === value ? "#c8dcff" : "#3a5a80",
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ width: 1, height: 18, background: "#1a2540", flexShrink: 0 }} />
+        <select value={activeTag} onChange={e => { setActiveTag(e.target.value); setOffset(0); }}
+          style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#8aaad0",
+                   fontFamily: "'Share Tech Mono', monospace", fontSize: 10, padding: "5px 8px", cursor: "pointer", flexShrink: 0 }}>
+          <option value="">ALL TAGS</option>
+          {tags.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+        </select>
       </div>
 
       {/* Bulk action bar */}
@@ -921,7 +1137,7 @@ export default function CRMPanel({ onNavigate }) {
                     style={{ accentColor: "#3a7bd5", width: 13, height: 13, cursor: "pointer" }}
                   />
                 </th>
-                {["Business","Owner","Phone","Grade","Status","Calls","Last Called","Last Disposition","State"].map(h => (
+                {["Business","Owner","Phone","Grade","Status","Calls","Last Called","Last Disposition","State","Tags"].map(h => (
                   <th key={h} style={{
                     padding: "8px 14px", textAlign: "left",
                     fontFamily: "'Share Tech Mono', monospace",
@@ -939,6 +1155,7 @@ export default function CRMPanel({ onNavigate }) {
                   checked={checkedIds.has(c.id)}
                   onCheck={toggleCheck}
                   onSelect={setSelected}
+                  tagColor={tagColor}
                 />
               ))}
             </tbody>
@@ -969,13 +1186,18 @@ export default function CRMPanel({ onNavigate }) {
 
       {selected && (
         <ContactDrawer contact={selected} onClose={() => setSelected(null)}
-          onUpdate={fetchContacts} onNavigate={onNavigate} />
+          onUpdate={fetchContacts} onNavigate={onNavigate}
+          tags={tags} tagColor={tagColor} onTagsChanged={fetchTags} />
       )}
       {showAdd && (
         <AddContactModal onClose={() => setShowAdd(false)} onSaved={fetchContacts} />
       )}
       {showImport && (
         <ImportModal onClose={() => setShowImport(false)} onImported={fetchContacts} />
+      )}
+      {showManageTags && (
+        <ManageTagsModal tags={tags} onClose={() => setShowManageTags(false)}
+          onChanged={() => { fetchTags(); fetchContacts(); }} />
       )}
     </div>
   );

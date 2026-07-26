@@ -358,6 +358,7 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
         g = grouped[cid] = {
             "contact_id": cid, "business": r["business"], "owner": r["owner"],
             "phone": r["phone"], "email": r["email"], "tags": r["tags"] or [],
+            "contact_status": r["contact_status"],
             "channels": [], "last_message": None, "updated_at": None,
             "status": "closed", "disposition": None,
         }
@@ -375,7 +376,12 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
 
 
 @router.get("/inbox/conversations")
-async def list_inbox_conversations(channel: str = "all", since: str = "all", tag: Optional[str] = None):
+async def list_inbox_conversations(
+    channel: str = "all",
+    since: str = "all",
+    tag: Optional[str] = None,
+    contact_status: Optional[str] = None,
+):
     pool = await get_pool()
     grouped: dict = {}
     async with pool.acquire() as conn:
@@ -387,10 +393,13 @@ async def list_inbox_conversations(channel: str = "all", since: str = "all", tag
             if tag:
                 args.append(tag)
                 clauses.append(f"${len(args)} = ANY(c.tags)")
+            if contact_status and contact_status != "all":
+                args.append(contact_status)
+                clauses.append(f"c.status = ${len(args)}")
             sms_rows = await conn.fetch(
                 f"""
                 SELECT sc.contact_id, sc.status, sc.disposition, sc.updated_at,
-                       c.business, c.owner, c.phone, c.email, c.tags,
+                       c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
                        (SELECT body FROM sms_messages WHERE phone = sc.phone
                         ORDER BY sent_at DESC LIMIT 1) AS last_message
                 FROM sms_conversations sc
@@ -410,10 +419,13 @@ async def list_inbox_conversations(channel: str = "all", since: str = "all", tag
             if tag:
                 args.append(tag)
                 clauses.append(f"${len(args)} = ANY(c.tags)")
+            if contact_status and contact_status != "all":
+                args.append(contact_status)
+                clauses.append(f"c.status = ${len(args)}")
             email_rows = await conn.fetch(
                 f"""
                 SELECT ec.contact_id, ec.status, ec.disposition, ec.updated_at,
-                       c.business, c.owner, c.phone, c.email, c.tags,
+                       c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
                        (SELECT body FROM email_messages WHERE thread_id = ec.thread_id
                         ORDER BY sent_at DESC LIMIT 1) AS last_message
                 FROM email_conversations ec

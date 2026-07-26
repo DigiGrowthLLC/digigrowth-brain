@@ -52,6 +52,19 @@ class NoteAdd(BaseModel):
     text: str
 
 
+class TagCreate(BaseModel):
+    name: str
+    color: Optional[str] = None
+
+
+class TagUpdate(BaseModel):
+    color: Optional[str] = None
+
+
+class TagAssign(BaseModel):
+    tag: str
+
+
 class CallLog(BaseModel):
     id: int
     contact_id: str

@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 from db import get_pool
-from models import Contact, ContactUpdate, NoteAdd, DispositionUpdate, BulkAction, VALID_STATUSES, DISPOSITION_TO_STATUS
+from models import Contact, ContactUpdate, NoteAdd, DispositionUpdate, BulkAction, TagAssign, VALID_STATUSES, DISPOSITION_TO_STATUS
 from routers import sms as sms_router
 
 router = APIRouter()
@@ -25,6 +25,7 @@ async def list_contacts(
     grade: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     newsletter: Optional[bool] = Query(None),
+    tag: Optional[str] = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0),
 ):
@@ -38,6 +39,9 @@ async def list_contacts(
     if grade:
         params.append(grade.upper())
         conditions.append(f"grade = ${len(params)}")
+    if tag:
+        params.append(tag)
+        conditions.append(f"${len(params)} = ANY(tags)")
     if newsletter is not None:
         params.append(newsletter)
         conditions.append(f"newsletter = ${len(params)}")
@@ -206,6 +210,39 @@ async def add_note(contact_id: str, body: NoteAdd):
     if not row:
         raise HTTPException(status_code=404, detail="Contact not found")
     return {"id": row["id"], "notes": row["notes"]}
+
+
+@router.post("/contacts/{contact_id}/tags")
+async def add_contact_tag(contact_id: str, body: TagAssign):
+    tag = body.tag.strip()
+    if not tag:
+        raise HTTPException(status_code=400, detail="tag required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE contacts SET tags = array_append(tags, $2), updated_at = now() "
+            "WHERE id = $1 AND NOT ($2 = ANY(tags)) RETURNING *",
+            contact_id, tag,
+        )
+        if not row:
+            row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    return dict(row)
+
+
+@router.delete("/contacts/{contact_id}/tags/{tag}")
+async def remove_contact_tag(contact_id: str, tag: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE contacts SET tags = array_remove(tags, $2), updated_at = now() "
+            "WHERE id = $1 RETURNING *",
+            contact_id, tag,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    return dict(row)
 
 
 @router.post("/contacts/{contact_id}/disposition")

@@ -22,6 +22,18 @@ function convoBadge(c) {
   return { label: "ACTIVE", cls: "badge-blue" };
 }
 
+const CONTACT_STATUSES = [
+  { value: "new",                label: "NEW" },
+  { value: "dialer-lead",        label: "DIALER" },
+  { value: "sms-handoff",        label: "SMS HANDOFF" },
+  { value: "appointment-booked", label: "BOOKED" },
+  { value: "not-interested",     label: "NOT INT." },
+  { value: "send-info",          label: "SEND INFO" },
+  { value: "voicemail",          label: "VOICEMAIL" },
+  { value: "gatekeeper-blocked", label: "GATEKEEPER" },
+  { value: "manual-followup",    label: "MANUAL F/U" },
+];
+
 const CHANNEL_CHIP = {
   sms:   { label: "SMS",  bg: "rgba(20,200,130,0.12)", color: "#14c882" },
   email: { label: "MAIL", bg: "rgba(160,110,240,0.12)", color: "#a06ef0" },
@@ -207,6 +219,7 @@ export default function InboxPanel({ initialTarget }) {
   const [channelFilter, setChannelFilter] = useState("all");
   const [timeFilter, setTimeFilter]       = useState("all");
   const [tagFilter, setTagFilter]         = useState(null);
+  const [statusFilter, setStatusFilter]   = useState(null);
 
   const bottomRef = useRef(null);
   const autoOpenedRef = useRef(false);
@@ -226,11 +239,12 @@ export default function InboxPanel({ initialTarget }) {
     try {
       const params = new URLSearchParams({ channel: channelFilter, since: timeFilter });
       if (tagFilter) params.set("tag", tagFilter);
+      if (statusFilter) params.set("contact_status", statusFilter);
       const r = await fetch(API(`/inbox/conversations?${params.toString()}`));
       if (r.ok) setConvos(await r.json());
     } catch {}
     setLoading(false);
-  }, [channelFilter, timeFilter, tagFilter]);
+  }, [channelFilter, timeFilter, tagFilter, statusFilter]);
 
   useEffect(() => {
     loadConvos();
@@ -468,16 +482,28 @@ export default function InboxPanel({ initialTarget }) {
               <option value="30d">LAST 30 DAYS</option>
             </select>
           </div>
-          <select
-            value={tagFilter || ""}
-            onChange={e => setTagFilter(e.target.value || null)}
-            style={{ ...selectStyle, width: "100%" }}
-          >
-            <option value="">ALL TAGS</option>
-            {availableTags.map(t => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
+          <div style={{ display: "flex", gap: 6 }}>
+            <select
+              value={statusFilter || ""}
+              onChange={e => setStatusFilter(e.target.value || null)}
+              style={{ ...selectStyle, flex: 1 }}
+            >
+              <option value="">ALL STATUSES</option>
+              {CONTACT_STATUSES.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+            <select
+              value={tagFilter || ""}
+              onChange={e => setTagFilter(e.target.value || null)}
+              style={{ ...selectStyle, flex: 1 }}
+            >
+              <option value="">ALL TAGS</option>
+              {availableTags.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
@@ -529,6 +555,28 @@ export default function InboxPanel({ initialTarget }) {
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
                   {c.phone || c.email}
                 </div>
+                {(c.contact_status || (c.tags || []).length > 0) && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                    {c.contact_status && (
+                      <span style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8, letterSpacing: "0.05em",
+                        padding: "1px 5px", borderRadius: 4,
+                        background: "rgba(58,123,213,0.1)", color: "#5a8ac0",
+                      }}>
+                        {CONTACT_STATUSES.find(s => s.value === c.contact_status)?.label || c.contact_status}
+                      </span>
+                    )}
+                    {(c.tags || []).map(t => (
+                      <span key={t} style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8, letterSpacing: "0.05em",
+                        padding: "1px 5px", borderRadius: 4,
+                        background: "rgba(160,110,240,0.1)", color: "#a06ef0",
+                      }}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {c.last_message && (
                   <div style={{ fontSize: 11, color: "#3a4f6f", marginTop: 4,
                                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
