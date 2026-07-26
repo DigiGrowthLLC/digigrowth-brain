@@ -184,12 +184,28 @@ Push both files (the repo is ephemeral on Railway — use `push_file()` from `sh
 
 ### Step 6 — Submit for approval
 
-Call the dashboard's approvals endpoint so Dylan gets a real Approve/Decline control in chat instead of just a static preview:
+Call the dashboard's approvals endpoint so Dylan gets a real Approve/Decline control in chat — **with the actual draft content attached**, so he can read the full email before deciding, not just a title and topic line.
+
+**Include `subject` and `html` in the payload** (the same values just saved to `newsletter_draft.json`) — the dashboard's Approval card renders `payload.html` inline as the draft preview. Omitting them means Dylan sees an empty preview and has to approve blind — always include them.
+
+Write the request body to a temp file first rather than inlining it in the `curl` command — the HTML contains quotes and apostrophes that are painful and error-prone to shell-escape inline:
 
 ```bash
+cat > /tmp/approval_payload.json <<'JSONEOF'
+{
+  "kind": "newsletter",
+  "title": "[subject]",
+  "summary": "[topic] — [N] recipients",
+  "payload": {
+    "date": "YYYY-MM-DD",
+    "subject": "[subject]",
+    "html": "[the full HTML email body, JSON-escaped]"
+  }
+}
+JSONEOF
 curl -s -u "admin:$DASHBOARD_PASSWORD" -X POST \
   -H "Content-Type: application/json" \
-  -d '{"kind":"newsletter","title":"[subject]","summary":"[topic] — [N] recipients","payload":{"date":"YYYY-MM-DD"}}' \
+  -d @/tmp/approval_payload.json \
   https://digigrowth-brain-production.up.railway.app/api/approvals
 ```
 

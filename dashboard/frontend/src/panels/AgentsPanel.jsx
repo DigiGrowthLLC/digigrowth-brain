@@ -191,9 +191,68 @@ function InlinePdfCard({ slug }) {
 
 // ── Approval card (approve/decline for a pending blog/newsletter draft) ──────
 
+function ApprovalDraftPreview({ approval }) {
+  const p = approval.payload || {};
+
+  const wrap = {
+    marginTop: 10, marginBottom: 10, padding: "14px 16px", borderRadius: 8,
+    background: "rgba(6,12,31,0.85)", border: "1px solid rgba(58,123,213,0.15)",
+    maxHeight: 420, overflowY: "auto",
+  };
+
+  if (approval.kind === "newsletter") {
+    if (!p.html && !p.subject) {
+      return <div style={{ ...wrap, fontSize: 12, color: "#6080a8" }}>No draft content attached to this approval.</div>;
+    }
+    return (
+      <div style={wrap}>
+        {p.subject && (
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 10 }}>
+            Subject: {p.subject}
+          </div>
+        )}
+        {p.html && (
+          <div
+            style={{ background: "#fff", borderRadius: 6, padding: 16, color: "#222" }}
+            dangerouslySetInnerHTML={{ __html: p.html }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (approval.kind === "blog") {
+    const post = p.post;
+    if (!post) {
+      return <div style={{ ...wrap, fontSize: 12, color: "#6080a8" }}>No draft content attached to this approval.</div>;
+    }
+    return (
+      <div style={wrap}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 10 }}>
+          {post.title}
+        </div>
+        {(post.intro || []).map((para, i) => (
+          <p key={i} style={{ fontSize: 13, color: "#c3cee8", lineHeight: 1.7, marginBottom: 10 }}>{para}</p>
+        ))}
+        {(post.sections || []).map((section, si) => (
+          <div key={si} style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#8aaad0", marginBottom: 4 }}>{section.heading}</div>
+            {(section.paragraphs || []).map((para, pi) => (
+              <p key={pi} style={{ fontSize: 13, color: "#c3cee8", lineHeight: 1.7, marginBottom: 8 }}>{para}</p>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function ApprovalCard({ id }) {
   const [approval, setApproval] = useState(null);
   const [deciding, setDeciding] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     fetch(API(`/approvals/${id}`))
@@ -234,16 +293,30 @@ function ApprovalCard({ id }) {
       {approval.summary && (
         <div style={{ fontSize: 12, color: "#8aaad0", marginBottom: 10 }}>{approval.summary}</div>
       )}
+
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          padding: "5px 12px", borderRadius: 6, border: "1px solid rgba(58,123,213,0.35)",
+          background: "rgba(58,123,213,0.1)", color: "#8ab4f0", fontSize: 12, fontWeight: 700,
+          cursor: "pointer", marginBottom: expanded ? 0 : 10,
+        }}
+      >
+        {expanded ? "Hide draft ▲" : "View full draft ▼"}
+      </button>
+
+      {expanded && <ApprovalDraftPreview approval={approval} />}
+
       {decided ? (
         <div style={{
-          fontSize: 12, fontWeight: 700,
+          fontSize: 12, fontWeight: 700, marginTop: 10,
           color: approval.status === "approved" ? "#14c882" : "#dc3c3c",
         }}>
           {label}
           {approval.result && <span style={{ fontWeight: 400, color: "#6080a8", marginLeft: 8 }}>{approval.result}</span>}
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button
             onClick={() => decide("approve")}
             disabled={deciding}
