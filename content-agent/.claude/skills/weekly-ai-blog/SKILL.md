@@ -53,7 +53,9 @@ the CTA that's already built into the site's `<CTA />` component (not part of th
    "businesses can use AI to..." but "here's what changes for you specifically when..." Short
    paragraphs, no fluff, no hard sell.
 7. **One natural in-body link** back to the main site (e.g. to `/faq` or `/`) where it fits the
-   reader's next question — contextual, not a CTA button. **Do not** add a second CTA, a
+   reader's next question — contextual, not a CTA button. Write it as a real markdown link,
+   `[link text](/path)` — the site parses this syntax and renders an actual clickable link; plain
+   text like "see our FAQ: /faq" renders as literal unclickable text. **Do not** add a second CTA, a
    newsletter-signup pitch, or a booking pitch inside the body — research on blog CTA conversion
    backs one primary CTA per page, and that CTA is the page's `<CTA />` component, not the post text.
 8. **Word count**: 700-1200 words — the story/personal-solution framing needs more room to breathe
