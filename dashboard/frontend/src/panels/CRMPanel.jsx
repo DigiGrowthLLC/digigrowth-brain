@@ -1133,16 +1133,26 @@ export default function CRMPanel({ onNavigate }) {
           <div style={{ width: 1, height: 16, background: "rgba(58,123,213,0.3)" }} />
 
           {/* Action selector */}
-          <select
-            value={bulkAction}
-            onChange={e => { setBulkAction(e.target.value); setBulkValue(""); setBulkTagInput(""); }}
-            style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#8aaad0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, padding: "4px 8px", cursor: "pointer" }}
-          >
-            <option value="set_status">Set Status</option>
-            <option value="add_tag">Add Tag</option>
-            <option value="remove_tag">Remove Tag</option>
-            <option value="delete">Delete</option>
-          </select>
+          <div style={{ display: "flex", gap: 4 }}>
+            {[
+              ["set_status", "Set Status"],
+              ["add_tag", "Add Tag"],
+              ["remove_tag", "Remove Tag"],
+              ["delete", "Delete"],
+            ].map(([value, label]) => (
+              <button key={value}
+                onClick={() => { setBulkAction(value); setBulkValue(""); setBulkTagInput(""); }}
+                style={{
+                  background: bulkAction === value ? "#2857a0" : "#0a1020",
+                  border: `0.5px solid ${bulkAction === value ? "#3a7bd5" : "#1a2540"}`,
+                  borderRadius: 4, color: bulkAction === value ? "#c8dcff" : "#8aaad0",
+                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 11,
+                  padding: "4px 10px", cursor: "pointer", whiteSpace: "nowrap",
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
 
           {/* Value input based on action */}
           {bulkAction === "set_status" && (
