@@ -257,12 +257,35 @@ function AddContactModal({ onClose, onSaved }) {
 
 // ── Import CSV Modal ──────────────────────────────────────────────────────────
 
-function ImportModal({ onClose, onImported }) {
+function ImportModal({ onClose, onImported, tags, onTagsChanged }) {
   const [parsed, setParsed]   = useState(null);
   const [result, setResult]   = useState(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr]         = useState("");
   const fileRef               = useRef();
+  const [importStatus, setImportStatus] = useState("");
+  const [importTags, setImportTags]     = useState([]);
+  const [newTagName, setNewTagName]     = useState("");
+
+  function toggleImportTag(name) {
+    setImportTags(t => t.includes(name) ? t.filter(x => x !== name) : [...t, name]);
+  }
+
+  async function createAndSelectTag(e) {
+    e.preventDefault();
+    const name = newTagName.trim();
+    if (!name) return;
+    const res = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      onTagsChanged();
+      setImportTags(t => t.includes(name) ? t : [...t, name]);
+      setNewTagName("");
+    }
+  }
 
   function handleFile(e) {
     const file = e.target.files[0];
@@ -281,7 +304,7 @@ function ImportModal({ onClose, onImported }) {
     const res = await fetch("/api/contacts/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contacts: parsed }),
+      body: JSON.stringify({ contacts: parsed, status: importStatus || null, tags: importTags }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -345,6 +368,52 @@ function ImportModal({ onClose, onImported }) {
                 </div>
               </div>
             )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "12px 16px", background: "#060a14", border: "0.5px solid #1a2540", borderRadius: 6 }}>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.15em" }}>APPLY TO ALL IMPORTED CONTACTS (OPTIONAL)</div>
+
+              <div>
+                <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Status — overrides any status column in the CSV</div>
+                <select value={importStatus} onChange={e => setImportStatus(e.target.value)}
+                  className="dg-input" style={{ width: "100%", background: "#080c14" }}>
+                  <option value="">— use CSV value / default "new" —</option>
+                  {STATUSES.filter(s => s.value !== "all").map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Tags — added to every imported contact</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                  {tags.length === 0 && (
+                    <span style={{ fontSize: 11, color: "#3a5a80" }}>No tags defined yet — create one below.</span>
+                  )}
+                  {tags.map(t => {
+                    const active = importTags.includes(t.name);
+                    return (
+                      <button type="button" key={t.id} onClick={() => toggleImportTag(t.name)}
+                        style={{
+                          padding: "3px 9px", borderRadius: 10, cursor: "pointer",
+                          background: active ? `${t.color}33` : "transparent",
+                          border: `0.5px solid ${active ? t.color : "#1a2f52"}`,
+                          color: active ? t.color : "#5a7096",
+                          fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+                        }}>
+                        {active ? "✓ " : ""}{t.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <form onSubmit={createAndSelectTag} style={{ display: "flex", gap: 6 }}>
+                  <input value={newTagName} onChange={e => setNewTagName(e.target.value)}
+                    placeholder="New tag name…" className="dg-input" style={{ flex: 1, fontSize: 12 }} />
+                  <button type="submit" className="btn btn-ghost" disabled={!newTagName.trim()} style={{ fontSize: 11 }}>
+                    + Create
+                  </button>
+                </form>
+              </div>
+            </div>
 
             {err && <div style={{ fontSize: 12, color: "#e05555" }}>{err}</div>}
 
@@ -946,6 +1015,16 @@ export default function CRMPanel({ onNavigate }) {
 
     setBulkRunning(true);
     setBulkFeedback("");
+
+    if (action === "add_tag" && !tags.some(t => t.name === value)) {
+      await fetch("/api/tags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: value }),
+      });
+      fetchTags();
+    }
+
     const body = selectAllPages
       ? { select_all: true, filter_status: activeStatus, filter_search: search || null, action, value: value || null }
       : { ids: [...checkedIds], select_all: false, action, value: value || null };
@@ -1078,14 +1157,30 @@ export default function CRMPanel({ onNavigate }) {
               ))}
             </select>
           )}
-          {(bulkAction === "add_tag" || bulkAction === "remove_tag") && (
-            <input
+          {bulkAction === "add_tag" && (
+            <>
+              <input
+                value={bulkTagInput}
+                onChange={e => setBulkTagInput(e.target.value)}
+                placeholder="Tag name (new or existing)…"
+                list="crm-bulk-tag-options"
+                onKeyDown={e => e.key === "Enter" && runBulkAction()}
+                style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#c4d0e8", fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, padding: "4px 10px", width: 180, outline: "none" }}
+              />
+              <datalist id="crm-bulk-tag-options">
+                {tags.map(t => <option key={t.id} value={t.name} />)}
+              </datalist>
+            </>
+          )}
+          {bulkAction === "remove_tag" && (
+            <select
               value={bulkTagInput}
               onChange={e => setBulkTagInput(e.target.value)}
-              placeholder="Tag name…"
-              onKeyDown={e => e.key === "Enter" && runBulkAction()}
-              style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#c4d0e8", fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, padding: "4px 10px", width: 140, outline: "none" }}
-            />
+              style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#8aaad0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, padding: "4px 8px", cursor: "pointer" }}
+            >
+              <option value="">— pick tag —</option>
+              {tags.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
           )}
 
           <button
@@ -1193,7 +1288,8 @@ export default function CRMPanel({ onNavigate }) {
         <AddContactModal onClose={() => setShowAdd(false)} onSaved={fetchContacts} />
       )}
       {showImport && (
-        <ImportModal onClose={() => setShowImport(false)} onImported={fetchContacts} />
+        <ImportModal onClose={() => setShowImport(false)} onImported={fetchContacts}
+          tags={tags} onTagsChanged={fetchTags} />
       )}
       {showManageTags && (
         <ManageTagsModal tags={tags} onClose={() => setShowManageTags(false)}

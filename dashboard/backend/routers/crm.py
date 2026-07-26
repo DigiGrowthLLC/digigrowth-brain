@@ -338,6 +338,11 @@ async def import_contacts(body: dict):
     if not rows:
         raise HTTPException(status_code=400, detail="No contacts provided")
 
+    default_status = (body.get("status") or "").strip() or None
+    if default_status and default_status not in VALID_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {default_status}")
+    import_tags = [t.strip() for t in (body.get("tags") or []) if t and t.strip()]
+
     pool = await get_pool()
     inserted = updated = skipped = 0
 
@@ -348,20 +353,22 @@ async def import_contacts(body: dict):
                 skipped += 1
                 continue
             contact_id = str(uuid.uuid4())
+            row_status = default_status or (c.get("status") or "new").strip() or "new"
             result = await conn.fetchrow(
                 """
                 INSERT INTO contacts
                     (id, business, owner, phone, email, website, city, state,
-                     grade, opener, status, notes, newsletter)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                     grade, opener, status, notes, newsletter, tags)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
                 ON CONFLICT (phone) DO UPDATE SET
                     business   = COALESCE(EXCLUDED.business,   contacts.business),
                     owner      = COALESCE(EXCLUDED.owner,      contacts.owner),
                     email      = COALESCE(EXCLUDED.email,      contacts.email),
                     grade      = COALESCE(EXCLUDED.grade,      contacts.grade),
                     opener     = COALESCE(EXCLUDED.opener,     contacts.opener),
+                    tags       = ARRAY(SELECT DISTINCT unnest(contacts.tags || EXCLUDED.tags)),
                     updated_at = now()
-                RETURNING (xmax = 0) AS was_inserted
+                RETURNING id, (xmax = 0) AS was_inserted
                 """,
                 contact_id,
                 (c.get("business") or "").strip() or None,
@@ -373,13 +380,14 @@ async def import_contacts(body: dict):
                 (c.get("state") or "").strip() or None,
                 (c.get("grade") or "").strip().upper() or None,
                 (c.get("opener") or "").strip() or None,
-                (c.get("status") or "new").strip() or "new",
+                row_status,
                 (c.get("notes") or "").strip() or None,
                 bool(c.get("newsletter", False)),
+                import_tags,
             )
             if result["was_inserted"]:
                 inserted += 1
-                if (c.get("status") or "new").strip() == HANDOFF_STATUS:
+                if row_status == HANDOFF_STATUS:
                     await _fire_handoff({"phone": phone, "owner": (c.get("owner") or "").strip()})
             else:
                 updated += 1
