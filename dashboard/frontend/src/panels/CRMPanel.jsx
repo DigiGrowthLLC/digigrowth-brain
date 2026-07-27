@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import NewsletterQueueModal from "./NewsletterQueueModal.jsx";
+import BookingModal from "../BookingModal.jsx";
 
 const STATUSES = [
   { value: "all",                label: "ALL" },
@@ -520,6 +521,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
   const [editErr, setEditErr] = useState("");
   const [tagPick, setTagPick] = useState("");
   const [newTagName, setNewTagName] = useState("");
+  const [bookingOpen, setBookingOpen] = useState(false);
 
   async function addTag(tagName) {
     const name = tagName.trim();
@@ -892,7 +894,25 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
               {addedToQueue ? "Added ✓" : "＋ Add to Queue"}
             </button>
           </div>
+          <button onClick={() => setBookingOpen(true)}
+            style={{
+              padding: "9px 12px", borderRadius: 8,
+              background: "rgba(20,200,130,0.1)", border: "1px solid rgba(20,200,130,0.3)",
+              color: "#14c882", fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 12, fontWeight: 600, cursor: "pointer",
+            }}>
+            📅 Book Appointment
+          </button>
           </div>
+
+          <BookingModal
+            open={bookingOpen}
+            onClose={() => setBookingOpen(false)}
+            contactId={contact.id}
+            phone={display.phone}
+            name={display.owner}
+            email={display.email}
+          />
 
           {/* Notes */}
           {display.notes && (
