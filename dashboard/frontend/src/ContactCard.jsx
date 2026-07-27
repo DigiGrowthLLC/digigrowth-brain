@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { API } from "./api.js";
 import BookingModal from "./BookingModal.jsx";
+import AppointmentsSection from "./AppointmentsSection.jsx";
 
 const GRADES   = ["A", "B", "C", "D"];
 const STATUSES = ["new", "dialer-lead", "sms-handoff", "appointment-booked", "not-interested", "send-info", "voicemail", "manual-followup"];
@@ -16,6 +17,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState(null);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [apptRefresh, setApptRefresh] = useState(0);
 
   useEffect(() => {
     if (!contactId) return;
@@ -125,6 +127,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
             </div>
             <Field label="CUSTOM OPENER" k="opener" />
             <Field label="STATUS" k="status" options={STATUSES} />
+            <AppointmentsSection contactId={contactId} refreshSignal={apptRefresh} />
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 4 }}>NOTES</div>
               <textarea className="dg-input"
@@ -172,6 +175,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
       phone={form?.phone || phone}
       name={form?.owner}
       email={form?.email}
+      onBooked={() => setApptRefresh(n => n + 1)}
     />
   );
 

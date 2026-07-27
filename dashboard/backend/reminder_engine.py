@@ -87,6 +87,20 @@ async def send_booking_confirmation(row: dict):
         )
 
 
+def _build_reschedule_message(row: dict) -> str:
+    first_name = (row.get("prospect_name") or "").split()[0] if row.get("prospect_name") else "there"
+    when = _format_local(row["appointment_at"], row["prospect_timezone"])
+    return f"Hey {first_name}, heads up — your call with DigiGrowth has been rescheduled to {when}. See you then!"
+
+
+async def send_reschedule_confirmation(row: dict):
+    """Immediate notice sent when routers/appointments.py's edit endpoint
+    changes an appointment's date/time/timezone. Doesn't touch sent-at
+    columns itself — the caller already reset the 24h/6h/1h flags."""
+    message = _build_reschedule_message(row)
+    await _send_message(row, message, "Your appointment has been rescheduled — DigiGrowth", "reschedule_confirmation")
+
+
 async def _send_reminder(row: dict, window_label: str, sent_col: str):
     message = _build_message(row, window_label)
     await _send_message(row, message, "Reminder: your upcoming call with DigiGrowth", f"reminder_{window_label}")

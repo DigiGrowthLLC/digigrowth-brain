@@ -57,11 +57,23 @@ Each row has `appointment_at` (UTC), `prospect_timezone`, `prospect_name`,
 
 ## Canceling / Rescheduling
 
-There's no webhook to auto-detect a Calendly-side cancel or reschedule. If Dylan
-says an appointment was moved or canceled, use the Appointments panel's Cancel
-button (or `POST /api/appointment-reminders/{id}/cancel`) to stop any further
-reminders for that row. For a reschedule, cancel the old row and create a fresh one
-with the corrected time — there's no edit endpoint, only create/cancel.
+There's no webhook to auto-detect a Calendly-side cancel or reschedule — Dylan (or
+a rep) has to say so. Two ways to manage an existing booking, both available from
+the Appointments panel *and* from the Appointments section embedded directly in
+every contact's card (`AppointmentsSection.jsx`, shown in `ContactCard.jsx` and the
+CRM tab's contact drawer):
+
+- **Cancel**: `POST /api/appointment-reminders/{id}/cancel` — stops any further
+  reminders for that row. Used for a canceled appointment.
+- **Reschedule / edit**: `PATCH /api/appointment-reminders/{id}` with any of
+  `date`, `time`, `timezone`, `prospect_name`, `prospect_phone`, `prospect_email`.
+  Changing the date/time/timezone resets the 24h/6h/1h `reminder_*_sent_at` flags
+  (so the new time gets fresh reminders) and immediately sends a "you've been
+  rescheduled" SMS/email (`reminder_engine.send_reschedule_confirmation()`).
+
+`GET /api/appointment-reminders?contact_id={id}&status=all` returns every booking
+(current, past, canceled) for one contact — that's what the contact-card section
+uses to show upcoming vs. past appointments.
 
 ---
 

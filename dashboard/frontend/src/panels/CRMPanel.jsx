@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import NewsletterQueueModal from "./NewsletterQueueModal.jsx";
 import BookingModal from "../BookingModal.jsx";
+import AppointmentsSection from "../AppointmentsSection.jsx";
 
 const STATUSES = [
   { value: "all",                label: "ALL" },
@@ -522,6 +523,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
   const [tagPick, setTagPick] = useState("");
   const [newTagName, setNewTagName] = useState("");
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [apptRefresh, setApptRefresh] = useState(0);
 
   async function addTag(tagName) {
     const name = tagName.trim();
@@ -830,6 +832,9 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
             </div>
           </div>
 
+          {/* Appointments */}
+          <AppointmentsSection contactId={contact.id} refreshSignal={apptRefresh} />
+
           {/* Tags */}
           <div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
@@ -912,6 +917,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
             phone={display.phone}
             name={display.owner}
             email={display.email}
+            onBooked={() => setApptRefresh(n => n + 1)}
           />
 
           {/* Notes */}

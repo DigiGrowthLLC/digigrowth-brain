@@ -8,7 +8,7 @@ import BookingForm from "./BookingForm.jsx";
 // webhook, so this is how appointment_reminders rows get created).
 // Used from the Dialer, the inbound CallScreen, the SMS Inbox, and the
 // Contact Card — anywhere a rep can book an appointment for a prospect.
-export default function BookingModal({ open, onClose, contactId, phone, name, email }) {
+export default function BookingModal({ open, onClose, contactId, phone, name, email, onBooked }) {
   if (!open) return null;
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose?.()} style={{
@@ -32,7 +32,7 @@ export default function BookingModal({ open, onClose, contactId, phone, name, em
         <div style={{ flex: 1, overflow: "hidden" }}>
           <iframe src={CALENDLY_URL} style={{ width: "100%", height: "100%", border: "none" }} allow="camera; microphone" />
         </div>
-        <BookingForm contactId={contactId} phone={phone} name={name} email={email} />
+        <BookingForm contactId={contactId} phone={phone} name={name} email={email} onBooked={onBooked} />
       </div>
     </div>
   );
