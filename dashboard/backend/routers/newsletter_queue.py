@@ -47,6 +47,23 @@ async def personal_account_check():
     return integrations.get_personal_identity(force=True)
 
 
+@router.get("/newsletter/thread-check/{thread_id}")
+async def thread_check(thread_id: str):
+    """Read the raw From/To/Date headers of every message in a Gmail thread,
+    off the business account — for diagnosing why the inbox sync attributed
+    a thread unexpectedly."""
+    import integrations
+    svc = integrations._business_gmail_service()
+    res = svc.users().threads().get(userId="me", id=thread_id, format="metadata",
+                                     metadataHeaders=["From", "To", "Subject", "Date"]).execute()
+    out = []
+    for msg in res.get("messages", []):
+        headers = {h["name"]: h["value"] for h in msg["payload"].get("headers", [])}
+        headers["_labelIds"] = msg.get("labelIds", [])
+        out.append(headers)
+    return {"messages": out}
+
+
 @router.get("/newsletter/sent-check")
 async def sent_check(limit: int = Query(5, le=20)):
     """Read the actual From/To/Date headers off the business account's most
