@@ -1,15 +1,15 @@
 {
-  "date": "2026-07-27",
-  "topic": "The AI workflow that follows up with every no-show automatically",
+  "date": "2026-07-28",
+  "topic": "Why service-based businesses using AI outreach are booking 3x more discovery calls",
   "findings": [
-    "AI-powered appointment reminders reduce no-shows by 29% (Acuity)",
-    "AI no-show recovery workflows can recapture 20-30% of no-shows that already happened by automatically re-engaging and rebooking them",
-    "A practice losing $50,000-$80,000 annually to no-shows can recover roughly $14,500-$23,200 in revenue with AI-powered reminder and recovery workflows",
-    "Service businesses using a full AI booking layer see ~34% more bookings captured and ~47% less time spent on phone admin"
+    "AI SDR / outreach tools improve meeting booking rates by 30-40% versus manual outreach",
+    "Personalized outreach nearly doubles reply rates - 18% for highly personalized messages vs 9% for generic ones",
+    "AI-driven outreach cuts cost per qualified opportunity by roughly 54% compared to human-only outreach",
+    "41% of enterprise B2B teams now run at least one AI SDR tool in production, up from 3% in early 2024"
   ],
   "sources": [
-    "https://www.ringlyn.com/blog/automated-appointment-reminder-calls-ai/",
-    "https://intelibot.ai/pages/blog/how-to-reduce-appointment-no-shows-with-ai.html",
-    "https://thestacc.com/blog/ai-booking-system-service-business/"
+    "https://www.brilo.ai/resources/ai-sdr-tools-outbound-automation-trends",
+    "https://www.hausadvisors.com/blog/ai-outreach-statistics-2026",
+    "https://stealthagents.com/research/ai-sales-tools-adoption-statistics-2026"
   ]
 }
