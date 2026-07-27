@@ -914,6 +914,18 @@ async def serve_brief_pdf(agent_id: str):
     )
 
 
+@router.post("/agents/process-pending-approvals")
+async def process_pending_approvals_now(date: str | None = None):
+    """On-demand trigger for the pending-approvals relay (see
+    pending_approvals_relay.py) — lets Dylan or a Doppler-authenticated
+    session process a newsletter/blog draft immediately instead of waiting
+    for the daily 6:40am ET Railway poll. `date` defaults to today (ET) if
+    omitted; pass YYYY-MM-DD to process a specific day's draft."""
+    from pending_approvals_relay import process_pending_approvals
+    result = await process_pending_approvals(date)
+    return {"result": result}
+
+
 @router.get("/agents/{agent_id}/newsletter-pdf")
 async def serve_newsletter_pdf(agent_id: str):
     """Serve the latest newsletter-draft PDF, generating it from the MD if needed."""

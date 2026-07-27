@@ -161,7 +161,7 @@ Append the used topic to `newsletter_topic_log.json`:
 ```
 If the file doesn't exist, create it with a single-item array.
 
-### Step 5 — Render PDF preview and post inline to OS chat
+### Step 5 — Save the draft markdown
 
 Build a Markdown review document with this exact structure:
 
@@ -210,27 +210,23 @@ delivered gradually (~25/day), not all at once. See "Delivery" below.
 
 Save this document to `apptset-agent/newsletter-draft-YYYY-MM-DD.md` (today's date). Overwrite any existing file with today's date.
 
-Generate the PDF by calling the backend's PDF endpoint (this reads the `.md` file just saved and renders/caches a matching `.pdf` alongside it):
-```bash
-curl -s -u "admin:$DASHBOARD_PASSWORD" https://digigrowth-brain-production.up.railway.app/api/agents/apptset-agent/newsletter-pdf -o /dev/null
-```
-
-Push both files (the repo is ephemeral on Railway — use `push_file()` from `shared/github_sync.py`, or `git add`/`commit`/`push` directly if running with git access):
+Push it (the repo is ephemeral on Railway — use `push_file()` from `shared/github_sync.py`, or `git add`/`commit`/`push` directly if running with git access):
 - `apptset-agent/newsletter-draft-YYYY-MM-DD.md`
-- `apptset-agent/newsletter-draft-YYYY-MM-DD.pdf`
 
-### Step 6 — Submit for approval
+Do not attempt to generate the PDF here or call any Railway API — this session's sandbox can't reach Railway directly. A Railway-side job (`pending_approvals_relay.py`, polled ~6:40am ET daily) picks up the request written in Step 6 below, renders the PDF from this `.md` file, and posts the live PDF preview + Approve/Decline card into the OS chat on its own.
 
-Call the dashboard's approvals endpoint so Dylan gets a real Approve/Decline control in chat — **with the actual draft content attached**, so he can read the full email before deciding, not just a title and topic line.
+### Step 6 — Drop a pending-approval request
+
+Instead of calling the dashboard's approvals API directly (this sandbox can't reach Railway), write a request file that the Railway-side relay job picks up on its next poll and turns into a real Approve/Decline card — **with the actual draft content attached**, so Dylan can read the full email before deciding, not just a title and topic line.
 
 **Include `subject` and `html` in the payload** (the same values just saved to `newsletter_draft.json`) — the dashboard's Approval card renders `payload.html` inline as the draft preview. Omitting them means Dylan sees an empty preview and has to approve blind — always include them.
 
-Write the request body to a temp file first rather than inlining it in the `curl` command — the HTML contains quotes and apostrophes that are painful and error-prone to shell-escape inline:
+Write the file directly rather than inlining it in a shell one-liner — the HTML contains quotes and apostrophes that are painful and error-prone to shell-escape inline:
 
 ```bash
-cat > /tmp/approval_payload.json <<'JSONEOF'
+mkdir -p apptset-agent/pending_approvals
+cat > apptset-agent/pending_approvals/newsletter-YYYY-MM-DD.json <<'JSONEOF'
 {
-  "kind": "newsletter",
   "title": "[subject]",
   "summary": "[topic] — [N] recipients",
   "payload": {
@@ -240,13 +236,9 @@ cat > /tmp/approval_payload.json <<'JSONEOF'
   }
 }
 JSONEOF
-curl -s -u "admin:$DASHBOARD_PASSWORD" -X POST \
-  -H "Content-Type: application/json" \
-  -d @/tmp/approval_payload.json \
-  https://digigrowth-brain-production.up.railway.app/api/approvals
 ```
 
-This returns `{"id": <n>, ...}`. Note that id for the marker below.
+Push `apptset-agent/pending_approvals/newsletter-YYYY-MM-DD.json` with `push_file()`, same as Step 5.
 
 Return this summary for the daily brief:
 
@@ -254,13 +246,8 @@ Return this summary for the daily brief:
 **Subject:** [subject]
 **To:** [N] contacts flagged `newsletter` in the DigiGrowth OS
 **Topic:** [topic]
-**Note:** Approving queues a personalized send to every contact flagged `newsletter` in the OS. Delivery is gradual (~25/day cap, spread through business hours) to protect domain reputation — not an instant blast.
-
-[[PDF:newsletter]]
-[[APPROVAL:<id>]]
+**Note:** Approving queues a personalized send to every contact flagged `newsletter` in the OS. Delivery is gradual (~25/day cap, spread through business hours) to protect domain reputation — not an instant blast. The PDF preview and Approve/Decline card will appear as a separate message in this chat within a few minutes once Railway's relay job picks up this request — no marker to include here.
 ```
-
-Both marker lines are literal — the OS chat frontend detects `[[PDF:newsletter]]` and renders the PDF inline, and detects `[[APPROVAL:<id>]]` and renders live Approve/Decline buttons. Replace `<id>` with the actual id returned above. Do not add a link, description, or any other text around either marker line.
 
 ---
 

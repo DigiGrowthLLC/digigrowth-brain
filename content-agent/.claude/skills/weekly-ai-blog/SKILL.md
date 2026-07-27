@@ -85,29 +85,28 @@ Build the post object:
 }
 ```
 
-Submit it for approval instead of publishing directly. Write the request body to a temp file first
-rather than inlining it in the `curl` command — post text contains quotes/apostrophes that are
-painful and error-prone to shell-escape inline:
+Submit it for approval instead of publishing directly. This session's sandbox can't reach Railway
+directly, so instead of calling `/api/approvals` over HTTP, drop a request file that a Railway-side
+relay job (`pending_approvals_relay.py`, polled ~6:40am ET daily) picks up and turns into a real
+Approve/Decline card. Write the file directly rather than inlining it in a shell one-liner — post
+text contains quotes/apostrophes that are painful and error-prone to shell-escape inline:
 ```bash
-cat > /tmp/approval_payload.json <<'JSONEOF'
+mkdir -p content-agent/pending_approvals
+cat > content-agent/pending_approvals/blog-YYYY-MM-DD.json <<'JSONEOF'
 {
-  "kind": "blog",
   "title": "<post title>",
   "summary": "<one-line summary>",
   "payload": {"post": <the post object above>}
 }
 JSONEOF
-curl -s -u "admin:$DASHBOARD_PASSWORD" -X POST \
-  -H "Content-Type: application/json" \
-  -d @/tmp/approval_payload.json \
-  https://digigrowth-brain-production.up.railway.app/api/approvals
 ```
+Push `content-agent/pending_approvals/blog-YYYY-MM-DD.json` to GitHub with `push_file()` from
+`shared/github_sync.py` (or `git add`/`commit`/`push` directly if running with git access).
 
-This returns `{"id": <n>, ...}`. The post is **not** live yet — the backend only pushes it into
-`digigrowth-website`'s `src/content/blog-posts.json` when Dylan clicks Approve on the resulting
-card, where he can expand "View full draft" to read the whole post before deciding (see the
-dashboard's approvals mechanism). Declining leaves it unpublished; nothing further happens
-automatically.
+The post is **not** live yet — the backend only pushes it into `digigrowth-website`'s
+`src/content/blog-posts.json` when Dylan clicks Approve on the resulting card, where he can expand
+"View full draft" to read the whole post before deciding. Declining leaves it unpublished; nothing
+further happens automatically.
 
 Return this summary (the daily-briefing skill forwards it verbatim into the brief's
 `## Blog Post Preview` section):
@@ -116,11 +115,9 @@ Return this summary (the daily-briefing skill forwards it verbatim into the brie
 **Slug:** [slug]
 **Summary:** [one-line summary]
 
-[[APPROVAL:<id>]]
+Draft saved and queued for approval — the Approve/Decline card will appear as a separate message in
+this chat within a few minutes once Railway's relay job picks up this request.
 ```
-The `[[APPROVAL:<id>]]` line is a literal marker — the OS chat frontend detects it and renders live
-Approve/Decline buttons. Replace `<id>` with the id returned above. Do not add a link, description,
-or any other text around it.
 
 ---
 

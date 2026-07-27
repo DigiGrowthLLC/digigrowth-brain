@@ -15,6 +15,7 @@ router = APIRouter()
 
 _WEBSITE_REPO = "dylangroenendijk-sys/digigrowth-website"
 _BLOG_POSTS_PATH = "src/content/blog-posts.json"
+_BRAIN_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
 _API_BASE = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app")
 NEWSLETTER_DAILY_CAP = integrations.NEWSLETTER_DAILY_CAP
 
@@ -22,7 +23,7 @@ _COLS = "id, kind, title, summary, payload, status, result, created_at, decided_
 
 
 class CreateApproval(BaseModel):
-    kind: str          # "blog" | "newsletter"
+    kind: str          # "blog" | "newsletter" | "cleanup"
     title: str
     summary: Optional[str] = None
     payload: dict = {}
@@ -103,6 +104,72 @@ def _publish_blog_post(payload: dict) -> str:
         return f"error: {e}"
 
 
+def _apply_cleanup(payload: dict) -> str:
+    """Apply the weekly-cleanup routine's proposed file changes to digigrowth-brain
+    via the Contents API. Each item in payload['changes'] is either:
+      {"file": "path/in/repo", "action": "write", "content": "<full new file text>", ...}
+      {"file": "path/in/repo", "action": "delete", ...}
+    payload['auto_fixed'] is display-only (already applied by the routine itself
+    when it ran) and is never touched here."""
+    token = os.environ.get("GIT_TOKEN", "")
+    if not token:
+        return "error: GIT_TOKEN not configured"
+
+    changes = payload.get("changes") or []
+    if not changes:
+        return "no changes to apply"
+
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json",
+        "Content-Type": "application/json",
+    }
+
+    results = []
+    for change in changes:
+        path = change.get("file")
+        action = change.get("action")
+        if not path or action not in ("write", "delete"):
+            results.append(f"{path or '?'}: skipped (invalid change)")
+            continue
+
+        sha = None
+        try:
+            with _gh_request(_BRAIN_REPO, path, headers) as resp:
+                sha = json.loads(resp.read()).get("sha")
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                results.append(f"{path}: error getting SHA — {e}")
+                continue
+        except Exception as e:
+            results.append(f"{path}: error getting SHA — {e}")
+            continue
+
+        try:
+            if action == "write":
+                body: dict = {
+                    "message": f"Cleanup: {change.get('summary') or path}",
+                    "content": base64.b64encode(change.get("content", "").encode("utf-8")).decode(),
+                }
+                if sha:
+                    body["sha"] = sha
+                with _gh_request(_BRAIN_REPO, path, headers, method="PUT", data=json.dumps(body).encode()):
+                    pass
+                results.append(f"{path}: updated")
+            else:  # delete
+                if not sha:
+                    results.append(f"{path}: already gone")
+                    continue
+                body = {"message": f"Cleanup: remove {path}", "sha": sha}
+                with _gh_request(_BRAIN_REPO, path, headers, method="DELETE", data=json.dumps(body).encode()):
+                    pass
+                results.append(f"{path}: deleted")
+        except Exception as e:
+            results.append(f"{path}: error — {e}")
+
+    return "; ".join(results)
+
+
 async def _enqueue_newsletter(conn, approval_id: int, payload: dict) -> str:
     """Personalize the draft per newsletter-flagged contact and drop each into
     newsletter_send_queue — actual sending happens gradually via the scheduled
@@ -148,11 +215,10 @@ async def _enqueue_newsletter(conn, approval_id: int, payload: dict) -> str:
     )
 
 
-@router.post("/approvals")
-async def create_approval(body: CreateApproval):
-    if body.kind not in ("blog", "newsletter"):
-        raise HTTPException(status_code=400, detail="kind must be 'blog' or 'newsletter'")
-    pool = await get_pool()
+async def create_approval_row(pool, kind: str, title: str, summary: Optional[str], payload: dict) -> dict:
+    """Shared insert used by both the /api/approvals route and the
+    pending-approvals relay job in main.py (which calls this in-process
+    instead of looping back through HTTP)."""
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             f"""
@@ -160,9 +226,17 @@ async def create_approval(body: CreateApproval):
             VALUES ($1, $2, $3, $4)
             RETURNING {_COLS}
             """,
-            body.kind, body.title, body.summary, json.dumps(body.payload),
+            kind, title, summary, json.dumps(payload),
         )
     return _row_to_dict(row)
+
+
+@router.post("/approvals")
+async def create_approval(body: CreateApproval):
+    if body.kind not in ("blog", "newsletter", "cleanup"):
+        raise HTTPException(status_code=400, detail="kind must be 'blog', 'newsletter', or 'cleanup'")
+    pool = await get_pool()
+    return await create_approval_row(pool, body.kind, body.title, body.summary, body.payload)
 
 
 @router.get("/approvals/{approval_id}")
@@ -195,6 +269,8 @@ async def decide_approval(approval_id: int, body: DecideApproval):
             result = _publish_blog_post(approval["payload"])
         elif body.decision == "approve" and approval["kind"] == "newsletter":
             result = await _enqueue_newsletter(conn, approval_id, approval["payload"])
+        elif body.decision == "approve" and approval["kind"] == "cleanup":
+            result = _apply_cleanup(approval["payload"])
 
         new_status = "approved" if body.decision == "approve" else "declined"
         updated = await conn.fetchrow(

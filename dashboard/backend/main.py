@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 import integrations
 from db import get_pool
+from pending_approvals_relay import process_pending_approvals
 from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, approvals, tags, newsletter
 
 security = HTTPBasic()
@@ -238,6 +239,20 @@ async def _process_newsletter_queue() -> None:
         print(f"[cron] newsletter-queue: failed: {e}", flush=True)
 
 
+async def _process_pending_approvals_job() -> None:
+    """Picks up newsletter/blog draft JSON files the daily-briefing/weekly-ai-blog
+    cloud routines committed to GitHub (see pending_approvals_relay.py for why —
+    same can't-reach-Railway-directly reason as _fetch_report_from_github above)
+    and turns them into real pending_approvals rows + agent_chats messages.
+    Runs daily; no-ops harmlessly on days no draft was written (newsletter is
+    Mon/Wed/Fri only, blog is Mondays only)."""
+    try:
+        result = await process_pending_approvals()
+        print(f"[cron] {result}", flush=True)
+    except Exception as e:
+        print(f"[cron] pending-approvals-relay failed: {e}", flush=True)
+
+
 async def _post_weekly_cleanup_report() -> None:
     """Pick up the weekly cleanup report committed by the 'EA Weekly Cleanup'
     cloud routine (runs Sundays ~8:04pm ET under the Claude subscription) and
@@ -292,6 +307,12 @@ async def lifespan(app: FastAPI):
         args=["daily-briefing", "daily-briefing"],
         kwargs={"after": integrations.save_daily_brief_pdf},
         id="daily-briefing-daily",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _process_pending_approvals_job,
+        CronTrigger(hour=6, minute=40, timezone=eastern),
+        id="pending-approvals-relay",
         replace_existing=True,
     )
     scheduler.add_job(

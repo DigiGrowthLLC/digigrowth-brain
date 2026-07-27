@@ -191,7 +191,7 @@ Skip this step unless today is Monday, Wednesday, or Friday.
 
 Run the newsletter draft on these three days: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the Draft Mode steps in `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md` — this now includes a research step that writes `apptset-agent/weekly_research_cache.json`, and ends by submitting the draft for approval (not just previewing it). Each of the three days picks its own topic from the rotation (Step 1 of the newsletter skill) — they are not the same draft repeated.
 
-**Capture the full final output verbatim** — not just subject/recipient count/topic. That output ends with two literal marker lines, `[[PDF:newsletter]]` and `[[APPROVAL:<id>]]`. Both markers MUST be preserved character-for-character into this brief's `## Newsletter Preview` section (see Step 5's file format) — the dashboard frontend detects them there to render an inline PDF viewer and live Approve/Decline buttons. Dropping either marker means Dylan can't review or approve the draft from the brief.
+**Capture the full final output verbatim** into this brief's `## Newsletter Preview` section (see Step 5's file format) — subject, recipient count, topic, and the note that the PDF preview and Approve/Decline card will arrive as a separate chat message shortly. The newsletter skill no longer produces inline `[[PDF:...]]`/`[[APPROVAL:...]]` markers — this sandbox can't reach Railway directly, so the skill drops a request file for a Railway-side relay job to pick up instead (see `apptset-agent/.claude/skills/newsletter/SKILL.md` Step 6), and that job posts the card as its own chat message once it runs (~6:40am ET daily).
 
 ### Step 4.6 — Weekly Blog Post (Mondays only)
 
@@ -202,13 +202,15 @@ that step just wrote).
 
 If today is Monday: delegate to `content-agent`'s `weekly-ai-blog` skill (`content-agent/.claude/skills/weekly-ai-blog/SKILL.md`) to write and submit this week's blog post for approval. It reads `apptset-agent/weekly_research_cache.json` from Step 4.5 so both pieces of content share the same research.
 
-**Capture the full final output verbatim**, same rule as Step 4.5: it ends with a literal `[[APPROVAL:<id>]]` marker line that must be preserved character-for-character into the `## Blog Post Preview` section.
+**Capture the full final output verbatim** into the `## Blog Post Preview` section — title, slug, summary, and the note that the Approve/Decline card will arrive as a separate chat message shortly once Railway's relay job picks up the request (same async pattern as Step 4.5, no inline marker to preserve).
 
 ### Step 4.7 — Pending Cleanup Approvals (Mondays only)
 
 Skip this step if today is not Monday.
 
 If today is Monday: use `list_files` on `reports/` to find files matching `weekly-cleanup-*.md`, then `read_file` the most recent one (should be from yesterday, Sunday). Extract its `## Needs Approval` section. If it says "Nothing pending." or is empty, skip this section entirely — do not include it in the brief.
+
+**Capture the full section verbatim**, same rule as Steps 4.5/4.6: it ends with a literal `[[APPROVAL:<id>]]` marker line (the cleanup routine's review card) that must be preserved character-for-character into the `## Pending Cleanup Approvals` section below — don't summarize it away, the frontend needs the exact marker text to render the inline diff view and Approve/Decline buttons.
 
 ### Step 5 — Save and Deliver
 
@@ -259,13 +261,13 @@ Formatting rules that apply throughout:
 
 ## Newsletter Preview
 
-[Step 4.5 output — subject, recipient count, topic, AND the verbatim `[[PDF:newsletter]]` and `[[APPROVAL:<id>]]` marker lines. Do not summarize these away — the frontend needs the exact marker text to render the inline PDF and Approve/Decline buttons.]
+[Step 4.5 output — subject, recipient count, topic, and the note that the PDF preview and Approve/Decline card will appear as a separate chat message shortly. No marker lines to preserve here — approval creation is async now (see Step 4.5).]
 
 [MONDAY ONLY — include this section; omit entirely on all other days]
 
 ## Blog Post Preview
 
-[Step 4.6 output — title, slug, one-line summary, AND the verbatim `[[APPROVAL:<id>]]` marker line, same rule as above.]
+[Step 4.6 output — title, slug, one-line summary, and the note that the Approve/Decline card will appear as a separate chat message shortly. No marker line to preserve here, same reason as above.]
 
 [MONDAY ONLY, AND ONLY IF NON-EMPTY — include this section; omit entirely otherwise]
 
