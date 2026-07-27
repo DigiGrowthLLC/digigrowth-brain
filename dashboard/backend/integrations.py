@@ -135,7 +135,7 @@ def gmail_send(to: str, subject: str, body: str) -> str:
 
 
 NEWSLETTER_DAILY_CAP = 25   # safe range for an established single mailbox is ~25-50/day
-NEWSLETTER_BATCH_SIZE = 4   # sent per call — small batches, not a blast
+NEWSLETTER_BATCH_SIZE = 1   # sent per call — one at a time, paced by the cron interval in main.py
 
 
 async def process_newsletter_queue() -> str:

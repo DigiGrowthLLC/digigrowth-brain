@@ -336,7 +336,7 @@ async def lifespan(app: FastAPI):
     )
     scheduler.add_job(
         _process_newsletter_queue,
-        CronTrigger(minute="*/25", hour="9-17", day_of_week="mon-fri", timezone=eastern),
+        CronTrigger(minute="*/10", hour="9-17", day_of_week="mon-fri", timezone=eastern),
         id="newsletter-queue-processor",
         replace_existing=True,
     )
