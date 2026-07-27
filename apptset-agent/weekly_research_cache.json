@@ -1,15 +1,15 @@
 {
-  "date": "2026-07-28",
-  "topic": "Why service-based businesses using AI outreach are booking 3x more discovery calls",
+  "date": "2026-07-27",
+  "topic": "How AI qualifies your leads before you ever pick up the phone",
   "findings": [
-    "AI SDR / outreach tools improve meeting booking rates by 30-40% versus manual outreach",
-    "Personalized outreach nearly doubles reply rates - 18% for highly personalized messages vs 9% for generic ones",
-    "AI-driven outreach cuts cost per qualified opportunity by roughly 54% compared to human-only outreach",
-    "41% of enterprise B2B teams now run at least one AI SDR tool in production, up from 3% in early 2024"
+    "Contractors and small businesses that respond to a new lead within 5 minutes are 21x more likely to qualify that lead than those who wait 30 minutes",
+    "Calling a web lead within 1 minute of submission makes a prospect 391% more likely to convert than calling any time after",
+    "58% of small businesses now use generative AI, up from 40% in 2024",
+    "Businesses implementing AI call/lead automation report 40-60% increases in lead capture rate, largely by responding to missed calls or inbound leads within 30 seconds via automated follow-up"
   ],
   "sources": [
-    "https://www.brilo.ai/resources/ai-sdr-tools-outbound-automation-trends",
-    "https://www.hausadvisors.com/blog/ai-outreach-statistics-2026",
-    "https://stealthagents.com/research/ai-sales-tools-adoption-statistics-2026"
+    "https://oncrew.ai/resources/missed-call-statistics",
+    "https://deantek.co/blog/ai-automation-small-business-statistics-2026",
+    "https://www.dooza.ai/blog/ai-lead-generation-for-small-business"
   ]
 }

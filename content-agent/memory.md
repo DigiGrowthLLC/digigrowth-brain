@@ -34,3 +34,8 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
 - "The No-Show Workflow That Recovers Revenue While You Sleep" — pillar: Lead Follow-Up &
   Automation — topic: no-show follow-up, shared with newsletter id 12 — 2026-07-27 — pending
   approval (id 13)
+- "How to Know If a Lead Is Worth Your Time Before You Ever Dial" (slug: qualify-leads-before-you-call)
+  — pillar: Lead Follow-Up & Automation — topic: AI lead qualification before you call, shared
+  with newsletter — 2026-07-27 — drafted, not submitted (cloud session has no Doppler/Railway
+  access this run, so the approvals API could not be reached; full draft saved to
+  `daily-briefing-2026-07-27.md`'s Blog Post Preview section for manual submission)
