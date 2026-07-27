@@ -57,6 +57,46 @@ def _gmail_service():
     return build("gmail", "v1", credentials=_google_creds(), cache_discovery=False)
 
 
+# Default rule: every prospect-facing email goes out from the business mailbox
+# unless this is explicitly changed. GOOGLE_REFRESH_TOKEN is a single shared
+# credential used by every send path (newsletter, send-info, appointment
+# reminders, inbox replies) — there's no per-send "from" override, so
+# whichever Google account that token authenticates as is where everything
+# goes out from. _verify_sender_identity() catches a misconfigured token
+# (wrong account re-authed) loudly instead of silently sending from the
+# wrong mailbox.
+EXPECTED_SENDER_EMAIL = os.environ.get("EXPECTED_SENDER_EMAIL", "dylanrg@digigrowthllc.com")
+
+_sender_check_cache: dict = {"done": False, "error": None}
+
+
+def _verify_sender_identity() -> str | None:
+    """Returns None if the authenticated Gmail account matches
+    EXPECTED_SENDER_EMAIL, else an error string explaining the mismatch.
+    Cached for the process lifetime — the token doesn't change without a
+    redeploy, so this only calls Gmail once per running instance."""
+    if _sender_check_cache["done"]:
+        return _sender_check_cache["error"]
+
+    _sender_check_cache["done"] = True
+    try:
+        profile = _gmail_service().users().getProfile(userId="me").execute()
+        actual = profile.get("emailAddress", "")
+    except RuntimeError as e:
+        # Google not configured at all — let the actual send call surface this.
+        return None
+    except Exception as e:
+        return None  # transient API failure — don't hard-block sends on a profile-check hiccup
+
+    if actual.lower() != EXPECTED_SENDER_EMAIL.lower():
+        _sender_check_cache["error"] = (
+            f"Refusing to send — Gmail is authenticated as {actual}, not the expected "
+            f"sender {EXPECTED_SENDER_EMAIL}. Re-run reauth_google.py logged in as "
+            f"{EXPECTED_SENDER_EMAIL} and update GOOGLE_REFRESH_TOKEN in Railway."
+        )
+    return _sender_check_cache["error"]
+
+
 def _calendar_service():
     from googleapiclient.discovery import build
     return build("calendar", "v3", credentials=_google_creds(), cache_discovery=False)
@@ -120,6 +160,9 @@ def gmail_read_thread(thread_id: str) -> str:
 
 
 def gmail_send(to: str, subject: str, body: str) -> str:
+    guard = _verify_sender_identity()
+    if guard:
+        return guard
     try:
         svc = _gmail_service()
         msg = MIMEText(body)
@@ -192,6 +235,9 @@ async def process_newsletter_queue() -> str:
 def gmail_send_html(to: str, subject: str, html: str) -> str:
     """Same as gmail_send but for an HTML body (newsletter sends) — MIMEText
     defaults to plain text, which would send the HTML tags as literal text."""
+    guard = _verify_sender_identity()
+    if guard:
+        return guard
     try:
         svc = _gmail_service()
         msg = MIMEText(html, "html")
@@ -247,6 +293,9 @@ async def send_info_email(to: str, owner: str | None, business: str | None) -> s
 
 def gmail_send_reply(to: str, subject: str, body: str, thread_id: str) -> dict:
     """Send a reply that threads correctly in Gmail (keyed by `thread_id`)."""
+    guard = _verify_sender_identity()
+    if guard:
+        raise RuntimeError(guard)
     svc = _gmail_service()
     msg = MIMEText(body)
     msg["to"] = to
