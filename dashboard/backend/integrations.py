@@ -1,8 +1,12 @@
 """
 External service integrations for OS agents.
 
-Credentials via env vars:
-  Google:  GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
+Credentials via env vars — two separate Google identities:
+  Business (prospect-facing email sends only):
+    GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN
+  Personal (calendar, drive, inbox search/drafts — Dylan's own resources):
+    GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_PERSONAL_REFRESH_TOKEN
+  (same OAuth app/client, two different authorized accounts)
   Notion:  NOTION_TOKEN
 
 Each tool function returns a plain string (used directly as tool_result content).
@@ -21,50 +25,83 @@ _MISSING_GOOGLE = (
     "Google not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, "
     "and GOOGLE_REFRESH_TOKEN env vars."
 )
+_MISSING_GOOGLE_PERSONAL = (
+    "Personal Google account not configured. Set GOOGLE_PERSONAL_REFRESH_TOKEN "
+    "(run reauth_google.py logged in as the personal account)."
+)
 _MISSING_NOTION = "Notion not configured. Set NOTION_TOKEN env var."
+
+_GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/drive.readonly",
+]
 
 
 # ── Google auth ───────────────────────────────────────────────────────────────
+#
+# Two credentials, deliberately kept separate so a re-auth of one never
+# silently switches the other's account:
+#   - business creds: ONLY for outbound prospect email (gmail_send*)
+#   - personal creds: calendar, drive, and Dylan's own inbox search/drafts
 
-def _google_creds():
-    """Return a google.oauth2.credentials.Credentials object or raise RuntimeError."""
+def _make_creds(refresh_token: str, missing_msg: str):
     try:
         from google.oauth2.credentials import Credentials
     except ImportError:
         raise RuntimeError("google-auth-oauthlib not installed — add google-api-python-client to requirements.txt")
 
-    required = ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN")
+    required = ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", refresh_token)
     missing = [k for k in required if not os.environ.get(k)]
     if missing:
-        raise RuntimeError(f"Missing env vars: {', '.join(missing)}. {_MISSING_GOOGLE}")
+        raise RuntimeError(f"Missing env vars: {', '.join(missing)}. {missing_msg}")
 
     return Credentials(
         token=None,
-        refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+        refresh_token=os.environ[refresh_token],
         client_id=os.environ["GOOGLE_CLIENT_ID"],
         client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
         token_uri="https://oauth2.googleapis.com/token",
-        scopes=[
-            "https://www.googleapis.com/auth/gmail.modify",
-            "https://www.googleapis.com/auth/calendar",
-            "https://www.googleapis.com/auth/drive.readonly",
-        ],
+        scopes=_GOOGLE_SCOPES,
     )
 
 
-def _gmail_service():
+def _business_creds():
+    return _make_creds("GOOGLE_REFRESH_TOKEN", _MISSING_GOOGLE)
+
+
+def _personal_creds():
+    return _make_creds("GOOGLE_PERSONAL_REFRESH_TOKEN", _MISSING_GOOGLE_PERSONAL)
+
+
+def _business_gmail_service():
+    """Sending only — dylanrg@digigrowthllc.com. See EXPECTED_SENDER_EMAIL below."""
     from googleapiclient.discovery import build
-    return build("gmail", "v1", credentials=_google_creds(), cache_discovery=False)
+    return build("gmail", "v1", credentials=_business_creds(), cache_discovery=False)
+
+
+def _personal_gmail_service():
+    """Dylan's own inbox — search/read/draft, never prospect sends."""
+    from googleapiclient.discovery import build
+    return build("gmail", "v1", credentials=_personal_creds(), cache_discovery=False)
+
+
+def _calendar_service():
+    from googleapiclient.discovery import build
+    return build("calendar", "v3", credentials=_personal_creds(), cache_discovery=False)
+
+
+def _drive_service():
+    from googleapiclient.discovery import build
+    return build("drive", "v3", credentials=_personal_creds(), cache_discovery=False)
 
 
 # Default rule: every prospect-facing email goes out from the business mailbox
-# unless this is explicitly changed. GOOGLE_REFRESH_TOKEN is a single shared
-# credential used by every send path (newsletter, send-info, appointment
-# reminders, inbox replies) — there's no per-send "from" override, so
-# whichever Google account that token authenticates as is where everything
-# goes out from. _verify_sender_identity() catches a misconfigured token
-# (wrong account re-authed) loudly instead of silently sending from the
-# wrong mailbox.
+# unless this is explicitly changed. _business_gmail_service() is used ONLY by
+# the send functions below — there's no per-send "from" override, so whichever
+# Google account GOOGLE_REFRESH_TOKEN authenticates as is where those sends go
+# out from. _verify_sender_identity() catches a misconfigured token (wrong
+# account re-authed) loudly instead of silently sending from the wrong mailbox.
 EXPECTED_SENDER_EMAIL = os.environ.get("EXPECTED_SENDER_EMAIL", "dylanrg@digigrowthllc.com")
 
 _sender_check_cache: dict = {"done": False, "email": None, "check_error": None}
@@ -72,17 +109,18 @@ _sender_check_cache: dict = {"done": False, "email": None, "check_error": None}
 
 def get_sender_identity(force: bool = False) -> dict:
     """Returns {'email', 'expected', 'match'} describing which Gmail account
-    GOOGLE_REFRESH_TOKEN actually authenticates as, or {'check_error': ...}
-    if the profile lookup itself failed (auth not configured, transient API
-    error, etc). `force=True` bypasses the process-lifetime cache — use for
-    on-demand diagnostics; sends themselves always use the cached result."""
+    the BUSINESS credential (GOOGLE_REFRESH_TOKEN) actually authenticates as,
+    or {'check_error': ...} if the profile lookup itself failed (auth not
+    configured, transient API error, etc). `force=True` bypasses the
+    process-lifetime cache — use for on-demand diagnostics; sends themselves
+    always use the cached result."""
     if force:
         _sender_check_cache["done"] = False
 
     if not _sender_check_cache["done"]:
         _sender_check_cache["done"] = True
         try:
-            profile = _gmail_service().users().getProfile(userId="me").execute()
+            profile = _business_gmail_service().users().getProfile(userId="me").execute()
             _sender_check_cache["email"] = profile.get("emailAddress", "")
             _sender_check_cache["check_error"] = None
         except Exception as e:
@@ -113,16 +151,6 @@ def _verify_sender_identity() -> str | None:
     )
 
 
-def _calendar_service():
-    from googleapiclient.discovery import build
-    return build("calendar", "v3", credentials=_google_creds(), cache_discovery=False)
-
-
-def _drive_service():
-    from googleapiclient.discovery import build
-    return build("drive", "v3", credentials=_google_creds(), cache_discovery=False)
-
-
 # ── Notion auth ───────────────────────────────────────────────────────────────
 
 def _notion_headers():
@@ -140,7 +168,7 @@ def _notion_headers():
 
 def gmail_search(query: str, max_results: int = 10) -> str:
     try:
-        svc = _gmail_service()
+        svc = _personal_gmail_service()
         res = svc.users().threads().list(
             userId="me", q=query, maxResults=max_results
         ).execute()
@@ -159,7 +187,7 @@ def gmail_search(query: str, max_results: int = 10) -> str:
 
 def gmail_read_thread(thread_id: str) -> str:
     try:
-        svc = _gmail_service()
+        svc = _personal_gmail_service()
         thread = svc.users().threads().get(userId="me", id=thread_id, format="full").execute()
         lines = []
         for msg in thread.get("messages", []):
@@ -180,7 +208,7 @@ def gmail_send(to: str, subject: str, body: str) -> str:
     if guard:
         return guard
     try:
-        svc = _gmail_service()
+        svc = _business_gmail_service()
         msg = MIMEText(body)
         msg["to"] = to
         msg["subject"] = subject
@@ -255,7 +283,7 @@ def gmail_send_html(to: str, subject: str, html: str) -> str:
     if guard:
         return guard
     try:
-        svc = _gmail_service()
+        svc = _business_gmail_service()
         msg = MIMEText(html, "html")
         msg["to"] = to
         msg["subject"] = subject
@@ -312,7 +340,7 @@ def gmail_send_reply(to: str, subject: str, body: str, thread_id: str) -> dict:
     guard = _verify_sender_identity()
     if guard:
         raise RuntimeError(guard)
-    svc = _gmail_service()
+    svc = _business_gmail_service()
     msg = MIMEText(body)
     msg["to"] = to
     msg["subject"] = subject if subject.lower().startswith("re:") else f"Re: {subject}"
@@ -323,7 +351,7 @@ def gmail_send_reply(to: str, subject: str, body: str, thread_id: str) -> dict:
 
 def gmail_create_draft(to: str, subject: str, body: str) -> str:
     try:
-        svc = _gmail_service()
+        svc = _personal_gmail_service()
         msg = MIMEText(body)
         msg["to"] = to
         msg["subject"] = subject
