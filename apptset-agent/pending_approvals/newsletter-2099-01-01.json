@@ -1,9 +1,0 @@
-{
-  "title": "TEST — pending-approvals relay smoke test",
-  "summary": "Smoke test — safe to decline",
-  "payload": {
-    "date": "2099-01-01",
-    "subject": "TEST relay smoke test",
-    "html": "<div style=\"max-width:600px;margin:0 auto;font-family:sans-serif;\"><p>This is an automated smoke test of the pending-approvals relay. Safe to Decline.</p></div>"
-  }
-}
