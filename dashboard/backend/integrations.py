@@ -136,6 +136,31 @@ def get_sender_identity(force: bool = False) -> dict:
             "match": actual.lower() == EXPECTED_SENDER_EMAIL.lower()}
 
 
+_personal_check_cache: dict = {"done": False, "email": None, "check_error": None}
+
+
+def get_personal_identity(force: bool = False) -> dict:
+    """Returns {'email'} for whichever Google account GOOGLE_PERSONAL_REFRESH_TOKEN
+    authenticates as (drives Calendar, Drive, and Dylan's own inbox search/drafts),
+    or {'check_error': ...} if the lookup failed (not configured yet, etc)."""
+    if force:
+        _personal_check_cache["done"] = False
+
+    if not _personal_check_cache["done"]:
+        _personal_check_cache["done"] = True
+        try:
+            profile = _personal_gmail_service().users().getProfile(userId="me").execute()
+            _personal_check_cache["email"] = profile.get("emailAddress", "")
+            _personal_check_cache["check_error"] = None
+        except Exception as e:
+            _personal_check_cache["email"] = None
+            _personal_check_cache["check_error"] = str(e)
+
+    if _personal_check_cache["check_error"]:
+        return {"email": None, "check_error": _personal_check_cache["check_error"]}
+    return {"email": _personal_check_cache["email"]}
+
+
 def _verify_sender_identity() -> str | None:
     """Returns None if the authenticated Gmail account matches
     EXPECTED_SENDER_EMAIL (or the check itself couldn't run — don't hard-block

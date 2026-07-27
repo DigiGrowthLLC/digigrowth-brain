@@ -39,6 +39,14 @@ async def sender_check():
     return integrations.get_sender_identity(force=True)
 
 
+@router.get("/newsletter/personal-account-check")
+async def personal_account_check():
+    """Which Google account drives Calendar/Drive/inbox-search right now —
+    see integrations.get_personal_identity."""
+    import integrations
+    return integrations.get_personal_identity(force=True)
+
+
 @router.get("/newsletter/queue/state")
 async def get_queue_state():
     pool = await get_pool()
