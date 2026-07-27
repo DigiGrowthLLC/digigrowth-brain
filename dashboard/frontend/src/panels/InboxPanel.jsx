@@ -9,7 +9,11 @@ function htmlToText(html) {
   const withBreaks = html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div)>/gi, "\n");
   const el = document.createElement("div");
   el.innerHTML = withBreaks;
-  return (el.textContent || el.innerText || "").replace(/\n{3,}/g, "\n\n").trim();
+  return (el.textContent || el.innerText || "")
+    .split("\n")
+    .map(line => line.trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 function fmtMsgTime(ts) {
