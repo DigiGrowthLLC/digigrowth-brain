@@ -47,6 +47,42 @@ async def personal_account_check():
     return integrations.get_personal_identity(force=True)
 
 
+@router.post("/newsletter/backfill-conversations")
+async def backfill_conversations():
+    """One-off: for already-'sent' newsletter_send_queue rows that predate
+    integrations._record_outbound_email (the fix that makes new sends create
+    Inbox conversation records), find the matching message in the business
+    account's Sent folder and record it — so prospects already emailed
+    before the fix still get a conversation thread in the Inbox."""
+    import integrations
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, email, subject, html FROM newsletter_send_queue WHERE status = 'sent'"
+        )
+
+    svc = integrations._business_gmail_service()
+    results = []
+    for row in rows:
+        to, subject, html = row["email"], row["subject"], row["html"]
+        try:
+            q = f'to:{to} subject:"{subject}"'
+            res = svc.users().messages().list(userId="me", q=q, maxResults=1).execute()
+            msgs = res.get("messages", [])
+            if not msgs:
+                results.append(f"{to}: not found in business Sent — skipped")
+                continue
+            mid = msgs[0]["id"]
+            full = svc.users().messages().get(userId="me", id=mid, format="minimal").execute()
+            thread_id = full["threadId"]
+            await integrations._record_outbound_email(to, subject, html, mid, thread_id)
+            results.append(f"{to}: recorded (thread {thread_id})")
+        except Exception as e:
+            results.append(f"{to}: error — {e}")
+
+    return {"results": results}
+
+
 @router.get("/newsletter/thread-check/{thread_id}")
 async def thread_check(thread_id: str):
     """Read the raw From/To/Date headers of every message in a Gmail thread —
