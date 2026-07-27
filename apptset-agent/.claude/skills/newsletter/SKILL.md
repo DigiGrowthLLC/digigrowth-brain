@@ -19,7 +19,7 @@ sending mailbox's domain reputation. See "Delivery" below.
 4. Saves the draft to `newsletter_draft.json` for the Python send script
 5. Renders the draft as a PDF and posts it inline in the OS chat, linked from Monday's daily brief
 6. Submits the draft for approval via the dashboard's approvals API, so Dylan gets a live Approve/Decline control in chat
-7. On Approve: the backend queues one personalized email per newsletter-flagged contact and sends them gradually (~25/day, small batches through the day) via Gmail API — see "Delivery" below. `newsletter.py`/`ghl.py` are legacy and unused; ignore them.
+7. On Approve: the backend queues one personalized email per newsletter-flagged contact and sends them gradually (~25/day, small batches through the day) via Gmail API — see "Delivery" below. `newsletter.py` is legacy and unused; ignore it.
 
 ---
 
@@ -244,7 +244,7 @@ Approving a newsletter approval (`kind: "newsletter"`) triggers `dashboard/backe
 2. Personalizes `{{first_name}}`, `{{business_name}}`, and `{{unsubscribe_link}}` per contact and inserts one row per contact into the `newsletter_send_queue` table. **Nothing is sent yet at this point.**
 3. A scheduled job in `dashboard/backend/main.py` (`_process_newsletter_queue`, cron `*/25 9-17 * * mon-fri` ET) sends a small batch (4) off the queue via `integrations.gmail_send_html()` — real Gmail API send from `dylanrg@digigrowthllc.com` — capped at `NEWSLETTER_DAILY_CAP` (25) sends/day total. A big list spreads across multiple days automatically; it never blasts everything from a single approval.
 
-`newsletter.py --send` and `apptset-agent/ghl.py` are legacy — they used GoHighLevel, which is no longer in use. Ignore them; do not run `newsletter.py --send`.
+`newsletter.py --send` is legacy — it used GoHighLevel, which is no longer in use. Ignore it; do not run `newsletter.py --send`.
 
 If Dylan asks to check on send status: query `newsletter_send_queue` (status `queued`/`sent`/`failed`, `error` column has the failure reason if any).
 

@@ -4,12 +4,13 @@ Runs every Sunday at ~8:04pm ET. Scans the whole repo for dead code, redundant/c
 
 **Managed by:** Dylan's Executive Assistant surfaces its output — see `executive-assistant/.claude/skills/daily-briefing/SKILL.md` Step 4.6 in the `digigrowth-brain` repo.
 
-**Run via:** a Claude Code cloud routine ("EA Weekly Cleanup", `claude.ai/code/routines`) — runs under Dylan's Claude subscription rather than the metered Anthropic API. The routine's prompt reuses the pure-Python detection (`run_detection`), retention (`archive_old_reports`), and stale-project (`flag_stale_projects`) helpers that used to live in this directory's `run.py`, and does the judgment/fix phase itself with its own native tools instead of a separate scripted API call. There is no local script to run manually anymore — trigger a run via the routines UI ("Run now") instead.
+**Run via:** a Claude Code cloud routine ("EA Weekly Cleanup", `claude.ai/code/routines`) — runs under Dylan's Claude subscription rather than the metered Anthropic API. The routine's prompt reuses the pure-Python detection (`run_detection`), retention (`archive_old_reports`), and stale-project (`flag_stale_projects`) helpers in this directory's `run.py`, and does the judgment/fix phase itself with its own native tools instead of a separate scripted API call. `run.py` is now an import-only helper library — no `import anthropic`, no `main()`/CLI, so there is no script to run manually; trigger a run via the routines UI ("Run now") instead.
 
 ## File Roles
 
 | File | Purpose |
 |---|---|
+| `run.py` | Import-only helper library — the pure-Python detection/retention/stale-project functions the routine imports (`from run import run_detection, archive_old_reports, flag_stale_projects, load_last_run_sha`). No `main()`/CLI; the judgment/fix phase lives in the routine itself. |
 | `last_run.json` | Tracks the git SHA of the last run, so the next run only diffs what changed since (written by the routine directly via `git`) |
 
 ## Safety Model

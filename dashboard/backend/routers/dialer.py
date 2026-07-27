@@ -18,7 +18,6 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   PUT  /api/dialer/sequence-template — save SMS outreach sequence steps
 """
 
-import asyncio
 import json
 import os
 import pathlib
