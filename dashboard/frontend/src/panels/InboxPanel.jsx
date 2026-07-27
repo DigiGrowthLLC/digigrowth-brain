@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API } from "../api.js";
 import ContactCard from "../ContactCard.jsx";
+import BookingModal from "../BookingModal.jsx";
 
 function fmtMsgTime(ts) {
   if (!ts) return "";
@@ -208,6 +209,7 @@ export default function InboxPanel({ initialTarget }) {
   const [sending, setSending]     = useState(false);
   const [loading, setLoading]     = useState(true);
   const [cardOpen, setCardOpen]   = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const [deleting, setDeleting]   = useState(false);
   const [composing, setComposing] = useState(false);
   const [seqOpen, setSeqOpen]       = useState(false);
@@ -427,6 +429,15 @@ export default function InboxPanel({ initialTarget }) {
         />
       )}
 
+      <BookingModal
+        open={bookingOpen}
+        onClose={() => setBookingOpen(false)}
+        contactId={thread?.contact_id}
+        phone={thread?.phone}
+        name={thread?.owner}
+        email={thread?.email}
+      />
+
       {composing && (
         <ComposeModal
           onClose={() => setComposing(false)}
@@ -638,9 +649,9 @@ export default function InboxPanel({ initialTarget }) {
                       }}>
                       {thread?.disposition === "interested" ? "★ INTERESTED" : "MARK INTERESTED"}
                     </button>
-                    <button onClick={() => closeConvo("booked")} className="btn btn-ghost"
+                    <button onClick={() => setBookingOpen(true)} className="btn btn-ghost"
                       style={{ fontSize: 10, borderColor: "rgba(20,200,130,0.35)", color: "#14c882" }}>
-                      MARK BOOKED
+                      BOOK APPOINTMENT
                     </button>
                     <button onClick={() => closeConvo("not_interested")} className="btn btn-ghost"
                       style={{ fontSize: 10, borderColor: "rgba(220,60,60,0.35)", color: "#dc3c3c" }}>

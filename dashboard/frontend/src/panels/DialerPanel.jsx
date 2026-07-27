@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API } from "../api.js";
-import { DISPO_COLORS, DISPO_BUTTONS, CALENDLY_URL } from "../dispositions.js";
+import { DISPO_COLORS, DISPO_BUTTONS } from "../dispositions.js";
 import ContactCard from "../ContactCard.jsx";
-import BookingForm from "../BookingForm.jsx";
+import BookingModal from "../BookingModal.jsx";
 
 const GRADE_COLORS = { A: "#14c882", B: "#5a9bf0", C: "#f0a028", D: "#dc3c3c" };
 
@@ -873,37 +873,14 @@ const [notes, setNotes]                 = useState("");
         )}
 
         {/* Booking modal */}
-        {bookingOpen && (
-          <div onClick={(e) => e.target === e.currentTarget && setBookingOpen(false)} style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
-            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24,
-          }}>
-            <div style={{
-              background: "#0d1830", border: "1px solid #1a2540", borderRadius: 12,
-              width: "100%", maxWidth: 860, height: "85vh",
-              display: "flex", flexDirection: "column", overflow: "hidden",
-              boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-                             padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff" }}>Book Appointment</span>
-                <button onClick={() => setBookingOpen(false)} style={{
-                  background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540",
-                  borderRadius: 6, color: "#5a6f8f", width: 30, height: 30, cursor: "pointer", fontSize: 16,
-                }}>✕</button>
-              </div>
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                <iframe src={CALENDLY_URL} style={{ width: "100%", height: "100%", border: "none" }} allow="camera; microphone" />
-              </div>
-              <BookingForm
-                contactId={bookingLead?.contact_id}
-                phone={bookingLead?.phone}
-                name={bookingLead?.owner}
-                email={bookingLead?.email}
-              />
-            </div>
-          </div>
-        )}
+        <BookingModal
+          open={bookingOpen}
+          onClose={() => setBookingOpen(false)}
+          contactId={bookingLead?.contact_id}
+          phone={bookingLead?.phone}
+          name={bookingLead?.owner}
+          email={bookingLead?.email}
+        />
       </div>
 
       {/* ── Live Session Stats ── */}

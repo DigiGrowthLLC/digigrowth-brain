@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { API } from "./api.js";
+import BookingModal from "./BookingModal.jsx";
 
 const GRADES   = ["A", "B", "C", "D"];
 const STATUSES = ["new", "dialer-lead", "sms-handoff", "appointment-booked", "not-interested", "send-info", "voicemail", "manual-followup"];
@@ -14,6 +15,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
   const [form, setForm]       = useState(null);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState(null);
+  const [bookingOpen, setBookingOpen] = useState(false);
 
   useEffect(() => {
     if (!contactId) return;
@@ -149,6 +151,11 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
           {variant === "modal" && (
             <button onClick={onClose} className="btn btn-secondary" style={{ flex: 1, fontSize: 11 }}>Cancel</button>
           )}
+          <button onClick={() => setBookingOpen(true)} className="btn btn-ghost" style={{
+            flex: 1, fontSize: 11, borderColor: "rgba(20,200,130,0.35)", color: "#14c882",
+          }}>
+            📅 Book Appointment
+          </button>
           <button onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ flex: 1, fontSize: 11 }}>
             {saving ? "Saving…" : "Save Changes"}
           </button>
@@ -157,30 +164,45 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
     </>
   );
 
+  const bookingModal = (
+    <BookingModal
+      open={bookingOpen}
+      onClose={() => setBookingOpen(false)}
+      contactId={contactId}
+      phone={form?.phone || phone}
+      name={form?.owner}
+      email={form?.email}
+    />
+  );
+
   if (variant === "inline") {
     return (
       <div style={{ display: "flex", flexDirection: "column" }}>
         {body}
+        {bookingModal}
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
-        backdropFilter: "blur(6px)", zIndex: 1000,
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}
-      onClick={onClose}
-    >
+    <>
       <div
-        className="glass-card"
-        style={{ width: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}
-        onClick={e => e.stopPropagation()}
+        style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
+          backdropFilter: "blur(6px)", zIndex: 1000,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+        onClick={onClose}
       >
-        {body}
+        <div
+          className="glass-card"
+          style={{ width: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}
+          onClick={e => e.stopPropagation()}
+        >
+          {body}
+        </div>
       </div>
-    </div>
+      {bookingModal}
+    </>
   );
 }
