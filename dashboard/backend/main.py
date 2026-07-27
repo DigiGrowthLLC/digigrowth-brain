@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 import integrations
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals
-from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, approvals, tags, newsletter, appointments
+from routers import crm, sms, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, approvals, tags, newsletter, newsletter_queue, appointments
 import reminder_engine
 
 security = HTTPBasic()
@@ -376,6 +376,7 @@ app.include_router(analytics.router,  prefix="/api", dependencies=[Depends(requi
 app.include_router(finances.router,   prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sops.router,       prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(approvals.router,  prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(newsletter_queue.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(tags.router,       prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(appointments.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(public_sops.router)  # no auth — readable by team

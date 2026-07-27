@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import NewsletterQueueModal from "./NewsletterQueueModal.jsx";
 
 const STATUSES = [
   { value: "all",                label: "ALL" },
@@ -932,6 +933,7 @@ export default function CRMPanel({ onNavigate }) {
   const [showAdd, setShowAdd]         = useState(false);
   const [showImport, setShowImport]   = useState(false);
   const [showManageTags, setShowManageTags] = useState(false);
+  const [showNewsletterQueue, setShowNewsletterQueue] = useState(false);
   const [tags, setTags]               = useState([]);
 
   const fetchTags = useCallback(async () => {
@@ -1078,6 +1080,7 @@ export default function CRMPanel({ onNavigate }) {
           <button onClick={() => setShowAdd(true)} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>+ Add Contact</button>
           <button onClick={() => setShowImport(true)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>↑ Import CSV</button>
           <button onClick={() => setShowManageTags(true)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>🏷 Manage Tags</button>
+          <button onClick={() => setShowNewsletterQueue(true)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>✉ Newsletter Queue</button>
         </div>
       </div>
 
@@ -1304,6 +1307,9 @@ export default function CRMPanel({ onNavigate }) {
       {showManageTags && (
         <ManageTagsModal tags={tags} onClose={() => setShowManageTags(false)}
           onChanged={() => { fetchTags(); fetchContacts(); }} />
+      )}
+      {showNewsletterQueue && (
+        <NewsletterQueueModal onClose={() => setShowNewsletterQueue(false)} />
       )}
     </div>
   );
