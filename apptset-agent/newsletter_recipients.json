@@ -1,5 +1,11 @@
 {
-  "count": 0,
-  "recipients": [],
-  "exported_at": "2026-07-26T09:45:00.005066+00:00"
+  "count": 1,
+  "recipients": [
+    {
+      "owner": "Dylan",
+      "business": "DigiGrowth",
+      "email": "dylangroenendijk@gmail.com"
+    }
+  ],
+  "exported_at": "2026-07-27T09:45:00.005360+00:00"
 }
