@@ -7,11 +7,12 @@ plus an immediate thank-you confirmation right when the booking is captured
 create endpoint) and a reschedule notice (send_reschedule_confirmation(), called
 from routers/appointments.py's edit endpoint).
 
-Message text is editable from Business Resources → Outreach Templates (stored in
-dialer_settings, same store as the "Send Info" and SMS Sequence templates — see
-routers/dialer.py's GET/PUT /dialer/reminder-template) — falls back to the
-DEFAULT_* constants below if a key has never been saved. Templates support
-{first_name} and {when} placeholders.
+Each of the 5 message instances (confirmation, 24h, 6h, 1h, reschedule) has its
+own SMS text, email subject, and email body — independently editable from
+Business Resources → Outreach Templates (stored in dialer_settings, same store as
+the "Send Info" and SMS Sequence templates — see routers/dialer.py's GET/PUT
+/dialer/reminder-template). Falls back to the DEFAULT_* constants below if a key
+has never been saved. Templates support {first_name} and {when} placeholders.
 """
 
 import asyncio
@@ -22,39 +23,48 @@ from db import get_pool
 from routers import sms as sms_router
 import integrations
 
-# (window label, sent-at column, hours before appointment, dialer_settings key)
+# (window label, sent-at column, hours before appointment, template instance key)
 _WINDOWS = [
-    ("24h", "reminder_24h_sent_at", 24, "reminder_24h_sms"),
-    ("6h",  "reminder_6h_sent_at", 6,  "reminder_6h_sms"),
-    ("1h",  "reminder_1h_sent_at", 1,  "reminder_1h_sms"),
+    ("24h", "reminder_24h_sent_at", 24, "24h"),
+    ("6h",  "reminder_6h_sent_at", 6,  "6h"),
+    ("1h",  "reminder_1h_sent_at", 1,  "1h"),
 ]
 
-DEFAULT_CONFIRMATION_SMS = (
+_CONFIRMATION_SMS_DEFAULT = (
     "Hey {first_name}, thanks for booking a call with DigiGrowth! "
     "You're all set for {when}. We'll send a few reminders as it gets closer — talk soon!"
 )
-DEFAULT_CONFIRMATION_SUBJECT = "You're booked — DigiGrowth"
+_CONFIRMATION_EMAIL_BODY_DEFAULT = _CONFIRMATION_SMS_DEFAULT
+_CONFIRMATION_SUBJECT_DEFAULT = "You're booked — DigiGrowth"
 
-DEFAULT_24H_SMS = "Hey {first_name}, quick reminder — your call with DigiGrowth is tomorrow ({when}). Talk soon!"
-DEFAULT_6H_SMS  = "Hey {first_name}, quick reminder — your call with DigiGrowth is in a few hours ({when}). Talk soon!"
-DEFAULT_1H_SMS  = "Hey {first_name}, quick reminder — your call with DigiGrowth is in about an hour ({when}). Talk soon!"
-DEFAULT_REMINDER_SUBJECT = "Reminder: your upcoming call with DigiGrowth"
+_24H_SMS_DEFAULT = "Hey {first_name}, quick reminder — your call with DigiGrowth is tomorrow ({when}). Talk soon!"
+_6H_SMS_DEFAULT  = "Hey {first_name}, quick reminder — your call with DigiGrowth is in a few hours ({when}). Talk soon!"
+_1H_SMS_DEFAULT  = "Hey {first_name}, quick reminder — your call with DigiGrowth is in about an hour ({when}). Talk soon!"
+_REMINDER_SUBJECT_DEFAULT = "Reminder: your upcoming call with DigiGrowth"
 
-DEFAULT_RESCHEDULE_SMS = "Hey {first_name}, heads up — your call with DigiGrowth has been rescheduled to {when}. See you then!"
-DEFAULT_RESCHEDULE_SUBJECT = "Your appointment has been rescheduled — DigiGrowth"
+_RESCHEDULE_SMS_DEFAULT = "Hey {first_name}, heads up — your call with DigiGrowth has been rescheduled to {when}. See you then!"
+_RESCHEDULE_EMAIL_BODY_DEFAULT = _RESCHEDULE_SMS_DEFAULT
+_RESCHEDULE_SUBJECT_DEFAULT = "Your appointment has been rescheduled — DigiGrowth"
+
+# Each of the 5 message instances gets its own sms/email_subject/email_body —
+# key prefix -> (sms default, email subject default, email body default).
+# dialer.py's GET/PUT /dialer/reminder-template iterate this dict generically,
+# so adding/renaming an instance here is the only change needed on the backend.
+TEMPLATE_INSTANCES = {
+    "confirmation": (_CONFIRMATION_SMS_DEFAULT, _CONFIRMATION_SUBJECT_DEFAULT, _CONFIRMATION_EMAIL_BODY_DEFAULT),
+    "24h":          (_24H_SMS_DEFAULT, _REMINDER_SUBJECT_DEFAULT, _24H_SMS_DEFAULT),
+    "6h":           (_6H_SMS_DEFAULT, _REMINDER_SUBJECT_DEFAULT, _6H_SMS_DEFAULT),
+    "1h":           (_1H_SMS_DEFAULT, _REMINDER_SUBJECT_DEFAULT, _1H_SMS_DEFAULT),
+    "reschedule":   (_RESCHEDULE_SMS_DEFAULT, _RESCHEDULE_SUBJECT_DEFAULT, _RESCHEDULE_EMAIL_BODY_DEFAULT),
+}
 
 # dialer_settings key -> hardcoded fallback, for GET /dialer/reminder-template
 # and the templated sends below to share one source of truth.
-TEMPLATE_DEFAULTS = {
-    "reminder_confirmation_sms":     DEFAULT_CONFIRMATION_SMS,
-    "reminder_confirmation_subject": DEFAULT_CONFIRMATION_SUBJECT,
-    "reminder_24h_sms":              DEFAULT_24H_SMS,
-    "reminder_6h_sms":               DEFAULT_6H_SMS,
-    "reminder_1h_sms":               DEFAULT_1H_SMS,
-    "reminder_subject":              DEFAULT_REMINDER_SUBJECT,
-    "reminder_reschedule_sms":       DEFAULT_RESCHEDULE_SMS,
-    "reminder_reschedule_subject":   DEFAULT_RESCHEDULE_SUBJECT,
-}
+TEMPLATE_DEFAULTS = {}
+for _instance, (_sms, _subject, _body) in TEMPLATE_INSTANCES.items():
+    TEMPLATE_DEFAULTS[f"reminder_{_instance}_sms"] = _sms
+    TEMPLATE_DEFAULTS[f"reminder_{_instance}_email_subject"] = _subject
+    TEMPLATE_DEFAULTS[f"reminder_{_instance}_email_body"] = _body
 
 
 async def _get_templates() -> dict:
@@ -86,23 +96,28 @@ def _fill(template: str, row: dict) -> str:
     return template.replace("{first_name}", first_name).replace("{when}", when)
 
 
-async def _send_message(row: dict, message: str, subject: str, stage: str):
-    """SMS + email send, best-effort on each channel independently."""
+async def _send_instance(row: dict, instance: str, templates: dict, stage: str):
+    """Send one template instance (confirmation/24h/6h/1h/reschedule) — SMS uses
+    its own text, email uses its own subject + body, independently editable."""
+    sms_text    = _fill(templates[f"reminder_{instance}_sms"], row)
+    subject     = _fill(templates[f"reminder_{instance}_email_subject"], row)
+    email_body  = _fill(templates[f"reminder_{instance}_email_body"], row)
+
     phone = (row.get("prospect_phone") or "").strip()
     if phone:
         try:
-            sms_router._send_twilio(phone, message)
+            sms_router._send_twilio(phone, sms_text)
             pool = await get_pool()
             async with pool.acquire() as conn:
                 await sms_router._get_or_create_conversation(conn, phone)
-                await sms_router._store_message(conn, phone, "assistant", message, stage=stage)
+                await sms_router._store_message(conn, phone, "assistant", sms_text, stage=stage)
         except Exception as e:
             print(f"[reminder_engine] SMS failed for {phone}: {e}")
 
     email = (row.get("prospect_email") or "").strip()
     if email:
         try:
-            result = await asyncio.to_thread(integrations.gmail_send, email, subject, message)
+            result = await asyncio.to_thread(integrations.gmail_send, email, subject, email_body)
             if not result.startswith("Sent email"):
                 print(f"[reminder_engine] email to {email} did not send: {result}")
         except Exception as e:
@@ -113,9 +128,7 @@ async def send_booking_confirmation(row: dict):
     """Immediate thank-you + appointment-time confirmation, sent right when the
     booking form is submitted — not gated by the 24h/6h/1h polling loop."""
     templates = await _get_templates()
-    message = _fill(templates["reminder_confirmation_sms"], row)
-    subject = _fill(templates["reminder_confirmation_subject"], row)
-    await _send_message(row, message, subject, "booking_confirmation")
+    await _send_instance(row, "confirmation", templates, "booking_confirmation")
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -129,21 +142,7 @@ async def send_reschedule_confirmation(row: dict):
     changes an appointment's date/time/timezone. Doesn't touch sent-at
     columns itself — the caller already reset the 24h/6h/1h flags."""
     templates = await _get_templates()
-    message = _fill(templates["reminder_reschedule_sms"], row)
-    subject = _fill(templates["reminder_reschedule_subject"], row)
-    await _send_message(row, message, subject, "reschedule_confirmation")
-
-
-async def _send_reminder(row: dict, window_label: str, sent_col: str, sms_key: str, templates: dict):
-    message = _fill(templates[sms_key], row)
-    subject = _fill(templates["reminder_subject"], row)
-    await _send_message(row, message, subject, f"reminder_{window_label}")
-
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            f"UPDATE appointment_reminders SET {sent_col} = now() WHERE id = $1", row["id"],
-        )
+    await _send_instance(row, "reschedule", templates, "reschedule_confirmation")
 
 
 async def send_due_reminders():
@@ -161,8 +160,13 @@ async def send_due_reminders():
     now = datetime.now(dt_timezone.utc)
     for record in rows:
         row = dict(record)
-        for window_label, sent_col, hours_before, sms_key in _WINDOWS:
+        for window_label, sent_col, hours_before, instance in _WINDOWS:
             if row[sent_col] is not None:
                 continue
             if now >= row["appointment_at"] - timedelta(hours=hours_before):
-                await _send_reminder(row, window_label, sent_col, sms_key, templates)
+                await _send_instance(row, instance, templates, f"reminder_{window_label}")
+                pool = await get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        f"UPDATE appointment_reminders SET {sent_col} = now() WHERE id = $1", row["id"],
+                    )

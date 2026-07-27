@@ -77,12 +77,14 @@ uses to show upcoming vs. past appointments.
 
 ## Editing the Message Text
 
-All five message templates (booking confirmation, 24h/6h/1h reminders, reschedule
+All five message instances (booking confirmation, 24h/6h/1h reminders, reschedule
 notice) are editable from **Business Resources → Outreach Templates → Appointment
 Reminders**, same place as the "Send Info" and SMS Sequence templates — backed by
 `GET`/`PUT /api/dialer/reminder-template` (`dashboard/backend/routers/dialer.py`),
-stored in the same `dialer_settings` key/value table. `reminder_engine.py` reads
-these fresh from the DB on every send (`_get_templates()`), never a cached or
+stored in the same `dialer_settings` key/value table. **Each instance has three
+independently editable fields**: SMS message, email subject, and email body (SMS
+and email are no longer forced to share the same wording). `reminder_engine.py`
+reads these fresh from the DB on every send (`_get_templates()`), never a cached or
 hardcoded value once Dylan has edited them — same "always live" pattern as
 `sms.send_info_message()`. Templates support `{first_name}` and `{when}`
 placeholders; `{when}` is the appointment time formatted in the prospect's own

@@ -654,21 +654,14 @@ function SmsSequenceEditor({ categories, onCategoryChange }) {
 const REMINDER_FIELDS = [
   {
     heading: "Booking Confirmation", hint: "Sent immediately when a rep books an appointment.",
-    smsKey: "reminder_confirmation_sms", subjectKey: "reminder_confirmation_subject",
+    instance: "confirmation",
   },
-  {
-    heading: "24-Hour Reminder", hint: null, smsKey: "reminder_24h_sms", subjectKey: null,
-  },
-  {
-    heading: "6-Hour Reminder", hint: null, smsKey: "reminder_6h_sms", subjectKey: null,
-  },
-  {
-    heading: "1-Hour Reminder", hint: "Email subject for all three reminders above is shared — see below.",
-    smsKey: "reminder_1h_sms", subjectKey: "reminder_subject", subjectLabel: "REMINDER EMAIL SUBJECT (24H/6H/1H)",
-  },
+  { heading: "24-Hour Reminder", hint: null, instance: "24h" },
+  { heading: "6-Hour Reminder", hint: null, instance: "6h" },
+  { heading: "1-Hour Reminder", hint: null, instance: "1h" },
   {
     heading: "Reschedule Notice", hint: "Sent immediately when a rep reschedules a booked appointment.",
-    smsKey: "reminder_reschedule_sms", subjectKey: "reminder_reschedule_subject",
+    instance: "reschedule",
   },
 ];
 
@@ -694,7 +687,11 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
   }, []);
 
   const allKeys = [
-    ...REMINDER_FIELDS.flatMap(f => [f.smsKey, f.subjectKey].filter(Boolean)),
+    ...REMINDER_FIELDS.flatMap(f => [
+      `reminder_${f.instance}_sms`,
+      `reminder_${f.instance}_email_subject`,
+      `reminder_${f.instance}_email_body`,
+    ]),
     "category",
   ];
   const dirty = allKeys.some(k => (values[k] || "") !== (saved[k] || ""));
@@ -783,33 +780,51 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
-        {REMINDER_FIELDS.map((f, i) => (
-          <div key={f.smsKey} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
+        {REMINDER_FIELDS.map((f, i) => {
+          const smsKey = `reminder_${f.instance}_sms`;
+          const subjectKey = `reminder_${f.instance}_email_subject`;
+          const bodyKey = `reminder_${f.instance}_email_body`;
+          return (
+          <div key={f.instance} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
             <label style={headingStyle}>{f.heading}</label>
+            {f.hint && <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
+
+            <label style={labelStyle}>SMS MESSAGE</label>
             <textarea
-              value={values[f.smsKey] || ""}
-              onChange={e => setValues(v => ({ ...v, [f.smsKey]: e.target.value }))}
+              value={values[smsKey] || ""}
+              onChange={e => setValues(v => ({ ...v, [smsKey]: e.target.value }))}
               rows={3}
               placeholder="Hey {first_name}, ..."
               style={fieldStyle}
             />
-            {f.hint && <div style={hintStyle}>{f.hint}</div>}
-            {f.subjectKey && (
-              <div style={{ marginTop: 12 }}>
-                <label style={labelStyle}>{f.subjectLabel || "EMAIL SUBJECT"}</label>
-                <input
-                  value={values[f.subjectKey] || ""}
-                  onChange={e => setValues(v => ({ ...v, [f.subjectKey]: e.target.value }))}
-                  style={fieldStyle}
-                />
-              </div>
-            )}
+
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>EMAIL SUBJECT</label>
+              <input
+                value={values[subjectKey] || ""}
+                onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
+                style={fieldStyle}
+              />
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>EMAIL BODY</label>
+              <textarea
+                value={values[bodyKey] || ""}
+                onChange={e => setValues(v => ({ ...v, [bodyKey]: e.target.value }))}
+                rows={4}
+                placeholder="Hey {first_name}, ..."
+                style={fieldStyle}
+              />
+            </div>
+
             <div style={hintStyle}>
               Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the prospect's first name and{" "}
               <code style={{ color: "#6ab0ff" }}>{"{when}"}</code> for the appointment time in the prospect's own timezone.
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
