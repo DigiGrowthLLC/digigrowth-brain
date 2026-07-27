@@ -49,19 +49,28 @@ async def personal_account_check():
 
 @router.get("/newsletter/thread-check/{thread_id}")
 async def thread_check(thread_id: str):
-    """Read the raw From/To/Date headers of every message in a Gmail thread,
-    off the business account — for diagnosing why the inbox sync attributed
-    a thread unexpectedly."""
+    """Read the raw From/To/Date headers of every message in a Gmail thread —
+    tries the business account first, falls back to the personal account, so
+    we can tell which one actually holds a given thread."""
     import integrations
-    svc = integrations._business_gmail_service()
-    res = svc.users().threads().get(userId="me", id=thread_id, format="metadata",
-                                     metadataHeaders=["From", "To", "Subject", "Date"]).execute()
-    out = []
-    for msg in res.get("messages", []):
-        headers = {h["name"]: h["value"] for h in msg["payload"].get("headers", [])}
-        headers["_labelIds"] = msg.get("labelIds", [])
-        out.append(headers)
-    return {"messages": out}
+
+    def _try(svc):
+        res = svc.users().threads().get(userId="me", id=thread_id, format="metadata",
+                                         metadataHeaders=["From", "To", "Subject", "Date"]).execute()
+        out = []
+        for msg in res.get("messages", []):
+            headers = {h["name"]: h["value"] for h in msg["payload"].get("headers", [])}
+            headers["_labelIds"] = msg.get("labelIds", [])
+            out.append(headers)
+        return out
+
+    try:
+        return {"account": "business", "messages": _try(integrations._business_gmail_service())}
+    except Exception as business_err:
+        try:
+            return {"account": "personal", "messages": _try(integrations._personal_gmail_service())}
+        except Exception as personal_err:
+            return {"error": f"not found in either account. business: {business_err}; personal: {personal_err}"}
 
 
 @router.get("/newsletter/sent-check")
