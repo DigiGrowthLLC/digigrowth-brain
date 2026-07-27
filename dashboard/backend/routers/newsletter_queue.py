@@ -47,6 +47,23 @@ async def personal_account_check():
     return integrations.get_personal_identity(force=True)
 
 
+@router.get("/newsletter/sent-check")
+async def sent_check(limit: int = Query(5, le=20)):
+    """Read the actual From/To/Date headers off the business account's most
+    recent Sent messages — ground truth for what account really sent them,
+    vs. get_sender_identity() which only checks the profile identity."""
+    import integrations
+    svc = integrations._business_gmail_service()
+    res = svc.users().messages().list(userId="me", labelIds=["SENT"], maxResults=limit).execute()
+    out = []
+    for m in res.get("messages", []):
+        msg = svc.users().messages().get(userId="me", id=m["id"], format="metadata",
+                                          metadataHeaders=["From", "To", "Subject", "Date"]).execute()
+        headers = {h["name"]: h["value"] for h in msg["payload"].get("headers", [])}
+        out.append(headers)
+    return {"sent": out}
+
+
 @router.get("/newsletter/queue/state")
 async def get_queue_state():
     pool = await get_pool()
