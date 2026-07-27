@@ -3,6 +3,15 @@ import { API } from "../api.js";
 import ContactCard from "../ContactCard.jsx";
 import BookingModal from "../BookingModal.jsx";
 
+function htmlToText(html) {
+  if (!html) return "";
+  if (!/<[a-z][\s\S]*>/i.test(html)) return html; // plain SMS text, nothing to strip
+  const withBreaks = html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div)>/gi, "\n");
+  const el = document.createElement("div");
+  el.innerHTML = withBreaks;
+  return (el.textContent || el.innerText || "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function fmtMsgTime(ts) {
   if (!ts) return "";
   const d = new Date(ts), diff = Date.now() - d;
@@ -591,7 +600,7 @@ export default function InboxPanel({ initialTarget }) {
                 {c.last_message && (
                   <div style={{ fontSize: 11, color: "#3a4f6f", marginTop: 4,
                                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {c.last_message}
+                    {htmlToText(c.last_message)}
                   </div>
                 )}
               </button>
@@ -709,7 +718,7 @@ export default function InboxPanel({ initialTarget }) {
                         )}
                       </div>
                       <div style={{ fontSize: 13, color: isOut ? "#c8dcff" : "#8aaad0", lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
-                        {m.body}
+                        {m.channel === "email" ? htmlToText(m.body) : m.body}
                       </div>
                       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
                                     color: isOut ? "#5a7faa" : "#4a6a8a", marginTop: 4, textAlign: isOut ? "right" : "left" }}>
