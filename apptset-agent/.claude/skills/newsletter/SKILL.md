@@ -66,6 +66,10 @@ Overwrite any existing file — always use this week's fresh research. `content-
 
 If the search turns up nothing useful for this topic, write `findings: []` and continue — Step 3 falls back to writing from general knowledge for this week only.
 
+**Swipe file tip:** if Dylan wants a second research pass beyond the web search, other AI/service-
+business newsletters are useful inspiration for angle and structure (not content to copy) — this
+isn't part of the automated flow, just worth knowing as an option if a topic feels thin.
+
 ### Step 2 — Get recipient list
 
 `read_file` on `apptset-agent/newsletter_recipients.json` (repo-relative, already pulled by this run's guard step). It's exported nightly by Railway from the DigiGrowth OS CRM (`contacts` table, `newsletter = true`) — see `dashboard/backend/main.py`'s `_export_newsletter_contacts` job — so no live API call is needed here.
@@ -111,7 +115,27 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
    empty, still include the unsubscribe link but flag to Dylan in your summary that the mailing
    address needs to be added before this is fully compliant — don't invent an address.
 
+**Copywriting discipline** (from DigiGrowth's newsletter playbook):
+- Short, punchy sentences. Small paragraphs. Less is more — cut anything that isn't the pain point,
+  the insight, or the CTA.
+- A numbered/bulleted list is fine if it genuinely aids scanning (e.g. a 3-step workflow) — don't
+  force one in every email.
+- **One CTA, said once.** Don't repeat the booking link or stack a second ask — that's the same
+  one-primary-CTA principle the blog uses.
+- Don't over-polish. A newsletter that took 20-30 minutes to write usually reads more natural and
+  performs better than one that's been agonized over — write it, check it against the requirements
+  above, ship it. This is a rep you're building, not a single perfect artifact.
+- **Consistent format every week**: same fonts, same structure, same voice. Recipients should
+  recognize a DigiGrowth email before they read the subject line.
+
 **Tone:** Direct, friendly, trusted expert who knows AI and service-based business marketing. No hype. No buzzwords. Under 90 seconds to read.
+
+**On cadence:** general email-marketing advice often recommends 3+ sends/week to a list. DigiGrowth
+sends weekly, deliberately — tied to the shared research with the blog post (Step 1.5) and to the
+throttled, domain-reputation-conscious sending design (see the main daily-briefing skill and
+`dashboard/backend/integrations.py`'s `process_newsletter_queue()`). Don't increase frequency
+without Dylan explicitly asking — more sends means faster list fatigue and faster reputation risk
+on a single mailbox, which is the opposite of what the delivery mechanism is designed to protect.
 
 ### Step 4 — Save draft
 
@@ -249,6 +273,26 @@ Approving a newsletter approval (`kind: "newsletter"`) triggers `dashboard/backe
 If Dylan asks to check on send status: query `newsletter_send_queue` (status `queued`/`sent`/`failed`, `error` column has the failure reason if any).
 
 **Before real prospect volume ramps up**, `config.json` → `newsletter.mailing_address` needs to be filled in for CAN-SPAM compliance — flag this if it's still empty and Dylan asks about sending to a real list.
+
+---
+
+## Tracking & Benchmarks
+
+Gmail API sends (`gmail_send_html`) have **no built-in open/click tracking** — there's no pixel or
+link-wrapping today, so open rate and clickthrough rate aren't measurable yet without adding that
+instrumentation (not built — flag to Dylan if he asks for these numbers specifically).
+
+What already IS trackable, and matters more anyway: **did the email generate a booked call.** Check
+the CRM/dialer for discovery calls or bookings in the days after a send — that's the real signal,
+not opens. If open/click tracking becomes a priority, industry benchmarks to compare against once
+it exists: open rate ≥10% at 48 hours is the floor, 20-30%+ is good; clickthrough rate 0.5-3% is
+typical.
+
+## Repurposing
+
+After a newsletter is approved and queued, offer to repurpose its core insight into a LinkedIn post
+(`/social-post`) or ad angle (`/ad-copy`) — same "one idea, many formats" pattern used elsewhere in
+content-agent. Not automatic; ask Dylan if he wants this for a given week's topic.
 
 ---
 
