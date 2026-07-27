@@ -75,6 +75,20 @@ CRM tab's contact drawer):
 (current, past, canceled) for one contact — that's what the contact-card section
 uses to show upcoming vs. past appointments.
 
+## Editing the Message Text
+
+All five message templates (booking confirmation, 24h/6h/1h reminders, reschedule
+notice) are editable from **Business Resources → Outreach Templates → Appointment
+Reminders**, same place as the "Send Info" and SMS Sequence templates — backed by
+`GET`/`PUT /api/dialer/reminder-template` (`dashboard/backend/routers/dialer.py`),
+stored in the same `dialer_settings` key/value table. `reminder_engine.py` reads
+these fresh from the DB on every send (`_get_templates()`), never a cached or
+hardcoded value once Dylan has edited them — same "always live" pattern as
+`sms.send_info_message()`. Templates support `{first_name}` and `{when}`
+placeholders; `{when}` is the appointment time formatted in the prospect's own
+timezone. If Dylan asks to change the wording of a reminder, point him at that
+editor — don't hand-edit the DB directly.
+
 ---
 
 ## Edge Cases

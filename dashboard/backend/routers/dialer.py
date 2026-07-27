@@ -16,6 +16,8 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   PUT  /api/dialer/info-template — save "Send Info" SMS/email templates
   GET  /api/dialer/sequence-template — SMS outreach sequence steps
   PUT  /api/dialer/sequence-template — save SMS outreach sequence steps
+  GET  /api/dialer/reminder-template — appointment reminder SMS/email templates
+  PUT  /api/dialer/reminder-template — save appointment reminder templates
 """
 
 import json
@@ -29,6 +31,7 @@ from fastapi import APIRouter, HTTPException
 
 import dialer_engine as engine
 import integrations
+import reminder_engine
 from db import get_pool
 from models import DISPOSITION_TO_STATUS
 from routers import sms as sms_router
@@ -207,6 +210,52 @@ async def save_sequence_template(body: dict):
             ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
             """,
             "sequence_category", body.get("category", "General"),
+        )
+    return {"ok": True}
+
+
+# ── Appointment reminder templates (Business Resources → Outreach Templates).
+# Same key/value store as the two editors above; reminder_engine.py's
+# send_booking_confirmation()/send_due_reminders()/send_reschedule_confirmation()
+# read these keys fresh at send time via reminder_engine._get_templates().
+
+@router.get("/dialer/reminder-template")
+async def get_reminder_template():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
+            list(reminder_engine.TEMPLATE_DEFAULTS.keys()) + ["reminder_category"],
+        )
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    result = {
+        key: values.get(key, default)
+        for key, default in reminder_engine.TEMPLATE_DEFAULTS.items()
+    }
+    result["category"] = values.get("reminder_category") or "General"
+    return result
+
+
+@router.put("/dialer/reminder-template")
+async def save_reminder_template(body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for key in reminder_engine.TEMPLATE_DEFAULTS:
+            if key not in body:
+                continue
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+                """,
+                key, body[key],
+            )
+        await conn.execute(
+            """
+            INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+            """,
+            "reminder_category", body.get("category", "General"),
         )
     return {"ok": True}
 

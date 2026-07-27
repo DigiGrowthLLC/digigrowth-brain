@@ -297,6 +297,13 @@ const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email
 const SMS_SEQUENCE_PSEUDO_ID = "__sms_sequence__";
 const SMS_SEQUENCE_ITEM = { id: SMS_SEQUENCE_PSEUDO_ID, title: "SMS Sequence", smsSequence: true };
 
+// Same pattern again, for the appointment-reminder pipeline (booking
+// confirmation, 24h/6h/1h reminders, reschedule notice) — backed by
+// GET/PUT /api/dialer/reminder-template (see AppointmentRemindersEditor
+// below), read at send time by dashboard/backend/reminder_engine.py.
+const REMINDER_TEMPLATE_PSEUDO_ID = "__reminder_template__";
+const REMINDER_TEMPLATE_ITEM = { id: REMINDER_TEMPLATE_PSEUDO_ID, title: "Appointment Reminders", reminderTemplate: true };
+
 // ── Shared category picker ──────────────────────────────────────────────────
 // Same select-or-type-a-new-one pattern as the regular document editor's
 // category control (see the main doc editor's title/meta row below), factored
@@ -637,12 +644,184 @@ function SmsSequenceEditor({ categories, onCategoryChange }) {
   );
 }
 
+// ── Appointment Reminders editor ────────────────────────────────────────────
+// Editable SMS + email templates for the appointment-reminder pipeline: the
+// immediate booking confirmation, the 24h/6h/1h reminders, and the reschedule
+// notice (dashboard/backend/reminder_engine.py, sent when a rep books/edits an
+// appointment via BookingForm/AppointmentsSection). Backed by
+// GET/PUT /api/dialer/reminder-template — reminder_engine.py reads these same
+// keys fresh from dialer_settings at send time.
+const REMINDER_FIELDS = [
+  {
+    heading: "Booking Confirmation", hint: "Sent immediately when a rep books an appointment.",
+    smsKey: "reminder_confirmation_sms", subjectKey: "reminder_confirmation_subject",
+  },
+  {
+    heading: "24-Hour Reminder", hint: null, smsKey: "reminder_24h_sms", subjectKey: null,
+  },
+  {
+    heading: "6-Hour Reminder", hint: null, smsKey: "reminder_6h_sms", subjectKey: null,
+  },
+  {
+    heading: "1-Hour Reminder", hint: "Email subject for all three reminders above is shared — see below.",
+    smsKey: "reminder_1h_sms", subjectKey: "reminder_subject", subjectLabel: "REMINDER EMAIL SUBJECT (24H/6H/1H)",
+  },
+  {
+    heading: "Reschedule Notice", hint: "Sent immediately when a rep reschedules a booked appointment.",
+    smsKey: "reminder_reschedule_sms", subjectKey: "reminder_reschedule_subject",
+  },
+];
+
+function AppointmentRemindersEditor({ categories, onCategoryChange }) {
+  const [values, setValues] = useState({ category: "General" });
+  const [saved, setSaved] = useState({ category: "General" });
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/dialer/reminder-template");
+      if (r.ok) {
+        const data = await r.json();
+        setValues(data);
+        setSaved(data);
+        onCategoryChange?.(data.category || "General");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const allKeys = [
+    ...REMINDER_FIELDS.flatMap(f => [f.smsKey, f.subjectKey].filter(Boolean)),
+    "category",
+  ];
+  const dirty = allKeys.some(k => (values[k] || "") !== (saved[k] || ""));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/reminder-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (r.ok) {
+        setSaved(values);
+        onCategoryChange?.(values.category || "General");
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = {
+    width: "100%", background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+    padding: "10px 12px", color: "#e8f0ff",
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    outline: "none", resize: "vertical", boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block", marginBottom: 6,
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+    color: "#3a5a80", letterSpacing: "0.12em",
+  };
+  const headingStyle = {
+    display: "block", marginBottom: 8,
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
+    color: "#e8f0ff", letterSpacing: "0.01em",
+  };
+  const hintStyle = {
+    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 11, color: "#4a6a8a",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+          Sent by the <strong style={{ color: "#a080f0" }}>appointment reminder</strong> pipeline (booking confirmation, 24h/6h/1h reminders, reschedule notice). Edits apply to the very next send.
+        </span>
+        <CategoryPicker
+          categories={categories}
+          category={values.category || "General"}
+          setCategory={c => setValues(v => ({ ...v, category: c }))}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={save}
+          disabled={saving || !dirty}
+          style={{
+            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {REMINDER_FIELDS.map((f, i) => (
+          <div key={f.smsKey} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
+            <label style={headingStyle}>{f.heading}</label>
+            <textarea
+              value={values[f.smsKey] || ""}
+              onChange={e => setValues(v => ({ ...v, [f.smsKey]: e.target.value }))}
+              rows={3}
+              placeholder="Hey {first_name}, ..."
+              style={fieldStyle}
+            />
+            {f.hint && <div style={hintStyle}>{f.hint}</div>}
+            {f.subjectKey && (
+              <div style={{ marginTop: 12 }}>
+                <label style={labelStyle}>{f.subjectLabel || "EMAIL SUBJECT"}</label>
+                <input
+                  value={values[f.subjectKey] || ""}
+                  onChange={e => setValues(v => ({ ...v, [f.subjectKey]: e.target.value }))}
+                  style={fieldStyle}
+                />
+              </div>
+            )}
+            <div style={hintStyle}>
+              Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the prospect's first name and{" "}
+              <code style={{ color: "#6ab0ff" }}>{"{when}"}</code> for the appointment time in the prospect's own timezone.
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main panel ───────────────────────────────────────────────────────────────
 export default function SOPsPanel() {
   const [activeSection, setActiveSection] = useState("sop");
   const [sops, setSops] = useState([]);
   const [sendInfoCategory, setSendInfoCategory] = useState("General");
   const [seqCategory, setSeqCategory] = useState("General");
+  const [remCategory, setRemCategory] = useState("General");
   const [selectedId, setSelectedId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isNew, setIsNew] = useState(false);
@@ -712,7 +891,7 @@ export default function SOPsPanel() {
     setIsNew(false);
     setDirty(false);
     setCustomCatMode(false);
-    if (sop.sendInfo || sop.smsSequence) return;
+    if (sop.sendInfo || sop.smsSequence || sop.reminderTemplate) return;
     setTitle(sop.title);
     setCategory(sop.category || "General");
     setVisibility(sop.visibility || "private");
@@ -828,10 +1007,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && savedFlash && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -848,7 +1027,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -966,6 +1145,29 @@ export default function SOPsPanel() {
                   fontWeight: selectedId === SMS_SEQUENCE_PSEUDO_ID ? 600 : 400,
                 }}>{SMS_SEQUENCE_ITEM.title}</span>
               </div>
+              <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                {remCategory}
+              </div>
+              <div
+                onClick={() => openSOP(REMINDER_TEMPLATE_ITEM)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "7px 16px", cursor: "pointer",
+                  background: selectedId === REMINDER_TEMPLATE_PSEUDO_ID ? "linear-gradient(90deg, rgba(40,87,160,0.35), rgba(58,123,213,0.2))" : "transparent",
+                  borderLeft: selectedId === REMINDER_TEMPLATE_PSEUDO_ID ? "2px solid #3a7bd5" : "2px solid transparent",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={e => { if (selectedId !== REMINDER_TEMPLATE_PSEUDO_ID) e.currentTarget.style.background = "rgba(58,123,213,0.07)"; }}
+                onMouseLeave={e => { if (selectedId !== REMINDER_TEMPLATE_PSEUDO_ID) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>📅</span>
+                <span style={{
+                  flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
+                  color: selectedId === REMINDER_TEMPLATE_PSEUDO_ID ? "#e8f0ff" : "#7a9cc0",
+                  fontWeight: selectedId === REMINDER_TEMPLATE_PSEUDO_ID ? 600 : 400,
+                }}>{REMINDER_TEMPLATE_ITEM.title}</span>
+              </div>
               <div style={{ borderBottom: "1px solid rgba(58,123,213,0.1)", margin: "8px 0" }} />
             </div>
           )}
@@ -1043,6 +1245,8 @@ export default function SOPsPanel() {
             <OutreachTemplatesEditor categories={categories} onCategoryChange={setSendInfoCategory} />
           ) : selectedItem?.smsSequence ? (
             <SmsSequenceEditor categories={categories} onCategoryChange={setSeqCategory} />
+          ) : selectedItem?.reminderTemplate ? (
+            <AppointmentRemindersEditor categories={categories} onCategoryChange={setRemCategory} />
           ) : !showEditor ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>
