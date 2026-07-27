@@ -82,7 +82,7 @@ async def _sync_gmail_once() -> dict:
         last_ts = int(cursor_row["value"]) if cursor_row and cursor_row["value"] else 0
         query_after = max(0, last_ts - SYNC_LOOKBACK_SEC)
 
-        svc = await asyncio.to_thread(integrations._gmail_service)
+        svc = await asyncio.to_thread(integrations._business_gmail_service)
         q = f"after:{query_after}" if query_after else "newer_than:7d"
         res = await asyncio.to_thread(
             lambda: svc.users().messages().list(userId="me", q=q, maxResults=100).execute()

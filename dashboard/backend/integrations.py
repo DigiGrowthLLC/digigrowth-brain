@@ -228,6 +228,56 @@ def gmail_read_thread(thread_id: str) -> str:
         return f"Gmail error: {e}"
 
 
+async def _record_outbound_email(to: str, subject: str, body: str, message_id: str, thread_id: str) -> None:
+    """Mirror email_inbox.py's manual_email_send() bookkeeping for sends that
+    go through gmail_send/gmail_send_html directly (newsletter, send-info,
+    appointment reminders) instead of the Inbox reply box. Without this, a
+    prospect who's been emailed but hasn't replied yet has no conversation
+    row and never shows up in the Inbox tab. Uses its own short-lived
+    connection rather than the app's shared asyncpg pool, since this runs
+    inside asyncio.run() on a worker thread (see _record_outbound_email_sync)
+    — the shared pool is bound to the main event loop and can't be reused
+    from a different one."""
+    import asyncpg
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        contact_row = await conn.fetchrow("SELECT id FROM contacts WHERE lower(email) = lower($1)", to)
+        contact_id = contact_row["id"] if contact_row else None
+        if not contact_id:
+            return  # scope: only known-contact threads are tracked, same rule as the sync job
+
+        conv = await conn.fetchrow("SELECT id FROM email_conversations WHERE thread_id = $1", thread_id)
+        if not conv:
+            await conn.execute(
+                """INSERT INTO email_conversations (contact_id, thread_id, email, subject, status)
+                   VALUES ($1, $2, $3, $4, 'active')""",
+                contact_id, thread_id, to, subject,
+            )
+        else:
+            await conn.execute(
+                "UPDATE email_conversations SET updated_at = now() WHERE thread_id = $1", thread_id
+            )
+
+        await conn.execute(
+            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at)
+               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now())
+               ON CONFLICT (gmail_message_id) DO NOTHING""",
+            contact_id, thread_id, to, subject, body, message_id,
+        )
+    finally:
+        await conn.close()
+
+
+def _record_outbound_email_sync(to: str, subject: str, body: str, message_id: str, thread_id: str) -> None:
+    """gmail_send/gmail_send_html are plain sync functions always invoked via
+    asyncio.to_thread (worker thread, no running loop) — asyncio.run() here
+    is therefore safe."""
+    try:
+        asyncio.run(_record_outbound_email(to, subject, body, message_id, thread_id))
+    except Exception as e:
+        print(f"[gmail_send] failed to record outbound conversation: {e}", flush=True)
+
+
 def gmail_send(to: str, subject: str, body: str) -> str:
     guard = _verify_sender_identity()
     if guard:
@@ -238,7 +288,8 @@ def gmail_send(to: str, subject: str, body: str) -> str:
         msg["to"] = to
         msg["subject"] = subject
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+        sent = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+        _record_outbound_email_sync(to, subject, body, sent["id"], sent["threadId"])
         return f"Sent email to {to}: {subject}"
     except RuntimeError as e:
         return str(e)
@@ -313,7 +364,8 @@ def gmail_send_html(to: str, subject: str, html: str) -> str:
         msg["to"] = to
         msg["subject"] = subject
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+        sent = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+        _record_outbound_email_sync(to, subject, html, sent["id"], sent["threadId"])
         return f"Sent email to {to}: {subject}"
     except RuntimeError as e:
         return str(e)
