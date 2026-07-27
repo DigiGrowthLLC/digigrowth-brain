@@ -28,3 +28,9 @@
 
 *(Log each published blog post here: title, pillar, target keyword, publish date, and — once
 available — ranking/traffic notes. See `context/seo-keywords.md` for pillar definitions.)*
+
+- "The AI Follow-Up Sequence That Books Consultations While You Sleep" — pillar: Lead Follow-Up &
+  Automation — topic: speed to lead — 2026-07-26 — published (approval id 3)
+- "The No-Show Workflow That Recovers Revenue While You Sleep" — pillar: Lead Follow-Up &
+  Automation — topic: no-show follow-up, shared with newsletter id 12 — 2026-07-27 — pending
+  approval (id 13)
