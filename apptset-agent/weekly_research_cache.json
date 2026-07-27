@@ -1,0 +1,15 @@
+{
+  "date": "2026-07-27",
+  "topic": "The AI workflow that follows up with every no-show automatically",
+  "findings": [
+    "AI-powered appointment reminders reduce no-shows by 29% (Acuity)",
+    "AI no-show recovery workflows can recapture 20-30% of no-shows that already happened by automatically re-engaging and rebooking them",
+    "A practice losing $50,000-$80,000 annually to no-shows can recover roughly $14,500-$23,200 in revenue with AI-powered reminder and recovery workflows",
+    "Service businesses using a full AI booking layer see ~34% more bookings captured and ~47% less time spent on phone admin"
+  ],
+  "sources": [
+    "https://www.ringlyn.com/blog/automated-appointment-reminder-calls-ai/",
+    "https://intelibot.ai/pages/blog/how-to-reduce-appointment-no-shows-with-ai.html",
+    "https://thestacc.com/blog/ai-booking-system-service-business/"
+  ]
+}
