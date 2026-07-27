@@ -67,34 +67,50 @@ def _gmail_service():
 # wrong mailbox.
 EXPECTED_SENDER_EMAIL = os.environ.get("EXPECTED_SENDER_EMAIL", "dylanrg@digigrowthllc.com")
 
-_sender_check_cache: dict = {"done": False, "error": None}
+_sender_check_cache: dict = {"done": False, "email": None, "check_error": None}
+
+
+def get_sender_identity(force: bool = False) -> dict:
+    """Returns {'email', 'expected', 'match'} describing which Gmail account
+    GOOGLE_REFRESH_TOKEN actually authenticates as, or {'check_error': ...}
+    if the profile lookup itself failed (auth not configured, transient API
+    error, etc). `force=True` bypasses the process-lifetime cache — use for
+    on-demand diagnostics; sends themselves always use the cached result."""
+    if force:
+        _sender_check_cache["done"] = False
+
+    if not _sender_check_cache["done"]:
+        _sender_check_cache["done"] = True
+        try:
+            profile = _gmail_service().users().getProfile(userId="me").execute()
+            _sender_check_cache["email"] = profile.get("emailAddress", "")
+            _sender_check_cache["check_error"] = None
+        except Exception as e:
+            _sender_check_cache["email"] = None
+            _sender_check_cache["check_error"] = str(e)
+
+    if _sender_check_cache["check_error"]:
+        return {"email": None, "expected": EXPECTED_SENDER_EMAIL, "match": None,
+                "check_error": _sender_check_cache["check_error"]}
+
+    actual = _sender_check_cache["email"]
+    return {"email": actual, "expected": EXPECTED_SENDER_EMAIL,
+            "match": actual.lower() == EXPECTED_SENDER_EMAIL.lower()}
 
 
 def _verify_sender_identity() -> str | None:
     """Returns None if the authenticated Gmail account matches
-    EXPECTED_SENDER_EMAIL, else an error string explaining the mismatch.
-    Cached for the process lifetime — the token doesn't change without a
-    redeploy, so this only calls Gmail once per running instance."""
-    if _sender_check_cache["done"]:
-        return _sender_check_cache["error"]
-
-    _sender_check_cache["done"] = True
-    try:
-        profile = _gmail_service().users().getProfile(userId="me").execute()
-        actual = profile.get("emailAddress", "")
-    except RuntimeError as e:
-        # Google not configured at all — let the actual send call surface this.
+    EXPECTED_SENDER_EMAIL (or the check itself couldn't run — don't hard-block
+    sends on a profile-check hiccup), else an error string explaining the
+    mismatch."""
+    result = get_sender_identity()
+    if result.get("check_error") or result.get("match") is not False:
         return None
-    except Exception as e:
-        return None  # transient API failure — don't hard-block sends on a profile-check hiccup
-
-    if actual.lower() != EXPECTED_SENDER_EMAIL.lower():
-        _sender_check_cache["error"] = (
-            f"Refusing to send — Gmail is authenticated as {actual}, not the expected "
-            f"sender {EXPECTED_SENDER_EMAIL}. Re-run reauth_google.py logged in as "
-            f"{EXPECTED_SENDER_EMAIL} and update GOOGLE_REFRESH_TOKEN in Railway."
-        )
-    return _sender_check_cache["error"]
+    return (
+        f"Refusing to send — Gmail is authenticated as {result['email']}, not the expected "
+        f"sender {EXPECTED_SENDER_EMAIL}. Re-run reauth_google.py logged in as "
+        f"{EXPECTED_SENDER_EMAIL} and update GOOGLE_REFRESH_TOKEN in Railway."
+    )
 
 
 def _calendar_service():

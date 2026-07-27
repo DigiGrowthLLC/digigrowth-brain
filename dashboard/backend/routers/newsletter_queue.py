@@ -31,6 +31,14 @@ def _row(r) -> dict:
     return d
 
 
+@router.get("/newsletter/sender-check")
+async def sender_check():
+    """Which Gmail account outbound sends actually authenticate as right now
+    (bypasses the process-lifetime cache) — see integrations.get_sender_identity."""
+    import integrations
+    return integrations.get_sender_identity(force=True)
+
+
 @router.get("/newsletter/queue/state")
 async def get_queue_state():
     pool = await get_pool()
