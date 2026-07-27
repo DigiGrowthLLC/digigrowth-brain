@@ -213,6 +213,12 @@ async def _create_schema(pool: asyncpg.Pool):
             );
             CREATE INDEX IF NOT EXISTS idx_newsletter_queue_status ON newsletter_send_queue(status);
 
+            CREATE TABLE IF NOT EXISTS newsletter_queue_state (
+                id     BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+                paused BOOLEAN NOT NULL DEFAULT false
+            );
+            INSERT INTO newsletter_queue_state (id, paused) VALUES (true, false) ON CONFLICT (id) DO NOTHING;
+
             CREATE TABLE IF NOT EXISTS appointment_reminders (
                 id                   SERIAL PRIMARY KEY,
                 contact_id           TEXT REFERENCES contacts(id) ON DELETE CASCADE,

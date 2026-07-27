@@ -31,6 +31,27 @@ def _row(r) -> dict:
     return d
 
 
+@router.get("/newsletter/queue/state")
+async def get_queue_state():
+    pool = await get_pool()
+    paused = await pool.fetchval("SELECT paused FROM newsletter_queue_state WHERE id = true")
+    return {"paused": bool(paused)}
+
+
+class UpdateQueueState(BaseModel):
+    paused: bool
+
+
+@router.patch("/newsletter/queue/state")
+async def update_queue_state(body: UpdateQueueState):
+    """Pause/resume the ~25/day gradual sender (integrations.process_newsletter_queue).
+    Paused just stops new sends from going out — items stay queued and pick
+    back up on resume, nothing is lost or re-personalized."""
+    pool = await get_pool()
+    await pool.execute("UPDATE newsletter_queue_state SET paused = $1 WHERE id = true", body.paused)
+    return {"paused": body.paused}
+
+
 @router.get("/newsletter/queue")
 async def list_queue(
     status: Optional[str] = Query(None),

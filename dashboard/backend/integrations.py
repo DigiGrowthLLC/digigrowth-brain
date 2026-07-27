@@ -150,6 +150,10 @@ async def process_newsletter_queue() -> str:
 
     pool = await get_pool()
     async with pool.acquire() as conn:
+        paused = await conn.fetchval("SELECT paused FROM newsletter_queue_state WHERE id = true")
+        if paused:
+            return "queue is paused — nothing sent"
+
         sent_today = await conn.fetchval(
             """SELECT COUNT(*) FROM newsletter_send_queue
                WHERE status = 'sent'

@@ -208,6 +208,8 @@ export default function NewsletterQueueModal({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [pauseBusy, setPauseBusy] = useState(false);
 
   const fetchQueue = useCallback(async () => {
     setLoading(true);
@@ -222,7 +224,28 @@ export default function NewsletterQueueModal({ onClose }) {
     setLoading(false);
   }, [status]);
 
+  const fetchState = useCallback(async () => {
+    try {
+      const res = await fetch("/api/newsletter/queue/state");
+      const data = await res.json();
+      setPaused(!!data.paused);
+    } catch { /* leave as-is */ }
+  }, []);
+
   useEffect(() => { fetchQueue(); }, [fetchQueue]);
+  useEffect(() => { fetchState(); }, [fetchState]);
+
+  async function togglePause() {
+    setPauseBusy(true);
+    const next = !paused;
+    const res = await fetch("/api/newsletter/queue/state", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paused: next }),
+    });
+    if (res.ok) setPaused(next);
+    setPauseBusy(false);
+  }
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -242,12 +265,28 @@ export default function NewsletterQueueModal({ onClose }) {
             </div>
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              onClick={togglePause}
+              disabled={pauseBusy}
+              className="btn btn-secondary"
+              style={{ whiteSpace: "nowrap", color: paused ? "#5ad07a" : "#e0a030" }}
+            >
+              {pauseBusy ? "…" : paused ? "▶ Resume Queue" : "⏸ Pause Queue"}
+            </button>
             <button onClick={() => setShowAdd(true)} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>
               + Add Prospect
             </button>
             <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 16 }}>✕</button>
           </div>
         </div>
+
+        {paused && (
+          <div style={{ margin: "10px 24px 0", padding: "8px 14px", borderRadius: 6,
+                        background: "#e0a03022", border: "0.5px solid #e0a03080",
+                        color: "#e0a030", fontSize: 11, fontFamily: "'Share Tech Mono', monospace", flexShrink: 0 }}>
+            ⏸ QUEUE PAUSED — no emails will send until you hit Resume. Queued items are untouched.
+          </div>
+        )}
 
         <div style={{ padding: "10px 24px 0", display: "flex", gap: 6, flexShrink: 0 }}>
           {STATUS_TABS.map(t => (
