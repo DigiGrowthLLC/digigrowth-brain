@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API } from "../api.js";
 import { DISPO_COLORS, DISPO_BUTTONS, CALENDLY_URL } from "../dispositions.js";
 import ContactCard from "../ContactCard.jsx";
+import BookingForm from "../BookingForm.jsx";
 
 const GRADE_COLORS = { A: "#14c882", B: "#5a9bf0", C: "#f0a028", D: "#dc3c3c" };
 
@@ -50,6 +51,9 @@ export default function DialerPanel() {
 const [notes, setNotes]                 = useState("");
   const [classifying, setClassifying]     = useState(false);
   const [bookingOpen, setBookingOpen]     = useState(false);
+  // Captured at the moment "Appointment Booked" is logged — sess.current_lead
+  // can clear out from under the modal once the call disposition resolves.
+  const [bookingLead, setBookingLead]     = useState(null);
   // Script
   const [scriptTemplate, setScriptTemplate] = useState("");
   const [savedScript, setSavedScript]       = useState("");
@@ -384,7 +388,10 @@ const [notes, setNotes]                 = useState("");
         }),
       });
       setNotes("");
-      if (disposition === "Appointment Booked") setBookingOpen(true);
+      if (disposition === "Appointment Booked") {
+        setBookingLead(lead || null);
+        setBookingOpen(true);
+      }
     } catch {}
     setClassifying(false);
   };
@@ -888,6 +895,12 @@ const [notes, setNotes]                 = useState("");
               <div style={{ flex: 1, overflow: "hidden" }}>
                 <iframe src={CALENDLY_URL} style={{ width: "100%", height: "100%", border: "none" }} allow="camera; microphone" />
               </div>
+              <BookingForm
+                contactId={bookingLead?.contact_id}
+                phone={bookingLead?.phone}
+                name={bookingLead?.owner}
+                email={bookingLead?.email}
+              />
             </div>
           </div>
         )}

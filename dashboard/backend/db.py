@@ -212,6 +212,24 @@ async def _create_schema(pool: asyncpg.Pool):
                 sent_at     TIMESTAMPTZ
             );
             CREATE INDEX IF NOT EXISTS idx_newsletter_queue_status ON newsletter_send_queue(status);
+
+            CREATE TABLE IF NOT EXISTS appointment_reminders (
+                id                   SERIAL PRIMARY KEY,
+                contact_id           TEXT REFERENCES contacts(id) ON DELETE CASCADE,
+                prospect_name        TEXT,
+                prospect_phone       TEXT,
+                prospect_email       TEXT,
+                appointment_at       TIMESTAMPTZ NOT NULL,
+                prospect_timezone    TEXT NOT NULL,
+                status               TEXT NOT NULL DEFAULT 'scheduled',
+                confirmation_sent_at TIMESTAMPTZ,
+                reminder_24h_sent_at TIMESTAMPTZ,
+                reminder_6h_sent_at  TIMESTAMPTZ,
+                reminder_1h_sent_at  TIMESTAMPTZ,
+                created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_appointment_reminders_at ON appointment_reminders(appointment_at);
+            CREATE INDEX IF NOT EXISTS idx_appointment_reminders_status ON appointment_reminders(status);
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { API } from "./api.js";
 import ContactCard from "./ContactCard.jsx";
 import { DISPO_BUTTONS, CALENDLY_URL } from "./dispositions.js";
+import BookingForm from "./BookingForm.jsx";
 
 function fmtElapsed(sec) {
   const m = Math.floor(sec / 60).toString().padStart(2, "0");
@@ -156,6 +157,12 @@ export default function CallScreen({ callInfo, live, onHangUp, onDone }) {
             <div style={{ flex: 1, overflow: "hidden" }}>
               <iframe src={CALENDLY_URL} style={{ width: "100%", height: "100%", border: "none" }} allow="camera; microphone" />
             </div>
+            <BookingForm
+              contactId={callInfo?.contactId}
+              phone={callInfo?.phone}
+              name={callInfo?.name}
+              email={callInfo?.email}
+            />
           </div>
         </div>
       )}
