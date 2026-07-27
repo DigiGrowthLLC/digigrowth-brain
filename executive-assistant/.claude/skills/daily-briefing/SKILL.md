@@ -17,7 +17,7 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 5. Pulls this week's sales numbers (shows, closes, discovery calls, revenue) from the Sales Performance Tracker
 6. Reads last night's Daily Reflection doc and grounds today's time suggestions in the goals/priorities Dylan wrote down
 7. Suggests how to use free time blocks based on the day's schedule and current priorities
-8. On Mondays, drafts the newsletter and this week's blog post (shared topic/research), submitting both for Dylan's approval, and surfaces anything the weekly cleanup job flagged for review
+8. Drafts the newsletter on Monday/Wednesday/Friday and the blog post on Mondays (shared topic/research on Mondays), submitting both for Dylan's approval, and surfaces anything the weekly cleanup job flagged for review on Mondays
 9. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
 
 ---
@@ -185,17 +185,20 @@ Examples:
 - "Full day available. Options: cold calls, Loom outreach, or follow-up on open leads."
 - "Meetings until 3 PM. 3–5 PM is open — one option is follow-up calls."
 
-### Step 4.5 — Newsletter Draft (Mondays only)
+### Step 4.5 — Newsletter Draft (Monday, Wednesday, Friday)
 
-Skip this step if today is not Monday.
+Skip this step unless today is Monday, Wednesday, or Friday.
 
-If today is Monday: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the Draft Mode steps in `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md` — this now includes a research step that writes `apptset-agent/weekly_research_cache.json`, and ends by submitting the draft for approval (not just previewing it).
+Run the newsletter draft on these three days: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the Draft Mode steps in `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md` — this now includes a research step that writes `apptset-agent/weekly_research_cache.json`, and ends by submitting the draft for approval (not just previewing it). Each of the three days picks its own topic from the rotation (Step 1 of the newsletter skill) — they are not the same draft repeated.
 
 **Capture the full final output verbatim** — not just subject/recipient count/topic. That output ends with two literal marker lines, `[[PDF:newsletter]]` and `[[APPROVAL:<id>]]`. Both markers MUST be preserved character-for-character into this brief's `## Newsletter Preview` section (see Step 5's file format) — the dashboard frontend detects them there to render an inline PDF viewer and live Approve/Decline buttons. Dropping either marker means Dylan can't review or approve the draft from the brief.
 
 ### Step 4.6 — Weekly Blog Post (Mondays only)
 
-Skip this step if today is not Monday. Run this after Step 4.5 (it depends on the research cache that step just wrote).
+Skip this step if today is not Monday. **This stays Monday-only even though Step 4.5 now also runs
+Wednesday and Friday** — the blog is deliberately weekly; don't extend it to match the newsletter's
+cadence without Dylan explicitly asking. Run this after Step 4.5 (it depends on the research cache
+that step just wrote).
 
 If today is Monday: delegate to `content-agent`'s `weekly-ai-blog` skill (`content-agent/.claude/skills/weekly-ai-blog/SKILL.md`) to write and submit this week's blog post for approval. It reads `apptset-agent/weekly_research_cache.json` from Step 4.5 so both pieces of content share the same research.
 
@@ -252,7 +255,7 @@ Formatting rules that apply throughout:
 
 [Step 4 output]
 
-[MONDAY ONLY — include this section; omit entirely on all other days]
+[MONDAY, WEDNESDAY, OR FRIDAY ONLY — include this section; omit entirely on all other days]
 
 ## Newsletter Preview
 
@@ -288,4 +291,4 @@ Formatting rules that apply throughout:
 - **File write fails:** Retry once. If it fails again, deliver as chat only — do not loop.
 - **Weekend:** Run the full briefing. Dylan works weekends.
 - **No weekly-cleanup report found (Monday only):** Skip Step 4.7 and the Pending Cleanup Approvals section entirely — do not treat this as an error.
-- **`weekly_research_cache.json` missing after Step 4.5 (Monday only):** Step 4.6 falls back to its own topic pick + single search per `weekly-ai-blog/SKILL.md` — don't treat this as an error, still include the Blog Post Preview section.
+- **`weekly_research_cache.json` missing after Step 4.5 (Monday, since Step 4.6 only runs Mondays):** Step 4.6 falls back to its own topic pick + single search per `weekly-ai-blog/SKILL.md` — don't treat this as an error, still include the Blog Post Preview section.
