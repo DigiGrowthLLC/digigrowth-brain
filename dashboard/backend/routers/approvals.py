@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import integrations
 from db import get_pool
 
 router = APIRouter()
@@ -15,7 +16,7 @@ router = APIRouter()
 _WEBSITE_REPO = "dylangroenendijk-sys/digigrowth-website"
 _BLOG_POSTS_PATH = "src/content/blog-posts.json"
 _API_BASE = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app")
-NEWSLETTER_DAILY_CAP = 25  # keep in sync with the cap in main.py's queue processor
+NEWSLETTER_DAILY_CAP = integrations.NEWSLETTER_DAILY_CAP
 
 _COLS = "id, kind, title, summary, payload, status, result, created_at, decided_at"
 
@@ -206,3 +207,13 @@ async def decide_approval(approval_id: int, body: DecideApproval):
             new_status, result, approval_id,
         )
     return _row_to_dict(updated)
+
+
+@router.post("/newsletter/process-queue")
+async def process_newsletter_queue_now():
+    """Manually trigger one batch of the newsletter send queue right now,
+    instead of waiting for the scheduled 9am-5pm ET weekday window — for
+    testing, or clearing a backlog. Same daily cap and batch size as the
+    scheduled job (they share integrations.process_newsletter_queue())."""
+    result = await integrations.process_newsletter_queue()
+    return {"result": result}

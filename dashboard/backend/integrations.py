@@ -134,6 +134,57 @@ def gmail_send(to: str, subject: str, body: str) -> str:
         return f"Gmail error: {e}"
 
 
+NEWSLETTER_DAILY_CAP = 25   # safe range for an established single mailbox is ~25-50/day
+NEWSLETTER_BATCH_SIZE = 4   # sent per call — small batches, not a blast
+
+
+async def process_newsletter_queue() -> str:
+    """Send a small batch of queued newsletter emails, respecting a daily cap,
+    so a big prospect list goes out gradually over days instead of all at once
+    (mass-blasting from a single mailbox is what tanks domain reputation, not
+    the total list size). Called both by main.py's scheduled cron job (every
+    ~25 min during business hours) and by the manual "process now" endpoint
+    for testing outside that window. Returns a one-line summary."""
+    import asyncio as _asyncio
+    from db import get_pool
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        sent_today = await conn.fetchval(
+            """SELECT COUNT(*) FROM newsletter_send_queue
+               WHERE status = 'sent'
+               AND (sent_at AT TIME ZONE 'America/New_York')::date
+                   = (now() AT TIME ZONE 'America/New_York')::date"""
+        )
+        remaining = NEWSLETTER_DAILY_CAP - sent_today
+        if remaining <= 0:
+            return f"daily cap reached ({sent_today}/{NEWSLETTER_DAILY_CAP} already sent today) — nothing sent"
+
+        batch = await conn.fetch(
+            """SELECT id, email, subject, html FROM newsletter_send_queue
+               WHERE status = 'queued' ORDER BY queued_at ASC LIMIT $1""",
+            min(NEWSLETTER_BATCH_SIZE, remaining),
+        )
+        if not batch:
+            return "queue is empty — nothing to send"
+
+        sent, failed = 0, 0
+        for row in batch:
+            result = await _asyncio.to_thread(gmail_send_html, row["email"], row["subject"], row["html"])
+            ok = result.startswith("Sent email")
+            await conn.execute(
+                """UPDATE newsletter_send_queue
+                   SET status = $1, error = $2, sent_at = CASE WHEN $1 = 'sent' THEN now() ELSE sent_at END
+                   WHERE id = $3""",
+                "sent" if ok else "failed", None if ok else result, row["id"],
+            )
+            sent += 1 if ok else 0
+            failed += 0 if ok else 1
+            await _asyncio.sleep(3)  # small gap between sends within a batch, not a burst
+
+    return f"sent {sent}, failed {failed} (today's total: {sent_today + sent}/{NEWSLETTER_DAILY_CAP})"
+
+
 def gmail_send_html(to: str, subject: str, html: str) -> str:
     """Same as gmail_send but for an HTML body (newsletter sends) — MIMEText
     defaults to plain text, which would send the HTML tags as literal text."""

@@ -226,51 +226,14 @@ async def _export_newsletter_contacts() -> None:
     print(f"[cron] newsletter-export: {len(rows)} contacts ({status})", flush=True)
 
 
-NEWSLETTER_DAILY_CAP = 25   # safe range for an established single mailbox is ~25-50/day
-NEWSLETTER_BATCH_SIZE = 4    # sent per run — small batches, not a blast
-
-
 async def _process_newsletter_queue() -> None:
-    """Send a small batch of queued newsletter emails, respecting a daily cap,
-    so a big prospect list goes out gradually over days instead of all at once
-    (mass-blasting from a single mailbox is what tanks domain reputation, not
-    the total list size). Runs every ~25 min during business hours on weekdays
-    — see the CronTrigger below."""
+    """Scheduled wrapper — runs every ~25 min during business hours on weekdays
+    (see the CronTrigger below). Actual logic lives in
+    integrations.process_newsletter_queue() so the manual "process now" test
+    endpoint (routers/newsletter.py) can share it."""
     try:
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            sent_today = await conn.fetchval(
-                """SELECT COUNT(*) FROM newsletter_send_queue
-                   WHERE status = 'sent'
-                   AND (sent_at AT TIME ZONE 'America/New_York')::date
-                       = (now() AT TIME ZONE 'America/New_York')::date"""
-            )
-            remaining = NEWSLETTER_DAILY_CAP - sent_today
-            if remaining <= 0:
-                return
-
-            batch = await conn.fetch(
-                """SELECT id, email, subject, html FROM newsletter_send_queue
-                   WHERE status = 'queued' ORDER BY queued_at ASC LIMIT $1""",
-                min(NEWSLETTER_BATCH_SIZE, remaining),
-            )
-            if not batch:
-                return
-
-            for row in batch:
-                result = await asyncio.to_thread(
-                    integrations.gmail_send_html, row["email"], row["subject"], row["html"]
-                )
-                ok = result.startswith("Sent email")
-                await conn.execute(
-                    """UPDATE newsletter_send_queue
-                       SET status = $1, error = $2, sent_at = CASE WHEN $1 = 'sent' THEN now() ELSE sent_at END
-                       WHERE id = $3""",
-                    "sent" if ok else "failed", None if ok else result, row["id"],
-                )
-                await asyncio.sleep(3)  # small gap between sends within a batch, not a burst
-
-        print(f"[cron] newsletter-queue: sent {len(batch)} (today's total will be {sent_today + len(batch)}/{NEWSLETTER_DAILY_CAP})", flush=True)
+        result = await integrations.process_newsletter_queue()
+        print(f"[cron] newsletter-queue: {result}", flush=True)
     except Exception as e:
         print(f"[cron] newsletter-queue: failed: {e}", flush=True)
 
