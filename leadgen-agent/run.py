@@ -14,6 +14,10 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent / "shared"))
 from github_sync import push_file
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 load_dotenv()
 
 # ── File paths ──────────────────────────────────────────────────────────────
@@ -702,4 +706,14 @@ if __name__ == "__main__":
     if remaining and remaining[0] == "remember":
         update_memory(" ".join(remaining[1:]))
     else:
-        run_pipeline(args.status)
+        try:
+            run_pipeline(args.status)
+        except Exception:
+            import traceback
+            error_log = os.path.join(BASE_DIR, "error.log")
+            trace = traceback.format_exc()
+            with open(error_log, "a", encoding="utf-8") as f:
+                f.write(f"\n[{datetime.now(ZoneInfo('America/New_York')).isoformat()}]\n{trace}")
+            print(trace)
+            push_file(__file__, "error.log")
+            raise
