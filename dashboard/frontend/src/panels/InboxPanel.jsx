@@ -775,14 +775,21 @@ export default function InboxPanel({ initialTarget }) {
                   {replyChannel === "sms" && appliedStageLabel && (
                     <div style={{
                       alignSelf: "flex-end", fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                      color: "#3a7bd5", padding: "0 4px", whiteSpace: "nowrap",
+                      color: "#3a7bd5", padding: "0 4px", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4,
                     }}>
                       TAGGED: {appliedStageLabel}
+                      <span
+                        onClick={() => { setAppliedStage(null); setAppliedStageLabel(null); }}
+                        style={{ cursor: "pointer", color: "#5a6f8f", padding: "0 2px" }}
+                        title="Untag — send as a freeform message instead"
+                      >
+                        ×
+                      </span>
                     </div>
                   )}
                   <textarea
                     value={replyText}
-                    onChange={e => { if (appliedStage) { setAppliedStage(null); setAppliedStageLabel(null); } setReplyText(e.target.value); }}
+                    onChange={e => setReplyText(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply(); }}
                     placeholder="Type a reply… (⌘↵ to send)"
                     rows={2}
