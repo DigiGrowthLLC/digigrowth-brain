@@ -83,3 +83,4 @@ Both files are read fresh on each run — changes take effect immediately.
 - To fully reset (start over from Alabama): delete `progress.json` or set all index fields to 0
 - A typical run takes 5–15 minutes depending on rate limits and site scraping speed
 - Qualified leads are pushed to the DigiGrowth OS CRM sorted A → B → C → D grade automatically (tagged `mobile-pt`, status defaults to `dialer-lead`)
+- The run loops scrape → filter → qualify in rounds, topping up with fresh raw leads and crossing into new states/cities as needed until `daily_lead_limit` qualified leads are reached (or the run-wide `MAX_STATES_TOTAL` safety bound in `run.py` is hit, in which case it stops short and logs a warning) — a single low-yield state no longer caps the day's output

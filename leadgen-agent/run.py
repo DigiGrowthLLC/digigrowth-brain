@@ -236,6 +236,11 @@ def search_places(query):
 # the cursor just resumes exactly where it left off on the next run.
 MAX_STATES_PER_RUN = 10
 
+# Overall safety bound across every top-up round in a single run (see the
+# scrape/qualify loop in run_pipeline). Protects against chasing an
+# unreachable daily_limit across dozens of low-yield states in one sitting.
+MAX_STATES_TOTAL = 40
+
 
 def _scrape_current_state(progress, scraped_ids, raw_leads, cap):
     """Scrapes from the current city/term position onward within the
@@ -317,19 +322,23 @@ def scrape_state_leads(progress, scraped_ids, daily_limit):
     """Tops up the raw-lead pool to daily_limit*6, crossing into as many
     subsequent states as needed (bounded by MAX_STATES_PER_RUN) so a run
     landing on a low-yield market still comes back with a full candidate
-    pool instead of stopping the moment the current state runs dry."""
+    pool instead of stopping the moment the current state runs dry.
+    Returns (raw_leads, states_crossed) — the caller uses states_crossed
+    to enforce an overall safety bound across repeated top-up calls."""
     raw_leads = []
     cap       = daily_limit * 6
+    states_crossed = 0
 
     for _ in range(MAX_STATES_PER_RUN):
         reached_cap = _scrape_current_state(progress, scraped_ids, raw_leads, cap)
+        states_crossed += 1
         if reached_cap:
             break
     else:
         print(f"⚠️  Crossed {MAX_STATES_PER_RUN} states this run without filling the pool "
               f"({len(raw_leads)}/{cap}) — stopping here for today.")
 
-    return raw_leads
+    return raw_leads, states_crossed
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -599,88 +608,108 @@ def run_pipeline(lead_status="dialer-lead"):
     role   = open(ROLE_FILE, encoding="utf-8").read()
     memory = read_memory()
 
-    raw_leads = scrape_state_leads(progress, scraped_ids, daily_limit)
-    print(f"📋 Raw leads collected: {len(raw_leads)}")
+    # Loop: scrape → filter → qualify, and if the qualified pool still falls
+    # short of daily_limit, go back for another batch of raw leads instead of
+    # settling for whatever the first pass happened to yield. Bounded by
+    # MAX_STATES_TOTAL across the whole run so a run of back-to-back low-yield
+    # markets can't blow up runtime/API cost chasing an unreachable target.
+    all_qualified  = []
+    total_states_crossed = 0
+    round_num = 0
 
-    if not raw_leads:
-        print("❌ No raw leads found.")
-        return
+    while len(all_qualified) < daily_limit and total_states_crossed < MAX_STATES_TOTAL:
+        round_num += 1
+        remaining = daily_limit - len(all_qualified)
+        print(f"\n🔁 Round {round_num}: need {remaining} more qualified lead(s)")
 
-    # Phase 1: free filtering + website scraping (no Claude cost). Places API
-    # (New) already returned phone/website in scrape_state_leads — no separate
-    # Details call needed.
-    candidates = []
-    for lead in raw_leads:
-        name    = lead["name"]
-        phone   = lead.get("phone", "")
-        website = lead.get("website", "")
+        raw_leads, states_crossed = scrape_state_leads(progress, scraped_ids, remaining)
+        total_states_crossed += states_crossed
+        print(f"📋 Raw leads collected this round: {len(raw_leads)}")
 
-        keep, reason = rule_based_filter(phone, website)
-        if not keep:
-            print(f"  ⏭️  Skipped {name}: {reason}")
+        if not raw_leads:
+            print("❌ No raw leads found this round — stopping.")
+            break
+
+        # Phase 1: free filtering + website scraping (no Claude cost). Places
+        # API (New) already returned phone/website in scrape_state_leads — no
+        # separate Details call needed.
+        candidates = []
+        for lead in raw_leads:
+            name    = lead["name"]
+            phone   = lead.get("phone", "")
+            website = lead.get("website", "")
+
+            keep, reason = rule_based_filter(phone, website)
+            if not keep:
+                print(f"  ⏭️  Skipped {name}: {reason}")
+                continue
+
+            owner_name, website_text = find_owner_name(website, config.get("max_website_text_words", 600))
+            candidates.append({
+                **lead,
+                "phone": phone, "website": website,
+                "owner_name": owner_name, "website_text": website_text,
+            })
+
+        print(f"📋 Candidates passing rule filter: {len(candidates)}/{len(raw_leads)}")
+
+        if not candidates:
             continue
 
-        owner_name, website_text = find_owner_name(website, config.get("max_website_text_words", 600))
-        candidates.append({
-            **lead,
-            "phone": phone, "website": website,
-            "owner_name": owner_name, "website_text": website_text,
-        })
+        # Phase 2: one batch of qualification calls (Message Batches API —
+        # 50% cheaper than synchronous calls; fine for a scheduled,
+        # non-interactive job)
+        results_by_id = qualify_leads_batch(candidates, role, memory)
 
-    print(f"📋 Candidates passing rule filter: {len(candidates)}/{len(raw_leads)}")
+        for c in candidates:
+            result = results_by_id.get(c["place_id"])
+            if not result:
+                continue
+            if not result.get("qualified"):
+                print(f"  ❌ Disqualified {c['name']}: {result.get('disqualify_reason')}")
+                continue
 
-    # Phase 2: one batch of qualification calls (Message Batches API — 50%
-    # cheaper than synchronous calls; fine for a scheduled, non-interactive job)
-    results_by_id = qualify_leads_batch(candidates, role, memory)
+            grade          = result.get("grade", "C")
+            verified_owner = result.get("verified_owner_name") or ""
+            if not _valid_name(verified_owner):
+                print(f"  ❌ Disqualified {c['name']}: no verified owner name (model said qualified, overriding)")
+                continue
+            opener         = result.get("opener") or ""
+            if opener and len(opener.split()) > 15:
+                print(f"  ⚠️  Opener too long ({len(opener.split())} words) — nulled")
+                opener = ""
+            if opener and "?" in opener:
+                print(f"  ⚠️  Opener has question mark — nulled")
+                opener = ""
+            # Rule: a lead with no custom opener doesn't get pushed to the OS —
+            # better to drop it here than hand off a generic/cold lead with
+            # nothing personalized to open with.
+            if not opener:
+                print(f"  ❌ Disqualified {c['name']}: no usable custom opener")
+                continue
+            print(f"  ✅ {c['name']} — Grade: {grade} | Owner: {verified_owner} | Opener: {opener}")
+            all_qualified.append({
+                "Business Name":     c["name"],
+                "Phone":             c["phone"],
+                "Website":           c["website"],
+                "Address":           c.get("address", ""),
+                "Email":             "",
+                "Owner Name":        verified_owner,
+                "Grade":             grade,
+                "Grade Reason":      result.get("grade_reason", ""),
+                "Qualified":         "Yes",
+                "Niche Notes":       result.get("niche_notes", ""),
+                "Disqualify Reason": "",
+                "Opener":            opener,
+                "Notes":             "",
+                "State":             c.get("state", ""),
+                "City":              c.get("city", "")
+            })
 
-    all_qualified = []
-    for c in candidates:
-        result = results_by_id.get(c["place_id"])
-        if not result:
-            continue
-        if not result.get("qualified"):
-            print(f"  ❌ Disqualified {c['name']}: {result.get('disqualify_reason')}")
-            continue
+    if total_states_crossed >= MAX_STATES_TOTAL and len(all_qualified) < daily_limit:
+        print(f"⚠️  Hit the {MAX_STATES_TOTAL}-state safety bound with only "
+              f"{len(all_qualified)}/{daily_limit} qualified — stopping here for today.")
 
-        grade          = result.get("grade", "C")
-        verified_owner = result.get("verified_owner_name") or ""
-        if not _valid_name(verified_owner):
-            print(f"  ❌ Disqualified {c['name']}: no verified owner name (model said qualified, overriding)")
-            continue
-        opener         = result.get("opener") or ""
-        if opener and len(opener.split()) > 15:
-            print(f"  ⚠️  Opener too long ({len(opener.split())} words) — nulled")
-            opener = ""
-        if opener and "?" in opener:
-            print(f"  ⚠️  Opener has question mark — nulled")
-            opener = ""
-        # Rule: a lead with no custom opener doesn't get pushed to the OS —
-        # better to drop it here than hand off a generic/cold lead with
-        # nothing personalized to open with.
-        if not opener:
-            print(f"  ❌ Disqualified {c['name']}: no usable custom opener")
-            continue
-        print(f"  ✅ {c['name']} — Grade: {grade} | Owner: {verified_owner} | Opener: {opener}")
-        all_qualified.append({
-            "Business Name":     c["name"],
-            "Phone":             c["phone"],
-            "Website":           c["website"],
-            "Address":           c.get("address", ""),
-            "Email":             "",
-            "Owner Name":        verified_owner,
-            "Grade":             grade,
-            "Grade Reason":      result.get("grade_reason", ""),
-            "Qualified":         "Yes",
-            "Niche Notes":       result.get("niche_notes", ""),
-            "Disqualify Reason": "",
-            "Opener":            opener,
-            "Notes":             "",
-            "State":             c.get("state", ""),
-            "City":              c.get("city", "")
-        })
-
-    # daily_limit is a target for scraping volume (raw_leads collection), not
-    # a hard cap on pushes — every qualified lead from the batch gets pushed.
     grade_order = {"A": 0, "B": 1, "C": 2, "D": 3}
     all_qualified.sort(key=lambda r: grade_order.get(r.get("Grade", "D"), 3))
     qualified_leads = all_qualified
