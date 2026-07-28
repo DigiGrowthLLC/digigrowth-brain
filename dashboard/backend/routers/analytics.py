@@ -219,6 +219,58 @@ async def _sms_metrics(conn, since=None) -> dict:
     }
 
 
+async def _email_metrics(conn, since=None) -> dict:
+    """
+    Email funnel metrics — sent / reply rate / booked.
+    Unlike SMS, email has no stage sequence (no equivalent of auto_opener →
+    curiosity_opener → ... → cta), so this only tracks what the data
+    actually supports: outbound sends, whether the contact replied, and
+    conversations marked booked.
+    """
+    msg_filter = "AND sent_at >= $1" if since else ""
+    params = [since] if since else []
+
+    total_sent = await conn.fetchval(
+        f"SELECT COUNT(*) FROM email_messages WHERE direction='outbound' {msg_filter}",
+        *params,
+    )
+
+    initial_sent = await conn.fetchval(
+        f"SELECT COUNT(DISTINCT email) FROM email_messages WHERE direction='outbound' {msg_filter}",
+        *params,
+    )
+
+    # Replied: distinct contacts who received an outbound email in this
+    # window AND have at least one inbound message on the same thread.
+    replied = await conn.fetchval(
+        f"""
+        SELECT COUNT(DISTINCT out.email)
+        FROM email_messages out
+        WHERE out.direction='outbound' {msg_filter.replace('sent_at', 'out.sent_at')}
+        AND EXISTS (
+            SELECT 1 FROM email_messages inb
+            WHERE inb.thread_id = out.thread_id AND inb.direction='inbound'
+        )
+        """,
+        *params,
+    )
+
+    booked_total = await conn.fetchval(
+        f"SELECT COUNT(*) FROM email_conversations WHERE disposition='booked' "
+        f"{'AND created_at >= $1' if since else ''}",
+        *params,
+    )
+
+    return {
+        "total_sent":   total_sent   or 0,
+        "initial_sent": initial_sent or 0,
+        "replied":      replied or 0,
+        "reply_rate":   _pct(replied, initial_sent),
+        "abr":          _pct(booked_total, initial_sent),
+        "booked":       booked_total or 0,
+    }
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/analytics/outreach")
@@ -231,6 +283,8 @@ async def outreach(days: int = 30):
     async with pool.acquire() as conn:
         sms_all        = await _sms_metrics(conn)
         sms_period     = await _sms_metrics(conn, since)
+        email_all      = await _email_metrics(conn)
+        email_period   = await _email_metrics(conn, since)
 
     return {
         "period_days": days,
@@ -241,6 +295,10 @@ async def outreach(days: int = 30):
         "sms": {
             "all_time": sms_all,
             "period":   sms_period,
+        },
+        "email": {
+            "all_time": email_all,
+            "period":   email_period,
         },
         "content": {
             "all_time": _content_metrics(cs, 0),
@@ -262,6 +320,7 @@ async def pipeline(days: int = 0):
         new_week    = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", week_ago)
         new_month   = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", month_ago)
         sms         = await _sms_metrics(conn, None if all_time else _since(days))
+        email       = await _email_metrics(conn, None if all_time else _since(days))
         grade_rows  = await conn.fetch(
             """
             SELECT grade,
@@ -297,8 +356,8 @@ async def pipeline(days: int = 0):
     # is the manually-logged, authoritative cross-channel total from the Sales
     # Performance Tracker — same source Sales Statistics' "Appointments Booked"
     # already uses — so use that instead of sheet_appointments_booked + sms.booked.
-    dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["initial_sent"]
-    answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]
+    dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["initial_sent"] + email["initial_sent"]
+    answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]      + email["replied"]
     pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["engaged"]
     booked   = _sheet_stat(sales, "discovery_calls",        days)
 

@@ -34,35 +34,41 @@ function OutreachTable({ outreach, tab }) {
 
   const call    = outreach.calling?.[tab] ?? {};
   const sms     = outreach.sms?.[tab]     ?? {};
+  const email   = outreach.email?.[tab]   ?? {};
 
   const rows = [
     {
       label:   "Total Outreach / Pieces",
       call:    num(call.total),
       sms:     num(sms.total_sent),
+      email:   num(email.total_sent),
     },
     {
       label:   "Answer / Reply Rate",
       call:    pct(call.answer_rate),
       sms:     pct(sms.reply_rate),
+      email:   pct(email.reply_rate),
       isRate:  true,
     },
     {
       label:   "Engaged / Pitch Rate",
       call:    pct(call.pitch_rate),
       sms:     pct(sms.engaged_rate),
+      email:   "—",
       isRate:  true,
     },
     {
       label:   "Interested / Resonation Rate",
       call:    pct(call.resonation_rate),
       sms:     pct(sms.interested_rate),
+      email:   "—",
       isRate:  true,
     },
     {
       label:   "ABR",
       call:    pct(call.abr),
       sms:     pct(sms.abr),
+      email:   pct(email.abr),
       isRate:  true,
       highlight: true,
     },
@@ -70,6 +76,7 @@ function OutreachTable({ outreach, tab }) {
       label:   "Total Booked",
       call:    num(call.booked),
       sms:     num(sms.booked),
+      email:   num(email.booked),
       isBig:   true,
     },
   ];
@@ -82,6 +89,7 @@ function OutreachTable({ outreach, tab }) {
       <div style={{ display: "flex", marginBottom: 10, padding: "0 0 8px", borderBottom: "0.5px solid #1a2540" }}>
         <div style={{ flex: 1.6, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>METRIC</div>
         <div style={{ ...colStyle, fontSize: 9, color: "#5a9bf0", letterSpacing: "0.1em" }}>SMS</div>
+        <div style={{ ...colStyle, fontSize: 9, color: "#9b6bd8", letterSpacing: "0.1em" }}>EMAIL</div>
         <div style={{ ...colStyle, fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>COLD CALLING</div>
       </div>
       {rows.map((r, i) => (
@@ -96,6 +104,10 @@ function OutreachTable({ outreach, tab }) {
           </div>
           <div style={{ ...colStyle, fontSize: r.isBig ? 16 : 12, fontWeight: r.isBig ? 700 : 500,
                         color: r.isBig ? "#14c882" : r.highlight ? "#14c882" : "#c4d0e8" }}>
+            {r.email}
+          </div>
+          <div style={{ ...colStyle, fontSize: r.isBig ? 16 : 12, fontWeight: r.isBig ? 700 : 500,
+                        color: r.isBig ? "#14c882" : r.highlight ? "#14c882" : "#c4d0e8" }}>
             {r.call}
           </div>
         </div>
@@ -103,6 +115,9 @@ function OutreachTable({ outreach, tab }) {
       {/* Source notes */}
       <div style={{ marginTop: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
         SMS · rates are % of {num(sms.initial_sent)} leads sent the automatic opener; each stage counts as soon as it's sent, not on reply (tracked from launch)
+      </div>
+      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
+        EMAIL · rates are % of {num(email.initial_sent)} contacts emailed; reply = any inbound message on the thread (tracked from launch)
       </div>
       <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
         COLD CALLING · synced daily from Google Sheets (Sheets Digest skill)
