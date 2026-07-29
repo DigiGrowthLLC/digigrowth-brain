@@ -1,15 +1,16 @@
 {
-  "date": "2026-07-27",
-  "topic": "How AI qualifies your leads before you ever pick up the phone",
+  "date": "2026-07-29",
+  "topic": "The AI-powered referral system that fills your pipeline on autopilot",
   "findings": [
-    "Contractors and small businesses that respond to a new lead within 5 minutes are 21x more likely to qualify that lead than those who wait 30 minutes",
-    "Calling a web lead within 1 minute of submission makes a prospect 391% more likely to convert than calling any time after",
     "58% of small businesses now use generative AI, up from 40% in 2024",
-    "Businesses implementing AI call/lead automation report 40-60% increases in lead capture rate, largely by responding to missed calls or inbound leads within 30 seconds via automated follow-up"
+    "AI-powered process automation can cut small business operating costs by up to 30%",
+    "66% of SMBs report AI saves their business between $500 and $2,000 per month",
+    "AI-powered customer service and follow-up systems return $3.50 for every $1 invested"
   ],
   "sources": [
-    "https://oncrew.ai/resources/missed-call-statistics",
+    "https://capsulecrm.com/blog/small-business-ai-adoption-statistics/",
     "https://deantek.co/blog/ai-automation-small-business-statistics-2026",
-    "https://www.dooza.ai/blog/ai-lead-generation-for-small-business"
+    "https://refact.co/insights/ai-automation/ai-automation-small-business",
+    "https://colorwhistle.com/artificial-intelligence-statistics-for-small-business/"
   ]
 }

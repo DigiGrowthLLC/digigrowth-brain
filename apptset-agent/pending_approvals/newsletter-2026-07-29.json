@@ -1,0 +1,9 @@
+{
+  "title": "The referral system that runs while you sleep",
+  "summary": "The AI-powered referral system that fills your pipeline on autopilot — 11 recipients",
+  "payload": {
+    "date": "2026-07-29",
+    "subject": "The referral system that runs while you sleep",
+    "html": "<div style=\"max-width:600px;margin:0 auto;font-family:sans-serif;line-height:1.6;color:#222;\">\n  <p style=\"margin:0;\">Hey {{first_name}},</p>\n  <br>\n  <p style=\"margin:0;\">Most independent service businesses still ask for referrals by hand &mdash; a text here, a mention there &mdash; and most of the time, it just doesn&#39;t happen. <strong>58% of small businesses now use generative AI</strong>, and referral requests are one of the easiest places to automate.</p>\n  <br>\n  <p style=\"margin:0;\">Here&#39;s the version worth building: the moment a job wraps, an AI follow-up fires automatically &mdash; a short, personal-sounding text or email asking for a referral, with a one-tap way to send it. If they don&#39;t respond, it follows up once more a few days later, no manual reminder needed. Any referral that comes in gets logged straight into your pipeline instead of getting lost in a text thread. <strong>AI-powered follow-up systems like this return $3.50 for every $1 invested</strong>, and <strong>66% of small businesses using AI report saving $500&ndash;$2,000 a month</strong> on exactly this kind of manual work.</p>\n  <br>\n  <p style=\"margin:0;\">Want me to put together a custom AI + marketing plan for {{business_name}}? <a href=\"https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn\"><strong>Book a quick discovery call</strong></a>.</p>\n  <br>\n  <p style=\"margin:0;\">Talk soon,<br>Dylan | Digigrowth</p>\n  <br>\n  <p style=\"margin:0;font-size:11px;color:#888;\"><a href=\"{{unsubscribe_link}}\">Unsubscribe</a></p>\n</div>"
+  }
+}
