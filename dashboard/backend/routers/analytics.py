@@ -261,13 +261,48 @@ async def _email_metrics(conn, since=None) -> dict:
         *params,
     )
 
+    # Opened: distinct contacts whose open-tracking pixel fired at least once.
+    # Best-effort, not precise — Gmail/Apple both auto-prefetch images for
+    # privacy reasons, which inflates this above true human opens.
+    opened = await conn.fetchval(
+        f"""
+        SELECT COUNT(DISTINCT email) FROM email_messages
+        WHERE direction='outbound' AND opened_at IS NOT NULL {msg_filter}
+        """,
+        *params,
+    )
+
+    # Bounced: outbound sends whose delivery-failure notice was detected by
+    # the inbox sync (mailer-daemon pattern match — see email_inbox.py).
+    bounced = await conn.fetchval(
+        f"""
+        SELECT COUNT(*) FROM email_messages
+        WHERE direction='outbound' AND bounced_at IS NOT NULL {msg_filter}
+        """,
+        *params,
+    )
+
+    # Unsubscribed: contacts who clicked the outreach unsubscribe link,
+    # counted by when they opted out (not when they were originally emailed).
+    unsub_filter = "AND email_opted_out_at >= $1" if since else ""
+    unsubscribed = await conn.fetchval(
+        f"SELECT COUNT(*) FROM contacts WHERE email_opted_out = true {unsub_filter}",
+        *params,
+    )
+
     return {
-        "total_sent":   total_sent   or 0,
-        "initial_sent": initial_sent or 0,
-        "replied":      replied or 0,
-        "reply_rate":   _pct(replied, initial_sent),
-        "abr":          _pct(booked_total, initial_sent),
-        "booked":       booked_total or 0,
+        "total_sent":       total_sent   or 0,
+        "initial_sent":     initial_sent or 0,
+        "replied":          replied or 0,
+        "reply_rate":       _pct(replied, initial_sent),
+        "abr":              _pct(booked_total, initial_sent),
+        "booked":           booked_total or 0,
+        "opened":           opened or 0,
+        "open_rate":        _pct(opened, initial_sent),
+        "bounced":          bounced or 0,
+        "bounce_rate":      _pct(bounced, total_sent),
+        "unsubscribed":     unsubscribed or 0,
+        "unsubscribe_rate": _pct(unsubscribed, initial_sent),
     }
 
 

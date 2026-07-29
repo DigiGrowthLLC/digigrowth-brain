@@ -14,7 +14,9 @@ Each tool function returns a plain string (used directly as tool_result content)
 
 import asyncio
 import base64
+import html as html_lib
 import os
+import secrets
 from email.mime.text import MIMEText
 
 import httpx
@@ -228,7 +230,8 @@ def gmail_read_thread(thread_id: str) -> str:
         return f"Gmail error: {e}"
 
 
-async def _record_outbound_email(to: str, subject: str, body: str, message_id: str, thread_id: str) -> None:
+async def _record_outbound_email(to: str, subject: str, body: str, message_id: str, thread_id: str,
+                                  tracking_token: str | None = None) -> None:
     """Mirror email_inbox.py's manual_email_send() bookkeeping for sends that
     go through gmail_send/gmail_send_html directly (newsletter, send-info,
     appointment reminders) instead of the Inbox reply box. Without this, a
@@ -259,37 +262,87 @@ async def _record_outbound_email(to: str, subject: str, body: str, message_id: s
             )
 
         await conn.execute(
-            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at)
-               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now())
+            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token)
+               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7)
                ON CONFLICT (gmail_message_id) DO NOTHING""",
-            contact_id, thread_id, to, subject, body, message_id,
+            contact_id, thread_id, to, subject, body, message_id, tracking_token,
         )
     finally:
         await conn.close()
 
 
-def _record_outbound_email_sync(to: str, subject: str, body: str, message_id: str, thread_id: str) -> None:
+def _record_outbound_email_sync(to: str, subject: str, body: str, message_id: str, thread_id: str,
+                                 tracking_token: str | None = None) -> None:
     """gmail_send/gmail_send_html are plain sync functions always invoked via
     asyncio.to_thread (worker thread, no running loop) — asyncio.run() here
     is therefore safe."""
     try:
-        asyncio.run(_record_outbound_email(to, subject, body, message_id, thread_id))
+        asyncio.run(_record_outbound_email(to, subject, body, message_id, thread_id, tracking_token))
     except Exception as e:
         print(f"[gmail_send] failed to record outbound conversation: {e}", flush=True)
 
 
-def gmail_send(to: str, subject: str, body: str) -> str:
+async def _lookup_contact_for_send(to: str) -> tuple[str | None, bool]:
+    """Returns (contact_id, email_opted_out) for a recipient address, or
+    (None, False) if `to` isn't a known contact. Own short-lived connection —
+    same reasoning as _record_outbound_email (runs off the main event loop)."""
+    import asyncpg
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        row = await conn.fetchrow(
+            "SELECT id, email_opted_out FROM contacts WHERE lower(email) = lower($1)", to
+        )
+        return (row["id"], bool(row["email_opted_out"])) if row else (None, False)
+    finally:
+        await conn.close()
+
+
+def _lookup_contact_for_send_sync(to: str) -> tuple[str | None, bool]:
+    return asyncio.run(_lookup_contact_for_send(to))
+
+
+def _wrap_outreach_html(body: str, tracking_token: str, contact_id: str | None) -> str:
+    """Wrap a plain-text outreach body as HTML carrying an open-tracking pixel
+    and (for known contacts) an unsubscribe footer link. Used only for actual
+    outreach sends (track=True) — transactional mail (appointment reminders)
+    and general AI-agent-composed email stay plain text, untracked."""
+    base = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/") + "/api"
+    escaped = html_lib.escape(body).replace("\n", "<br>\n")
+    parts = [f'<div style="font-family:sans-serif;font-size:14px;color:#111;">{escaped}</div>']
+    if contact_id:
+        parts.append(
+            f'<p style="font-size:11px;color:#999;margin-top:20px;">'
+            f'<a href="{base}/email/unsubscribe/{contact_id}" style="color:#999;">Unsubscribe</a></p>'
+        )
+    parts.append(f'<img src="{base}/track/open/{tracking_token}.gif" width="1" height="1" style="display:none" alt="">')
+    return "".join(parts)
+
+
+def gmail_send(to: str, subject: str, body: str, track: bool = False) -> str:
+    """track=True marks this as an outreach send: wraps the body as HTML with
+    an open-tracking pixel and (for known contacts) an unsubscribe link, and
+    is skipped outright if that contact has opted out. Transactional mail
+    (appointment reminders) and general AI-agent-composed email must NOT be
+    tracked — they stay plain text and always send, so leave track=False."""
     guard = _verify_sender_identity()
     if guard:
         return guard
     try:
+        contact_id, opted_out = (_lookup_contact_for_send_sync(to) if track else (None, False))
+        if track and opted_out:
+            return f"Skipped: {to} has unsubscribed from outreach email."
+
         svc = _business_gmail_service()
-        msg = MIMEText(body)
+        tracking_token = secrets.token_urlsafe(16) if track else None
+        if track:
+            msg = MIMEText(_wrap_outreach_html(body, tracking_token, contact_id), "html")
+        else:
+            msg = MIMEText(body)
         msg["to"] = to
         msg["subject"] = subject
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         sent = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
-        _record_outbound_email_sync(to, subject, body, sent["id"], sent["threadId"])
+        _record_outbound_email_sync(to, subject, body, sent["id"], sent["threadId"], tracking_token)
         return f"Sent email to {to}: {subject}"
     except RuntimeError as e:
         return str(e)
@@ -409,21 +462,28 @@ async def send_info_email(to: str, owner: str | None, business: str | None) -> s
 
     subject = f"{subject_template} — {business}" if business else subject_template
     body = body_template.replace("{first_name}", first_name)
-    return await asyncio.to_thread(gmail_send, to, subject, body)
+    return await asyncio.to_thread(gmail_send, to, subject, body, True)
 
 
 def gmail_send_reply(to: str, subject: str, body: str, thread_id: str) -> dict:
-    """Send a reply that threads correctly in Gmail (keyed by `thread_id`)."""
+    """Send a reply that threads correctly in Gmail (keyed by `thread_id`).
+    Always an outreach send (this is the Inbox reply box's only call path) —
+    tracked with an open pixel + unsubscribe link, and blocked outright if
+    the contact has opted out."""
     guard = _verify_sender_identity()
     if guard:
         raise RuntimeError(guard)
+    contact_id, opted_out = _lookup_contact_for_send_sync(to)
+    if opted_out:
+        raise RuntimeError(f"{to} has unsubscribed from outreach email.")
     svc = _business_gmail_service()
-    msg = MIMEText(body)
+    tracking_token = secrets.token_urlsafe(16)
+    msg = MIMEText(_wrap_outreach_html(body, tracking_token, contact_id), "html")
     msg["to"] = to
     msg["subject"] = subject if subject.lower().startswith("re:") else f"Re: {subject}"
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     sent = svc.users().messages().send(userId="me", body={"raw": raw, "threadId": thread_id}).execute()
-    return {"id": sent["id"], "threadId": sent["threadId"]}
+    return {"id": sent["id"], "threadId": sent["threadId"], "tracking_token": tracking_token}
 
 
 def gmail_create_draft(to: str, subject: str, body: str) -> str:

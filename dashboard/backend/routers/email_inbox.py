@@ -49,6 +49,40 @@ def _extract_email(header_value: str) -> str:
     return m.group(0).lower() if m else ""
 
 
+_BOUNCE_FROM_RE = re.compile(r"mailer-daemon|postmaster|mail delivery", re.I)
+_BOUNCE_SUBJECT_RE = re.compile(
+    r"delivery status notification|undelivered mail|delivery has failed|"
+    r"returned to sender|delivery incomplete|address not found",
+    re.I,
+)
+
+
+def _looks_like_bounce(from_addr: str, subject: str) -> bool:
+    return bool(_BOUNCE_FROM_RE.search(from_addr or "") or _BOUNCE_SUBJECT_RE.search(subject or ""))
+
+
+async def _mark_bounce(conn, full: dict, contact_by_email: dict) -> bool:
+    """Best-effort: scan a delivery-failure notice's body for a known contact's
+    address and mark that contact's most recent un-bounced outbound send as
+    bounced. Gmail bounce notices always quote the original recipient
+    somewhere in the body, but the exact format varies by failure type —
+    this is a heuristic, not a guaranteed match."""
+    body = (integrations._extract_body(full["payload"]) or full.get("snippet", "")).lower()
+    for email, contact_id in contact_by_email.items():
+        if email in body:
+            result = await conn.execute(
+                """UPDATE email_messages SET bounced_at = now()
+                   WHERE id = (
+                       SELECT id FROM email_messages
+                       WHERE contact_id = $1 AND direction = 'outbound' AND bounced_at IS NULL
+                       ORDER BY sent_at DESC LIMIT 1
+                   )""",
+                contact_id,
+            )
+            return result != "UPDATE 0"
+    return False
+
+
 # ── Sync job ──────────────────────────────────────────────────────────────────
 
 async def _sync_gmail_once() -> dict:
@@ -106,6 +140,10 @@ async def _sync_gmail_once() -> dict:
             thread_id = full["threadId"]
             internal_ts = int(full.get("internalDate", "0")) // 1000
             newest_ts = max(newest_ts, internal_ts)
+
+            if _looks_like_bounce(from_addr, subject):
+                await _mark_bounce(conn, full, contact_by_email)
+                continue  # delivery-failure notices aren't real conversation messages
 
             # Scope: only messages actually sent BY a known prospect (their
             # stored contacts.email) land in the Inbox. We deliberately do NOT
@@ -265,10 +303,10 @@ async def manual_email_send(payload: dict):
             )
 
         await conn.execute(
-            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at)
-               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now())
+            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token)
+               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7)
                ON CONFLICT (gmail_message_id) DO NOTHING""",
-            contact_id, new_thread_id, to, subject, body, sent["id"],
+            contact_id, new_thread_id, to, subject, body, sent["id"], sent.get("tracking_token"),
         )
 
     return {"ok": True, "thread_id": new_thread_id, "contact_id": contact_id}
@@ -360,13 +398,15 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
             "phone": r["phone"], "email": r["email"], "tags": r["tags"] or [],
             "contact_status": r["contact_status"],
             "channels": [], "last_message": None, "updated_at": None,
-            "status": "closed", "disposition": None,
+            "status": "closed", "disposition": None, "unread": False,
         }
     if channel not in g["channels"]:
         g["channels"].append(channel)
     if g["updated_at"] is None or (r["updated_at"] and r["updated_at"] > g["updated_at"]):
         g["updated_at"] = r["updated_at"]
         g["last_message"] = r["last_message"]
+    if r.get("unread"):
+        g["unread"] = True
     if r["status"] != "closed":
         g["status"] = "active"
         if r["disposition"] == "interested":
@@ -401,7 +441,12 @@ async def list_inbox_conversations(
                 SELECT sc.contact_id, sc.status, sc.disposition, sc.updated_at,
                        c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
                        (SELECT body FROM sms_messages WHERE phone = sc.phone
-                        ORDER BY sent_at DESC LIMIT 1) AS last_message
+                        ORDER BY sent_at DESC LIMIT 1) AS last_message,
+                       EXISTS (
+                           SELECT 1 FROM sms_messages
+                           WHERE phone = sc.phone AND direction = 'inbound'
+                             AND sent_at > COALESCE(sc.last_read_at, '-infinity'::timestamptz)
+                       ) AS unread
                 FROM sms_conversations sc
                 LEFT JOIN contacts c ON c.id = sc.contact_id
                 WHERE {' AND '.join(clauses)}
@@ -427,7 +472,12 @@ async def list_inbox_conversations(
                 SELECT ec.contact_id, ec.status, ec.disposition, ec.updated_at,
                        c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
                        (SELECT body FROM email_messages WHERE thread_id = ec.thread_id
-                        ORDER BY sent_at DESC LIMIT 1) AS last_message
+                        ORDER BY sent_at DESC LIMIT 1) AS last_message,
+                       EXISTS (
+                           SELECT 1 FROM email_messages
+                           WHERE thread_id = ec.thread_id AND direction = 'inbound'
+                             AND sent_at > COALESCE(ec.last_read_at, '-infinity'::timestamptz)
+                       ) AS unread
                 FROM email_conversations ec
                 LEFT JOIN contacts c ON c.id = ec.contact_id
                 WHERE {' AND '.join(clauses)}
