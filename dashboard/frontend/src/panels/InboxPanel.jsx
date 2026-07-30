@@ -30,7 +30,7 @@ function convoBadge(c) {
       ? { label: "NOT INTERESTED", cls: "badge-red" }
       : { label: "BOOKED", cls: "badge-green" };
   }
-  if (c.disposition === "interested") {
+  if (c.stage_interested) {
     return { label: "INTERESTED", cls: "badge-amber" };
   }
   return { label: "ACTIVE", cls: "badge-blue" };
@@ -223,6 +223,7 @@ export default function InboxPanel({ initialTarget }) {
   const [loading, setLoading]     = useState(true);
   const [cardOpen, setCardOpen]   = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [stageMenuOpen, setStageMenuOpen] = useState(false);
   const [deleting, setDeleting]   = useState(false);
   const [composing, setComposing] = useState(false);
   const [seqOpen, setSeqOpen]       = useState(false);
@@ -298,6 +299,7 @@ export default function InboxPanel({ initialTarget }) {
     setSelected(contactId);
     setThread(null);
     setSeqOpen(false);
+    setStageMenuOpen(false);
     setReplySubject("");
     setAppliedStage(null);
     setAppliedStageLabel(null);
@@ -407,9 +409,13 @@ export default function InboxPanel({ initialTarget }) {
     await loadConvos();
   };
 
-  const toggleInterested = async () => {
+  const setStage = async (stage, checked) => {
     if (!selected) return;
-    await fetch(API(`/inbox/contact/${encodeURIComponent(selected)}/interested`), { method: "POST" });
+    await fetch(API(`/inbox/contact/${encodeURIComponent(selected)}/stage`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage, checked }),
+    });
     await refreshThread(selected);
     await loadConvos();
   };
@@ -693,15 +699,43 @@ export default function InboxPanel({ initialTarget }) {
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {thread?.status !== "closed" && (
                   <>
-                    <button onClick={toggleInterested} className="btn btn-ghost"
-                      style={{
-                        fontSize: 10,
-                        borderColor: thread?.disposition === "interested" ? "rgba(240,160,40,0.6)" : "rgba(240,160,40,0.35)",
-                        color: "#f0a028",
-                        background: thread?.disposition === "interested" ? "rgba(240,160,40,0.12)" : "transparent",
-                      }}>
-                      {thread?.disposition === "interested" ? "★ INTERESTED" : "MARK INTERESTED"}
-                    </button>
+                    <div style={{ position: "relative" }}>
+                      <button onClick={() => setStageMenuOpen(o => !o)} className="btn btn-ghost"
+                        style={{
+                          fontSize: 10,
+                          borderColor: thread?.stage_interested ? "rgba(240,160,40,0.6)" : "rgba(240,160,40,0.35)",
+                          color: "#f0a028",
+                          background: thread?.stage_interested ? "rgba(240,160,40,0.12)" : "transparent",
+                        }}>
+                        {thread?.stage_interested ? "★ INTERESTED" : "STAGE ▾"}
+                      </button>
+                      {stageMenuOpen && (
+                        <div style={{
+                          position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20,
+                          background: "#0d1626", border: "1px solid #1a2540", borderRadius: 8,
+                          padding: "8px 10px", minWidth: 150, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                          display: "flex", flexDirection: "column", gap: 6,
+                        }}>
+                          {[
+                            { key: "replied",     label: "Replied",    checked: !!thread?.stage_replied },
+                            { key: "engaged",     label: "Engaged",    checked: !!thread?.stage_engaged },
+                            { key: "interested",  label: "Interested", checked: !!thread?.stage_interested },
+                          ].map(s => (
+                            <label key={s.key} style={{
+                              display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
+                              fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#c4d0e8",
+                            }}>
+                              <input
+                                type="checkbox"
+                                checked={s.checked}
+                                onChange={e => setStage(s.key, e.target.checked)}
+                              />
+                              {s.label}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <button onClick={() => setBookingOpen(true)} className="btn btn-ghost"
                       style={{ fontSize: 10, borderColor: "rgba(20,200,130,0.35)", color: "#14c882" }}>
                       BOOK APPOINTMENT

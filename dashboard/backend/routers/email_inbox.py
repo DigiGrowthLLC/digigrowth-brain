@@ -15,7 +15,7 @@ Endpoints (all under /api):
   GET  /api/inbox/conversations                — contact-grouped SMS + Email list, filterable
   GET  /api/inbox/contact/{contact_id}         — one contact's merged SMS + Email message stream
   POST /api/inbox/contact/{contact_id}/close
-  POST /api/inbox/contact/{contact_id}/interested
+  POST /api/inbox/contact/{contact_id}/stage   — set Replied/Engaged/Interested checkbox (manual override)
   DELETE /api/inbox/contact/{contact_id}
 
 sync_gmail_job() is registered on the app's APScheduler (main.py) to run
@@ -399,6 +399,7 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
             "contact_status": r["contact_status"],
             "channels": [], "last_message": None, "updated_at": None,
             "status": "closed", "disposition": None, "unread": False,
+            "stage_replied": False, "stage_engaged": False, "stage_interested": False,
         }
     if channel not in g["channels"]:
         g["channels"].append(channel)
@@ -407,9 +408,13 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
         g["last_message"] = r["last_message"]
     if r.get("unread"):
         g["unread"] = True
+    if channel == "sms":
+        g["stage_replied"] = g["stage_replied"] or bool(r.get("stage_replied"))
+        g["stage_engaged"] = g["stage_engaged"] or bool(r.get("stage_engaged"))
+        g["stage_interested"] = g["stage_interested"] or bool(r.get("stage_interested"))
     if r["status"] != "closed":
         g["status"] = "active"
-        if r["disposition"] == "interested":
+        if channel == "email" and r["disposition"] == "interested":
             g["disposition"] = "interested"
     elif g["status"] == "closed" and g["disposition"] is None:
         g["disposition"] = r["disposition"]
@@ -439,6 +444,7 @@ async def list_inbox_conversations(
             sms_rows = await conn.fetch(
                 f"""
                 SELECT sc.contact_id, sc.status, sc.disposition, sc.updated_at,
+                       sc.stage_replied, sc.stage_engaged, sc.stage_interested,
                        c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
                        (SELECT body FROM sms_messages WHERE phone = sc.phone
                         ORDER BY sent_at DESC LIMIT 1) AS last_message,
@@ -510,7 +516,9 @@ async def get_contact_thread(contact_id: str):
             contact_id,
         )
         sms_conv = await conn.fetchrow(
-            "SELECT status, disposition FROM sms_conversations WHERE contact_id = $1", contact_id
+            """SELECT status, disposition, stage_replied, stage_engaged, stage_interested
+               FROM sms_conversations WHERE contact_id = $1""",
+            contact_id,
         )
         email_conv = await conn.fetchrow(
             """SELECT thread_id, subject, status, disposition FROM email_conversations
@@ -533,9 +541,7 @@ async def get_contact_thread(contact_id: str):
     sms_active = sms_conv and sms_conv["status"] != "closed"
     email_active = email_conv and email_conv["status"] != "closed"
     status = "active" if (sms_active or email_active) else "closed"
-    if sms_active and sms_conv["disposition"] == "interested":
-        disposition = "interested"
-    elif email_active and email_conv["disposition"] == "interested":
+    if email_active and email_conv["disposition"] == "interested":
         disposition = "interested"
     elif status == "closed":
         disposition = (sms_conv["disposition"] if sms_conv else None) or (email_conv["disposition"] if email_conv else None)
@@ -553,6 +559,9 @@ async def get_contact_thread(contact_id: str):
         "disposition": disposition,
         "sms_status": sms_conv["status"] if sms_conv else None,
         "sms_disposition": sms_conv["disposition"] if sms_conv else None,
+        "stage_replied": sms_conv["stage_replied"] if sms_conv else False,
+        "stage_engaged": sms_conv["stage_engaged"] if sms_conv else False,
+        "stage_interested": sms_conv["stage_interested"] if sms_conv else False,
         "email_thread_id": email_conv["thread_id"] if email_conv else None,
         "email_subject": email_conv["subject"] if email_conv else None,
         "email_status": email_conv["status"] if email_conv else None,
@@ -586,33 +595,35 @@ async def close_contact_threads(contact_id: str, payload: Optional[dict] = None)
     return {"ok": True}
 
 
-@router.post("/inbox/contact/{contact_id}/interested")
-async def toggle_contact_interested(contact_id: str):
+_STAGE_COLUMNS = {"replied", "engaged", "interested"}
+
+
+@router.post("/inbox/contact/{contact_id}/stage")
+async def set_contact_stage(contact_id: str, payload: dict):
+    """
+    Manual funnel checklist (Replied/Engaged/Interested) for the contact's SMS
+    conversation. Any click through the UI is an explicit human override: it
+    sets both the checkbox value and its `_manual` lock, so automatic
+    reply-count detection (sms.py::_recompute_stage_flags) stops touching
+    that stage for this conversation from here on — analytics reads the
+    checkbox column directly, not the underlying reply count.
+    """
+    stage = (payload or {}).get("stage")
+    checked = bool((payload or {}).get("checked"))
+    if stage not in _STAGE_COLUMNS:
+        return {"ok": False, "error": "stage must be one of replied/engaged/interested"}
+
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT bool_or(disposition = 'interested') AS any_interested
-            FROM (
-                SELECT disposition FROM sms_conversations WHERE contact_id = $1 AND status != 'closed'
-                UNION ALL
-                SELECT disposition FROM email_conversations WHERE contact_id = $1 AND status != 'closed'
-            ) t
+        await conn.execute(
+            f"""
+            UPDATE sms_conversations
+            SET stage_{stage} = $2, stage_{stage}_manual = true, updated_at = now()
+            WHERE contact_id = $1
             """,
-            contact_id,
+            contact_id, checked,
         )
-        new_disposition = None if (row and row["any_interested"]) else "interested"
-        await conn.execute(
-            "UPDATE sms_conversations SET disposition = $2, updated_at = now() "
-            "WHERE contact_id = $1 AND status != 'closed'",
-            contact_id, new_disposition,
-        )
-        await conn.execute(
-            "UPDATE email_conversations SET disposition = $2, updated_at = now() "
-            "WHERE contact_id = $1 AND status != 'closed'",
-            contact_id, new_disposition,
-        )
-    return {"ok": True, "disposition": new_disposition}
+    return {"ok": True, "stage": stage, "checked": checked}
 
 
 @router.delete("/inbox/contact/{contact_id}")

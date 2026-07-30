@@ -89,7 +89,7 @@ async def summary(period: str = "day"):
     # manually-logged cross-channel total (discovery_calls) since some
     # bookings come from channels (e.g. DM campaigns) neither data source
     # tracks, and a bottom-up sum would under-count.
-    total_outreach     = calls_made + sms_funnel["initial_sent"]
+    total_outreach     = calls_made + sms_funnel["contacted"]
     total_answered      = calls_answered + sms_funnel["replied"]
     total_reached       = dms_reached + sms_funnel["engaged"]
     total_appointments  = _sheet("discovery_calls")

@@ -40,25 +40,25 @@ function OutreachTable({ outreach, tab }) {
     {
       label:   "Total Outreach / Pieces",
       call:    num(call.total),
-      sms:     num(sms.total_sent),
+      sms:     num(sms.total_outreach),
       email:   num(email.total_sent),
     },
     {
-      label:   "Answer / Reply Rate (1. Initial Message)",
+      label:   "Answer / Reply Rate",
       call:    pct(call.answer_rate),
       sms:     pct(sms.reply_rate),
       email:   pct(email.reply_rate),
       isRate:  true,
     },
     {
-      label:   "Engaged / Pitch Rate (3. Engaged Message)",
+      label:   "Engaged / Pitch Rate",
       call:    pct(call.pitch_rate),
       sms:     pct(sms.engaged_rate),
       email:   "—",
       isRate:  true,
     },
     {
-      label:   "Interested / Resonation Rate (4. Call To Action)",
+      label:   "Interested / Resonation Rate",
       call:    pct(call.resonation_rate),
       sms:     pct(sms.interested_rate),
       email:   "—",
@@ -114,7 +114,7 @@ function OutreachTable({ outreach, tab }) {
       ))}
       {/* Source notes */}
       <div style={{ marginTop: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
-        SMS · rates are % of {num(sms.initial_sent)} leads sent the automatic opener; each stage counts as soon as it's sent, not on reply (tracked from launch)
+        SMS · rates are % of {num(sms.contacted)} leads contacted; Replied/Engaged/Interested are auto-detected from reply count (1+/2+/3+) but can be manually checked/unchecked per conversation in the Inbox — the checkbox is what's counted (tracked from launch)
       </div>
       <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
         EMAIL · rates are % of {num(email.initial_sent)} contacts emailed; reply = any inbound message on the thread (tracked from launch)

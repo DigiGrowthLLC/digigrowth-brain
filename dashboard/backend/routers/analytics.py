@@ -101,121 +101,73 @@ async def _sms_metrics(conn, since=None) -> dict:
     """
     Return SMS funnel metrics. If since is None, returns all-time.
 
-    Every metric is SEND-based, not reply-based — a stage counts the moment
-    it's sent, since in practice each later-stage send is itself the signal
-    that the prior step landed (e.g. "1. Initial Message" is only ever sent
-    manually after the lead replies to the automatic opener, so its send
-    IS the reply signal — no need to separately verify an inbound message).
+    Replied/Engaged/Interested are read straight off sms_conversations'
+    stage_replied/stage_engaged/stage_interested checkboxes — NOT recomputed
+    from message counts here. Those checkboxes are auto-set from the
+    prospect's inbound reply count (1+/2+/3+ respectively) by
+    sms.py::_recompute_stage_flags() on every inbound message, but a rep can
+    manually check/uncheck any of them from the Inbox (POST
+    /inbox/contact/{contact_id}/stage in email_inbox.py) — once touched
+    manually, the checkbox is authoritative and stops tracking the raw
+    count. So this function always trusts the stored checkbox, by design.
 
-    Funnel population / denominator for every rate = `initial_sent`, the
-    count of distinct contacts sent the automatic opener (stage='auto_opener',
-    see send_opening_message() in sms.py) — that's the true top of the SMS
-    funnel, since every handed-off lead gets it automatically.
-
-    "1. Initial Message" through "5. Booking Link" (SEQUENCE_STEPS in sms.py,
-    stage keys curiosity_opener/relevance/guarantee/ask/cta) are only tagged
-    when an agent explicitly picks that step from the Inbox SEQUENCE dropdown
-    before sending — freeform/edited sends have stage=NULL and don't count
-    toward any funnel stage.
-
-    `since` filters on when the auto-opener was sent, not on when later
-    stages landed, so the funnel reflects "of the leads contacted in this
-    window, how far did they get" rather than filtering each stage
-    independently by date.
+    `contacted` (distinct phones sent an outbound message in the window) is
+    the single denominator for every rate — matches the pattern
+    _email_metrics() already uses for its own reply rate.
     """
     msg_filter = "AND sent_at >= $1" if since else ""
     params = [since] if since else []
 
-    # "Total Outreach / Pieces" = the automatic opener, the true first touch.
-    total_sent = await conn.fetchval(
-        f"""
-        SELECT COUNT(*) FROM sms_messages
-        WHERE direction='outbound' AND stage='auto_opener' {msg_filter}
-        """,
+    # Total Outreach — every outbound SMS sent, counted the moment it's sent.
+    total_outreach = await conn.fetchval(
+        f"SELECT COUNT(*) FROM sms_messages WHERE direction='outbound' {msg_filter}",
         *params,
     )
 
-    initial_sent = await conn.fetchval(
-        f"""
-        SELECT COUNT(DISTINCT phone) FROM sms_messages
-        WHERE direction='outbound' AND stage='auto_opener' {msg_filter}
-        """,
+    contacted = await conn.fetchval(
+        f"SELECT COUNT(DISTINCT phone) FROM sms_messages WHERE direction='outbound' {msg_filter}",
         *params,
     )
 
-    # Answer/Reply + Conversation Rate: "1. Initial Message" was sent — that
-    # send only happens after the lead replied to the auto-opener, so it IS
-    # the reply signal.
+    stage_filter = "AND sc.phone = ANY($1)" if since else ""
+    stage_params = params.copy()
+    if since:
+        contacted_phones = await conn.fetch(
+            f"SELECT DISTINCT phone FROM sms_messages WHERE direction='outbound' {msg_filter}",
+            *params,
+        )
+        stage_params = [[r["phone"] for r in contacted_phones]]
+
     replied = await conn.fetchval(
-        f"""
-        SELECT COUNT(DISTINCT init.phone)
-        FROM sms_messages init
-        WHERE init.direction='outbound' AND init.stage='auto_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
-        AND EXISTS (
-            SELECT 1 FROM sms_messages step
-            WHERE step.phone = init.phone AND step.direction='outbound' AND step.stage='curiosity_opener'
-        )
-        """,
-        *params,
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_replied {stage_filter}",
+        *stage_params,
     )
-
-    # Engaged: "3. Engaged Message" was sent to this lead.
     engaged = await conn.fetchval(
-        f"""
-        SELECT COUNT(DISTINCT init.phone)
-        FROM sms_messages init
-        WHERE init.direction='outbound' AND init.stage='auto_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
-        AND EXISTS (
-            SELECT 1 FROM sms_messages step
-            WHERE step.phone = init.phone AND step.direction='outbound' AND step.stage='guarantee'
-        )
-        """,
-        *params,
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_engaged {stage_filter}",
+        *stage_params,
+    )
+    interested = await conn.fetchval(
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_interested {stage_filter}",
+        *stage_params,
     )
 
-    # Interested: "4. Call To Action" was sent to this lead.
-    interested_sent = await conn.fetchval(
-        f"""
-        SELECT COUNT(DISTINCT init.phone)
-        FROM sms_messages init
-        WHERE init.direction='outbound' AND init.stage='auto_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
-        AND EXISTS (
-            SELECT 1 FROM sms_messages a
-            WHERE a.phone = init.phone AND a.direction='outbound' AND a.stage='ask'
-        )
-        """,
-        *params,
-    )
-
-    booked_of_initial = await conn.fetchval(
-        f"""
-        SELECT COUNT(DISTINCT init.phone)
-        FROM sms_messages init
-        JOIN sms_conversations sc ON sc.phone = init.phone
-        WHERE init.direction='outbound' AND init.stage='auto_opener' {msg_filter.replace('sent_at', 'init.sent_at')}
-        AND sc.disposition = 'booked'
-        """,
-        *params,
-    )
-
-    booked_total = await conn.fetchval(
+    booked = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='booked' "
         f"{'AND created_at >= $1' if since else ''}",
         *params,
     )
 
     return {
-        "total_sent":        total_sent   or 0,
-        "initial_sent":      initial_sent or 0,
-        "replied":           replied or 0,
-        "reply_rate":        _pct(replied, initial_sent),
-        "engaged":           engaged or 0,
-        "engaged_rate":      _pct(engaged, initial_sent),
-        "interested_sent":   interested_sent or 0,
-        "interested_rate":   _pct(interested_sent, initial_sent),
-        "booked_of_initial": booked_of_initial or 0,
-        "abr":               _pct(booked_of_initial, initial_sent),
-        "booked":            booked_total or 0,
+        "total_outreach":  total_outreach or 0,
+        "contacted":       contacted or 0,
+        "replied":         replied or 0,
+        "reply_rate":      _pct(replied, contacted),
+        "engaged":         engaged or 0,
+        "engaged_rate":    _pct(engaged, contacted),
+        "interested":      interested or 0,
+        "interested_rate": _pct(interested, contacted),
+        "booked":          booked or 0,
+        "abr":             _pct(booked, contacted),
     }
 
 
@@ -391,7 +343,7 @@ async def pipeline(days: int = 0):
     # is the manually-logged, authoritative cross-channel total from the Sales
     # Performance Tracker — same source Sales Statistics' "Appointments Booked"
     # already uses — so use that instead of sheet_appointments_booked + sms.booked.
-    dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["initial_sent"] + email["initial_sent"]
+    dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["contacted"] + email["initial_sent"]
     answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]      + email["replied"]
     pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["engaged"]
     booked   = _sheet_stat(sales, "discovery_calls",        days)

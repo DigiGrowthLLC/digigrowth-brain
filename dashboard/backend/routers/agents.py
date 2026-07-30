@@ -136,13 +136,62 @@ async def os_sms_outreach_stats() -> str:
         stats_all = await _sms_metrics(conn)
 
     def _line(label, s):
-        return (f"{label}: {s['total_sent']} sent, {s['reply_rate']}% replied, "
+        return (f"{label}: {s['total_outreach']} sent, {s['reply_rate']}% replied, "
                 f"{s['interested_rate']}% interested, {s['booked']} booked")
 
-    if not stats_all["total_sent"]:
+    if not stats_all["total_outreach"]:
         return "No SMS activity in the OS yet."
 
     return "\n".join([_line("Last 7 days", stats_7d), _line("Last 30 days", stats_30d), _line("All-time", stats_all)])
+
+
+async def os_dialer_disposition_breakdown() -> str:
+    """All-time call disposition breakdown from the OS dialer DB (call_logs), independent of the Sheets-based cold calling tracker."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        total_calls = await conn.fetchval("SELECT COUNT(*) FROM call_logs")
+        rows = await conn.fetch(
+            """
+            SELECT disposition, COUNT(*) AS cnt
+            FROM call_logs
+            WHERE disposition IS NOT NULL
+            GROUP BY disposition
+            ORDER BY cnt DESC
+            """
+        )
+    if not total_calls:
+        return "No calls logged in the OS dialer yet."
+    lines = [f"Total calls logged: {total_calls}"]
+    for r in rows:
+        pct = round(r["cnt"] / total_calls * 100, 1)
+        lines.append(f"{r['disposition']}: {r['cnt']} ({pct}%)")
+    return "\n".join(lines)
+
+
+async def os_dialer_recent_notes(limit: int = 20) -> str:
+    """Most recent OS dialer calls that have free-text notes attached — the DB-native equivalent of a call review."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT cl.disposition, cl.notes, cl.started_at,
+                   c.business, c.owner
+            FROM call_logs cl
+            LEFT JOIN contacts c ON c.id = cl.contact_id
+            WHERE cl.notes IS NOT NULL AND cl.notes != ''
+            ORDER BY cl.started_at DESC NULLS LAST
+            LIMIT $1
+            """,
+            limit,
+        )
+    if not rows:
+        return "No call notes logged in the OS dialer yet."
+    lines = []
+    for r in rows:
+        name = r["business"] or r["owner"] or "Unknown"
+        date = r["started_at"].strftime("%Y-%m-%d") if r["started_at"] else "unknown date"
+        lines.append(f"[{date}] {name} — {r['disposition'] or 'no disposition'}: {r['notes']}")
+    return "\n".join(lines)
 
 
 BLOCKED_FILENAMES = {".env", "credentials.json", "settings.local.json"}
@@ -426,6 +475,32 @@ TOOLS = [
             "Outreach section (cold calling numbers still come from the Google Drive tracker)."
         ),
         "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "os_dialer_disposition_breakdown",
+        "description": (
+            "All-time call disposition breakdown from the OS dialer DB (call_logs table) — total calls "
+            "logged and a count/percentage per disposition (e.g. Appointment Booked, Not Interested, "
+            "Voicemail, Gatekeeper). This is DB-native, live OS data, separate from the Sheets-based "
+            "cold calling tracker in Google Drive — use it to see what the dialer itself has actually "
+            "recorded."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "os_dialer_recent_notes",
+        "description": (
+            "Most recent OS dialer calls that have free-text notes attached (call_logs.notes), with "
+            "disposition, contact, and date — the DB-native equivalent of a manual call review. Use "
+            "this to surface qualitative signal (objections heard, what worked/didn't) straight from "
+            "logged calls, separate from any Drive call-review docs."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "default": 20, "description": "Max notes to return"},
+            },
+        },
     },
     # ── Notion ─────────────────────────────────────────────────────────────────
     {
@@ -1211,6 +1286,10 @@ async def chat(agent_id: str, request: Request):
                         result = await crm_list_followups(block.input.get("limit", 20))
                     elif block.name == "os_sms_outreach_stats":
                         result = await os_sms_outreach_stats()
+                    elif block.name == "os_dialer_disposition_breakdown":
+                        result = await os_dialer_disposition_breakdown()
+                    elif block.name == "os_dialer_recent_notes":
+                        result = await os_dialer_recent_notes(block.input.get("limit", 20))
                     else:
                         result = await asyncio.to_thread(
                             _execute_tool, agent, block.name, block.input
