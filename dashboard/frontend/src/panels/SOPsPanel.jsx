@@ -1060,14 +1060,28 @@ export default function SOPsPanel() {
     await fetchSOPs();
   };
 
+  // The three pinned pseudo-docs (Send Info / SMS Sequence / Appointment
+  // Reminders) used to always render in their own individually-labeled rows
+  // above the real-document list, never joining it — so even when a
+  // pseudo-doc's category was set to exactly match a real document's
+  // category, they'd still show as separate sections. Folding them into the
+  // same grouping as `sops` here is what actually makes matching categories
+  // combine into one section instead of just deduplicating near-identical
+  // spellings.
+  const pseudoItems = activeSection === "outreach_templates" ? [
+    { ...SEND_INFO_ITEM,        category: sendInfoCategory, icon: "☎" },
+    { ...SMS_SEQUENCE_ITEM,     category: seqCategory,      icon: "💬" },
+    { ...REMINDER_TEMPLATE_ITEM, category: remCategory,     icon: "📅" },
+  ] : [];
+
   // Group case/whitespace-insensitively (see catKey above) so pre-existing
   // near-duplicate category strings ("SMS Outreach" vs "sms outreach") still
   // render as one section instead of splitting the list.
-  const grouped = sops.reduce((acc, sop) => {
-    const cat = sop.category || "General";
+  const grouped = [...pseudoItems, ...sops].reduce((acc, item) => {
+    const cat = item.category || "General";
     const key = catKey(cat);
     if (!acc[key]) acc[key] = { label: cat.trim(), items: [] };
-    acc[key].items.push(sop);
+    acc[key].items.push(item);
     return acc;
   }, {});
 
@@ -1176,80 +1190,6 @@ export default function SOPsPanel() {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "0 0 12px" }}>
-          {activeSection === "outreach_templates" && (
-            <div>
-              <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                {sendInfoCategory}
-              </div>
-              <div
-                onClick={() => openSOP(SEND_INFO_ITEM)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "7px 16px", cursor: "pointer",
-                  background: selectedId === SEND_INFO_PSEUDO_ID ? "linear-gradient(90deg, rgba(40,87,160,0.35), rgba(58,123,213,0.2))" : "transparent",
-                  borderLeft: selectedId === SEND_INFO_PSEUDO_ID ? "2px solid #3a7bd5" : "2px solid transparent",
-                  transition: "background 0.15s",
-                }}
-                onMouseEnter={e => { if (selectedId !== SEND_INFO_PSEUDO_ID) e.currentTarget.style.background = "rgba(58,123,213,0.07)"; }}
-                onMouseLeave={e => { if (selectedId !== SEND_INFO_PSEUDO_ID) e.currentTarget.style.background = "transparent"; }}
-              >
-                <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>☎</span>
-                <span style={{
-                  flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
-                  color: selectedId === SEND_INFO_PSEUDO_ID ? "#e8f0ff" : "#7a9cc0",
-                  fontWeight: selectedId === SEND_INFO_PSEUDO_ID ? 600 : 400,
-                }}>{SEND_INFO_ITEM.title}</span>
-              </div>
-              <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                {seqCategory}
-              </div>
-              <div
-                onClick={() => openSOP(SMS_SEQUENCE_ITEM)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "7px 16px", cursor: "pointer",
-                  background: selectedId === SMS_SEQUENCE_PSEUDO_ID ? "linear-gradient(90deg, rgba(40,87,160,0.35), rgba(58,123,213,0.2))" : "transparent",
-                  borderLeft: selectedId === SMS_SEQUENCE_PSEUDO_ID ? "2px solid #3a7bd5" : "2px solid transparent",
-                  transition: "background 0.15s",
-                }}
-                onMouseEnter={e => { if (selectedId !== SMS_SEQUENCE_PSEUDO_ID) e.currentTarget.style.background = "rgba(58,123,213,0.07)"; }}
-                onMouseLeave={e => { if (selectedId !== SMS_SEQUENCE_PSEUDO_ID) e.currentTarget.style.background = "transparent"; }}
-              >
-                <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>💬</span>
-                <span style={{
-                  flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
-                  color: selectedId === SMS_SEQUENCE_PSEUDO_ID ? "#e8f0ff" : "#7a9cc0",
-                  fontWeight: selectedId === SMS_SEQUENCE_PSEUDO_ID ? 600 : 400,
-                }}>{SMS_SEQUENCE_ITEM.title}</span>
-              </div>
-              <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                {remCategory}
-              </div>
-              <div
-                onClick={() => openSOP(REMINDER_TEMPLATE_ITEM)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "7px 16px", cursor: "pointer",
-                  background: selectedId === REMINDER_TEMPLATE_PSEUDO_ID ? "linear-gradient(90deg, rgba(40,87,160,0.35), rgba(58,123,213,0.2))" : "transparent",
-                  borderLeft: selectedId === REMINDER_TEMPLATE_PSEUDO_ID ? "2px solid #3a7bd5" : "2px solid transparent",
-                  transition: "background 0.15s",
-                }}
-                onMouseEnter={e => { if (selectedId !== REMINDER_TEMPLATE_PSEUDO_ID) e.currentTarget.style.background = "rgba(58,123,213,0.07)"; }}
-                onMouseLeave={e => { if (selectedId !== REMINDER_TEMPLATE_PSEUDO_ID) e.currentTarget.style.background = "transparent"; }}
-              >
-                <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>📅</span>
-                <span style={{
-                  flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
-                  color: selectedId === REMINDER_TEMPLATE_PSEUDO_ID ? "#e8f0ff" : "#7a9cc0",
-                  fontWeight: selectedId === REMINDER_TEMPLATE_PSEUDO_ID ? 600 : 400,
-                }}>{REMINDER_TEMPLATE_ITEM.title}</span>
-              </div>
-              <div style={{ borderBottom: "1px solid rgba(58,123,213,0.1)", margin: "8px 0" }} />
-            </div>
-          )}
           {isNew && (
             <div style={{
               margin: "0 8px 8px",
@@ -1263,7 +1203,7 @@ export default function SOPsPanel() {
               + {section.newLabel}
             </div>
           )}
-          {Object.keys(grouped).length === 0 && !isNew && activeSection !== "outreach_templates" && (
+          {Object.keys(grouped).length === 0 && !isNew && (
             <div style={{ padding: "20px 16px", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a6a", textAlign: "center", letterSpacing: "0.1em" }}>
               NO {section.label.toUpperCase()} YET
             </div>
@@ -1273,12 +1213,13 @@ export default function SOPsPanel() {
               <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
                 {label}
               </div>
-              {items.map(sop => {
-                const isActive = selectedId === sop.id;
+              {items.map(item => {
+                const isPseudo = item.sendInfo || item.smsSequence || item.reminderTemplate;
+                const isActive = selectedId === item.id;
                 return (
                   <div
-                    key={sop.id}
-                    onClick={() => openSOP(sop)}
+                    key={item.id}
+                    onClick={() => openSOP(item)}
                     style={{
                       display: "flex", alignItems: "center", gap: 6,
                       padding: "7px 16px", cursor: "pointer",
@@ -1289,27 +1230,31 @@ export default function SOPsPanel() {
                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(58,123,213,0.07)"; }}
                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                   >
-                    {sop.file_name
-                      ? <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>{/^audio|^video/.test(sop.file_type || "") ? "🎙" : "📎"}</span>
-                      : <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: sop.visibility === "public" ? "#34d399" : "#6ab0ff", opacity: 0.8 }} />
+                    {isPseudo
+                      ? <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>{item.icon}</span>
+                      : item.file_name
+                        ? <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>{/^audio|^video/.test(item.file_type || "") ? "🎙" : "📎"}</span>
+                        : <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: item.visibility === "public" ? "#34d399" : "#6ab0ff", opacity: 0.8 }} />
                     }
                     <span style={{
                       flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
                       color: isActive ? "#e8f0ff" : "#7a9cc0",
                       fontWeight: isActive ? 600 : 400,
-                    }}>{sop.title}</span>
-                    <button
-                      onClick={e => deleteSOP(sop, e)}
-                      title="Delete"
-                      style={{
-                        background: "none", border: "none", cursor: "pointer",
-                        color: "#dc3c3c", fontSize: 14, lineHeight: 1, padding: 0,
-                        flexShrink: 0, opacity: 0, transition: "opacity 0.15s",
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.opacity = "1"}
-                      onMouseLeave={e => e.currentTarget.style.opacity = "0"}
-                    >×</button>
+                    }}>{item.title}</span>
+                    {!isPseudo && (
+                      <button
+                        onClick={e => deleteSOP(item, e)}
+                        title="Delete"
+                        style={{
+                          background: "none", border: "none", cursor: "pointer",
+                          color: "#dc3c3c", fontSize: 14, lineHeight: 1, padding: 0,
+                          flexShrink: 0, opacity: 0, transition: "opacity 0.15s",
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.opacity = "1"}
+                        onMouseLeave={e => e.currentTarget.style.opacity = "0"}
+                      >×</button>
+                    )}
                   </div>
                 );
               })}
