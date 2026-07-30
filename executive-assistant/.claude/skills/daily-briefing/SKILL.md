@@ -17,7 +17,7 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 5. Pulls this week's sales numbers (shows, closes, discovery calls, revenue) from the Sales Performance Tracker
 6. Reads last night's Daily Reflection doc and grounds today's time suggestions in the goals/priorities Dylan wrote down
 7. Suggests how to use free time blocks based on the day's schedule and current priorities
-8. Drafts the newsletter on Monday/Friday and the blog post on Mondays (shared topic/research on Mondays), submitting both for Dylan's approval, and surfaces anything the weekly cleanup job flagged for review on Mondays
+8. Drafts the newsletter on Monday/Friday and the blog post on Wednesdays (each submitted for Dylan's approval), and surfaces anything the weekly cleanup job flagged for review on Mondays
 9. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
 
 ---
@@ -193,14 +193,12 @@ Run the newsletter draft on these two days: use the `manage-apptset-agent` skill
 
 **Capture the full final output verbatim** into this brief's `## Newsletter Preview` section (see Step 5's file format) — subject, recipient count, topic, and the note that the PDF preview and Approve/Decline card will arrive as a separate chat message shortly. The newsletter skill no longer produces inline `[[PDF:...]]`/`[[APPROVAL:...]]` markers — this sandbox can't reach Railway directly, so the skill drops a request file for a Railway-side relay job to pick up instead (see `apptset-agent/.claude/skills/newsletter/SKILL.md` Step 6), and that job posts the card as its own chat message once it runs (~6:40am ET daily).
 
-### Step 4.6 — Weekly Blog Post (Mondays only)
+### Step 4.6 — Weekly Blog Post (Wednesdays only)
 
-Skip this step if today is not Monday. **This stays Monday-only even though Step 4.5 now also runs
-Friday** — the blog is deliberately weekly; don't extend it to match the newsletter's
-cadence without Dylan explicitly asking. Run this after Step 4.5 (it depends on the research cache
-that step just wrote).
+Skip this step if today is not Wednesday. The blog runs on its own weekly cadence, separate from the
+newsletter's Monday/Friday schedule (Step 4.5) — don't couple the two without Dylan explicitly asking.
 
-If today is Monday: delegate to `content-agent`'s `weekly-ai-blog` skill (`content-agent/.claude/skills/weekly-ai-blog/SKILL.md`) to write and submit this week's blog post for approval. It reads `apptset-agent/weekly_research_cache.json` from Step 4.5 so both pieces of content share the same research.
+If today is Wednesday: delegate to `content-agent`'s `weekly-ai-blog` skill (`content-agent/.claude/skills/weekly-ai-blog/SKILL.md`) to write and submit this week's blog post for approval. It checks `apptset-agent/weekly_research_cache.json` for a same-day cache first, but since Step 4.5 doesn't run on Wednesdays, that cache is stale most weeks — the skill's own fallback (pick a topic, run one web search) is the normal path now, not the exception.
 
 **Capture the full final output verbatim** into the `## Blog Post Preview` section — title, slug, summary, and the note that the Approve/Decline card will arrive as a separate chat message shortly once Railway's relay job picks up the request (same async pattern as Step 4.5, no inline marker to preserve).
 
@@ -257,13 +255,13 @@ Formatting rules that apply throughout:
 
 [Step 4 output]
 
-[MONDAY, WEDNESDAY, OR FRIDAY ONLY — include this section; omit entirely on all other days]
+[MONDAY OR FRIDAY ONLY — include this section; omit entirely on all other days]
 
 ## Newsletter Preview
 
 [Step 4.5 output — subject, recipient count, topic, and the note that the PDF preview and Approve/Decline card will appear as a separate chat message shortly. No marker lines to preserve here — approval creation is async now (see Step 4.5).]
 
-[MONDAY ONLY — include this section; omit entirely on all other days]
+[WEDNESDAY ONLY — include this section; omit entirely on all other days]
 
 ## Blog Post Preview
 
@@ -293,4 +291,4 @@ Formatting rules that apply throughout:
 - **File write fails:** Retry once. If it fails again, deliver as chat only — do not loop.
 - **Weekend:** Run the full briefing. Dylan works weekends.
 - **No weekly-cleanup report found (Monday only):** Skip Step 4.7 and the Pending Cleanup Approvals section entirely — do not treat this as an error.
-- **`weekly_research_cache.json` missing after Step 4.5 (Monday, since Step 4.6 only runs Mondays):** Step 4.6 falls back to its own topic pick + single search per `weekly-ai-blog/SKILL.md` — don't treat this as an error, still include the Blog Post Preview section.
+- **`weekly_research_cache.json` stale or missing on Wednesday (the normal case now, since Step 4.5 only writes it Monday/Friday):** Step 4.6 falls back to its own topic pick + single search per `weekly-ai-blog/SKILL.md` — don't treat this as an error, still include the Blog Post Preview section.

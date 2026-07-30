@@ -246,7 +246,7 @@ async def _process_pending_approvals_job() -> None:
     same can't-reach-Railway-directly reason as _fetch_report_from_github above)
     and turns them into real pending_approvals rows + agent_chats messages.
     Runs daily; no-ops harmlessly on days no draft was written (newsletter is
-    Mon/Wed/Fri only, blog is Mondays only)."""
+    Mon/Fri only, blog is Wednesdays only)."""
     try:
         result = await process_pending_approvals()
         print(f"[cron] {result}", flush=True)

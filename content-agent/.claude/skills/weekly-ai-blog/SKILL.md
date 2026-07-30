@@ -1,25 +1,29 @@
 # Weekly AI Blog Skill
 
 Writes DigiGrowth's weekly blog post — how AI helps independent service-based businesses win more
-clients — for digigrowthllc.com's `/blog`. Value-first, not sales-y. Shares the same weekly topic
-and research as the newsletter (`apptset-agent/.claude/skills/newsletter/SKILL.md`) so the two
-pieces of content don't duplicate research effort.
+clients — for digigrowthllc.com's `/blog`. Value-first, not sales-y. Can share a weekly topic and
+research with the newsletter (`apptset-agent/.claude/skills/newsletter/SKILL.md`) when their
+schedules happen to overlap, so the two pieces of content don't duplicate research effort — but
+since the blog runs Wednesdays and the newsletter runs Monday/Friday, that overlap is rare; most
+weeks this skill runs its own research.
 
 ---
 
 ## Trigger
 
-Delegated by the daily-briefing skill's Monday Step 4.6, after the newsletter step (4.5) has
-already run. Can also be triggered manually ("write this week's blog post").
+Delegated by the daily-briefing skill's Wednesday Step 4.6. Can also be triggered manually ("write
+this week's blog post").
 
 ---
 
 ## Before Writing
 
-1. **Read `apptset-agent/weekly_research_cache.json`** for this week's topic and findings (written
-   by the newsletter skill's Step 1.5, moments earlier in the same Monday run). Use this topic and
-   findings — do not run a second web search when this file is fresh (today's date).
-   - **Standalone/manual run fallback**: if the cache file is missing or stale (not today's date),
+1. **Read `apptset-agent/weekly_research_cache.json`** for this week's topic and findings, in case
+   the newsletter skill's Step 1.5 wrote it earlier today. Use this topic and findings — do not run
+   a second web search — only when the file is fresh (today's date). In practice this is rare now
+   (newsletter runs Monday/Friday, this skill runs Wednesday), so the fallback below is the normal
+   path, not an edge case.
+   - **Fallback (the normal case now)**: if the cache file is missing or stale (not today's date),
      pick the next topic from the newsletter skill's Topic Rotation List that doesn't match
      `content-agent/memory.md`'s "SEO Content" log, then run one web search yourself before writing.
 2. Check `context/brand.md` for the target client (independent service-based businesses broadly,

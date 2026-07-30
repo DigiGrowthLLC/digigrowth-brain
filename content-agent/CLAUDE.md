@@ -46,7 +46,7 @@ Skills live in `.claude/skills/`. Load the relevant skill for the task:
 - `email-sequence` — cold outreach and nurture email sequences
 - `social-post` — platform-specific social posts (LinkedIn, Instagram, X)
 - `seo-blog` — long-form SEO blog/authority articles targeting the keyword pillars in `context/seo-keywords.md`, feeding digigrowthllc.com's `/blog`
-- `weekly-ai-blog` — the recurring Monday post (AI for service-based businesses), sharing its topic/research with the newsletter, submitted for Dylan's approval before publishing
+- `weekly-ai-blog` — the recurring Wednesday post (AI for service-based businesses), sometimes sharing its topic/research with the newsletter when schedules overlap, submitted for Dylan's approval before publishing
 
 ## Secrets
 

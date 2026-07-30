@@ -14,10 +14,10 @@ sending mailbox's domain reputation. See "Delivery" below.
 ## What This Skill Does
 
 1. Picks this week's topic from a rotating list of AI client acquisition tips for independent service-based businesses
-2. Runs one web search on that topic and caches the findings (`weekly_research_cache.json`) — shared with `content-agent`'s `weekly-ai-blog` skill so both pieces of content are grounded in the same research without a second search
+2. Runs one web search on that topic and caches the findings (`weekly_research_cache.json`) — `content-agent`'s `weekly-ai-blog` skill reads this cache when it's fresh (same day), saving a second search. Since the blog now runs Wednesdays and this runs Monday/Friday, that overlap is rare — the blog does its own research most weeks now
 3. Generates a personalized email draft (uses `{{first_name}}` and `{{business_name}}` placeholders)
 4. Saves the draft to `newsletter_draft.json` for the Python send script
-5. Renders the draft as a PDF and posts it inline in the OS chat, linked from Monday's daily brief
+5. Renders the draft as a PDF and posts it inline in the OS chat, linked from that day's daily brief
 6. Submits the draft for approval via the dashboard's approvals API, so Dylan gets a live Approve/Decline control in chat
 7. On Approve: the backend queues one personalized email per newsletter-flagged contact and sends them gradually (~25/day, small batches through the day) via Gmail API — see "Delivery" below. `newsletter.py` is legacy and unused; ignore it.
 
@@ -62,7 +62,7 @@ Save the findings to `apptset-agent/weekly_research_cache.json`:
   "sources": ["https://...", "..."]
 }
 ```
-Overwrite any existing file — always use this week's fresh research. `content-agent`'s `weekly-ai-blog` skill reads this same file so the blog post covers the same ground without a second search — one search, two pieces of content.
+Overwrite any existing file — always use this week's fresh research. `content-agent`'s `weekly-ai-blog` skill reads this same file when it's still fresh (same-day) — since the blog now runs Wednesdays, that only lines up if this happens to be a Wednesday run; otherwise the blog does its own research.
 
 If the search turns up nothing useful for this topic, write `findings: []` and continue — Step 3 falls back to writing from general knowledge for this week only.
 
