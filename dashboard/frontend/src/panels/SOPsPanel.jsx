@@ -277,6 +277,37 @@ function FormatBar({ editor }) {
   );
 }
 
+// Category names are user-typed free text (see CategoryPicker's "+ New
+// category…" custom-entry mode below), so "SMS Outreach" and "sms outreach "
+// are trivially easy to end up as two different stored strings even though
+// they were meant to be the same category. Every place that lists, groups,
+// or matches categories needs to treat them as the same case/whitespace-
+// insensitively, or documents silently split into look-alike duplicate
+// categories. `catKey` is the comparison key; `dedupeCategories` collapses a
+// list to one entry per key, keeping whichever original casing was seen
+// first as the canonical display form.
+const catKey = (c) => (c || "").trim().toLowerCase();
+
+function dedupeCategories(list) {
+  const seen = new Map();
+  for (const c of list) {
+    if (!c) continue;
+    const key = catKey(c);
+    if (key && !seen.has(key)) seen.set(key, c.trim());
+  }
+  return [...seen.values()];
+}
+
+// When a user finishes typing a custom category, snap it to an existing
+// category's canonical casing if one matches case/whitespace-insensitively —
+// this is what actually prevents new near-duplicates from being created,
+// rather than just hiding duplicates that already exist.
+function resolveCategory(typed, existingCategories) {
+  const trimmed = (typed || "").trim();
+  const match = existingCategories.find(c => catKey(c) === catKey(trimmed));
+  return match || trimmed;
+}
+
 const SUBSECTIONS = [
   { id: "sop",                label: "SOPs",               subtitle: "STANDARD OPERATING PROCEDURES", newLabel: "New SOP",      placeholder: "SOP title..." },
   { id: "business_doc",       label: "Business Documents",  subtitle: "CONTRACTS · PROPOSALS · DOCS",  newLabel: "New Document", placeholder: "Document title..." },
@@ -318,7 +349,7 @@ function CategoryPicker({ categories, category, setCategory, customCatMode, setC
         placeholder="Category name"
         autoFocus
         onBlur={() => { if (!category.trim()) { setCustomCatMode(false); setCategory(categories[0] || "General"); } }}
-        onKeyDown={e => { if (e.key === "Enter") { setCustomCatMode(false); onCommit?.(); } }}
+        onKeyDown={e => { if (e.key === "Enter") { setCategory(resolveCategory(category, categories)); setCustomCatMode(false); onCommit?.(); } }}
         style={{
           width: 130, background: "rgba(255,255,255,0.04)",
           border: "1px solid rgba(58,123,213,0.3)", borderRadius: 6,
@@ -347,7 +378,7 @@ function CategoryPicker({ categories, category, setCategory, customCatMode, setC
         cursor: "pointer", flexShrink: 0,
       }}
     >
-      {[...new Set([...categories, ...(category ? [category] : [])])].map(c => (
+      {dedupeCategories([...categories, category]).map(c => (
         <option key={c} value={c} style={{ background: "#0d1a3a" }}>{c}</option>
       ))}
       <option value="__new__" style={{ background: "#0d1a3a" }}>+ New category…</option>
@@ -917,10 +948,10 @@ export default function SOPsPanel() {
   // invisible to every other picker in this section (including the other two
   // pseudo-docs and the regular document editor), making it look like categories
   // silently fail to save.
-  const categories = [...new Set([
+  const categories = dedupeCategories([
     ...sops.map(s => s.category || "General"),
     ...(activeSection === "outreach_templates" ? [sendInfoCategory, seqCategory, remCategory] : []),
-  ].filter(Boolean))];
+  ]);
 
   const setContent = (html) => {
     suppressNextUpdate.current = true;
@@ -1029,9 +1060,14 @@ export default function SOPsPanel() {
     await fetchSOPs();
   };
 
+  // Group case/whitespace-insensitively (see catKey above) so pre-existing
+  // near-duplicate category strings ("SMS Outreach" vs "sms outreach") still
+  // render as one section instead of splitting the list.
   const grouped = sops.reduce((acc, sop) => {
     const cat = sop.category || "General";
-    (acc[cat] = acc[cat] || []).push(sop);
+    const key = catKey(cat);
+    if (!acc[key]) acc[key] = { label: cat.trim(), items: [] };
+    acc[key].items.push(sop);
     return acc;
   }, {});
 
@@ -1232,10 +1268,10 @@ export default function SOPsPanel() {
               NO {section.label.toUpperCase()} YET
             </div>
           )}
-          {Object.entries(grouped).map(([cat, items]) => (
-            <div key={cat}>
+          {Object.entries(grouped).map(([key, { label, items }]) => (
+            <div key={key}>
               <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                {cat}
+                {label}
               </div>
               {items.map(sop => {
                 const isActive = selectedId === sop.id;
@@ -1374,7 +1410,7 @@ export default function SOPsPanel() {
                     placeholder="Category name"
                     autoFocus
                     onBlur={() => { if (!category.trim()) { setCustomCatMode(false); setCategory(categories[0] || "General"); } }}
-                    onKeyDown={e => { if (e.key === "Enter") { setCustomCatMode(false); setDirty(true); } }}
+                    onKeyDown={e => { if (e.key === "Enter") { setCategory(resolveCategory(category, categories)); setCustomCatMode(false); setDirty(true); } }}
                     style={{
                       width: 130, background: "rgba(255,255,255,0.04)",
                       border: "1px solid rgba(58,123,213,0.3)", borderRadius: 6,
@@ -1402,7 +1438,7 @@ export default function SOPsPanel() {
                       cursor: "pointer",
                     }}
                   >
-                    {[...new Set([...categories, ...(category ? [category] : [])])].map(c => (
+                    {dedupeCategories([...categories, category]).map(c => (
                       <option key={c} value={c} style={{ background: "#0d1a3a" }}>{c}</option>
                     ))}
                     <option value="__new__" style={{ background: "#0d1a3a" }}>+ New category…</option>
