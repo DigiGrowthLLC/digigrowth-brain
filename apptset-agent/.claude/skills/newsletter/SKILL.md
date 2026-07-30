@@ -1,9 +1,9 @@
 # Newsletter
 
-Generates DigiGrowth's AI-tip email for contacts flagged `newsletter` in the DigiGrowth OS CRM. Draft runs Monday, Wednesday, and Friday as part of the morning briefing.
+Generates DigiGrowth's AI-tip email for contacts flagged `newsletter` in the DigiGrowth OS CRM. Draft runs Monday and Friday as part of the morning briefing.
 
 **Run manually:** Ask the EA to "draft the newsletter." The EA delegates here via `manage-apptset-agent`.
-**Scheduled (draft):** Runs automatically Monday/Wednesday/Friday as part of the daily briefing (Step 4.5). Each day picks its own topic from the rotation — not the same draft three times.
+**Scheduled (draft):** Runs automatically Monday/Friday as part of the daily briefing (Step 4.5). Each day picks its own topic from the rotation — not the same draft twice.
 **Sending is live**, via Gmail API (`dylanrg@digigrowthllc.com`) — not a single blast. Approving the
 draft queues one personalized email per newsletter-flagged contact, and a scheduled backend job
 sends them gradually (~25/day cap, small batches every ~25 min during business hours) to protect the
@@ -130,15 +130,14 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 
 **Tone:** Direct, friendly, trusted expert who knows AI and service-based business marketing. No hype. No buzzwords. Under 90 seconds to read.
 
-**On cadence:** drafts Monday/Wednesday/Friday (Dylan's explicit choice, matching general email-
-marketing guidance of 3+ sends/week). Each day is its own topic pick from the rotation, not a
-repeat. This does **not** change per-contact send frequency by fiat — every draft still goes through
-its own approval (Approve/Decline), so nothing sends without Dylan reviewing it each time. The
-throttled delivery mechanism (`process_newsletter_queue()`, ~25/day cap) still governs actual
-sending regardless of how many drafts get approved in a week — it doesn't need to change for this.
-If the contact list grows large, 3x/week approvals means 3x the monthly volume per contact — worth
-keeping an eye on engagement (see Tracking below) as the list grows, since that's the tradeoff of
-higher frequency.
+**On cadence:** drafts Monday/Friday (Dylan's explicit choice). Each day is its own topic pick from
+the rotation, not a repeat. This does **not** change per-contact send frequency by fiat — every
+draft still goes through its own approval (Approve/Decline), so nothing sends without Dylan
+reviewing it each time. The throttled delivery mechanism (`process_newsletter_queue()`, ~25/day cap)
+still governs actual sending regardless of how many drafts get approved in a week — it doesn't need
+to change for this. If the contact list grows large, 2x/week approvals means 2x the monthly volume
+per contact — worth keeping an eye on engagement (see Tracking below) as the list grows, since
+that's the tradeoff of higher frequency.
 
 ### Step 4 — Save draft
 

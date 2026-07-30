@@ -17,7 +17,7 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 5. Pulls this week's sales numbers (shows, closes, discovery calls, revenue) from the Sales Performance Tracker
 6. Reads last night's Daily Reflection doc and grounds today's time suggestions in the goals/priorities Dylan wrote down
 7. Suggests how to use free time blocks based on the day's schedule and current priorities
-8. Drafts the newsletter on Monday/Wednesday/Friday and the blog post on Mondays (shared topic/research on Mondays), submitting both for Dylan's approval, and surfaces anything the weekly cleanup job flagged for review on Mondays
+8. Drafts the newsletter on Monday/Friday and the blog post on Mondays (shared topic/research on Mondays), submitting both for Dylan's approval, and surfaces anything the weekly cleanup job flagged for review on Mondays
 9. Saves the briefing to `reports/` and delivers the full briefing as a formatted markdown message in the OS chat window
 
 ---
@@ -185,18 +185,18 @@ Examples:
 - "Full day available. Options: cold calls, Loom outreach, or follow-up on open leads."
 - "Meetings until 3 PM. 3–5 PM is open — one option is follow-up calls."
 
-### Step 4.5 — Newsletter Draft (Monday, Wednesday, Friday)
+### Step 4.5 — Newsletter Draft (Monday, Friday)
 
-Skip this step unless today is Monday, Wednesday, or Friday.
+Skip this step unless today is Monday or Friday.
 
-Run the newsletter draft on these three days: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the Draft Mode steps in `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md` — this now includes a research step that writes `apptset-agent/weekly_research_cache.json`, and ends by submitting the draft for approval (not just previewing it). Each of the three days picks its own topic from the rotation (Step 1 of the newsletter skill) — they are not the same draft repeated.
+Run the newsletter draft on these two days: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the Draft Mode steps in `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md` — this now includes a research step that writes `apptset-agent/weekly_research_cache.json`, and ends by submitting the draft for approval (not just previewing it). Each of the two days picks its own topic from the rotation (Step 1 of the newsletter skill) — they are not the same draft repeated.
 
 **Capture the full final output verbatim** into this brief's `## Newsletter Preview` section (see Step 5's file format) — subject, recipient count, topic, and the note that the PDF preview and Approve/Decline card will arrive as a separate chat message shortly. The newsletter skill no longer produces inline `[[PDF:...]]`/`[[APPROVAL:...]]` markers — this sandbox can't reach Railway directly, so the skill drops a request file for a Railway-side relay job to pick up instead (see `apptset-agent/.claude/skills/newsletter/SKILL.md` Step 6), and that job posts the card as its own chat message once it runs (~6:40am ET daily).
 
 ### Step 4.6 — Weekly Blog Post (Mondays only)
 
 Skip this step if today is not Monday. **This stays Monday-only even though Step 4.5 now also runs
-Wednesday and Friday** — the blog is deliberately weekly; don't extend it to match the newsletter's
+Friday** — the blog is deliberately weekly; don't extend it to match the newsletter's
 cadence without Dylan explicitly asking. Run this after Step 4.5 (it depends on the research cache
 that step just wrote).
 
