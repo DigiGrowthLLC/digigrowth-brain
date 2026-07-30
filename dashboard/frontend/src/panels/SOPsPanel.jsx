@@ -911,7 +911,16 @@ export default function SOPsPanel() {
     setContent("");
   }, [activeSection]);
 
-  const categories = [...new Set(sops.map(s => s.category || "General").filter(Boolean))];
+  // Categories assigned only to the pinned Send Info / SMS Sequence / Appointment
+  // Reminders pseudo-docs live in dialer_settings, not the `sops` table — without
+  // folding them in here, a category created on one of those pseudo-docs would be
+  // invisible to every other picker in this section (including the other two
+  // pseudo-docs and the regular document editor), making it look like categories
+  // silently fail to save.
+  const categories = [...new Set([
+    ...sops.map(s => s.category || "General"),
+    ...(activeSection === "outreach_templates" ? [sendInfoCategory, seqCategory, remCategory] : []),
+  ].filter(Boolean))];
 
   const setContent = (html) => {
     suppressNextUpdate.current = true;
