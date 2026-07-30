@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 from zoneinfo import ZoneInfo
 
 from db import get_pool
+from merge_fields import first_name_from_owner
 from routers import sms as sms_router
 import integrations
 
@@ -91,7 +92,7 @@ def _format_local(appointment_at: datetime, tz_name: str) -> str:
 
 
 def _fill(template: str, row: dict) -> str:
-    first_name = (row.get("prospect_name") or "").split()[0] if row.get("prospect_name") else "there"
+    first_name = first_name_from_owner(row.get("prospect_name"))
     when = _format_local(row["appointment_at"], row["prospect_timezone"])
     return template.replace("{first_name}", first_name).replace("{when}", when)
 

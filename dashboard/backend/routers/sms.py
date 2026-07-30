@@ -22,7 +22,7 @@ from fastapi import APIRouter, Request, Response
 from twilio.rest import Client as TwilioClient
 
 from db import get_pool
-from merge_fields import apply_merge_fields
+from merge_fields import apply_merge_fields, first_name_from_owner
 
 router         = APIRouter()   # authenticated API routes
 webhook_router = APIRouter()  # public Twilio webhook
@@ -192,7 +192,7 @@ async def send_opening_message(contact: dict) -> bool:
     if not phone:
         return False
 
-    first_name = (contact.get("owner") or "").split()[0] if contact.get("owner") else "there"
+    first_name = first_name_from_owner(contact.get("owner"))
     body = OPENING_MESSAGE.format(first_name=first_name)
 
     pool = await get_pool()
@@ -220,7 +220,7 @@ async def send_info_message(contact: dict) -> bool:
     if not phone:
         return False
 
-    first_name = (contact.get("owner") or "").split()[0] if contact.get("owner") else "there"
+    first_name = first_name_from_owner(contact.get("owner"))
 
     pool = await get_pool()
     async with pool.acquire() as conn:

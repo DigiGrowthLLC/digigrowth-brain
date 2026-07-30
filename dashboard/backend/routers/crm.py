@@ -1,3 +1,4 @@
+import re
 import uuid
 from typing import Optional
 
@@ -9,6 +10,27 @@ from routers import sms as sms_router
 router = APIRouter()
 
 HANDOFF_STATUS = "sms-handoff"
+NEWSLETTER_TAG = "Newsletter"
+NEWSLETTER_TAG_DISPOSITIONS = {"Follow Up 30 Day", "Follow Up 90 Day"}
+
+
+def _same_business(a: Optional[str], b: Optional[str]) -> bool:
+    """Loose match on business name, ignoring case/punctuation — different
+    scrapes of the same lead often vary in formatting (e.g. "Flourish
+    Physical Therapy LLC" vs "Flourish Physical Therapy"), so containment
+    counts as a match, not just exact equality. An empty name on either side
+    is treated as "no conflict" (can't tell), not a match. Short names (<4
+    normalized chars) skip the containment check so e.g. "PT" doesn't
+    trivially match everything."""
+    na = re.sub(r"[^a-z0-9]", "", (a or "").lower())
+    nb = re.sub(r"[^a-z0-9]", "", (b or "").lower())
+    if not na or not nb:
+        return True
+    if na == nb:
+        return True
+    if len(na) >= 4 and len(nb) >= 4 and (na in nb or nb in na):
+        return True
+    return False
 
 
 async def _fire_handoff(contact: dict):
@@ -273,6 +295,20 @@ async def log_disposition(contact_id: str, body: DispositionUpdate):
                 """,
                 contact_id, new_status, body.disposition,
             )
+            # Follow Up 30/90 Day: opt the prospect into the newsletter.
+            # Appointment Booked (once it lands them in appointment-booked
+            # status): opt them back out — they're through the funnel.
+            if body.disposition in NEWSLETTER_TAG_DISPOSITIONS:
+                await conn.execute(
+                    "UPDATE contacts SET tags = array_append(tags, $2) "
+                    "WHERE id = $1 AND NOT ($2 = ANY(tags))",
+                    contact_id, NEWSLETTER_TAG,
+                )
+            elif body.disposition == "Appointment Booked" and new_status == "appointment-booked":
+                await conn.execute(
+                    "UPDATE contacts SET tags = array_remove(tags, $2) WHERE id = $1",
+                    contact_id, NEWSLETTER_TAG,
+                )
 
     if new_status == HANDOFF_STATUS:
         await _fire_handoff(dict(contact))
@@ -295,7 +331,22 @@ async def get_call_history(contact_id: str):
 async def create_contact(body: Contact):
     pool = await get_pool()
     contact_id = body.id or str(uuid.uuid4())
+    incoming_business = (body.business or "").strip() or None
     async with pool.acquire() as conn:
+        # Two genuinely different businesses can share a phone number (a
+        # franchise/shared front-desk line is the common case — see MovementX,
+        # a multi-location PT brand). contacts.phone is UNIQUE, so without
+        # this check a second lead's push would silently overwrite the first
+        # lead's business/owner via ON CONFLICT — including after that first
+        # lead already got a personalized SMS sent under its own name. Never
+        # clobber a different business's identity; keep whichever lead is
+        # already on record.
+        existing = await conn.fetchrow("SELECT * FROM contacts WHERE phone = $1", body.phone)
+        if existing and not _same_business(existing["business"], incoming_business):
+            print(f"[contacts] phone conflict on {body.phone}: keeping "
+                  f"'{existing['business']}', skipping incoming '{incoming_business}'", flush=True)
+            return dict(existing)
+
         row = await conn.fetchrow(
             """
             INSERT INTO contacts
@@ -312,7 +363,7 @@ async def create_contact(body: Contact):
             RETURNING *, (xmax = 0) AS was_inserted
             """,
             contact_id,
-            (body.business or "").strip() or None,
+            incoming_business,
             (body.owner or "").strip() or None,
             body.phone,
             (body.email or "").strip() or None,
@@ -352,6 +403,18 @@ async def import_contacts(body: dict):
             if not phone:
                 skipped += 1
                 continue
+            incoming_business = (c.get("business") or "").strip() or None
+
+            # Same phone-collision guard as create_contact() — don't let a
+            # different business silently overwrite an existing lead's
+            # identity via ON CONFLICT just because they share a phone number.
+            existing = await conn.fetchrow("SELECT business FROM contacts WHERE phone = $1", phone)
+            if existing and not _same_business(existing["business"], incoming_business):
+                print(f"[contacts/import] phone conflict on {phone}: keeping "
+                      f"'{existing['business']}', skipping incoming '{incoming_business}'", flush=True)
+                skipped += 1
+                continue
+
             contact_id = str(uuid.uuid4())
             row_status = default_status or (c.get("status") or "new").strip() or "new"
             result = await conn.fetchrow(
@@ -371,7 +434,7 @@ async def import_contacts(body: dict):
                 RETURNING id, (xmax = 0) AS was_inserted
                 """,
                 contact_id,
-                (c.get("business") or "").strip() or None,
+                incoming_business,
                 (c.get("owner") or "").strip() or None,
                 phone,
                 (c.get("email") or "").strip() or None,

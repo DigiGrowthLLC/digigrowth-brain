@@ -22,6 +22,7 @@ from email.mime.text import MIMEText
 import httpx
 
 from db import get_pool
+from merge_fields import first_name_from_owner
 
 _MISSING_GOOGLE = (
     "Google not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, "
@@ -449,7 +450,7 @@ async def send_info_email(to: str, owner: str | None, business: str | None) -> s
     Subject/body are editable from Business Resources → Outreach Templates
     (stored in dialer_settings); falls back to the defaults below if never saved.
     """
-    first_name = (owner or "").split()[0] if owner else "there"
+    first_name = first_name_from_owner(owner)
 
     pool = await get_pool()
     async with pool.acquire() as conn:

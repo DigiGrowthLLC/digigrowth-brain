@@ -3,6 +3,21 @@ import re
 _BRACE_TOKEN_RE = re.compile(r"\{\{(\w+)\}\}")
 _BRACKET_TOKEN_RE = re.compile(r"\[([^\[\]]+)\]")
 
+_TITLE_RE = re.compile(r"^(dr|mr|mrs|ms|miss|prof|professor|rev|sir|dame|capt|coach)\.?$", re.I)
+
+
+def first_name_from_owner(owner: str | None) -> str:
+    """First name for greetings — skips a leading title (Dr., Mr., Mrs., ...)
+    so "Dr. Jaci" resolves to "Jaci", not "Dr.". A bare title with nothing
+    after it (owner == "Dr.") falls back to itself, and a missing owner
+    falls back to "there"."""
+    parts = (owner or "").split()
+    if not parts:
+        return "there"
+    if len(parts) > 1 and _TITLE_RE.match(parts[0]):
+        return parts[1]
+    return parts[0]
+
 # Maps a normalized token (lowercased, whitespace-collapsed) to a merge-value
 # key. Supports both {{double-brace}} tokens and [Square Bracket] tokens
 # (the latter matching how the user already writes scripts elsewhere) —
@@ -26,7 +41,7 @@ def apply_merge_fields(text: str, contact: dict | None) -> str:
     systems never collide inside the same string."""
     contact = contact or {}
     owner = (contact.get("owner") or "").strip()
-    first_name = owner.split()[0] if owner else "there"
+    first_name = first_name_from_owner(owner)
 
     values = {
         "name": first_name,
