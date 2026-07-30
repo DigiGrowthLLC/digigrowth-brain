@@ -882,6 +882,25 @@ export default function SOPsPanel() {
 
   useEffect(() => { fetchSOPs(); }, [fetchSOPs]);
 
+  // The sidebar labels above the pinned Send Info / SMS Sequence / Appointment
+  // Reminders items normally only pick up their saved category once the user
+  // opens that specific item (each editor fetches its own category on mount).
+  // Fetch all three eagerly here so the labels are correct on first load
+  // instead of showing "General" until clicked.
+  useEffect(() => {
+    if (activeSection !== "outreach_templates") return;
+    (async () => {
+      const [infoR, seqR, remR] = await Promise.all([
+        fetch("/api/dialer/info-template"),
+        fetch("/api/dialer/sequence-template"),
+        fetch("/api/dialer/reminder-template"),
+      ]);
+      if (infoR.ok) setSendInfoCategory((await infoR.json()).category || "General");
+      if (seqR.ok) setSeqCategory((await seqR.json()).category || "General");
+      if (remR.ok) setRemCategory((await remR.json()).category || "General");
+    })();
+  }, [activeSection]);
+
   useEffect(() => {
     setSelectedId(null);
     setSelectedItem(null);
