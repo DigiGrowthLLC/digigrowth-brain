@@ -243,6 +243,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recurring_id INTEGER REFERENCES recurring_transactions(id) ON DELETE SET NULL;
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS due_date DATE;
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS recurrence TEXT;
+            ALTER TABLE todos ADD COLUMN IF NOT EXISTS description TEXT;
             ALTER TABLE sops ADD COLUMN IF NOT EXISTS doc_type TEXT NOT NULL DEFAULT 'sop';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS follow_up_at TIMESTAMPTZ;

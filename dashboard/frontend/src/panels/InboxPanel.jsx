@@ -235,6 +235,7 @@ export default function InboxPanel({ initialTarget }) {
   const [timeFilter, setTimeFilter]       = useState("all");
   const [tagFilter, setTagFilter]         = useState(null);
   const [statusFilter, setStatusFilter]   = useState(null);
+  const [readFilter, setReadFilter]       = useState("all"); // "all" | "unread" | "read"
 
   const bottomRef = useRef(null);
   const autoOpenedRef = useRef(false);
@@ -300,6 +301,7 @@ export default function InboxPanel({ initialTarget }) {
     setReplySubject("");
     setAppliedStage(null);
     setAppliedStageLabel(null);
+    setConvos(prev => prev.map(c => c.contact_id === contactId ? { ...c, unread: false } : c));
     await refreshThread(contactId);
   };
 
@@ -424,6 +426,13 @@ export default function InboxPanel({ initialTarget }) {
     setDeleting(false);
   };
 
+  const unreadCount = convos.filter(c => c.unread).length;
+  const filteredConvos = convos.filter(c => {
+    if (readFilter === "unread") return !!c.unread;
+    if (readFilter === "read") return !c.unread;
+    return true;
+  });
+
   const selectStyle = {
     fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
     background: "#0d1626", color: "#c4d0e8", border: "1px solid #1a2540",
@@ -474,7 +483,7 @@ export default function InboxPanel({ initialTarget }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80" }}>
-              {convos.length} THREADS
+              {filteredConvos.length} THREADS
             </div>
             <button
               onClick={() => setComposing(true)}
@@ -493,6 +502,28 @@ export default function InboxPanel({ initialTarget }) {
 
         {/* Filter bar */}
         <div style={{ padding: "10px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[
+              { value: "all",    label: "ALL" },
+              { value: "unread", label: `UNREAD${unreadCount ? ` (${unreadCount})` : ""}` },
+              { value: "read",   label: "READ" },
+            ].map(o => (
+              <button
+                key={o.value}
+                onClick={() => setReadFilter(o.value)}
+                style={{
+                  flex: 1, padding: "5px 0", borderRadius: 6,
+                  border: `1px solid ${readFilter === o.value ? "rgba(58,123,213,0.6)" : "rgba(58,123,213,0.2)"}`,
+                  background: readFilter === o.value ? "rgba(58,123,213,0.15)" : "transparent",
+                  color: readFilter === o.value ? "#3a7bd5" : "#5a6f8f",
+                  fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
+                  cursor: "pointer",
+                }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
           <div style={{ display: "flex", gap: 6 }}>
             <select value={channelFilter} onChange={e => setChannelFilter(e.target.value)} style={{ ...selectStyle, flex: 1 }}>
               <option value="all">ALL CHANNELS</option>
@@ -536,31 +567,40 @@ export default function InboxPanel({ initialTarget }) {
               LOADING...
             </div>
           )}
-          {!loading && convos.length === 0 && (
+          {!loading && filteredConvos.length === 0 && (
             <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
-              NO CONVERSATIONS
+              {convos.length === 0 ? "NO CONVERSATIONS" : "NO MATCHING CONVERSATIONS"}
             </div>
           )}
-          {convos.map(c => {
+          {filteredConvos.map(c => {
             const isSel = selected === c.contact_id;
+            const isUnread = c.unread && !isSel;
             return (
               <button key={c.contact_id} onClick={() => openThread(c.contact_id)}
                 style={{
                   width: "100%", textAlign: "left", padding: "12px 16px",
-                  cursor: "pointer",
-                  background: isSel ? "#0d1626" : "transparent",
+                  cursor: "pointer", position: "relative",
+                  background: isSel ? "#0d1626" : (isUnread ? "rgba(58,123,213,0.06)" : "transparent"),
                   borderBottom: "0.5px solid #1a2540",
-                  borderLeft: isSel ? "2px solid #3a7bd5" : "2px solid transparent",
+                  borderLeft: isSel ? "2px solid #3a7bd5" : (isUnread ? "2px solid rgba(58,123,213,0.5)" : "2px solid transparent"),
                   borderTop: "none", borderRight: "none",
                   transition: "all 0.1s",
                 }}
                 onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = "#0a1020"; }}
-                onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = "transparent"; }}
+                onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = isUnread ? "rgba(58,123,213,0.06)" : "transparent"; }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "#c4d0e8", overflow: "hidden",
-                                 textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                    {c.owner || c.business || c.phone || c.email}
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden", flex: 1 }}>
+                    {isUnread && (
+                      <span title="Unread message" style={{
+                        width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+                        background: "#3a7bd5", boxShadow: "0 0 6px 1px rgba(58,123,213,0.7)",
+                      }} />
+                    )}
+                    <span style={{ fontSize: 13, fontWeight: isUnread ? 700 : 500, color: isUnread ? "#f0f4ff" : "#c4d0e8", overflow: "hidden",
+                                   textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {c.owner || c.business || c.phone || c.email}
+                    </span>
                   </span>
                   {c.channels.map(ch => (
                     <span key={ch} style={{
@@ -602,7 +642,7 @@ export default function InboxPanel({ initialTarget }) {
                   </div>
                 )}
                 {c.last_message && (
-                  <div style={{ fontSize: 11, color: "#3a4f6f", marginTop: 4,
+                  <div style={{ fontSize: 11, color: isUnread ? "#8aaad0" : "#3a4f6f", fontWeight: isUnread ? 600 : 400, marginTop: 4,
                                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {htmlToText(c.last_message)}
                   </div>

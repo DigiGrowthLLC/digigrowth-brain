@@ -33,69 +33,140 @@ function fmtDate(iso) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function TodoItem({ todo, onComplete, onDelete }) {
+// Turns bare URLs in plain text into clickable links, leaving everything
+// else as-is — descriptions are just freeform notes, not markdown.
+function linkify(text) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+          style={{ color: "#3a7bd5", wordBreak: "break-all" }}>{part}</a>
+      : <React.Fragment key={i}>{part}</React.Fragment>
+  );
+}
+
+function TodoItem({ todo, onComplete, onDelete, onSaveDescription }) {
   const [hovering, setHovering] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(todo.description || "");
   const recColor = todo.recurrence ? RECURRENCE_COLORS[todo.recurrence] : null;
 
+  const startEditing = () => {
+    setDraft(todo.description || "");
+    setEditing(true);
+    setExpanded(true);
+  };
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed !== (todo.description || "")) onSaveDescription(todo.id, trimmed);
+  };
+
   return (
-    <div
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
-      style={{
-        display: "flex", alignItems: "center", gap: 10,
-        padding: "10px 14px", borderRadius: 10,
-        background: hovering ? "rgba(58,123,213,0.05)" : "rgba(255,255,255,0.02)",
-        transition: "background 0.12s",
-      }}
-    >
-      {/* Checkbox */}
-      <button
-        onClick={() => onComplete(todo.id)}
+    <div>
+      <div
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
         style={{
-          flexShrink: 0, width: 17, height: 17, cursor: "pointer",
-          border: "1px solid rgba(58,123,213,0.35)", borderRadius: 4,
-          background: "transparent",
-        }}
-      />
-
-      {/* Text */}
-      <span style={{ flex: 1, fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>
-        {todo.text}
-      </span>
-
-      {/* Recurrence badge */}
-      {todo.recurrence && (
-        <span style={{
-          fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
-          color: recColor, letterSpacing: "0.06em",
-          background: `${recColor}18`, border: `1px solid ${recColor}40`,
-          borderRadius: 4, padding: "2px 5px", flexShrink: 0,
-        }}>
-          {RECURRENCE_LABELS[todo.recurrence]}
-        </span>
-      )}
-
-      {/* Due date */}
-      {todo.due_date && (
-        <span style={{
-          fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-          color: "#3a5a80", letterSpacing: "0.06em", flexShrink: 0,
-        }}>
-          {fmtDate(todo.due_date)}
-        </span>
-      )}
-
-      {/* Delete */}
-      <button
-        onClick={() => onDelete(todo.id)}
-        style={{
-          fontSize: 10, color: hovering ? "#4a6a8a" : "#1e2f4a",
-          cursor: "pointer", background: "none", border: "none",
-          transition: "color 0.12s", flexShrink: 0,
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 14px", borderRadius: 10,
+          background: hovering ? "rgba(58,123,213,0.05)" : "rgba(255,255,255,0.02)",
+          transition: "background 0.12s",
         }}
       >
-        ✕
-      </button>
+        {/* Checkbox */}
+        <button
+          onClick={() => onComplete(todo.id)}
+          style={{
+            flexShrink: 0, width: 17, height: 17, cursor: "pointer",
+            border: "1px solid rgba(58,123,213,0.35)", borderRadius: 4,
+            background: "transparent",
+          }}
+        />
+
+        {/* Text — click to expand/collapse the notes box */}
+        <span
+          onClick={() => setExpanded(e => !e)}
+          title={todo.description ? "Click to view notes" : "Click to add notes"}
+          style={{ flex: 1, fontSize: 13, color: "#8aaad0", lineHeight: 1.4, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+        >
+          {todo.text}
+          {!!todo.description && (
+            <span title="Has notes" style={{
+              width: 5, height: 5, borderRadius: "50%", flexShrink: 0,
+              background: "#3a7bd5",
+            }} />
+          )}
+        </span>
+
+        {/* Recurrence badge */}
+        {todo.recurrence && (
+          <span style={{
+            fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
+            color: recColor, letterSpacing: "0.06em",
+            background: `${recColor}18`, border: `1px solid ${recColor}40`,
+            borderRadius: 4, padding: "2px 5px", flexShrink: 0,
+          }}>
+            {RECURRENCE_LABELS[todo.recurrence]}
+          </span>
+        )}
+
+        {/* Due date */}
+        {todo.due_date && (
+          <span style={{
+            fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+            color: "#3a5a80", letterSpacing: "0.06em", flexShrink: 0,
+          }}>
+            {fmtDate(todo.due_date)}
+          </span>
+        )}
+
+        {/* Delete */}
+        <button
+          onClick={() => onDelete(todo.id)}
+          style={{
+            fontSize: 10, color: hovering ? "#4a6a8a" : "#1e2f4a",
+            cursor: "pointer", background: "none", border: "none",
+            transition: "color 0.12s", flexShrink: 0,
+          }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Inline notes box */}
+      {expanded && (
+        <div style={{ padding: "0 14px 10px 41px" }}>
+          {editing ? (
+            <textarea
+              autoFocus
+              className="dg-input"
+              rows={2}
+              placeholder="Notes, instructions, or a link…"
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.target.blur(); }}
+              style={{ width: "100%", fontSize: 12, resize: "vertical", boxSizing: "border-box" }}
+            />
+          ) : (
+            <div
+              onClick={startEditing}
+              title="Click to edit"
+              style={{
+                fontSize: 12, color: todo.description ? "#5a7faa" : "#3a5a80",
+                lineHeight: 1.5, whiteSpace: "pre-wrap", cursor: "text",
+                padding: "6px 10px", borderRadius: 6,
+                background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(58,123,213,0.2)",
+              }}
+            >
+              {todo.description ? linkify(todo.description) : "Click to add notes…"}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -126,7 +197,7 @@ function SectionLabel({ label, color, count }) {
 export default function TodoPanel() {
   const [todos, setTodos] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ text: "", due_date: "", recurrence: "" });
+  const [form, setForm] = useState({ text: "", due_date: "", recurrence: "", description: "" });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -151,6 +222,14 @@ export default function TodoPanel() {
     await fetch(API(`/dashboard/todos/${id}`), { method: "DELETE" });
   };
 
+  const saveDescription = async (id, description) => {
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, description } : t));
+    await fetch(API(`/dashboard/todos/${id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description }),
+    });
+  };
+
   const save = async () => {
     if (!form.text.trim()) return;
     setSaving(true);
@@ -160,9 +239,10 @@ export default function TodoPanel() {
         text: form.text.trim(),
         due_date: form.due_date || undefined,
         recurrence: form.recurrence || undefined,
+        description: form.description.trim() || undefined,
       }),
     });
-    setForm({ text: "", due_date: "", recurrence: "" });
+    setForm({ text: "", due_date: "", recurrence: "", description: "" });
     setShowForm(false);
     setSaving(false);
     load();
@@ -226,6 +306,14 @@ export default function TodoPanel() {
               <option value="monthly">Monthly</option>
             </select>
           </div>
+          <textarea
+            className="dg-input"
+            rows={2}
+            placeholder="Notes, instructions, or a link… (optional)"
+            value={form.description}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            style={{ fontSize: 12, resize: "vertical" }}
+          />
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button className="btn btn-secondary" onClick={() => setShowForm(false)} style={{ fontSize: 11 }}>CANCEL</button>
             <button
@@ -257,7 +345,7 @@ export default function TodoPanel() {
             <SectionLabel label="OVERDUE" color="#dc3c3c" count={overdue.length} />
             {overdue.map(t => (
               <div key={t.id} style={{ borderLeft: "3px solid rgba(220,60,60,0.4)", marginLeft: 4, borderRadius: "0 8px 8px 0" }}>
-                <TodoItem todo={t} onComplete={complete} onDelete={remove} />
+                <TodoItem todo={t} onComplete={complete} onDelete={remove} onSaveDescription={saveDescription} />
               </div>
             ))}
           </>
@@ -268,7 +356,7 @@ export default function TodoPanel() {
             <SectionLabel label="TODAY" color="#3a7bd5" count={today.length} />
             {today.map(t => (
               <div key={t.id} style={{ borderLeft: "3px solid rgba(58,123,213,0.4)", marginLeft: 4, borderRadius: "0 8px 8px 0" }}>
-                <TodoItem todo={t} onComplete={complete} onDelete={remove} />
+                <TodoItem todo={t} onComplete={complete} onDelete={remove} onSaveDescription={saveDescription} />
               </div>
             ))}
           </>
@@ -279,7 +367,7 @@ export default function TodoPanel() {
             <SectionLabel label="UPCOMING" color="#4a6a8a" count={upcoming.length} />
             {upcoming.map(t => (
               <div key={t.id} style={{ borderLeft: "3px solid rgba(74,106,138,0.25)", marginLeft: 4, borderRadius: "0 8px 8px 0" }}>
-                <TodoItem todo={t} onComplete={complete} onDelete={remove} />
+                <TodoItem todo={t} onComplete={complete} onDelete={remove} onSaveDescription={saveDescription} />
               </div>
             ))}
           </>
@@ -290,7 +378,7 @@ export default function TodoPanel() {
             <SectionLabel label="NO DUE DATE" color="#2a4a7a" count={undated.length} />
             {undated.map(t => (
               <div key={t.id} style={{ marginLeft: 4 }}>
-                <TodoItem todo={t} onComplete={complete} onDelete={remove} />
+                <TodoItem todo={t} onComplete={complete} onDelete={remove} onSaveDescription={saveDescription} />
               </div>
             ))}
           </>

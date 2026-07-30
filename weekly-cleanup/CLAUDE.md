@@ -20,3 +20,42 @@ Unlike the old script (which had a code-enforced narrow tool set — no raw Bash
 ## Delivery
 
 The routine commits its report to `executive-assistant/reports/weekly-cleanup-YYYY-MM-DD.md` and pushes — it cannot reach Railway directly (sandboxed network). A Railway-side job (`_post_weekly_cleanup_report` in `dashboard/backend/main.py`) picks the report up from GitHub ~30 minutes later and posts an activity-feed line — no LLM call involved on that side.
+
+## Posting a Review Card (Approve/Decline)
+
+In addition to the markdown report, the routine posts one `kind: "cleanup"` approval so Dylan gets
+an inline card in the OS chat — the same mechanism the newsletter and blog-post skills use — instead
+of only a wall of report text. Build `payload` from this run's own results:
+
+- `payload.auto_fixed`: one entry per item already fixed this run (the "Auto-Fixed" section) —
+  `{"file": "path/in/repo", "summary": "<one-line description>", "diff": "<unified diff, e.g. from `git show <sha> -- <file>` or `git diff HEAD~1 -- <file>` right after committing it>"}`.
+  Display-only — approving/declining the card never touches these again.
+- `payload.changes`: one entry per judgment-call item that would otherwise go in "Needs Approval" —
+  `{"file": "path/in/repo", "action": "write" | "delete", "content": "<full proposed file text, only for action=write>", "summary": "<why>", "diff": "<unified diff of current vs proposed>"}`.
+  These are **not** applied by the routine — approving the card is what applies them (via the
+  Contents API against `digigrowth-brain`, same pattern as blog-post publishing). If a run has no
+  judgment calls, omit `payload.changes` (or leave it `[]`) and skip posting a card entirely if
+  `auto_fixed` is also empty.
+
+Post it the same way the blog-post skill does (`content-agent/.claude/skills/weekly-ai-blog/SKILL.md`):
+
+```bash
+cat > /tmp/approval_payload.json <<'JSONEOF'
+{
+  "kind": "cleanup",
+  "title": "Weekly Cleanup — <YYYY-MM-DD>",
+  "summary": "<N auto-fixed, M needing approval>",
+  "payload": {"auto_fixed": [...], "changes": [...]}
+}
+JSONEOF
+curl -s -u "admin:$DASHBOARD_PASSWORD" -X POST \
+  -H "Content-Type: application/json" \
+  -d @/tmp/approval_payload.json \
+  https://digigrowth-brain-production.up.railway.app/api/approvals
+```
+
+This returns `{"id": <n>, ...}`. Put the literal marker line `[[APPROVAL:<id>]]` at the end of the
+report's `## Needs Approval` section (verbatim, nothing else around it) — the daily-briefing skill
+carries it through character-for-character (Step 4.7 in `executive-assistant/.claude/skills/daily-briefing/SKILL.md`)
+so the OS chat frontend renders it as a live card with a diff view and Approve/Decline buttons.
+Declining leaves every file untouched; approving pushes each `changes` item straight to GitHub.

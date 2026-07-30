@@ -237,7 +237,7 @@ async def get_todos():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, text, done, due_date, recurrence, created_at
+            SELECT id, text, done, due_date, recurrence, description, created_at
             FROM todos
             WHERE NOT done
             ORDER BY due_date ASC NULLS LAST, created_at DESC
@@ -254,6 +254,7 @@ async def create_todo(payload: dict):
 
     due_date_raw = payload.get("due_date")
     recurrence = payload.get("recurrence") or None
+    description = (payload.get("description") or "").strip() or None
     due_date = None
     if due_date_raw:
         try:
@@ -265,11 +266,11 @@ async def create_todo(payload: dict):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO todos (text, due_date, recurrence)
-            VALUES ($1, $2, $3)
-            RETURNING id, text, done, due_date, recurrence, created_at
+            INSERT INTO todos (text, due_date, recurrence, description)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, text, done, due_date, recurrence, description, created_at
             """,
-            text, due_date, recurrence,
+            text, due_date, recurrence, description,
         )
     return dict(row)
 
@@ -302,6 +303,11 @@ async def update_todo(todo_id: int, payload: dict):
                 due_date = date.fromisoformat(due_date_raw) if due_date_raw else None
                 await conn.execute(
                     "UPDATE todos SET due_date = $1 WHERE id = $2", due_date, todo_id
+                )
+            if "description" in payload:
+                description = (payload["description"] or "").strip() or None
+                await conn.execute(
+                    "UPDATE todos SET description = $1 WHERE id = $2", description, todo_id
                 )
     return {"ok": True}
 

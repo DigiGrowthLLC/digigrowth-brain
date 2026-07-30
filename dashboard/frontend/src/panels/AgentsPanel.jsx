@@ -225,6 +225,40 @@ function InlinePdfCard({ slug }) {
 
 // ── Approval card (approve/decline for a pending blog/newsletter draft) ──────
 
+function DiffLines({ diff }) {
+  if (!diff) return null;
+  return (
+    <pre style={{ margin: 0, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, lineHeight: 1.6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+      {diff.split("\n").map((line, i) => (
+        <div key={i} style={{ color: line.startsWith("+") ? "#14c882" : line.startsWith("-") ? "#dc3c3c" : "#8aaad0" }}>
+          {line}
+        </div>
+      ))}
+    </pre>
+  );
+}
+
+function CleanupItem({ item, tone }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginBottom: 8, border: "1px solid rgba(58,123,213,0.12)", borderRadius: 6, padding: "8px 10px" }}>
+      <div
+        onClick={() => item.diff && setOpen(o => !o)}
+        style={{ cursor: item.diff ? "pointer" : "default", display: "flex", justifyContent: "space-between", gap: 8 }}
+      >
+        <div style={{ fontSize: 11, fontFamily: "'Share Tech Mono', monospace", color: tone }}>{item.file}</div>
+        {item.diff && <span style={{ fontSize: 10, color: "#6080a8", whiteSpace: "nowrap" }}>{open ? "hide diff ▲" : "view diff ▼"}</span>}
+      </div>
+      {item.summary && <div style={{ fontSize: 12, color: "#c3cee8", marginTop: 4 }}>{item.summary}</div>}
+      {open && item.diff && (
+        <div style={{ marginTop: 6, background: "rgba(0,0,0,0.3)", borderRadius: 4, padding: 8, maxHeight: 240, overflowY: "auto" }}>
+          <DiffLines diff={item.diff} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ApprovalDraftPreview({ approval }) {
   const p = approval.payload || {};
 
@@ -276,6 +310,34 @@ function ApprovalDraftPreview({ approval }) {
             ))}
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (approval.kind === "cleanup") {
+    const autoFixed = p.auto_fixed || [];
+    const changes = p.changes || [];
+    if (!autoFixed.length && !changes.length) {
+      return <div style={{ ...wrap, fontSize: 12, color: "#6080a8" }}>No details attached to this cleanup run.</div>;
+    }
+    return (
+      <div style={wrap}>
+        {autoFixed.length > 0 && (
+          <div style={{ marginBottom: changes.length ? 14 : 0 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#8ab4f0", marginBottom: 6 }}>
+              Already Applied ({autoFixed.length})
+            </div>
+            {autoFixed.map((item, i) => <CleanupItem key={i} item={item} tone="#8aaad0" />)}
+          </div>
+        )}
+        {changes.length > 0 && (
+          <div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#f0a028", marginBottom: 6 }}>
+              Needs Your Approval ({changes.length})
+            </div>
+            {changes.map((item, i) => <CleanupItem key={i} item={item} tone="#f0c080" />)}
+          </div>
+        )}
       </div>
     );
   }
