@@ -48,18 +48,15 @@ function linkify(text) {
 function TodoItem({ todo, onComplete, onDelete, onSaveDescription }) {
   const [hovering, setHovering] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(todo.description || "");
   const recColor = todo.recurrence ? RECURRENCE_COLORS[todo.recurrence] : null;
 
-  const startEditing = () => {
+  const toggleExpanded = () => {
     setDraft(todo.description || "");
-    setEditing(true);
-    setExpanded(true);
+    setExpanded(e => !e);
   };
 
   const commit = () => {
-    setEditing(false);
     const trimmed = draft.trim();
     if (trimmed !== (todo.description || "")) onSaveDescription(todo.id, trimmed);
   };
@@ -86,10 +83,10 @@ function TodoItem({ todo, onComplete, onDelete, onSaveDescription }) {
           }}
         />
 
-        {/* Text — click to expand/collapse the notes box */}
+        {/* Text — click to open/close the editable notes box */}
         <span
-          onClick={() => setExpanded(e => !e)}
-          title={todo.description ? "Click to view notes" : "Click to add notes"}
+          onClick={toggleExpanded}
+          title={todo.description ? "Click to view/edit notes" : "Click to add notes"}
           style={{ flex: 1, fontSize: 13, color: "#8aaad0", lineHeight: 1.4, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
         >
           {todo.text}
@@ -136,33 +133,23 @@ function TodoItem({ todo, onComplete, onDelete, onSaveDescription }) {
         </button>
       </div>
 
-      {/* Inline notes box */}
+      {/* Inline notes box — always editable once opened */}
       {expanded && (
-        <div style={{ padding: "0 14px 10px 41px" }}>
-          {editing ? (
-            <textarea
-              autoFocus
-              className="dg-input"
-              rows={2}
-              placeholder="Notes, instructions, or a link…"
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onBlur={commit}
-              onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.target.blur(); }}
-              style={{ width: "100%", fontSize: 12, resize: "vertical", boxSizing: "border-box" }}
-            />
-          ) : (
-            <div
-              onClick={startEditing}
-              title="Click to edit"
-              style={{
-                fontSize: 12, color: todo.description ? "#5a7faa" : "#3a5a80",
-                lineHeight: 1.5, whiteSpace: "pre-wrap", cursor: "text",
-                padding: "6px 10px", borderRadius: 6,
-                background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(58,123,213,0.2)",
-              }}
-            >
-              {todo.description ? linkify(todo.description) : "Click to add notes…"}
+        <div style={{ padding: "0 14px 10px 41px", display: "flex", flexDirection: "column", gap: 6 }}>
+          <textarea
+            autoFocus
+            className="dg-input"
+            rows={2}
+            placeholder="Notes, instructions, or a link…"
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.target.blur(); }}
+            style={{ width: "100%", fontSize: 12, resize: "vertical", boxSizing: "border-box" }}
+          />
+          {draft.trim() && (
+            <div style={{ fontSize: 11, lineHeight: 1.5, color: "#5a7faa" }}>
+              {linkify(draft)}
             </div>
           )}
         </div>

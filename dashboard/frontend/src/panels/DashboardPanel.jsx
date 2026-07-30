@@ -85,6 +85,84 @@ function ChartTooltip({ active, payload, label }) {
 
 // ── To-Do (dashboard widget — today + overdue only) ──────────────────────────
 
+// Turns bare URLs in plain text into clickable links, leaving everything
+// else as-is — descriptions are just freeform notes, not markdown.
+function linkifyText(text) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+          style={{ color: "#3a7bd5", wordBreak: "break-all" }}>{part}</a>
+      : <React.Fragment key={i}>{part}</React.Fragment>
+  );
+}
+
+function TodoWidgetRow({ t, overdue, onComplete, onRemove, onSaveDescription }) {
+  const [expanded, setExpanded] = useState(false);
+  const [draft, setDraft] = useState(t.description || "");
+
+  const toggle = () => {
+    setDraft(t.description || "");
+    setExpanded(e => !e);
+  };
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed !== (t.description || "")) onSaveDescription(t.id, trimmed);
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={() => onComplete(t.id)} style={{
+          flexShrink: 0, width: 16, height: 16, cursor: "pointer",
+          border: "1px solid rgba(58,123,213,0.3)", borderRadius: 4,
+          background: "transparent",
+        }} />
+        <span
+          onClick={toggle}
+          title={t.description ? "Click to view/edit notes" : "Click to add notes"}
+          style={{ flex: 1, fontSize: 13, color: "#8aaad0", lineHeight: 1.4, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+        >
+          {t.text}
+          {!!t.description && (
+            <span title="Has notes" style={{ width: 5, height: 5, borderRadius: "50%", flexShrink: 0, background: "#3a7bd5" }} />
+          )}
+        </span>
+        {t.due_date && (
+          <span style={{
+            fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+            color: overdue ? "#dc3c3c" : "#3a5a80", letterSpacing: "0.06em", flexShrink: 0,
+          }}>
+            {t.due_date.slice(5).replace("-", "/")}
+          </span>
+        )}
+        <button onClick={() => onRemove(t.id)} style={{
+          fontSize: 10, color: "#2a4a7a", cursor: "pointer", background: "none", border: "none",
+        }}>✕</button>
+      </div>
+      {expanded && (
+        <div style={{ padding: "6px 0 0 26px", display: "flex", flexDirection: "column", gap: 6 }}>
+          <textarea
+            autoFocus
+            className="dg-input"
+            rows={2}
+            placeholder="Notes, instructions, or a link…"
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.target.blur(); }}
+            style={{ width: "100%", fontSize: 12, resize: "vertical", boxSizing: "border-box" }}
+          />
+          {draft.trim() && (
+            <div style={{ fontSize: 11, lineHeight: 1.5, color: "#5a7faa" }}>{linkifyText(draft)}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TodoList() {
   const [todos, setTodos] = useState([]);
   const [draft, setDraft] = useState("");
@@ -118,6 +196,14 @@ function TodoList() {
     await fetch(API(`/dashboard/todos/${id}`), { method: "DELETE" });
   };
 
+  const saveDescription = async (id, description) => {
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, description } : t));
+    await fetch(API(`/dashboard/todos/${id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description }),
+    });
+  };
+
   const visible = todos
     .filter(t => !t.due_date || t.due_date.slice(0, 10) <= todayStr)
     .slice(0, 6);
@@ -137,25 +223,14 @@ function TodoList() {
         {visible.map(t => {
           const overdue = t.due_date && t.due_date.slice(0, 10) < todayStr;
           return (
-            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={() => complete(t.id)} style={{
-                flexShrink: 0, width: 16, height: 16, cursor: "pointer",
-                border: "1px solid rgba(58,123,213,0.3)", borderRadius: 4,
-                background: "transparent",
-              }} />
-              <span style={{ flex: 1, fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>{t.text}</span>
-              {t.due_date && (
-                <span style={{
-                  fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                  color: overdue ? "#dc3c3c" : "#3a5a80", letterSpacing: "0.06em", flexShrink: 0,
-                }}>
-                  {t.due_date.slice(5).replace("-", "/")}
-                </span>
-              )}
-              <button onClick={() => remove(t.id)} style={{
-                fontSize: 10, color: "#2a4a7a", cursor: "pointer", background: "none", border: "none",
-              }}>✕</button>
-            </div>
+            <TodoWidgetRow
+              key={t.id}
+              t={t}
+              overdue={overdue}
+              onComplete={complete}
+              onRemove={remove}
+              onSaveDescription={saveDescription}
+            />
           );
         })}
         {visible.length === 0 && (
