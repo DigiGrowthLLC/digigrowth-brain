@@ -39,7 +39,7 @@ Not yet built:
 - `client-report` — generate client-facing progress reports
 - `week-plan` — structure the upcoming week by priority
 
-(`daily-briefing`, `sheets-digest` (pulling data from Google Sheets), and agent oversight (`manage-lead-qualifier`, `manage-apptset-agent`, `manage-content-agent`, `add-managed-agent`) have already been built.)
+(`daily-briefing`, `sheets-digest` (pulling data from Google Sheets), `cold-calling-resync` (weekly refresh of copy-agent's cold-calling-script skill from Drive + the OS dialer DB), and agent oversight (`manage-lead-qualifier`, `manage-apptset-agent`, `manage-content-agent`, `add-managed-agent`) have already been built.)
 
 ## Decision Log
 
