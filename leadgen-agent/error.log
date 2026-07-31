@@ -18,3 +18,23 @@ Traceback (most recent call last):
   File "/usr/local/lib/python3.11/site-packages/anthropic/_base_client.py", line 1195, in request
     raise self._make_status_error_from_response(response) from None
 anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CdXLSq7Qxw43eQevW9TCB'}
+
+[2026-07-30T20:01:31.662700-04:00]
+Traceback (most recent call last):
+  File "/repo/leadgen-agent/run.py", line 739, in <module>
+    run_pipeline(args.status)
+  File "/repo/leadgen-agent/run.py", line 662, in run_pipeline
+    results_by_id = qualify_leads_batch(candidates, role, memory)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/repo/leadgen-agent/run.py", line 507, in qualify_leads_batch
+    batch = client.messages.batches.create(requests=requests_payload)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/anthropic/resources/messages/batches.py", line 87, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/anthropic/_base_client.py", line 1536, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/anthropic/_base_client.py", line 1195, in request
+    raise self._make_status_error_from_response(response) from None
+anthropic.BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CdZ9r6kNkYH4wxiKvBQBD'}
