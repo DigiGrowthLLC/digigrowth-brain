@@ -1,16 +1,13 @@
 {
-  "date": "2026-07-29",
-  "topic": "The AI-powered referral system that fills your pipeline on autopilot",
+  "date": "2026-07-31",
+  "topic": "How independent service-based businesses are using AI to cut their cost-per-lead in half",
   "findings": [
-    "58% of small businesses now use generative AI, up from 40% in 2024",
-    "AI-powered process automation can cut small business operating costs by up to 30%",
-    "66% of SMBs report AI saves their business between $500 and $2,000 per month",
-    "AI-powered customer service and follow-up systems return $3.50 for every $1 invested"
+    "Businesses using AI report up to a 60% reduction in lead generation costs, alongside a 50% increase in sales-ready leads.",
+    "AI-assisted outreach paired with human qualification calls cut cost-per-meeting from $312 (early 2025) to $94 (Q1 2026 cohorts) — a 70% reduction.",
+    "64% of businesses using AI chatbots report an increase in qualified leads, with real-time interaction boosting B2B conversion rates by up to 20%."
   ],
   "sources": [
-    "https://capsulecrm.com/blog/small-business-ai-adoption-statistics/",
-    "https://deantek.co/blog/ai-automation-small-business-statistics-2026",
-    "https://refact.co/insights/ai-automation/ai-automation-small-business",
-    "https://colorwhistle.com/artificial-intelligence-statistics-for-small-business/"
+    "https://click-vision.com/ai-lead-generation-statistics",
+    "https://thunderbit.com/blog/lead-generation-statistics"
   ]
 }
