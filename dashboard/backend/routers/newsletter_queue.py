@@ -9,8 +9,11 @@ remove a prospect, edit a queued email, or add a prospect who wasn't on the
 list when the draft was approved.
 """
 
+import asyncio
 import json
 import os
+import secrets
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -124,6 +127,64 @@ async def sent_check(limit: int = Query(5, le=20)):
         headers = {h["name"]: h["value"] for h in msg["payload"].get("headers", [])}
         out.append(headers)
     return {"sent": out}
+
+
+class TestSend(BaseModel):
+    to: str
+
+
+@router.post("/newsletter/test-send")
+async def test_send(body: TestSend):
+    """Send a one-off newsletter immediately to an arbitrary address, bypassing
+    the queue and daily cap — for verifying the open-tracking pixel and
+    unsubscribe link end-to-end without waiting on a real campaign. Reuses the
+    most recently approved newsletter draft as the template (same source
+    add_queue_item uses) and auto-creates a lightweight contact for the
+    recipient if one doesn't already exist, so the unsubscribe link has a
+    real row to act on."""
+    import integrations
+
+    to = body.to.strip().lower()
+    if not to:
+        raise HTTPException(status_code=400, detail="to required")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow("SELECT id, owner, business FROM contacts WHERE lower(email) = $1", to)
+        if not contact:
+            contact = await conn.fetchrow(
+                """INSERT INTO contacts (id, email, owner, business, status)
+                   VALUES ($1, $2, 'Test Recipient', 'Newsletter Test', 'new')
+                   RETURNING id, owner, business""",
+                str(uuid.uuid4()), to,
+            )
+
+        template = await conn.fetchrow(
+            """SELECT payload FROM pending_approvals
+               WHERE kind = 'newsletter' AND status = 'approved'
+               ORDER BY decided_at DESC LIMIT 1"""
+        )
+    if not template:
+        raise HTTPException(status_code=400, detail="no approved newsletter draft found to use as a template")
+
+    payload = json.loads(template["payload"]) if isinstance(template["payload"], str) else template["payload"]
+    first_name = (contact["owner"] or "there").split(" ")[0]
+    business_name = contact["business"] or "your business"
+    unsubscribe_link = f"{_API_BASE}/api/newsletter/unsubscribe/{contact['id']}"
+
+    subject = "[TEST] " + payload.get("subject", "").replace("{{first_name}}", first_name).replace("{{business_name}}", business_name)
+    html = (
+        payload.get("html", "")
+        .replace("{{first_name}}", first_name)
+        .replace("{{business_name}}", business_name)
+        .replace("{{unsubscribe_link}}", unsubscribe_link)
+    )
+
+    tracking_token = secrets.token_urlsafe(16)
+    result = await asyncio.to_thread(integrations.gmail_send_html, to, subject, html, tracking_token)
+    if not result.startswith("Sent email"):
+        raise HTTPException(status_code=502, detail=result)
+    return {"ok": True, "to": to, "subject": subject}
 
 
 @router.get("/newsletter/queue/state")

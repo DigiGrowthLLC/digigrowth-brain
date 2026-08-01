@@ -210,6 +210,9 @@ export default function NewsletterQueueModal({ onClose }) {
   const [showAdd, setShowAdd] = useState(false);
   const [paused, setPaused] = useState(false);
   const [pauseBusy, setPauseBusy] = useState(false);
+  const [testTo, setTestTo] = useState("dylangroenendijk@gmail.com");
+  const [testBusy, setTestBusy] = useState(false);
+  const [testMsg, setTestMsg] = useState("");
 
   const fetchQueue = useCallback(async () => {
     setLoading(true);
@@ -247,6 +250,23 @@ export default function NewsletterQueueModal({ onClose }) {
     setPauseBusy(false);
   }
 
+  async function sendTest() {
+    setTestBusy(true);
+    setTestMsg("");
+    try {
+      const res = await fetch("/api/newsletter/test-send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: testTo }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setTestMsg(res.ok ? `Sent to ${data.to}` : (data.detail || "Failed to send test."));
+    } catch {
+      setTestMsg("Failed to send test.");
+    }
+    setTestBusy(false);
+  }
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(4,8,16,0.85)" }} onClick={onClose} />
@@ -278,6 +298,22 @@ export default function NewsletterQueueModal({ onClose }) {
             </button>
             <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 16 }}>✕</button>
           </div>
+        </div>
+
+        <div style={{ margin: "10px 24px 0", padding: "8px 14px", borderRadius: 6,
+                      background: "#0d1428", border: "0.5px solid #1a2540",
+                      display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <input
+            value={testTo}
+            onChange={e => setTestTo(e.target.value)}
+            placeholder="test recipient email"
+            className="dg-input"
+            style={{ flex: 1, fontSize: 11 }}
+          />
+          <button onClick={sendTest} disabled={testBusy || !testTo} className="btn btn-secondary" style={{ whiteSpace: "nowrap", fontSize: 10 }}>
+            {testBusy ? "Sending…" : "Send Test Now"}
+          </button>
+          {testMsg && <div style={{ fontSize: 10, color: testMsg.startsWith("Sent") ? "#5ad07a" : "#e05555" }}>{testMsg}</div>}
         </div>
 
         {paused && (
