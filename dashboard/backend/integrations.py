@@ -391,7 +391,10 @@ async def process_newsletter_queue() -> str:
 
         sent, failed = 0, 0
         for row in batch:
-            result = await _asyncio.to_thread(gmail_send_html, row["email"], row["subject"], row["html"])
+            tracking_token = secrets.token_urlsafe(16)
+            result = await _asyncio.to_thread(
+                gmail_send_html, row["email"], row["subject"], row["html"], tracking_token
+            )
             ok = result.startswith("Sent email")
             await conn.execute(
                 """UPDATE newsletter_send_queue
@@ -406,20 +409,27 @@ async def process_newsletter_queue() -> str:
     return f"sent {sent}, failed {failed} (today's total: {sent_today + sent}/{NEWSLETTER_DAILY_CAP})"
 
 
-def gmail_send_html(to: str, subject: str, html: str) -> str:
+def gmail_send_html(to: str, subject: str, html: str, tracking_token: str | None = None) -> str:
     """Same as gmail_send but for an HTML body (newsletter sends) — MIMEText
-    defaults to plain text, which would send the HTML tags as literal text."""
+    defaults to plain text, which would send the HTML tags as literal text.
+    If tracking_token is given, an open-tracking pixel (same /track/open
+    endpoint outreach sends use) is appended before sending, so newsletter
+    opens land on the same email_messages.opened_at column analytics reads."""
     guard = _verify_sender_identity()
     if guard:
         return guard
     try:
         svc = _business_gmail_service()
-        msg = MIMEText(html, "html")
+        out_html = html
+        if tracking_token:
+            base = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/") + "/api"
+            out_html += f'<img src="{base}/track/open/{tracking_token}.gif" width="1" height="1" style="display:none" alt="">'
+        msg = MIMEText(out_html, "html")
         msg["to"] = to
         msg["subject"] = subject
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         sent = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
-        _record_outbound_email_sync(to, subject, html, sent["id"], sent["threadId"])
+        _record_outbound_email_sync(to, subject, html, sent["id"], sent["threadId"], tracking_token)
         return f"Sent email to {to}: {subject}"
     except RuntimeError as e:
         return str(e)

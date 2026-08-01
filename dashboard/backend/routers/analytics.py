@@ -234,11 +234,22 @@ async def _email_metrics(conn, since=None) -> dict:
         *params,
     )
 
-    # Unsubscribed: contacts who clicked the outreach unsubscribe link,
-    # counted by when they opted out (not when they were originally emailed).
-    unsub_filter = "AND email_opted_out_at >= $1" if since else ""
+    # Unsubscribed: contacts who clicked either unsubscribe link — the 1:1
+    # outreach one (email_opted_out) or the newsletter one (contacts.newsletter
+    # going false, tracked via newsletter_opted_out_at) — counted by when they
+    # opted out (not when they were originally emailed). The two opt-out lists
+    # stay independent for send-blocking purposes (see email_tracking.py), but
+    # for this all-up "email channel" rate a click on either link counts.
+    unsub_filter = "AND opted_out_at >= $1" if since else ""
     unsubscribed = await conn.fetchval(
-        f"SELECT COUNT(*) FROM contacts WHERE email_opted_out = true {unsub_filter}",
+        f"""
+        SELECT COUNT(*) FROM (
+            SELECT GREATEST(email_opted_out_at, newsletter_opted_out_at) AS opted_out_at
+            FROM contacts
+            WHERE email_opted_out = true OR newsletter_opted_out_at IS NOT NULL
+        ) opted_out
+        WHERE opted_out_at IS NOT NULL {unsub_filter}
+        """,
         *params,
     )
 

@@ -259,6 +259,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sms_messages ADD COLUMN IF NOT EXISTS stage TEXT;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_opted_out BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_opted_out_at TIMESTAMPTZ;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS newsletter_opted_out_at TIMESTAMPTZ;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS tracking_token TEXT;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS open_count INTEGER NOT NULL DEFAULT 0;

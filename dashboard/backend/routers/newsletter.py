@@ -17,8 +17,17 @@ div{{max-width:420px;padding:24px;}}</style></head>
 async def unsubscribe(contact_id: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Contacts can land in the newsletter send list via the `newsletter`
+        # boolean OR a 'Newsletter' tag (see approvals.py::_enqueue_newsletter),
+        # so both have to be cleared or a tagged contact would still get queued
+        # again next send even after unsubscribing.
         result = await conn.execute(
-            "UPDATE contacts SET newsletter = false WHERE id = $1", contact_id
+            """UPDATE contacts
+               SET newsletter = false,
+                   newsletter_opted_out_at = now(),
+                   tags = array_remove(tags, 'Newsletter')
+               WHERE id = $1""",
+            contact_id,
         )
     if result == "UPDATE 0":
         return _PAGE.format(heading="Nothing to do", message="That link isn't tied to an active subscription.")
