@@ -2,7 +2,7 @@
 
 *Source: Dylan's Google Drive cold-calling corpus (scripts, notes, call reviews, rebuttal vault, playbooks, metrics). Compiled 2026-07-30 as a pre-read before building the `cold-calling-script` skill.*
 
-`Last resync: 2026-07-30`
+`Last resync: 2026-08-03`
 
 ---
 
@@ -10,7 +10,11 @@
 
 Reverse-chronological. Each entry is tagged `(automated resync)` (weekly, via `executive-assistant/.claude/skills/cold-calling-resync/SKILL.md`) or `(Dylan, in conversation)` (reactive, added the moment new data/notes come up). Check here first before leaning on the Baseline below — an entry may supersede a stale number or contradict a stated principle (the way March 2026's real booking rate contradicted the "V.1.9 was an improvement" narrative — see Baseline §7-8).
 
-*No updates logged yet — this section starts populating after the skill's first resync run or the first time Dylan brings new cold-calling data into a conversation.*
+### 2026-08-03 (automated resync)
+- **Drive:** No new or changed cold-calling docs since the last resync (2026-07-30) — searched all known title patterns modified after that date, zero matches.
+- **Metrics:** No August 2026 Cold Calling Metrics sheet exists yet. Most recent sheet is still July 2026 (`July 2026 DigiGrowth Cold Calling Metrics`, last modified 2026-07-21, unchanged since the prior resync): 30 calls, 4 answered, 1 pitch, 0 resonations, 0 booked — sample still too small to read (per Baseline §7).
+- **OS dialer:** Could not reach the OS dialer API this run — the cloud environment's network policy rejected the CONNECT to `digigrowth-brain-production.up.railway.app` (403 at the proxy layer), not a "no calls logged" response. This is an infrastructure gap in this run, not a data finding; the OS dialer disposition/notes source was not checked this week.
+- **Changes the picture?** No — no new signal surfaced from the two reachable sources, and the OS dialer gap is a tooling issue to flag to Dylan, not a contradiction of anything in the Baseline.
 
 ---
 
