@@ -1,13 +1,16 @@
 {
-  "date": "2026-07-31",
-  "topic": "How independent service-based businesses are using AI to cut their cost-per-lead in half",
+  "date": "2026-08-03",
+  "topic": "The AI chatbot that handles your DMs and books calls 24/7",
   "findings": [
-    "Businesses using AI report up to a 60% reduction in lead generation costs, alongside a 50% increase in sales-ready leads.",
-    "AI-assisted outreach paired with human qualification calls cut cost-per-meeting from $312 (early 2025) to $94 (Q1 2026 cohorts) — a 70% reduction.",
-    "64% of businesses using AI chatbots report an increase in qualified leads, with real-time interaction boosting B2B conversion rates by up to 20%."
+    "64% of small businesses plan to deploy chatbots by 2026, and 58% now use generative AI, up from 40% in 2024",
+    "A dental practice that automated appointment booking and FAQs cut admin time by 15 hours/week while capturing 40% more bookings",
+    "AI-powered customer service systems deliver $3.50 in returns for every $1 invested",
+    "Sales is the most common use case for business chatbots (41%), ahead of customer support (37%) and marketing (17%)"
   ],
   "sources": [
-    "https://click-vision.com/ai-lead-generation-statistics",
-    "https://thunderbit.com/blog/lead-generation-statistics"
+    "https://www.tidio.com/blog/chatbot-statistics/",
+    "https://www.ai-crescent.com/blog/ai-automation-for-small-business",
+    "https://deantek.co/blog/ai-automation-small-business-statistics-2026",
+    "https://www.proprofschat.com/blog/chatbot-statistics/"
   ]
 }
