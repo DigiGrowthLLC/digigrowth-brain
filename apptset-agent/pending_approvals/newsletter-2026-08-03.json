@@ -1,9 +1,0 @@
-{
-  "title": "The bot that answers your DMs while you sleep",
-  "summary": "The AI chatbot that handles your DMs and books calls 24/7 \u2014 11 recipients",
-  "payload": {
-    "date": "2026-08-03",
-    "subject": "The bot that answers your DMs while you sleep",
-    "html": "<div style=\"max-width:600px;margin:0 auto;font-family:sans-serif;line-height:1.6;color:#222;\">\n  <p style=\"margin:0;\">Hey {{first_name}},</p>\n  <br>\n  <p style=\"margin:0;\">Most independent service-based businesses only answer DMs when someone happens to be at their desk &mdash; and by the time they reply, the lead has already messaged three other options.</p>\n  <br>\n  <p style=\"margin:0;\">An AI chatbot in your DMs changes that. It answers instantly, qualifies the lead, and books the call straight onto your calendar &mdash; no missed messages, no forgotten follow-ups. <strong>64% of small businesses plan to deploy a chatbot by 2026</strong>, and the ones already running one are seeing it pay off: one service business automated its booking and FAQs and saw <strong>40% more bookings</strong> while cutting admin time by <strong>15 hours a week</strong>. Across AI-powered customer response tools generally, businesses are seeing <strong>$3.50 back for every $1 spent</strong>. For {{business_name}}, that&#39;s the difference between a lead who goes cold overnight and one who&#39;s already on your calendar before you wake up.</p>\n  <br>\n  <p style=\"margin:0;\">Want me to put together a custom AI + marketing plan for {{business_name}}? <a href=\"https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn\"><strong>Book a quick discovery call</strong></a>.</p>\n  <br>\n  <p style=\"margin:0;\">Talk soon,<br>Dylan | Digigrowth</p>\n  <br>\n  <p style=\"margin:0;font-size:11px;color:#888;\"><a href=\"{{unsubscribe_link}}\">Unsubscribe</a></p>\n</div>"
-  }
-}
