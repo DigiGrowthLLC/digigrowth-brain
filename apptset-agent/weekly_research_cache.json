@@ -1,16 +1,13 @@
 {
-  "date": "2026-08-03",
-  "topic": "The AI chatbot that handles your DMs and books calls 24/7",
+  "date": "2026-08-04",
+  "topic": "How to use AI to turn your Google reviews into a lead generation machine",
   "findings": [
-    "64% of small businesses plan to deploy chatbots by 2026, and 58% now use generative AI, up from 40% in 2024",
-    "A dental practice that automated appointment booking and FAQs cut admin time by 15 hours/week while capturing 40% more bookings",
-    "AI-powered customer service systems deliver $3.50 in returns for every $1 invested",
-    "Sales is the most common use case for business chatbots (41%), ahead of customer support (37%) and marketing (17%)"
+    "81% of consumers use Google specifically to read reviews when evaluating a local business",
+    "Businesses that rank in the top 3 local search positions average 47 Google reviews, vs. only 38 for positions 7-10",
+    "Businesses that increase their average rating by one full star see up to a 44% improvement in conversion likelihood",
+    "80% of local searches on Google Maps lead to a physical visit within 24 hours"
   ],
   "sources": [
-    "https://www.tidio.com/blog/chatbot-statistics/",
-    "https://www.ai-crescent.com/blog/ai-automation-for-small-business",
-    "https://deantek.co/blog/ai-automation-small-business-statistics-2026",
-    "https://www.proprofschat.com/blog/chatbot-statistics/"
+    "https://wiserreview.com/blog/google-review-statistics/"
   ]
 }
