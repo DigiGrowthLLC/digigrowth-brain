@@ -44,6 +44,12 @@ function OutreachTable({ outreach, tab }) {
       email:   num(email.total_sent),
     },
     {
+      label:   "Distinct Contacts Reached",
+      call:    "—",
+      sms:     num(sms.contacted),
+      email:   num(email.initial_sent),
+    },
+    {
       label:   "Answer / Reply Rate",
       call:    pct(call.answer_rate),
       sms:     pct(sms.reply_rate),
