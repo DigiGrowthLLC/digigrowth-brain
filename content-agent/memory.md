@@ -39,3 +39,7 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   with newsletter — 2026-07-27 — drafted, not submitted (cloud session has no Doppler/Railway
   access this run, so the approvals API could not be reached; full draft saved to
   `daily-briefing-2026-07-27.md`'s Blog Post Preview section for manual submission)
+- "How Service Businesses Are Turning Cold Leads Into Paying Clients With AI" (slug:
+  cold-leads-into-paying-clients-with-ai) — pillar: Lead Follow-Up & Automation — topic: rotation
+  #02 (cold leads to paying clients), own web search (research cache was stale, dated 2026-08-04)
+  — 2026-08-05 — pending approval
