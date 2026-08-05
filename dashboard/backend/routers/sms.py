@@ -138,6 +138,21 @@ async def _store_message(conn, phone: str, role: str, body: str, stage: str | No
     )
 
     direction = "inbound" if role == "user" else "outbound"
+
+    # Stamp the conversation with whichever SMS campaign is active the first
+    # time it sends outbound — sticks for the conversation's lifetime even if
+    # a different campaign becomes active later (campaigns.py).
+    if direction == "outbound":
+        await conn.execute(
+            f"""
+            UPDATE sms_conversations SET campaign_id = COALESCE(campaign_id, (
+                SELECT cp.campaign_id FROM campaign_periods cp
+                JOIN campaigns c ON c.id = cp.campaign_id
+                WHERE c.channel = 'sms' AND cp.ended_at IS NULL
+            )) WHERE {_phone_match('phone', '$1')}
+            """,
+            canonical_phone,
+        )
     contact_row = await conn.fetchrow(
         f"SELECT id FROM contacts WHERE {_phone_match('phone', '$1')}", canonical_phone
     )

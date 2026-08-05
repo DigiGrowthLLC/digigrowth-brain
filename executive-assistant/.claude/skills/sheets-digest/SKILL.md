@@ -16,7 +16,8 @@
    - **7D**: sum rows where date is within last 7 days
    - **30D**: sum rows where date is within last 30 days
    - **All-time**: sum all rows
-6. Call `update_os_stats` with all found values — **always call it, even if nothing changed**
+5b. For each Cold Calling Metrics file read this run, also group its rows by calendar date and sum `calls_made`, `calls_answered`, `contacts_reached`, `resonations`, `appointments_booked` per day, covering every date that appears in the sheet's rows for the last 30 days (this feeds campaign-scoped calling analytics, which need to slice by an arbitrary date range instead of the fixed 7D/30D/all-time buckets — pass it as the `daily` field, keyed by ISO date `YYYY-MM-DD`, e.g. `{"2026-08-01": {"calls_made": 12, "calls_answered": 3}, ...}`). Skip this step entirely if no Cold Calling Metrics file was read this run.
+6. Call `update_os_stats` with all found values (including `daily` if computed in step 5b) — **always call it, even if nothing changed**
 7. Save the completion report to `reports/sheets-digest-YYYY-MM-DD.md` where YYYY-MM-DD is today's **full 4-digit year** date from the system prompt (e.g. 2026-06-12, never 2025).
 8. End with the completion message.
 
@@ -33,7 +34,7 @@
 | Sheet | When to read | What it holds |
 |---|---|---|
 | `DigiGrowth Sales Performance Tracker` | Always — search by name | shows, closes, discovery_calls, total_revenue (has a date column — bucket by period) |
-| `[Month Year] DigiGrowth Cold Calling Metrics` | Only if opened in last 24h | calls_made, calls_answered, contacts_reached, appointments_booked, resonations |
+| `[Month Year] DigiGrowth Cold Calling Metrics` | Only if opened in last 24h | calls_made, calls_answered, contacts_reached, appointments_booked, resonations, plus a per-day breakdown (`daily`) |
 
 **Ignore everything else** — habit trackers, goal trackers, lead lists, input trackers, etc.
 

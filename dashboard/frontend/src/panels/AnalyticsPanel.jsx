@@ -91,6 +91,98 @@ function ColdCallingCard({ outreach, tab }) {
   );
 }
 
+const CAMPAIGN_CHANNEL_OPTIONS = [["sms","SMS"],["email","Email"],["calling","Cold Calling"]];
+
+function fmtCampaignDate(iso) {
+  if (!iso) return "Active";
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function CampaignsView() {
+  const [channel, setChannel]         = useState("sms");
+  const [campaigns, setCampaigns]     = useState([]);
+  const [selectedId, setSelectedId]   = useState(null);
+  const [detail, setDetail]           = useState(null);
+
+  useEffect(() => {
+    setSelectedId(null);
+    setDetail(null);
+    fetch(API(`/campaigns?channel=${channel}`)).then(r => r.ok ? r.json() : []).then(list => {
+      setCampaigns(list);
+      if (list.length) setSelectedId(list[0].id);
+    });
+  }, [channel]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    fetch(API(`/analytics/campaign/${selectedId}`)).then(r => r.ok ? r.json() : null).then(setDetail);
+  }, [selectedId]);
+
+  async function reactivate(id) {
+    await fetch(API(`/campaigns/${id}/activate`), { method: "POST" });
+    fetch(API(`/campaigns?channel=${channel}`)).then(r => r.ok ? r.json() : []).then(setCampaigns);
+    fetch(API(`/analytics/campaign/${selectedId}`)).then(r => r.ok ? r.json() : null).then(setDetail);
+  }
+
+  const outreachShape = detail
+    ? { [channel]: { campaign: detail.metrics } }
+    : null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <PeriodToggle days={channel} setDays={setChannel} options={CAMPAIGN_CHANNEL_OPTIONS} />
+        {campaigns.length > 0 && (
+          <select
+            value={selectedId || ""}
+            onChange={e => setSelectedId(Number(e.target.value))}
+            style={{
+              background: "rgba(30,47,80,0.6)", border: "1px solid #1a2540",
+              borderRadius: 6, color: "#8aaad0",
+              fontFamily: "'Share Tech Mono', monospace", fontSize: 11,
+              padding: "6px 10px", cursor: "pointer",
+            }}
+          >
+            {campaigns.map(c => (
+              <option key={c.id} value={c.id}>{c.is_active ? "★ " : ""}{c.name}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {!campaigns.length && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+          NO {channel.toUpperCase()} CAMPAIGNS YET
+        </div>
+      )}
+
+      {detail && (
+        <>
+          <div className="glass-card" style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>
+                {detail.campaign.name}
+              </div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", marginTop: 4 }}>
+                {detail.periods.map((p, i) => (
+                  <span key={i}>{i > 0 ? ", " : ""}{fmtCampaignDate(p.started_at)} – {fmtCampaignDate(p.ended_at)}</span>
+                ))}
+              </div>
+            </div>
+            {!detail.campaign.is_active && (
+              <button className="btn btn-secondary" onClick={() => reactivate(detail.campaign.id)}>Reactivate</button>
+            )}
+          </div>
+
+          {channel === "sms" && <SmsOutreachCard outreach={outreachShape} tab="campaign" />}
+          {channel === "email" && <EmailOutreachCard outreach={outreachShape} tab="campaign" />}
+          {channel === "calling" && <ColdCallingCard outreach={outreachShape} tab="campaign" />}
+        </>
+      )}
+    </div>
+  );
+}
+
 function FunnelBlock({ label, value, convRate, color, isFirst }) {
   return (
     <div style={{ display: "flex", alignItems: "center", flex: 1 }}>
@@ -120,7 +212,13 @@ function FunnelBlock({ label, value, convRate, color, isFirst }) {
   );
 }
 
+const ANALYTICS_VIEW_TABS = [
+  { value: "overview",  label: "OVERVIEW" },
+  { value: "campaigns", label: "CAMPAIGNS" },
+];
+
 export default function AnalyticsPanel() {
+  const [view, setView]               = useState("overview");
   const [days, setDays]               = useState(0);
   const [outreach, setOutreach]       = useState(null);
   const [pipeline, setPipeline]       = useState(null);
@@ -162,6 +260,25 @@ export default function AnalyticsPanel() {
         </div>
         <PeriodToggle days={days} setDays={setDays} options={ANALYTICS_PERIOD_OPTIONS} />
       </div>
+
+      {/* ── Overview / Campaigns sub-tabs ────────────────────────────── */}
+      <div style={{ display: "flex", gap: 6 }}>
+        {ANALYTICS_VIEW_TABS.map(t => (
+          <button
+            key={t.value}
+            onClick={() => setView(t.value)}
+            className={view === t.value ? "btn btn-primary" : "btn btn-secondary"}
+            style={{ fontSize: 10, padding: "6px 16px" }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === "campaigns" ? (
+        <CampaignsView />
+      ) : (
+      <>
 
       {/* ── 6-Stage Acquisition Funnel ─────────────────────────────── */}
       <div className="glass-card" style={{ padding: "20px 22px" }}>
@@ -295,6 +412,9 @@ export default function AnalyticsPanel() {
           </div>
         </div>
       </div>
+
+      </>
+      )}
 
     </div>
   );

@@ -179,6 +179,23 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            CREATE TABLE IF NOT EXISTS campaigns (
+                id         SERIAL PRIMARY KEY,
+                channel    TEXT NOT NULL,
+                name       TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE IF NOT EXISTS campaign_periods (
+                id          SERIAL PRIMARY KEY,
+                campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+                started_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                ended_at    TIMESTAMPTZ
+            );
+            CREATE INDEX IF NOT EXISTS idx_campaigns_channel ON campaigns(channel);
+            CREATE INDEX IF NOT EXISTS idx_campaign_periods_campaign ON campaign_periods(campaign_id);
+            CREATE INDEX IF NOT EXISTS idx_campaign_periods_active ON campaign_periods(campaign_id) WHERE ended_at IS NULL;
+
             CREATE TABLE IF NOT EXISTS tags (
                 id         SERIAL PRIMARY KEY,
                 name       TEXT UNIQUE NOT NULL,
@@ -273,6 +290,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_engaged_manual BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_interested BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_interested_manual BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
+            ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
         """)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;

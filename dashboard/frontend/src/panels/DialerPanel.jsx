@@ -3,6 +3,7 @@ import { API } from "../api.js";
 import { DISPO_COLORS, DISPO_BUTTONS } from "../dispositions.js";
 import ContactCard from "../ContactCard.jsx";
 import BookingModal from "../BookingModal.jsx";
+import CampaignBadge from "../components/CampaignBadge.jsx";
 
 const GRADE_COLORS = { A: "#14c882", B: "#5a9bf0", C: "#f0a028", D: "#dc3c3c" };
 
@@ -550,6 +551,7 @@ const [notes, setNotes]                 = useState("");
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <CampaignBadge channel="calling" />
                 <select
                   style={{
                     background: "rgba(30,47,80,0.6)", border: "1px solid #1a2540",

@@ -293,8 +293,12 @@ async def manual_email_send(payload: dict):
         conv = await conn.fetchrow("SELECT id FROM email_conversations WHERE thread_id = $1", new_thread_id)
         if not conv:
             await conn.execute(
-                """INSERT INTO email_conversations (contact_id, thread_id, email, subject, status)
-                   VALUES ($1, $2, $3, $4, 'active')""",
+                """INSERT INTO email_conversations (contact_id, thread_id, email, subject, status, campaign_id)
+                   VALUES ($1, $2, $3, $4, 'active', (
+                       SELECT cp.campaign_id FROM campaign_periods cp
+                       JOIN campaigns c ON c.id = cp.campaign_id
+                       WHERE c.channel = 'email' AND cp.ended_at IS NULL
+                   ))""",
                 contact_id, new_thread_id, to, subject,
             )
         else:

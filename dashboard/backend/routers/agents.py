@@ -448,6 +448,20 @@ TOOLS = [
                 "resonations_7d":        {"type": "integer", "description": "Resonations in last 7 days"},
                 "appointments_booked_7d":{"type": "integer", "description": "Appointments booked in last 7 days"},
                 "source_note":           {"type": "string",  "description": "Brief note on which sheet(s) this data came from"},
+                # Per-day breakdown — powers campaign-scoped calling analytics, which
+                # need to sum an arbitrary date range instead of the fixed 7d/30d/all-time
+                # buckets above. Only include days you have real cold-calling-sheet data
+                # for; omitted days are left untouched (upserted, not wiped) on every call.
+                "daily": {
+                    "type": "object",
+                    "description": (
+                        "Per-day cold-calling totals, keyed by ISO date (YYYY-MM-DD). Each "
+                        "value is an object with any of: calls_made, calls_answered, "
+                        "contacts_reached, resonations, appointments_booked (sum of that "
+                        "day's rows from the Cold Calling Metrics sheet). Merged into "
+                        "existing daily history — only pass days you actually found data for."
+                    ),
+                },
             },
         },
     },
@@ -696,6 +710,18 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
                 if key in tool_input and tool_input[key] is not None:
                     current[stat_key] = tool_input[key]
                     updated.append(f"{stat_key}={tool_input[key]}")
+
+            # Per-day breakdown — upsert each date's fields, never wipe history,
+            # since a single digest run only covers whatever window the sheet
+            # actually had fresh data for (see input_schema description above).
+            daily_input = tool_input.get("daily")
+            if isinstance(daily_input, dict) and daily_input:
+                daily = current.setdefault("daily", {})
+                for date_key, day_fields in daily_input.items():
+                    if not isinstance(day_fields, dict):
+                        continue
+                    daily.setdefault(date_key, {}).update(day_fields)
+                updated.append(f"daily+={len(daily_input)}d")
 
             # Auto-calculate avg_deal_size if not provided
             closes = current.get("closes", 0)

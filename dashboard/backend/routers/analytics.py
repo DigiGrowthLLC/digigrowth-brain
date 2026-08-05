@@ -127,9 +127,57 @@ def _calling_metrics(stats: dict, days: int) -> dict:
     }
 
 
-async def _sms_metrics(conn, since=None) -> dict:
+def _calling_metrics_for_campaign(stats: dict, periods: list) -> dict:
     """
-    Return SMS funnel metrics. If since is None, returns all-time.
+    Same source and formulas as _calling_metrics(), but summed over the
+    campaign's active date range(s) from the Sheets Digest's per-day
+    breakdown (`sales_stats.json["daily"]`) instead of the fixed 7d/30d/
+    all-time buckets — a reactivated campaign can have multiple periods, so
+    this sums every day that falls inside ANY of them (each `ended_at is
+    None` period treated as "through today"), correctly excluding days
+    another campaign was active in between.
+    """
+    daily = stats.get("daily") or {}
+    today = datetime.now(timezone.utc).date()
+
+    def _in_any_period(day) -> bool:
+        for started_at, ended_at in periods:
+            start_date = started_at.date() if hasattr(started_at, "date") else started_at
+            end_date = (ended_at.date() if hasattr(ended_at, "date") else ended_at) if ended_at else today
+            if start_date <= day <= end_date:
+                return True
+        return False
+
+    totals = {"calls_made": 0, "calls_answered": 0, "contacts_reached": 0, "resonations": 0, "appointments_booked": 0}
+    for date_key, day_fields in daily.items():
+        try:
+            day = datetime.strptime(date_key, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if not isinstance(day_fields, dict) or not _in_any_period(day):
+            continue
+        for key in totals:
+            totals[key] += day_fields.get(key, 0) or 0
+
+    return {
+        "total":           totals["calls_made"],
+        "answer_rate":     _pct(totals["calls_answered"], totals["calls_made"]),
+        "pitch_rate":      _pct(totals["contacts_reached"], totals["calls_made"]),
+        "resonation_rate": _pct(totals["resonations"], totals["contacts_reached"]),
+        "pitches":         totals["contacts_reached"],
+        "resonations":     totals["resonations"],
+        "abr":             _pct(totals["appointments_booked"], totals["calls_made"]),
+        "booked":          totals["appointments_booked"],
+    }
+
+
+async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
+    """
+    Return SMS funnel metrics. If since is None, returns all-time. If
+    campaign_id is given, it takes over from since entirely — a campaign
+    is its own time boundary (see campaigns.py), so metrics are scoped to
+    whichever conversations got stamped with that campaign_id rather than
+    a date window.
 
     Replied/Engaged/Interested are read straight off sms_conversations'
     stage_replied/stage_engaged/stage_interested checkboxes — NOT recomputed
@@ -145,8 +193,25 @@ async def _sms_metrics(conn, since=None) -> dict:
     the single denominator for every rate — matches the pattern
     _email_metrics() already uses for its own reply rate.
     """
-    msg_filter = "AND sent_at >= $1" if since else ""
-    params = [since] if since else []
+    if campaign_id is not None:
+        msg_filter   = "AND phone IN (SELECT phone FROM sms_conversations WHERE campaign_id = $1)"
+        params       = [campaign_id]
+        stage_filter = "AND sc.campaign_id = $1"
+        stage_params = [campaign_id]
+        booked_filter = "AND campaign_id = $1"
+    else:
+        msg_filter = "AND sent_at >= $1" if since else ""
+        params = [since] if since else []
+
+        stage_filter = "AND sc.phone = ANY($1)" if since else ""
+        stage_params = params.copy()
+        if since:
+            contacted_phones = await conn.fetch(
+                f"SELECT DISTINCT phone FROM sms_messages WHERE direction='outbound' {msg_filter}",
+                *params,
+            )
+            stage_params = [[r["phone"] for r in contacted_phones]]
+        booked_filter = "AND created_at >= $1" if since else ""
 
     # Total Outreach — every outbound SMS sent, counted the moment it's sent.
     total_outreach = await conn.fetchval(
@@ -158,15 +223,6 @@ async def _sms_metrics(conn, since=None) -> dict:
         f"SELECT COUNT(DISTINCT phone) FROM sms_messages WHERE direction='outbound' {msg_filter}",
         *params,
     )
-
-    stage_filter = "AND sc.phone = ANY($1)" if since else ""
-    stage_params = params.copy()
-    if since:
-        contacted_phones = await conn.fetch(
-            f"SELECT DISTINCT phone FROM sms_messages WHERE direction='outbound' {msg_filter}",
-            *params,
-        )
-        stage_params = [[r["phone"] for r in contacted_phones]]
 
     replied = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_replied {stage_filter}",
@@ -186,8 +242,7 @@ async def _sms_metrics(conn, since=None) -> dict:
     )
 
     booked = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='booked' "
-        f"{'AND created_at >= $1' if since else ''}",
+        f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='booked' {booked_filter}",
         *params,
     )
 
@@ -207,20 +262,33 @@ async def _sms_metrics(conn, since=None) -> dict:
     }
 
 
-async def _email_metrics(conn, since=None) -> dict:
+async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     """
     Email funnel metrics — sent / reply rate / booked.
     Unlike SMS, email has no stage sequence (no equivalent of auto_opener →
     curiosity_opener → ... → cta), so this only tracks what the data
     actually supports: outbound sends, whether the contact replied, and
     conversations marked booked.
+
+    If campaign_id is given, it takes over from since entirely, same as
+    _sms_metrics — a campaign is its own time boundary.
     """
-    # is_test excludes diagnostic sends (e.g. /newsletter/test-send, used to
-    # verify the open-tracking pixel end-to-end) — those are self-opened by
-    # whoever ran the test, which skews open rate badly against a real
-    # campaign's small early denominator if left in.
-    msg_filter = "AND NOT is_test" + (" AND sent_at >= $1" if since else "")
-    params = [since] if since else []
+    if campaign_id is not None:
+        msg_filter = "AND NOT is_test AND thread_id IN (SELECT thread_id FROM email_conversations WHERE campaign_id = $1)"
+        params = [campaign_id]
+        booked_filter = "AND campaign_id = $1"
+        unsub_filter = ""  # unsubscribes are tracked on contacts, not per-conversation — no clean campaign scope
+        unsub_params = []
+    else:
+        # is_test excludes diagnostic sends (e.g. /newsletter/test-send, used to
+        # verify the open-tracking pixel end-to-end) — those are self-opened by
+        # whoever ran the test, which skews open rate badly against a real
+        # campaign's small early denominator if left in.
+        msg_filter = "AND NOT is_test" + (" AND sent_at >= $1" if since else "")
+        params = [since] if since else []
+        booked_filter = "AND updated_at >= $1" if since else ""
+        unsub_filter = "AND opted_out_at >= $1" if since else ""
+        unsub_params = params
 
     total_sent = await conn.fetchval(
         f"SELECT COUNT(*) FROM email_messages WHERE direction='outbound' {msg_filter}",
@@ -252,8 +320,7 @@ async def _email_metrics(conn, since=None) -> dict:
     # thread first started), so a booking that lands in this period shows up
     # here even if the contact was first emailed before the window started.
     booked_total = await conn.fetchval(
-        f"SELECT COUNT(*) FROM email_conversations WHERE disposition='booked' "
-        f"{'AND updated_at >= $1' if since else ''}",
+        f"SELECT COUNT(*) FROM email_conversations WHERE disposition='booked' {booked_filter}",
         *params,
     )
 
@@ -301,7 +368,6 @@ async def _email_metrics(conn, since=None) -> dict:
     # opted out (not when they were originally emailed). The two opt-out lists
     # stay independent for send-blocking purposes (see email_tracking.py), but
     # for this all-up "email channel" rate a click on either link counts.
-    unsub_filter = "AND opted_out_at >= $1" if since else ""
     unsubscribed = await conn.fetchval(
         f"""
         SELECT COUNT(*) FROM (
@@ -311,7 +377,7 @@ async def _email_metrics(conn, since=None) -> dict:
         ) opted_out
         WHERE opted_out_at IS NOT NULL {unsub_filter}
         """,
-        *params,
+        *unsub_params,
     )
 
     return {
@@ -473,6 +539,40 @@ async def sales_stats(days: int = 0):
         "avg_deal_size":     round(revenue / closes) if closes else 0,
         "shows":             shows,
         "sheet_sync":        sheet_sync,
+    }
+
+
+@router.get("/analytics/campaign/{campaign_id}")
+async def campaign_analytics(campaign_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        campaign = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
+        if not campaign:
+            return {"error": "Campaign not found"}
+        period_rows = await conn.fetch(
+            "SELECT started_at, ended_at FROM campaign_periods WHERE campaign_id = $1 ORDER BY started_at",
+            campaign_id,
+        )
+        periods = [{"started_at": p["started_at"], "ended_at": p["ended_at"]} for p in period_rows]
+
+        if campaign["channel"] == "sms":
+            metrics = await _sms_metrics(conn, campaign_id=campaign_id)
+        elif campaign["channel"] == "email":
+            metrics = await _email_metrics(conn, campaign_id=campaign_id)
+        else:
+            sales = _load_sales_stats()
+            metrics = _calling_metrics_for_campaign(
+                sales, [(p["started_at"], p["ended_at"]) for p in period_rows]
+            )
+
+    return {
+        "campaign": {
+            "id": campaign["id"], "name": campaign["name"], "channel": campaign["channel"],
+            "created_at": campaign["created_at"],
+            "is_active": any(p["ended_at"] is None for p in periods),
+        },
+        "periods": periods,
+        "metrics": metrics,
     }
 
 
