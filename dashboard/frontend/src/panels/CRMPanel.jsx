@@ -559,20 +559,33 @@ function ContactRow({ contact, checked, onCheck, onSelect, tagColor }) {
   );
 }
 
-const EDITABLE_FIELDS = ["business", "owner", "phone", "email", "website", "city", "state", "grade", "opener"];
+const CONTACT_FIELDS = [
+  { label: "Business", k: "business" },
+  { label: "Owner",    k: "owner" },
+  { label: "Phone",    k: "phone" },
+  { label: "Email",    k: "email" },
+  { label: "Website",  k: "website" },
+  { label: "City",     k: "city" },
+  { label: "State",    k: "state" },
+];
 
 function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor, onTagsChanged }) {
-  const [status, setStatus] = useState(contact.status);
-  const [note, setNote] = useState("");
+  const [display, setDisplay] = useState(contact);
+  const [form, setForm] = useState(() => {
+    const initial = {};
+    for (const f of CONTACT_FIELDS) initial[f.k] = contact[f.k] || "";
+    initial.grade = contact.grade || "";
+    initial.opener = contact.opener || "";
+    initial.status = contact.status || "";
+    return initial;
+  });
   const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+
+  const [note, setNote] = useState("");
   const [addedToQueue, setAddedToQueue] = useState(false);
   const [queueError, setQueueError] = useState("");
   const [callingNow, setCallingNow] = useState(false);
-
-  const [display, setDisplay] = useState(contact);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({});
-  const [editErr, setEditErr] = useState("");
   const [tagPick, setTagPick] = useState("");
   const [newTagName, setNewTagName] = useState("");
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -580,10 +593,15 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
 
   const [campaignInfo, setCampaignInfo] = useState(null);
   const [availableCampaigns, setAvailableCampaigns] = useState({ sms: [], email: [] });
+  const [campaignForm, setCampaignForm] = useState({ sms: "", email: "" });
 
   const loadCampaignInfo = useCallback(async () => {
     const res = await fetch(`/api/contacts/${contact.id}/campaigns`);
-    if (res.ok) setCampaignInfo(await res.json());
+    if (res.ok) {
+      const info = await res.json();
+      setCampaignInfo(info);
+      setCampaignForm({ sms: info?.sms?.id ?? "", email: info?.email?.id ?? "" });
+    }
   }, [contact.id]);
 
   useEffect(() => {
@@ -594,26 +612,59 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
     ]).then(([sms, email]) => setAvailableCampaigns({ sms, email }));
   }, [loadCampaignInfo]);
 
-  async function applyCampaignChanges(form) {
-    const changes = [];
-    for (const channel of ["sms", "email"]) {
-      const key = channel === "sms" ? "campaignSms" : "campaignEmail";
-      const before = campaignInfo?.[channel]?.id ?? "";
-      const after = form[key] ?? "";
-      if (String(before) !== String(after)) changes.push({ before, after });
-    }
-    for (const chg of changes) {
-      if (chg.after) {
-        await fetch(`/api/contacts/${contact.id}/campaigns`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ campaign_id: Number(chg.after) }),
-        });
-      } else if (chg.before) {
-        await fetch(`/api/contacts/${contact.id}/campaigns/${chg.before}`, { method: "DELETE" });
+  function setField(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveErr("");
+    try {
+      const patch = {};
+      for (const f of CONTACT_FIELDS) {
+        if (form[f.k] !== (display[f.k] || "")) patch[f.k] = form[f.k] || null;
       }
+      if (form.grade !== (display.grade || "")) patch.grade = form.grade || null;
+      if (form.opener !== (display.opener || "")) patch.opener = form.opener || null;
+      if (form.status !== display.status) patch.status = form.status;
+
+      if (Object.keys(patch).length > 0) {
+        const res = await fetch(`/api/contacts/${contact.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          setSaveErr(d.detail || "Save failed.");
+          setSaving(false);
+          return;
+        }
+        const updated = await res.json();
+        setDisplay(updated);
+        onUpdate();
+      }
+
+      const campaignChanges = [];
+      for (const channel of ["sms", "email"]) {
+        const before = campaignInfo?.[channel]?.id ?? "";
+        const after = campaignForm[channel] ?? "";
+        if (String(before) !== String(after)) campaignChanges.push({ channel, before, after });
+      }
+      for (const chg of campaignChanges) {
+        if (chg.after) {
+          await fetch(`/api/contacts/${contact.id}/campaigns`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ campaign_id: Number(chg.after) }),
+          });
+        } else if (chg.before) {
+          await fetch(`/api/contacts/${contact.id}/campaigns/${chg.before}`, { method: "DELETE" });
+        }
+      }
+      if (campaignChanges.length > 0) loadCampaignInfo();
+    } catch (e) {
+      setSaveErr(String(e));
     }
-    if (changes.length > 0) loadCampaignInfo();
+    setSaving(false);
   }
 
   async function addTag(tagName) {
@@ -662,56 +713,6 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
     }
   }
 
-  function setField(k, v) { setForm(f => ({ ...f, [k]: v })); }
-
-  function startEditing() {
-    const initial = {};
-    for (const k of EDITABLE_FIELDS) initial[k] = display[k] || "";
-    initial.campaignSms = campaignInfo?.sms?.id ?? "";
-    initial.campaignEmail = campaignInfo?.email?.id ?? "";
-    setForm(initial);
-    setEditErr("");
-    setEditing(true);
-  }
-
-  async function saveEdits() {
-    setSaving(true); setEditErr("");
-    try {
-      const patch = {};
-      for (const k of EDITABLE_FIELDS) patch[k] = form[k];
-      patch.grade = form.grade || null;
-      const res = await fetch(`/api/contacts/${contact.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setEditErr(d.detail || "Save failed.");
-        setSaving(false);
-        return;
-      }
-      const updated = await res.json();
-      setDisplay(updated);
-      onUpdate();
-      await applyCampaignChanges(form);
-      setEditing(false);
-    } catch (e) {
-      setEditErr(String(e));
-    }
-    setSaving(false);
-  }
-
-  async function saveStatus(newStatus) {
-    setSaving(true);
-    await fetch(`/api/contacts/${contact.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus }),
-    });
-    setStatus(newStatus); onUpdate(); setSaving(false);
-  }
-
   async function addToQueue() {
     setSaving(true);
     setQueueError("");
@@ -727,7 +728,9 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
         setSaving(false);
         return;
       }
-      setStatus("dialer-lead");
+      const updated = await res.json();
+      setDisplay(updated);
+      setField("status", "dialer-lead");
       setAddedToQueue(true);
       onUpdate();
       setTimeout(() => setAddedToQueue(false), 2000);
@@ -778,184 +781,113 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
         {/* Header */}
         <div style={{ padding: "18px 20px", borderBottom: "0.5px solid #1a2540",
                       display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {editing ? (
-              <input value={form.business} onChange={e => setField("business", e.target.value)}
-                className="dg-input" placeholder="Business name"
-                style={{ width: "100%", fontSize: 14, fontWeight: 700, marginBottom: 6 }} />
-            ) : (
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
-                {display.business || "Unknown"}
-              </div>
-            )}
-            {editing ? (
-              <div style={{ display: "flex", gap: 6 }}>
-                <input value={form.owner} onChange={e => setField("owner", e.target.value)}
-                  className="dg-input" placeholder="Owner" style={{ flex: 1, fontSize: 11 }} />
-                <input value={form.phone} onChange={e => setField("phone", e.target.value)}
-                  className="dg-input" placeholder="Phone" style={{ flex: 1, fontSize: 11 }} />
-              </div>
-            ) : (
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80",
-                            letterSpacing: "0.12em", marginTop: 3 }}>
-                {display.owner || "—"} · {display.phone}
-              </div>
-            )}
+          <div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
+              {display.business || "Unknown"}
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80",
+                          letterSpacing: "0.12em", marginTop: 3 }}>
+              {display.owner || "—"} · {display.phone}
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                          letterSpacing: "0.1em", marginTop: 4 }}>
+              {display.call_attempts || 0} CALLS{display.last_disposition ? ` · LAST: ${display.last_disposition.toUpperCase()}` : ""}
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            {!editing && (
-              <button onClick={startEditing}
-                style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a9bf0",
-                         background: "rgba(58,123,213,0.12)", border: "1px solid rgba(58,123,213,0.3)",
-                         borderRadius: 6, cursor: "pointer", padding: "5px 10px" }}>
-                ✎ Edit
-              </button>
-            )}
-            <button onClick={onClose}
-              style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#3a5a80",
-                       background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>
-              ✕
-            </button>
-          </div>
+          <button onClick={onClose}
+            style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#3a5a80",
+                     background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>
+            ✕
+          </button>
         </div>
 
-        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 20, flex: 1 }}>
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
 
-          {/* Info grid */}
-          {editing ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {[["Email", "email"], ["Website", "website"], ["City", "city"], ["State", "state"]].map(([label, key]) => (
-                <div key={key}>
-                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
-                                letterSpacing: "0.15em", marginBottom: 4 }}>
-                    {label.toUpperCase()}
-                  </div>
-                  <input value={form[key]} onChange={e => setField(key, e.target.value)}
-                    className="dg-input" style={{ width: "100%" }} />
-                </div>
-              ))}
-              <div>
+          {/* Fields */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+            {CONTACT_FIELDS.map(f => (
+              <div key={f.k} style={{ marginBottom: 12 }}>
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
                               letterSpacing: "0.15em", marginBottom: 4 }}>
-                  GRADE
+                  {f.label.toUpperCase()}
                 </div>
-                <select value={form.grade} onChange={e => setField("grade", e.target.value)}
-                  className="dg-input" style={{ width: "100%", background: "#080c14" }}>
-                  <option value="">—</option>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                  <option value="D">D</option>
-                </select>
+                <input value={form[f.k]} onChange={e => setField(f.k, e.target.value)}
+                  className="dg-input" style={{ width: "100%", fontSize: 12, boxSizing: "border-box" }} />
               </div>
-              <div>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
-                              letterSpacing: "0.15em", marginBottom: 4 }}>
-                  SMS CAMPAIGN
-                </div>
-                <select value={form.campaignSms} onChange={e => setField("campaignSms", e.target.value)}
-                  className="dg-input" style={{ width: "100%", background: "#080c14" }}>
-                  <option value="">—</option>
-                  {availableCampaigns.sms.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
-                              letterSpacing: "0.15em", marginBottom: 4 }}>
-                  EMAIL CAMPAIGN
-                </div>
-                <select value={form.campaignEmail} onChange={e => setField("campaignEmail", e.target.value)}
-                  className="dg-input" style={{ width: "100%", background: "#080c14" }}>
-                  <option value="">—</option>
-                  {availableCampaigns.email.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
-              {[
-                ["Email", display.email],
-                ["Website", display.website],
-                ["City", display.city],
-                ["State", display.state],
-                ["Grade", display.grade],
-                ["Calls", display.call_attempts],
-                ["Last Disposition", display.last_disposition],
-                ["SMS Campaign", campaignInfo?.sms ? `${campaignInfo.sms.name}${campaignInfo.sms.pending ? " (pending)" : ""}` : null],
-                ["Email Campaign", campaignInfo?.email ? `${campaignInfo.email.name}${campaignInfo.email.pending ? " (pending)" : ""}` : null],
-              ].filter(([, v]) => v != null && v !== "").map(([label, value]) => (
-                <div key={label}>
-                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
-                                letterSpacing: "0.15em", marginBottom: 3 }}>
-                    {label.toUpperCase()}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#8aaad0" }}>{String(value)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Opener */}
-          {editing ? (
-            <div>
+            ))}
+            <div style={{ marginBottom: 12 }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
-                            letterSpacing: "0.15em", marginBottom: 6 }}>
-                COLD CALL OPENER
+                            letterSpacing: "0.15em", marginBottom: 4 }}>
+                GRADE
               </div>
-              <textarea value={form.opener} onChange={e => setField("opener", e.target.value)}
-                className="dg-input" rows={3} style={{ width: "100%", resize: "vertical", fontFamily: "inherit" }}
-                placeholder="Opening line for cold call…" />
+              <select value={form.grade} onChange={e => setField("grade", e.target.value)}
+                className="dg-input" style={{ width: "100%", fontSize: 12 }}>
+                <option value="">—</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+              </select>
             </div>
-          ) : display.opener && (
-            <div className="dg-surface" style={{ padding: "10px 14px" }}>
+            <div style={{ marginBottom: 12 }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
-                            letterSpacing: "0.15em", marginBottom: 6 }}>
-                COLD CALL OPENER
+                            letterSpacing: "0.15em", marginBottom: 4 }}>
+                STATUS
               </div>
-              <div style={{ fontSize: 12, color: "#8aaad0", fontStyle: "italic", lineHeight: 1.5 }}>
-                "{display.opener}"
+              <select value={form.status} onChange={e => setField("status", e.target.value)}
+                className="dg-input" style={{ width: "100%", fontSize: 12 }}>
+                {STATUSES.filter(s => s.value !== "all").map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                            letterSpacing: "0.15em", marginBottom: 4 }}>
+                SMS CAMPAIGN
               </div>
+              <select value={campaignForm.sms} onChange={e => setCampaignForm(f => ({ ...f, sms: e.target.value }))}
+                className="dg-input" style={{ width: "100%", fontSize: 12 }}>
+                <option value="">—</option>
+                {availableCampaigns.sms.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}{campaignInfo?.sms?.id === c.id && campaignInfo.sms.pending ? " (pending)" : ""}</option>
+                ))}
+              </select>
             </div>
-          )}
-
-          {editing && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {editErr && (
-                <div style={{ fontSize: 11, color: "#f06060", fontFamily: "'Share Tech Mono', monospace" }}>
-                  {editErr}
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={saveEdits} disabled={saving} className="btn btn-primary" style={{ flex: 1 }}>
-                  {saving ? "Saving…" : "Save Changes"}
-                </button>
-                <button onClick={() => setEditing(false)} disabled={saving} className="btn btn-secondary" style={{ flex: 1 }}>
-                  Cancel
-                </button>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                            letterSpacing: "0.15em", marginBottom: 4 }}>
+                EMAIL CAMPAIGN
               </div>
-            </div>
-          )}
-
-          {/* Status update */}
-          <div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
-                          letterSpacing: "0.15em", marginBottom: 10 }}>
-              UPDATE STATUS
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {STATUSES.filter(s => s.value !== "all").map(({ value, label }) => (
-                <button key={value} onClick={() => saveStatus(value)} disabled={saving}
-                  className={`btn ${status === value ? "btn-primary" : "btn-secondary"}`}
-                  style={{ fontSize: 10, padding: "5px 10px" }}>
-                  {label}
-                </button>
-              ))}
+              <select value={campaignForm.email} onChange={e => setCampaignForm(f => ({ ...f, email: e.target.value }))}
+                className="dg-input" style={{ width: "100%", fontSize: 12 }}>
+                <option value="">—</option>
+                {availableCampaigns.email.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}{campaignInfo?.email?.id === c.id && campaignInfo.email.pending ? " (pending)" : ""}</option>
+                ))}
+              </select>
             </div>
           </div>
+
+          {/* Opener */}
+          <div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                          letterSpacing: "0.15em", marginBottom: 6 }}>
+              COLD CALL OPENER
+            </div>
+            <textarea value={form.opener} onChange={e => setField("opener", e.target.value)}
+              className="dg-input" rows={3} style={{ width: "100%", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+              placeholder="Opening line for cold call…" />
+          </div>
+
+          {saveErr && (
+            <div style={{ fontSize: 11, color: "#f06060", fontFamily: "'Share Tech Mono', monospace" }}>
+              {saveErr}
+            </div>
+          )}
+          <button onClick={handleSave} disabled={saving} className="btn btn-primary">
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
 
           {/* Appointments */}
           <AppointmentsSection contactId={contact.id} refreshSignal={apptRefresh} />
