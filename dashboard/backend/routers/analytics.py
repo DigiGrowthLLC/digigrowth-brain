@@ -172,6 +172,10 @@ async def _sms_metrics(conn, since=None) -> dict:
         f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_replied {stage_filter}",
         *stage_params,
     )
+    primed = await conn.fetchval(
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_primed {stage_filter}",
+        *stage_params,
+    )
     engaged = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_engaged {stage_filter}",
         *stage_params,
@@ -192,6 +196,8 @@ async def _sms_metrics(conn, since=None) -> dict:
         "contacted":       contacted or 0,
         "replied":         replied or 0,
         "reply_rate":      _pct(replied, contacted),
+        "primed":          primed or 0,
+        "primed_rate":     _pct(primed, contacted),
         "engaged":         engaged or 0,
         "engaged_rate":    _pct(engaged, contacted),
         "interested":      interested or 0,

@@ -718,6 +718,7 @@ export default function InboxPanel({ initialTarget }) {
                         }}>
                           {[
                             { key: "replied",     label: "Replied",    checked: !!thread?.stage_replied },
+                            { key: "primed",      label: "Primed",     checked: !!thread?.stage_primed },
                             { key: "engaged",     label: "Engaged",    checked: !!thread?.stage_engaged },
                             { key: "interested",  label: "Interested", checked: !!thread?.stage_interested },
                           ].map(s => (

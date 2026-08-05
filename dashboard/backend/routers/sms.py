@@ -8,10 +8,10 @@ Endpoints (all under /api except the public webhook):
   POST /api/sms/send           — manual outbound send
   POST /api/sms/conversations/{phone}/close — close thread ({"disposition": "booked"|"not_interested"})
 
-Replied/Engaged/Interested checkboxes live on sms_conversations (stage_replied/
-stage_engaged/stage_interested) and are auto-set from inbound reply counts by
-_recompute_stage_flags() below; manual overrides come through
-POST /inbox/contact/{contact_id}/stage in email_inbox.py.
+Replied/Primed/Engaged/Interested checkboxes live on sms_conversations
+(stage_replied/stage_primed/stage_engaged/stage_interested) and are auto-set
+from inbound reply counts by _recompute_stage_flags() below; manual overrides
+come through POST /inbox/contact/{contact_id}/stage in email_inbox.py.
 
 No AI auto-reply: once a contact enters "sms-handoff" status, send_opening_message()
 sends a single opener. All further replies land in the inbox for manual response only.
@@ -161,10 +161,11 @@ async def _store_message(conn, phone: str, role: str, body: str, stage: str | No
 
 async def _recompute_stage_flags(conn, phone: str):
     """
-    Auto-set the Replied/Engaged/Interested checkboxes from the prospect's
-    inbound reply count (1+/2+/3+), but only for stages a human hasn't
-    manually overridden (stage_<x>_manual) — the checkbox value, not the
-    raw count, is what analytics reads.
+    Auto-set the Replied/Primed/Engaged/Interested checkboxes from the
+    prospect's inbound reply count (1+/2+/3+/4+ — each reply after the
+    opener steps the contact to the next stage), but only for stages a
+    human hasn't manually overridden (stage_<x>_manual) — the checkbox
+    value, not the raw count, is what analytics reads.
     """
     inbound_count = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_messages WHERE {_phone_match('phone', '$1')} AND direction='inbound'",
@@ -172,7 +173,7 @@ async def _recompute_stage_flags(conn, phone: str):
     )
     row = await conn.fetchrow(
         f"""
-        SELECT stage_replied_manual, stage_engaged_manual, stage_interested_manual
+        SELECT stage_replied_manual, stage_primed_manual, stage_engaged_manual, stage_interested_manual
         FROM sms_conversations WHERE {_phone_match('phone', '$1')}
         """,
         phone,
@@ -184,11 +185,14 @@ async def _recompute_stage_flags(conn, phone: str):
     if not row["stage_replied_manual"]:
         params.append(inbound_count >= 1)
         sets.append(f"stage_replied = ${len(params) + 1}")
-    if not row["stage_engaged_manual"]:
+    if not row["stage_primed_manual"]:
         params.append(inbound_count >= 2)
+        sets.append(f"stage_primed = ${len(params) + 1}")
+    if not row["stage_engaged_manual"]:
+        params.append(inbound_count >= 3)
         sets.append(f"stage_engaged = ${len(params) + 1}")
     if not row["stage_interested_manual"]:
-        params.append(inbound_count >= 3)
+        params.append(inbound_count >= 4)
         sets.append(f"stage_interested = ${len(params) + 1}")
     if not sets:
         return
@@ -298,7 +302,7 @@ async def list_conversations():
         rows = await conn.fetch(
             """
             SELECT sc.id, sc.phone, sc.status, sc.disposition, sc.updated_at,
-                   sc.stage_replied, sc.stage_engaged, sc.stage_interested,
+                   sc.stage_replied, sc.stage_primed, sc.stage_engaged, sc.stage_interested,
                    c.business, c.owner,
                    (SELECT body FROM sms_messages
                     WHERE phone = sc.phone
@@ -348,6 +352,7 @@ async def get_conversation(phone: str):
         "status":            conv["status"],
         "disposition":       conv["disposition"],
         "stage_replied":     conv["stage_replied"],
+        "stage_primed":      conv["stage_primed"],
         "stage_engaged":     conv["stage_engaged"],
         "stage_interested":  conv["stage_interested"],
         "business":          conv["business"],

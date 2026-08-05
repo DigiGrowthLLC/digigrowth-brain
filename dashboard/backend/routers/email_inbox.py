@@ -399,7 +399,7 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
             "contact_status": r["contact_status"],
             "channels": [], "last_message": None, "updated_at": None,
             "status": "closed", "disposition": None, "unread": False,
-            "stage_replied": False, "stage_engaged": False, "stage_interested": False,
+            "stage_replied": False, "stage_primed": False, "stage_engaged": False, "stage_interested": False,
         }
     if channel not in g["channels"]:
         g["channels"].append(channel)
@@ -410,6 +410,7 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
         g["unread"] = True
     if channel == "sms":
         g["stage_replied"] = g["stage_replied"] or bool(r.get("stage_replied"))
+        g["stage_primed"] = g["stage_primed"] or bool(r.get("stage_primed"))
         g["stage_engaged"] = g["stage_engaged"] or bool(r.get("stage_engaged"))
         g["stage_interested"] = g["stage_interested"] or bool(r.get("stage_interested"))
     if r["status"] != "closed":
@@ -444,7 +445,7 @@ async def list_inbox_conversations(
             sms_rows = await conn.fetch(
                 f"""
                 SELECT sc.contact_id, sc.status, sc.disposition, sc.updated_at,
-                       sc.stage_replied, sc.stage_engaged, sc.stage_interested,
+                       sc.stage_replied, sc.stage_primed, sc.stage_engaged, sc.stage_interested,
                        c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
                        (SELECT body FROM sms_messages WHERE phone = sc.phone
                         ORDER BY sent_at DESC LIMIT 1) AS last_message,
@@ -516,7 +517,7 @@ async def get_contact_thread(contact_id: str):
             contact_id,
         )
         sms_conv = await conn.fetchrow(
-            """SELECT status, disposition, stage_replied, stage_engaged, stage_interested
+            """SELECT status, disposition, stage_replied, stage_primed, stage_engaged, stage_interested
                FROM sms_conversations WHERE contact_id = $1""",
             contact_id,
         )
@@ -560,6 +561,7 @@ async def get_contact_thread(contact_id: str):
         "sms_status": sms_conv["status"] if sms_conv else None,
         "sms_disposition": sms_conv["disposition"] if sms_conv else None,
         "stage_replied": sms_conv["stage_replied"] if sms_conv else False,
+        "stage_primed": sms_conv["stage_primed"] if sms_conv else False,
         "stage_engaged": sms_conv["stage_engaged"] if sms_conv else False,
         "stage_interested": sms_conv["stage_interested"] if sms_conv else False,
         "email_thread_id": email_conv["thread_id"] if email_conv else None,
@@ -595,23 +597,24 @@ async def close_contact_threads(contact_id: str, payload: Optional[dict] = None)
     return {"ok": True}
 
 
-_STAGE_COLUMNS = {"replied", "engaged", "interested"}
+_STAGE_COLUMNS = {"replied", "primed", "engaged", "interested"}
 
 
 @router.post("/inbox/contact/{contact_id}/stage")
 async def set_contact_stage(contact_id: str, payload: dict):
     """
-    Manual funnel checklist (Replied/Engaged/Interested) for the contact's SMS
-    conversation. Any click through the UI is an explicit human override: it
-    sets both the checkbox value and its `_manual` lock, so automatic
-    reply-count detection (sms.py::_recompute_stage_flags) stops touching
-    that stage for this conversation from here on — analytics reads the
-    checkbox column directly, not the underlying reply count.
+    Manual funnel checklist (Replied/Primed/Engaged/Interested) for the
+    contact's SMS conversation. Any click through the UI is an explicit
+    human override: it sets both the checkbox value and its `_manual` lock,
+    so automatic reply-count detection (sms.py::_recompute_stage_flags)
+    stops touching that stage for this conversation from here on —
+    analytics reads the checkbox column directly, not the underlying reply
+    count.
     """
     stage = (payload or {}).get("stage")
     checked = bool((payload or {}).get("checked"))
     if stage not in _STAGE_COLUMNS:
-        return {"ok": False, "error": "stage must be one of replied/engaged/interested"}
+        return {"ok": False, "error": "stage must be one of replied/primed/engaged/interested"}
 
     pool = await get_pool()
     async with pool.acquire() as conn:

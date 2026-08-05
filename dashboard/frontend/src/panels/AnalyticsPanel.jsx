@@ -23,112 +23,70 @@ function MiniStat({ label, value, color }) {
 
 const ANALYTICS_PERIOD_OPTIONS = [[7,"7D"],[30,"30D"],[0,"All Time"]];
 
-function OutreachTable({ outreach, tab }) {
-  if (!outreach) {
-    return (
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
-        LOADING...
-      </div>
-    );
-  }
-
-  const call    = outreach.calling?.[tab] ?? {};
-  const sms     = outreach.sms?.[tab]     ?? {};
-  const email   = outreach.email?.[tab]   ?? {};
-
-  const rows = [
-    {
-      label:   "Total Outreach / Pieces",
-      call:    num(call.total),
-      sms:     num(sms.total_outreach),
-      email:   num(email.total_sent),
-    },
-    {
-      label:   "Answer / Reply Rate",
-      call:    pct(call.answer_rate),
-      sms:     pct(sms.reply_rate),
-      email:   pct(email.reply_rate),
-      isRate:  true,
-    },
-    {
-      label:   "Engaged / Pitch Rate",
-      call:    pct(call.pitch_rate),
-      sms:     pct(sms.engaged_rate),
-      email:   "—",
-      isRate:  true,
-    },
-    {
-      label:   "Interested / Resonation Rate",
-      call:    pct(call.resonation_rate),
-      sms:     pct(sms.interested_rate),
-      email:   "—",
-      isRate:  true,
-    },
-    {
-      label:   "ABR",
-      call:    pct(call.abr),
-      sms:     pct(sms.abr),
-      email:   pct(email.abr),
-      isRate:  true,
-      highlight: true,
-    },
-    {
-      label:   "Total Booked",
-      call:    num(call.booked),
-      sms:     num(sms.booked),
-      email:   num(email.booked),
-      isBig:   true,
-    },
-  ];
-
-  const colStyle = { flex: 1, textAlign: "right", fontFamily: "'Share Tech Mono', monospace" };
-
+function LoadingRow() {
   return (
-    <div>
-      {/* Header row */}
-      <div style={{ display: "flex", marginBottom: 10, padding: "0 0 8px", borderBottom: "0.5px solid #1a2540" }}>
-        <div style={{ flex: 1.6, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.1em" }}>METRIC</div>
-        <div style={{ ...colStyle, fontSize: 9, color: "#5a9bf0", letterSpacing: "0.1em" }}>SMS</div>
-        <div style={{ ...colStyle, fontSize: 9, color: "#9b6bd8", letterSpacing: "0.1em" }}>EMAIL</div>
-        <div style={{ ...colStyle, fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>COLD CALLING</div>
-      </div>
-      {rows.map((r, i) => (
-        <div key={i} style={{
-          display: "flex", alignItems: "center",
-          padding: "9px 0", borderBottom: "0.5px solid rgba(26,37,64,0.6)",
-        }}>
-          <div style={{ flex: 1.6, fontSize: 12, color: "#8aaad0" }}>{r.label}</div>
-          <div style={{ ...colStyle, fontSize: r.isBig ? 16 : 12, fontWeight: r.isBig ? 700 : 500,
-                        color: r.isBig ? "#14c882" : r.highlight ? "#14c882" : "#c4d0e8" }}>
-            {r.sms}
-          </div>
-          <div style={{ ...colStyle, fontSize: r.isBig ? 16 : 12, fontWeight: r.isBig ? 700 : 500,
-                        color: r.isBig ? "#14c882" : r.highlight ? "#14c882" : "#c4d0e8" }}>
-            {r.email}
-          </div>
-          <div style={{ ...colStyle, fontSize: r.isBig ? 16 : 12, fontWeight: r.isBig ? 700 : 500,
-                        color: r.isBig ? "#14c882" : r.highlight ? "#14c882" : "#c4d0e8" }}>
-            {r.call}
-          </div>
-        </div>
-      ))}
+    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+      LOADING...
     </div>
   );
 }
 
-function EmailDeliverabilityCard({ outreach, tab }) {
-  const email = outreach?.email?.[tab] ?? {};
+function SmsOutreachCard({ outreach, tab }) {
+  if (!outreach) return <div className="glass-card" style={{ padding: "20px 22px" }}><SecLabel>SMS Outreach</SecLabel><LoadingRow /></div>;
+  const sms = outreach.sms?.[tab] ?? {};
 
   return (
     <div className="glass-card" style={{ padding: "20px 22px" }}>
-      <SecLabel>Email Deliverability</SecLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginTop: 4 }}>
-        <MiniStat label="Sent"              value={num(email.total_sent)}   color="#9b6bd8" />
-        <MiniStat label="Open Rate (Raw)"       value={pct(email.open_rate)}           color="#9b6bd8" />
-        <MiniStat label="Open Rate (Confirmed)" value={pct(email.open_rate_confirmed)} color="#9b6bd8" />
-        <MiniStat label="Reply Rate"        value={pct(email.reply_rate)}   color="#14c882" />
-        <MiniStat label="Bounce Rate"       value={pct(email.bounce_rate)}  color={email.bounce_rate > 5 ? "#dc3c3c" : "#c4d0e8"} />
-        <MiniStat label="Unsubscribe Rate"  value={pct(email.unsubscribe_rate)} color={email.unsubscribe_rate > 2 ? "#dc3c3c" : "#c4d0e8"} />
+      <SecLabel>SMS Outreach</SecLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 4 }}>
+        <MiniStat label="Total Outreach"  value={num(sms.total_outreach)}  color="#5a9bf0" />
+        <MiniStat label="Contacted"       value={num(sms.contacted)}       color="#5a9bf0" />
+        <MiniStat label="Reply Rate"      value={pct(sms.reply_rate)}      color="#5a9bf0" />
+        <MiniStat label="Primed Rate"     value={pct(sms.primed_rate)}     color="#5a9bf0" />
+        <MiniStat label="Engaged Rate"    value={pct(sms.engaged_rate)}    color="#5a9bf0" />
+        <MiniStat label="Interested Rate" value={pct(sms.interested_rate)} color="#5a9bf0" />
+        <MiniStat label="ABR"             value={pct(sms.abr)}             color="#14c882" />
+        <MiniStat label="Total Booked"    value={num(sms.booked)}          color="#14c882" />
+      </div>
+    </div>
+  );
+}
+
+function EmailOutreachCard({ outreach, tab }) {
+  if (!outreach) return <div className="glass-card" style={{ padding: "20px 22px" }}><SecLabel>Email Outreach</SecLabel><LoadingRow /></div>;
+  const email = outreach.email?.[tab] ?? {};
+
+  return (
+    <div className="glass-card" style={{ padding: "20px 22px" }}>
+      <SecLabel>Email Outreach</SecLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 4 }}>
+        <MiniStat label="Sent"                  value={num(email.total_sent)}          color="#9b6bd8" />
+        <MiniStat label="Reply Rate"             value={pct(email.reply_rate)}          color="#9b6bd8" />
+        <MiniStat label="Open Rate (Raw)"        value={pct(email.open_rate)}           color="#9b6bd8" />
+        <MiniStat label="Open Rate (Confirmed)"  value={pct(email.open_rate_confirmed)} color="#9b6bd8" />
+        <MiniStat label="Bounce Rate"            value={pct(email.bounce_rate)}         color={email.bounce_rate > 5 ? "#dc3c3c" : "#c4d0e8"} />
+        <MiniStat label="Unsubscribe Rate"       value={pct(email.unsubscribe_rate)}    color={email.unsubscribe_rate > 2 ? "#dc3c3c" : "#c4d0e8"} />
+        <MiniStat label="ABR"                    value={pct(email.abr)}                 color="#14c882" />
+        <MiniStat label="Total Booked"           value={num(email.booked)}              color="#14c882" />
+      </div>
+    </div>
+  );
+}
+
+function ColdCallingCard({ outreach, tab }) {
+  if (!outreach) return <div className="glass-card" style={{ padding: "20px 22px" }}><SecLabel>Cold Calling</SecLabel><LoadingRow /></div>;
+  const call = outreach.calling?.[tab] ?? {};
+
+  return (
+    <div className="glass-card" style={{ padding: "20px 22px" }}>
+      <SecLabel>Cold Calling</SecLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 4 }}>
+        <MiniStat label="Total Calls"       value={num(call.total)}             color="#3a7bd5" />
+        <MiniStat label="Answer Rate"       value={pct(call.answer_rate)}       color="#3a7bd5" />
+        <MiniStat label="Pitch Rate"        value={pct(call.pitch_rate)}        color="#3a7bd5" />
+        <MiniStat label="Resonation Rate"   value={pct(call.resonation_rate)}   color="#3a7bd5" />
+        <MiniStat label="ABR"               value={pct(call.abr)}               color="#14c882" />
+        <MiniStat label="Total Booked"      value={num(call.booked)}            color="#14c882" />
       </div>
     </div>
   );
@@ -207,13 +165,14 @@ export default function AnalyticsPanel() {
       </div>
 
       {/* ── Outreach & Appointment Setting ─────────────────────────── */}
-      <div className="glass-card" style={{ padding: "20px 22px" }}>
+      <div>
         <SecLabel>Outreach & Appointment Setting</SecLabel>
-        <OutreachTable outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
+          <SmsOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
+          <EmailOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
+          <ColdCallingCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
+        </div>
       </div>
-
-      {/* ── Email Deliverability ────────────────────────────────────── */}
-      <EmailDeliverabilityCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
 
       {/* ── 6-Stage Acquisition Funnel ─────────────────────────────── */}
       <div className="glass-card" style={{ padding: "20px 22px" }}>
