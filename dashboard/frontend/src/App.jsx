@@ -112,7 +112,7 @@ const NAV_ICONS = {
 };
 
 const LogoMark = () => (
-  <img src={logoWordmark} alt="DigiGrowth" style={{ height: 36, flexShrink: 0, display: "block" }} />
+  <img src={logoWordmark} alt="DigiGrowth" style={{ height: 52, flexShrink: 0, display: "block" }} />
 );
 
 export default function App() {
@@ -185,12 +185,6 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center" }}>
             <LogoMark />
           </div>
-          <div style={{
-            fontFamily: "'Share Tech Mono', monospace",
-            fontSize: 9, color: "#2a4a7a", letterSpacing: "0.14em", marginTop: 8,
-          }}>
-            CLIENT ACQ. PLATFORM
-          </div>
         </div>
 
         {/* Nav */}
@@ -253,7 +247,7 @@ export default function App() {
             fontFamily: "'Share Tech Mono', monospace",
             fontSize: 9, color: "#3a5a80", letterSpacing: "0.12em",
           }}>
-            SYS · V2.0 · LIVE
+            CLIENT ACQ. PLATFORM
           </div>
         </div>
       </aside>

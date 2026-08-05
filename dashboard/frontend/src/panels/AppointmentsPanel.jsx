@@ -50,9 +50,6 @@ export default function AppointmentsPanel() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div className="sec-label" style={{ marginBottom: 2 }}>Upcoming Appointments</div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
-            Booked via the dialer's manual booking form — SMS/email reminders fire at 24h, 6h, and 1h before, in the prospect's own timezone.
-          </div>
         </div>
         <select className="dg-input" value={filter} onChange={e => setFilter(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", width: "auto" }}>
           <option value="scheduled">Scheduled</option>
