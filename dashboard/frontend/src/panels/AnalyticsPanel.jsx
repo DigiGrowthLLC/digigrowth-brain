@@ -40,7 +40,6 @@ function SmsOutreachCard({ outreach, tab }) {
       <SecLabel>SMS Outreach</SecLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 4 }}>
         <MiniStat label="Total Outreach"  value={num(sms.total_outreach)}  color="#5a9bf0" />
-        <MiniStat label="Contacted"       value={num(sms.contacted)}       color="#5a9bf0" />
         <MiniStat label="Reply Rate"      value={pct(sms.reply_rate)}      color="#5a9bf0" />
         <MiniStat label="Primed Rate"     value={pct(sms.primed_rate)}     color="#5a9bf0" />
         <MiniStat label="Engaged Rate"    value={pct(sms.engaged_rate)}    color="#5a9bf0" />
@@ -61,9 +60,9 @@ function EmailOutreachCard({ outreach, tab }) {
       <SecLabel>Email Outreach</SecLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 4 }}>
         <MiniStat label="Sent"                  value={num(email.total_sent)}          color="#9b6bd8" />
-        <MiniStat label="Reply Rate"             value={pct(email.reply_rate)}          color="#9b6bd8" />
         <MiniStat label="Open Rate (Raw)"        value={pct(email.open_rate)}           color="#9b6bd8" />
         <MiniStat label="Open Rate (Confirmed)"  value={pct(email.open_rate_confirmed)} color="#9b6bd8" />
+        <MiniStat label="Reply Rate"             value={pct(email.reply_rate)}          color="#9b6bd8" />
         <MiniStat label="Bounce Rate"            value={pct(email.bounce_rate)}         color={email.bounce_rate > 5 ? "#dc3c3c" : "#c4d0e8"} />
         <MiniStat label="Unsubscribe Rate"       value={pct(email.unsubscribe_rate)}    color={email.unsubscribe_rate > 2 ? "#dc3c3c" : "#c4d0e8"} />
         <MiniStat label="ABR"                    value={pct(email.abr)}                 color="#14c882" />
