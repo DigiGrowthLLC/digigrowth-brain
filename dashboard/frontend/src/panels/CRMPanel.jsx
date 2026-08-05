@@ -192,6 +192,23 @@ function fmtLastCalled(ts) {
   return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+// Display-only — never mutates the stored value, since the dialer/SMS
+// backends expect whatever raw format is already in the DB. Normalizes
+// any US-style number (10 digits, or 11 with a leading 1) to a consistent
+// spaced format; anything else (international, extensions, garbage) is
+// left as-is rather than mangled.
+function formatPhone(raw) {
+  if (!raw) return raw;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 11 && digits[0] === "1") {
+    return `+1 ${digits.slice(1, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  }
+  return raw;
+}
+
 // ── CSV parser ────────────────────────────────────────────────────────────────
 
 function parseCsvLine(line) {
@@ -290,7 +307,7 @@ function AddContactModal({ onClose, onSaved }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             {field("Business Name", "business")}
             {field("Owner / Contact", "owner")}
-            {field("Phone *", "phone", { placeholder: "+1 555-000-0000" })}
+            {field("Phone *", "phone", { placeholder: "+1 555 000 0000" })}
             {field("Email", "email")}
             {field("City", "city")}
             {field("State", "state")}
@@ -417,7 +434,7 @@ function ImportModal({ onClose, onImported, tags, onTagsChanged }) {
                     <div key={i} style={{ padding: "8px 12px", background: "#060a14", border: "0.5px solid #121e36", borderRadius: 4, fontSize: 11, color: "#7a9abf", fontFamily: "'Share Tech Mono', monospace" }}>
                       {row.business && <span style={{ color: "#c4d0e8", marginRight: 10 }}>{row.business}</span>}
                       {row.owner && <span style={{ marginRight: 10 }}>{row.owner}</span>}
-                      <span style={{ color: "#3a7bd5" }}>{row.phone}</span>
+                      <span style={{ color: "#3a7bd5" }}>{formatPhone(row.phone)}</span>
                       {row.grade && <span style={{ marginLeft: 10, color: "#5a9a5a" }}>{row.grade}</span>}
                     </div>
                   ))}
@@ -524,7 +541,7 @@ function ContactRow({ contact, checked, onCheck, onSelect, tagColor }) {
         {contact.owner || <span style={{ color: "#1a2f52" }}>—</span>}
       </td>
       <td style={{ padding: "10px 14px", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a6f8f" }} onClick={() => onSelect(contact)}>
-        {contact.phone || "—"}
+        {formatPhone(contact.phone) || "—"}
       </td>
       <td style={{ padding: "10px 14px" }} onClick={() => onSelect(contact)}>
         {contact.grade
@@ -787,7 +804,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80",
                           letterSpacing: "0.12em", marginTop: 3 }}>
-              {display.owner || "—"} · {display.phone}
+              {display.owner || "—"} · {formatPhone(display.phone)}
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
                           letterSpacing: "0.1em", marginTop: 4 }}>
