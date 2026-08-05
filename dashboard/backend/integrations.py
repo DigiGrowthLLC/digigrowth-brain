@@ -232,7 +232,7 @@ def gmail_read_thread(thread_id: str) -> str:
 
 
 async def _record_outbound_email(to: str, subject: str, body: str, message_id: str, thread_id: str,
-                                  tracking_token: str | None = None) -> None:
+                                  tracking_token: str | None = None, is_test: bool = False) -> None:
     """Mirror email_inbox.py's manual_email_send() bookkeeping for sends that
     go through gmail_send/gmail_send_html directly (newsletter, send-info,
     appointment reminders) instead of the Inbox reply box. Without this, a
@@ -263,22 +263,22 @@ async def _record_outbound_email(to: str, subject: str, body: str, message_id: s
             )
 
         await conn.execute(
-            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token)
-               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7)
+            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token, is_test)
+               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7, $8)
                ON CONFLICT (gmail_message_id) DO NOTHING""",
-            contact_id, thread_id, to, subject, body, message_id, tracking_token,
+            contact_id, thread_id, to, subject, body, message_id, tracking_token, is_test,
         )
     finally:
         await conn.close()
 
 
 def _record_outbound_email_sync(to: str, subject: str, body: str, message_id: str, thread_id: str,
-                                 tracking_token: str | None = None) -> None:
+                                 tracking_token: str | None = None, is_test: bool = False) -> None:
     """gmail_send/gmail_send_html are plain sync functions always invoked via
     asyncio.to_thread (worker thread, no running loop) — asyncio.run() here
     is therefore safe."""
     try:
-        asyncio.run(_record_outbound_email(to, subject, body, message_id, thread_id, tracking_token))
+        asyncio.run(_record_outbound_email(to, subject, body, message_id, thread_id, tracking_token, is_test))
     except Exception as e:
         print(f"[gmail_send] failed to record outbound conversation: {e}", flush=True)
 
@@ -409,12 +409,15 @@ async def process_newsletter_queue() -> str:
     return f"sent {sent}, failed {failed} (today's total: {sent_today + sent}/{NEWSLETTER_DAILY_CAP})"
 
 
-def gmail_send_html(to: str, subject: str, html: str, tracking_token: str | None = None) -> str:
+def gmail_send_html(to: str, subject: str, html: str, tracking_token: str | None = None, is_test: bool = False) -> str:
     """Same as gmail_send but for an HTML body (newsletter sends) — MIMEText
     defaults to plain text, which would send the HTML tags as literal text.
     If tracking_token is given, an open-tracking pixel (same /track/open
     endpoint outreach sends use) is appended before sending, so newsletter
-    opens land on the same email_messages.opened_at column analytics reads."""
+    opens land on the same email_messages.opened_at column analytics reads.
+    is_test=True marks diagnostic sends (e.g. /newsletter/test-send) so
+    analytics can exclude them — otherwise a self-opened test send skews
+    open rate against a real campaign's small early denominator."""
     guard = _verify_sender_identity()
     if guard:
         return guard
@@ -429,7 +432,7 @@ def gmail_send_html(to: str, subject: str, html: str, tracking_token: str | None
         msg["subject"] = subject
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         sent = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
-        _record_outbound_email_sync(to, subject, html, sent["id"], sent["threadId"], tracking_token)
+        _record_outbound_email_sync(to, subject, html, sent["id"], sent["threadId"], tracking_token, is_test)
         return f"Sent email to {to}: {subject}"
     except RuntimeError as e:
         return str(e)

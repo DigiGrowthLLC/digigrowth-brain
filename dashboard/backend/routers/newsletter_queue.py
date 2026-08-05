@@ -181,7 +181,7 @@ async def test_send(body: TestSend):
     )
 
     tracking_token = secrets.token_urlsafe(16)
-    result = await asyncio.to_thread(integrations.gmail_send_html, to, subject, html, tracking_token)
+    result = await asyncio.to_thread(integrations.gmail_send_html, to, subject, html, tracking_token, True)
     if not result.startswith("Sent email"):
         raise HTTPException(status_code=502, detail=result)
     return {"ok": True, "to": to, "subject": subject}

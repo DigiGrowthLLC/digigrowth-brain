@@ -264,6 +264,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS open_count INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS bounced_at TIMESTAMPTZ;
+            ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_replied BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_replied_manual BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_engaged BOOLEAN NOT NULL DEFAULT false;
@@ -281,4 +282,16 @@ async def _create_schema(pool: asyncpg.Pool):
             UPDATE sms_conversations
             SET stage_interested = true, stage_interested_manual = true, disposition = NULL
             WHERE disposition = 'interested'
+        """)
+        # One-time backfill: mark pre-existing /newsletter/test-send rows (sent
+        # before is_test existed) so they retroactively drop out of analytics —
+        # otherwise a self-opened diagnostic send keeps skewing open rate even
+        # after the fix, since new rows alone wouldn't touch already-recorded ones.
+        await conn.execute("""
+            UPDATE email_messages em
+            SET is_test = true
+            FROM contacts c
+            WHERE em.contact_id = c.id
+              AND c.business = 'Newsletter Test' AND c.owner = 'Test Recipient'
+              AND NOT em.is_test
         """)

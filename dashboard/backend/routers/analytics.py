@@ -179,7 +179,11 @@ async def _email_metrics(conn, since=None) -> dict:
     actually supports: outbound sends, whether the contact replied, and
     conversations marked booked.
     """
-    msg_filter = "AND sent_at >= $1" if since else ""
+    # is_test excludes diagnostic sends (e.g. /newsletter/test-send, used to
+    # verify the open-tracking pixel end-to-end) — those are self-opened by
+    # whoever ran the test, which skews open rate badly against a real
+    # campaign's small early denominator if left in.
+    msg_filter = "AND NOT is_test" + (" AND sent_at >= $1" if since else "")
     params = [since] if since else []
 
     total_sent = await conn.fetchval(
@@ -207,9 +211,13 @@ async def _email_metrics(conn, since=None) -> dict:
         *params,
     )
 
+    # Windowed by updated_at (bumped when disposition is set — see
+    # email_inbox.py's close-conversation handler), not created_at (when the
+    # thread first started), so a booking that lands in this period shows up
+    # here even if the contact was first emailed before the window started.
     booked_total = await conn.fetchval(
         f"SELECT COUNT(*) FROM email_conversations WHERE disposition='booked' "
-        f"{'AND created_at >= $1' if since else ''}",
+        f"{'AND updated_at >= $1' if since else ''}",
         *params,
     )
 
