@@ -175,9 +175,14 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     """
     Return SMS funnel metrics. If since is None, returns all-time. If
     campaign_id is given, it takes over from since entirely — a campaign
-    is its own time boundary (see campaigns.py), so metrics are scoped to
-    whichever conversations got stamped with that campaign_id rather than
-    a date window.
+    is its own time boundary (see campaigns.py). Total Outreach/Contacted
+    are scoped by sms_messages.campaign_id (tagged per message, at the
+    moment each one is sent — see sms.py::_store_message) rather than by
+    which conversations got tagged, so a phone with outreach history
+    predating the campaign doesn't inflate its counts. Replied/Primed/
+    Engaged/Interested/Booked are conversation-level state, scoped by
+    sms_conversations.campaign_id instead (the "this prospect belongs to
+    campaign X" tag, set once on first outbound).
 
     Replied/Engaged/Interested are read straight off sms_conversations'
     stage_replied/stage_engaged/stage_interested checkboxes — NOT recomputed
@@ -194,7 +199,7 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     _email_metrics() already uses for its own reply rate.
     """
     if campaign_id is not None:
-        msg_filter   = "AND phone IN (SELECT phone FROM sms_conversations WHERE campaign_id = $1)"
+        msg_filter   = "AND campaign_id = $1"
         params       = [campaign_id]
         stage_filter = "AND sc.campaign_id = $1"
         stage_params = [campaign_id]
@@ -271,10 +276,15 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     conversations marked booked.
 
     If campaign_id is given, it takes over from since entirely, same as
-    _sms_metrics — a campaign is its own time boundary.
+    _sms_metrics — a campaign is its own time boundary. Sent/reply/open/
+    bounce counts are scoped by email_messages.campaign_id (tagged per
+    message at send time — see email_inbox.py/integrations.py), not by
+    thread, so a thread with send history predating the campaign doesn't
+    inflate its counts. Booked stays scoped by the conversation-level tag
+    (email_conversations.campaign_id), same as SMS.
     """
     if campaign_id is not None:
-        msg_filter = "AND NOT is_test AND thread_id IN (SELECT thread_id FROM email_conversations WHERE campaign_id = $1)"
+        msg_filter = "AND NOT is_test AND campaign_id = $1"
         params = [campaign_id]
         booked_filter = "AND campaign_id = $1"
         unsub_filter = ""  # unsubscribes are tracked on contacts, not per-conversation — no clean campaign scope

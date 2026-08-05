@@ -23,6 +23,7 @@ import httpx
 
 from db import get_pool
 from merge_fields import first_name_from_owner
+from routers.campaigns import resolve_send_campaign
 
 _MISSING_GOOGLE = (
     "Google not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, "
@@ -250,16 +251,21 @@ async def _record_outbound_email(to: str, subject: str, body: str, message_id: s
         if not contact_id:
             return  # scope: only known-contact threads are tracked, same rule as the sync job
 
+        # Each individual send is tagged with whichever campaign is active
+        # right now (a CRM-assigned pending campaign for this contact takes
+        # priority — see campaigns.py::resolve_send_campaign) — see
+        # email_inbox.py::manual_email_send for why this is separate from
+        # the conversation-level tag (total-outreach counts must only
+        # include messages actually sent while a campaign was active, not
+        # every message ever sent on a thread that later got tagged).
+        active_campaign_id = await resolve_send_campaign(conn, "email", contact_id)
+
         conv = await conn.fetchrow("SELECT id FROM email_conversations WHERE thread_id = $1", thread_id)
         if not conv:
             await conn.execute(
                 """INSERT INTO email_conversations (contact_id, thread_id, email, subject, status, campaign_id)
-                   VALUES ($1, $2, $3, $4, 'active', (
-                       SELECT cp.campaign_id FROM campaign_periods cp
-                       JOIN campaigns c ON c.id = cp.campaign_id
-                       WHERE c.channel = 'email' AND cp.ended_at IS NULL
-                   ))""",
-                contact_id, thread_id, to, subject,
+                   VALUES ($1, $2, $3, $4, 'active', $5)""",
+                contact_id, thread_id, to, subject, active_campaign_id,
             )
         else:
             await conn.execute(
@@ -267,10 +273,10 @@ async def _record_outbound_email(to: str, subject: str, body: str, message_id: s
             )
 
         await conn.execute(
-            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token, is_test)
-               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7, $8)
+            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token, is_test, campaign_id)
+               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7, $8, $9)
                ON CONFLICT (gmail_message_id) DO NOTHING""",
-            contact_id, thread_id, to, subject, body, message_id, tracking_token, is_test,
+            contact_id, thread_id, to, subject, body, message_id, tracking_token, is_test, active_campaign_id,
         )
     finally:
         await conn.close()

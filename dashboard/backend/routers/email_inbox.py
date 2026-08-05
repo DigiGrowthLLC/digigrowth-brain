@@ -31,6 +31,7 @@ from fastapi import APIRouter
 
 import integrations
 from db import get_pool
+from routers.campaigns import resolve_send_campaign
 
 router = APIRouter()
 
@@ -290,16 +291,22 @@ async def manual_email_send(payload: dict):
         contact_row = await conn.fetchrow("SELECT id FROM contacts WHERE lower(email) = lower($1)", to)
         contact_id = contact_row["id"] if contact_row else None
 
+        # Each individual send is tagged with whichever campaign is active
+        # right now (a CRM-assigned pending campaign for this contact takes
+        # priority — see campaigns.py::resolve_send_campaign) — total-outreach
+        # counts must only include messages actually sent while a campaign
+        # was active, not every message ever sent on a thread whose
+        # conversation later got tagged. The conversation-level tag below
+        # ("this prospect belongs to campaign X") is separate and only set
+        # once, on the thread's first outbound send.
+        active_campaign_id = await resolve_send_campaign(conn, "email", contact_id)
+
         conv = await conn.fetchrow("SELECT id FROM email_conversations WHERE thread_id = $1", new_thread_id)
         if not conv:
             await conn.execute(
                 """INSERT INTO email_conversations (contact_id, thread_id, email, subject, status, campaign_id)
-                   VALUES ($1, $2, $3, $4, 'active', (
-                       SELECT cp.campaign_id FROM campaign_periods cp
-                       JOIN campaigns c ON c.id = cp.campaign_id
-                       WHERE c.channel = 'email' AND cp.ended_at IS NULL
-                   ))""",
-                contact_id, new_thread_id, to, subject,
+                   VALUES ($1, $2, $3, $4, 'active', $5)""",
+                contact_id, new_thread_id, to, subject, active_campaign_id,
             )
         else:
             await conn.execute(
@@ -307,10 +314,10 @@ async def manual_email_send(payload: dict):
             )
 
         await conn.execute(
-            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token)
-               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7)
+            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token, campaign_id)
+               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7, $8)
                ON CONFLICT (gmail_message_id) DO NOTHING""",
-            contact_id, new_thread_id, to, subject, body, sent["id"], sent.get("tracking_token"),
+            contact_id, new_thread_id, to, subject, body, sent["id"], sent.get("tracking_token"), active_campaign_id,
         )
 
     return {"ok": True, "thread_id": new_thread_id, "contact_id": contact_id}

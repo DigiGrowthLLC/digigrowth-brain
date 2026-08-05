@@ -27,6 +27,7 @@ from twilio.rest import Client as TwilioClient
 
 from db import get_pool
 from merge_fields import apply_merge_fields, first_name_from_owner
+from routers import campaigns as campaigns_router
 
 router         = APIRouter()   # authenticated API routes
 webhook_router = APIRouter()  # public Twilio webhook
@@ -139,35 +140,45 @@ async def _store_message(conn, phone: str, role: str, body: str, stage: str | No
 
     direction = "inbound" if role == "user" else "outbound"
 
-    # Stamp the conversation with whichever SMS campaign is active the first
-    # time it sends outbound — sticks for the conversation's lifetime even if
-    # a different campaign becomes active later (campaigns.py).
-    if direction == "outbound":
-        await conn.execute(
-            f"""
-            UPDATE sms_conversations SET campaign_id = COALESCE(campaign_id, (
-                SELECT cp.campaign_id FROM campaign_periods cp
-                JOIN campaigns c ON c.id = cp.campaign_id
-                WHERE c.channel = 'sms' AND cp.ended_at IS NULL
-            )) WHERE {_phone_match('phone', '$1')}
-            """,
-            canonical_phone,
-        )
     contact_row = await conn.fetchrow(
         f"SELECT id FROM contacts WHERE {_phone_match('phone', '$1')}", canonical_phone
     )
     contact_id = contact_row["id"] if contact_row else None
 
+    active_sms_campaign_id = None
+    if direction == "outbound":
+        # A CRM-assigned pending campaign for this contact (crm.py's
+        # POST /contacts/{id}/campaigns) takes priority over whatever's
+        # globally active, and is consumed the first time it's used.
+        active_sms_campaign_id = await campaigns_router.resolve_send_campaign(conn, "sms", contact_id)
+        # Stamp the conversation ("this prospect belongs to campaign X") the
+        # first time it sends outbound — sticks for the conversation's
+        # lifetime even if a different campaign becomes active later. This is
+        # separate from the per-message tag below: total-outreach counts must
+        # only include messages actually sent while a campaign was active, not
+        # every message ever sent to a phone whose conversation later got
+        # tagged (that undercounts/overcounts against prior, unrelated history
+        # on the same number).
+        await conn.execute(
+            f"""
+            UPDATE sms_conversations SET campaign_id = COALESCE(campaign_id, $2)
+            WHERE {_phone_match('phone', '$1')}
+            """,
+            canonical_phone,
+            active_sms_campaign_id,
+        )
+
     await conn.execute(
         """
-        INSERT INTO sms_messages (contact_id, phone, direction, body, stage)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO sms_messages (contact_id, phone, direction, body, stage, campaign_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
         """,
         contact_id,
         canonical_phone,
         direction,
         body,
         stage,
+        active_sms_campaign_id,
     )
 
     if direction == "inbound":

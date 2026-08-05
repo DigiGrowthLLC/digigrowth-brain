@@ -37,6 +37,35 @@ async def _activate(conn, campaign_id: int, channel: str):
         )
 
 
+async def resolve_send_campaign(conn, channel: str, contact_id: str | None) -> int | None:
+    """
+    Determine which campaign an individual outbound send (SMS/email) should
+    be tagged with. A CRM-assigned pending campaign for this contact
+    (contacts.pending_{channel}_campaign_id — see crm.py's contact-campaign
+    endpoints) takes priority and is consumed/cleared here, since it only
+    ever applies to that contact's very first send. Otherwise falls back to
+    whichever campaign is currently active for the channel, if any.
+    """
+    if contact_id:
+        pending_col = f"pending_{channel}_campaign_id"
+        pending_id = await conn.fetchval(
+            f"SELECT {pending_col} FROM contacts WHERE id = $1", contact_id
+        )
+        if pending_id:
+            await conn.execute(
+                f"UPDATE contacts SET {pending_col} = NULL WHERE id = $1", contact_id
+            )
+            return pending_id
+    return await conn.fetchval(
+        """
+        SELECT cp.campaign_id FROM campaign_periods cp
+        JOIN campaigns c ON c.id = cp.campaign_id
+        WHERE c.channel = $1 AND cp.ended_at IS NULL
+        """,
+        channel,
+    )
+
+
 @router.get("/campaigns")
 async def list_campaigns(channel: str):
     if channel not in _CHANNELS:
@@ -116,3 +145,124 @@ async def activate_campaign(campaign_id: int):
             raise HTTPException(status_code=404, detail="Campaign not found")
         await _activate(conn, campaign_id, row["channel"])
     return dict(row)
+
+
+# ── CRM contact ↔ campaign assignment (sms/email only — calling has no ────────
+# ── per-contact record to attach a campaign to) ────────────────────────────────
+
+@router.get("/contacts/{contact_id}/campaigns")
+async def get_contact_campaigns(contact_id: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow(
+            "SELECT pending_sms_campaign_id, pending_email_campaign_id FROM contacts WHERE id = $1",
+            contact_id,
+        )
+        if not contact:
+            raise HTTPException(status_code=404, detail="Contact not found")
+        sms_conv = await conn.fetchrow(
+            "SELECT campaign_id FROM sms_conversations WHERE contact_id = $1", contact_id
+        )
+        email_conv = await conn.fetchrow(
+            "SELECT campaign_id FROM email_conversations WHERE contact_id = $1 "
+            "ORDER BY updated_at DESC LIMIT 1",
+            contact_id,
+        )
+        campaign_ids = [
+            cid for cid in (
+                (sms_conv["campaign_id"] if sms_conv else None),
+                (email_conv["campaign_id"] if email_conv else None),
+                contact["pending_sms_campaign_id"],
+                contact["pending_email_campaign_id"],
+            ) if cid
+        ]
+        campaigns = {}
+        if campaign_ids:
+            rows = await conn.fetch("SELECT * FROM campaigns WHERE id = ANY($1)", campaign_ids)
+            campaigns = {r["id"]: dict(r) for r in rows}
+
+    def _entry(campaign_id, pending):
+        if not campaign_id:
+            return None
+        return {**campaigns[campaign_id], "pending": pending}
+
+    return {
+        "sms":   _entry(sms_conv["campaign_id"], False) if sms_conv and sms_conv["campaign_id"]
+                 else _entry(contact["pending_sms_campaign_id"], True),
+        "email": _entry(email_conv["campaign_id"], False) if email_conv and email_conv["campaign_id"]
+                 else _entry(contact["pending_email_campaign_id"], True),
+    }
+
+
+@router.post("/contacts/{contact_id}/campaigns")
+async def assign_contact_campaign(contact_id: str, payload: dict):
+    campaign_id = (payload or {}).get("campaign_id")
+    if not campaign_id:
+        raise HTTPException(status_code=400, detail="campaign_id required")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        campaign = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        channel = campaign["channel"]
+        if channel not in ("sms", "email"):
+            raise HTTPException(status_code=400, detail="Only sms/email campaigns can be assigned from the CRM")
+        contact = await conn.fetchrow("SELECT id FROM contacts WHERE id = $1", contact_id)
+        if not contact:
+            raise HTTPException(status_code=404, detail="Contact not found")
+
+        if channel == "sms":
+            conv = await conn.fetchrow("SELECT id FROM sms_conversations WHERE contact_id = $1", contact_id)
+            if conv:
+                await conn.execute(
+                    "UPDATE sms_conversations SET campaign_id = $2, updated_at = now() WHERE contact_id = $1",
+                    contact_id, campaign_id,
+                )
+                await conn.execute("UPDATE contacts SET pending_sms_campaign_id = NULL WHERE id = $1", contact_id)
+            else:
+                await conn.execute("UPDATE contacts SET pending_sms_campaign_id = $2 WHERE id = $1", contact_id, campaign_id)
+        else:
+            conv = await conn.fetchrow(
+                "SELECT id FROM email_conversations WHERE contact_id = $1 ORDER BY updated_at DESC LIMIT 1",
+                contact_id,
+            )
+            if conv:
+                await conn.execute(
+                    "UPDATE email_conversations SET campaign_id = $2, updated_at = now() WHERE id = $1",
+                    conv["id"], campaign_id,
+                )
+                await conn.execute("UPDATE contacts SET pending_email_campaign_id = NULL WHERE id = $1", contact_id)
+            else:
+                await conn.execute("UPDATE contacts SET pending_email_campaign_id = $2 WHERE id = $1", contact_id, campaign_id)
+
+    return {"ok": True, "channel": channel, "campaign_id": campaign_id}
+
+
+@router.delete("/contacts/{contact_id}/campaigns/{campaign_id}")
+async def remove_contact_campaign(contact_id: str, campaign_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        campaign = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        channel = campaign["channel"]
+        if channel == "sms":
+            await conn.execute(
+                "UPDATE sms_conversations SET campaign_id = NULL WHERE contact_id = $1 AND campaign_id = $2",
+                contact_id, campaign_id,
+            )
+            await conn.execute(
+                "UPDATE contacts SET pending_sms_campaign_id = NULL WHERE id = $1 AND pending_sms_campaign_id = $2",
+                contact_id, campaign_id,
+            )
+        elif channel == "email":
+            await conn.execute(
+                "UPDATE email_conversations SET campaign_id = NULL WHERE contact_id = $1 AND campaign_id = $2",
+                contact_id, campaign_id,
+            )
+            await conn.execute(
+                "UPDATE contacts SET pending_email_campaign_id = NULL WHERE id = $1 AND pending_email_campaign_id = $2",
+                contact_id, campaign_id,
+            )
+    return {"ok": True}
