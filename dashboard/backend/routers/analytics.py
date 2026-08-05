@@ -23,14 +23,44 @@ def _since(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
 
 
+def _stat_is_stale(iso_ts: str, days: int) -> bool:
+    try:
+        last_changed = datetime.fromisoformat(iso_ts)
+        if last_changed.tzinfo is None:
+            last_changed = last_changed.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return True
+    return datetime.now(timezone.utc) - last_changed > timedelta(days=days)
+
+
 def _sheet_stat(stats: dict, base_key: str, days: int) -> int:
     """Return the right period bucket from sales_stats.json.
     days=0 → all-time (base_key)
     days=7 → base_key_7d, falling back to 0
     days=30 → base_key_30d, falling back to 0
+
+    Cold-calling ("sheet_"-prefixed) period buckets are a snapshot from
+    whenever the Cold Calling Metrics Google Sheet was last actually read —
+    sheets-digest only re-reads it when it's been edited in the last 24h
+    (see executive-assistant/.claude/skills/sheets-digest/SKILL.md), so an
+    idle sheet leaves these numbers frozen indefinitely rather than rolling
+    forward. Without this guard, a bucket computed once (e.g. "30 calls in
+    the last 7 days" as of the sheet's last edit) keeps getting served as
+    "last 7 days" forever, long after those calls have aged out of the real
+    window — that's exactly the bug that produced a stale "30" on a genuine
+    0-call week. Once the snapshot is older than the window itself, none of
+    the calls it counted can still fall inside that window, so it decays to
+    0 instead of displaying stale data as if it were current. See
+    `sheet_data_last_changed`, set in routers/agents.py's update_os_stats
+    handler only when fresh sheet_* data actually comes in (unlike
+    `last_sheet_sync`, which bumps on every digest run including no-ops).
     """
     if days == 0:
         return stats.get(base_key, 0) or 0
+    if base_key.startswith("sheet_"):
+        last_changed = stats.get("sheet_data_last_changed")
+        if not last_changed or _stat_is_stale(last_changed, days):
+            return 0
     suffix = f"_{days}d"
     return stats.get(f"{base_key}{suffix}", 0) or 0
 

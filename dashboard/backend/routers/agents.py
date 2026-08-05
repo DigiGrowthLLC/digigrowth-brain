@@ -703,8 +703,17 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
             if closes and revenue and "avg_deal_size" not in tool_input:
                 current["avg_deal_size"] = round(revenue / closes)
 
-            from datetime import datetime as _dt
+            from datetime import datetime as _dt, timezone as _tz
             current["last_sheet_sync"] = _dt.now().isoformat()
+            # last_sheet_sync bumps on every call, including no-op runs where the
+            # cold-calling sheet wasn't reopened — sheet_data_last_changed only
+            # bumps when fresh sheet_* data actually came in this call, so
+            # analytics.py's _sheet_stat() can tell "digest ran today" apart from
+            # "cold-calling sheet was genuinely re-read today" and decay stale
+            # 7d/30d buckets instead of serving them forever.
+            if any(stat_key.startswith("sheet_") for key, stat_key in FIELD_MAP.items()
+                   if key in tool_input and tool_input[key] is not None):
+                current["sheet_data_last_changed"] = _dt.now(_tz.utc).isoformat()
             if tool_input.get("source_note"):
                 current["last_sheet_sync_note"] = tool_input["source_note"]
 

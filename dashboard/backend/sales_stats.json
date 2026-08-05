@@ -12,6 +12,7 @@
   "total_revenue": 0,
   "avg_deal_size": 0,
   "last_sheet_sync": "2026-08-04T05:57:00.000000",
+  "sheet_data_last_changed": "2026-07-21T12:00:00+00:00",
   "last_sheet_sync_note": "No changes: Sales Performance Tracker unchanged since last sync (18 booked / 9 shows / 0 won, all rows dated before Apr 25). No Cold Calling Metrics sheet modified in last 24h, so sheet_* fields untouched.",
   "sheet_calls_made": 3757,
   "sheet_contacts_reached": 288,
