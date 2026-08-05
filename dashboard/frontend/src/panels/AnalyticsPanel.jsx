@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { API } from "../api.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
+import CampaignModal from "../CampaignModal.jsx";
 
 function pct(v) { return v != null ? `${v}%` : "—"; }
 function num(v) { return v != null ? v : "—"; }
@@ -103,14 +104,22 @@ function CampaignsView() {
   const [campaigns, setCampaigns]     = useState([]);
   const [selectedId, setSelectedId]   = useState(null);
   const [detail, setDetail]           = useState(null);
+  const [modalOpen, setModalOpen]     = useState(false);
+  const pendingSelectId = React.useRef(null);
+
+  const loadCampaigns = (ch, selectId) => {
+    fetch(API(`/campaigns?channel=${ch}`)).then(r => r.ok ? r.json() : []).then(list => {
+      setCampaigns(list);
+      if (selectId) setSelectedId(selectId);
+      else if (list.length) setSelectedId(list[0].id);
+      else setSelectedId(null);
+    });
+  };
 
   useEffect(() => {
-    setSelectedId(null);
     setDetail(null);
-    fetch(API(`/campaigns?channel=${channel}`)).then(r => r.ok ? r.json() : []).then(list => {
-      setCampaigns(list);
-      if (list.length) setSelectedId(list[0].id);
-    });
+    loadCampaigns(channel, pendingSelectId.current);
+    pendingSelectId.current = null;
   }, [channel]);
 
   useEffect(() => {
@@ -120,8 +129,17 @@ function CampaignsView() {
 
   async function reactivate(id) {
     await fetch(API(`/campaigns/${id}/activate`), { method: "POST" });
-    fetch(API(`/campaigns?channel=${channel}`)).then(r => r.ok ? r.json() : []).then(setCampaigns);
+    loadCampaigns(channel, selectedId);
     fetch(API(`/analytics/campaign/${selectedId}`)).then(r => r.ok ? r.json() : null).then(setDetail);
+  }
+
+  function onCampaignCreated(campaign) {
+    if (campaign.channel === channel) {
+      loadCampaigns(channel, campaign.id);
+    } else {
+      pendingSelectId.current = campaign.id;
+      setChannel(campaign.channel);
+    }
   }
 
   const outreachShape = detail
@@ -132,23 +150,35 @@ function CampaignsView() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <PeriodToggle days={channel} setDays={setChannel} options={CAMPAIGN_CHANNEL_OPTIONS} />
-        {campaigns.length > 0 && (
-          <select
-            value={selectedId || ""}
-            onChange={e => setSelectedId(Number(e.target.value))}
-            style={{
-              background: "rgba(30,47,80,0.6)", border: "1px solid #1a2540",
-              borderRadius: 6, color: "#8aaad0",
-              fontFamily: "'Share Tech Mono', monospace", fontSize: 11,
-              padding: "6px 10px", cursor: "pointer",
-            }}
-          >
-            {campaigns.map(c => (
-              <option key={c.id} value={c.id}>{c.is_active ? "★ " : ""}{c.name}</option>
-            ))}
-          </select>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {campaigns.length > 0 && (
+            <select
+              value={selectedId || ""}
+              onChange={e => setSelectedId(Number(e.target.value))}
+              style={{
+                background: "rgba(30,47,80,0.6)", border: "1px solid #1a2540",
+                borderRadius: 6, color: "#8aaad0",
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 11,
+                padding: "6px 10px", cursor: "pointer",
+              }}
+            >
+              {campaigns.map(c => (
+                <option key={c.id} value={c.id}>{c.is_active ? "★ " : ""}{c.name}</option>
+              ))}
+            </select>
+          )}
+          <button className="btn btn-primary" style={{ fontSize: 11, padding: "6px 14px" }} onClick={() => setModalOpen(true)}>
+            + New Campaign
+          </button>
+        </div>
       </div>
+
+      <CampaignModal
+        open={modalOpen}
+        defaultChannel={channel}
+        onClose={() => setModalOpen(false)}
+        onCreated={onCampaignCreated}
+      />
 
       {!campaigns.length && (
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>

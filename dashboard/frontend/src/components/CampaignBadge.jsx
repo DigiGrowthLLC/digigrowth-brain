@@ -1,16 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API } from "../api.js";
-import CampaignModal from "../CampaignModal.jsx";
 
-// Shows the currently active campaign for one outreach channel, a
-// "+ New Campaign" action, and a "Switch" dropdown to reactivate a past
-// campaign (campaigns.py's /campaigns/{id}/activate — same endpoint whether
-// the campaign is brand new or being resumed). Used in DialerPanel (calling)
-// and twice in InboxPanel (sms/email).
+// Shows the currently active campaign for one outreach channel, plus a
+// "Switch" dropdown to reactivate a past campaign (campaigns.py's
+// /campaigns/{id}/activate). Campaigns are created from the Campaigns tab
+// in Analytics (CampaignModal) — this badge is read/switch only. Used in
+// DialerPanel (calling) and twice in InboxPanel (sms/email).
 export default function CampaignBadge({ channel, label }) {
   const [active, setActive]   = useState(null);
   const [all, setAll]         = useState([]);
-  const [modalOpen, setModalOpen] = useState(false);
   const [switchOpen, setSwitchOpen] = useState(false);
 
   const load = useCallback(() => {
@@ -33,9 +31,6 @@ export default function CampaignBadge({ channel, label }) {
       <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.08em" }}>
         {label ? `${label}: ` : ""}{active ? active.name : "No active campaign"}
       </span>
-      <button className="btn btn-secondary" style={{ fontSize: 10, padding: "4px 10px" }} onClick={() => setModalOpen(true)}>
-        + New Campaign
-      </button>
       {inactive.length > 0 && (
         <div style={{ position: "relative" }}>
           <button className="btn btn-secondary" style={{ fontSize: 10, padding: "4px 10px" }} onClick={() => setSwitchOpen(o => !o)}>
@@ -64,13 +59,6 @@ export default function CampaignBadge({ channel, label }) {
           )}
         </div>
       )}
-      <CampaignModal
-        open={modalOpen}
-        channel={channel}
-        activeCampaignName={active?.name}
-        onClose={() => setModalOpen(false)}
-        onCreated={load}
-      />
     </div>
   );
 }

@@ -1,14 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { API } from "./api.js";
 
-// "New Campaign" modal — names a campaign for one outreach channel and
-// activates it, which ends whatever campaign was previously active for
-// that channel (see dashboard/backend/routers/campaigns.py). Used from
-// DialerPanel (calling) and InboxPanel (sms/email) via CampaignBadge.
-export default function CampaignModal({ open, channel, activeCampaignName, onClose, onCreated }) {
-  const [name, setName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
+const CHANNELS = [
+  { value: "sms",     label: "SMS" },
+  { value: "email",    label: "Email" },
+  { value: "calling",  label: "Cold Calling" },
+];
+
+// "New Campaign" modal — pick a channel, name the campaign, create it.
+// Creating activates it, which ends whatever campaign was previously
+// active for that channel (see dashboard/backend/routers/campaigns.py).
+// The single entry point for campaign creation, opened from the
+// Campaigns tab in Analytics.
+export default function CampaignModal({ open, defaultChannel, onClose, onCreated }) {
+  const [channel, setChannel]   = useState(defaultChannel || "sms");
+  const [active, setActive]     = useState(null);
+  const [name, setName]         = useState("");
+  const [saving, setSaving]     = useState(false);
+  const [err, setErr]           = useState("");
+
+  useEffect(() => {
+    if (open) setChannel(defaultChannel || "sms");
+  }, [open, defaultChannel]);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch(API(`/campaigns/active?channel=${channel}`)).then(r => r.ok ? r.json() : null).then(setActive);
+  }, [open, channel]);
 
   if (!open) return null;
 
@@ -55,9 +73,27 @@ export default function CampaignModal({ open, channel, activeCampaignName, onClo
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 14 }}>✕</button>
         </div>
 
-        {activeCampaignName && (
+        <div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.08em", marginBottom: 6 }}>
+            CHANNEL
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {CHANNELS.map(c => (
+              <button
+                key={c.value}
+                onClick={() => setChannel(c.value)}
+                className={channel === c.value ? "btn btn-primary" : "btn btn-secondary"}
+                style={{ flex: 1, fontSize: 11, padding: "6px 0" }}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {active && (
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#f0a028", letterSpacing: "0.05em" }}>
-            This ends the current campaign: {activeCampaignName}
+            This ends the current campaign: {active.name}
           </div>
         )}
 
