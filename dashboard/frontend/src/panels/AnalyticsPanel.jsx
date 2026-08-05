@@ -132,15 +132,16 @@ function EmailDeliverabilityCard({ outreach, tab }) {
   return (
     <div className="glass-card" style={{ padding: "20px 22px" }}>
       <SecLabel>Email Deliverability</SecLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginTop: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10, marginTop: 4 }}>
         <MiniStat label="Sent"              value={num(email.total_sent)}   color="#9b6bd8" />
-        <MiniStat label="Open Rate"         value={pct(email.open_rate)}    color="#9b6bd8" />
+        <MiniStat label="Open Rate (Raw)"       value={pct(email.open_rate)}           color="#9b6bd8" />
+        <MiniStat label="Open Rate (Confirmed)" value={pct(email.open_rate_confirmed)} color="#9b6bd8" />
         <MiniStat label="Reply Rate"        value={pct(email.reply_rate)}   color="#14c882" />
         <MiniStat label="Bounce Rate"       value={pct(email.bounce_rate)}  color={email.bounce_rate > 5 ? "#dc3c3c" : "#c4d0e8"} />
         <MiniStat label="Unsubscribe Rate"  value={pct(email.unsubscribe_rate)} color={email.unsubscribe_rate > 2 ? "#dc3c3c" : "#c4d0e8"} />
       </div>
       <div style={{ marginTop: 12, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
-        OPEN RATE IS DIRECTIONAL, NOT PRECISE — GMAIL/APPLE AUTO-PREFETCH IMAGES, WHICH INFLATES OPENS ABOVE TRUE HUMAN READS
+        RAW = ANY PIXEL FIRE, INCLUDING GMAIL/APPLE AUTO-PREFETCH · CONFIRMED = PIXEL FIRED 2+ MIN AFTER SEND, A BETTER (STILL NOT EXACT) HUMAN-READ SIGNAL
       </div>
       <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
         BOUNCE RATE IS BEST-EFFORT — DETECTED FROM DELIVERY-FAILURE NOTICES, NOT A DELIVERY GUARANTEE

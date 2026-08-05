@@ -221,13 +221,30 @@ async def _email_metrics(conn, since=None) -> dict:
         *params,
     )
 
-    # Opened: distinct contacts whose open-tracking pixel fired at least once.
-    # Best-effort, not precise — Gmail/Apple both auto-prefetch images for
-    # privacy reasons, which inflates this above true human opens.
+    # Opened (raw): distinct contacts whose open-tracking pixel fired at
+    # least once. Best-effort, not precise — Gmail/Apple both auto-prefetch
+    # images for privacy reasons, which inflates this above true human opens.
     opened = await conn.fetchval(
         f"""
         SELECT COUNT(DISTINCT email) FROM email_messages
         WHERE direction='outbound' AND opened_at IS NOT NULL {msg_filter}
+        """,
+        *params,
+    )
+
+    # Opened (confirmed): same, but only counting a pixel fire more than 2
+    # minutes after send. Apple Mail Privacy Protection fetches every
+    # tracking pixel within seconds of delivery regardless of whether a
+    # human ever reads the email, so a very fast open is far more likely an
+    # auto-prefetch than a real read. Heuristic, not a guarantee — a
+    # genuinely fast human open gets miscounted as prefetch, and a slow
+    # prefetch could still land here — but it's a meaningfully better human-
+    # read signal than the raw pixel-fired count alone.
+    confirmed_opened = await conn.fetchval(
+        f"""
+        SELECT COUNT(DISTINCT email) FROM email_messages
+        WHERE direction='outbound' AND opened_at IS NOT NULL
+        AND opened_at - sent_at > interval '2 minutes' {msg_filter}
         """,
         *params,
     )
@@ -270,6 +287,8 @@ async def _email_metrics(conn, since=None) -> dict:
         "booked":           booked_total or 0,
         "opened":           opened or 0,
         "open_rate":        _pct(opened, initial_sent),
+        "opened_confirmed":   confirmed_opened or 0,
+        "open_rate_confirmed": _pct(confirmed_opened, initial_sent),
         "bounced":          bounced or 0,
         "bounce_rate":      _pct(bounced, total_sent),
         "unsubscribed":     unsubscribed or 0,
