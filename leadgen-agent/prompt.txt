@@ -90,13 +90,7 @@ OPENER RULES:
 The opener completes this exact sentence Dylan says on the call:
 "Hey [Name], this is Dylan — quick question for you. I was looking at [Practice Name], and I noticed [OPENER HERE]."
 
-Pull from the website text in this priority order — use the first one you can find:
-1. A specific offer or promotion (complimentary first visit, free consultation, new patient special, welcome discount)
-2. A specific service or program (in-home post-surgical rehab, house call balance and fall-risk assessments, mobile geriatric therapy, orthopedic home visits)
-3. A specific niche or patient focus (post-surgical only, senior/geriatric patients, balance and fall prevention, house-call-only practice)
-4. A specific method or approach (no waiting room, same-day scheduling, in-home sessions, house call model)
-
-Only if NONE of the above can be found anywhere in the website text provided, return null. Do not fabricate or guess.
+Follow the priority order and style already defined for you in "COLD CALL OPENER CRITERIA" above. If nothing on that priority list can be found anywhere in the website text provided, return null. Do not fabricate or guess.
 
 The opener must:
 - Be 15 words or fewer — hard limit, count every word
@@ -105,16 +99,6 @@ The opener must:
 - Reference something real and specific from the website text provided
 - Read naturally and unambiguously when substituted into the full sentence above — silently read the ENTIRE sentence back before finalizing. If it sounds even slightly awkward, confusing, or like it doesn't quite make sense out loud, rewrite it or return null instead. Never ship an opener you're not confident reads smoothly in a live cold call.
 - Never use "you" and "your" together in a way that could refer to two different people (e.g. "you come to your home" is ambiguous about whose home) — describe the service directly instead (e.g. "you offer in-home visits", "you travel to clients' homes")
-
-BAD example (do not do this):
-- "you come directly to your home and eliminate the stress of a clinic visit" ❌ — "your home" is ambiguous and the sentence doesn't scan naturally when read aloud
-
-GOOD examples (read after "I noticed" to hear how they flow):
-- "you offer a complimentary first in-home evaluation"
-- "you offer a free consultation for new patients"
-- "you do in-home post-surgical rehab and balance training"
-- "you offer a mobile fall-risk assessment for seniors"
-- "you specialize in in-home orthopedic rehab for older adults"
 
 ---
 

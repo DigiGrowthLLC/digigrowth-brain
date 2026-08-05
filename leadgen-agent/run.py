@@ -28,6 +28,7 @@ PROMPT_FILE   = os.path.join(BASE_DIR, "prompt.txt")
 CONFIG_FILE   = os.path.join(BASE_DIR, "config.json")
 PROGRESS_FILE = os.path.join(BASE_DIR, "progress.json")
 SCRAPED_FILE  = os.path.join(BASE_DIR, "scraped_ids.json")
+STATS_FILE    = os.path.join(BASE_DIR, "qualify_stats.json")
 
 # ── Load config ──────────────────────────────────────────────────────────────
 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -98,11 +99,8 @@ US_STATES = {
 
 SEARCH_TERMS = [
     "mobile physical therapist",
-    "mobile physical therapy",
     "in-home physical therapy",
     "house call physical therapist",
-    "mobile PT clinic",
-    "in-home PT",
     "mobile rehabilitation therapy"
 ]
 
@@ -132,6 +130,8 @@ NON_PT_NAME_KEYWORDS = [
     "hospital", "home health", "nursing home", "skilled nursing", "hospice",
     "urgent care", "behavioral health", "addiction", "mental health",
     "psychiatric", "chiropractic", "chiropractor", "home care",
+    "va medical", "rehabilitation hospital", "assisted living", "senior living",
+    "physical therapy school", "university",
 ]
 
 
@@ -176,6 +176,26 @@ def save_scraped_ids(ids):
     with open(SCRAPED_FILE, "w", encoding="utf-8") as f:
         json.dump(list(ids), f)
 
+def log_qualify_stats(raw_leads, candidates, qualified):
+    """Appends one entry per run recording how much of the raw-lead pool
+    (cap = daily_limit * 6) survives each free filtering stage vs. Claude
+    qualification — pure observability, no effect on pipeline behavior.
+    Lets the cap multiplier eventually be right-sized against real data
+    instead of guessed."""
+    entries = []
+    if os.path.exists(STATS_FILE):
+        with open(STATS_FILE, "r", encoding="utf-8") as f:
+            entries = json.load(f)
+    entries.append({
+        "date":               datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d"),
+        "raw_leads":          raw_leads,
+        "candidates":         candidates,
+        "qualified":          qualified,
+        "qualify_ratio":      round(qualified / raw_leads, 4) if raw_leads else None,
+    })
+    with open(STATS_FILE, "w", encoding="utf-8") as f:
+        json.dump(entries, f, indent=2)
+
 
 # ════════════════════════════════════════════════════════════════════════════
 #  MEMORY SYSTEM
@@ -208,11 +228,24 @@ def update_memory(new_information):
 # ════════════════════════════════════════════════════════════════════════════
 
 PLACES_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+
+# Google's Places API (New) bills per REQUEST at the highest-tier field
+# requested — NOT per place returned in that request's response (confirmed
+# against current docs: https://developers.google.com/maps/documentation/places/web-service/usage-and-billing).
+# So one searchText call already returns up to ~20 places' worth of data,
+# including phone/website, for a single per-request charge. Splitting phone/
+# website into a separate Place Details call per surviving candidate (as a
+# prior version of this file did) multiplies request count instead of
+# reducing it — it was a net cost INCREASE, not a saving. Keep it as one call.
 PLACES_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.types"
 
 def search_places(query):
     """Places API (New) searchText — returns name, address, phone, and website
-    in a single call, replacing the old Text Search + Place Details pair."""
+    in a single call. Free chain/non-PT filtering (see _looks_like_non_pt)
+    still runs on the response before a result becomes a raw_lead — that
+    doesn't reduce this call's cost (already paid per-request regardless of
+    result count) but does cut the volume of candidates that reach the
+    (paid) Claude qualification step downstream."""
     headers = {
         "Content-Type":    "application/json",
         "X-Goog-Api-Key":  PLACES_KEY,
@@ -380,6 +413,30 @@ def extract_owner_regex(text):
     return ""
 
 
+# Sentences containing any of these are moved to the front before truncating
+# to max_words — lets a smaller word budget still capture the exact evidence
+# the qualification prompt looks for (mobile/in-home disclosure, owner name)
+# instead of losing it to generic filler earlier on the page.
+_SIGNAL_KEYWORDS = [
+    "mobile", "in-home", "in home", "house call", "we come to you",
+    "dr.", "founder", "owner",
+]
+
+def _prioritized_truncate(text, max_words):
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    priority, rest = [], []
+    for s in sentences:
+        low = s.lower()
+        (priority if any(k in low for k in _SIGNAL_KEYWORDS) else rest).append(s)
+    words = []
+    for s in priority + rest:
+        for w in s.split():
+            words.append(w)
+            if len(words) >= max_words:
+                return " ".join(words)
+    return " ".join(words)
+
+
 def scrape_website_full(url, max_words=600):
     """Single-pass scrape of homepage + /about + /about-us.
 
@@ -423,7 +480,7 @@ def scrape_website_full(url, max_words=600):
             continue
 
     all_text     = " ".join(text_chunks)
-    content_text = " ".join(all_text.split()[:max_words])
+    content_text = _prioritized_truncate(all_text, max_words)
 
     if jsonld_owner:
         return jsonld_owner, content_text
@@ -616,6 +673,12 @@ def run_pipeline(lead_status="dialer-lead"):
     all_qualified  = []
     total_states_crossed = 0
     round_num = 0
+    # Pass-through instrumentation — no effect on pipeline behavior, just
+    # logs how much of the raw-lead pool (cap = daily_limit * 6) actually
+    # survives each filtering stage, so the multiplier can eventually be
+    # right-sized against real data instead of guessed.
+    total_raw_leads  = 0
+    total_candidates = 0
 
     while len(all_qualified) < daily_limit and total_states_crossed < MAX_STATES_TOTAL:
         round_num += 1
@@ -624,6 +687,7 @@ def run_pipeline(lead_status="dialer-lead"):
 
         raw_leads, states_crossed = scrape_state_leads(progress, scraped_ids, remaining)
         total_states_crossed += states_crossed
+        total_raw_leads      += len(raw_leads)
         print(f"📋 Raw leads collected this round: {len(raw_leads)}")
 
         if not raw_leads:
@@ -651,6 +715,7 @@ def run_pipeline(lead_status="dialer-lead"):
                 "owner_name": owner_name, "website_text": website_text,
             })
 
+        total_candidates += len(candidates)
         print(f"📋 Candidates passing rule filter: {len(candidates)}/{len(raw_leads)}")
 
         if not candidates:
@@ -715,9 +780,11 @@ def run_pipeline(lead_status="dialer-lead"):
     qualified_leads = all_qualified
 
     print(f"\n📊 Results: {len(qualified_leads)} qualified, pushing all (target={daily_limit})")
+    log_qualify_stats(total_raw_leads, total_candidates, len(qualified_leads))
     push_to_os(qualified_leads, lead_status)
     push_file(__file__, "progress.json")
     push_file(__file__, "scraped_ids.json")
+    push_file(__file__, "qualify_stats.json")
 
 
 # ════════════════════════════════════════════════════════════════════════════
