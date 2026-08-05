@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { API } from "../api.js";
 import ContactCard from "../ContactCard.jsx";
 import BookingModal from "../BookingModal.jsx";
-import CampaignBadge from "../components/CampaignBadge.jsx";
 
 function htmlToText(html) {
   if (!html) return "";
@@ -509,10 +508,6 @@ export default function InboxPanel({ initialTarget }) {
 
         {/* Filter bar */}
         <div style={{ padding: "10px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <CampaignBadge channel="sms" label="SMS" />
-            <CampaignBadge channel="email" label="Email" />
-          </div>
           <div style={{ display: "flex", gap: 6 }}>
             {[
               { value: "all",    label: "ALL" },

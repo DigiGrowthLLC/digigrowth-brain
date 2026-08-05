@@ -5,7 +5,6 @@ import InboxPanel     from "./panels/InboxPanel.jsx";
 import DialerPanel    from "./panels/DialerPanel.jsx";
 import AppointmentsPanel from "./panels/AppointmentsPanel.jsx";
 import AgentsPanel    from "./panels/AgentsPanel.jsx";
-import SettingsPanel  from "./panels/SettingsPanel.jsx";
 import AnalyticsPanel from "./panels/AnalyticsPanel.jsx";
 import FinancesPanel  from "./panels/FinancesPanel.jsx";
 import SOPsPanel      from "./panels/SOPsPanel.jsx";
@@ -30,7 +29,6 @@ const NAV = [
   { id: "finances",  label: "Finances" },
   { id: "website",   label: "Website" },
   { id: "sops",      label: "Business Resources" },
-  { id: "settings",  label: "Settings" },
 ];
 
 const NAV_ICONS = {
@@ -109,12 +107,6 @@ const NAV_ICONS = {
     <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
       <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4"/>
       <path d="M2 8h12M8 2c-1.5 2-2.5 3.8-2.5 6s1 4 2.5 6M8 2c1.5 2 2.5 3.8 2.5 6s-1 4-2.5 6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-    </svg>
-  ),
-  settings: (
-    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
-      <circle cx="8" cy="8" r="2.2" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M8 1.5v1.2M8 13.3v1.2M1.5 8h1.2M13.3 8h1.2M3.4 3.4l.85.85M11.75 11.75l.85.85M3.4 12.6l.85-.85M11.75 4.25l.85-.85" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
     </svg>
   ),
 };
@@ -282,7 +274,6 @@ export default function App() {
         {active === "todos"     && <TodoPanel />}
         {active === "website"   && <WebsitePanel />}
         {active === "sops"      && <SOPsPanel />}
-        {active === "settings"  && <SettingsPanel />}
         {active === "call"      && <CallScreen callInfo={callInfo} live={!!activeCall} onHangUp={handleHangUp} onDone={handleDone} />}
       </main>
 

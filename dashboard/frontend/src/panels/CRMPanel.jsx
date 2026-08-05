@@ -134,6 +134,59 @@ function ManageTagsModal({ tags, onClose, onChanged }) {
   );
 }
 
+// ── Actions Menu ──────────────────────────────────────────────────────────────
+
+function ActionsMenu({ onAddContact, onImportCSV, onManageTags, onNewsletterQueue }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  const items = [
+    { label: "+ Add Contact", onClick: onAddContact },
+    { label: "↑ Import CSV", onClick: onImportCSV },
+    { label: "🏷 Manage Tags", onClick: onManageTags },
+    { label: "✉ Newsletter Queue", onClick: onNewsletterQueue },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button onClick={() => setOpen(o => !o)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>
+        Actions ▾
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 30,
+          background: "#0d1626", border: "1px solid #1a2540", borderRadius: 8,
+          padding: "6px 0", minWidth: 190, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+        }}>
+          {items.map(item => (
+            <button
+              key={item.label}
+              onClick={() => { setOpen(false); item.onClick(); }}
+              style={{
+                display: "block", width: "100%", textAlign: "left", background: "none", border: "none",
+                padding: "8px 14px", cursor: "pointer", fontSize: 12, color: "#c4d0e8",
+                fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(58,123,213,0.1)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function fmtLastCalled(ts) {
   if (!ts) return null;
   return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -1184,32 +1237,25 @@ export default function CRMPanel({ onNavigate }) {
               </button>
             )}
           </form>
-          <button onClick={() => setShowAdd(true)} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>+ Add Contact</button>
-          <button onClick={() => setShowImport(true)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>↑ Import CSV</button>
-          <button onClick={() => setShowManageTags(true)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>🏷 Manage Tags</button>
-          <button onClick={() => setShowNewsletterQueue(true)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>✉ Newsletter Queue</button>
+          <ActionsMenu
+            onAddContact={() => setShowAdd(true)}
+            onImportCSV={() => setShowImport(true)}
+            onManageTags={() => setShowManageTags(true)}
+            onNewsletterQueue={() => setShowNewsletterQueue(true)}
+          />
         </div>
       </div>
 
       {/* Status filters */}
       <div style={{ padding: "8px 20px", borderBottom: "0.5px solid #1a2540",
                     display: "flex", gap: 10, alignItems: "center", overflowX: "auto", flexShrink: 0 }}>
-        <div style={{ display: "flex", gap: 4 }}>
+        <select value={activeStatus} onChange={e => handleStatus(e.target.value)}
+          style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#8aaad0",
+                   fontFamily: "'Share Tech Mono', monospace", fontSize: 10, padding: "5px 8px", cursor: "pointer", flexShrink: 0 }}>
           {STATUSES.map(({ value, label }) => (
-            <button key={value} onClick={() => handleStatus(value)}
-              style={{
-                fontFamily: "'Share Tech Mono', monospace",
-                fontSize: 10, letterSpacing: "0.1em",
-                padding: "5px 10px", borderRadius: 3, border: "0.5px solid",
-                cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s",
-                background: activeStatus === value ? "#2857a0" : "transparent",
-                borderColor: activeStatus === value ? "#3a7bd5" : "#1a2f52",
-                color: activeStatus === value ? "#c8dcff" : "#3a5a80",
-              }}>
-              {label}
-            </button>
+            <option key={value} value={value}>{label}</option>
           ))}
-        </div>
+        </select>
         <div style={{ width: 1, height: 18, background: "#1a2540", flexShrink: 0 }} />
         <select value={activeTag} onChange={e => { setActiveTag(e.target.value); setOffset(0); }}
           style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#8aaad0",
