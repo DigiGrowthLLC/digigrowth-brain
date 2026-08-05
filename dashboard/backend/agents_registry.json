@@ -40,6 +40,14 @@
     "badge_class": "badge-red"
   },
   {
+    "id": "copy-agent",
+    "name": "Copy Agent",
+    "description": "Offer design and sales copy for DigiGrowth and client businesses",
+    "root_dir": "../../copy-agent",
+    "color": "#22b8cf",
+    "badge_class": "badge-cyan"
+  },
+  {
     "id": "digiGrowth-os",
     "name": "DigiGrowth OS",
     "description": "Platform codebase — edit frontend, backend, and all agent files",

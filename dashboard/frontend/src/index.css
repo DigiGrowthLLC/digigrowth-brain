@@ -113,6 +113,7 @@
   .badge-gray   { background: rgba(90,111,143,0.15);  color: #5a6f8f; border: 1px solid rgba(90,111,143,0.2); }
   .badge-purple { background: rgba(120,80,210,0.15);  color: #a080f0; border: 1px solid rgba(120,80,210,0.2); }
   .badge-orange { background: rgba(240,112,40,0.15);  color: #f07028; border: 1px solid rgba(240,112,40,0.2); }
+  .badge-cyan   { background: rgba(34,184,207,0.15);  color: #22b8cf; border: 1px solid rgba(34,184,207,0.2); }
 
   /* Delta badges inline */
   .delta-pos { color: #14c882; }
