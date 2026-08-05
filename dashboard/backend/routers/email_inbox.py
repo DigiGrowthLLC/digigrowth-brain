@@ -399,6 +399,14 @@ async def list_inbox_tags():
 
 
 def _merge_contact_row(grouped: dict, r: dict, channel: str):
+    """
+    `updated_at` here drives the Inbox's sort order, so it must reflect the
+    conversation's actual last message activity (last_message_at, from the
+    per-channel messages table) — NOT the conversation row's own updated_at
+    column, which also bumps on metadata-only changes (a campaign
+    assignment, a disposition edit, etc.) that aren't new outreach and
+    shouldn't reorder the list.
+    """
     cid = r["contact_id"]
     if not cid:
         return  # scope: only known-contact threads are ever synced/created
@@ -414,8 +422,8 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
         }
     if channel not in g["channels"]:
         g["channels"].append(channel)
-    if g["updated_at"] is None or (r["updated_at"] and r["updated_at"] > g["updated_at"]):
-        g["updated_at"] = r["updated_at"]
+    if g["updated_at"] is None or (r["last_message_at"] and r["last_message_at"] > g["updated_at"]):
+        g["updated_at"] = r["last_message_at"]
         g["last_message"] = r["last_message"]
     if r.get("unread"):
         g["unread"] = True
@@ -446,7 +454,10 @@ async def list_inbox_conversations(
             clauses = ["sc.contact_id IS NOT NULL"]
             args: list = []
             if since in _SINCE_INTERVAL:
-                clauses.append(f"sc.updated_at >= now() - interval '{_SINCE_INTERVAL[since]}'")
+                clauses.append(
+                    f"""(SELECT MAX(sent_at) FROM sms_messages WHERE phone = sc.phone)
+                        >= now() - interval '{_SINCE_INTERVAL[since]}'"""
+                )
             if tag:
                 args.append(tag)
                 clauses.append(f"${len(args)} = ANY(c.tags)")
@@ -455,11 +466,12 @@ async def list_inbox_conversations(
                 clauses.append(f"c.status = ${len(args)}")
             sms_rows = await conn.fetch(
                 f"""
-                SELECT sc.contact_id, sc.status, sc.disposition, sc.updated_at,
+                SELECT sc.contact_id, sc.status, sc.disposition,
                        sc.stage_replied, sc.stage_primed, sc.stage_engaged, sc.stage_interested,
                        c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
                        (SELECT body FROM sms_messages WHERE phone = sc.phone
                         ORDER BY sent_at DESC LIMIT 1) AS last_message,
+                       (SELECT MAX(sent_at) FROM sms_messages WHERE phone = sc.phone) AS last_message_at,
                        EXISTS (
                            SELECT 1 FROM sms_messages
                            WHERE phone = sc.phone AND direction = 'inbound'
@@ -478,7 +490,10 @@ async def list_inbox_conversations(
             clauses = ["ec.contact_id IS NOT NULL"]
             args = []
             if since in _SINCE_INTERVAL:
-                clauses.append(f"ec.updated_at >= now() - interval '{_SINCE_INTERVAL[since]}'")
+                clauses.append(
+                    f"""(SELECT MAX(sent_at) FROM email_messages WHERE thread_id = ec.thread_id)
+                        >= now() - interval '{_SINCE_INTERVAL[since]}'"""
+                )
             if tag:
                 args.append(tag)
                 clauses.append(f"${len(args)} = ANY(c.tags)")
@@ -487,10 +502,11 @@ async def list_inbox_conversations(
                 clauses.append(f"c.status = ${len(args)}")
             email_rows = await conn.fetch(
                 f"""
-                SELECT ec.contact_id, ec.status, ec.disposition, ec.updated_at,
+                SELECT ec.contact_id, ec.status, ec.disposition,
                        c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
                        (SELECT body FROM email_messages WHERE thread_id = ec.thread_id
                         ORDER BY sent_at DESC LIMIT 1) AS last_message,
+                       (SELECT MAX(sent_at) FROM email_messages WHERE thread_id = ec.thread_id) AS last_message_at,
                        EXISTS (
                            SELECT 1 FROM email_messages
                            WHERE thread_id = ec.thread_id AND direction = 'inbound'

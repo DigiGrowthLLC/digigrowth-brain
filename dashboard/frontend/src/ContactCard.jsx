@@ -11,24 +11,6 @@ const STATUSES = ["new", "dialer-lead", "sms-handoff", "appointment-booked", "no
 // the SMS inbox. `variant="inline"` renders just the card content with no
 // overlay/backdrop, for embedding directly in a screen (e.g. the live call
 // screen) — Cancel is omitted since there's nothing to dismiss back to.
-function CampaignChip({ name, color, onRemove }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      padding: "2px 8px", borderRadius: 10,
-      background: `${color}22`, border: `0.5px solid ${color}80`,
-      color, fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-      whiteSpace: "nowrap",
-    }}>
-      {name}
-      {onRemove && (
-        <span onClick={e => { e.stopPropagation(); onRemove(); }}
-          style={{ cursor: "pointer", opacity: 0.7, fontSize: 10, lineHeight: 1 }}>✕</span>
-      )}
-    </span>
-  );
-}
-
 export default function ContactCard({ contactId, phone, onClose, onSaved, variant = "modal", hideHeader = false }) {
   const [contact, setContact] = useState(null);
   const [form, setForm]       = useState(null);
@@ -38,8 +20,8 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
   const [apptRefresh, setApptRefresh] = useState(0);
 
   const [campaignInfo, setCampaignInfo] = useState(null);
-  const [availableCampaigns, setAvailableCampaigns] = useState([]);
-  const [campaignPick, setCampaignPick] = useState("");
+  const [availableCampaigns, setAvailableCampaigns] = useState({ sms: [], email: [] });
+  const [campaignForm, setCampaignForm] = useState({ sms: "", email: "" });
 
   useEffect(() => {
     if (!contactId) return;
@@ -50,7 +32,10 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
 
   const loadCampaignInfo = () => {
     if (!contactId) return;
-    fetch(API(`/contacts/${contactId}/campaigns`)).then(r => r.ok ? r.json() : null).then(setCampaignInfo);
+    fetch(API(`/contacts/${contactId}/campaigns`)).then(r => r.ok ? r.json() : null).then(info => {
+      setCampaignInfo(info);
+      setCampaignForm({ sms: info?.sms?.id ?? "", email: info?.email?.id ?? "" });
+    });
   };
 
   useEffect(() => {
@@ -59,31 +44,8 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
     Promise.all([
       fetch(API("/campaigns?channel=sms")).then(r => r.ok ? r.json() : []),
       fetch(API("/campaigns?channel=email")).then(r => r.ok ? r.json() : []),
-    ]).then(([sms, email]) => {
-      setAvailableCampaigns([
-        ...sms.map(c => ({ ...c, channel: "sms" })),
-        ...email.map(c => ({ ...c, channel: "email" })),
-      ]);
-    });
+    ]).then(([sms, email]) => setAvailableCampaigns({ sms, email }));
   }, [contactId]);
-
-  async function addCampaign(campaignId) {
-    if (!campaignId) return;
-    const res = await fetch(API(`/contacts/${contactId}/campaigns`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ campaign_id: Number(campaignId) }),
-    });
-    if (res.ok) {
-      setCampaignPick("");
-      loadCampaignInfo();
-    }
-  }
-
-  async function removeCampaign(campaignId) {
-    const res = await fetch(API(`/contacts/${contactId}/campaigns/${campaignId}`), { method: "DELETE" });
-    if (res.ok) loadCampaignInfo();
-  }
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -97,17 +59,42 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
       for (const k of editable) {
         if (form[k] !== contact[k]) patch[k] = form[k] ?? null;
       }
-      if (Object.keys(patch).length === 0) { onClose?.(); return; }
-      const r = await fetch(API(`/contacts/${contactId}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      if (!r.ok) { setError(await r.text()); return; }
-      const updated = await r.json();
-      setContact(updated);
-      setForm(updated);
-      onSaved?.(updated);
+
+      const campaignChanges = [];
+      for (const channel of ["sms", "email"]) {
+        const before = campaignInfo?.[channel]?.id ?? "";
+        const after = campaignForm[channel] ?? "";
+        if (String(before) !== String(after)) campaignChanges.push({ channel, before, after });
+      }
+
+      if (Object.keys(patch).length === 0 && campaignChanges.length === 0) { onClose?.(); return; }
+
+      if (Object.keys(patch).length > 0) {
+        const r = await fetch(API(`/contacts/${contactId}`), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        });
+        if (!r.ok) { setError(await r.text()); return; }
+        const updated = await r.json();
+        setContact(updated);
+        setForm(updated);
+        onSaved?.(updated);
+      }
+
+      for (const chg of campaignChanges) {
+        if (chg.after) {
+          await fetch(API(`/contacts/${contactId}/campaigns`), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ campaign_id: Number(chg.after) }),
+          });
+        } else if (chg.before) {
+          await fetch(API(`/contacts/${contactId}/campaigns/${chg.before}`), { method: "DELETE" });
+        }
+      }
+      if (campaignChanges.length > 0) loadCampaignInfo();
+
       onClose?.();
     } catch (e) {
       setError(e.message);
@@ -187,40 +174,30 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
             <Field label="CUSTOM OPENER" k="opener" />
             <Field label="STATUS" k="status" options={STATUSES} />
 
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 4 }}>CAMPAIGN</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-                {campaignInfo?.sms && (
-                  <CampaignChip
-                    name={`SMS: ${campaignInfo.sms.name}${campaignInfo.sms.pending ? " (pending)" : ""}`}
-                    color="#5a9bf0"
-                    onRemove={() => removeCampaign(campaignInfo.sms.id)}
-                  />
-                )}
-                {campaignInfo?.email && (
-                  <CampaignChip
-                    name={`Email: ${campaignInfo.email.name}${campaignInfo.email.pending ? " (pending)" : ""}`}
-                    color="#9b6bd8"
-                    onRemove={() => removeCampaign(campaignInfo.email.id)}
-                  />
-                )}
-                {!campaignInfo?.sms && !campaignInfo?.email && (
-                  <span style={{ fontSize: 11, color: "#3a5a80" }}>Not in a campaign.</span>
-                )}
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                <select value={campaignPick} onChange={e => setCampaignPick(e.target.value)}
-                  className="dg-input" style={{ flex: 1, fontSize: 11 }}>
-                  <option value="">— add to campaign —</option>
-                  {availableCampaigns
-                    .filter(c => !(c.channel === "sms" && campaignInfo?.sms) && !(c.channel === "email" && campaignInfo?.email))
-                    .map(c => (
-                      <option key={c.id} value={c.id}>{c.channel === "sms" ? "SMS" : "Email"}: {c.name}</option>
-                    ))}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 4 }}>
+                  SMS CAMPAIGN
+                </div>
+                <select className="dg-input" style={{ width: "100%", fontSize: 12 }}
+                  value={campaignForm.sms} onChange={e => setCampaignForm(f => ({ ...f, sms: e.target.value }))}>
+                  <option value="">—</option>
+                  {(availableCampaigns.sms || []).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}{campaignInfo?.sms?.id === c.id && campaignInfo.sms.pending ? " (pending)" : ""}</option>
+                  ))}
                 </select>
-                <button type="button" onClick={() => addCampaign(campaignPick)} disabled={!campaignPick} className="btn btn-secondary" style={{ fontSize: 11 }}>
-                  Add
-                </button>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 4 }}>
+                  EMAIL CAMPAIGN
+                </div>
+                <select className="dg-input" style={{ width: "100%", fontSize: 12 }}
+                  value={campaignForm.email} onChange={e => setCampaignForm(f => ({ ...f, email: e.target.value }))}>
+                  <option value="">—</option>
+                  {(availableCampaigns.email || []).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}{campaignInfo?.email?.id === c.id && campaignInfo.email.pending ? " (pending)" : ""}</option>
+                  ))}
+                </select>
               </div>
             </div>
 

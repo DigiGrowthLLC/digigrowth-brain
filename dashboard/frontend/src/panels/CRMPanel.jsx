@@ -579,8 +579,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
   const [apptRefresh, setApptRefresh] = useState(0);
 
   const [campaignInfo, setCampaignInfo] = useState(null);
-  const [availableCampaigns, setAvailableCampaigns] = useState([]);
-  const [campaignPick, setCampaignPick] = useState("");
+  const [availableCampaigns, setAvailableCampaigns] = useState({ sms: [], email: [] });
 
   const loadCampaignInfo = useCallback(async () => {
     const res = await fetch(`/api/contacts/${contact.id}/campaigns`);
@@ -592,30 +591,29 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
     Promise.all([
       fetch("/api/campaigns?channel=sms").then(r => r.ok ? r.json() : []),
       fetch("/api/campaigns?channel=email").then(r => r.ok ? r.json() : []),
-    ]).then(([sms, email]) => {
-      setAvailableCampaigns([
-        ...sms.map(c => ({ ...c, channel: "sms" })),
-        ...email.map(c => ({ ...c, channel: "email" })),
-      ]);
-    });
+    ]).then(([sms, email]) => setAvailableCampaigns({ sms, email }));
   }, [loadCampaignInfo]);
 
-  async function addCampaign(campaignId) {
-    if (!campaignId) return;
-    const res = await fetch(`/api/contacts/${contact.id}/campaigns`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ campaign_id: Number(campaignId) }),
-    });
-    if (res.ok) {
-      setCampaignPick("");
-      loadCampaignInfo();
+  async function applyCampaignChanges(form) {
+    const changes = [];
+    for (const channel of ["sms", "email"]) {
+      const key = channel === "sms" ? "campaignSms" : "campaignEmail";
+      const before = campaignInfo?.[channel]?.id ?? "";
+      const after = form[key] ?? "";
+      if (String(before) !== String(after)) changes.push({ before, after });
     }
-  }
-
-  async function removeCampaign(campaignId) {
-    const res = await fetch(`/api/contacts/${contact.id}/campaigns/${campaignId}`, { method: "DELETE" });
-    if (res.ok) loadCampaignInfo();
+    for (const chg of changes) {
+      if (chg.after) {
+        await fetch(`/api/contacts/${contact.id}/campaigns`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ campaign_id: Number(chg.after) }),
+        });
+      } else if (chg.before) {
+        await fetch(`/api/contacts/${contact.id}/campaigns/${chg.before}`, { method: "DELETE" });
+      }
+    }
+    if (changes.length > 0) loadCampaignInfo();
   }
 
   async function addTag(tagName) {
@@ -669,6 +667,8 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
   function startEditing() {
     const initial = {};
     for (const k of EDITABLE_FIELDS) initial[k] = display[k] || "";
+    initial.campaignSms = campaignInfo?.sms?.id ?? "";
+    initial.campaignEmail = campaignInfo?.email?.id ?? "";
     setForm(initial);
     setEditErr("");
     setEditing(true);
@@ -677,10 +677,13 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
   async function saveEdits() {
     setSaving(true); setEditErr("");
     try {
+      const patch = {};
+      for (const k of EDITABLE_FIELDS) patch[k] = form[k];
+      patch.grade = form.grade || null;
       const res = await fetch(`/api/contacts/${contact.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, grade: form.grade || null }),
+        body: JSON.stringify(patch),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -691,6 +694,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
       const updated = await res.json();
       setDisplay(updated);
       onUpdate();
+      await applyCampaignChanges(form);
       setEditing(false);
     } catch (e) {
       setEditErr(String(e));
@@ -844,6 +848,32 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
                   <option value="D">D</option>
                 </select>
               </div>
+              <div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                              letterSpacing: "0.15em", marginBottom: 4 }}>
+                  SMS CAMPAIGN
+                </div>
+                <select value={form.campaignSms} onChange={e => setField("campaignSms", e.target.value)}
+                  className="dg-input" style={{ width: "100%", background: "#080c14" }}>
+                  <option value="">—</option>
+                  {availableCampaigns.sms.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
+                              letterSpacing: "0.15em", marginBottom: 4 }}>
+                  EMAIL CAMPAIGN
+                </div>
+                <select value={form.campaignEmail} onChange={e => setField("campaignEmail", e.target.value)}
+                  className="dg-input" style={{ width: "100%", background: "#080c14" }}>
+                  <option value="">—</option>
+                  {availableCampaigns.email.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 16px" }}>
@@ -855,6 +885,8 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
                 ["Grade", display.grade],
                 ["Calls", display.call_attempts],
                 ["Last Disposition", display.last_disposition],
+                ["SMS Campaign", campaignInfo?.sms ? `${campaignInfo.sms.name}${campaignInfo.sms.pending ? " (pending)" : ""}` : null],
+                ["Email Campaign", campaignInfo?.email ? `${campaignInfo.email.name}${campaignInfo.email.pending ? " (pending)" : ""}` : null],
               ].filter(([, v]) => v != null && v !== "").map(([label, value]) => (
                 <div key={label}>
                   <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
@@ -960,47 +992,6 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
                 + Create
               </button>
             </form>
-          </div>
-
-          {/* Campaign */}
-          <div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",
-                          letterSpacing: "0.15em", marginBottom: 10 }}>
-              CAMPAIGN
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-              {campaignInfo?.sms && (
-                <TagChip
-                  name={`SMS: ${campaignInfo.sms.name}${campaignInfo.sms.pending ? " (pending)" : ""}`}
-                  color="#5a9bf0"
-                  onRemove={() => removeCampaign(campaignInfo.sms.id)}
-                />
-              )}
-              {campaignInfo?.email && (
-                <TagChip
-                  name={`Email: ${campaignInfo.email.name}${campaignInfo.email.pending ? " (pending)" : ""}`}
-                  color="#9b6bd8"
-                  onRemove={() => removeCampaign(campaignInfo.email.id)}
-                />
-              )}
-              {!campaignInfo?.sms && !campaignInfo?.email && (
-                <span style={{ fontSize: 11, color: "#3a5a80" }}>Not in a campaign.</span>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <select value={campaignPick} onChange={e => setCampaignPick(e.target.value)}
-                className="dg-input" style={{ flex: 1, background: "#080c14" }}>
-                <option value="">— add to campaign —</option>
-                {availableCampaigns
-                  .filter(c => !(c.channel === "sms" && campaignInfo?.sms) && !(c.channel === "email" && campaignInfo?.email))
-                  .map(c => (
-                    <option key={c.id} value={c.id}>{c.channel === "sms" ? "SMS" : "Email"}: {c.name}</option>
-                  ))}
-              </select>
-              <button type="button" onClick={() => addCampaign(campaignPick)} disabled={!campaignPick} className="btn btn-secondary" style={{ fontSize: 11 }}>
-                Add
-              </button>
-            </div>
           </div>
 
           {/* Dialer actions */}
