@@ -47,7 +47,7 @@ function SmsOutreachCard({ outreach, tab }) {
         <MiniStat label="Interested Rate" value={pct(sms.interested_rate)} color="#5a9bf0" />
         <MiniStat label="ABR"             value={pct(sms.abr)}             color="#14c882" />
         <MiniStat label="Total Booked"    value={num(sms.booked)}          color="#14c882" />
-        <MiniStat label="Not Interested"  value={num(sms.not_interested)}  color="#dc3c3c" />
+        <MiniStat label="Not Interested Rate" value={pct(sms.not_interested_rate)} color="#dc3c3c" />
       </div>
     </div>
   );
@@ -68,7 +68,7 @@ function EmailOutreachCard({ outreach, tab }) {
         <MiniStat label="Unsubscribe Rate"       value={pct(email.unsubscribe_rate)}    color={email.unsubscribe_rate > 2 ? "#dc3c3c" : "#c4d0e8"} />
         <MiniStat label="ABR"                    value={pct(email.abr)}                 color="#14c882" />
         <MiniStat label="Total Booked"           value={num(email.booked)}              color="#14c882" />
-        <MiniStat label="Not Interested"         value={num(email.not_interested)}      color="#dc3c3c" />
+        <MiniStat label="Not Interested Rate"    value={pct(email.not_interested_rate)} color="#dc3c3c" />
       </div>
     </div>
   );
