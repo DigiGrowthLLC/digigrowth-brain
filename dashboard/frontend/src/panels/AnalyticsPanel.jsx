@@ -164,16 +164,6 @@ export default function AnalyticsPanel() {
         <PeriodToggle days={days} setDays={setDays} options={ANALYTICS_PERIOD_OPTIONS} />
       </div>
 
-      {/* ── Outreach & Appointment Setting ─────────────────────────── */}
-      <div>
-        <SecLabel>Outreach & Appointment Setting</SecLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
-          <SmsOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
-          <EmailOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
-          <ColdCallingCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
-        </div>
-      </div>
-
       {/* ── 6-Stage Acquisition Funnel ─────────────────────────────── */}
       <div className="glass-card" style={{ padding: "20px 22px" }}>
         <SecLabel>6-Stage Acquisition Funnel</SecLabel>
@@ -192,6 +182,16 @@ export default function AnalyticsPanel() {
             color="240,160,40" />
           <FunnelBlock label="Closes" value={funnel.closes} convRate={closeRate}
             color="240,160,40" />
+        </div>
+      </div>
+
+      {/* ── Outreach & Appointment Setting ─────────────────────────── */}
+      <div>
+        <SecLabel>Outreach & Appointment Setting</SecLabel>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
+          <ColdCallingCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
+          <SmsOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
+          <EmailOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
         </div>
       </div>
 
