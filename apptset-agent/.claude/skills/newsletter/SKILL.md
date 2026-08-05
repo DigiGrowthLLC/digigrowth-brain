@@ -2,7 +2,7 @@
 
 Generates DigiGrowth's AI-tip email for contacts flagged `newsletter` in the DigiGrowth OS CRM. Draft runs Monday and Friday as part of the morning briefing.
 
-**Brand framework — "The AI Growth Loop":** DigiGrowth's methodology has a name, reused consistently across every email so recipients start to recognize it as a system, not a one-off tip (same device as "Golden Pillars" / "Gym Growth Accelerator" in the direct-response swipe file this format was modeled on — see "Design Notes" at the bottom). If Dylan wants a different name, swap it here and in Step 3 below — it's referenced in one place conceptually but used in the body text of every email, so keep it findable.
+**Brand framework — "The AI Growth Engine":** DigiGrowth's methodology has a name, reused consistently across every email so recipients start to recognize it as a system, not a one-off tip (same device as "Golden Pillars" / "Gym Growth Accelerator" in the direct-response swipe file this format was modeled on — see "Design Notes" at the bottom). If Dylan wants a different name, swap it here and in Step 3 below — it's referenced in one place conceptually but used in the body text of every email, so keep it findable.
 
 **Run manually:** Ask the EA to "draft the newsletter." The EA delegates here via `manage-apptset-agent`.
 **Scheduled (draft):** Runs automatically Monday/Friday as part of the daily briefing (Step 4.5). Each day picks its own topic from the rotation — not the same draft twice.
@@ -131,10 +131,10 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 **Email structure** (weight each part per this week's mode from Step 1 — the centerpiece part gets more room, the rest stay short; all parts are still present every week for consistency):
 
 1. **Pattern-interrupt open** — `Hey {{first_name}},` then 1-2 sentences that don't just state a pain point flatly but hook attention: a contrarian claim, a surprising stat, or a one-line "confession." Rotate the exact phrasing week to week — don't reuse the same opening sentence shape every time.
-2. **Reframe** (centerpiece on `reframe-led` weeks) — one short beat contrasting the old way (manual follow-up, generic marketing agency, DIY guesswork) with The AI Growth Loop's way. This is implicit objection-handling, not a hard sell — a sentence or two, not a paragraph.
+2. **Reframe** (centerpiece on `reframe-led` weeks) — one short beat contrasting the old way (manual follow-up, generic marketing agency, DIY guesswork) with The AI Growth Engine's way. This is implicit objection-handling, not a hard sell — a sentence or two, not a paragraph.
 3. **Proof-as-story** (centerpiece on `proof-story-led` weeks) — the verified stat(s) from `weekly_research_cache.json`, written as a short anonymized narrative ("One [industry] business did X, in Y timeframe...") rather than a flat stat dump. Break the narrative across several one-thought `<p>` lines per the line-rhythm rule above, rather than one dense paragraph — that's what keeps a "story" feeling like pacing instead of a stat block. Never name a specific DigiGrowth client or invent a testimonial — DigiGrowth doesn't have a case-study library yet, so proof stays third-party/industry-sourced and clearly framed that way.
 4. **Soft qualifier** (centerpiece on `objection-led` weeks, where it can move earlier and expand slightly) — one line signaling this isn't generic advice for everyone, e.g. "This works best for businesses that book 1:1 appointments — if that's not you, skip this one." Increases trust via selectivity. Must be a true, reasonable qualifier — never a fabricated one used just for effect.
-5. **CTA**: "Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call — [booking_link from config]" — tie it back to The AI Growth Loop by name so the framework and the offer feel connected.
+5. **CTA**: "Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call — [booking_link from config]" — tie it back to The AI Growth Engine by name so the framework and the offer feel connected.
 6. Casual sign-off from "Dylan | Digigrowth"
 7. **P.S. line** — one line reinforcing the CTA or handling one likely objection (e.g. "P.S. — this isn't a sales pitch, just 20 minutes to see if it's a fit."). Do not restate or link the CTA a second time here — see "One CTA, said once" below; the P.S. supports the ask, it doesn't repeat it.
 8. Footer (required, CAN-SPAM): a real `<a href="{{unsubscribe_link}}">Unsubscribe</a>` link, plus
@@ -156,7 +156,7 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
   performs better than one that's been agonized over — write it, check it against the requirements
   above, ship it. This is a rep you're building, not a single perfect artifact.
 - **Consistent identity, varied emphasis**: same fonts, same 8-part skeleton, same voice, same
-  framework name (The AI Growth Loop) every week — recipients should recognize a DigiGrowth email
+  framework name (The AI Growth Engine) every week — recipients should recognize a DigiGrowth email
   before they read the subject line. The week's `mode` (Step 1) changes which part gets the most
   room, not the underlying format.
 
