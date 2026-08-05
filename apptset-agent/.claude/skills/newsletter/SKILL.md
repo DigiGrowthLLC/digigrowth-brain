@@ -2,6 +2,8 @@
 
 Generates DigiGrowth's AI-tip email for contacts flagged `newsletter` in the DigiGrowth OS CRM. Draft runs Monday and Friday as part of the morning briefing.
 
+**Brand framework — "The AI Growth Loop":** DigiGrowth's methodology has a name, reused consistently across every email so recipients start to recognize it as a system, not a one-off tip (same device as "Golden Pillars" / "Gym Growth Accelerator" in the direct-response swipe file this format was modeled on — see "Design Notes" at the bottom). If Dylan wants a different name, swap it here and in Step 3 below — it's referenced in one place conceptually but used in the body text of every email, so keep it findable.
+
 **Run manually:** Ask the EA to "draft the newsletter." The EA delegates here via `manage-apptset-agent`.
 **Scheduled (draft):** Runs automatically Monday/Friday as part of the daily briefing (Step 4.5). Each day picks its own topic from the rotation — not the same draft twice.
 **Sending is live**, via Gmail API (`dylanrg@digigrowthllc.com`) — not a single blast. Approving the
@@ -43,17 +45,28 @@ Then use:
 
 Run when delegated by the EA's `manage-apptset-agent` skill, or when Dylan says "draft the newsletter."
 
-### Step 1 — Pick this week's topic
+### Step 1 — Pick this week's topic and mode
 
 Read `newsletter_topic_log.json`. If the file doesn't exist, treat it as an empty array `[]`.
 
 Compare the log against the topic list below. Pick the **first topic not used in the last 20 entries**. If all 20 have been used recently, restart from topic 01.
 
+**Also pick this week's mode** — which structural element gets the most emphasis in Step 3, so weeks read as genuinely different angles rather than one template with the topic swapped out. Cycle through in order, using whatever `mode` the most recent log entry recorded (if the log is empty or has no `mode` field yet, start at `tip-led`):
+
+1. `tip-led` — today's default: one actionable insight, light reframe, light proof
+2. `proof-story-led` — the anonymized proof story (Step 3, part 3) is the centerpiece; everything else stays short
+3. `reframe-led` — the us-vs-them contrast (Step 3, part 2) is the centerpiece
+4. `objection-led` — open with the soft qualifier / a common reason prospects hesitate, then resolve it into the CTA
+
+After `objection-led`, cycle back to `tip-led`.
+
 ### Step 1.5 — Research this week's topic (shared with the blog post)
 
 Do **one web search** on this week's topic (e.g. "AI lead follow-up automation small business 2026 statistics") to ground the email in real, current data instead of writing from memory alone. Pull 2-4 concrete facts/stats, each with its source URL.
 
-Save the findings to `apptset-agent/weekly_research_cache.json`:
+**Verify before caching.** Fetch each candidate source URL and confirm the specific claim actually appears there (in substance — doesn't need to be verbatim). Drop any stat you can't confirm on the page itself; don't keep a stat just because it sounds plausible or was easy to find in a search snippet. If a dropped stat leaves you short, run one more targeted search to replace it rather than falling back to an unconfirmed number. This step exists because unverified stats have shipped in past drafts (traced back to sources that didn't actually contain the claim) — since Step 3 below now builds a proof narrative around these stats, an unconfirmed one is a real credibility/trust risk, not just a minor inaccuracy.
+
+Save the verified findings to `apptset-agent/weekly_research_cache.json`:
 ```json
 {
   "date": "YYYY-MM-DD",
@@ -91,7 +104,7 @@ If the file doesn't exist or fails to parse, set count to "unknown" and list to 
 
 Write the email yourself — do not delegate to newsletter.py for generation. Use the topic from Step 1 as the core insight, grounded in the findings saved in Step 1.5 — reference at least one concrete fact/stat from `weekly_research_cache.json` instead of writing purely from memory.
 
-**Subject:** Specific and curiosity-driven. Under 60 characters. No spam words (free, win, guarantee, etc.). Reference the topic concretely.
+**Subject:** Specific and curiosity-driven. Under 60 characters. No spam words (free, win, guarantee, etc.). Reference the topic concretely. **Prefer a concrete number when this week's verified research supports one** (e.g. "The stat behind 40% more bookings" beats "Why bookings are slipping") — numbers read as more credible and scannable than adjectives. Fall back to plain curiosity-driven phrasing on weeks where no clean number fits naturally; don't force one in.
 
 **HTML body requirements:**
 - Self-contained fragment (no `<!DOCTYPE>`, no `<html>`/`<head>`)
@@ -102,22 +115,39 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
   contact with a working one-click unsubscribe URL when queued — see Step 6). Do NOT write "Reply
   STOP to unsubscribe" — that's an SMS convention and does nothing on email.
 - **Use HTML entities for all non-ASCII characters** — never paste raw Unicode. Em dash → `&mdash;`, smart quotes → `&ldquo;` / `&rdquo;`, apostrophe → `&#39;` or `&apos;`. This prevents garbled symbols (â€") when an email client renders the HTML.
-- **Paragraph spacing:** every `<p>` tag must have `style="margin:0;"` and be followed by a `<br>` tag before the next paragraph. Do NOT rely on CSS margin/padding for spacing between paragraphs — email clients collapse it. Use explicit `<br>` tags between every paragraph block.
+- **Line rhythm — one thought per `<p>` block, not dense paragraphs.** This is the swipe file's most distinctive formatting trait (see "Design Notes") and applies throughout every part of the Email structure below: most `<p>` blocks are a single sentence, sometimes a fragment. Multi-clause sentences get split across separate `<p>` blocks rather than staying joined. Use a short transitional beat as its own isolated `<p>` block to control pacing and let the next line land — `But…`, `Here's the thing…`, `Look…`, `So…`, `Now…` — don't chain these into the sentence before or after them. A short rhetorical question is usually its own line too. Every `<p>` tag must have `style="margin:0;"` and be followed by a `<br>` tag before the next one — do NOT rely on CSS margin/padding, email clients collapse it, and do NOT group multiple sentences into one `<p>` by default. This is about giving each thought room for a skimmer's eye to catch it, not about padding length — the email should still read in well under 90 seconds, since white space reads fast even when the block looks long scrolled.
+
+  Example — same content, dense (avoid) vs. line-broken (use):
+
+  Dense: *"Most businesses only answer DMs when someone happens to be at their desk — and by the time they reply, the lead has already messaged three other options. An AI chatbot changes that: it answers instantly, qualifies the lead, and books the call straight onto your calendar."*
+
+  Line-broken:
+  `<p style="margin:0;">Most businesses only answer DMs when someone happens to be at their desk.</p><br>`
+  `<p style="margin:0;">By the time they reply, the lead's already messaged three other options.</p><br>`
+  `<p style="margin:0;">An AI chatbot changes that.</p><br>`
+  `<p style="margin:0;">It answers instantly. Qualifies the lead. Books the call — straight onto your calendar.</p><br>`
 - **Bold key phrases:** wrap the most important stats, numbers, and action phrases in `<strong>` tags so readers scanning quickly know what matters. Aim for 4-7 bolded phrases per email (e.g. response time stats, sequence steps, outcome metrics, the core benefit).
 
-**Email structure:**
-1. `Hey {{first_name}},` — then 1-2 sentences on a real pain point or AI adoption stat for independent service-based businesses
-2. ONE actionable insight about using AI for client acquisition tied to this week's topic (3-5 sentences, concrete and specific — no fluff)
-3. CTA: "Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call — [booking_link from config]"
-5. Casual sign-off from "Dylan | Digigrowth"
-6. Footer (required, CAN-SPAM): a real `<a href="{{unsubscribe_link}}">Unsubscribe</a>` link, plus
+**Email structure** (weight each part per this week's mode from Step 1 — the centerpiece part gets more room, the rest stay short; all parts are still present every week for consistency):
+
+1. **Pattern-interrupt open** — `Hey {{first_name}},` then 1-2 sentences that don't just state a pain point flatly but hook attention: a contrarian claim, a surprising stat, or a one-line "confession." Rotate the exact phrasing week to week — don't reuse the same opening sentence shape every time.
+2. **Reframe** (centerpiece on `reframe-led` weeks) — one short beat contrasting the old way (manual follow-up, generic marketing agency, DIY guesswork) with The AI Growth Loop's way. This is implicit objection-handling, not a hard sell — a sentence or two, not a paragraph.
+3. **Proof-as-story** (centerpiece on `proof-story-led` weeks) — the verified stat(s) from `weekly_research_cache.json`, written as a short anonymized narrative ("One [industry] business did X, in Y timeframe...") rather than a flat stat dump. Break the narrative across several one-thought `<p>` lines per the line-rhythm rule above, rather than one dense paragraph — that's what keeps a "story" feeling like pacing instead of a stat block. Never name a specific DigiGrowth client or invent a testimonial — DigiGrowth doesn't have a case-study library yet, so proof stays third-party/industry-sourced and clearly framed that way.
+4. **Soft qualifier** (centerpiece on `objection-led` weeks, where it can move earlier and expand slightly) — one line signaling this isn't generic advice for everyone, e.g. "This works best for businesses that book 1:1 appointments — if that's not you, skip this one." Increases trust via selectivity. Must be a true, reasonable qualifier — never a fabricated one used just for effect.
+5. **CTA**: "Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call — [booking_link from config]" — tie it back to The AI Growth Loop by name so the framework and the offer feel connected.
+6. Casual sign-off from "Dylan | Digigrowth"
+7. **P.S. line** — one line reinforcing the CTA or handling one likely objection (e.g. "P.S. — this isn't a sales pitch, just 20 minutes to see if it's a fit."). Do not restate or link the CTA a second time here — see "One CTA, said once" below; the P.S. supports the ask, it doesn't repeat it.
+8. Footer (required, CAN-SPAM): a real `<a href="{{unsubscribe_link}}">Unsubscribe</a>` link, plus
    the mailing address from `config.json` → `newsletter.mailing_address` if set. If that field is
    empty, still include the unsubscribe link but flag to Dylan in your summary that the mailing
    address needs to be added before this is fully compliant — don't invent an address.
 
+**No fabricated pressure.** Don't invent urgency ("only 3 spots left this week"), scarcity, or disqualifying claims that aren't true. The direct-response swipe file this format draws from uses aggressive versions of these on a cold list at volume; DigiGrowth's list is opt-in and warm, so invented pressure is a credibility risk, not a conversion win. Every claim — proof stat, qualifier, urgency — must be genuinely true, not just persuasive-sounding.
+
 **Copywriting discipline** (from DigiGrowth's newsletter playbook):
-- Short, punchy sentences. Small paragraphs. Less is more — cut anything that isn't the pain point,
-  the insight, or the CTA.
+- Short, punchy sentences, one thought per line — see "Line rhythm" under HTML body requirements
+  above; it applies to all 8 parts below, not just the opener. Less is more — cut anything that
+  isn't the pain point, the insight, or the CTA.
 - A numbered/bulleted list is fine if it genuinely aids scanning (e.g. a 3-step workflow) — don't
   force one in every email.
 - **One CTA, said once.** Don't repeat the booking link or stack a second ask — that's the same
@@ -125,8 +155,10 @@ Write the email yourself — do not delegate to newsletter.py for generation. Us
 - Don't over-polish. A newsletter that took 20-30 minutes to write usually reads more natural and
   performs better than one that's been agonized over — write it, check it against the requirements
   above, ship it. This is a rep you're building, not a single perfect artifact.
-- **Consistent format every week**: same fonts, same structure, same voice. Recipients should
-  recognize a DigiGrowth email before they read the subject line.
+- **Consistent identity, varied emphasis**: same fonts, same 8-part skeleton, same voice, same
+  framework name (The AI Growth Loop) every week — recipients should recognize a DigiGrowth email
+  before they read the subject line. The week's `mode` (Step 1) changes which part gets the most
+  room, not the underlying format.
 
 **Tone:** Direct, friendly, trusted expert who knows AI and service-based business marketing. No hype. No buzzwords. Under 90 seconds to read.
 
@@ -151,14 +183,14 @@ Write the draft to `newsletter_draft.json`:
 }
 ```
 
-Append the used topic to `newsletter_topic_log.json`:
+Append the used topic and mode to `newsletter_topic_log.json`:
 ```json
 [
-  {"topic": "topic text here", "date": "YYYY-MM-DD"},
+  {"topic": "topic text here", "mode": "tip-led", "date": "YYYY-MM-DD"},
   ...
 ]
 ```
-If the file doesn't exist, create it with a single-item array.
+If the file doesn't exist, create it with a single-item array. Older entries without a `mode` field are expected — Step 1's cycle just treats a missing `mode` on the most recent entry as if it were `objection-led` (so the next pick is `tip-led`).
 
 ### Step 5 — Save the draft markdown
 
@@ -184,7 +216,7 @@ delivered gradually (~25/day), not all at once. See "Delivery" below.
 
 ## Topic this week
 
-[topic from Step 1]
+[topic from Step 1] — mode: [mode from Step 1]
 
 ---
 
@@ -197,6 +229,8 @@ delivered gradually (~25/day), not all at once. See "Delivery" below.
 [CTA line]
 
 [sign-off]
+
+[P.S. line]
 
 ---
 
@@ -319,4 +353,16 @@ Pick in order, skipping topics used in the last 20 weeks. Cycle back to 01 when 
 - **No contacts flagged `newsletter`:** Report "0 contacts flagged `newsletter` in the DigiGrowth OS — flag contacts in the CRM before drafting." Still save the draft.
 - **`newsletter_recipients.json` missing or unparseable:** Note it in the saved draft markdown (count "unknown", empty recipient table). Still save the draft — this file is exported nightly by Railway, so a missing file usually means the export job hasn't run yet or failed; check Railway logs.
 - **Draft already exists from this week:** Overwrite it. Always use the freshest draft.
-- **Topic log is corrupted / unparseable:** Treat as empty, start from topic 01.
+- **Topic log is corrupted / unparseable:** Treat as empty, start from topic 01 and mode `tip-led`.
+- **Mode field missing on old log entries:** Expected for entries written before this rotation existed — treat a missing `mode` on the latest entry as `objection-led` so the next pick lands on `tip-led`.
+
+---
+
+## Design Notes
+
+The email structure, line rhythm/formatting, subject-line guidance, named framework, and mode rotation above were adapted from a direct-response cold-outreach swipe file (28 templates, a fitness-industry marketing consultancy's client-acquisition emails) at Dylan's request, to make DigiGrowth's newsletter more conversion-oriented. Two constraints carried over deliberately, because the swipe file's audience (cold prospects) and DigiGrowth's (an opt-in list of contacts already in the CRM) aren't the same:
+
+- **No fabricated proof.** The swipe file's core engine is named-client case studies with specific numbers. DigiGrowth doesn't have a case-study library yet, so proof stays anonymized and industry-sourced — verified against its source (Step 1.5) — never a stand-in for a real DigiGrowth client result. Revisit this once real client outcomes exist to cite.
+- **No fabricated urgency/scarcity/disqualifiers.** The swipe file uses these aggressively because it's cold outbound at volume, where some recipients bouncing off a hard qualifier is fine. On a warm opt-in list, an invented "only 3 spots left" or "unsubscribe if you're already successful" reads as manipulative to a recipient with a standing relationship — so this skill keeps the *structural* device (a soft qualifier line, a P.S. reinforcement) but requires every claim used to be genuinely true.
+
+If engagement data (once tracking exists — see "Tracking & Benchmarks") shows a particular mode underperforming, that's the signal to revisit this structure, not a fixed schedule.
