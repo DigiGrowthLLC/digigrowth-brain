@@ -24,14 +24,6 @@
     "badge_class": "badge-blue"
   },
   {
-    "id": "parallel-dialer",
-    "name": "Parallel Dialer",
-    "description": "Dials 10 leads simultaneously via Twilio",
-    "root_dir": "../../parallel-dialer",
-    "color": "#f0a028",
-    "badge_class": "badge-amber"
-  },
-  {
     "id": "content-agent",
     "name": "Content Creation",
     "description": "Social posts, ad copy, emails, videos, and blog content for DigiGrowth",
@@ -46,13 +38,5 @@
     "root_dir": "../../copy-agent",
     "color": "#22b8cf",
     "badge_class": "badge-cyan"
-  },
-  {
-    "id": "digiGrowth-os",
-    "name": "DigiGrowth OS",
-    "description": "Platform codebase — edit frontend, backend, and all agent files",
-    "root_dir": "../../",
-    "color": "#e84393",
-    "badge_class": "badge-pink"
   }
 ]
