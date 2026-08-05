@@ -44,12 +44,6 @@ function OutreachTable({ outreach, tab }) {
       email:   num(email.total_sent),
     },
     {
-      label:   "Distinct Contacts Reached",
-      call:    "—",
-      sms:     num(sms.contacted),
-      email:   num(email.initial_sent),
-    },
-    {
       label:   "Answer / Reply Rate",
       call:    pct(call.answer_rate),
       sms:     pct(sms.reply_rate),
@@ -118,16 +112,6 @@ function OutreachTable({ outreach, tab }) {
           </div>
         </div>
       ))}
-      {/* Source notes */}
-      <div style={{ marginTop: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
-        SMS · rates are % of {num(sms.contacted)} leads contacted; Replied/Engaged/Interested are auto-detected from reply count (1+/2+/3+) but can be manually checked/unchecked per conversation in the Inbox — the checkbox is what's counted (tracked from launch)
-      </div>
-      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
-        EMAIL · rates are % of {num(email.initial_sent)} contacts emailed; reply = any inbound message on the thread (tracked from launch)
-      </div>
-      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
-        COLD CALLING · synced daily from Google Sheets (Sheets Digest skill)
-      </div>
     </div>
   );
 }
@@ -146,17 +130,11 @@ function EmailDeliverabilityCard({ outreach, tab }) {
         <MiniStat label="Bounce Rate"       value={pct(email.bounce_rate)}  color={email.bounce_rate > 5 ? "#dc3c3c" : "#c4d0e8"} />
         <MiniStat label="Unsubscribe Rate"  value={pct(email.unsubscribe_rate)} color={email.unsubscribe_rate > 2 ? "#dc3c3c" : "#c4d0e8"} />
       </div>
-      <div style={{ marginTop: 12, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
-        RAW = ANY PIXEL FIRE, INCLUDING GMAIL/APPLE AUTO-PREFETCH · CONFIRMED = PIXEL FIRED 2+ MIN AFTER SEND, A BETTER (STILL NOT EXACT) HUMAN-READ SIGNAL
-      </div>
-      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a5a", letterSpacing: "0.08em" }}>
-        BOUNCE RATE IS BEST-EFFORT — DETECTED FROM DELIVERY-FAILURE NOTICES, NOT A DELIVERY GUARANTEE
-      </div>
     </div>
   );
 }
 
-function FunnelBlock({ label, value, convRate, benchmark, color, isFirst }) {
+function FunnelBlock({ label, value, convRate, color, isFirst }) {
   return (
     <div style={{ display: "flex", alignItems: "center", flex: 1 }}>
       {!isFirst && (
@@ -178,11 +156,6 @@ function FunnelBlock({ label, value, convRate, benchmark, color, isFirst }) {
                           color: `rgba(${color},0.8)`, letterSpacing: "0.06em" }}>
               {pct(convRate)}
             </div>
-            {benchmark && (
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: "#1a3a60", marginTop: 2, letterSpacing: "0.06em" }}>
-                target {benchmark}
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -249,20 +222,17 @@ export default function AnalyticsPanel() {
           <FunnelBlock isFirst label="Total Leads" value={funnel.total_leads} convRate={null}
             color="90,155,240" />
           <FunnelBlock label="Total Outreach" value={funnel.dialed} convRate={dialedRate}
-            benchmark={null} color="90,155,240" />
+            color="90,155,240" />
           <FunnelBlock label="Answered" value={funnel.answered} convRate={answeredRate}
-            benchmark="10–15%" color="20,200,130" />
+            color="20,200,130" />
           <FunnelBlock label="Pitched" value={funnel.pitched} convRate={pitchedRate}
-            benchmark="40–50%" color="20,200,130" />
+            color="20,200,130" />
           <FunnelBlock label="Booked" value={funnel.booked} convRate={bookedRate}
-            benchmark="2–5%" color="20,200,130" />
+            color="20,200,130" />
           <FunnelBlock label="Shows" value={funnel.shows} convRate={showRate}
-            benchmark="60–70%" color="240,160,40" />
+            color="240,160,40" />
           <FunnelBlock label="Closes" value={funnel.closes} convRate={closeRate}
-            benchmark="20–30%" color="240,160,40" />
-        </div>
-        <div style={{ marginTop: 12, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#1a3a60", letterSpacing: "0.08em" }}>
-          SHOWS & CLOSES · MANUAL ENTRY — UPDATE VIA SETTINGS OS
+            color="240,160,40" />
         </div>
       </div>
 
