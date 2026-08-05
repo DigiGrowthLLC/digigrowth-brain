@@ -47,6 +47,7 @@ function SmsOutreachCard({ outreach, tab }) {
         <MiniStat label="Interested Rate" value={pct(sms.interested_rate)} color="#5a9bf0" />
         <MiniStat label="ABR"             value={pct(sms.abr)}             color="#14c882" />
         <MiniStat label="Total Booked"    value={num(sms.booked)}          color="#14c882" />
+        <MiniStat label="Not Interested"  value={num(sms.not_interested)}  color="#dc3c3c" />
       </div>
     </div>
   );
@@ -61,13 +62,13 @@ function EmailOutreachCard({ outreach, tab }) {
       <SecLabel>Email Outreach</SecLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 4 }}>
         <MiniStat label="Sent"                  value={num(email.total_sent)}          color="#9b6bd8" />
-        <MiniStat label="Open Rate (Raw)"        value={pct(email.open_rate)}           color="#9b6bd8" />
-        <MiniStat label="Open Rate (Confirmed)"  value={pct(email.open_rate_confirmed)} color="#9b6bd8" />
+        <MiniStat label="Open Rate"              value={pct(email.open_rate)}           color="#9b6bd8" />
         <MiniStat label="Reply Rate"             value={pct(email.reply_rate)}          color="#9b6bd8" />
         <MiniStat label="Bounce Rate"            value={pct(email.bounce_rate)}         color={email.bounce_rate > 5 ? "#dc3c3c" : "#c4d0e8"} />
         <MiniStat label="Unsubscribe Rate"       value={pct(email.unsubscribe_rate)}    color={email.unsubscribe_rate > 2 ? "#dc3c3c" : "#c4d0e8"} />
         <MiniStat label="ABR"                    value={pct(email.abr)}                 color="#14c882" />
         <MiniStat label="Total Booked"           value={num(email.booked)}              color="#14c882" />
+        <MiniStat label="Not Interested"         value={num(email.not_interested)}      color="#dc3c3c" />
       </div>
     </div>
   );

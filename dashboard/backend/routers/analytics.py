@@ -251,19 +251,26 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         *params,
     )
 
+    not_interested = await conn.fetchval(
+        f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='not_interested' {booked_filter}",
+        *params,
+    )
+
     return {
-        "total_outreach":  total_outreach or 0,
-        "contacted":       contacted or 0,
-        "replied":         replied or 0,
-        "reply_rate":      _pct(replied, contacted),
-        "primed":          primed or 0,
-        "primed_rate":     _pct(primed, contacted),
-        "engaged":         engaged or 0,
-        "engaged_rate":    _pct(engaged, contacted),
-        "interested":      interested or 0,
-        "interested_rate": _pct(interested, contacted),
-        "booked":          booked or 0,
-        "abr":             _pct(booked, contacted),
+        "total_outreach":     total_outreach or 0,
+        "contacted":          contacted or 0,
+        "replied":            replied or 0,
+        "reply_rate":         _pct(replied, contacted),
+        "primed":             primed or 0,
+        "primed_rate":        _pct(primed, contacted),
+        "engaged":            engaged or 0,
+        "engaged_rate":       _pct(engaged, contacted),
+        "interested":         interested or 0,
+        "interested_rate":    _pct(interested, contacted),
+        "booked":             booked or 0,
+        "abr":                _pct(booked, contacted),
+        "not_interested":     not_interested or 0,
+        "not_interested_rate": _pct(not_interested, contacted),
     }
 
 
@@ -334,18 +341,12 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         *params,
     )
 
-    # Opened (raw): distinct contacts whose open-tracking pixel fired at
-    # least once. Best-effort, not precise — Gmail/Apple both auto-prefetch
-    # images for privacy reasons, which inflates this above true human opens.
-    opened = await conn.fetchval(
-        f"""
-        SELECT COUNT(DISTINCT email) FROM email_messages
-        WHERE direction='outbound' AND opened_at IS NOT NULL {msg_filter}
-        """,
+    not_interested = await conn.fetchval(
+        f"SELECT COUNT(*) FROM email_conversations WHERE disposition='not_interested' {booked_filter}",
         *params,
     )
 
-    # Opened (confirmed): same, but only counting a pixel fire more than 2
+    # Opened (confirmed): only counting a pixel fire more than 2
     # minutes after send. Apple Mail Privacy Protection fetches every
     # tracking pixel within seconds of delivery regardless of whether a
     # human ever reads the email, so a very fast open is far more likely an
@@ -397,10 +398,10 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         "reply_rate":       _pct(replied, initial_sent),
         "abr":              _pct(booked_total, initial_sent),
         "booked":           booked_total or 0,
-        "opened":           opened or 0,
-        "open_rate":        _pct(opened, initial_sent),
-        "opened_confirmed":   confirmed_opened or 0,
-        "open_rate_confirmed": _pct(confirmed_opened, initial_sent),
+        "not_interested":      not_interested or 0,
+        "not_interested_rate": _pct(not_interested, initial_sent),
+        "opened":           confirmed_opened or 0,
+        "open_rate":        _pct(confirmed_opened, initial_sent),
         "bounced":          bounced or 0,
         "bounce_rate":      _pct(bounced, total_sent),
         "unsubscribed":     unsubscribed or 0,
