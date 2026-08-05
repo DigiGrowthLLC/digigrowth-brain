@@ -196,6 +196,16 @@ async def get_contact_campaigns(contact_id: str):
 
 @router.post("/contacts/{contact_id}/campaigns")
 async def assign_contact_campaign(contact_id: str, payload: dict):
+    """
+    Manually tagging a contact with a campaign from the CRM is a retroactive
+    claim, unlike the automatic per-message tagging that happens at send
+    time (sms.py::_store_message, resolve_send_campaign) — a rep assigning
+    "Free Offer Campaign" to a prospect they already texted last month wants
+    that prior outreach/replies counted toward this campaign's stats, not
+    just whatever gets sent going forward. So this backfills every existing
+    outbound message for the contact into the campaign too, overriding
+    whatever campaign (if any) those messages were previously tagged with.
+    """
     campaign_id = (payload or {}).get("campaign_id")
     if not campaign_id:
         raise HTTPException(status_code=400, detail="campaign_id required")
@@ -219,6 +229,10 @@ async def assign_contact_campaign(contact_id: str, payload: dict):
                     "UPDATE sms_conversations SET campaign_id = $2, updated_at = now() WHERE contact_id = $1",
                     contact_id, campaign_id,
                 )
+                await conn.execute(
+                    "UPDATE sms_messages SET campaign_id = $2 WHERE contact_id = $1 AND direction = 'outbound'",
+                    contact_id, campaign_id,
+                )
                 await conn.execute("UPDATE contacts SET pending_sms_campaign_id = NULL WHERE id = $1", contact_id)
             else:
                 await conn.execute("UPDATE contacts SET pending_sms_campaign_id = $2 WHERE id = $1", contact_id, campaign_id)
@@ -229,8 +243,12 @@ async def assign_contact_campaign(contact_id: str, payload: dict):
             )
             if conv:
                 await conn.execute(
-                    "UPDATE email_conversations SET campaign_id = $2, updated_at = now() WHERE id = $1",
-                    conv["id"], campaign_id,
+                    "UPDATE email_conversations SET campaign_id = $2, updated_at = now() WHERE contact_id = $1",
+                    contact_id, campaign_id,
+                )
+                await conn.execute(
+                    "UPDATE email_messages SET campaign_id = $2 WHERE contact_id = $1 AND direction = 'outbound'",
+                    contact_id, campaign_id,
                 )
                 await conn.execute("UPDATE contacts SET pending_email_campaign_id = NULL WHERE id = $1", contact_id)
             else:
@@ -241,6 +259,9 @@ async def assign_contact_campaign(contact_id: str, payload: dict):
 
 @router.delete("/contacts/{contact_id}/campaigns/{campaign_id}")
 async def remove_contact_campaign(contact_id: str, campaign_id: int):
+    """Undoes assign_contact_campaign's backfill symmetrically — clears the
+    campaign tag from the contact's conversation, message history, and any
+    still-unconsumed pending assignment."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         campaign = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
@@ -253,12 +274,20 @@ async def remove_contact_campaign(contact_id: str, campaign_id: int):
                 contact_id, campaign_id,
             )
             await conn.execute(
+                "UPDATE sms_messages SET campaign_id = NULL WHERE contact_id = $1 AND campaign_id = $2",
+                contact_id, campaign_id,
+            )
+            await conn.execute(
                 "UPDATE contacts SET pending_sms_campaign_id = NULL WHERE id = $1 AND pending_sms_campaign_id = $2",
                 contact_id, campaign_id,
             )
         elif channel == "email":
             await conn.execute(
                 "UPDATE email_conversations SET campaign_id = NULL WHERE contact_id = $1 AND campaign_id = $2",
+                contact_id, campaign_id,
+            )
+            await conn.execute(
+                "UPDATE email_messages SET campaign_id = NULL WHERE contact_id = $1 AND campaign_id = $2",
                 contact_id, campaign_id,
             )
             await conn.execute(

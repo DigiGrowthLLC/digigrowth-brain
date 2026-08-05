@@ -717,6 +717,7 @@ export default function InboxPanel({ initialTarget }) {
                           display: "flex", flexDirection: "column", gap: 6,
                         }}>
                           {[
+                            { key: "initial_outreach", label: "Initial Outreach", checked: !!thread?.stage_initial_outreach },
                             { key: "replied",     label: "Replied",    checked: !!thread?.stage_replied },
                             { key: "primed",      label: "Primed",     checked: !!thread?.stage_primed },
                             { key: "engaged",     label: "Engaged",    checked: !!thread?.stage_engaged },

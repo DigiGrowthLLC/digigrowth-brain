@@ -167,6 +167,22 @@ async def _store_message(conn, phone: str, role: str, body: str, stage: str | No
             canonical_phone,
             active_sms_campaign_id,
         )
+        # Initial Outreach — the top of the stage funnel (Initial Outreach →
+        # Replied → Primed → Engaged → Interested → Booked), set the moment
+        # the first outbound message goes out. Campaign analytics read this
+        # flag directly (see analytics.py::_sms_metrics), not raw message
+        # counts, so reassigning a prospect to a different campaign from the
+        # CRM instantly and correctly updates every stage's numbers with no
+        # separate backfill needed — it's just re-filtering conversations by
+        # campaign_id. `NOT stage_initial_outreach_manual` respects a human
+        # override from the Inbox (see email_inbox.py's stage endpoint).
+        await conn.execute(
+            f"""
+            UPDATE sms_conversations SET stage_initial_outreach = true
+            WHERE {_phone_match('phone', '$1')} AND NOT stage_initial_outreach_manual
+            """,
+            canonical_phone,
+        )
 
     await conn.execute(
         """
@@ -328,7 +344,7 @@ async def list_conversations():
         rows = await conn.fetch(
             """
             SELECT sc.id, sc.phone, sc.status, sc.disposition, sc.updated_at,
-                   sc.stage_replied, sc.stage_primed, sc.stage_engaged, sc.stage_interested,
+                   sc.stage_initial_outreach, sc.stage_replied, sc.stage_primed, sc.stage_engaged, sc.stage_interested,
                    c.business, c.owner,
                    (SELECT body FROM sms_messages
                     WHERE phone = sc.phone
@@ -377,6 +393,7 @@ async def get_conversation(phone: str):
         "contact_id":        conv["contact_id"],
         "status":            conv["status"],
         "disposition":       conv["disposition"],
+        "stage_initial_outreach": conv["stage_initial_outreach"],
         "stage_replied":     conv["stage_replied"],
         "stage_primed":      conv["stage_primed"],
         "stage_engaged":     conv["stage_engaged"],

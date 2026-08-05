@@ -175,48 +175,79 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     """
     Return SMS funnel metrics. If since is None, returns all-time. If
     campaign_id is given, it takes over from since entirely — a campaign
-    is its own time boundary (see campaigns.py). Total Outreach/Contacted
-    are scoped by sms_messages.campaign_id (tagged per message, at the
-    moment each one is sent — see sms.py::_store_message) rather than by
-    which conversations got tagged, so a phone with outreach history
-    predating the campaign doesn't inflate its counts. Replied/Primed/
-    Engaged/Interested/Booked are conversation-level state, scoped by
-    sms_conversations.campaign_id instead (the "this prospect belongs to
-    campaign X" tag, set once on first outbound).
+    is its own time boundary (see campaigns.py) — and every number is read
+    straight off each conversation's stage checkboxes (stage_initial_outreach/
+    stage_replied/stage_primed/stage_engaged/stage_interested) filtered by
+    sms_conversations.campaign_id, not raw message counts. This is what makes
+    campaign assignment "future proof": reassigning a prospect from the CRM
+    (campaigns.py::assign_contact_campaign, which updates campaign_id on the
+    conversation) instantly and correctly moves every stage's numbers with no
+    separate backfill step — it's just re-filtering conversations by
+    campaign_id and counting which boxes are checked.
 
-    Replied/Engaged/Interested are read straight off sms_conversations'
-    stage_replied/stage_engaged/stage_interested checkboxes — NOT recomputed
-    from message counts here. Those checkboxes are auto-set from the
-    prospect's inbound reply count (1+/2+/3+ respectively) by
-    sms.py::_recompute_stage_flags() on every inbound message, but a rep can
-    manually check/uncheck any of them from the Inbox (POST
-    /inbox/contact/{contact_id}/stage in email_inbox.py) — once touched
-    manually, the checkbox is authoritative and stops tracking the raw
-    count. So this function always trusts the stored checkbox, by design.
+    Outside campaign mode, Total Outreach/Contacted stay message-count based
+    (sms_messages, scoped by since) — a real send-volume metric for the
+    period toggle, distinct from the campaign view's per-prospect funnel.
 
-    `contacted` (distinct phones sent an outbound message in the window) is
-    the single denominator for every rate — matches the pattern
-    _email_metrics() already uses for its own reply rate.
+    Replied/Primed/Engaged/Interested are read straight off sms_conversations'
+    checkboxes — NOT recomputed from message counts here. They're auto-set
+    from the prospect's inbound reply count (1+/2+/3+/4+ respectively) by
+    sms.py::_recompute_stage_flags() on every inbound message, and Initial
+    Outreach is auto-set the moment the first outbound message goes out
+    (sms.py::_store_message) — but a rep can manually check/uncheck any of
+    them from the Inbox (POST /inbox/contact/{contact_id}/stage in
+    email_inbox.py) — once touched manually, the checkbox is authoritative
+    and stops tracking the raw count/send. So this function always trusts
+    the stored checkbox, by design.
     """
     if campaign_id is not None:
-        msg_filter   = "AND campaign_id = $1"
-        params       = [campaign_id]
-        stage_filter = "AND sc.campaign_id = $1"
-        stage_params = [campaign_id]
-        booked_filter = "AND campaign_id = $1"
-    else:
-        msg_filter = "AND sent_at >= $1" if since else ""
-        params = [since] if since else []
+        row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE stage_initial_outreach) AS total_outreach,
+                COUNT(*) FILTER (WHERE stage_replied)          AS replied,
+                COUNT(*) FILTER (WHERE stage_primed)            AS primed,
+                COUNT(*) FILTER (WHERE stage_engaged)           AS engaged,
+                COUNT(*) FILTER (WHERE stage_interested)        AS interested,
+                COUNT(*) FILTER (WHERE disposition = 'booked')  AS booked,
+                COUNT(*) FILTER (WHERE disposition = 'not_interested') AS not_interested
+            FROM sms_conversations
+            WHERE campaign_id = $1
+            """,
+            campaign_id,
+        )
+        total_outreach = contacted = row["total_outreach"]
+        replied, primed, engaged, interested = row["replied"], row["primed"], row["engaged"], row["interested"]
+        booked, not_interested = row["booked"], row["not_interested"]
+        return {
+            "total_outreach":     total_outreach or 0,
+            "contacted":          contacted or 0,
+            "replied":            replied or 0,
+            "reply_rate":         _pct(replied, contacted),
+            "primed":             primed or 0,
+            "primed_rate":        _pct(primed, contacted),
+            "engaged":            engaged or 0,
+            "engaged_rate":       _pct(engaged, contacted),
+            "interested":         interested or 0,
+            "interested_rate":    _pct(interested, contacted),
+            "booked":             booked or 0,
+            "abr":                _pct(booked, contacted),
+            "not_interested":     not_interested or 0,
+            "not_interested_rate": _pct(not_interested, contacted),
+        }
 
-        stage_filter = "AND sc.phone = ANY($1)" if since else ""
-        stage_params = params.copy()
-        if since:
-            contacted_phones = await conn.fetch(
-                f"SELECT DISTINCT phone FROM sms_messages WHERE direction='outbound' {msg_filter}",
-                *params,
-            )
-            stage_params = [[r["phone"] for r in contacted_phones]]
-        booked_filter = "AND created_at >= $1" if since else ""
+    msg_filter = "AND sent_at >= $1" if since else ""
+    params = [since] if since else []
+
+    stage_filter = "AND sc.phone = ANY($1)" if since else ""
+    stage_params = params.copy()
+    if since:
+        contacted_phones = await conn.fetch(
+            f"SELECT DISTINCT phone FROM sms_messages WHERE direction='outbound' {msg_filter}",
+            *params,
+        )
+        stage_params = [[r["phone"] for r in contacted_phones]]
+    booked_filter = "AND created_at >= $1" if since else ""
 
     # Total Outreach — every outbound SMS sent, counted the moment it's sent.
     total_outreach = await conn.fetchval(

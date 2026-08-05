@@ -282,6 +282,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS open_count INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS bounced_at TIMESTAMPTZ;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_initial_outreach BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_initial_outreach_manual BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_replied BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_replied_manual BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_primed BOOLEAN NOT NULL DEFAULT false;
@@ -319,4 +321,39 @@ async def _create_schema(pool: asyncpg.Pool):
             WHERE em.contact_id = c.id
               AND c.business = 'Newsletter Test' AND c.owner = 'Test Recipient'
               AND NOT em.is_test
+        """)
+        # Sync backfill: campaigns.py::assign_contact_campaign now backfills a
+        # contact's whole outbound message history into a campaign at assign
+        # time, but that only covers assignments made after that fix shipped —
+        # conversations tagged before it (CRM campaign_id set, but messages
+        # left untouched) need the same sync applied once here. Idempotent —
+        # a no-op once every message already matches its conversation's tag.
+        await conn.execute("""
+            UPDATE sms_messages sm
+            SET campaign_id = sc.campaign_id
+            FROM sms_conversations sc
+            WHERE sm.contact_id = sc.contact_id AND sc.campaign_id IS NOT NULL
+              AND sm.direction = 'outbound' AND sm.campaign_id IS DISTINCT FROM sc.campaign_id
+        """)
+        await conn.execute("""
+            UPDATE email_messages em
+            SET campaign_id = ec.campaign_id
+            FROM email_conversations ec
+            WHERE em.contact_id = ec.contact_id AND ec.campaign_id IS NOT NULL
+              AND em.direction = 'outbound' AND em.campaign_id IS DISTINCT FROM ec.campaign_id
+        """)
+        # One-time backfill: stage_initial_outreach didn't exist before this
+        # migration, so every conversation that already has an outbound
+        # message needs it retroactively set — otherwise campaign analytics
+        # (which read this flag, not raw message counts — see
+        # analytics.py::_sms_metrics) would show 0 initial outreach for every
+        # prospect contacted before this column existed.
+        await conn.execute("""
+            UPDATE sms_conversations sc
+            SET stage_initial_outreach = true
+            WHERE NOT stage_initial_outreach
+              AND EXISTS (
+                  SELECT 1 FROM sms_messages sm
+                  WHERE sm.contact_id = sc.contact_id AND sm.direction = 'outbound'
+              )
         """)
