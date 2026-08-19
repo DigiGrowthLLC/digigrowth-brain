@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from db import get_pool
 from timezone_lookup import guess_timezone, US_TIMEZONES
+from routers.email_inbox import close_contact_threads
 import reminder_engine
 
 router = APIRouter()
@@ -76,6 +77,21 @@ async def create_appointment(payload: dict):
         await reminder_engine.send_booking_confirmation(dict(row))
     except Exception as e:
         print(f"[appointments] booking confirmation failed for appointment {row['id']}: {e}")
+
+    # Mark the win: close this contact's SMS/email threads with
+    # disposition='booked' and flip contacts.status to 'appointment-booked' —
+    # the same effect the Inbox's "NOT INTERESTED" button has for its
+    # disposition, just triggered here instead since booking has no separate
+    # close button of its own. This is what Analytics' Booked counts
+    # (sms_conversations.disposition / email_conversations.disposition) and
+    # the Pipeline by-grade Booked count (contacts.status) actually read —
+    # without it, a booking made from the Inbox or CRM never showed up
+    # anywhere in Analytics. Swallow errors for the same reason as above.
+    if payload.get("contact_id"):
+        try:
+            await close_contact_threads(payload["contact_id"], {"disposition": "booked"})
+        except Exception as e:
+            print(f"[appointments] booked-disposition close failed for appointment {row['id']}: {e}")
 
     return {"ok": True, "id": row["id"]}
 
