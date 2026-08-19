@@ -36,8 +36,8 @@ OPENING_MESSAGE = "Hey is this {first_name}?"
 
 # Fixed SMS sequence step keys/labels/order — canonical across every named
 # sequence. Sequence bodies live per-sequence in the sms_sequences table
-# (routers/sms_sequences.py), one JSONB {step_key: text} column per row;
-# whichever row has is_active=true is what get_sequence() below serves to
+# (routers/sms_sequences.py), each step its own TEXT column, keyed by name;
+# whichever row has is_default=true is what get_sequence() below serves to
 # the SMS inbox's SEQUENCE dropdown. Editable in Business Resources →
 # Outreach Templates → Outreach Templates category.
 SEQUENCE_STEPS = [
@@ -411,29 +411,24 @@ async def get_conversation(phone: str):
 async def get_sequence(phone: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        active = await conn.fetchrow("SELECT * FROM sms_sequences WHERE is_active = true LIMIT 1")
+        default = await conn.fetchrow("SELECT * FROM sms_sequences WHERE is_default = true LIMIT 1")
         contact = await conn.fetchrow(
             f"SELECT owner, business, opener FROM contacts WHERE {_phone_match('phone', '$1')}",
             phone,
         )
 
-    if not active:
+    if not default:
         return {"ok": True, "sequence_title": "SMS Sequence", "steps": []}
-
-    seq_steps = active["steps"]
-    if isinstance(seq_steps, str):
-        seq_steps = json.loads(seq_steps)
-    seq_steps = seq_steps or {}
 
     contact_dict = dict(contact) if contact else None
     steps = []
     for key, label in SEQUENCE_STEPS:
-        body = (seq_steps.get(key) or "").strip()
+        body = (default[key] or "").strip()
         if not body:
             continue
         steps.append({"key": key, "label": label, "text": apply_merge_fields(body, contact_dict)})
 
-    return {"ok": True, "sequence_title": active["name"], "steps": steps}
+    return {"ok": True, "sequence_title": default["name"], "steps": steps}
 
 
 @router.post("/sms/send")

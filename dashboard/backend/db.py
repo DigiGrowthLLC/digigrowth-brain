@@ -1,4 +1,3 @@
-import json
 import os
 import asyncpg
 
@@ -181,13 +180,17 @@ async def _create_schema(pool: asyncpg.Pool):
             );
 
             CREATE TABLE IF NOT EXISTS sms_sequences (
-                id         SERIAL PRIMARY KEY,
-                name       TEXT NOT NULL,
-                category   TEXT NOT NULL DEFAULT 'General',
-                steps      JSONB NOT NULL DEFAULT '{}',
-                is_active  BOOLEAN NOT NULL DEFAULT false,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                id                 SERIAL PRIMARY KEY,
+                name               TEXT NOT NULL,
+                category           TEXT NOT NULL DEFAULT 'General',
+                is_default         BOOLEAN NOT NULL DEFAULT false,
+                curiosity_opener   TEXT,
+                relevance          TEXT,
+                guarantee          TEXT,
+                ask                TEXT,
+                cta                TEXT,
+                created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
             CREATE TABLE IF NOT EXISTS campaigns (
@@ -315,7 +318,7 @@ async def _create_schema(pool: asyncpg.Pool):
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_email_messages_tracking_token ON email_messages(tracking_token) WHERE tracking_token IS NOT NULL;
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_sequences_one_active ON sms_sequences (is_active) WHERE is_active;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_sequences_single_default ON sms_sequences (is_default) WHERE is_default;
         """)
         # One-time migration: the old single-value 'interested' disposition becomes
         # the new stage_interested checkbox (manually set, since a human set it).
@@ -373,7 +376,7 @@ async def _create_schema(pool: asyncpg.Pool):
         """)
         # One-time migration: SMS Sequence moved from a single global template
         # (dialer_settings seq_* keys) to the sms_sequences table (multiple
-        # named sequences, one active at a time — see routers/sms_sequences.py).
+        # named sequences, one default at a time — see routers/sms_sequences.py).
         # Seed the user's existing sequence content as the first row so it
         # isn't lost. Guarded on sms_sequences being empty so this only ever
         # runs once, on first boot after this table was introduced; the old
@@ -386,13 +389,16 @@ async def _create_schema(pool: asyncpg.Pool):
             )
             seq_values = {r["key"]: r["value"] for r in seq_rows}
             if seq_values:
-                step_keys = ("curiosity_opener", "relevance", "guarantee", "ask", "cta")
-                steps_json = {k: seq_values.get(f"seq_{k}") or "" for k in step_keys}
                 await conn.execute(
                     """
-                    INSERT INTO sms_sequences (name, category, steps, is_active)
-                    VALUES ('Default SMS Sequence', $1, $2::jsonb, true)
+                    INSERT INTO sms_sequences
+                        (name, category, is_default, curiosity_opener, relevance, guarantee, ask, cta)
+                    VALUES ('Default SMS Sequence', $1, true, $2, $3, $4, $5, $6)
                     """,
                     seq_values.get("sequence_category") or "General",
-                    json.dumps(steps_json),
+                    seq_values.get("seq_curiosity_opener") or "",
+                    seq_values.get("seq_relevance") or "",
+                    seq_values.get("seq_guarantee") or "",
+                    seq_values.get("seq_ask") or "",
+                    seq_values.get("seq_cta") or "",
                 )
