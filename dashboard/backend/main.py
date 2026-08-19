@@ -3,7 +3,6 @@ import json
 import os
 import pathlib
 import secrets
-import sys
 from contextlib import asynccontextmanager
 
 import httpx
@@ -109,56 +108,6 @@ async def _post_report_from_github(filename_prefix: str, job_label: str, after: 
             print(f"[cron] {job_label}: {result}", flush=True)
         except Exception as e:
             print(f"[cron] {job_label}: post-step failed: {e}", flush=True)
-
-
-async def _run_leadgen() -> None:
-    """Check if a dialing session ran today, then launch the leadgen script."""
-    cfg_path = pathlib.Path("/repo/leadgen-agent/config.json")
-    if cfg_path.exists():
-        cfg = json.loads(cfg_path.read_text())
-        if not cfg.get("enabled", True):
-            print("[cron] leadgen skipped — disabled in config.json", flush=True)
-            return
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        count = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM call_logs
-            WHERE (started_at AT TIME ZONE 'America/New_York')::date
-                  = (now() AT TIME ZONE 'America/New_York')::date
-            """
-        )
-    lead_status = "dialer-lead" if count > 0 else "sms-handoff"
-    print(f"[cron] leadgen starting — call_logs today={count}, status={lead_status}", flush=True)
-    script = pathlib.Path("/repo/leadgen-agent/run.py")
-    proc = await asyncio.create_subprocess_exec(
-        sys.executable, str(script), "--status", lead_status,
-        cwd=str(script.parent),
-    )
-    await proc.wait()
-    print(f"[cron] leadgen done — status={lead_status} rc={proc.returncode}", flush=True)
-
-    # Post completion summary into the EA chat window
-    try:
-        async with pool.acquire() as conn:
-            added = await conn.fetchval(
-                "SELECT COUNT(*) FROM contacts WHERE created_at > now() - interval '30 minutes'"
-            )
-            status_label = "ready to dial" if lead_status == "dialer-lead" else "queued for SMS outreach"
-            ok_flag = "✅" if proc.returncode == 0 else "⚠️"
-            msg = (
-                f"{ok_flag} **Leadgen complete** — {added} leads added ({status_label})."
-                if proc.returncode == 0
-                else f"⚠️ Leadgen finished with errors (exit code {proc.returncode}). Check Railway logs."
-            )
-            await conn.execute(
-                "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
-                "executive-assistant",
-                "assistant",
-                json.dumps([{"type": "text", "text": msg}]),
-            )
-    except Exception as e:
-        print(f"[cron] leadgen chat notify failed: {e}", flush=True)
 
 
 async def _push_file_to_github(rel_path: str, content: str, message: str) -> str:
@@ -314,12 +263,6 @@ async def lifespan(app: FastAPI):
         _process_pending_approvals_job,
         CronTrigger(hour=6, minute=40, timezone=eastern),
         id="pending-approvals-relay",
-        replace_existing=True,
-    )
-    scheduler.add_job(
-        _run_leadgen,
-        CronTrigger(hour=20, minute=0, timezone=eastern, day_of_week="mon-fri"),
-        id="leadgen-daily",
         replace_existing=True,
     )
     scheduler.add_job(
