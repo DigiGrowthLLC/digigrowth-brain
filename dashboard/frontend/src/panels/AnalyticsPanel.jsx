@@ -42,6 +42,7 @@ function SmsOutreachCard({ outreach, tab }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 4 }}>
         <MiniStat label="Total Outreach"  value={num(sms.total_outreach)}  color="#5a9bf0" />
         <MiniStat label="Reply Rate"      value={pct(sms.reply_rate)}      color="#5a9bf0" />
+        <MiniStat label="DM Reached Rate" value={pct(sms.dm_reached_rate)} color="#5a9bf0" />
         <MiniStat label="Primed Rate"     value={pct(sms.primed_rate)}     color="#5a9bf0" />
         <MiniStat label="Engaged Rate"    value={pct(sms.engaged_rate)}    color="#5a9bf0" />
         <MiniStat label="Interested Rate" value={pct(sms.interested_rate)} color="#5a9bf0" />

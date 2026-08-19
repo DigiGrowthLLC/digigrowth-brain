@@ -177,7 +177,8 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     campaign_id is given, it takes over from since entirely — a campaign
     is its own time boundary (see campaigns.py) — and every number is read
     straight off each conversation's stage checkboxes (stage_initial_outreach/
-    stage_replied/stage_primed/stage_engaged/stage_interested) filtered by
+    stage_replied/stage_dm_reached/stage_primed/stage_engaged/stage_interested)
+    filtered by
     sms_conversations.campaign_id, not raw message counts. This is what makes
     campaign assignment "future proof": reassigning a prospect from the CRM
     (campaigns.py::assign_contact_campaign, which updates campaign_id on the
@@ -206,6 +207,7 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
             SELECT
                 COUNT(*) FILTER (WHERE stage_initial_outreach) AS total_outreach,
                 COUNT(*) FILTER (WHERE stage_replied)          AS replied,
+                COUNT(*) FILTER (WHERE stage_dm_reached)        AS dm_reached,
                 COUNT(*) FILTER (WHERE stage_primed)            AS primed,
                 COUNT(*) FILTER (WHERE stage_engaged)           AS engaged,
                 COUNT(*) FILTER (WHERE stage_interested)        AS interested,
@@ -218,12 +220,15 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         )
         total_outreach = contacted = row["total_outreach"]
         replied, primed, engaged, interested = row["replied"], row["primed"], row["engaged"], row["interested"]
+        dm_reached = row["dm_reached"]
         booked, not_interested = row["booked"], row["not_interested"]
         return {
             "total_outreach":     total_outreach or 0,
             "contacted":          contacted or 0,
             "replied":            replied or 0,
             "reply_rate":         _pct(replied, contacted),
+            "dm_reached":         dm_reached or 0,
+            "dm_reached_rate":    _pct(dm_reached, contacted),
             "primed":             primed or 0,
             "primed_rate":        _pct(primed, contacted),
             "engaged":            engaged or 0,
@@ -264,6 +269,10 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_replied {stage_filter}",
         *stage_params,
     )
+    dm_reached = await conn.fetchval(
+        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_dm_reached {stage_filter}",
+        *stage_params,
+    )
     primed = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_primed {stage_filter}",
         *stage_params,
@@ -292,6 +301,8 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         "contacted":          contacted or 0,
         "replied":            replied or 0,
         "reply_rate":         _pct(replied, contacted),
+        "dm_reached":         dm_reached or 0,
+        "dm_reached_rate":    _pct(dm_reached, contacted),
         "primed":             primed or 0,
         "primed_rate":        _pct(primed, contacted),
         "engaged":            engaged or 0,

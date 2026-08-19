@@ -719,6 +719,7 @@ export default function InboxPanel({ initialTarget }) {
                           {[
                             { key: "initial_outreach", label: "Initial Outreach", checked: !!thread?.stage_initial_outreach },
                             { key: "replied",     label: "Replied",    checked: !!thread?.stage_replied },
+                            { key: "dm_reached",  label: "DM Reached", checked: !!thread?.stage_dm_reached },
                             { key: "primed",      label: "Primed",     checked: !!thread?.stage_primed },
                             { key: "engaged",     label: "Engaged",    checked: !!thread?.stage_engaged },
                             { key: "interested",  label: "Interested", checked: !!thread?.stage_interested },
