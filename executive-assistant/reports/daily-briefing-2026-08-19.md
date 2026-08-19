@@ -27,7 +27,7 @@ Committed: `10h 0m` · Free: `3h 0m` *(`5:00–8:00 PM`, based on a 7 AM–8 PM 
 
 No completed prior week to compare against. **Biggest gap: no outreach session logged for twenty-nine straight working days (07/22–08/18), and 0 appointments booked from 4 conversations reached across 30 dials since July.**
 
-**SMS (live, OS):** Unavailable this run — the `os_sms_outreach_stats` tool isn't reachable from this session (no DigiGrowth OS connector configured here). Check the dashboard directly for current SMS numbers.
+**SMS (live, OS):** `6` sent this week, `50.0%` reply rate, `0.0%` interested, `0` booked *(last 30 days / all-time: `90` sent, `35.2%` reply rate, `1.9%` interested, `0` booked)*. *(Pulled via `/api/analytics/outreach` — the earlier version of this report incorrectly claimed this was unavailable; that tool just isn't wired into this session, but the underlying data was reachable via the dashboard's REST API the whole time.)*
 
 ## Yesterday's Performance
 
