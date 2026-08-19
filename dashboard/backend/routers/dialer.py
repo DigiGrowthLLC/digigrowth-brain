@@ -14,10 +14,11 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   POST /api/dialer/end-session   — request session end
   GET  /api/dialer/info-template — "Send Info" SMS/email templates
   PUT  /api/dialer/info-template — save "Send Info" SMS/email templates
-  GET  /api/dialer/sequence-template — SMS outreach sequence steps
-  PUT  /api/dialer/sequence-template — save SMS outreach sequence steps
   GET  /api/dialer/reminder-template — appointment reminder SMS/email templates
   PUT  /api/dialer/reminder-template — save appointment reminder templates
+
+SMS outreach sequences moved to their own table/router — see
+routers/sms_sequences.py (GET/POST/PATCH/DELETE /api/sms-sequences).
 """
 
 import json
@@ -170,47 +171,6 @@ async def save_info_template(body: dict):
                 """,
                 key, value,
             )
-    return {"ok": True}
-
-
-# ── SMS outreach sequence (Business Resources → Outreach Templates →
-# SMS Sequence). Same key/value store as the info-template above; each
-# step's body is stored under dialer_settings key f"seq_{key}" and read
-# at send time by routers/sms.py get_sequence().
-
-@router.get("/dialer/sequence-template")
-async def get_sequence_template():
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
-            [f"seq_{key}" for key, _ in sms_router.SEQUENCE_STEPS] + ["sequence_category"],
-        )
-    values = {r["key"]: r["value"] for r in rows}
-    result = {key: values.get(f"seq_{key}", "") for key, _ in sms_router.SEQUENCE_STEPS}
-    result["category"] = values.get("sequence_category") or "General"
-    return result
-
-
-@router.put("/dialer/sequence-template")
-async def save_sequence_template(body: dict):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        for key, _ in sms_router.SEQUENCE_STEPS:
-            await conn.execute(
-                """
-                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
-                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
-                """,
-                f"seq_{key}", body.get(key, ""),
-            )
-        await conn.execute(
-            """
-            INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
-            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
-            """,
-            "sequence_category", body.get("category", "General"),
-        )
     return {"ok": True}
 
 

@@ -34,11 +34,12 @@ webhook_router = APIRouter()  # public Twilio webhook
 
 OPENING_MESSAGE = "Hey is this {first_name}?"
 
-# Fixed SMS sequence steps, editable in Business Resources → Outreach
-# Templates → SMS Sequence (dialer.py's /dialer/sequence-template
-# GET/PUT). Each step's body is stored under dialer_settings key
-# f"seq_{key}". Order here is the order shown in the SMS inbox's
-# SEQUENCE dropdown (routers/sms.py get_sequence()).
+# Fixed SMS sequence step keys/labels/order — canonical across every named
+# sequence. Sequence bodies live per-sequence in the sms_sequences table
+# (routers/sms_sequences.py), one JSONB {step_key: text} column per row;
+# whichever row has is_active=true is what get_sequence() below serves to
+# the SMS inbox's SEQUENCE dropdown. Editable in Business Resources →
+# Outreach Templates → Outreach Templates category.
 SEQUENCE_STEPS = [
     ("curiosity_opener", "1. Initial Message"),
     ("relevance", "2. Primed Message"),
@@ -344,7 +345,7 @@ async def list_conversations():
         rows = await conn.fetch(
             """
             SELECT sc.id, sc.phone, sc.status, sc.disposition, sc.updated_at,
-                   sc.stage_initial_outreach, sc.stage_replied, sc.stage_primed, sc.stage_engaged, sc.stage_interested,
+                   sc.stage_initial_outreach, sc.stage_replied, sc.stage_dm_reached, sc.stage_primed, sc.stage_engaged, sc.stage_interested,
                    c.business, c.owner,
                    (SELECT body FROM sms_messages
                     WHERE phone = sc.phone
@@ -395,6 +396,7 @@ async def get_conversation(phone: str):
         "disposition":       conv["disposition"],
         "stage_initial_outreach": conv["stage_initial_outreach"],
         "stage_replied":     conv["stage_replied"],
+        "stage_dm_reached":  conv["stage_dm_reached"],
         "stage_primed":      conv["stage_primed"],
         "stage_engaged":     conv["stage_engaged"],
         "stage_interested":  conv["stage_interested"],
@@ -409,26 +411,29 @@ async def get_conversation(phone: str):
 async def get_sequence(phone: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
-            [f"seq_{key}" for key, _ in SEQUENCE_STEPS],
-        )
-        values = {r["key"]: r["value"] for r in rows}
-
+        active = await conn.fetchrow("SELECT * FROM sms_sequences WHERE is_active = true LIMIT 1")
         contact = await conn.fetchrow(
             f"SELECT owner, business, opener FROM contacts WHERE {_phone_match('phone', '$1')}",
             phone,
         )
 
+    if not active:
+        return {"ok": True, "sequence_title": "SMS Sequence", "steps": []}
+
+    seq_steps = active["steps"]
+    if isinstance(seq_steps, str):
+        seq_steps = json.loads(seq_steps)
+    seq_steps = seq_steps or {}
+
     contact_dict = dict(contact) if contact else None
     steps = []
     for key, label in SEQUENCE_STEPS:
-        body = (values.get(f"seq_{key}") or "").strip()
+        body = (seq_steps.get(key) or "").strip()
         if not body:
             continue
         steps.append({"key": key, "label": label, "text": apply_merge_fields(body, contact_dict)})
 
-    return {"ok": True, "sequence_title": "SMS Sequence", "steps": steps}
+    return {"ok": True, "sequence_title": active["name"], "steps": steps}
 
 
 @router.post("/sms/send")

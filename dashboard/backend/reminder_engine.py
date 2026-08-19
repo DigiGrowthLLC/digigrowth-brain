@@ -10,8 +10,9 @@ from routers/appointments.py's edit endpoint).
 Each of the 5 message instances (confirmation, 24h, 6h, 1h, reschedule) has its
 own SMS text, email subject, and email body — independently editable from
 Business Resources → Outreach Templates (stored in dialer_settings, same store as
-the "Send Info" and SMS Sequence templates — see routers/dialer.py's GET/PUT
-/dialer/reminder-template). Falls back to the DEFAULT_* constants below if a key
+the "Send Info" templates — see routers/dialer.py's GET/PUT /dialer/reminder-template).
+SMS Sequence templates moved to their own sms_sequences table, see
+routers/sms_sequences.py. Falls back to the DEFAULT_* constants below if a key
 has never been saved. Templates support {first_name} and {when} placeholders.
 """
 

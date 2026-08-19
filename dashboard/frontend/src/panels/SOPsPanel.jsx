@@ -322,11 +322,13 @@ const SUBSECTIONS = [
 const SEND_INFO_PSEUDO_ID = "__send_info__";
 const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email)", sendInfo: true };
 
-// Same pattern as SEND_INFO_ITEM above, for the SMS inbox's "SEQUENCE"
-// dropdown (InboxPanel.jsx) — backed by GET/PUT /api/dialer/sequence-template
-// (see SmsSequenceEditor below), not `sops`.
-const SMS_SEQUENCE_PSEUDO_ID = "__sms_sequence__";
-const SMS_SEQUENCE_ITEM = { id: SMS_SEQUENCE_PSEUDO_ID, title: "SMS Sequence", smsSequence: true };
+// Unlike SEND_INFO_ITEM/REMINDER_TEMPLATE_ITEM above, SMS Sequences are no
+// longer a single pinned pseudo-doc — there can be many, named and switchable
+// (see the `sequences` state / GET /api/sms-sequences below). Each fetched
+// sequence becomes its own pseudo-item, built where `pseudoItems` is
+// assembled further down, using the same `smsSequence: true` flag pattern so
+// it still short-circuits `openSOP()` and slots into the same category
+// grouping as everything else in this section.
 
 // Same pattern again, for the appointment-reminder pipeline (booking
 // confirmation, 24h/6h/1h reminders, reschedule notice) — backed by
@@ -338,8 +340,9 @@ const REMINDER_TEMPLATE_ITEM = { id: REMINDER_TEMPLATE_PSEUDO_ID, title: "Appoin
 // ── Shared category picker ──────────────────────────────────────────────────
 // Same select-or-type-a-new-one pattern as the regular document editor's
 // category control (see the main doc editor's title/meta row below), factored
-// out so the pinned Send Info / SMS Sequence pseudo-docs can offer the same
-// "same options as the general document would have" category picker.
+// out so the pinned Send Info / Appointment Reminders pseudo-docs and every
+// SMS Sequence editor can offer the same "same options as the general
+// document would have" category picker.
 function CategoryPicker({ categories, category, setCategory, customCatMode, setCustomCatMode, onCommit }) {
   if (customCatMode) {
     return (
@@ -541,10 +544,10 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
 
 // ── SMS Sequence editor ─────────────────────────────────────────────────────
 // Fixed-step outreach script shown as the Inbox's "SEQUENCE" dropdown
-// (InboxPanel.jsx). Each step is a labeled text box, stored under
-// dialer_settings key f"seq_{key}" via GET/PUT /api/dialer/sequence-template
-// (routers/dialer.py). Step keys/labels/order must match
-// routers/sms.py SEQUENCE_STEPS.
+// (InboxPanel.jsx). Step keys/labels/order must match routers/sms.py
+// SEQUENCE_STEPS. Multiple named sequences can exist (GET /api/sms-sequences);
+// exactly one is "active" (the Default) at a time — see the "Set as Default"
+// button below and POST /api/sms-sequences/{id}/activate.
 const SMS_SEQUENCE_STEPS = [
   { key: "curiosity_opener", label: "1. Initial Message" },
   { key: "relevance", label: "2. Primed Message" },
@@ -553,66 +556,76 @@ const SMS_SEQUENCE_STEPS = [
   { key: "cta", label: "5. Booking Link" },
 ];
 
-function SmsSequenceEditor({ categories, onCategoryChange }) {
-  const [values, setValues] = useState({ category: "General" });
-  const [saved, setSaved] = useState({ category: "General" });
+const sequenceFieldStyle = {
+  width: "100%", background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+  padding: "10px 12px", color: "#e8f0ff",
+  fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+  outline: "none", resize: "vertical", boxSizing: "border-box",
+};
+const sequenceLabelStyle = {
+  display: "block", marginBottom: 8,
+  fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
+  color: "#e8f0ff", letterSpacing: "0.01em",
+};
+const sequenceHintStyle = {
+  marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+  fontSize: 11, color: "#4a6a8a",
+};
+const sequenceNameInputStyle = {
+  flex: 1, background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+  padding: "6px 10px", color: "#e8f0ff",
+  fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
+  outline: "none",
+};
+
+// Shared 5-textarea step form used by both SmsSequenceEditor (editing an
+// existing sequence) and NewSequenceEditor (creating one via the generic
+// "+ New Template" flow under a category that already holds sequences).
+function SequenceStepFields({ steps, setSteps }) {
+  return (
+    <>
+      {SMS_SEQUENCE_STEPS.map((s, i) => (
+        <div key={s.key} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
+          <label style={sequenceLabelStyle}>{s.label}</label>
+          <textarea
+            value={steps[s.key] || ""}
+            onChange={e => setSteps(v => ({ ...v, [s.key]: e.target.value }))}
+            rows={4}
+            placeholder="Type this step's message..."
+            style={sequenceFieldStyle}
+          />
+          <div style={sequenceHintStyle}>
+            Use <code style={{ color: "#6ab0ff" }}>{"{{name}}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{{business}}"}</code>, or <code style={{ color: "#6ab0ff" }}>{"{{opener}}"}</code> — or bracket form <code style={{ color: "#6ab0ff" }}>[Name]</code> / <code style={{ color: "#6ab0ff" }}>[Custom Opener]</code> — to insert the contact's info.
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function SmsSequenceEditor({ sequence, categories, onSaved, onDeleted }) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("General");
+  const [steps, setSteps] = useState({});
+  const [saved, setSaved] = useState({ name: "", category: "General", steps: {} });
   const [customCatMode, setCustomCatMode] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activating, setActivating] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
-    (async () => {
-      const r = await fetch("/api/dialer/sequence-template");
-      if (r.ok) {
-        const data = await r.json();
-        setValues(data);
-        setSaved(data);
-        onCategoryChange?.(data.category || "General");
-      }
-      setLoading(false);
-    })();
-  }, []);
+    if (!sequence) return;
+    setName(sequence.name || "");
+    setCategory(sequence.category || "General");
+    setSteps(sequence.steps || {});
+    setSaved({ name: sequence.name || "", category: sequence.category || "General", steps: sequence.steps || {} });
+    setDeleteError(null);
+  }, [sequence?.id]);
 
-  const dirty = [...SMS_SEQUENCE_STEPS.map(s => s.key), "category"].some(k => (values[k] || "") !== (saved[k] || ""));
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const r = await fetch("/api/dialer/sequence-template", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
-      if (r.ok) {
-        setSaved(values);
-        onCategoryChange?.(values.category || "General");
-        setSavedFlash(true);
-        setTimeout(() => setSavedFlash(false), 2500);
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const fieldStyle = {
-    width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
-    outline: "none", resize: "vertical", boxSizing: "border-box",
-  };
-  const labelStyle = {
-    display: "block", marginBottom: 8,
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
-    color: "#e8f0ff", letterSpacing: "0.01em",
-  };
-  const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a",
-  };
-
-  if (loading) {
+  if (!sequence) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
@@ -620,19 +633,66 @@ function SmsSequenceEditor({ categories, onCategoryChange }) {
     );
   }
 
+  const dirty = name !== saved.name || category !== saved.category
+    || SMS_SEQUENCE_STEPS.some(s => (steps[s.key] || "") !== (saved.steps[s.key] || ""));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/sms-sequences/${sequence.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), category, steps }),
+      });
+      if (r.ok) {
+        setSaved({ name, category, steps });
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+        onSaved?.();
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const activate = async () => {
+    setActivating(true);
+    try {
+      const r = await fetch(`/api/sms-sequences/${sequence.id}/activate`, { method: "POST" });
+      if (r.ok) onSaved?.();
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const deleteSequence = async () => {
+    if (!window.confirm(`Delete "${sequence.name}"?`)) return;
+    setDeleteError(null);
+    const r = await fetch(`/api/sms-sequences/${sequence.id}`, { method: "DELETE" });
+    if (r.ok) {
+      onDeleted?.();
+    } else {
+      const data = await r.json().catch(() => ({}));
+      setDeleteError(data.detail || "Couldn't delete this sequence.");
+    }
+  };
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div style={{
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Shown as the <strong style={{ color: "#a080f0" }}>SEQUENCE</strong> dropdown in the SMS inbox. Leave a step blank to skip it.
-        </span>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="Sequence name..."
+          style={sequenceNameInputStyle}
+        />
         <CategoryPicker
           categories={categories}
-          category={values.category || "General"}
-          setCategory={c => setValues(v => ({ ...v, category: c }))}
+          category={category}
+          setCategory={setCategory}
           customCatMode={customCatMode}
           setCustomCatMode={setCustomCatMode}
         />
@@ -640,36 +700,133 @@ function SmsSequenceEditor({ categories, onCategoryChange }) {
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
         )}
         <button
-          onClick={save}
-          disabled={saving || !dirty}
+          onClick={activate}
+          disabled={sequence.is_active || activating}
+          title={sequence.is_active ? "This is already the default sequence" : "Make this the sequence shown in the Inbox"}
           style={{
-            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
-            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
-            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            background: sequence.is_active ? "rgba(52,211,153,0.12)" : "rgba(58,123,213,0.12)",
+            border: sequence.is_active ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: sequence.is_active ? "#34d399" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 14px", flexShrink: 0,
+            cursor: sequence.is_active || activating ? "not-allowed" : "pointer",
+            opacity: activating ? 0.6 : 1,
+          }}
+        >{sequence.is_active ? "Default ✓" : activating ? "Setting..." : "Set as Default"}</button>
+        <button
+          onClick={deleteSequence}
+          disabled={sequence.is_active}
+          title={sequence.is_active ? "Set another sequence as default first" : "Delete this sequence"}
+          style={{
+            background: "rgba(220,60,60,0.1)",
+            border: "1px solid rgba(220,60,60,0.3)",
+            borderRadius: 6, color: "#dc3c3c",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 14px", flexShrink: 0,
+            cursor: sequence.is_active ? "not-allowed" : "pointer",
+            opacity: sequence.is_active ? 0.5 : 1,
+          }}
+        >Delete</button>
+        <button
+          onClick={save}
+          disabled={saving || !dirty || !name.trim()}
+          style={{
+            background: dirty && name.trim() ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty && name.trim() ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty && name.trim() ? "#fff" : "#6ab0ff",
             fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
-            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            cursor: saving || !dirty || !name.trim() ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
         >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
       </div>
 
+      {deleteError && (
+        <div style={{
+          padding: "8px 36px", background: "rgba(220,60,60,0.1)",
+          borderBottom: "1px solid rgba(220,60,60,0.2)",
+          fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#dc3c3c",
+        }}>{deleteError}</div>
+      )}
+
+      <div style={{ padding: "12px 36px 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+        {sequence.is_active
+          ? <>This is the <strong style={{ color: "#34d399" }}>default</strong> sequence — shown as the SEQUENCE dropdown in the SMS inbox.</>
+          : "Not currently the default. Leave a step blank to skip it."}
+      </div>
+
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
-        {SMS_SEQUENCE_STEPS.map((s, i) => (
-          <div key={s.key} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
-            <label style={labelStyle}>{s.label}</label>
-            <textarea
-              value={values[s.key] || ""}
-              onChange={e => setValues(v => ({ ...v, [s.key]: e.target.value }))}
-              rows={4}
-              placeholder="Type this step's message..."
-              style={fieldStyle}
-            />
-            <div style={hintStyle}>
-              Use <code style={{ color: "#6ab0ff" }}>{"{{name}}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{{business}}"}</code>, or <code style={{ color: "#6ab0ff" }}>{"{{opener}}"}</code> — or bracket form <code style={{ color: "#6ab0ff" }}>[Name]</code> / <code style={{ color: "#6ab0ff" }}>[Custom Opener]</code> — to insert the contact's info.
-            </div>
-          </div>
-        ))}
+        <SequenceStepFields steps={steps} setSteps={setSteps} />
+      </div>
+    </div>
+  );
+}
+
+// New-sequence form rendered inline in place of the generic Tiptap doc
+// editor when creating a "+ New Template" under a category that already
+// holds at least one SMS sequence (see `isSequenceCategory` further down).
+// Reuses the panel's own title/category state (title doubles as the
+// sequence's name) so it fits the existing new-doc flow without a separate
+// "New SMS Sequence" action.
+function NewSequenceEditor({ title, setTitle, category, setCategory, categories, customCatMode, setCustomCatMode, steps, setSteps, onCreated }) {
+  const [saving, setSaving] = useState(false);
+
+  const create = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      const r = await fetch("/api/sms-sequences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: title.trim(), category, steps }),
+      });
+      if (r.ok) onCreated?.(await r.json());
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Sequence name..."
+          style={sequenceNameInputStyle}
+        />
+        <CategoryPicker
+          categories={categories}
+          category={category}
+          setCategory={setCategory}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        <button
+          onClick={create}
+          disabled={saving || !title.trim()}
+          style={{
+            background: title.trim() ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: title.trim() ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: title.trim() ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !title.trim() ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Creating..." : "Create Sequence"}</button>
+      </div>
+
+      <div style={{ padding: "12px 36px 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+        This category already holds an SMS Sequence, so new templates here use the sequence format. Leave a step blank to skip it. New sequences start off <em>not</em> the default — set it as default from its own editor once you're ready to switch to it.
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <SequenceStepFields steps={steps} setSteps={setSteps} />
       </div>
     </div>
   );
@@ -866,8 +1023,10 @@ export default function SOPsPanel() {
   const [activeSection, setActiveSection] = useState("sop");
   const [sops, setSops] = useState([]);
   const [sendInfoCategory, setSendInfoCategory] = useState("General");
-  const [seqCategory, setSeqCategory] = useState("General");
   const [remCategory, setRemCategory] = useState("General");
+  const [sequences, setSequences] = useState([]);
+  const [selectedSequenceId, setSelectedSequenceId] = useState(null);
+  const [newSequenceSteps, setNewSequenceSteps] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isNew, setIsNew] = useState(false);
@@ -913,28 +1072,35 @@ export default function SOPsPanel() {
 
   useEffect(() => { fetchSOPs(); }, [fetchSOPs]);
 
-  // The sidebar labels above the pinned Send Info / SMS Sequence / Appointment
-  // Reminders items normally only pick up their saved category once the user
-  // opens that specific item (each editor fetches its own category on mount).
-  // Fetch all three eagerly here so the labels are correct on first load
-  // instead of showing "General" until clicked.
+  const fetchSequences = useCallback(async () => {
+    const r = await fetch("/api/sms-sequences");
+    if (r.ok) setSequences(await r.json());
+  }, []);
+
+  // The sidebar labels above the pinned Send Info / Appointment Reminders
+  // items normally only pick up their saved category once the user opens
+  // that specific item (each editor fetches its own category on mount).
+  // Fetch those eagerly here (and the full sequences list, needed by
+  // pseudoItems/categories/isSequenceCategory below) so the section renders
+  // correctly on first load instead of showing "General" until clicked.
   useEffect(() => {
     if (activeSection !== "outreach_templates") return;
+    fetchSequences();
     (async () => {
-      const [infoR, seqR, remR] = await Promise.all([
+      const [infoR, remR] = await Promise.all([
         fetch("/api/dialer/info-template"),
-        fetch("/api/dialer/sequence-template"),
         fetch("/api/dialer/reminder-template"),
       ]);
       if (infoR.ok) setSendInfoCategory((await infoR.json()).category || "General");
-      if (seqR.ok) setSeqCategory((await seqR.json()).category || "General");
       if (remR.ok) setRemCategory((await remR.json()).category || "General");
     })();
-  }, [activeSection]);
+  }, [activeSection, fetchSequences]);
 
   useEffect(() => {
     setSelectedId(null);
     setSelectedItem(null);
+    setSelectedSequenceId(null);
+    setNewSequenceSteps({});
     setIsNew(false);
     setDirty(false);
     setTitle("");
@@ -942,16 +1108,23 @@ export default function SOPsPanel() {
     setContent("");
   }, [activeSection]);
 
-  // Categories assigned only to the pinned Send Info / SMS Sequence / Appointment
-  // Reminders pseudo-docs live in dialer_settings, not the `sops` table — without
-  // folding them in here, a category created on one of those pseudo-docs would be
-  // invisible to every other picker in this section (including the other two
-  // pseudo-docs and the regular document editor), making it look like categories
-  // silently fail to save.
+  // Categories assigned only to the pinned Send Info / Appointment Reminders
+  // pseudo-docs live in dialer_settings, and SMS Sequence categories live on
+  // the sms_sequences rows — neither is in the `sops` table, so without
+  // folding them in here a category created on one of those would be
+  // invisible to every other picker in this section (including the regular
+  // document editor), making it look like categories silently fail to save.
   const categories = dedupeCategories([
     ...sops.map(s => s.category || "General"),
-    ...(activeSection === "outreach_templates" ? [sendInfoCategory, seqCategory, remCategory] : []),
+    ...(activeSection === "outreach_templates"
+      ? [sendInfoCategory, remCategory, ...sequences.map(s => s.category || "General")]
+      : []),
   ]);
+
+  // A category counts as "sequence-type" once it already holds at least one
+  // SMS sequence — see the "+ New Template" auto-detect below.
+  const sequenceCategoryKeys = new Set(sequences.map(s => catKey(s.category || "General")));
+  const isSequenceCategory = activeSection === "outreach_templates" && isNew && sequenceCategoryKeys.has(catKey(category));
 
   const setContent = (html) => {
     suppressNextUpdate.current = true;
@@ -965,6 +1138,7 @@ export default function SOPsPanel() {
     setIsNew(false);
     setDirty(false);
     setCustomCatMode(false);
+    setSelectedSequenceId(sop.smsSequence ? sop.sequenceId : null);
     if (sop.sendInfo || sop.smsSequence || sop.reminderTemplate) return;
     setTitle(sop.title);
     setCategory(sop.category || "General");
@@ -1002,6 +1176,8 @@ export default function SOPsPanel() {
     if (dirty && !window.confirm("Discard unsaved changes?")) return;
     setSelectedId(null);
     setSelectedItem(null);
+    setSelectedSequenceId(null);
+    setNewSequenceSteps({});
     setIsNew(true);
     setTitle("");
     setCategory(categories[0] || "General");
@@ -1060,17 +1236,26 @@ export default function SOPsPanel() {
     await fetchSOPs();
   };
 
-  // The three pinned pseudo-docs (Send Info / SMS Sequence / Appointment
+  // The pinned pseudo-docs (Send Info / SMS Sequence(s) / Appointment
   // Reminders) used to always render in their own individually-labeled rows
   // above the real-document list, never joining it — so even when a
   // pseudo-doc's category was set to exactly match a real document's
   // category, they'd still show as separate sections. Folding them into the
   // same grouping as `sops` here is what actually makes matching categories
   // combine into one section instead of just deduplicating near-identical
-  // spellings.
+  // spellings. Each fetched sequence becomes its own pseudo-item (there can
+  // be many, unlike Send Info/Reminders which are always exactly one).
   const pseudoItems = activeSection === "outreach_templates" ? [
     { ...SEND_INFO_ITEM,        category: sendInfoCategory, icon: "☎" },
-    { ...SMS_SEQUENCE_ITEM,     category: seqCategory,      icon: "💬" },
+    ...sequences.map(seq => ({
+      id: `seq-${seq.id}`,
+      title: seq.name,
+      category: seq.category || "General",
+      smsSequence: true,
+      sequenceId: seq.id,
+      icon: "💬",
+      isDefault: seq.is_active,
+    })),
     { ...REMINDER_TEMPLATE_ITEM, category: remCategory,     icon: "📅" },
   ] : [];
 
@@ -1103,7 +1288,7 @@ export default function SOPsPanel() {
           {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !isSequenceCategory && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -1242,6 +1427,13 @@ export default function SOPsPanel() {
                       color: isActive ? "#e8f0ff" : "#7a9cc0",
                       fontWeight: isActive ? 600 : 400,
                     }}>{item.title}</span>
+                    {item.isDefault && (
+                      <span style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: "#34d399",
+                        letterSpacing: "0.08em", flexShrink: 0,
+                        border: "1px solid rgba(52,211,153,0.4)", borderRadius: 3, padding: "1px 4px",
+                      }}>DEFAULT</span>
+                    )}
                     {!isPseudo && (
                       <button
                         onClick={e => deleteSOP(item, e)}
@@ -1268,9 +1460,38 @@ export default function SOPsPanel() {
           {selectedItem?.sendInfo ? (
             <OutreachTemplatesEditor categories={categories} onCategoryChange={setSendInfoCategory} />
           ) : selectedItem?.smsSequence ? (
-            <SmsSequenceEditor categories={categories} onCategoryChange={setSeqCategory} />
+            <SmsSequenceEditor
+              sequence={sequences.find(s => s.id === selectedSequenceId)}
+              categories={categories}
+              onSaved={fetchSequences}
+              onDeleted={() => {
+                setSelectedId(null);
+                setSelectedItem(null);
+                setSelectedSequenceId(null);
+                fetchSequences();
+              }}
+            />
           ) : selectedItem?.reminderTemplate ? (
             <AppointmentRemindersEditor categories={categories} onCategoryChange={setRemCategory} />
+          ) : isSequenceCategory ? (
+            <NewSequenceEditor
+              title={title} setTitle={setTitle}
+              category={category} setCategory={setCategory}
+              categories={categories}
+              customCatMode={customCatMode} setCustomCatMode={setCustomCatMode}
+              steps={newSequenceSteps} setSteps={setNewSequenceSteps}
+              onCreated={(created) => {
+                setIsNew(false);
+                setNewSequenceSteps({});
+                setSelectedId(`seq-${created.id}`);
+                setSelectedItem({
+                  id: `seq-${created.id}`, title: created.name, category: created.category,
+                  smsSequence: true, sequenceId: created.id, icon: "💬", isDefault: created.is_active,
+                });
+                setSelectedSequenceId(created.id);
+                fetchSequences();
+              }}
+            />
           ) : !showEditor ? (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>
