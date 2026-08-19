@@ -43,3 +43,8 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   cold-leads-into-paying-clients-with-ai) — pillar: Lead Follow-Up & Automation — topic: rotation
   #02 (cold leads to paying clients), own web search (research cache was stale, dated 2026-08-04)
   — 2026-08-05 — pending approval
+- "The 3-Text Sequence That Gets Cold Leads Replying" (slug: 3-text-sequence-cold-leads-replying)
+  — pillar: Lead Follow-Up & Automation — topic: rotation #03 (3-message SMS flow), own web search
+  (research cache stale) — 2026-08-19 — drafted, not submitted (local Claude Code session has no
+  Railway/approvals-API access; draft saved to `content-agent/pending_approvals/blog-2026-08-19.json`
+  for the relay job or manual review)

@@ -1,0 +1,46 @@
+{
+  "title": "The 3-Text Sequence That Gets Cold Leads Replying",
+  "summary": "A tactical breakdown of the 3-message SMS follow-up cadence independent service businesses can use to turn dead leads into booked calls, grounded in SMS-vs-email response data.",
+  "payload": {
+    "post": {
+      "slug": "3-text-sequence-cold-leads-replying",
+      "title": "The 3-Text Sequence That Gets Cold Leads Replying",
+      "metaDescription": "A simple 3-message SMS sequence independent service businesses use to turn cold, dead leads into booked calls — without sounding pushy or scripted.",
+      "date": "2026-08-19",
+      "thumbnailIcon": "followup",
+      "intro": [
+        "It's 9:14pm and someone fills out your contact form. You see the notification, tell yourself you'll call first thing tomorrow, and go back to dinner. By the time you dial the next morning, they've already booked with the business that texted them back in four minutes.",
+        "That lead isn't lost because your service is worse. It's lost because a phone call at 9am the next day loses to any response that shows up in someone's pocket the night before. Most service businesses have a list of leads exactly like this sitting in a spreadsheet or CRM right now — people who asked, then went quiet because nobody followed up in a way that fit how they actually communicate.",
+        "The fix isn't more effort. It's one specific sequence: three short texts, spaced out over a few days, that get a dead list talking again."
+      ],
+      "sections": [
+        {
+          "heading": "Why text beats call-and-email for a cold list",
+          "paragraphs": [
+            "SMS gets opened at close to a 98% rate. Email sits around 20%. That gap alone explains why a list that's gone cold on email can come back to life the moment you switch channels — the message isn't being ignored, it's often just never being seen.",
+            "The reply gap is even bigger. B2B outreach comparisons put SMS response rates around 45%, versus roughly 6% for email. For a service business with 40, 80, or 200 old leads sitting untouched, that difference is the entire game: the same list, the same offer, a completely different response rate just from changing the channel.",
+            "Texting also removes the awkwardness of a cold call. Nobody has to answer a phone from a number they don't recognize and decide in half a second whether to pick up. A text sits there, gets read on their time, and gives them an easy way to respond without the pressure of a live conversation."
+          ]
+        },
+        {
+          "heading": "The sequence: three texts, three jobs",
+          "paragraphs": [
+            "Each message in the sequence has one job. Trying to make a single text do all three at once is why most follow-up texts get ignored — they read like an ad instead of a person.",
+            "**Text 1 — the re-open (day 0).** Short, low-pressure, references the original inquiry by name so it's obviously not a mass blast. Something like: \"Hey [name], following up on your request for [service] — still something you're looking to move on?\" No pitch, no links, just a door left open.",
+            "**Text 2 — the value nudge (day 2-3).** If no reply, the second text adds one piece of value instead of repeating the ask — a specific outcome, a quick answer to the objection they probably have, or a one-line proof point. \"Most people in your position are worried about [common objection] — happy to walk through how we handle that if it's useful.\"",
+            "**Text 3 — the clean close (day 5-7).** The last text gives them a graceful way to say no, which paradoxically is what gets the remaining repliers to respond. \"No worries if the timing's off — just let me know either way so I can stop following up.\" This message consistently pulls replies from people who were on the fence about responding at all, because it removes the guilt of ignoring you."
+          ]
+        },
+        {
+          "heading": "What changes for you specifically once this is running",
+          "paragraphs": [
+            "If you're the one manually deciding when to send each follow-up, the sequence falls apart the first busy week — day 2 becomes day 6, day 5-7 never happens, and the list goes cold again exactly the way it did the first time. The value of the sequence is in the spacing being automatic, not in the wording being clever.",
+            "Once it's automated, the shift isn't more leads coming in — it's the leads you already paid for actually turning into conversations. A list of 100 old leads that was producing zero booked calls can realistically produce several just from re-engaging them with a channel they actually respond to.",
+            "The other shift is where your attention goes. Instead of deciding every day whether it's worth calling someone who ghosted three weeks ago, the sequence runs in the background and surfaces the people who reply — so your time goes to actual conversations, not guessing who's still interested."
+          ]
+        }
+      ],
+      "inBodyLink": "If you're not sure whether your current follow-up process is the bottleneck, [our FAQ](/faq) covers the most common reasons leads go cold before a business ever gets them on the phone."
+    }
+  }
+}
