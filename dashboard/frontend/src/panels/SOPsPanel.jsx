@@ -832,6 +832,267 @@ function NewSequenceEditor({ title, setTitle, category, setCategory, categories,
   );
 }
 
+// ── Cold Call Script editor ─────────────────────────────────────────────────
+// Fixed 4-section dialer script (Opener/Intro/Main Body/Close) read by
+// DialerPanel.jsx during a live call (see GET /dialer/script in
+// routers/dialer.py, which just reads whichever row here is default).
+// Multiple named scripts can exist (GET /api/cold-call-scripts); exactly
+// one is "active" (the Default) at a time — same Set-as-Default pattern as
+// SmsSequenceEditor above.
+const CALL_SCRIPT_SECTIONS = [
+  { key: "opener", label: "Opener" },
+  { key: "intro", label: "Intro" },
+  { key: "main_body", label: "Main Body" },
+  { key: "close", label: "Close" },
+];
+
+function ScriptSectionFields({ sections, setSections }) {
+  return (
+    <>
+      {CALL_SCRIPT_SECTIONS.map((s, i) => (
+        <div key={s.key} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
+          <label style={sequenceLabelStyle}>{s.label}</label>
+          <textarea
+            value={sections[s.key] || ""}
+            onChange={e => setSections(v => ({ ...v, [s.key]: e.target.value }))}
+            rows={6}
+            placeholder="Type this section's script..."
+            style={sequenceFieldStyle}
+          />
+          <div style={sequenceHintStyle}>
+            Use <code style={{ color: "#6ab0ff" }}>[Name]</code>, <code style={{ color: "#6ab0ff" }}>[Practice Name]</code>, or <code style={{ color: "#6ab0ff" }}>[custom opener]</code> — filled in automatically when a lead answers.
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function CallScriptEditor({ script, categories, onSaved, onDeleted }) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("General");
+  const [sections, setSections] = useState({});
+  const [saved, setSaved] = useState({ name: "", category: "General", sections: {} });
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+
+  useEffect(() => {
+    if (!script) return;
+    setName(script.name || "");
+    setCategory(script.category || "General");
+    setSections(script.sections || {});
+    setSaved({ name: script.name || "", category: script.category || "General", sections: script.sections || {} });
+    setDeleteError(null);
+  }, [script?.id]);
+
+  if (!script) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  const dirty = name !== saved.name || category !== saved.category
+    || CALL_SCRIPT_SECTIONS.some(s => (sections[s.key] || "") !== (saved.sections[s.key] || ""));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/cold-call-scripts/${script.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), category, sections }),
+      });
+      if (r.ok) {
+        setSaved({ name, category, sections });
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+        onSaved?.();
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const activate = async () => {
+    setActivating(true);
+    try {
+      const r = await fetch(`/api/cold-call-scripts/${script.id}/activate`, { method: "POST" });
+      if (r.ok) onSaved?.();
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const deleteScript = async () => {
+    if (!window.confirm(`Delete "${script.name}"?`)) return;
+    setDeleteError(null);
+    const r = await fetch(`/api/cold-call-scripts/${script.id}`, { method: "DELETE" });
+    if (r.ok) {
+      onDeleted?.();
+    } else {
+      const data = await r.json().catch(() => ({}));
+      setDeleteError(data.detail || "Couldn't delete this script.");
+    }
+  };
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="Script name..."
+          style={sequenceNameInputStyle}
+        />
+        <CategoryPicker
+          categories={categories}
+          category={category}
+          setCategory={setCategory}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={activate}
+          disabled={script.is_active || activating}
+          title={script.is_active ? "This is already the default script" : "Make this the script shown in the Dialer"}
+          style={{
+            background: script.is_active ? "rgba(52,211,153,0.12)" : "rgba(58,123,213,0.12)",
+            border: script.is_active ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: script.is_active ? "#34d399" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 14px", flexShrink: 0,
+            cursor: script.is_active || activating ? "not-allowed" : "pointer",
+            opacity: activating ? 0.6 : 1,
+          }}
+        >{script.is_active ? "Default ✓" : activating ? "Setting..." : "Set as Default"}</button>
+        <button
+          onClick={deleteScript}
+          disabled={script.is_active}
+          title={script.is_active ? "Set another script as default first" : "Delete this script"}
+          style={{
+            background: "rgba(220,60,60,0.1)",
+            border: "1px solid rgba(220,60,60,0.3)",
+            borderRadius: 6, color: "#dc3c3c",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 14px", flexShrink: 0,
+            cursor: script.is_active ? "not-allowed" : "pointer",
+            opacity: script.is_active ? 0.5 : 1,
+          }}
+        >Delete</button>
+        <button
+          onClick={save}
+          disabled={saving || !dirty || !name.trim()}
+          style={{
+            background: dirty && name.trim() ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty && name.trim() ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty && name.trim() ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty || !name.trim() ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      {deleteError && (
+        <div style={{
+          padding: "8px 36px", background: "rgba(220,60,60,0.1)",
+          borderBottom: "1px solid rgba(220,60,60,0.2)",
+          fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#dc3c3c",
+        }}>{deleteError}</div>
+      )}
+
+      <div style={{ padding: "12px 36px 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+        {script.is_active
+          ? <>This is the <strong style={{ color: "#34d399" }}>default</strong> script — shown in the Dialer during calls.</>
+          : "Not currently the default. Leave a section blank to skip it."}
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <ScriptSectionFields sections={sections} setSections={setSections} />
+      </div>
+    </div>
+  );
+}
+
+// New-script form rendered inline in place of the generic Tiptap doc editor
+// when creating a "+ New Template" under a category that already holds at
+// least one Cold Call Script (see `isScriptCategory` further down). Mirrors
+// NewSequenceEditor above.
+function NewCallScriptEditor({ title, setTitle, category, setCategory, categories, customCatMode, setCustomCatMode, sections, setSections, onCreated }) {
+  const [saving, setSaving] = useState(false);
+
+  const create = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      const r = await fetch("/api/cold-call-scripts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: title.trim(), category, sections }),
+      });
+      if (r.ok) onCreated?.(await r.json());
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Script name..."
+          style={sequenceNameInputStyle}
+        />
+        <CategoryPicker
+          categories={categories}
+          category={category}
+          setCategory={setCategory}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        <button
+          onClick={create}
+          disabled={saving || !title.trim()}
+          style={{
+            background: title.trim() ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: title.trim() ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: title.trim() ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !title.trim() ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Creating..." : "Create Script"}</button>
+      </div>
+
+      <div style={{ padding: "12px 36px 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+        This category already holds a Cold Call Script, so new templates here use the script format. Leave a section blank to skip it. New scripts start off <em>not</em> the default — set it as default from its own editor once you're ready to switch to it.
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <ScriptSectionFields sections={sections} setSections={setSections} />
+      </div>
+    </div>
+  );
+}
+
 // ── Appointment Reminders editor ────────────────────────────────────────────
 // Editable SMS + email templates for the appointment-reminder pipeline: the
 // immediate booking confirmation, the 24h/6h/1h reminders, and the reschedule
@@ -1027,6 +1288,9 @@ export default function SOPsPanel() {
   const [sequences, setSequences] = useState([]);
   const [selectedSequenceId, setSelectedSequenceId] = useState(null);
   const [newSequenceSteps, setNewSequenceSteps] = useState({});
+  const [callScripts, setCallScripts] = useState([]);
+  const [selectedScriptId, setSelectedScriptId] = useState(null);
+  const [newScriptSections, setNewScriptSections] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [isNew, setIsNew] = useState(false);
@@ -1077,15 +1341,22 @@ export default function SOPsPanel() {
     if (r.ok) setSequences(await r.json());
   }, []);
 
+  const fetchCallScripts = useCallback(async () => {
+    const r = await fetch("/api/cold-call-scripts");
+    if (r.ok) setCallScripts(await r.json());
+  }, []);
+
   // The sidebar labels above the pinned Send Info / Appointment Reminders
   // items normally only pick up their saved category once the user opens
   // that specific item (each editor fetches its own category on mount).
-  // Fetch those eagerly here (and the full sequences list, needed by
-  // pseudoItems/categories/isSequenceCategory below) so the section renders
-  // correctly on first load instead of showing "General" until clicked.
+  // Fetch those eagerly here (and the full sequences/scripts lists, needed
+  // by pseudoItems/categories/isSequenceCategory/isScriptCategory below) so
+  // the section renders correctly on first load instead of showing
+  // "General" until clicked.
   useEffect(() => {
     if (activeSection !== "outreach_templates") return;
     fetchSequences();
+    fetchCallScripts();
     (async () => {
       const [infoR, remR] = await Promise.all([
         fetch("/api/dialer/info-template"),
@@ -1094,13 +1365,15 @@ export default function SOPsPanel() {
       if (infoR.ok) setSendInfoCategory((await infoR.json()).category || "General");
       if (remR.ok) setRemCategory((await remR.json()).category || "General");
     })();
-  }, [activeSection, fetchSequences]);
+  }, [activeSection, fetchSequences, fetchCallScripts]);
 
   useEffect(() => {
     setSelectedId(null);
     setSelectedItem(null);
     setSelectedSequenceId(null);
     setNewSequenceSteps({});
+    setSelectedScriptId(null);
+    setNewScriptSections({});
     setIsNew(false);
     setDirty(false);
     setTitle("");
@@ -1109,22 +1382,30 @@ export default function SOPsPanel() {
   }, [activeSection]);
 
   // Categories assigned only to the pinned Send Info / Appointment Reminders
-  // pseudo-docs live in dialer_settings, and SMS Sequence categories live on
-  // the sms_sequences rows — neither is in the `sops` table, so without
-  // folding them in here a category created on one of those would be
-  // invisible to every other picker in this section (including the regular
-  // document editor), making it look like categories silently fail to save.
+  // pseudo-docs live in dialer_settings, and SMS Sequence / Cold Call Script
+  // categories live on their own tables — none of these are in the `sops`
+  // table, so without folding them in here a category created on one of
+  // those would be invisible to every other picker in this section
+  // (including the regular document editor), making it look like categories
+  // silently fail to save.
   const categories = dedupeCategories([
     ...sops.map(s => s.category || "General"),
     ...(activeSection === "outreach_templates"
-      ? [sendInfoCategory, remCategory, ...sequences.map(s => s.category || "General")]
+      ? [
+          sendInfoCategory, remCategory,
+          ...sequences.map(s => s.category || "General"),
+          ...callScripts.map(s => s.category || "General"),
+        ]
       : []),
   ]);
 
-  // A category counts as "sequence-type" once it already holds at least one
-  // SMS sequence — see the "+ New Template" auto-detect below.
+  // A category counts as "sequence-type"/"script-type" once it already
+  // holds at least one SMS sequence / Cold Call Script — see the
+  // "+ New Template" auto-detect below.
   const sequenceCategoryKeys = new Set(sequences.map(s => catKey(s.category || "General")));
   const isSequenceCategory = activeSection === "outreach_templates" && isNew && sequenceCategoryKeys.has(catKey(category));
+  const scriptCategoryKeys = new Set(callScripts.map(s => catKey(s.category || "General")));
+  const isScriptCategory = activeSection === "outreach_templates" && isNew && !isSequenceCategory && scriptCategoryKeys.has(catKey(category));
 
   const setContent = (html) => {
     suppressNextUpdate.current = true;
@@ -1139,7 +1420,8 @@ export default function SOPsPanel() {
     setDirty(false);
     setCustomCatMode(false);
     setSelectedSequenceId(sop.smsSequence ? sop.sequenceId : null);
-    if (sop.sendInfo || sop.smsSequence || sop.reminderTemplate) return;
+    setSelectedScriptId(sop.callScript ? sop.scriptId : null);
+    if (sop.sendInfo || sop.smsSequence || sop.reminderTemplate || sop.callScript) return;
     setTitle(sop.title);
     setCategory(sop.category || "General");
     setVisibility(sop.visibility || "private");
@@ -1178,6 +1460,8 @@ export default function SOPsPanel() {
     setSelectedItem(null);
     setSelectedSequenceId(null);
     setNewSequenceSteps({});
+    setSelectedScriptId(null);
+    setNewScriptSections({});
     setIsNew(true);
     setTitle("");
     setCategory(categories[0] || "General");
@@ -1256,6 +1540,15 @@ export default function SOPsPanel() {
       icon: "💬",
       isDefault: seq.is_active,
     })),
+    ...callScripts.map(cs => ({
+      id: `script-${cs.id}`,
+      title: cs.name,
+      category: cs.category || "General",
+      callScript: true,
+      scriptId: cs.id,
+      icon: "📞",
+      isDefault: cs.is_active,
+    })),
     { ...REMINDER_TEMPLATE_ITEM, category: remCategory,     icon: "📅" },
   ] : [];
 
@@ -1285,10 +1578,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && savedFlash && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !isSequenceCategory && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -1305,7 +1598,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -1471,6 +1764,18 @@ export default function SOPsPanel() {
                 fetchSequences();
               }}
             />
+          ) : selectedItem?.callScript ? (
+            <CallScriptEditor
+              script={callScripts.find(s => s.id === selectedScriptId)}
+              categories={categories}
+              onSaved={fetchCallScripts}
+              onDeleted={() => {
+                setSelectedId(null);
+                setSelectedItem(null);
+                setSelectedScriptId(null);
+                fetchCallScripts();
+              }}
+            />
           ) : selectedItem?.reminderTemplate ? (
             <AppointmentRemindersEditor categories={categories} onCategoryChange={setRemCategory} />
           ) : isSequenceCategory ? (
@@ -1490,6 +1795,25 @@ export default function SOPsPanel() {
                 });
                 setSelectedSequenceId(created.id);
                 fetchSequences();
+              }}
+            />
+          ) : isScriptCategory ? (
+            <NewCallScriptEditor
+              title={title} setTitle={setTitle}
+              category={category} setCategory={setCategory}
+              categories={categories}
+              customCatMode={customCatMode} setCustomCatMode={setCustomCatMode}
+              sections={newScriptSections} setSections={setNewScriptSections}
+              onCreated={(created) => {
+                setIsNew(false);
+                setNewScriptSections({});
+                setSelectedId(`script-${created.id}`);
+                setSelectedItem({
+                  id: `script-${created.id}`, title: created.name, category: created.category,
+                  callScript: true, scriptId: created.id, icon: "📞", isDefault: created.is_active,
+                });
+                setSelectedScriptId(created.id);
+                fetchCallScripts();
               }}
             />
           ) : !showEditor ? (

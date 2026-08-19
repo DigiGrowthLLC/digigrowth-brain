@@ -12,6 +12,7 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   POST /api/dialer/gatekeeper/decline  — hang up held gatekeeper
   POST /api/dialer/set-lines     — update max parallel lines
   POST /api/dialer/end-session   — request session end
+  GET  /api/dialer/script        — the default Call Script's text (read-only; see below)
   GET  /api/dialer/info-template — "Send Info" SMS/email templates
   PUT  /api/dialer/info-template — save "Send Info" SMS/email templates
   GET  /api/dialer/reminder-template — appointment reminder SMS/email templates
@@ -19,6 +20,8 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
 
 SMS outreach sequences moved to their own table/router — see
 routers/sms_sequences.py (GET/POST/PATCH/DELETE /api/sms-sequences).
+Cold Call Scripts moved to their own table/router the same way — see
+routers/cold_call_scripts.py (GET/POST/PATCH/DELETE /api/cold-call-scripts).
 """
 
 import json
@@ -108,27 +111,21 @@ async def get_token():
     return {"token": token.to_jwt()}
 
 
+# Call script is now editable from Business Resources → Outreach Templates
+# as a list of named Cold Call Scripts (routers/cold_call_scripts.py); this
+# endpoint stays as a read-only convenience for DialerPanel.jsx, which just
+# needs the current default script's full text to fill and display during a
+# live call — it never edits it directly.
 @router.get("/dialer/script")
 async def get_script():
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = 'call_script'")
-    return {"script": row["value"] if row else ""}
-
-
-@router.put("/dialer/script")
-async def save_script(body: dict):
-    script = body.get("script", "")
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO dialer_settings (key, value, updated_at) VALUES ('call_script', $1, now())
-            ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
-            """,
-            script,
-        )
-    return {"ok": True}
+        row = await conn.fetchrow("SELECT * FROM cold_call_scripts WHERE is_default = true LIMIT 1")
+    if not row:
+        return {"script": "", "name": None}
+    sections = [row["opener"], row["intro"], row["main_body"], row["close"]]
+    script = "\n\n".join(s for s in sections if s and s.strip())
+    return {"script": script, "name": row["name"]}
 
 
 # ── "Send Info" disposition templates (edited from Business Resources ────────

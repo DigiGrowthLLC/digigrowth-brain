@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 import integrations
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals
-from routers import crm, sms, sms_sequences, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns
+from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns
 import reminder_engine
 
 security = HTTPBasic()
@@ -313,6 +313,7 @@ app.include_router(email_inbox.router, prefix="/api", dependencies=[Depends(requ
 app.include_router(dialer_webhooks.router)     # public — Twilio voice webhooks
 app.include_router(dialer.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms_sequences.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(cold_call_scripts.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(dashboard.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(agents.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(settings.router,   prefix="/api", dependencies=[Depends(require_auth)])

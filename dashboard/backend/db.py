@@ -193,6 +193,19 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            CREATE TABLE IF NOT EXISTS cold_call_scripts (
+                id         SERIAL PRIMARY KEY,
+                name       TEXT NOT NULL,
+                category   TEXT NOT NULL DEFAULT 'General',
+                is_default BOOLEAN NOT NULL DEFAULT false,
+                opener     TEXT,
+                intro      TEXT,
+                main_body  TEXT,
+                close      TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
             CREATE TABLE IF NOT EXISTS campaigns (
                 id         SERIAL PRIMARY KEY,
                 channel    TEXT NOT NULL,
@@ -319,6 +332,7 @@ async def _create_schema(pool: asyncpg.Pool):
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_email_messages_tracking_token ON email_messages(tracking_token) WHERE tracking_token IS NOT NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_sequences_single_default ON sms_sequences (is_default) WHERE is_default;
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_cold_call_scripts_single_default ON cold_call_scripts (is_default) WHERE is_default;
         """)
         # One-time migration: the old single-value 'interested' disposition becomes
         # the new stage_interested checkbox (manually set, since a human set it).
@@ -401,4 +415,24 @@ async def _create_schema(pool: asyncpg.Pool):
                     seq_values.get("seq_guarantee") or "",
                     seq_values.get("seq_ask") or "",
                     seq_values.get("seq_cta") or "",
+                )
+        # One-time migration: the dialer's Call Script moved from a single
+        # global flat 'call_script' key (dialer_settings) to the
+        # cold_call_scripts table (multiple named scripts, one default at a
+        # time — see routers/cold_call_scripts.py). The old flat script had
+        # no section structure, so it's seeded into main_body (the closest
+        # fit) rather than split across opener/intro/close. Guarded on
+        # cold_call_scripts being empty so this only ever runs once.
+        existing_script_count = await conn.fetchval("SELECT count(*) FROM cold_call_scripts")
+        if existing_script_count == 0:
+            old_script = await conn.fetchval(
+                "SELECT value FROM dialer_settings WHERE key = 'call_script'"
+            )
+            if old_script:
+                await conn.execute(
+                    """
+                    INSERT INTO cold_call_scripts (name, category, is_default, main_body)
+                    VALUES ('Default Call Script', 'General', true, $1)
+                    """,
+                    old_script,
                 )

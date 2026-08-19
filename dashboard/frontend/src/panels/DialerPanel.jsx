@@ -55,10 +55,12 @@ const [notes, setNotes]                 = useState("");
   // Captured at the moment "Appointment Booked" is logged — sess.current_lead
   // can clear out from under the modal once the call disposition resolves.
   const [bookingLead, setBookingLead]     = useState(null);
-  // Script
+  // Script — read-only here; edited from Business Resources → Outreach
+  // Templates as a list of named Cold Call Scripts, one marked default
+  // (see routers/cold_call_scripts.py). This just displays whichever one
+  // is currently default.
   const [scriptTemplate, setScriptTemplate] = useState("");
-  const [savedScript, setSavedScript]       = useState("");
-  const [scriptSaving, setScriptSaving]     = useState(false);
+  const [scriptName, setScriptName]         = useState(null);
   const [filledScript, setFilledScript]     = useState("");
   const [scriptFilled, setScriptFilled]     = useState(false);
   // Dial / error feedback
@@ -127,32 +129,19 @@ const [notes, setNotes]                 = useState("");
     });
   };
 
-  // ── Load saved call script once on mount ─────────────────────────────────────
+  // ── Load the default Cold Call Script once on mount ──────────────────────────
   useEffect(() => {
     (async () => {
       try {
         const r = await fetch(API("/dialer/script"));
         if (r.ok) {
-          const { script } = await r.json();
+          const { script, name } = await r.json();
           setScriptTemplate(script || "");
-          setSavedScript(script || "");
+          setScriptName(name || null);
         }
       } catch {}
     })();
   }, []);
-
-  const saveScript = async () => {
-    setScriptSaving(true);
-    try {
-      await fetch(API("/dialer/script"), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ script: scriptTemplate }),
-      });
-      setSavedScript(scriptTemplate);
-    } catch {}
-    setScriptSaving(false);
-  };
 
   // ── Stats poll (5s) ─────────────────────────────────────────────────────────
   const loadStats = useCallback(async () => {
@@ -721,43 +710,23 @@ const [notes, setNotes]                 = useState("");
               </div>
             )}
 
-            {/* Script section */}
+            {/* Script section — read-only; edit from Business Resources → Outreach Templates */}
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <div className="sec-label" style={{ marginBottom: 0 }}>Call Script</div>
-                {scriptFilled && (
+                <div className="sec-label" style={{ marginBottom: 0 }}>
+                  Call Script{scriptName && <span style={{ color: "#3a5a80", fontWeight: 400 }}> — {scriptName}</span>}
+                </div>
+                {scriptFilled ? (
                   <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
                                   color: "#14c882", letterSpacing: "0.1em" }}>
                     FILLED ·{" "}
                     <span style={{ color: "#14c882" }}>[Name]</span>{" "}
                     <span style={{ color: "#5a9bf0" }}>[opener]</span>
                   </span>
-                )}
-                {!scriptFilled && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a3a50" }}>
-                      [Name] [Practice Name] [custom opener]
-                    </span>
-                    {scriptTemplate !== savedScript && (
-                      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#f0a028", letterSpacing: "0.08em" }}>
-                        UNSAVED
-                      </span>
-                    )}
-                    <button
-                      onClick={saveScript}
-                      disabled={scriptSaving || scriptTemplate === savedScript}
-                      style={{
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 10, fontWeight: 600,
-                        padding: "3px 10px", borderRadius: 6,
-                        background: scriptTemplate === savedScript ? "rgba(30,47,80,0.4)" : "rgba(20,200,130,0.12)",
-                        border: `1px solid ${scriptTemplate === savedScript ? "#1a2540" : "rgba(20,200,130,0.3)"}`,
-                        color: scriptTemplate === savedScript ? "#3a5a80" : "#14c882",
-                        cursor: (scriptSaving || scriptTemplate === savedScript) ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {scriptSaving ? "SAVING…" : "SAVE"}
-                    </button>
-                  </div>
+                ) : (
+                  <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a3a50" }}>
+                    [Name] [Practice Name] [custom opener]
+                  </span>
                 )}
               </div>
 
@@ -772,15 +741,24 @@ const [notes, setNotes]                 = useState("");
                     border: "1px solid rgba(58,123,213,0.15)",
                   }}
                 />
+              ) : scriptTemplate ? (
+                <div style={{
+                  background: "#050d1a", borderRadius: 8, padding: "12px 14px",
+                  minHeight: 260, maxHeight: 520, overflowY: "auto",
+                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+                  color: "#a0b8d0", lineHeight: 1.75, whiteSpace: "pre-wrap",
+                  border: "1px solid rgba(58,123,213,0.15)",
+                }}>
+                  {scriptTemplate}
+                </div>
               ) : (
-                <textarea
-                  className="dg-input"
-                  placeholder={"Paste your call script here.\nUse [Name], [Practice Name], and [custom opener] as placeholders — they'll fill in automatically when a lead answers."}
-                  value={scriptTemplate}
-                  onChange={(e) => setScriptTemplate(e.target.value)}
-                  rows={14}
-                  style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, resize: "vertical", lineHeight: 1.7 }}
-                />
+                <div style={{
+                  background: "#050d1a", borderRadius: 8, padding: "12px 14px",
+                  minHeight: 100, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+                  color: "#3a5a80", lineHeight: 1.7, border: "1px solid rgba(58,123,213,0.15)",
+                }}>
+                  No default Cold Call Script set — add one in Business Resources → Outreach Templates.
+                </div>
               )}
             </div>
 
