@@ -464,6 +464,7 @@ export default function InboxPanel({ initialTarget }) {
         phone={thread?.phone}
         name={thread?.owner}
         email={thread?.email}
+        channel={replyChannel}
       />
 
       {composing && (

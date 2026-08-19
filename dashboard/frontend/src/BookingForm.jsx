@@ -6,7 +6,7 @@ import { API } from "./api.js";
 // no webhook wired up (free plan), so this is how the reminder pipeline
 // learns the booked date/time + the prospect's timezone. See
 // dashboard/backend/routers/appointments.py + reminder_engine.py.
-export default function BookingForm({ contactId, phone, name, email, onBooked }) {
+export default function BookingForm({ contactId, phone, name, email, channel, onBooked }) {
   const [timezones, setTimezones] = useState([]);
   const [date, setDate]           = useState("");
   const [time, setTime]           = useState("");
@@ -41,6 +41,7 @@ export default function BookingForm({ contactId, phone, name, email, onBooked })
           prospect_phone: phone || null,
           prospect_email: email || null,
           date, time, timezone: tz,
+          channel: channel || null,
         }),
       });
       if (!r.ok) throw new Error(await r.text());

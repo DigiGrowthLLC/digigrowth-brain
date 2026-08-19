@@ -252,7 +252,14 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
             *params,
         )
         stage_params = [[r["phone"] for r in contacted_phones]]
-    booked_filter = "AND created_at >= $1" if since else ""
+    # Windowed by updated_at (bumped when disposition is set), not created_at
+    # (when the conversation first started) — same fix as _email_metrics
+    # below, whose comment explains why: a booking that lands in this period
+    # must show up even if the contact was first texted before the window
+    # started. Using created_at here meant a booking on a conversation that
+    # started outside the window never counted, no matter how recent the
+    # booking itself was.
+    booked_filter = "AND updated_at >= $1" if since else ""
 
     # Total Outreach — every outbound SMS sent, counted the moment it's sent.
     total_outreach = await conn.fetchval(

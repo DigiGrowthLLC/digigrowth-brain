@@ -12,7 +12,6 @@ from fastapi import APIRouter, HTTPException, Query
 
 from db import get_pool
 from timezone_lookup import guess_timezone, US_TIMEZONES
-from routers.email_inbox import close_contact_threads
 import reminder_engine
 
 router = APIRouter()
@@ -78,20 +77,46 @@ async def create_appointment(payload: dict):
     except Exception as e:
         print(f"[appointments] booking confirmation failed for appointment {row['id']}: {e}")
 
-    # Mark the win: close this contact's SMS/email threads with
-    # disposition='booked' and flip contacts.status to 'appointment-booked' —
-    # the same effect the Inbox's "NOT INTERESTED" button has for its
-    # disposition, just triggered here instead since booking has no separate
-    # close button of its own. This is what Analytics' Booked counts
-    # (sms_conversations.disposition / email_conversations.disposition) and
-    # the Pipeline by-grade Booked count (contacts.status) actually read —
-    # without it, a booking made from the Inbox or CRM never showed up
-    # anywhere in Analytics. Swallow errors for the same reason as above.
-    if payload.get("contact_id"):
+    # Mark the win: flip contacts.status to 'appointment-booked' and, if the
+    # booking was made from a specific channel's thread (the Inbox passes
+    # `channel: "sms"|"email"` — see InboxPanel.jsx's replyChannel), close
+    # *that* channel's conversation with disposition='booked'. This is what
+    # Analytics' Booked counts (sms_conversations.disposition /
+    # email_conversations.disposition) and the Pipeline by-grade Booked
+    # count (contacts.status) actually read — without it, a booking made
+    # from the Inbox or CRM never showed up anywhere in Analytics.
+    #
+    # Deliberately channel-scoped rather than closing both threads: a
+    # contact can have an active SMS conversation and an active email
+    # conversation at once, but a single booking only ever happened through
+    # one of them (or neither, e.g. a Dialer/CRM booking with no channel
+    # context) — closing both as 'booked' double-counts the win on a
+    # channel that had nothing to do with it. Swallow errors so a DB hiccup
+    # here never blocks the booking itself from having saved.
+    contact_id = payload.get("contact_id")
+    channel = payload.get("channel")
+    if contact_id:
         try:
-            await close_contact_threads(payload["contact_id"], {"disposition": "booked"})
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                if channel == "sms":
+                    await conn.execute(
+                        "UPDATE sms_conversations SET status = 'closed', disposition = 'booked', updated_at = now() "
+                        "WHERE contact_id = $1 AND status != 'closed'",
+                        contact_id,
+                    )
+                elif channel == "email":
+                    await conn.execute(
+                        "UPDATE email_conversations SET status = 'closed', disposition = 'booked', updated_at = now() "
+                        "WHERE contact_id = $1 AND status != 'closed'",
+                        contact_id,
+                    )
+                await conn.execute(
+                    "UPDATE contacts SET status = 'appointment-booked', updated_at = now() WHERE id = $1",
+                    contact_id,
+                )
         except Exception as e:
-            print(f"[appointments] booked-disposition close failed for appointment {row['id']}: {e}")
+            print(f"[appointments] booked-disposition update failed for appointment {row['id']}: {e}")
 
     return {"ok": True, "id": row["id"]}
 
