@@ -571,7 +571,9 @@ async def get_contact_thread(contact_id: str):
 
     sms_active = sms_conv and sms_conv["status"] != "closed"
     email_active = email_conv and email_conv["status"] != "closed"
-    status = "active" if (sms_active or email_active) else "closed"
+    # No conversation on either channel yet (e.g. jumping here from the CRM
+    # contact card before any outreach) is a fresh thread, not a closed one.
+    status = "closed" if (sms_conv or email_conv) and not (sms_active or email_active) else "active"
     if email_active and email_conv["disposition"] == "interested":
         disposition = "interested"
     elif status == "closed":

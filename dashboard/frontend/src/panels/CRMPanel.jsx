@@ -770,6 +770,10 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
     setCallingNow(false);
   }
 
+  function messageContact() {
+    if (onNavigate) onNavigate("inbox", { contactId: contact.id });
+  }
+
   async function submitNote(e) {
     e.preventDefault();
     if (!note.trim()) return;
@@ -960,6 +964,15 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
                 opacity: callingNow ? 0.6 : 1,
               }}>
               {callingNow ? "Starting…" : "📞 Call Now"}
+            </button>
+            <button onClick={messageContact}
+              style={{
+                flex: 1, padding: "9px 12px", borderRadius: 8,
+                background: "rgba(160,110,240,0.12)", border: "1px solid rgba(160,110,240,0.35)",
+                color: "#a06ef0", fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}>
+              ✉ Message
             </button>
             <button onClick={addToQueue} disabled={saving}
               style={{

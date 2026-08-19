@@ -258,7 +258,7 @@ export default function App() {
         background: "transparent",
       }}>
         {active === "home"     && <DashboardPanel onNavigate={navigateTo} />}
-        {active === "crm"      && <CRMPanel onNavigate={setActive} />}
+        {active === "crm"      && <CRMPanel onNavigate={navigateTo} />}
         {active === "inbox"    && <InboxPanel initialTarget={navContext} />}
         {active === "dialer"   && <DialerPanel />}
         {active === "appointments" && <AppointmentsPanel />}
