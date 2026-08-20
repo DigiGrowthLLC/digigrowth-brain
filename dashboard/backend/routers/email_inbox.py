@@ -14,8 +14,9 @@ Endpoints (all under /api):
   GET  /api/inbox/tags                         — distinct contact tags, for the filter dropdown
   GET  /api/inbox/conversations                — contact-grouped SMS + Email list, filterable
   GET  /api/inbox/contact/{contact_id}         — one contact's merged SMS + Email message stream
-  POST /api/inbox/contact/{contact_id}/close
-  POST /api/inbox/contact/{contact_id}/stage   — set Replied/Engaged/Interested checkbox (manual override)
+  POST /api/inbox/contact/{contact_id}/stage   — set a stage checkbox (manual override); see
+                                                  set_contact_stage()'s docstring for the full list,
+                                                  including Not Interested (no dedicated button anymore)
   DELETE /api/inbox/contact/{contact_id}
 
 sync_gmail_job() is registered on the app's APScheduler (main.py) to run
@@ -605,32 +606,40 @@ async def get_contact_thread(contact_id: str):
     }
 
 
-@router.post("/inbox/contact/{contact_id}/close")
-async def close_contact_threads(contact_id: str, payload: Optional[dict] = None):
-    """Record a disposition on the contact's threads. `close` (default True)
-    also marks both channels' conversations 'closed', which hides the reply
-    box in the Inbox — pass `close: false` (used by the Not Interested button)
-    to record the disposition without cutting off the ability to keep
-    texting/emailing the prospect."""
-    disposition = (payload or {}).get("disposition", "booked")
-    if disposition not in _CLOSE_DISPOSITION_TO_CONTACT_STATUS:
-        disposition = "booked"
-    close = (payload or {}).get("close", True)
+_STAGE_COLUMNS = {"initial_outreach", "replied", "dm_reached", "primed", "engaged", "interested"}
 
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        if close:
-            await conn.execute(
-                "UPDATE sms_conversations SET status = 'closed', disposition = $2, updated_at = now() "
-                "WHERE contact_id = $1 AND status != 'closed'",
-                contact_id, disposition,
-            )
-            await conn.execute(
-                "UPDATE email_conversations SET status = 'closed', disposition = $2, updated_at = now() "
-                "WHERE contact_id = $1 AND status != 'closed'",
-                contact_id, disposition,
-            )
-        else:
+
+@router.post("/inbox/contact/{contact_id}/stage")
+async def set_contact_stage(contact_id: str, payload: dict):
+    """
+    Manual funnel checklist (Initial Outreach/Replied/DM Reached/Primed/
+    Engaged/Interested/Not Interested) for the contact's SMS conversation.
+    Any click through the UI is an explicit human override: it sets both the
+    checkbox value and its `_manual` lock, so automatic detection — reply-
+    count based for Replied/Primed/Engaged/Interested
+    (sms.py::_recompute_stage_flags), first-outbound-send based for Initial
+    Outreach (sms.py::_store_message) — stops touching that stage for this
+    conversation from here on — analytics reads the checkbox column
+    directly, not the underlying send/reply activity. DM Reached has no
+    automatic detection at all — it's always and only set by a human
+    clicking this checkbox.
+
+    Not Interested is handled separately below: unlike the others it isn't
+    backed by its own stage_* boolean — checking it sets the same
+    sms_conversations/email_conversations.disposition and contacts.status
+    that Analytics' Not Interested rate already reads (previously only
+    reachable via the Inbox's now-removed standalone button, which also
+    used to close the thread — this checkbox never does), and unchecking it
+    clears the disposition back to null and returns the contact to
+    'dialer-lead'.
+    """
+    stage = (payload or {}).get("stage")
+    checked = bool((payload or {}).get("checked"))
+
+    if stage == "not_interested":
+        disposition = "not_interested" if checked else None
+        pool = await get_pool()
+        async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE sms_conversations SET disposition = $2, updated_at = now() WHERE contact_id = $1",
                 contact_id, disposition,
@@ -639,34 +648,14 @@ async def close_contact_threads(contact_id: str, payload: Optional[dict] = None)
                 "UPDATE email_conversations SET disposition = $2, updated_at = now() WHERE contact_id = $1",
                 contact_id, disposition,
             )
-        await conn.execute(
-            "UPDATE contacts SET status = $2, updated_at = now() WHERE id = $1",
-            contact_id, _CLOSE_DISPOSITION_TO_CONTACT_STATUS[disposition],
-        )
-    return {"ok": True}
+            await conn.execute(
+                "UPDATE contacts SET status = $2, updated_at = now() WHERE id = $1",
+                contact_id, "not-interested" if checked else "dialer-lead",
+            )
+        return {"ok": True, "stage": stage, "checked": checked}
 
-
-_STAGE_COLUMNS = {"initial_outreach", "replied", "dm_reached", "primed", "engaged", "interested"}
-
-
-@router.post("/inbox/contact/{contact_id}/stage")
-async def set_contact_stage(contact_id: str, payload: dict):
-    """
-    Manual funnel checklist (Initial Outreach/Replied/DM Reached/Primed/
-    Engaged/Interested) for the contact's SMS conversation. Any click through
-    the UI is an explicit human override: it sets both the checkbox value and
-    its `_manual` lock, so automatic detection — reply-count based for
-    Replied/Primed/Engaged/Interested (sms.py::_recompute_stage_flags), first-
-    outbound-send based for Initial Outreach (sms.py::_store_message) —
-    stops touching that stage for this conversation from here on —
-    analytics reads the checkbox column directly, not the underlying
-    send/reply activity. DM Reached has no automatic detection at all — it's
-    always and only set by a human clicking this checkbox.
-    """
-    stage = (payload or {}).get("stage")
-    checked = bool((payload or {}).get("checked"))
     if stage not in _STAGE_COLUMNS:
-        return {"ok": False, "error": "stage must be one of initial_outreach/replied/dm_reached/primed/engaged/interested"}
+        return {"ok": False, "error": "stage must be one of initial_outreach/replied/dm_reached/primed/engaged/interested/not_interested"}
 
     pool = await get_pool()
     async with pool.acquire() as conn:

@@ -399,17 +399,6 @@ export default function InboxPanel({ initialTarget }) {
     setSeqOpen(false);
   };
 
-  const closeConvo = async (disposition, close = true) => {
-    if (!selected) return;
-    await fetch(API(`/inbox/contact/${encodeURIComponent(selected)}/close`), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ disposition, close }),
-    });
-    await refreshThread(selected);
-    await loadConvos();
-  };
-
   const setStage = async (stage, checked) => {
     if (!selected) return;
     await fetch(API(`/inbox/contact/${encodeURIComponent(selected)}/stage`), {
@@ -726,6 +715,7 @@ export default function InboxPanel({ initialTarget }) {
                             { key: "primed",      label: "Primed",     checked: !!thread?.stage_primed },
                             { key: "engaged",     label: "Engaged",    checked: !!thread?.stage_engaged },
                             { key: "interested",  label: "Interested", checked: !!thread?.stage_interested },
+                            { key: "not_interested", label: "Not Interested", checked: thread?.disposition === "not_interested" },
                           ].map(s => (
                             <label key={s.key} style={{
                               display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
@@ -745,10 +735,6 @@ export default function InboxPanel({ initialTarget }) {
                     <button onClick={() => setBookingOpen(true)} className="btn btn-ghost"
                       style={{ fontSize: 10, borderColor: "rgba(20,200,130,0.35)", color: "#14c882" }}>
                       BOOK APPOINTMENT
-                    </button>
-                    <button onClick={() => closeConvo("not_interested", false)} className="btn btn-ghost"
-                      style={{ fontSize: 10, borderColor: "rgba(220,60,60,0.35)", color: "#dc3c3c" }}>
-                      NOT INTERESTED
                     </button>
                   </>
                 )}
