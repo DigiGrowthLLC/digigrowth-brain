@@ -71,6 +71,42 @@ def _pct(num, denom) -> float:
     return round(num / denom * 100, 1)
 
 
+def _last_sheet_sync(stats: dict):
+    ts = stats.get("last_sheet_sync")
+    if not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(ts)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+async def _app_booked_count(conn, stats: dict, days: int) -> int:
+    """
+    Appointments booked through the app itself (routers/appointments.py's
+    POST /appointment-reminders — Inbox/CRM/Dialer bookings) that aren't yet
+    reflected in the manually-synced Sales Performance Tracker Sheet
+    (sales_stats.json's discovery_calls). Added on top of that sheet figure
+    everywhere "Booked" is a cross-channel total, so a booking made in the
+    app shows up immediately instead of waiting for (or risking a double
+    count against) the next manual sheet sync.
+
+    Only counts app bookings created *after* the sheet was last synced —
+    anything before that point may already be reflected in discovery_calls,
+    since the sheet is manually maintained and could include app-sourced
+    bookings a rep also logged there by hand. Canceled appointments never
+    count as a win.
+    """
+    cutoff = _last_sheet_sync(stats) or datetime.min.replace(tzinfo=timezone.utc)
+    if days:
+        cutoff = max(cutoff, _since(days))
+    return await conn.fetchval(
+        "SELECT COUNT(*) FROM appointment_reminders WHERE status != 'canceled' AND created_at >= $1",
+        cutoff,
+    ) or 0
+
+
 def _load_sales_stats() -> dict:
     try:
         return json.loads(_SALES_STATS_PATH.read_text())
@@ -526,6 +562,7 @@ async def pipeline(days: int = 0):
             GROUP BY state ORDER BY cnt DESC LIMIT 8
             """
         )
+        app_booked = await _app_booked_count(conn, sales, days)
 
     by_grade = [
         {"grade": r["grade"], "cnt": r["cnt"], "booked": r["booked"], "book_rate": _pct(r["booked"], r["cnt"])}
@@ -542,11 +579,13 @@ async def pipeline(days: int = 0):
     # (e.g. DM campaigns), so a bottom-up sum would under-count. discovery_calls
     # is the manually-logged, authoritative cross-channel total from the Sales
     # Performance Tracker — same source Sales Statistics' "Appointments Booked"
-    # already uses — so use that instead of sheet_appointments_booked + sms.booked.
+    # already uses — so use that as the base, plus app_booked (bookings made
+    # in the app itself, not yet reflected in that sheet — see
+    # _app_booked_count) instead of sheet_appointments_booked + sms.booked.
     dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["contacted"] + email["initial_sent"]
     answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]      + email["replied"]
     pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["engaged"]
-    booked   = _sheet_stat(sales, "discovery_calls",        days)
+    booked   = _sheet_stat(sales, "discovery_calls",        days) + app_booked
 
     return {
         "funnel": {
