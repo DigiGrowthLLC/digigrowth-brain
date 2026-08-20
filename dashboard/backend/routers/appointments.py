@@ -12,7 +12,9 @@ from fastapi import APIRouter, HTTPException, Query
 
 from db import get_pool
 from timezone_lookup import guess_timezone, US_TIMEZONES
+import integrations
 import reminder_engine
+from routers import sms as sms_router
 
 router = APIRouter()
 
@@ -219,6 +221,24 @@ async def update_appointment(appointment_id: int, payload: dict):
             await reminder_engine.send_reschedule_confirmation(dict(updated))
         except Exception as e:
             print(f"[appointments] reschedule confirmation failed for {appointment_id}: {e}")
+
+    # No Show: text and email the prospect letting them know they missed the
+    # call and can rebook. Fires every time a rep marks outcome_show =
+    # 'no_show' from the Appointments tab — independent sends, one failing
+    # shouldn't block the other. Editable from Business Resources → Outreach
+    # Templates → No Show, same pattern as the "Send Info" disposition.
+    if updates.get("outcome_show") == "no_show" and updated:
+        try:
+            await sms_router.send_no_show_message(dict(updated))
+        except Exception as e:
+            print(f"no-show SMS failed for appointment {appointment_id}: {e}")
+        if updated["prospect_email"]:
+            try:
+                result = await integrations.send_no_show_email(updated["prospect_email"], updated["prospect_name"])
+                if not result.startswith("Sent email"):
+                    print(f"no-show email to {updated['prospect_email']} did not send: {result}")
+            except Exception as e:
+                print(f"no-show email failed for appointment {appointment_id}: {e}")
 
     return {"ok": True, "id": appointment_id}
 

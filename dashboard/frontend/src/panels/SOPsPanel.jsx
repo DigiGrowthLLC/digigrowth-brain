@@ -322,6 +322,13 @@ const SUBSECTIONS = [
 const SEND_INFO_PSEUDO_ID = "__send_info__";
 const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email)", sendInfo: true };
 
+// Same pattern again, for the "No Show" disposition — backed by GET/PUT
+// /api/dialer/no-show-template, since marking an appointment's outcome "No
+// Show" in the Appointments tab reads from that store (see
+// dashboard/backend/routers/appointments.py's PATCH handler), not from `sops`.
+const NO_SHOW_PSEUDO_ID = "__no_show__";
+const NO_SHOW_ITEM = { id: NO_SHOW_PSEUDO_ID, title: "No Show (SMS + Email)", noShow: true };
+
 // Unlike SEND_INFO_ITEM/REMINDER_TEMPLATE_ITEM above, SMS Sequences are no
 // longer a single pinned pseudo-doc — there can be many, named and switchable
 // (see the `sequences` state / GET /api/sms-sequences below). Each fetched
@@ -536,6 +543,159 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
             style={fieldStyle}
           />
           <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the contact's first name.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── No Show template editor ─────────────────────────────────────────────────
+// Editable SMS + email templates sent when a rep marks an appointment's
+// outcome "No Show" in the Appointments tab (dashboard/backend/routers/
+// appointments.py's PATCH handler calls sms.py send_no_show_message() and
+// integrations.py send_no_show_email()). Same shape/store as
+// OutreachTemplatesEditor above, just its own dialer_settings keys via
+// GET/PUT /api/dialer/no-show-template.
+function NoShowTemplateEditor({ categories, onCategoryChange }) {
+  const [sms, setSms] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [category, setCategory] = useState("General");
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [saved, setSaved] = useState({ sms: "", emailSubject: "", emailBody: "", category: "General" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/dialer/no-show-template");
+      if (r.ok) {
+        const data = await r.json();
+        setSms(data.sms || "");
+        setEmailSubject(data.email_subject || "");
+        setEmailBody(data.email_body || "");
+        setCategory(data.category || "General");
+        setSaved({ sms: data.sms || "", emailSubject: data.email_subject || "", emailBody: data.email_body || "", category: data.category || "General" });
+        onCategoryChange?.(data.category || "General");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const dirty = sms !== saved.sms || emailSubject !== saved.emailSubject || emailBody !== saved.emailBody || category !== saved.category;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/no-show-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sms, email_subject: emailSubject, email_body: emailBody, category }),
+      });
+      if (r.ok) {
+        setSaved({ sms, emailSubject, emailBody, category });
+        onCategoryChange?.(category);
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = {
+    width: "100%", background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+    padding: "10px 12px", color: "#e8f0ff",
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    outline: "none", resize: "vertical", boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block", marginBottom: 6,
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+    color: "#3a5a80", letterSpacing: "0.12em",
+  };
+  const hintStyle = {
+    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 11, color: "#4a6a8a",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+          Sent automatically whenever an appointment's outcome is marked <strong style={{ color: "#a080f0" }}>No Show</strong> in the Appointments tab. Edits apply to the very next send.
+        </span>
+        <CategoryPicker
+          categories={categories}
+          category={category}
+          setCategory={setCategory}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={save}
+          disabled={saving || !dirty}
+          style={{
+            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <div>
+          <label style={labelStyle}>SMS MESSAGE</label>
+          <textarea
+            value={sms}
+            onChange={e => setSms(e.target.value)}
+            rows={4}
+            placeholder="Hey {first_name}, looks like we missed each other — grab a new time here..."
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the prospect's first name.</div>
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
+          <label style={labelStyle}>EMAIL SUBJECT</label>
+          <input
+            value={emailSubject}
+            onChange={e => setEmailSubject(e.target.value)}
+            placeholder="Missed you — let's find another time"
+            style={fieldStyle}
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>EMAIL BODY</label>
+          <textarea
+            value={emailBody}
+            onChange={e => setEmailBody(e.target.value)}
+            rows={10}
+            placeholder={"{first_name},\n\nLooks like we missed each other for our call..."}
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the prospect's first name.</div>
         </div>
       </div>
     </div>
@@ -1281,6 +1441,7 @@ export default function SOPsPanel() {
   const [activeSection, setActiveSection] = useState("sop");
   const [sops, setSops] = useState([]);
   const [sendInfoCategory, setSendInfoCategory] = useState("General");
+  const [noShowCategory, setNoShowCategory] = useState("General");
   const [remCategory, setRemCategory] = useState("General");
   const [sequences, setSequences] = useState([]);
   const [selectedSequenceId, setSelectedSequenceId] = useState(null);
@@ -1355,11 +1516,13 @@ export default function SOPsPanel() {
     fetchSequences();
     fetchCallScripts();
     (async () => {
-      const [infoR, remR] = await Promise.all([
+      const [infoR, noShowR, remR] = await Promise.all([
         fetch("/api/dialer/info-template"),
+        fetch("/api/dialer/no-show-template"),
         fetch("/api/dialer/reminder-template"),
       ]);
       if (infoR.ok) setSendInfoCategory((await infoR.json()).category || "General");
+      if (noShowR.ok) setNoShowCategory((await noShowR.json()).category || "General");
       if (remR.ok) setRemCategory((await remR.json()).category || "General");
     })();
   }, [activeSection, fetchSequences, fetchCallScripts]);
@@ -1389,7 +1552,7 @@ export default function SOPsPanel() {
     ...sops.map(s => s.category || "General"),
     ...(activeSection === "outreach_templates"
       ? [
-          sendInfoCategory, remCategory,
+          sendInfoCategory, noShowCategory, remCategory,
           ...sequences.map(s => s.category || "General"),
           ...callScripts.map(s => s.category || "General"),
         ]
@@ -1418,7 +1581,7 @@ export default function SOPsPanel() {
     setCustomCatMode(false);
     setSelectedSequenceId(sop.smsSequence ? sop.sequenceId : null);
     setSelectedScriptId(sop.callScript ? sop.scriptId : null);
-    if (sop.sendInfo || sop.smsSequence || sop.reminderTemplate || sop.callScript) return;
+    if (sop.sendInfo || sop.noShow || sop.smsSequence || sop.reminderTemplate || sop.callScript) return;
     setTitle(sop.title);
     setCategory(sop.category || "General");
     setVisibility(sop.visibility || "private");
@@ -1528,6 +1691,7 @@ export default function SOPsPanel() {
   // be many, unlike Send Info/Reminders which are always exactly one).
   const pseudoItems = activeSection === "outreach_templates" ? [
     { ...SEND_INFO_ITEM,        category: sendInfoCategory, icon: "☎" },
+    { ...NO_SHOW_ITEM,          category: noShowCategory,   icon: "🚫" },
     ...sequences.map(seq => ({
       id: `seq-${seq.id}`,
       title: seq.name,
@@ -1575,10 +1739,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -1595,7 +1759,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -1749,6 +1913,8 @@ export default function SOPsPanel() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {selectedItem?.sendInfo ? (
             <OutreachTemplatesEditor categories={categories} onCategoryChange={setSendInfoCategory} />
+          ) : selectedItem?.noShow ? (
+            <NoShowTemplateEditor categories={categories} onCategoryChange={setNoShowCategory} />
           ) : selectedItem?.smsSequence ? (
             <SmsSequenceEditor
               sequence={sequences.find(s => s.id === selectedSequenceId)}
