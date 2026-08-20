@@ -2,6 +2,12 @@
 when dispositioning a call "Appointment Booked") + status list for the
 Upcoming Appointments panel. Actual reminder sends are handled by
 reminder_engine.send_due_reminders(), scheduled from main.py.
+
+The PATCH handler below also drives the No Show outreach sequence: marking
+an appointment's outcome_show = 'no_show' stamps outcome_show_at and resets
+its touch/stop columns, which is all no_show_sequence.send_due_touches()
+(also scheduled from main.py) needs to start firing that appointment's
+4-touch SMS/email drip.
 """
 
 from datetime import datetime
@@ -12,9 +18,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from db import get_pool
 from timezone_lookup import guess_timezone, US_TIMEZONES
-import integrations
 import reminder_engine
-from routers import sms as sms_router
 
 router = APIRouter()
 
@@ -207,6 +211,21 @@ async def update_appointment(appointment_id: int, payload: dict):
             "reminder_24h_sent_at = NULL", "reminder_6h_sent_at = NULL", "reminder_1h_sent_at = NULL",
             "status = 'scheduled'",
         ]
+    # No Show sequence bookkeeping: entering 'no_show' stamps outcome_show_at
+    # (the clock no_show_sequence.py's 4-touch drip counts its 20min/4h/24h/
+    # 72h delays from) and resets every touch/stop column so re-marking a
+    # previously-cleared no-show restarts the sequence from touch 1. Leaving
+    # 'no_show' (cleared, or flipped to 'show') clears outcome_show_at, which
+    # is what the poller's WHERE clause actually keys off to stop sending.
+    if updates.get("outcome_show") == "no_show":
+        set_clauses += [
+            "outcome_show_at = now()",
+            "no_show_touch1_sent_at = NULL", "no_show_touch2_sent_at = NULL",
+            "no_show_touch3_sent_at = NULL", "no_show_touch4_sent_at = NULL",
+            "no_show_sequence_stopped_at = NULL",
+        ]
+    elif "outcome_show" in updates:
+        set_clauses += ["outcome_show_at = NULL"]
     params.append(appointment_id)
 
     pool = await get_pool()
@@ -221,24 +240,6 @@ async def update_appointment(appointment_id: int, payload: dict):
             await reminder_engine.send_reschedule_confirmation(dict(updated))
         except Exception as e:
             print(f"[appointments] reschedule confirmation failed for {appointment_id}: {e}")
-
-    # No Show: text and email the prospect letting them know they missed the
-    # call and can rebook. Fires every time a rep marks outcome_show =
-    # 'no_show' from the Appointments tab — independent sends, one failing
-    # shouldn't block the other. Editable from Business Resources → Outreach
-    # Templates → No Show, same pattern as the "Send Info" disposition.
-    if updates.get("outcome_show") == "no_show" and updated:
-        try:
-            await sms_router.send_no_show_message(dict(updated))
-        except Exception as e:
-            print(f"no-show SMS failed for appointment {appointment_id}: {e}")
-        if updated["prospect_email"]:
-            try:
-                result = await integrations.send_no_show_email(updated["prospect_email"], updated["prospect_name"])
-                if not result.startswith("Sent email"):
-                    print(f"no-show email to {updated['prospect_email']} did not send: {result}")
-            except Exception as e:
-                print(f"no-show email failed for appointment {appointment_id}: {e}")
 
     return {"ok": True, "id": appointment_id}
 

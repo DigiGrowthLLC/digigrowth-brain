@@ -489,40 +489,6 @@ async def send_info_email(to: str, owner: str | None, business: str | None) -> s
     return await asyncio.to_thread(gmail_send, to, subject, body, True)
 
 
-NO_SHOW_EMAIL_SUBJECT = "Missed you — let's find another time"
-
-NO_SHOW_EMAIL_BODY = """{first_name},
-
-Looks like we missed each other for our call — no worries, it happens.
-
-Grab a new time whenever works for you: https://digigrowthllc.com
-
-Dylan
-DigiGrowth
-"""
-
-
-async def send_no_show_email(to: str, prospect_name: str | None) -> str:
-    """Send the "No Show" disposition's follow-up email — lets the prospect
-    know they missed the call and can rebook. Subject/body are editable from
-    Business Resources → Outreach Templates (stored in dialer_settings);
-    falls back to the defaults below if never saved.
-    """
-    first_name = first_name_from_owner(prospect_name)
-
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT key, value FROM dialer_settings WHERE key IN ('no_show_email_subject', 'no_show_email_body')"
-        )
-    values = {r["key"]: r["value"] for r in rows if r["value"]}
-    subject = values.get("no_show_email_subject", NO_SHOW_EMAIL_SUBJECT)
-    body_template = values.get("no_show_email_body", NO_SHOW_EMAIL_BODY)
-
-    body = body_template.replace("{first_name}", first_name)
-    return await asyncio.to_thread(gmail_send, to, subject, body, True)
-
-
 def gmail_send_reply(to: str, subject: str, body: str, thread_id: str) -> dict:
     """Send a reply that threads correctly in Gmail (keyed by `thread_id`).
     Always an outreach send (this is the Inbox reply box's only call path) —

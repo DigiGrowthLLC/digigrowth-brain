@@ -59,11 +59,6 @@ INFO_MESSAGE = (
     "I'll follow up in a couple days."
 )
 
-NO_SHOW_MESSAGE = (
-    "Hey {first_name}, looks like we missed each other for our call — no worries! "
-    "Grab a new time whenever works: https://digigrowthllc.com"
-)
-
 
 def _twilio():
     return TwilioClient(
@@ -260,6 +255,12 @@ async def twilio_inbound(request: Request):
         if conv["status"] != "closed":
             await _store_message(conn, from_phone, "user", body)
 
+    # Deferred import — no_show_sequence imports this module (for _send_twilio/
+    # _get_or_create_conversation/_store_message), so importing it at module
+    # level here would be circular.
+    import no_show_sequence
+    await no_show_sequence.stop_sequence_for_reply(phone=from_phone)
+
     return Response(content="", media_type="text/plain")
 
 
@@ -327,37 +328,6 @@ async def send_info_message(contact: dict) -> bool:
             print(f"Twilio send error (info message) for {phone}: {e}")
             return False
         await _store_message(conn, phone, "assistant", body)
-
-    return True
-
-
-async def send_no_show_message(appointment: dict) -> bool:
-    """
-    Send the "No Show" text — lets the prospect know they missed the call and
-    can rebook. Fires from appointments.py's PATCH handler when a rep marks
-    an appointment's outcome_show = 'no_show'. Returns True if sent.
-    """
-    phone = (appointment.get("prospect_phone") or "").strip()
-    if not phone:
-        return False
-
-    first_name = first_name_from_owner(appointment.get("prospect_name"))
-
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        template_row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = 'no_show_sms'")
-        template = template_row["value"] if template_row and template_row["value"] else NO_SHOW_MESSAGE
-        body = template.replace("{first_name}", first_name)
-
-        conv = await _get_or_create_conversation(conn, phone)
-        if conv["status"] == "closed":
-            return False
-        try:
-            _send_twilio(phone, body)
-        except Exception as e:
-            print(f"Twilio send error (no-show message) for {phone}: {e}")
-            return False
-        await _store_message(conn, phone, "assistant", body, stage="no_show")
 
     return True
 

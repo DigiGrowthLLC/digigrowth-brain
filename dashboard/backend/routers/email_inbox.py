@@ -30,6 +30,7 @@ from typing import Optional
 from fastapi import APIRouter
 
 import integrations
+import no_show_sequence
 from db import get_pool
 from routers.campaigns import resolve_send_campaign
 
@@ -181,6 +182,7 @@ async def _sync_gmail_once() -> dict:
                    ON CONFLICT (gmail_message_id) DO NOTHING""",
                 contact_id, thread_id, counterparty, direction, subject, body, mid, internal_ts,
             )
+            await no_show_sequence.stop_sequence_for_reply(email=counterparty)
 
         if newest_ts > last_ts:
             await conn.execute(

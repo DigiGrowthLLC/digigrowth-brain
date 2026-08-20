@@ -549,159 +549,6 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
   );
 }
 
-// ── No Show template editor ─────────────────────────────────────────────────
-// Editable SMS + email templates sent when a rep marks an appointment's
-// outcome "No Show" in the Appointments tab (dashboard/backend/routers/
-// appointments.py's PATCH handler calls sms.py send_no_show_message() and
-// integrations.py send_no_show_email()). Same shape/store as
-// OutreachTemplatesEditor above, just its own dialer_settings keys via
-// GET/PUT /api/dialer/no-show-template.
-function NoShowTemplateEditor({ categories, onCategoryChange }) {
-  const [sms, setSms] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
-  const [category, setCategory] = useState("General");
-  const [customCatMode, setCustomCatMode] = useState(false);
-  const [saved, setSaved] = useState({ sms: "", emailSubject: "", emailBody: "", category: "General" });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savedFlash, setSavedFlash] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      const r = await fetch("/api/dialer/no-show-template");
-      if (r.ok) {
-        const data = await r.json();
-        setSms(data.sms || "");
-        setEmailSubject(data.email_subject || "");
-        setEmailBody(data.email_body || "");
-        setCategory(data.category || "General");
-        setSaved({ sms: data.sms || "", emailSubject: data.email_subject || "", emailBody: data.email_body || "", category: data.category || "General" });
-        onCategoryChange?.(data.category || "General");
-      }
-      setLoading(false);
-    })();
-  }, []);
-
-  const dirty = sms !== saved.sms || emailSubject !== saved.emailSubject || emailBody !== saved.emailBody || category !== saved.category;
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const r = await fetch("/api/dialer/no-show-template", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sms, email_subject: emailSubject, email_body: emailBody, category }),
-      });
-      if (r.ok) {
-        setSaved({ sms, emailSubject, emailBody, category });
-        onCategoryChange?.(category);
-        setSavedFlash(true);
-        setTimeout(() => setSavedFlash(false), 2500);
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const fieldStyle = {
-    width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
-    outline: "none", resize: "vertical", boxSizing: "border-box",
-  };
-  const labelStyle = {
-    display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
-  };
-  const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a",
-  };
-
-  if (loading) {
-    return (
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{
-        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
-        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
-      }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Sent automatically whenever an appointment's outcome is marked <strong style={{ color: "#a080f0" }}>No Show</strong> in the Appointments tab. Edits apply to the very next send.
-        </span>
-        <CategoryPicker
-          categories={categories}
-          category={category}
-          setCategory={setCategory}
-          customCatMode={customCatMode}
-          setCustomCatMode={setCustomCatMode}
-        />
-        {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
-        )}
-        <button
-          onClick={save}
-          disabled={saving || !dirty}
-          style={{
-            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
-            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
-            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-            fontSize: 12, padding: "6px 16px", flexShrink: 0,
-            cursor: saving || !dirty ? "not-allowed" : "pointer",
-            opacity: saving ? 0.6 : 1,
-          }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
-        <div>
-          <label style={labelStyle}>SMS MESSAGE</label>
-          <textarea
-            value={sms}
-            onChange={e => setSms(e.target.value)}
-            rows={4}
-            placeholder="Hey {first_name}, looks like we missed each other — grab a new time here..."
-            style={fieldStyle}
-          />
-          <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the prospect's first name.</div>
-        </div>
-
-        <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
-          <label style={labelStyle}>EMAIL SUBJECT</label>
-          <input
-            value={emailSubject}
-            onChange={e => setEmailSubject(e.target.value)}
-            placeholder="Missed you — let's find another time"
-            style={fieldStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>EMAIL BODY</label>
-          <textarea
-            value={emailBody}
-            onChange={e => setEmailBody(e.target.value)}
-            rows={10}
-            placeholder={"{first_name},\n\nLooks like we missed each other for our call..."}
-            style={fieldStyle}
-          />
-          <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the prospect's first name.</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── SMS Sequence editor ─────────────────────────────────────────────────────
 // Fixed-step outreach script shown as the Inbox's "SEQUENCE" dropdown
 // (InboxPanel.jsx). Step keys/labels/order must match routers/sms.py
@@ -1437,6 +1284,189 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
   );
 }
 
+// ── No Show sequence editor ─────────────────────────────────────────────────
+// Editable SMS + email templates for the 4-touch No Show drip
+// (dashboard/backend/no_show_sequence.py), fired automatically after a rep
+// marks an appointment's outcome "No Show" in the Appointments tab — touch 1
+// ~20 minutes later, touch 2 same-day a few hours later, touch 3 the next
+// day, touch 4 (the "breakup") on day 3. Backed by GET/PUT
+// /api/dialer/no-show-template — no_show_sequence.py reads these same keys
+// fresh from dialer_settings at send time. The sequence stops permanently
+// the moment the prospect replies on either channel (see stop_sequence_for_reply()
+// in no_show_sequence.py). Touch 2 is SMS-only by design — leave its email
+// fields blank to skip that channel for that touch, same as it ships by default.
+const NO_SHOW_FIELDS = [
+  { heading: "Touch 1 — Missed You", hint: "~20 minutes after marked No Show. SMS + email.", instance: "touch1" },
+  { heading: "Touch 2 — Same-Day Follow-Up", hint: "A few hours later, same day. SMS only — leave email fields blank to keep it that way.", instance: "touch2" },
+  { heading: "Touch 3 — Social Proof", hint: "Next day. SMS + email.", instance: "touch3" },
+  { heading: "Touch 4 — Final / Breakup", hint: "Day 3. Closes the loop unless the prospect replies. SMS + email.", instance: "touch4" },
+];
+
+function NoShowSequenceEditor({ categories, onCategoryChange }) {
+  const [values, setValues] = useState({ category: "General" });
+  const [saved, setSaved] = useState({ category: "General" });
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/dialer/no-show-template");
+      if (r.ok) {
+        const data = await r.json();
+        setValues(data);
+        setSaved(data);
+        onCategoryChange?.(data.category || "General");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const allKeys = [
+    ...NO_SHOW_FIELDS.flatMap(f => [
+      `no_show_${f.instance}_sms`,
+      `no_show_${f.instance}_email_subject`,
+      `no_show_${f.instance}_email_body`,
+    ]),
+    "category",
+  ];
+  const dirty = allKeys.some(k => (values[k] || "") !== (saved[k] || ""));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/no-show-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (r.ok) {
+        setSaved(values);
+        onCategoryChange?.(values.category || "General");
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = {
+    width: "100%", background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+    padding: "10px 12px", color: "#e8f0ff",
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    outline: "none", resize: "vertical", boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block", marginBottom: 6,
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+    color: "#3a5a80", letterSpacing: "0.12em",
+  };
+  const headingStyle = {
+    display: "block", marginBottom: 8,
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
+    color: "#e8f0ff", letterSpacing: "0.01em",
+  };
+  const hintStyle = {
+    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 11, color: "#4a6a8a",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+          Fires automatically after an appointment is marked <strong style={{ color: "#a080f0" }}>No Show</strong> in the Appointments tab — 4 touches, stops the moment the prospect replies. Edits apply to the very next send.
+        </span>
+        <CategoryPicker
+          categories={categories}
+          category={values.category || "General"}
+          setCategory={c => setValues(v => ({ ...v, category: c }))}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={save}
+          disabled={saving || !dirty}
+          style={{
+            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {NO_SHOW_FIELDS.map((f, i) => {
+          const smsKey = `no_show_${f.instance}_sms`;
+          const subjectKey = `no_show_${f.instance}_email_subject`;
+          const bodyKey = `no_show_${f.instance}_email_body`;
+          return (
+          <div key={f.instance} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
+            <label style={headingStyle}>{f.heading}</label>
+            {f.hint && <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
+
+            <label style={labelStyle}>SMS MESSAGE</label>
+            <textarea
+              value={values[smsKey] || ""}
+              onChange={e => setValues(v => ({ ...v, [smsKey]: e.target.value }))}
+              rows={3}
+              placeholder="Hey {first_name}, ..."
+              style={fieldStyle}
+            />
+
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>EMAIL SUBJECT {f.instance === "touch2" && "(leave blank to skip email)"}</label>
+              <input
+                value={values[subjectKey] || ""}
+                onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
+                style={fieldStyle}
+              />
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>EMAIL BODY {f.instance === "touch2" && "(leave blank to skip email)"}</label>
+              <textarea
+                value={values[bodyKey] || ""}
+                onChange={e => setValues(v => ({ ...v, [bodyKey]: e.target.value }))}
+                rows={4}
+                placeholder="Hey {first_name}, ..."
+                style={fieldStyle}
+              />
+            </div>
+
+            <div style={hintStyle}>
+              Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the prospect's first name and{" "}
+              <code style={{ color: "#6ab0ff" }}>{"{link}"}</code> for the booking link.
+            </div>
+          </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main panel ───────────────────────────────────────────────────────────────
 export default function SOPsPanel() {
   const [activeSection, setActiveSection] = useState("sop");
@@ -1915,7 +1945,7 @@ export default function SOPsPanel() {
           {selectedItem?.sendInfo ? (
             <OutreachTemplatesEditor categories={categories} onCategoryChange={setSendInfoCategory} />
           ) : selectedItem?.noShow ? (
-            <NoShowTemplateEditor categories={categories} onCategoryChange={setNoShowCategory} />
+            <NoShowSequenceEditor categories={categories} onCategoryChange={setNoShowCategory} />
           ) : selectedItem?.smsSequence ? (
             <SmsSequenceEditor
               sequence={sequences.find(s => s.id === selectedSequenceId)}

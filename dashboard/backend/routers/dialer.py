@@ -37,6 +37,7 @@ from fastapi import APIRouter, HTTPException
 
 import dialer_engine as engine
 import integrations
+import no_show_sequence
 import reminder_engine
 from db import get_pool
 from models import DISPOSITION_TO_STATUS
@@ -173,46 +174,51 @@ async def save_info_template(body: dict):
     return {"ok": True}
 
 
-# ── "No Show" disposition templates (edited from Business Resources ──────────
-# → Outreach Templates). Same key/value store as the two editors above;
-# sms.send_no_show_message() and integrations.send_no_show_email() read these
-# keys at send time, falling back to their hardcoded defaults if a key has
-# never been saved. Fired from appointments.py's PATCH handler when a rep
-# marks an appointment's outcome as "No Show" in the Appointments tab.
+# ── "No Show" 4-touch sequence templates (Business Resources → Outreach ─────
+# Templates). Same key/value store as the editors above; no_show_sequence.py's
+# send_due_touches() reads these same keys fresh at send time via
+# no_show_sequence._get_templates(). Fired automatically after a rep marks an
+# appointment's outcome "No Show" in the Appointments tab — see
+# routers/appointments.py's PATCH handler.
 
 @router.get("/dialer/no-show-template")
 async def get_no_show_template():
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT key, value FROM dialer_settings WHERE key IN "
-            "('no_show_sms', 'no_show_email_subject', 'no_show_email_body', 'no_show_category')"
+            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
+            list(no_show_sequence.TEMPLATE_DEFAULTS.keys()) + ["no_show_category"],
         )
-    values = {r["key"]: r["value"] for r in rows}
-    return {
-        "sms":           values.get("no_show_sms", sms_router.NO_SHOW_MESSAGE),
-        "email_subject": values.get("no_show_email_subject", integrations.NO_SHOW_EMAIL_SUBJECT),
-        "email_body":    values.get("no_show_email_body", integrations.NO_SHOW_EMAIL_BODY),
-        "category":      values.get("no_show_category") or "General",
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    result = {
+        key: values.get(key, default)
+        for key, default in no_show_sequence.TEMPLATE_DEFAULTS.items()
     }
+    result["category"] = values.get("no_show_category") or "General"
+    return result
 
 
 @router.put("/dialer/no-show-template")
 async def save_no_show_template(body: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        for key, value in (
-            ("no_show_sms", body.get("sms", "")),
-            ("no_show_email_subject", body.get("email_subject", "")),
-            ("no_show_email_body", body.get("email_body", "")),
-            ("no_show_category", body.get("category", "General")),
-        ):
+        for key in no_show_sequence.TEMPLATE_DEFAULTS:
+            if key not in body:
+                continue
             await conn.execute(
                 """
                 INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
                 ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
                 """,
-                key, value,
+                key, body[key],
+            )
+        if "category" in body:
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ('no_show_category', $1, now())
+                ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
+                """,
+                body["category"],
             )
     return {"ok": True}
 

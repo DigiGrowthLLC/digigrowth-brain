@@ -329,6 +329,12 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pending_email_campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS outcome_show TEXT;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS outcome_close TEXT;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS outcome_show_at TIMESTAMPTZ;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS no_show_touch1_sent_at TIMESTAMPTZ;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS no_show_touch2_sent_at TIMESTAMPTZ;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS no_show_touch3_sent_at TIMESTAMPTZ;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS no_show_touch4_sent_at TIMESTAMPTZ;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS no_show_sequence_stopped_at TIMESTAMPTZ;
         """)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;
