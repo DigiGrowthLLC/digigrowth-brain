@@ -2,14 +2,15 @@
 
 Sends SMS (via routers/sms.py's Twilio helper) + email (via integrations.gmail_send)
 at 24h/6h/1h before each scheduled appointment, in the prospect's own timezone,
-plus an immediate thank-you confirmation right when the booking is captured
-(send_booking_confirmation(), called synchronously from routers/appointments.py's
-create endpoint) and a reschedule notice (send_reschedule_confirmation(), called
-from routers/appointments.py's edit endpoint).
+plus a reschedule notice (send_reschedule_confirmation(), called from
+routers/appointments.py's edit endpoint). The immediate booking-confirmation send
+(send_booking_confirmation()) is defined below but no longer called — appointments.py's
+create endpoint stopped invoking it so booking a call no longer fires an instant
+SMS/email, only the 24h/6h/1h reminders.
 
-Each of the 5 message instances (confirmation, 24h, 6h, 1h, reschedule) has its
-own SMS text, email subject, and email body — independently editable from
-Business Resources → Outreach Templates (stored in dialer_settings, same store as
+Each message instance (confirmation, 24h, 6h, 1h, reschedule) has its own SMS
+text, email subject, and email body — independently editable from Business
+Resources → Outreach Templates (stored in dialer_settings, same store as
 the "Send Info" templates — see routers/dialer.py's GET/PUT /dialer/reminder-template).
 SMS Sequence templates moved to their own sms_sequences table, see
 routers/sms_sequences.py. Falls back to the DEFAULT_* constants below if a key

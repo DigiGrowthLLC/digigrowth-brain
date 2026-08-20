@@ -68,15 +68,6 @@ async def create_appointment(payload: dict):
             tz_name,
         )
 
-    # Immediate thank-you + confirmation — separate from the 24h/6h/1h reminder
-    # schedule, sent right away so the prospect gets confirmation the same
-    # moment the rep books it. Swallow errors so a Twilio/Gmail hiccup never
-    # blocks the booking itself from saving.
-    try:
-        await reminder_engine.send_booking_confirmation(dict(row))
-    except Exception as e:
-        print(f"[appointments] booking confirmation failed for appointment {row['id']}: {e}")
-
     # Mark the win: flip contacts.status to 'appointment-booked' and, if the
     # booking was made from a specific channel's thread (the Inbox passes
     # `channel: "sms"|"email"` — see InboxPanel.jsx's replyChannel), close
