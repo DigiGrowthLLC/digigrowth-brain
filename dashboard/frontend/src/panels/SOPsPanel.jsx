@@ -1296,10 +1296,10 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
 // in no_show_sequence.py). Touch 2 is SMS-only by design — leave its email
 // fields blank to skip that channel for that touch, same as it ships by default.
 const NO_SHOW_FIELDS = [
-  { heading: "Touch 1 — Missed You", hint: "~20 minutes after marked No Show. SMS + email.", instance: "touch1" },
-  { heading: "Touch 2 — Same-Day Follow-Up", hint: "A few hours later, same day. SMS only — leave email fields blank to keep it that way.", instance: "touch2" },
-  { heading: "Touch 3 — Social Proof", hint: "Next day. SMS + email.", instance: "touch3" },
-  { heading: "Touch 4 — Final / Breakup", hint: "Day 3. Closes the loop unless the prospect replies. SMS + email.", instance: "touch4" },
+  { heading: "Touch 1 — Missed You", hint: "Sent immediately when marked No Show. SMS + email.", instance: "touch1" },
+  { heading: "Touch 2 — Same-Day Follow-Up", hint: "3 hours after. SMS only — leave email fields blank to keep it that way.", instance: "touch2" },
+  { heading: "Touch 3 — Social Proof", hint: "24 hours after. SMS + email.", instance: "touch3" },
+  { heading: "Touch 4 — Final / Breakup", hint: "72 hours after. Closes the loop unless the prospect replies. SMS + email.", instance: "touch4" },
 ];
 
 function NoShowSequenceEditor({ categories, onCategoryChange }) {

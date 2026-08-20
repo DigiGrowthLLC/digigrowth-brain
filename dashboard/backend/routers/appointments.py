@@ -4,10 +4,10 @@ Upcoming Appointments panel. Actual reminder sends are handled by
 reminder_engine.send_due_reminders(), scheduled from main.py.
 
 The PATCH handler below also drives the No Show outreach sequence: marking
-an appointment's outcome_show = 'no_show' stamps outcome_show_at and resets
-its touch/stop columns, which is all no_show_sequence.send_due_touches()
-(also scheduled from main.py) needs to start firing that appointment's
-4-touch SMS/email drip.
+an appointment's outcome_show = 'no_show' stamps outcome_show_at, resets its
+touch/stop columns, and sends Touch 1 immediately — no_show_sequence.
+send_due_touches() (also scheduled from main.py) picks up Touches 2-4 on
+their normal schedule from there.
 """
 
 from datetime import datetime
@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from db import get_pool
 from timezone_lookup import guess_timezone, US_TIMEZONES
+import no_show_sequence
 import reminder_engine
 
 router = APIRouter()
@@ -240,6 +241,12 @@ async def update_appointment(appointment_id: int, payload: dict):
             await reminder_engine.send_reschedule_confirmation(dict(updated))
         except Exception as e:
             print(f"[appointments] reschedule confirmation failed for {appointment_id}: {e}")
+
+    if updates.get("outcome_show") == "no_show":
+        try:
+            await no_show_sequence.send_first_touch(dict(updated))
+        except Exception as e:
+            print(f"[appointments] no-show touch 1 failed for {appointment_id}: {e}")
 
     return {"ok": True, "id": appointment_id}
 

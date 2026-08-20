@@ -7,8 +7,14 @@ resets every touch/stop column below whenever outcome_show transitions to
 'no_show').
 
 Touch schedule (all offsets measured from outcome_show_at):
-  Touch 1 —  20 min: SMS + email, blame-neutral "must've missed each other".
-  Touch 2 —   4h:    SMS only (no email — one channel per touch keeps this
+  Touch 1 —   0h:    SMS + email, blame-neutral "must've missed each other".
+                      Sent synchronously from appointments.py's PATCH handler
+                      the moment a rep clicks No Show (send_first_touch()) —
+                      not left to wait for the next poll — but still counted
+                      in _TOUCHES below as a zero-delay entry so the poller
+                      picks it up as a fallback if that synchronous send
+                      never ran (e.g. a mid-request crash).
+  Touch 2 —   3h:    SMS only (no email — one channel per touch keeps this
                       from feeling like a barrage; email fields are blank by
                       default and any touch's email send is skipped if either
                       its subject or body template is blank).
@@ -38,8 +44,8 @@ from merge_fields import first_name_from_owner
 
 # (touch number, sent-at column, delay after outcome_show_at)
 _TOUCHES = [
-    (1, "no_show_touch1_sent_at", timedelta(minutes=20)),
-    (2, "no_show_touch2_sent_at", timedelta(hours=4)),
+    (1, "no_show_touch1_sent_at", timedelta(hours=0)),
+    (2, "no_show_touch2_sent_at", timedelta(hours=3)),
     (3, "no_show_touch3_sent_at", timedelta(hours=24)),
     (4, "no_show_touch4_sent_at", timedelta(hours=72)),
 ]
@@ -185,6 +191,20 @@ async def send_due_touches():
                         f"UPDATE appointment_reminders SET {sent_col} = now() WHERE id = $1", row["id"],
                     )
             break
+
+
+async def send_first_touch(row: dict):
+    """Send Touch 1 immediately — called synchronously from appointments.py's
+    PATCH handler right when a rep marks an appointment No Show, rather than
+    waiting for the next 5-minute poll. Touches 2-4 still go through
+    send_due_touches() on their normal schedule."""
+    templates = await _get_templates()
+    await _send_touch(row, "touch1", templates, "no_show_touch1")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE appointment_reminders SET no_show_touch1_sent_at = now() WHERE id = $1", row["id"],
+        )
 
 
 async def stop_sequence_for_reply(phone: str | None = None, email: str | None = None):
