@@ -9,9 +9,14 @@ Endpoints (all under /api except the public webhook):
   POST /api/sms/conversations/{phone}/close — close thread ({"disposition": "booked"|"not_interested"})
 
 Replied/Primed/Engaged/Interested checkboxes live on sms_conversations
-(stage_replied/stage_primed/stage_engaged/stage_interested) and are auto-set
-from inbound reply counts by _recompute_stage_flags() below; manual overrides
-come through POST /inbox/contact/{contact_id}/stage in email_inbox.py.
+(stage_replied/stage_primed/stage_engaged/stage_interested). Only
+stage_replied is still auto-set (the moment any inbound reply lands, by
+_recompute_stage_flags() below) — Primed/Engaged/Interested used to auto-set
+from inbound reply counts too, but that guessed intent from raw reply volume
+alone (e.g. three "wrong number" replies would read as "Engaged"), so those
+three are now fully manual, same as DM Reached always has been. All stage
+overrides (including Replied, if a rep wants to correct it) come through
+POST /inbox/contact/{contact_id}/stage in email_inbox.py.
 
 No AI auto-reply: once a contact enters "sms-handoff" status, send_opening_message()
 sends a single opener. All further replies land in the inbox for manual response only.
@@ -204,46 +209,31 @@ async def _store_message(conn, phone: str, role: str, body: str, stage: str | No
 
 async def _recompute_stage_flags(conn, phone: str):
     """
-    Auto-set the Replied/Primed/Engaged/Interested checkboxes from the
-    prospect's inbound reply count (1+/2+/3+/4+ — each reply after the
-    opener steps the contact to the next stage), but only for stages a
-    human hasn't manually overridden (stage_<x>_manual) — the checkbox
+    Auto-set the Replied checkbox the moment any inbound reply lands, unless
+    a human has manually overridden it (stage_replied_manual) — the checkbox
     value, not the raw count, is what analytics reads.
+
+    Primed/Engaged/Interested used to auto-set here too, stepped up from
+    raw inbound reply count (1+/2+/3+/4+) — but reply *volume* alone is a
+    poor proxy for actual intent (e.g. three "wrong number" replies would
+    read as "Engaged"), so those are now exclusively manual, set only via
+    POST /inbox/contact/{contact_id}/stage. Same as DM Reached always was.
     """
     inbound_count = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_messages WHERE {_phone_match('phone', '$1')} AND direction='inbound'",
         phone,
     )
     row = await conn.fetchrow(
-        f"""
-        SELECT stage_replied_manual, stage_primed_manual, stage_engaged_manual, stage_interested_manual
-        FROM sms_conversations WHERE {_phone_match('phone', '$1')}
-        """,
+        f"SELECT stage_replied_manual FROM sms_conversations WHERE {_phone_match('phone', '$1')}",
         phone,
     )
-    if not row:
-        return
-
-    sets, params = [], []
-    if not row["stage_replied_manual"]:
-        params.append(inbound_count >= 1)
-        sets.append(f"stage_replied = ${len(params) + 1}")
-    if not row["stage_primed_manual"]:
-        params.append(inbound_count >= 2)
-        sets.append(f"stage_primed = ${len(params) + 1}")
-    if not row["stage_engaged_manual"]:
-        params.append(inbound_count >= 3)
-        sets.append(f"stage_engaged = ${len(params) + 1}")
-    if not row["stage_interested_manual"]:
-        params.append(inbound_count >= 4)
-        sets.append(f"stage_interested = ${len(params) + 1}")
-    if not sets:
+    if not row or row["stage_replied_manual"]:
         return
 
     await conn.execute(
-        f"UPDATE sms_conversations SET {', '.join(sets)} WHERE {_phone_match('phone', '$1')}",
+        f"UPDATE sms_conversations SET stage_replied = $2 WHERE {_phone_match('phone', '$1')}",
         phone,
-        *params,
+        inbound_count >= 1,
     )
 
 
