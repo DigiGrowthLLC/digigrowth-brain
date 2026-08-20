@@ -3,14 +3,12 @@
 Sends SMS (via routers/sms.py's Twilio helper) + email (via integrations.gmail_send)
 at 24h/6h/1h before each scheduled appointment, in the prospect's own timezone,
 plus a reschedule notice (send_reschedule_confirmation(), called from
-routers/appointments.py's edit endpoint). The immediate booking-confirmation send
-(send_booking_confirmation()) is defined below but no longer called — appointments.py's
-create endpoint stopped invoking it so booking a call no longer fires an instant
-SMS/email, only the 24h/6h/1h reminders.
+routers/appointments.py's edit endpoint). There is no immediate booking-confirmation
+send — booking a call only schedules the 24h/6h/1h reminders.
 
-Each message instance (confirmation, 24h, 6h, 1h, reschedule) has its own SMS
-text, email subject, and email body — independently editable from Business
-Resources → Outreach Templates (stored in dialer_settings, same store as
+Each message instance (24h, 6h, 1h, reschedule) has its own SMS text, email
+subject, and email body — independently editable from Business Resources →
+Outreach Templates (stored in dialer_settings, same store as
 the "Send Info" templates — see routers/dialer.py's GET/PUT /dialer/reminder-template).
 SMS Sequence templates moved to their own sms_sequences table, see
 routers/sms_sequences.py. Falls back to the DEFAULT_* constants below if a key
@@ -33,13 +31,6 @@ _WINDOWS = [
     ("1h",  "reminder_1h_sent_at", 1,  "1h"),
 ]
 
-_CONFIRMATION_SMS_DEFAULT = (
-    "Hey {first_name}, thanks for booking a call with DigiGrowth! "
-    "You're all set for {when}. We'll send a few reminders as it gets closer — talk soon!"
-)
-_CONFIRMATION_EMAIL_BODY_DEFAULT = _CONFIRMATION_SMS_DEFAULT
-_CONFIRMATION_SUBJECT_DEFAULT = "You're booked — DigiGrowth"
-
 _24H_SMS_DEFAULT = "Hey {first_name}, quick reminder — your call with DigiGrowth is tomorrow ({when}). Talk soon!"
 _6H_SMS_DEFAULT  = "Hey {first_name}, quick reminder — your call with DigiGrowth is in a few hours ({when}). Talk soon!"
 _1H_SMS_DEFAULT  = "Hey {first_name}, quick reminder — your call with DigiGrowth is in about an hour ({when}). Talk soon!"
@@ -54,7 +45,6 @@ _RESCHEDULE_SUBJECT_DEFAULT = "Your appointment has been rescheduled — DigiGro
 # dialer.py's GET/PUT /dialer/reminder-template iterate this dict generically,
 # so adding/renaming an instance here is the only change needed on the backend.
 TEMPLATE_INSTANCES = {
-    "confirmation": (_CONFIRMATION_SMS_DEFAULT, _CONFIRMATION_SUBJECT_DEFAULT, _CONFIRMATION_EMAIL_BODY_DEFAULT),
     "24h":          (_24H_SMS_DEFAULT, _REMINDER_SUBJECT_DEFAULT, _24H_SMS_DEFAULT),
     "6h":           (_6H_SMS_DEFAULT, _REMINDER_SUBJECT_DEFAULT, _6H_SMS_DEFAULT),
     "1h":           (_1H_SMS_DEFAULT, _REMINDER_SUBJECT_DEFAULT, _1H_SMS_DEFAULT),
@@ -100,7 +90,7 @@ def _fill(template: str, row: dict) -> str:
 
 
 async def _send_instance(row: dict, instance: str, templates: dict, stage: str):
-    """Send one template instance (confirmation/24h/6h/1h/reschedule) — SMS uses
+    """Send one template instance (24h/6h/1h/reschedule) — SMS uses
     its own text, email uses its own subject + body, independently editable."""
     sms_text    = _fill(templates[f"reminder_{instance}_sms"], row)
     subject     = _fill(templates[f"reminder_{instance}_email_subject"], row)
@@ -125,19 +115,6 @@ async def _send_instance(row: dict, instance: str, templates: dict, stage: str):
                 print(f"[reminder_engine] email to {email} did not send: {result}")
         except Exception as e:
             print(f"[reminder_engine] email failed for {email}: {e}")
-
-
-async def send_booking_confirmation(row: dict):
-    """Immediate thank-you + appointment-time confirmation, sent right when the
-    booking form is submitted — not gated by the 24h/6h/1h polling loop."""
-    templates = await _get_templates()
-    await _send_instance(row, "confirmation", templates, "booking_confirmation")
-
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE appointment_reminders SET confirmation_sent_at = now() WHERE id = $1", row["id"],
-        )
 
 
 async def send_reschedule_confirmation(row: dict):

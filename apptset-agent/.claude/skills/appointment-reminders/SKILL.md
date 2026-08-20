@@ -26,10 +26,9 @@ without touching anything downstream — same table, same sending job.
    area code (`dashboard/backend/timezone_lookup.py`) — the rep can override it if
    the guess looks wrong (some area codes span two timezones).
 3. On submit, `POST /api/appointment-reminders` (`dashboard/backend/routers/appointments.py`)
-   converts the local date/time + timezone to UTC, inserts a row into the
-   `appointment_reminders` table, and immediately sends a thank-you confirmation
-   SMS + email (`reminder_engine.send_booking_confirmation()`) — separate from the
-   24h/6h/1h schedule, marked in `confirmation_sent_at`.
+   converts the local date/time + timezone to UTC and inserts a row into the
+   `appointment_reminders` table. There is no immediate confirmation send — only
+   the 24h/6h/1h schedule below.
 4. A scheduled job (`reminder_engine.send_due_reminders()`, registered in
    `dashboard/backend/main.py`'s `lifespan()`, runs every 5 minutes) checks every
    `scheduled` row for the 24h/6h/1h windows and sends an SMS (Twilio, via
@@ -77,9 +76,9 @@ uses to show upcoming vs. past appointments.
 
 ## Editing the Message Text
 
-All five message instances (booking confirmation, 24h/6h/1h reminders, reschedule
-notice) are editable from **Business Resources → Outreach Templates → Appointment
-Reminders**, same place as the "Send Info" and SMS Sequence templates — backed by
+All four message instances (24h/6h/1h reminders, reschedule notice) are editable
+from **Business Resources → Outreach Templates → Appointment Reminders**, same
+place as the "Send Info" and SMS Sequence templates — backed by
 `GET`/`PUT /api/dialer/reminder-template` (`dashboard/backend/routers/dialer.py`),
 stored in the same `dialer_settings` key/value table. **Each instance has three
 independently editable fields**: SMS message, email subject, and email body (SMS

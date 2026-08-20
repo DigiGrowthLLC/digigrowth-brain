@@ -56,7 +56,7 @@ export default function BookingForm({ contactId, phone, name, email, channel, on
   if (saved) {
     return (
       <div style={{ padding: "10px 14px", fontSize: 12, color: "#14c882", fontFamily: "'Space Grotesk', sans-serif" }}>
-        ✅ Confirmation sent, reminders scheduled — 24h, 6h, and 1h before the appointment.
+        ✅ Appointment booked, reminders scheduled — 24h, 6h, and 1h before the appointment.
       </div>
     );
   }

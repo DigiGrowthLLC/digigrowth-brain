@@ -142,8 +142,7 @@ async def list_appointments(status: str = Query("scheduled"), contact_id: Option
 async def update_appointment(appointment_id: int, payload: dict):
     """Edit prospect details and/or reschedule (date/time/timezone). Rescheduling
     resets the 24h/6h/1h reminder flags (so the new time gets fresh reminders) and
-    sends an immediate "you've been rescheduled" confirmation — same pattern as
-    the initial booking confirmation."""
+    sends an immediate "you've been rescheduled" notice."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM appointment_reminders WHERE id = $1", appointment_id)

@@ -174,9 +174,7 @@ async def save_info_template(body: dict):
 # ── Appointment reminder templates (Business Resources → Outreach Templates).
 # Same key/value store as the two editors above; reminder_engine.py's
 # send_due_reminders()/send_reschedule_confirmation() read these keys fresh at
-# send time via reminder_engine._get_templates(). The "confirmation" instance
-# is no longer editable from this UI (send_booking_confirmation() isn't called
-# anymore) but its dialer_settings keys are left in TEMPLATE_DEFAULTS untouched.
+# send time via reminder_engine._get_templates().
 
 @router.get("/dialer/reminder-template")
 async def get_reminder_template():

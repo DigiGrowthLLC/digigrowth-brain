@@ -110,9 +110,9 @@ export default function AppointmentsSection({ contactId, refreshSignal }) {
   };
 
   const reminderSummary = (row) => {
-    const sent = ["confirmation_sent_at", "reminder_24h_sent_at", "reminder_6h_sent_at", "reminder_1h_sent_at"]
+    const sent = ["reminder_24h_sent_at", "reminder_6h_sent_at", "reminder_1h_sent_at"]
       .filter(k => row[k]).length;
-    return `${sent}/4 reminders sent`;
+    return `${sent}/3 reminders sent`;
   };
 
   return (
