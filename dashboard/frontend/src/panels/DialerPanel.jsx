@@ -860,6 +860,7 @@ const [notes, setNotes]                 = useState("");
           phone={bookingLead?.phone}
           name={bookingLead?.owner}
           email={bookingLead?.email}
+          contact={{ business: bookingLead?.business, city: bookingLead?.city, state: bookingLead?.state, grade: bookingLead?.grade, website: bookingLead?.website }}
         />
       </div>
 

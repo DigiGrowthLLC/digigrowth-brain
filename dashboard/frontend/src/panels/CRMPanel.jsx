@@ -1004,6 +1004,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
             phone={display.phone}
             name={display.owner}
             email={display.email}
+            contact={{ business: display.business, city: display.city, state: display.state, grade: display.grade, website: display.website }}
             onBooked={() => setApptRefresh(n => n + 1)}
           />
 

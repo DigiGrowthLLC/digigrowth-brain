@@ -142,6 +142,7 @@ export default function CallScreen({ callInfo, live, onHangUp, onDone }) {
         phone={callInfo?.phone}
         name={callInfo?.name}
         email={callInfo?.email}
+        contact={{ business: callInfo?.business, city: callInfo?.city, state: callInfo?.state, grade: callInfo?.grade, website: callInfo?.website }}
       />
     </div>
   );

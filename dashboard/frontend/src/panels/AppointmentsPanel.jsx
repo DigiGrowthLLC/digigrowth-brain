@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API } from "../api.js";
+import AppointmentOutcomeButtons from "../AppointmentOutcomeButtons.jsx";
 
 function fmtLocal(iso, tz) {
   if (!iso) return "—";
@@ -45,6 +46,10 @@ export default function AppointmentsPanel() {
     load();
   };
 
+  const handleOutcomeUpdated = (updated) => {
+    setRows(rs => rs.map(r => r.id === updated.id ? updated : r));
+  };
+
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -62,14 +67,14 @@ export default function AppointmentsPanel() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid #1a2540" }}>
-              {["Prospect", "Business", "Appointment (local time)", "24h", "6h", "1h", ""].map(h => (
+              {["Prospect", "Business", "Appointment (local time)", "24h", "6h", "1h", "Outcome", ""].map(h => (
                 <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && rows.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No appointments in this view.</td></tr>
+              <tr><td colSpan={8} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No appointments in this view.</td></tr>
             )}
             {rows.map(row => (
               <tr key={row.id} style={{ borderBottom: "1px solid #131f38" }}>
@@ -79,6 +84,11 @@ export default function AppointmentsPanel() {
                 <td style={{ padding: "10px 14px" }}><Check sentAt={row.reminder_24h_sent_at} /></td>
                 <td style={{ padding: "10px 14px" }}><Check sentAt={row.reminder_6h_sent_at} /></td>
                 <td style={{ padding: "10px 14px" }}><Check sentAt={row.reminder_1h_sent_at} /></td>
+                <td style={{ padding: "10px 14px" }}>
+                  {row.status !== "canceled" && (
+                    <AppointmentOutcomeButtons appointment={row} onUpdated={handleOutcomeUpdated} />
+                  )}
+                </td>
                 <td style={{ padding: "10px 14px" }}>
                   {row.status === "scheduled" && (
                     <button onClick={() => cancel(row.id)} style={{

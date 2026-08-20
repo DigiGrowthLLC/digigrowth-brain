@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API } from "./api.js";
+import AppointmentOutcomeButtons from "./AppointmentOutcomeButtons.jsx";
 
 function fmtLocal(iso, tz) {
   if (!iso) return "—";
@@ -59,6 +60,10 @@ export default function AppointmentsSection({ contactId, refreshSignal }) {
     }
     setLoading(false);
   }, [contactId]);
+
+  const handleOutcomeUpdated = (updated) => {
+    setRows(rs => rs.map(r => r.id === updated.id ? updated : r));
+  };
 
   useEffect(() => { load(); }, [load, refreshSignal]);
   useEffect(() => {
@@ -156,24 +161,29 @@ export default function AppointmentsSection({ contactId, refreshSignal }) {
                   </div>
                 </div>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 12, color: "#f0f4ff", fontWeight: 600 }}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-                      {statusBadge(row)}
-                      <span style={{ fontSize: 10, color: "#3a5a80" }}>{reminderSummary(row)}</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: "#f0f4ff", fontWeight: 600 }}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                        {statusBadge(row)}
+                        <span style={{ fontSize: 10, color: "#3a5a80" }}>{reminderSummary(row)}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => startEdit(row)} style={{
+                        background: "rgba(58,123,213,0.1)", border: "1px solid rgba(58,123,213,0.3)",
+                        color: "#5a9bf0", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer",
+                      }}>Reschedule</button>
+                      <button onClick={() => cancelAppointment(row.id)} style={{
+                        background: "rgba(220,60,60,0.1)", border: "1px solid rgba(220,60,60,0.3)",
+                        color: "#dc3c3c", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer",
+                      }}>Cancel</button>
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => startEdit(row)} style={{
-                      background: "rgba(58,123,213,0.1)", border: "1px solid rgba(58,123,213,0.3)",
-                      color: "#5a9bf0", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer",
-                    }}>Reschedule</button>
-                    <button onClick={() => cancelAppointment(row.id)} style={{
-                      background: "rgba(220,60,60,0.1)", border: "1px solid rgba(220,60,60,0.3)",
-                      color: "#dc3c3c", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer",
-                    }}>Cancel</button>
-                  </div>
+                  {row.status !== "canceled" && (
+                    <AppointmentOutcomeButtons appointment={row} onUpdated={handleOutcomeUpdated} />
+                  )}
                 </div>
               )}
             </div>
@@ -182,11 +192,18 @@ export default function AppointmentsSection({ contactId, refreshSignal }) {
       )}
 
       {!loading && past.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {past.map(row => (
-            <div key={row.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 2px", fontSize: 11, color: "#5a6f8f" }}>
-              <span>{fmtLocal(row.appointment_at, row.prospect_timezone)}</span>
-              {statusBadge(row)}
+            <div key={row.id} style={{ padding: "6px 2px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, color: "#5a6f8f" }}>
+                <span>{fmtLocal(row.appointment_at, row.prospect_timezone)}</span>
+                {statusBadge(row)}
+              </div>
+              {row.status !== "canceled" && (
+                <div style={{ marginTop: 4 }}>
+                  <AppointmentOutcomeButtons appointment={row} onUpdated={handleOutcomeUpdated} />
+                </div>
+              )}
             </div>
           ))}
         </div>

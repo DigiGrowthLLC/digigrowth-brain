@@ -249,6 +249,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
       phone={form?.phone || phone}
       name={form?.owner}
       email={form?.email}
+      contact={{ business: form?.business, city: form?.city, state: form?.state, grade: form?.grade, website: form?.website }}
       onBooked={() => setApptRefresh(n => n + 1)}
     />
   );

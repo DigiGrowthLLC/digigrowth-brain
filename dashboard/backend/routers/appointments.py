@@ -180,6 +180,21 @@ async def update_appointment(appointment_id: int, payload: dict):
         if field in payload:
             updates[field] = payload[field]
 
+    # Outcome tracking — independent of the reminder/reschedule pipeline
+    # above, so setting these never touches status/appointment_at or fires
+    # a reschedule notice. Plain nullable TEXT (send null to clear), same
+    # free-text-disposition convention as call_logs.disposition etc.
+    if "outcome_show" in payload:
+        value = payload["outcome_show"]
+        if value not in (None, "show", "no_show"):
+            raise HTTPException(400, "outcome_show must be 'show', 'no_show', or null")
+        updates["outcome_show"] = value
+    if "outcome_close" in payload:
+        value = payload["outcome_close"]
+        if value not in (None, "closed", "not_closed"):
+            raise HTTPException(400, "outcome_close must be 'closed', 'not_closed', or null")
+        updates["outcome_close"] = value
+
     if not updates:
         return {"ok": True, "id": appointment_id}
 
