@@ -211,6 +211,11 @@ async def update_appointment(appointment_id: int, payload: dict):
         set_clauses += [
             "reminder_24h_sent_at = NULL", "reminder_6h_sent_at = NULL", "reminder_1h_sent_at = NULL",
             "status = 'scheduled'",
+            # Re-arm at reschedule time — reminder_engine.send_due_reminders()
+            # uses this to skip any window (24h/6h) there's no longer
+            # genuine lead time for, instead of firing it immediately on the
+            # next poll just because "now" is already past that threshold.
+            "reminders_armed_at = now()",
         ]
     # No Show sequence bookkeeping: entering 'no_show' stamps outcome_show_at
     # (the clock no_show_sequence.py's 4-touch drip counts its 20min/4h/24h/

@@ -142,7 +142,17 @@ async def send_reschedule_confirmation(row: dict):
 
 async def send_due_reminders():
     """Poll for scheduled appointments that have crossed a 24h/6h/1h window
-    without that window's reminder having gone out yet, and send it."""
+    without that window's reminder having gone out yet, and send it.
+
+    A window is only sent if there was ever genuine lead time for it —
+    measured from reminders_armed_at (booking time, or the moment it was
+    last rescheduled — see routers/appointments.py's update_appointment)
+    to appointment_at. Without this check, booking (or rescheduling) an
+    appointment for e.g. 4 hours out would fire the 24h AND 6h reminders
+    immediately on the very next poll, since "now" is already past both of
+    those thresholds — instead, a window whose lead time was never actually
+    available is permanently skipped, and only windows that still make
+    sense (e.g. just the 1h one, in that example) go out on schedule."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -155,8 +165,11 @@ async def send_due_reminders():
     now = datetime.now(dt_timezone.utc)
     for record in rows:
         row = dict(record)
+        lead_time = row["appointment_at"] - row["reminders_armed_at"]
         for window_label, sent_col, hours_before, instance in _WINDOWS:
             if row[sent_col] is not None:
+                continue
+            if lead_time < timedelta(hours=hours_before):
                 continue
             if now >= row["appointment_at"] - timedelta(hours=hours_before):
                 await _send_instance(row, instance, templates, f"reminder_{window_label}")
