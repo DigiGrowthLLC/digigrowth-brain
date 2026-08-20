@@ -25,10 +25,11 @@ function fmtMsgTime(ts) {
 }
 
 function convoBadge(c) {
+  if (c.disposition === "not_interested") {
+    return { label: "NOT INTERESTED", cls: "badge-red" };
+  }
   if (c.status === "closed") {
-    return c.disposition === "not_interested"
-      ? { label: "NOT INTERESTED", cls: "badge-red" }
-      : { label: "BOOKED", cls: "badge-green" };
+    return { label: "BOOKED", cls: "badge-green" };
   }
   if (c.stage_interested) {
     return { label: "INTERESTED", cls: "badge-amber" };
@@ -398,12 +399,12 @@ export default function InboxPanel({ initialTarget }) {
     setSeqOpen(false);
   };
 
-  const closeConvo = async (disposition) => {
+  const closeConvo = async (disposition, close = true) => {
     if (!selected) return;
     await fetch(API(`/inbox/contact/${encodeURIComponent(selected)}/close`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ disposition }),
+      body: JSON.stringify({ disposition, close }),
     });
     await refreshThread(selected);
     await loadConvos();
@@ -744,7 +745,7 @@ export default function InboxPanel({ initialTarget }) {
                       style={{ fontSize: 10, borderColor: "rgba(20,200,130,0.35)", color: "#14c882" }}>
                       BOOK APPOINTMENT
                     </button>
-                    <button onClick={() => closeConvo("not_interested")} className="btn btn-ghost"
+                    <button onClick={() => closeConvo("not_interested", false)} className="btn btn-ghost"
                       style={{ fontSize: 10, borderColor: "rgba(220,60,60,0.35)", color: "#dc3c3c" }}>
                       NOT INTERESTED
                     </button>

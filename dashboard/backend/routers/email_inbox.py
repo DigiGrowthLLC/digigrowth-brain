@@ -435,12 +435,12 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
         g["stage_primed"] = g["stage_primed"] or bool(r.get("stage_primed"))
         g["stage_engaged"] = g["stage_engaged"] or bool(r.get("stage_engaged"))
         g["stage_interested"] = g["stage_interested"] or bool(r.get("stage_interested"))
+    if r["disposition"] and not g["disposition"]:
+        g["disposition"] = r["disposition"]
     if r["status"] != "closed":
         g["status"] = "active"
-        if channel == "email" and r["disposition"] == "interested":
-            g["disposition"] = "interested"
-    elif g["status"] == "closed" and g["disposition"] is None:
-        g["disposition"] = r["disposition"]
+    if channel == "email" and r["disposition"] == "interested":
+        g["disposition"] = "interested"
 
 
 @router.get("/inbox/conversations")
@@ -574,12 +574,9 @@ async def get_contact_thread(contact_id: str):
     # No conversation on either channel yet (e.g. jumping here from the CRM
     # contact card before any outreach) is a fresh thread, not a closed one.
     status = "closed" if (sms_conv or email_conv) and not (sms_active or email_active) else "active"
+    disposition = (sms_conv["disposition"] if sms_conv else None) or (email_conv["disposition"] if email_conv else None)
     if email_active and email_conv["disposition"] == "interested":
         disposition = "interested"
-    elif status == "closed":
-        disposition = (sms_conv["disposition"] if sms_conv else None) or (email_conv["disposition"] if email_conv else None)
-    else:
-        disposition = None
 
     return {
         "contact_id": contact_id,
@@ -608,22 +605,38 @@ async def get_contact_thread(contact_id: str):
 
 @router.post("/inbox/contact/{contact_id}/close")
 async def close_contact_threads(contact_id: str, payload: Optional[dict] = None):
+    """Record a disposition on the contact's threads. `close` (default True)
+    also marks both channels' conversations 'closed', which hides the reply
+    box in the Inbox — pass `close: false` (used by the Not Interested button)
+    to record the disposition without cutting off the ability to keep
+    texting/emailing the prospect."""
     disposition = (payload or {}).get("disposition", "booked")
     if disposition not in _CLOSE_DISPOSITION_TO_CONTACT_STATUS:
         disposition = "booked"
+    close = (payload or {}).get("close", True)
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE sms_conversations SET status = 'closed', disposition = $2, updated_at = now() "
-            "WHERE contact_id = $1 AND status != 'closed'",
-            contact_id, disposition,
-        )
-        await conn.execute(
-            "UPDATE email_conversations SET status = 'closed', disposition = $2, updated_at = now() "
-            "WHERE contact_id = $1 AND status != 'closed'",
-            contact_id, disposition,
-        )
+        if close:
+            await conn.execute(
+                "UPDATE sms_conversations SET status = 'closed', disposition = $2, updated_at = now() "
+                "WHERE contact_id = $1 AND status != 'closed'",
+                contact_id, disposition,
+            )
+            await conn.execute(
+                "UPDATE email_conversations SET status = 'closed', disposition = $2, updated_at = now() "
+                "WHERE contact_id = $1 AND status != 'closed'",
+                contact_id, disposition,
+            )
+        else:
+            await conn.execute(
+                "UPDATE sms_conversations SET disposition = $2, updated_at = now() WHERE contact_id = $1",
+                contact_id, disposition,
+            )
+            await conn.execute(
+                "UPDATE email_conversations SET disposition = $2, updated_at = now() WHERE contact_id = $1",
+                contact_id, disposition,
+            )
         await conn.execute(
             "UPDATE contacts SET status = $2, updated_at = now() WHERE id = $1",
             contact_id, _CLOSE_DISPOSITION_TO_CONTACT_STATUS[disposition],
