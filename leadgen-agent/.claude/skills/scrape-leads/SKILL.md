@@ -1,6 +1,6 @@
 ---
 name: scrape-leads
-description: Scrape, qualify, grade, and push mobile/in-home PT leads to the DigiGrowth OS — free pipeline using the Playwright MCP browser (Google Maps) and Claude Code's own reasoning (qualification), no paid APIs.
+description: Scrape, qualify, grade, and push small independent single-location PT practice leads to the DigiGrowth OS — free pipeline using the Playwright MCP browser (Google Maps) and Claude Code's own reasoning (qualification), no paid APIs.
 ---
 
 # Scrape Leads
@@ -17,14 +17,21 @@ Run `python lib.py progress-get` (from `leadgen-agent/`) to get the current `{st
 
 ## 2. Markets and search terms
 
-Work through this list in order, resuming from the saved cursor (find the saved `state` in this list; if empty, start at the top). Cap **one run to a single city + all 4 search terms**, then stop — that's small enough to fit in one turn while still making steady progress. Multiple runs accumulate toward `daily_lead_limit`.
+Work through this list in order, resuming from the saved cursor (find the saved `state` in this list; if empty, start at the top).
+
+**One run covers up to 3 cities.** For each city: run all 4 search terms below — that's what "covering the city's TAM" means here (each term surfaces a different, overlapping slice of the market; running all 4 is how you get to roughly 90%+ real coverage of what's actually out there, not a guess). Once a city's 4 terms are done:
+- Check the running total of leads qualified-and-pushed so far **this session** against `config.json`'s `daily_lead_limit`. If you've hit or passed it, stop — don't start another city.
+- Otherwise, if you've already done 3 cities this session, stop there regardless of the limit — that's the per-run cap, same reasoning as the old one-city cap (keep sessions bounded and reviewable).
+- Otherwise, advance to the next city in the list (see step 8), reset to term index 0, and repeat steps 3-7 for it.
+
+So a session is: city 1 (4 terms) → check limit/city-count → city 2 (4 terms) → check again → city 3 (4 terms) → stop. Never more than 3 cities, and stop earlier than that the moment `daily_lead_limit` is reached.
 
 Search terms (run each per city):
 ```
-mobile physical therapist
-in-home physical therapy
-house call physical therapist
-mobile rehabilitation therapy
+physical therapy
+physical therapist
+outpatient physical therapy
+sports physical therapy
 ```
 
 Sun Belt markets first (per `memory.txt`'s priority), then the rest:
@@ -83,12 +90,14 @@ Build a JSON list of qualified leads in this shape (one object per lead):
   "Grade": "A", "Grade Reason": "...", "Opener": "...", "City": "...", "State": "..."
 }
 ```
-Write it to a temp file and run `python lib.py push <path> [status]` — `status` defaults to `dialer-lead` (pass `sms-handoff` if the user says so). Sorts by grade and POSTs to `/api/contacts`, tagged `mobile-pt`.
+Write it to a temp file and run `python lib.py push <path> [status]` — `status` defaults to `dialer-lead` (pass `sms-handoff` if the user says so). Sorts by grade and POSTs to `/api/contacts`, tagged `independent-pt`.
 
 ## 8. Update state
 
-Run `python lib.py progress-set '{"state": "...", "city": "...", "term_index": 0}'` pointing at the next city (or next state if the current one's cities are exhausted). `progress-set` and `scraped-add`/every `scraped-has` write already push their files to GitHub via `shared/github_sync.py` — no separate sync step needed.
+After each city's 4 terms are done, run `python lib.py progress-set '{"state": "...", "city": "...", "term_index": 0}'` pointing at the **next city** (or next state if the current one's cities are exhausted) — even if you're about to continue to it immediately in this same session, so the cursor is always correct if the session gets interrupted. `progress-set` and `scraped-add`/every `scraped-has` write already push their files to GitHub via `shared/github_sync.py` — no separate sync step needed.
+
+Then apply the step 2 continuation check: if under `daily_lead_limit` and under 3 cities this session, loop back to step 3 for the new city. Otherwise stop.
 
 ## 9. Report
 
-Tell the user: listings reviewed, disqualified (with a one-line reason breakdown), qualified with grades, and confirm the push count. Same shape as the old pipeline's console output, just delivered as a chat summary instead of logs.
+Tell the user, **per city covered this session**: listings reviewed, disqualified (with a one-line reason breakdown), qualified with grades. Then give a session total: cities covered, combined qualified count, and confirm the push count against `daily_lead_limit`. Same shape as the old pipeline's console output, just delivered as a chat summary instead of logs.

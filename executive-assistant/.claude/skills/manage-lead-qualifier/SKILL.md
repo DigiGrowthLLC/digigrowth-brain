@@ -42,7 +42,7 @@ There's no automatic Railway cron for this anymore (the old `leadgen-daily` job 
 Edit `memory.txt` — find `CHAIN / FRANCHISE BLACKLIST:` and append the name. `scrape-leads/SKILL.md` reads this list fresh every run, so no code change needed.
 
 ### Change the daily lead limit
-Edit `config.json` → `daily_lead_limit`. Current default: 10. Since each `scrape-leads` run only covers one city, multiple runs may be needed to reach the daily limit.
+Edit `config.json` → `daily_lead_limit`. Current default: 30. Each `scrape-leads` run covers up to 3 cities (stopping early once the limit is hit) — multiple runs may still be needed if a market is sparse or the limit is set high.
 
 ### Pause the agent
 Edit `config.json` → set `enabled` to `false`. The `scrape-leads` skill checks this first and stops immediately if disabled. Set back to `true` to resume.
@@ -76,5 +76,5 @@ Both files are read fresh on each run by Claude Code — changes take effect imm
 
 - The agent resumes via `progress.json` (`state`/`city`/`term_index`) — no need to restart from scratch after an interruption
 - To fully reset (start over from the top of the Sun Belt priority list): set `state`/`city` back to `""` in `progress.json`
-- Each `scrape-leads` run covers one city × all 4 search terms, then stops — run it again (or loop it) to keep accumulating toward `daily_lead_limit`
-- Qualified leads are pushed to the DigiGrowth OS CRM sorted A → B → C → D grade automatically (tagged `mobile-pt`, status defaults to `dialer-lead`)
+- Each `scrape-leads` run covers one city × all 4 search terms at a time, continuing to the next city in the queue (up to 3 cities per run) as long as `daily_lead_limit` hasn't been reached yet — run it again (or loop it) if more is still needed after that
+- Qualified leads are pushed to the DigiGrowth OS CRM sorted A → B → C → D grade automatically (tagged `independent-pt`, status defaults to `dialer-lead`)
