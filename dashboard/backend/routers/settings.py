@@ -450,7 +450,7 @@ async def chat(request: Request):
 
     history.append({"role": "user", "content": user_content})
     system_prompt = _build_system_prompt()
-    model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+    model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-4-6")
 
     async def event_stream():
         client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])

@@ -1233,7 +1233,7 @@ async def chat(agent_id: str, request: Request):
     history.append({"role": "user", "content": user_content})
     mode = (body.get("mode") or "auto").strip()
     system_prompt = _build_system_prompt(agent, mode, match_message=user_message)
-    model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+    model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-4-6")
 
     async def event_stream():
         try:
