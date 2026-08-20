@@ -904,6 +904,94 @@ def calendar_events_structured(days_ahead: int = 7, calendar_id: str = "primary"
     return events
 
 
+# Generic fallback when no Calendly-synced Calendar event/link can be found —
+# points the prospect at Dylan's booking page itself rather than sending a
+# reminder with no link at all. No ?month= param (that's purely a frontend
+# iframe UX nicety — see dashboard/frontend/src/dispositions.js's
+# CALENDLY_URL, which this intentionally does not import/share, since that
+# constant is frontend-only today).
+CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min"
+
+
+def _extract_meeting_link(event: dict) -> str | None:
+    """Pull whatever video/join link a Calendar event actually carries, in
+    priority order — Calendly's own conferencing integration determines
+    which field it lands in depending on how it's configured (Meet vs Zoom
+    vs a plain link pasted into the description)."""
+    for entry in event.get("conferenceData", {}).get("entryPoints", []):
+        if entry.get("entryPointType") == "video" and entry.get("uri"):
+            return entry["uri"]
+    if event.get("hangoutLink"):
+        return event["hangoutLink"]
+    location = (event.get("location") or "").strip()
+    if location.startswith("http"):
+        return location
+    import re
+    match = re.search(r"https?://\S+", event.get("description") or "")
+    return match.group(0) if match else None
+
+
+def find_appointment_meeting_link(appointment_at, prospect_email: str | None) -> str | None:
+    """
+    Look up the real, Calendly-generated meeting link for one specific
+    booked appointment via Dylan's synced Google Calendar. Calendly's free
+    plan has no webhook, so the booking flow itself (BookingModal.jsx's
+    embedded iframe + appointment_reminders row) never learns what join
+    link Calendly actually created — but every real booking syncs into this
+    calendar with that link attached, so reminder_engine.py calls this right
+    before sending instead, rather than trying to capture it at booking time.
+
+    Searches a +/-20min window around the appointment (booking times are
+    exact; the window is just slop for safety) and prefers the event whose
+    attendees include the prospect's email — that's the actual event this
+    specific prospect booked, not just something else on the calendar at
+    the same time. Falls back to the closest-in-time event in the window if
+    there's no attendee match (or no email on file). Returns None (never
+    raises) on any lookup/API failure or if nothing usable is found —
+    callers are expected to fall back to CALENDLY_URL.
+    """
+    from datetime import timedelta
+    try:
+        svc = _calendar_service()
+        window_start = appointment_at - timedelta(minutes=20)
+        window_end = appointment_at + timedelta(minutes=20)
+        res = svc.events().list(
+            calendarId="primary",
+            timeMin=window_start.isoformat(),
+            timeMax=window_end.isoformat(),
+            singleEvents=True,
+            orderBy="startTime",
+        ).execute()
+        events = res.get("items", [])
+        if not events:
+            return None
+
+        if prospect_email:
+            target = prospect_email.strip().lower()
+            for ev in events:
+                attendees = [a.get("email", "").lower() for a in ev.get("attendees", [])]
+                if target in attendees:
+                    link = _extract_meeting_link(ev)
+                    if link:
+                        return link
+
+        def _distance(ev):
+            start = ev.get("start", {}).get("dateTime")
+            if not start:
+                return float("inf")
+            from datetime import datetime as _dt
+            return abs((_dt.fromisoformat(start) - appointment_at).total_seconds())
+
+        for ev in sorted(events, key=_distance):
+            link = _extract_meeting_link(ev)
+            if link:
+                return link
+        return None
+    except Exception as e:
+        print(f"[integrations] meeting-link lookup failed: {e}")
+        return None
+
+
 # ── Daily brief PDF emailer ───────────────────────────────────────────────────
 
 def _pdf_safe(text: str) -> str:

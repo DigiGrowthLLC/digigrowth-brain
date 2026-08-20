@@ -1425,8 +1425,9 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
             </div>
 
             <div style={hintStyle}>
-              Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the prospect's first name and{" "}
-              <code style={{ color: "#6ab0ff" }}>{"{when}"}</code> for the appointment time in the prospect's own timezone.
+              Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the prospect's first name,{" "}
+              <code style={{ color: "#6ab0ff" }}>{"{when}"}</code> for the appointment time in the prospect's own timezone, and{" "}
+              <code style={{ color: "#6ab0ff" }}>{"{Meeting_Link}"}</code> for the actual join link (looked up from the synced Google Calendar event at send time).
             </div>
           </div>
           );

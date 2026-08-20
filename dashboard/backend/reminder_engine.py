@@ -12,7 +12,11 @@ Outreach Templates (stored in dialer_settings, same store as
 the "Send Info" templates — see routers/dialer.py's GET/PUT /dialer/reminder-template).
 SMS Sequence templates moved to their own sms_sequences table, see
 routers/sms_sequences.py. Falls back to the DEFAULT_* constants below if a key
-has never been saved. Templates support {first_name} and {when} placeholders.
+has never been saved. Templates support {first_name}, {when}, and
+{Meeting_Link} placeholders — the last one is resolved fresh at send time via
+integrations.find_appointment_meeting_link() (looks up the real Calendly-
+generated join link from Dylan's synced Google Calendar; falls back to the
+generic Calendly URL if no matching calendar event/link is found).
 """
 
 import asyncio
@@ -83,18 +87,29 @@ def _format_local(appointment_at: datetime, tz_name: str) -> str:
     return local.strftime("%A, %B %-d at %-I:%M %p %Z")
 
 
-def _fill(template: str, row: dict) -> str:
+def _fill(template: str, row: dict, meeting_link: str) -> str:
     first_name = first_name_from_owner(row.get("prospect_name"))
     when = _format_local(row["appointment_at"], row["prospect_timezone"])
-    return template.replace("{first_name}", first_name).replace("{when}", when)
+    return (
+        template
+        .replace("{first_name}", first_name)
+        .replace("{when}", when)
+        .replace("{Meeting_Link}", meeting_link)
+    )
 
 
 async def _send_instance(row: dict, instance: str, templates: dict, stage: str):
     """Send one template instance (24h/6h/1h/reschedule) — SMS uses
     its own text, email uses its own subject + body, independently editable."""
-    sms_text    = _fill(templates[f"reminder_{instance}_sms"], row)
-    subject     = _fill(templates[f"reminder_{instance}_email_subject"], row)
-    email_body  = _fill(templates[f"reminder_{instance}_email_body"], row)
+    # Blocking Google API call, hence to_thread — same pattern as gmail_send
+    # below. Looked up once per send rather than once per template field.
+    meeting_link = await asyncio.to_thread(
+        integrations.find_appointment_meeting_link, row["appointment_at"], row.get("prospect_email"),
+    ) or integrations.CALENDLY_URL
+
+    sms_text    = _fill(templates[f"reminder_{instance}_sms"], row, meeting_link)
+    subject     = _fill(templates[f"reminder_{instance}_email_subject"], row, meeting_link)
+    email_body  = _fill(templates[f"reminder_{instance}_email_body"], row, meeting_link)
 
     phone = (row.get("prospect_phone") or "").strip()
     if phone:
