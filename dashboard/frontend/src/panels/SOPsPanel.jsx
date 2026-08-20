@@ -330,10 +330,10 @@ const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email
 // it still short-circuits `openSOP()` and slots into the same category
 // grouping as everything else in this section.
 
-// Same pattern again, for the appointment-reminder pipeline (booking
-// confirmation, 24h/6h/1h reminders, reschedule notice) — backed by
-// GET/PUT /api/dialer/reminder-template (see AppointmentRemindersEditor
-// below), read at send time by dashboard/backend/reminder_engine.py.
+// Same pattern again, for the appointment-reminder pipeline (24h/6h/1h
+// reminders, reschedule notice) — backed by GET/PUT /api/dialer/reminder-template
+// (see AppointmentRemindersEditor below), read at send time by
+// dashboard/backend/reminder_engine.py.
 const REMINDER_TEMPLATE_PSEUDO_ID = "__reminder_template__";
 const REMINDER_TEMPLATE_ITEM = { id: REMINDER_TEMPLATE_PSEUDO_ID, title: "Appointment Reminders", reminderTemplate: true };
 
@@ -1095,16 +1095,13 @@ function NewCallScriptEditor({ title, setTitle, category, setCategory, categorie
 
 // ── Appointment Reminders editor ────────────────────────────────────────────
 // Editable SMS + email templates for the appointment-reminder pipeline: the
-// immediate booking confirmation, the 24h/6h/1h reminders, and the reschedule
-// notice (dashboard/backend/reminder_engine.py, sent when a rep books/edits an
-// appointment via BookingForm/AppointmentsSection). Backed by
-// GET/PUT /api/dialer/reminder-template — reminder_engine.py reads these same
-// keys fresh from dialer_settings at send time.
+// 24h/6h/1h reminders and the reschedule notice (dashboard/backend/reminder_engine.py,
+// sent when a rep books/edits an appointment via BookingForm/AppointmentsSection).
+// Backed by GET/PUT /api/dialer/reminder-template — reminder_engine.py reads these
+// same keys fresh from dialer_settings at send time. The immediate booking-confirmation
+// send was removed (reminder_engine.send_booking_confirmation() is no longer called),
+// so that template instance is intentionally left out of this list.
 const REMINDER_FIELDS = [
-  {
-    heading: "Booking Confirmation", hint: "Sent immediately when a rep books an appointment.",
-    instance: "confirmation",
-  },
   { heading: "24-Hour Reminder", hint: null, instance: "24h" },
   { heading: "6-Hour Reminder", hint: null, instance: "6h" },
   { heading: "1-Hour Reminder", hint: null, instance: "1h" },
@@ -1201,7 +1198,7 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
         <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Sent by the <strong style={{ color: "#a080f0" }}>appointment reminder</strong> pipeline (booking confirmation, 24h/6h/1h reminders, reschedule notice). Edits apply to the very next send.
+          Sent by the <strong style={{ color: "#a080f0" }}>appointment reminder</strong> pipeline (24h/6h/1h reminders, reschedule notice). Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
