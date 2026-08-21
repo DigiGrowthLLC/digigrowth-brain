@@ -2,7 +2,7 @@
 
 ## Emails
 
-*No business emails in the last 24 hours.* *(Only automated appt-setter activity — call reminders and a reschedule note — sent to Dylan and Austin Treadwell from the DigiGrowth mailbox; no inbound messages requiring a reply.)*
+*No business emails in the last 24 hours.* *(Only automated appt-setter activity — call reminders and a reschedule note — sent to Dylan and Austin Treadwell from the DigiGrowth mailbox, plus a Cal.com unsubscribe-confirmation auto-email; no inbound messages requiring a reply.)*
 
 ## Schedule
 
@@ -68,6 +68,6 @@ No prior snapshot — closest available report is outside the 6–8 day comparis
 **Subject:** Why your website visitors never become discovery calls
 **To:** `11` contacts flagged `newsletter` in the DigiGrowth OS
 **Topic:** The AI sequence that turns website visitors into booked consultations
-**Note:** Approving queues a personalized send to every contact flagged `newsletter` in the OS. Delivery is gradual (~25/day cap, spread through business hours) to protect domain reputation — not an instant blast. The PDF preview and Approve/Decline card will appear as a separate message in this chat within a few minutes once Railway's relay job picks up this request — no marker to include here.
+**Note:** Already drafted and submitted for approval in this morning's 6:03 AM run — not re-drafting a second time today to avoid queuing a duplicate approval card / conflicting with the once-daily Railway relay job. If it's still awaiting a decision, check the OS chat for the Approve/Decline card from earlier this morning.
 
 *Daily briefing — Friday, August 21*
