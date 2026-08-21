@@ -261,7 +261,12 @@ async def cancel_appointment(appointment_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "UPDATE appointment_reminders SET status = 'canceled' WHERE id = $1 AND status = 'scheduled'",
+            # Also halts any active No Show drip (no_show_sequence.py's poller
+            # requires no_show_sequence_stopped_at IS NULL to send) so a
+            # canceled appointment stops getting no-show touches.
+            "UPDATE appointment_reminders SET status = 'canceled', "
+            "no_show_sequence_stopped_at = COALESCE(no_show_sequence_stopped_at, now()) "
+            "WHERE id = $1 AND status = 'scheduled'",
             appointment_id,
         )
     if result == "UPDATE 0":
