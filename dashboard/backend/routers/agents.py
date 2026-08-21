@@ -1036,6 +1036,60 @@ async def process_pending_approvals_now(date: str | None = None):
     return {"result": result}
 
 
+@router.post("/agents/post-report-now")
+async def post_report_now(filename_prefix: str, date: str | None = None):
+    """On-demand trigger mirroring main.py's _post_report_from_github cron
+    jobs (sheets-digest 6:15am ET, daily-briefing 6:30am ET) — lets Dylan
+    paste a report into the EA chat immediately instead of waiting for
+    tomorrow's poll, which looks for tomorrow's date and would never pick up
+    a report that landed on GitHub late. `filename_prefix` is
+    "daily-briefing" or "sheets-digest"; `date` defaults to today (ET)."""
+    import base64
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import httpx
+
+    date_str = date or datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+    rel_path = f"executive-assistant/reports/{filename_prefix}-{date_str}.md"
+    repo = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+    token = os.environ.get("GIT_TOKEN", "")
+    api_url = f"https://api.github.com/repos/{repo}/contents/{rel_path}"
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(api_url, headers=headers)
+    if resp.status_code == 404:
+        return {"result": f"{rel_path} not found on GitHub"}
+    resp.raise_for_status()
+    report_text = base64.b64decode(resp.json()["content"]).decode("utf-8").strip()
+    if not report_text:
+        return {"result": f"{rel_path} is empty"}
+
+    local_path = pathlib.Path("/repo") / rel_path
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_text(report_text, encoding="utf-8")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO agent_chats (agent_id, role, content) VALUES ($1, $2, $3)",
+            "executive-assistant", "assistant",
+            json.dumps([{"type": "text", "text": report_text}]),
+        )
+
+    if filename_prefix == "daily-briefing":
+        try:
+            from integrations import save_daily_brief_pdf
+            await asyncio.get_event_loop().run_in_executor(None, save_daily_brief_pdf)
+        except Exception as e:
+            return {"result": f"posted to chat; PDF step failed: {e}"}
+
+    return {"result": f"posted {rel_path} to EA chat"}
+
+
 @router.get("/agents/{agent_id}/newsletter-pdf")
 async def serve_newsletter_pdf(agent_id: str):
     """Serve the latest newsletter-draft PDF, generating it from the MD if needed."""
