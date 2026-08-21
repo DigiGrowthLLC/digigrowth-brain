@@ -1,6 +1,6 @@
 # Lead Qualifier Agent
 
-Scrapes independent mobile/in-home physical therapy practices from Google Maps, qualifies them, and pushes qualified leads into the DigiGrowth OS CRM (`/api/contacts`, tagged `mobile-pt`) for the dialer to work.
+Scrapes small, independent, single-location physical therapy practices from Google Maps, qualifies them, and pushes qualified leads into the DigiGrowth OS CRM (`/api/contacts`, tagged `independent-pt`) for the dialer to work.
 
 **Free pipeline** — no Google Places API, no Anthropic API billing. Google Maps is driven directly by Claude Code via the Playwright MCP browser tools; qualification/grading/opener-writing is Claude Code reasoning over the same rules the old paid pipeline used, not a metered API call. Runs entirely on the existing Claude subscription.
 
@@ -13,7 +13,7 @@ Scrapes independent mobile/in-home physical therapy practices from Google Maps, 
 |---|---|
 | `.claude/skills/scrape-leads/SKILL.md` | The pipeline itself — scrape (Playwright MCP), filter, qualify (Claude Code reasoning), push |
 | `lib.py` | Free helper functions/CLI: website scraping, owner extraction, progress tracking, OS push — no AI, no paid API |
-| `config.json` | Operational settings: `daily_lead_limit`, `max_website_text_words`, `enabled` |
+| `config.json` | Operational settings: `daily_lead_target` (a floor, not a cap — a session never cuts a city short to avoid overshooting it), `max_website_text_words`, `enabled` |
 | `memory.txt` | Agent memory: blacklist, niche rules, opener criteria — read by Claude Code as instructions, unchanged from the old pipeline |
 | `prompt.txt` | Qualification prompt template — same rules, now read directly instead of sent to an API |
 | `role.txt` | Agent persona — same, now read directly |

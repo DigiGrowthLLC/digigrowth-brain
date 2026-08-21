@@ -1,5 +1,5 @@
 {
-  "daily_lead_limit": 30,
+  "daily_lead_target": 30,
   "max_website_text_words": 300,
   "enabled": true
 }
