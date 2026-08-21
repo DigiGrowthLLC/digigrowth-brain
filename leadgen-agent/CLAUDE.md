@@ -13,7 +13,7 @@ Scrapes small, independent, single-location physical therapy practices from Goog
 |---|---|
 | `.claude/skills/scrape-leads/SKILL.md` | The pipeline itself — scrape (Playwright MCP), filter, qualify (Claude Code reasoning), push |
 | `lib.py` | Free helper functions/CLI: website scraping, owner extraction, progress tracking, OS push — no AI, no paid API |
-| `config.json` | Operational settings: `daily_lead_target` (a floor, not a cap — a session never cuts a city short to avoid overshooting it), `max_website_text_words`, `enabled` |
+| `config.json` | Operational settings: `daily_lead_target` (checked after every search term, up to 5 cities per session — a session stops as soon as it's met, even mid-city), `max_website_text_words`, `enabled` |
 | `memory.txt` | Agent memory: blacklist, niche rules, opener criteria — read by Claude Code as instructions, unchanged from the old pipeline |
 | `prompt.txt` | Qualification prompt template — same rules, now read directly instead of sent to an API |
 | `role.txt` | Agent persona — same, now read directly |

@@ -19,12 +19,12 @@ Run `python lib.py progress-get` (from `leadgen-agent/`) to get the current `{st
 
 Work through this list in order, resuming from the saved cursor (find the saved `state` in this list; if empty, start at the top).
 
-**One run covers up to 3 cities.** For each city: run all 4 search terms below — that's what "covering the city's TAM" means here (each term surfaces a different, overlapping slice of the market; running all 4 is how you get to roughly 90%+ real coverage of what's actually out there, not a guess). **Never cut a city short partway through its 4 terms** — `config.json`'s `daily_lead_target` is a floor, not a ceiling, so being on track to exceed it mid-city is not a reason to stop early. Once a city's 4 terms are fully done:
-- Check the running total of leads qualified-and-pushed so far **this session** against `daily_lead_target`. If you've met or passed it, stop — don't start another city.
-- Otherwise, if you've already done 3 cities this session, stop there regardless of the target — that's the per-run cap, same reasoning as the old one-city cap (keep sessions bounded and reviewable).
-- Otherwise, advance to the next city in the list (see step 8), reset to term index 0, and repeat steps 3-7 for it.
+**One run covers up to 5 cities.** For each city, work through its 4 search terms in order — that's what "covering the city's TAM" means here (each term surfaces a different, overlapping slice of the market; running all 4 is how you get to roughly 90%+ real coverage of what's actually out there, not a guess). `config.json`'s `daily_lead_target` is a **target, checked after every search term, not just after a city finishes**:
+- After each search term's leads are qualified and pushed (steps 3-7), check the running total of leads qualified-and-pushed so far **this session** against `daily_lead_target`. If you've met or passed it, **stop immediately** — mid-city, mid-term-list, wherever you are. You do not need to finish the city's remaining terms once the target is hit.
+- If the target isn't met yet and more terms remain in the current city, continue to the next term.
+- If the target isn't met yet and the city's 4 terms are exhausted, check whether you've already done 5 cities this session — if so, stop regardless of the target (per-run cap, keeps sessions bounded and reviewable). Otherwise advance to the next city in the list (see step 8), reset to term index 0, and continue.
 
-So a session is: city 1 (4 terms, always finished in full) → check target/city-count → city 2 (4 terms, always finished in full) → check again → city 3 (4 terms) → stop. Never more than 3 cities. The target can be overshot within whichever city pushes the count past it — that's expected, not a problem to avoid.
+So a session is a sequence of search terms across up to 5 cities, checked after each one: term → check target → term → check target → ... → stop the moment the target is met, or after 5 cities' worth of terms are exhausted, whichever comes first.
 
 Search terms (run each per city):
 ```
@@ -94,10 +94,10 @@ Write it to a temp file and run `python lib.py push <path> [status]` — `status
 
 ## 8. Update state
 
-After each city's 4 terms are done, run `python lib.py progress-set '{"state": "...", "city": "...", "term_index": 0}'` pointing at the **next city** (or next state if the current one's cities are exhausted) — even if you're about to continue to it immediately in this same session, so the cursor is always correct if the session gets interrupted. `progress-set` and `scraped-add`/every `scraped-has` write already push their files to GitHub via `shared/github_sync.py` — no separate sync step needed.
+After **every search term** (not just at the end of a city), run `python lib.py progress-set '{"state": "...", "city": "...", "term_index": N}'` pointing at whatever comes next — the next term in the same city, or term 0 of the next city if this one's 4 terms are done — even if you're about to continue to it immediately in this same session. This keeps the cursor correct if the run stops right after this term (including because the target was just hit) or gets interrupted. `progress-set` and `scraped-add`/every `scraped-has` write already push their files to GitHub via `shared/github_sync.py` — no separate sync step needed.
 
-Then apply the step 2 continuation check: if under `daily_lead_target` and under 3 cities this session, loop back to step 3 for the new city. Otherwise stop.
+Then apply the step 2 continuation check (target met → stop; else next term or next city, capped at 5 cities this session).
 
 ## 9. Report
 
-Tell the user, **per city covered this session**: listings reviewed, disqualified (with a one-line reason breakdown), qualified with grades. Then give a session total: cities covered, combined qualified count, and confirm the push count against `daily_lead_target` (met/exceeded is a good outcome, not something to have avoided). Same shape as the old pipeline's console output, just delivered as a chat summary instead of logs.
+Tell the user, **per city covered this session**: listings reviewed, disqualified (with a one-line reason breakdown), qualified with grades — note if a city was only partially covered (fewer than 4 terms) because the target was hit mid-city. Then give a session total: cities covered, combined qualified count, and confirm the push count against `daily_lead_target` (met/exceeded is a good outcome, not something to have avoided). Same shape as the old pipeline's console output, just delivered as a chat summary instead of logs.
