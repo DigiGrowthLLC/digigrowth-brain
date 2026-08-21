@@ -116,8 +116,8 @@ def extract_owner_regex(text: str) -> str:
 
 
 _SIGNAL_KEYWORDS = [
-    "mobile", "in-home", "in home", "house call", "we come to you",
-    "dr.", "founder", "owner",
+    "dr.", "founder", "owner", "founded", "independently owned",
+    "family owned", "locally owned", "our location", "locations",
 ]
 
 
@@ -202,16 +202,29 @@ def save_progress(progress: dict):
     push_file(__file__, "progress.json")
 
 
+def normalize_scraped_id(raw: str) -> str:
+    """Collapse "<name>|<city>|<state>" to a stable dedup key: lowercased
+    name + city, state dropped. State format has drifted between runs
+    ("Florida" vs "fl", present vs absent) and caused the same business to
+    be re-scraped under a "new" key — name+city alone is unique enough here
+    and immune to that drift."""
+    parts = [p.strip().lower() for p in raw.split("|")]
+    name = parts[0] if len(parts) > 0 else raw.strip().lower()
+    city = parts[1] if len(parts) > 1 else ""
+    return f"{name}|{city}"
+
+
 def load_scraped_ids() -> set:
     if os.path.exists(SCRAPED_FILE):
         with open(SCRAPED_FILE, "r", encoding="utf-8") as f:
-            return set(json.load(f))
+            raw_ids = json.load(f)
+        return {normalize_scraped_id(raw) for raw in raw_ids}
     return set()
 
 
 def save_scraped_ids(ids: set):
     with open(SCRAPED_FILE, "w", encoding="utf-8") as f:
-        json.dump(list(ids), f)
+        json.dump(sorted(ids), f)
     from github_sync import push_file
     push_file(__file__, "scraped_ids.json")
 
@@ -242,7 +255,7 @@ def push_to_os(leads: list, lead_status: str = "dialer-lead"):
             "opener":   lead["Opener"],
             "notes":    lead.get("Grade Reason", ""),
             "status":   lead_status,
-            "tags":     ["mobile-pt"],
+            "tags":     ["independent-pt"],
         }
         try:
             r = requests.post(f"{base_url}/api/contacts", auth=auth, json=body, timeout=10)
@@ -279,13 +292,13 @@ def _cli():
 
     elif cmd == "scraped-add":
         ids = load_scraped_ids()
-        ids.add(sys.argv[2])
+        ids.add(normalize_scraped_id(sys.argv[2]))
         save_scraped_ids(ids)
         print("ok")
 
     elif cmd == "scraped-has":
         ids = load_scraped_ids()
-        sys.exit(0 if sys.argv[2] in ids else 1)
+        sys.exit(0 if normalize_scraped_id(sys.argv[2]) in ids else 1)
 
     elif cmd == "push":
         leads_path = sys.argv[2]
