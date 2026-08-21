@@ -1,13 +1,7 @@
 {
-  "date": "2026-08-04",
-  "topic": "How to use AI to turn your Google reviews into a lead generation machine",
-  "findings": [
-    "81% of consumers use Google specifically to read reviews when evaluating a local business",
-    "Businesses that rank in the top 3 local search positions average 47 Google reviews, vs. only 38 for positions 7-10",
-    "Businesses that increase their average rating by one full star see up to a 44% improvement in conversion likelihood",
-    "80% of local searches on Google Maps lead to a physical visit within 24 hours"
-  ],
-  "sources": [
-    "https://wiserreview.com/blog/google-review-statistics/"
-  ]
+  "date": "2026-08-21",
+  "topic": "The AI sequence that turns website visitors into booked consultations",
+  "findings": [],
+  "sources": [],
+  "note": "Web search surfaced several candidate stats (chat-to-conversion rate comparisons, AI booking conversion multipliers), but the source-verification fetch step (Step 1.5) could not run this week -- WebFetch returned EGRESS_BLOCKED for every domain tried in this sandbox, including unrelated control domains (en.wikipedia.org, www.forbes.com), confirming it's a sandbox-wide network restriction, not a per-site block. Per the skill's verification rule, no stat that can't be confirmed on its source page gets cached or used. Falling back to general-knowledge writing for this week's email only, with no numeric claims in the body."
 }
