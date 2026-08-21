@@ -101,3 +101,17 @@ Then apply the step 2 continuation check (target met → stop; else next term or
 ## 9. Report
 
 Tell the user, **per city covered this session**: listings reviewed, disqualified (with a one-line reason breakdown), qualified with grades — note if a city was only partially covered (fewer than 4 terms) because the target was hit mid-city. Then give a session total: cities covered, combined qualified count, and confirm the push count against `daily_lead_target` (met/exceeded is a good outcome, not something to have avoided). Same shape as the old pipeline's console output, just delivered as a chat summary instead of logs.
+
+**Also post this summary into the OS chat**, so results are visible from the dashboard even when this ran unattended (scheduled task) and nobody was watching this session. Track two running counts throughout the session: total listings reviewed (every listing that reached step 4's free filters, qualified or not — i.e. everything you called `scraped-add` on) and total qualified-and-pushed. At the end, write a short markdown message to a temp file with this shape:
+
+```
+## Lead gen run — <date>
+
+**<City>, <ST>** (<N>/4 terms): <reviewed> reviewed → <qualified> qualified (<A count> A, <B count> B, <C count> C, <D count> D)
+**<City 2>, <ST>** ...
+
+**Session total:** <reviewed_total> reviewed → <qualified_total> qualified — qualification rate <qualified_total/reviewed_total as %>
+Target: <daily_lead_target> — <met/exceeded by N / fell short by N>
+```
+
+Run `python lib.py post-chat <path>` to push it into the leadgen-agent's OS chat (dashboard → Agents → Lead Qualifier). Do this even if the target wasn't reached (e.g. ran out of cities) — the report should reflect what actually happened, not just successful runs.

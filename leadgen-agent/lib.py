@@ -12,6 +12,7 @@ CLI usage (invoked by the scrape-leads skill via Bash):
     python lib.py scraped-add <place_id_or_key>    # add an id to scraped_ids.json
     python lib.py scraped-has <place_id_or_key>    # exit 0 if already scraped, 1 if not
     python lib.py push <leads.json path>           # POST leads to DigiGrowth OS
+    python lib.py post-chat <message.md path>      # post a message into the leadgen-agent OS chat
 """
 
 import json
@@ -267,6 +268,22 @@ def push_to_os(leads: list, lead_status: str = "dialer-lead"):
     print(f"{pushed}/{len(leads)} leads pushed to DigiGrowth OS (status={lead_status}).")
 
 
+def post_chat_message(content: str):
+    """Insert a message into the leadgen-agent's OS chat (visible in the
+    dashboard's Agents panel) without triggering a Claude turn there."""
+    base_url = os.environ.get("DASHBOARD_URL", "").rstrip("/")
+    password = os.environ.get("DASHBOARD_PASSWORD", "")
+    auth = ("admin", password)
+    r = requests.post(
+        f"{base_url}/api/agents/leadgen-agent/inject",
+        auth=auth,
+        json={"content": content, "role": "assistant"},
+        timeout=10,
+    )
+    r.raise_for_status()
+    print("posted to leadgen-agent OS chat")
+
+
 # ════════════════════════════════════════════════════════════════════════════
 #  CLI
 # ════════════════════════════════════════════════════════════════════════════
@@ -306,6 +323,12 @@ def _cli():
         with open(leads_path, "r", encoding="utf-8") as f:
             leads = json.load(f)
         push_to_os(leads, status)
+
+    elif cmd == "post-chat":
+        msg_path = sys.argv[2]
+        with open(msg_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        post_chat_message(content)
 
     else:
         print(f"unknown command: {cmd}")
