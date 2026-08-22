@@ -24,7 +24,7 @@ Work through this list in order, resuming from the saved cursor (find the saved 
 - If the target isn't met yet and more terms remain in the current city, continue to the next term.
 - If the target isn't met yet and the city's 4 terms are exhausted, check whether you've already done 5 cities this session — if so, stop regardless of the target (per-run cap, keeps sessions bounded and reviewable). Otherwise advance to the next city in the list (see step 8), reset to term index 0, and continue.
 
-So a session is a sequence of search terms across up to 5 cities, checked after each one: term → check target → term → check target → ... → stop the moment the target is met, or after 5 cities' worth of terms are exhausted, whichever comes first.
+So a session is a sequence of search terms across up to 5 cities, checked after each one: term → check target → term → check target → ... → stop the moment the target is met, or after 5 cities' worth of terms are exhausted, whichever comes first. **A state boundary is not a stopping point.** The city list below spans multiple states specifically so a session can flow from the last city of one state straight into the first city of the next — e.g. finishing St. Petersburg, FL does not mean "Florida is done, pause here"; if the target isn't met and the city cap isn't hit, continue straight into Houston, TX (or whatever's next) exactly as if it were just another city on the same list, no different treatment, no waiting for confirmation.
 
 Search terms (run each per city):
 ```
@@ -48,6 +48,8 @@ California: Los Angeles, San Diego, San Jose, San Francisco
 New York: New York City, Buffalo, Rochester
 ... (continue through remaining US states/cities as needed once the above are exhausted — ask the user before expanding beyond Sun Belt markets if unsure)
 ```
+
+Everything listed above — Florida through New York — is pre-approved; treat it as one continuous list and move through state boundaries within it without pausing or asking anyone (this matters most for unattended/scheduled runs, where there's no one to ask). The "ask the user" caveat applies only once you'd run past the *last* city on this list (New York's Rochester) with the target still unmet — that's the actual edge of pre-approved territory.
 
 ## 3. Scrape Google Maps (Playwright MCP)
 
