@@ -2,8 +2,7 @@
 
 Design or improve an irresistible offer for any business — DigiGrowth or a client/prospect.
 Sources:
-- Jason Fladlin's "How To Create Killer Offers — 8 Secrets" (transcript:
-  `content-agent/outputs/transcript-YTDown.com_YouTube_How-To-Create-Killer-Offers-8-secrets_Media_mOCPUqFtZpI_001_1080p-2026-07-30.txt`)
+- Jason Fladlin's "How To Create Killer Offers — 8 Secrets" (the 8 levers are captured inline below)
 - Alex Hormozi's Grand Slam Offer framework ($100M Offers)
 
 ---
