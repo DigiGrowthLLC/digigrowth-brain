@@ -1,3 +1,0 @@
-Cold Calling Resync complete — 2026-08-03
-Update Log entry added: no new Drive docs, no August metrics sheet yet (July's is unchanged and still too sparse to read), OS dialer API unreachable this run due to a network-policy block on the Railway host (not a data finding — see note below).
-Sources checked: Drive (0 new docs since 2026-07-30), Metrics sheet (found — July 2026, unchanged since 07-21, no August sheet yet), OS dialer (unreachable — proxy returned 403 on CONNECT to digigrowth-brain-production.up.railway.app; this session's network policy does not permit reaching that host, so `by_disposition`/`recent` notes could not be pulled this week)
