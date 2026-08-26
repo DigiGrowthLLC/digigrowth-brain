@@ -102,7 +102,7 @@ function fmtCampaignDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function CampaignsView() {
+function CampaignsView({ days }) {
   const [channel, setChannel]         = useState("sms");
   const [campaigns, setCampaigns]     = useState([]);
   const [selectedId, setSelectedId]   = useState(null);
@@ -127,13 +127,13 @@ function CampaignsView() {
 
   useEffect(() => {
     if (!selectedId) return;
-    fetch(API(`/analytics/campaign/${selectedId}`)).then(r => r.ok ? r.json() : null).then(setDetail);
-  }, [selectedId]);
+    fetch(API(`/analytics/campaign/${selectedId}?days=${days}`)).then(r => r.ok ? r.json() : null).then(setDetail);
+  }, [selectedId, days]);
 
   async function reactivate(id) {
     await fetch(API(`/campaigns/${id}/activate`), { method: "POST" });
     loadCampaigns(channel, selectedId);
-    fetch(API(`/analytics/campaign/${selectedId}`)).then(r => r.ok ? r.json() : null).then(setDetail);
+    fetch(API(`/analytics/campaign/${selectedId}?days=${days}`)).then(r => r.ok ? r.json() : null).then(setDetail);
   }
 
   function onCampaignCreated(campaign) {
@@ -207,6 +207,11 @@ function CampaignsView() {
             )}
           </div>
 
+          {channel === "sms" && days !== 0 && (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a8a", letterSpacing: "0.04em" }}>
+              DM Reached / Primed / Engaged / Interested are whole-campaign totals — those checkboxes don't record when they were set, so they can't be narrowed to {ANALYTICS_PERIOD_OPTIONS.find(([d]) => d === days)?.[1] || "this period"}. Total Outreach, Booked, and Not Interested Rate are.
+            </div>
+          )}
           {channel === "sms" && <SmsOutreachCard outreach={outreachShape} tab="campaign" />}
           {channel === "email" && <EmailOutreachCard outreach={outreachShape} tab="campaign" />}
           {channel === "calling" && <ColdCallingCard outreach={outreachShape} tab="campaign" />}
@@ -309,7 +314,7 @@ export default function AnalyticsPanel() {
       </div>
 
       {view === "campaigns" ? (
-        <CampaignsView />
+        <CampaignsView days={days} />
       ) : (
       <>
 

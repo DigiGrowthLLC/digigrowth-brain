@@ -163,7 +163,7 @@ def _calling_metrics(stats: dict, days: int) -> dict:
     }
 
 
-def _calling_metrics_for_campaign(stats: dict, periods: list) -> dict:
+def _calling_metrics_for_campaign(stats: dict, periods: list, since=None) -> dict:
     """
     Same source and formulas as _calling_metrics(), but summed over the
     campaign's active date range(s) from the Sheets Digest's per-day
@@ -172,11 +172,20 @@ def _calling_metrics_for_campaign(stats: dict, periods: list) -> dict:
     this sums every day that falls inside ANY of them (each `ended_at is
     None` period treated as "through today"), correctly excluding days
     another campaign was active in between.
+
+    `since`, when given, further narrows to days on/after it (the Analytics
+    tab's Today/7D/30D/All Time toggle, applied on top of the campaign's own
+    date range) — unlike the SMS/email campaign metrics, this data is
+    already day-granular, so unlike stage-boolean SMS metrics there's no
+    accuracy gap here.
     """
     daily = stats.get("daily") or {}
     today = datetime.now(timezone.utc).date()
+    since_date = since.date() if since else None
 
     def _in_any_period(day) -> bool:
+        if since_date and day < since_date:
+            return False
         for started_at, ended_at in periods:
             start_date = started_at.date() if hasattr(started_at, "date") else started_at
             end_date = (ended_at.date() if hasattr(ended_at, "date") else ended_at) if ended_at else today
@@ -210,21 +219,10 @@ def _calling_metrics_for_campaign(stats: dict, periods: list) -> dict:
 async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     """
     Return SMS funnel metrics. If since is None, returns all-time. If
-    campaign_id is given, it takes over from since entirely — a campaign
-    is its own time boundary (see campaigns.py) — and every number is read
-    straight off each conversation's stage checkboxes (stage_initial_outreach/
-    stage_replied/stage_dm_reached/stage_primed/stage_engaged/stage_interested)
-    filtered by
-    sms_conversations.campaign_id, not raw message counts. This is what makes
-    campaign assignment "future proof": reassigning a prospect from the CRM
-    (campaigns.py::assign_contact_campaign, which updates campaign_id on the
-    conversation) instantly and correctly moves every stage's numbers with no
-    separate backfill step — it's just re-filtering conversations by
-    campaign_id and counting which boxes are checked.
-
-    Outside campaign mode, Total Outreach/Contacted stay message-count based
-    (sms_messages, scoped by since) — a real send-volume metric for the
-    period toggle, distinct from the campaign view's per-prospect funnel.
+    campaign_id is given, a campaign is already its own time boundary (see
+    campaigns.py) — since further narrows within it (the Analytics tab's
+    Today/7D/30D/All Time toggle, applied on top of the campaign's own
+    date range).
 
     Replied/Primed/Engaged/Interested are read straight off sms_conversations'
     checkboxes — NOT recomputed from message counts here. They're auto-set
@@ -236,28 +234,53 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     email_inbox.py) — once touched manually, the checkbox is authoritative
     and stops tracking the raw count/send. So this function always trusts
     the stored checkbox, by design.
+
+    Outside campaign mode, Total Outreach/Contacted stay message-count based
+    (sms_messages, scoped by since) — a real send-volume metric for the
+    period toggle, distinct from the campaign view's per-prospect funnel.
+
+    In campaign mode, `since` CANNOT narrow Replied/DM Reached/Primed/
+    Engaged/Interested — those are plain booleans with no column recording
+    when the flag was actually set, only whether it's set now, so there is
+    no historical answer to "how many became DM Reached in the last 24h"
+    with the current schema. Those five always reflect the whole campaign
+    regardless of `since`. Total Outreach/Contacted (from sms_messages,
+    genuinely timestamped) and Booked/Not Interested (from disposition +
+    sms_conversations.updated_at, an approximation — updated_at bumps on
+    other edits too, not just a disposition change, but a disposition set
+    is rare enough after the fact that this is close enough) DO respect
+    `since` when given.
     """
     if campaign_id is not None:
-        row = await conn.fetchrow(
+        msg_row = await conn.fetchrow(
+            """
+            SELECT COUNT(*) FILTER (WHERE sm.direction = 'outbound') AS total_outreach,
+                   COUNT(DISTINCT sm.phone) FILTER (WHERE sm.direction = 'outbound') AS contacted
+            FROM sms_messages sm
+            JOIN sms_conversations sc ON sc.phone = sm.phone
+            WHERE sc.campaign_id = $1
+            """ + (" AND sm.sent_at >= $2" if since else ""),
+            *([campaign_id, since] if since else [campaign_id]),
+        )
+        stage_row = await conn.fetchrow(
             """
             SELECT
-                COUNT(*) FILTER (WHERE stage_initial_outreach) AS total_outreach,
                 COUNT(*) FILTER (WHERE stage_replied)          AS replied,
                 COUNT(*) FILTER (WHERE stage_dm_reached)        AS dm_reached,
                 COUNT(*) FILTER (WHERE stage_primed)            AS primed,
                 COUNT(*) FILTER (WHERE stage_engaged)           AS engaged,
                 COUNT(*) FILTER (WHERE stage_interested)        AS interested,
-                COUNT(*) FILTER (WHERE disposition = 'booked')  AS booked,
-                COUNT(*) FILTER (WHERE disposition = 'not_interested') AS not_interested
+                COUNT(*) FILTER (WHERE disposition = 'booked'         AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS booked,
+                COUNT(*) FILTER (WHERE disposition = 'not_interested' AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS not_interested
             FROM sms_conversations
             WHERE campaign_id = $1
             """,
-            campaign_id,
+            campaign_id, since,
         )
-        total_outreach = contacted = row["total_outreach"]
-        replied, primed, engaged, interested = row["replied"], row["primed"], row["engaged"], row["interested"]
-        dm_reached = row["dm_reached"]
-        booked, not_interested = row["booked"], row["not_interested"]
+        total_outreach, contacted = msg_row["total_outreach"], msg_row["contacted"]
+        replied, primed, engaged, interested = stage_row["replied"], stage_row["primed"], stage_row["engaged"], stage_row["interested"]
+        dm_reached = stage_row["dm_reached"]
+        booked, not_interested = stage_row["booked"], stage_row["not_interested"]
         return {
             "total_outreach":     total_outreach or 0,
             "contacted":          contacted or 0,
@@ -367,18 +390,23 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     actually supports: outbound sends, whether the contact replied, and
     conversations marked booked.
 
-    If campaign_id is given, it takes over from since entirely, same as
-    _sms_metrics — a campaign is its own time boundary. Sent/reply/open/
-    bounce counts are scoped by email_messages.campaign_id (tagged per
-    message at send time — see email_inbox.py/integrations.py), not by
-    thread, so a thread with send history predating the campaign doesn't
-    inflate its counts. Booked stays scoped by the conversation-level tag
-    (email_conversations.campaign_id), same as SMS.
+    If campaign_id is given, a campaign is already its own time boundary,
+    same as _sms_metrics — since further narrows within it (the Analytics
+    tab's Today/7D/30D/All Time toggle, applied on top of the campaign's own
+    date range). Unlike SMS, every one of these metrics is genuinely
+    timestamped (email_messages.sent_at, email_conversations.updated_at),
+    so since narrows all of them accurately — no boolean-with-no-history
+    limitation here. Sent/reply/open/bounce counts are scoped by
+    email_messages.campaign_id (tagged per message at send time — see
+    email_inbox.py/integrations.py), not by thread, so a thread with send
+    history predating the campaign doesn't inflate its counts. Booked stays
+    scoped by the conversation-level tag (email_conversations.campaign_id),
+    same as SMS.
     """
     if campaign_id is not None:
-        msg_filter = "AND NOT is_test AND campaign_id = $1"
-        params = [campaign_id]
-        booked_filter = "AND campaign_id = $1"
+        msg_filter = "AND NOT is_test AND campaign_id = $1" + (" AND sent_at >= $2" if since else "")
+        params = [campaign_id, since] if since else [campaign_id]
+        booked_filter = "AND campaign_id = $1" + (" AND updated_at >= $2" if since else "")
         unsub_filter = ""  # unsubscribes are tracked on contacts, not per-conversation — no clean campaign scope
         unsub_params = []
     else:
@@ -539,7 +567,15 @@ async def pipeline(days: int = 0):
     month_ago = _since(30)
 
     async with pool.acquire() as conn:
-        total_leads = await conn.fetchval("SELECT COUNT(*) FROM contacts")
+        # Funnel's total_leads was previously an unconditional COUNT(*) --
+        # ignored the period toggle entirely, so "Today" showed the same
+        # lifetime total as "All Time". Scope it to leads created within the
+        # selected window, same pattern as new_week/new_month below.
+        total_leads = await conn.fetchval(
+            "SELECT COUNT(*) FROM contacts" if all_time
+            else "SELECT COUNT(*) FROM contacts WHERE created_at >= $1",
+            *([] if all_time else [_since(days)]),
+        )
         new_week    = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", week_ago)
         new_month   = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", month_ago)
         sms         = await _sms_metrics(conn, None if all_time else _since(days))
@@ -642,7 +678,12 @@ async def sales_stats(days: int = 0):
 
 
 @router.get("/analytics/campaign/{campaign_id}")
-async def campaign_analytics(campaign_id: int):
+async def campaign_analytics(campaign_id: int, days: int = 0):
+    """`days` narrows the campaign's own metrics with the Analytics tab's
+    Today/7D/30D/All Time toggle (days=0 means no narrowing — the whole
+    campaign). See _sms_metrics/_email_metrics/_calling_metrics_for_campaign
+    docstrings for what can and can't be narrowed accurately per channel."""
+    since = _since(days) if days else None
     pool = await get_pool()
     async with pool.acquire() as conn:
         campaign = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
@@ -655,13 +696,13 @@ async def campaign_analytics(campaign_id: int):
         periods = [{"started_at": p["started_at"], "ended_at": p["ended_at"]} for p in period_rows]
 
         if campaign["channel"] == "sms":
-            metrics = await _sms_metrics(conn, campaign_id=campaign_id)
+            metrics = await _sms_metrics(conn, since=since, campaign_id=campaign_id)
         elif campaign["channel"] == "email":
-            metrics = await _email_metrics(conn, campaign_id=campaign_id)
+            metrics = await _email_metrics(conn, since=since, campaign_id=campaign_id)
         else:
             sales = _load_sales_stats()
             metrics = _calling_metrics_for_campaign(
-                sales, [(p["started_at"], p["ended_at"]) for p in period_rows]
+                sales, [(p["started_at"], p["ended_at"]) for p in period_rows], since=since,
             )
 
     return {
