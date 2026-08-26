@@ -347,18 +347,30 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         # period filter, which is correct (no accurate historical "when" for
         # those). $2::timestamptz IS NULL means "no period filter" (All Time).
         #
-        # DM Reached is the one exception: it also counts a conversation
-        # that was reached on an earlier day but got fresh SMS activity
-        # (either direction — a follow-up touch or a new reply) in this
-        # period. stage_dm_reached_at alone answers "newly reached this
-        # period", which undercounts what "Total Reached" means day to day —
-        # most of a rep's SMS work on a given day is following up with
-        # people already flagged reached, not freshly flagging new ones, and
-        # that follow-up activity is still a real "reach" in the period.
+        # DM Reached and Replied are the two exceptions to the "narrow to
+        # stage_{x}_at" rule: they also count a conversation that first
+        # reached that milestone on an earlier day but has fresh matching
+        # activity in this period. stage_{x}_at alone answers "newly reached
+        # this milestone in this period", which undercounts what these two
+        # actually mean day to day — most of a rep's SMS work on a given day
+        # is following up with (or getting replies from) people already
+        # past this milestone, not freshly reaching it for the first time,
+        # and that ongoing activity is still real in the period. Replied
+        # specifically needs a fresh INBOUND message (not just any
+        # activity) — stage_replied_at only ever stamps on someone's FIRST
+        # reply ever (see sms.py::_recompute_stage_flags), so without this
+        # fallback, anyone who'd already replied on an earlier day showed 0
+        # replies today no matter how many times they replied again today.
+        # Primed/Engaged/Interested don't need this — those are purely
+        # manual judgment calls that re-stamp stage_{x}_at on every toggle
+        # (see email_inbox.py::set_contact_stage), so the plain "narrow to
+        # stage_{x}_at" rule already reflects real activity for them.
         stage_row = await conn.fetchrow(
             """
             SELECT
-                COUNT(*) FILTER (WHERE stage_replied     AND ($2::timestamptz IS NULL OR stage_replied_at     >= $2)) AS replied,
+                COUNT(*) FILTER (WHERE stage_replied      AND ($2::timestamptz IS NULL
+                                                                OR stage_replied_at    >= $2
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.direction = 'inbound' AND sm.sent_at >= $2))) AS replied,
                 COUNT(*) FILTER (WHERE stage_dm_reached   AND ($2::timestamptz IS NULL
                                                                 OR stage_dm_reached_at >= $2
                                                                 OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS dm_reached,
@@ -443,10 +455,24 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     # which is the correct behavior — a stage that predates tracking has no
     # accurate historical answer to "when".
     stage_since_filter = "AND {col} >= $1" if since else ""
-    replied = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_replied {stage_since_filter.format(col='stage_replied_at')}",
-        *params,
-    )
+    # Replied also counts a conversation whose FIRST-ever reply was on an
+    # earlier day but got a fresh INBOUND message in this period —
+    # stage_replied_at only ever stamps once, on someone's first reply ever
+    # (see sms.py::_recompute_stage_flags), so without this fallback anyone
+    # who'd already replied before showed 0 replies today no matter how
+    # many times they replied again today.
+    if since:
+        replied = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM sms_conversations sc
+            WHERE stage_replied
+              AND (stage_replied_at >= $1
+                   OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.direction = 'inbound' AND sm.sent_at >= $1))
+            """,
+            since,
+        )
+    else:
+        replied = await conn.fetchval("SELECT COUNT(*) FROM sms_conversations WHERE stage_replied")
     # DM Reached also counts a conversation reached on an earlier day that
     # got fresh SMS activity (either direction) in this period — most of a
     # rep's day-to-day SMS work is following up with people already flagged
