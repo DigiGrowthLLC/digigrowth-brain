@@ -396,6 +396,25 @@ async def _create_schema(pool: asyncpg.Pool):
                 dm_followup_touch2_sent_at = NULL, dm_followup_touch3_sent_at = NULL
             WHERE dm_followup_enrolled_at IS NULL AND dm_followup_anchor_at IS NOT NULL
         """)
+        # One-time backfill: is_automated didn't exist until every automated
+        # sequence module already had weeks of send history, so every one of
+        # those historical rows defaulted to is_automated=false and kept
+        # inflating Total Outreach even after the exclusion shipped (a rep
+        # correctly reported "still says 92" right after this went live).
+        # Each sequence's stage tag is a reliable, already-unique fingerprint
+        # for which rows are automated — see no_show_sequence.py/
+        # cancel_sequence.py/dm_followup_sequence.py/reminder_engine.py's
+        # _send_touch()/_send_instance() calls for the exact tag patterns.
+        # Idempotent — only ever touches rows still (incorrectly) false.
+        await conn.execute("""
+            UPDATE sms_messages
+            SET is_automated = true
+            WHERE NOT is_automated AND (
+                stage LIKE 'no_show_touch%' OR stage LIKE 'cancel_touch%' OR
+                stage LIKE 'dm_followup_touch%' OR stage LIKE 'reminder_%' OR
+                stage = 'reschedule_confirmation'
+            )
+        """)
         # One-time backfill: mark pre-existing /newsletter/test-send rows (sent
         # before is_test existed) so they retroactively drop out of analytics —
         # otherwise a self-opened diagnostic send keeps skewing open rate even
