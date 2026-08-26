@@ -22,7 +22,7 @@ function MiniStat({ label, value, color }) {
   );
 }
 
-const ANALYTICS_PERIOD_OPTIONS = [[7,"7D"],[30,"30D"],[0,"All Time"]];
+const ANALYTICS_PERIOD_OPTIONS = [[1,"Today"],[7,"7D"],[30,"30D"],[0,"All Time"]];
 
 function LoadingRow() {
   return (
