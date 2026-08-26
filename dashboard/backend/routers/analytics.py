@@ -618,10 +618,15 @@ async def pipeline(days: int = 0):
         for r in grade_rows
     ]
 
-    # Funnel is channel-agnostic — cold calling (sheets) + SMS (DB) combined
-    # at every stage, not cold-calling-only. Shows/closes are already
-    # cross-channel (logged manually in the Sales Performance Tracker
-    # regardless of source), so those two are untouched.
+    # Funnel is channel-agnostic — cold calling (sheets) + SMS (DB) + email
+    # (DB) combined at every stage, not cold-calling-only. Shows/closes are
+    # already cross-channel (logged manually in the Sales Performance
+    # Tracker regardless of source), so those two are untouched.
+    #
+    # "Pitched" (the reached stage) sums calls reached + SMS's own DM
+    # Reached stage — not the later Engaged stage, which undercounts what
+    # "reached" means — + confirmed email opens. Same fix as
+    # dashboard.py::summary's total_reached.
     #
     # "Booked" is the one stage that can't just be calling+SMS summed: some
     # booked appointments come from channels this OS doesn't track at all
@@ -633,7 +638,7 @@ async def pipeline(days: int = 0):
     # _app_booked_count) instead of sheet_appointments_booked + sms.booked.
     dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["contacted"] + email["initial_sent"]
     answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]      + email["replied"]
-    pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["engaged"]
+    pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["dm_reached"] + email["opened"]
     booked   = _sheet_stat(sales, "discovery_calls",        days) + app_booked
 
     return {
@@ -726,6 +731,42 @@ async def campaign_analytics(campaign_id: int, days: int = 0):
         },
         "periods": periods,
         "metrics": metrics,
+    }
+
+
+@router.get("/analytics/debug/sms-outreach-breakdown")
+async def debug_sms_outreach_breakdown(days: int = 1):
+    """Temporary diagnostic — not linked from the UI. Breaks down what's
+    actually contributing to Total Outreach for a period, since is_automated
+    alone wasn't enough to explain a count that didn't match Dylan's own
+    manual sends. Safe to delete once the discrepancy is understood."""
+    since = _since(days) if days else None
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        where = "WHERE direction = 'outbound'" + (" AND sent_at >= $1" if since else "")
+        params = [since] if since else []
+
+        by_stage = await conn.fetch(
+            f"SELECT COALESCE(stage, '(none)') AS stage, is_automated, COUNT(*) AS cnt "
+            f"FROM sms_messages {where} GROUP BY stage, is_automated ORDER BY cnt DESC",
+            *params,
+        )
+        total = await conn.fetchval(f"SELECT COUNT(*) FROM sms_messages {where}", *params)
+        total_excl_automated = await conn.fetchval(
+            f"SELECT COUNT(*) FROM sms_messages {where} AND NOT is_automated", *params
+        )
+        sample_rows = await conn.fetch(
+            f"SELECT phone, stage, is_automated, sent_at FROM sms_messages {where} "
+            f"ORDER BY sent_at DESC LIMIT 30",
+            *params,
+        )
+
+    return {
+        "since": since.isoformat() if since else None,
+        "total_outbound_all": total,
+        "total_outbound_excluding_automated": total_excl_automated,
+        "by_stage": [dict(r) for r in by_stage],
+        "most_recent_30": [dict(r) for r in sample_rows],
     }
 
 

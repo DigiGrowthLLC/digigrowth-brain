@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone, date
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
-from routers.analytics import _sms_metrics, _app_booked_count
+from routers.analytics import _sms_metrics, _email_metrics, _app_booked_count
 
 _SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 
@@ -70,8 +70,9 @@ async def summary(period: str = "day"):
 
         period_to_days = {"day": 1, "week": 7, "month": 30, "all": 0}
         p_days = period_to_days.get(period, 0)
-        sms_funnel = await _sms_metrics(conn, None if p_days == 0 else since)
-        app_booked = await _app_booked_count(conn, stats, p_days)
+        sms_funnel   = await _sms_metrics(conn, None if p_days == 0 else since)
+        email_funnel = await _email_metrics(conn, None if p_days == 0 else since)
+        app_booked   = await _app_booked_count(conn, stats, p_days)
 
     def _sheet(key):
         if p_days == 0:
@@ -84,17 +85,22 @@ async def summary(period: str = "day"):
     booked         = _sheet("sheet_appointments_booked")
     reach_rate     = round(dms_reached / calls_made * 100, 1) if calls_made else 0
 
-    # Channel-agnostic combined totals (calling + SMS), same methodology as
-    # the Analytics tab's 6-Stage Acquisition Funnel: every stage sums
-    # calling (sheets) + SMS (DB), except appointments, which uses the
-    # manually-logged cross-channel total (discovery_calls) since some
-    # bookings come from channels (e.g. DM campaigns) neither data source
-    # tracks, and a bottom-up sum would under-count — plus app_booked
-    # (bookings made in the app itself, not yet reflected in that sheet —
-    # see analytics.py::_app_booked_count).
+    # Channel-agnostic combined totals (calling + SMS + email), same
+    # methodology as the Analytics tab's 6-Stage Acquisition Funnel: every
+    # stage sums calling (sheets) + SMS (DB) + email (DB) where that stage
+    # applies, except appointments, which uses the manually-logged
+    # cross-channel total (discovery_calls) since some bookings come from
+    # channels (e.g. DM campaigns) neither data source tracks, and a
+    # bottom-up sum would under-count — plus app_booked (bookings made in
+    # the app itself, not yet reflected in that sheet — see
+    # analytics.py::_app_booked_count).
+    # Reached = calls reached (dms_reached) + SMS DM Reached stage (the
+    # "reached" equivalent for SMS, not the later Engaged stage) + email
+    # opened (confirmed opens, not counting the tracking pixel's own
+    # self-open — see analytics.py::_email_metrics).
     total_outreach     = calls_made + sms_funnel["contacted"]
     total_answered      = calls_answered + sms_funnel["replied"]
-    total_reached       = dms_reached + sms_funnel["engaged"]
+    total_reached       = dms_reached + sms_funnel["dm_reached"] + email_funnel["opened"]
     total_appointments  = _sheet("discovery_calls") + app_booked
     total_abr           = round(total_appointments / total_outreach * 100, 1) if total_outreach else 0
 
