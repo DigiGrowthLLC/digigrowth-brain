@@ -364,6 +364,23 @@ async def _create_schema(pool: asyncpg.Pool):
             SET stage_interested = true, stage_interested_manual = true, disposition = NULL
             WHERE disposition = 'interested'
         """)
+        # One-time cleanup: the DM Follow-Up sequence's enrollment gate
+        # (dm_followup_enrolled_at) shipped 12 minutes after the sequence
+        # itself, so the ungated poller ran at least once and could have set
+        # anchor/touch state (even sent Touch 1) on pre-existing DM-Reached
+        # conversations that were never actually enrolled. Clear that leftover
+        # state so a later legitimate re-enrollment (unchecking/rechecking DM
+        # Reached) starts from a clean slate instead of inheriting stale
+        # timestamps that could make Touch 2/3 fire early. Idempotent and
+        # permanently safe to leave here — current code can never produce
+        # anchor/touch state on an unenrolled row, so this only ever matches
+        # that one historical window.
+        await conn.execute("""
+            UPDATE sms_conversations
+            SET dm_followup_anchor_at = NULL, dm_followup_touch1_sent_at = NULL,
+                dm_followup_touch2_sent_at = NULL, dm_followup_touch3_sent_at = NULL
+            WHERE dm_followup_enrolled_at IS NULL AND dm_followup_anchor_at IS NOT NULL
+        """)
         # One-time backfill: mark pre-existing /newsletter/test-send rows (sent
         # before is_test existed) so they retroactively drop out of analytics —
         # otherwise a self-opened diagnostic send keeps skewing open rate even
