@@ -1,7 +1,7 @@
 {
-  "date": "2026-08-21",
-  "topic": "The AI sequence that turns website visitors into booked consultations",
+  "date": "2026-08-24",
+  "topic": "How AI helps service-based businesses personalize outreach at scale (without it feeling robotic)",
   "findings": [],
   "sources": [],
-  "note": "Web search surfaced several candidate stats (chat-to-conversion rate comparisons, AI booking conversion multipliers), but the source-verification fetch step (Step 1.5) could not run this week -- WebFetch returned EGRESS_BLOCKED for every domain tried in this sandbox, including unrelated control domains (en.wikipedia.org, www.forbes.com), confirming it's a sandbox-wide network restriction, not a per-site block. Per the skill's verification rule, no stat that can't be confirmed on its source page gets cached or used. Falling back to general-knowledge writing for this week's email only, with no numeric claims in the body."
+  "note": "Search returned candidate stats (AI outreach personalization / small business adoption), but every candidate source URL (hausadvisors.com, involve.me, sqmagazine.co.uk, bearstarmarketing.com, thestacc.com, datarefs.com, and a control fetch to en.wikipedia.org) was blocked by this sandbox's network egress proxy, so none could be verified per the per-claim source-check requirement. Findings left empty rather than caching an unconfirmed stat; email written from general knowledge only this week."
 }

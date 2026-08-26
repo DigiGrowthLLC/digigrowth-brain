@@ -45,36 +45,6 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#  FREE PRE-FILTERS (chain / non-PT detection)
-# ════════════════════════════════════════════════════════════════════════════
-
-CHAIN_KEYWORDS = [
-    "ati physical therapy", "athletico", "us physical therapy", "select physical therapy",
-    "select medical", "ivy rehab", "fyzical therapy", "cora physical therapy",
-    "novacare rehabilitation", "results physiotherapy", "bayada home health",
-    "interim healthcare", "amedisys", "lhc group", "encompass health"
-]
-
-NON_PT_NAME_KEYWORDS = [
-    "hospital", "home health", "nursing home", "skilled nursing", "hospice",
-    "urgent care", "behavioral health", "addiction", "mental health",
-    "psychiatric", "chiropractic", "chiropractor", "home care",
-    "va medical", "rehabilitation hospital", "assisted living", "senior living",
-    "physical therapy school", "university",
-]
-
-
-def looks_like_chain_or_non_pt(name: str) -> bool:
-    """Cheap pre-filter on a Maps listing name alone (no Places `types` field
-    available anymore since we're not calling the Places API) — True if this
-    is obviously a chain/franchise or not an independent PT practice."""
-    name_lower = name.lower()
-    if any(chain in name_lower for chain in CHAIN_KEYWORDS):
-        return True
-    return any(kw in name_lower for kw in NON_PT_NAME_KEYWORDS)
-
-
-# ════════════════════════════════════════════════════════════════════════════
 #  OWNER NAME EXTRACTION
 # ════════════════════════════════════════════════════════════════════════════
 

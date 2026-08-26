@@ -2,13 +2,19 @@
 
 *Source: Dylan's Google Drive cold-calling corpus (scripts, notes, call reviews, rebuttal vault, playbooks, metrics). Compiled 2026-07-30 as a pre-read before building the `cold-calling-script` skill.*
 
-`Last resync: 2026-08-03`
+`Last resync: 2026-08-24`
 
 ---
 
 ## Update Log
 
 Reverse-chronological. Each entry is tagged `(automated resync)` (weekly, via `executive-assistant/.claude/skills/cold-calling-resync/SKILL.md`) or `(Dylan, in conversation)` (reactive, added the moment new data/notes come up). Check here first before leaning on the Baseline below — an entry may supersede a stale number or contradict a stated principle (the way March 2026's real booking rate contradicted the "V.1.9 was an improvement" narrative — see Baseline §7-8).
+
+### 2026-08-24 (automated resync)
+- **Drive:** No new or changed cold-calling docs since the last resync (2026-08-03) — checked all files modified in the last 8 days against the known title patterns, zero matches (the only sales-script-adjacent activity was "Austin Free Offer V.1.1 DigiGrowth Sales Script" and related Free Offer docs on 2026-08-19/20, which are Free Offer sales-script material, not "Cold Calling Script" pattern matches, so out of scope here per Baseline §8's note on excluding adjacent offers).
+- **Metrics:** No August 2026 Cold Calling Metrics sheet exists yet. Most recent sheet is still July 2026 (`July 2026 DigiGrowth Cold Calling Metrics`), unchanged since the 2026-08-03 resync: 30 calls, 4 answered, 1 pitch, 0 resonations, 0 booked — sample still too small to read (per Baseline §7).
+- **OS dialer:** Could not reach the OS dialer API this run — same infrastructure gap as the 2026-08-03 resync: the cloud environment's network policy rejected the CONNECT to `digigrowth-brain-production.up.railway.app` (403 at the proxy layer), not a "no calls logged" response. Flagging again since this is now the second consecutive resync unable to check this source — worth resolving the network policy for this host if the OS dialer signal is meant to feed this log regularly.
+- **Changes the picture?** No — no new signal surfaced from the two reachable sources, and the OS dialer gap remains a tooling issue to flag to Dylan, not a contradiction of anything in the Baseline.
 
 ### 2026-08-03 (automated resync)
 - **Drive:** No new or changed cold-calling docs since the last resync (2026-07-30) — searched all known title patterns modified after that date, zero matches.
