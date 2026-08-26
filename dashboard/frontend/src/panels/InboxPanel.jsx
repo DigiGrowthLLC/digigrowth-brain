@@ -49,6 +49,16 @@ const CONTACT_STATUSES = [
   { value: "manual-followup",    label: "MANUAL F/U" },
 ];
 
+const STAGE_OPTIONS = [
+  { value: "initial_outreach", label: "INITIAL OUTREACH" },
+  { value: "replied",          label: "REPLIED" },
+  { value: "dm_reached",       label: "DM REACHED" },
+  { value: "primed",           label: "PRIMED" },
+  { value: "engaged",          label: "ENGAGED" },
+  { value: "interested",       label: "INTERESTED" },
+  { value: "not_interested",   label: "NOT INTERESTED" },
+];
+
 const CHANNEL_CHIP = {
   sms:   { label: "SMS",  bg: "rgba(20,200,130,0.12)", color: "#14c882" },
   email: { label: "MAIL", bg: "rgba(160,110,240,0.12)", color: "#a06ef0" },
@@ -238,6 +248,7 @@ export default function InboxPanel({ initialTarget }) {
   const [tagFilter, setTagFilter]         = useState(null);
   const [statusFilter, setStatusFilter]   = useState(null);
   const [readFilter, setReadFilter]       = useState("all"); // "all" | "unread" | "read"
+  const [stageFilter, setStageFilter]     = useState(null);
 
   const bottomRef = useRef(null);
   const autoOpenedRef = useRef(false);
@@ -258,11 +269,12 @@ export default function InboxPanel({ initialTarget }) {
       const params = new URLSearchParams({ channel: channelFilter, since: timeFilter });
       if (tagFilter) params.set("tag", tagFilter);
       if (statusFilter) params.set("contact_status", statusFilter);
+      if (stageFilter) params.set("stage", stageFilter);
       const r = await fetch(API(`/inbox/conversations?${params.toString()}`));
       if (r.ok) setConvos(await r.json());
     } catch {}
     setLoading(false);
-  }, [channelFilter, timeFilter, tagFilter, statusFilter]);
+  }, [channelFilter, timeFilter, tagFilter, statusFilter, stageFilter]);
 
   useEffect(() => {
     loadConvos();
@@ -554,6 +566,18 @@ export default function InboxPanel({ initialTarget }) {
               <option value="">ALL TAGS</option>
               {availableTags.map(t => (
                 <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <select
+              value={stageFilter || ""}
+              onChange={e => setStageFilter(e.target.value || null)}
+              style={{ ...selectStyle, flex: 1 }}
+            >
+              <option value="">ALL STAGES</option>
+              {STAGE_OPTIONS.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
           </div>

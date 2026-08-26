@@ -454,6 +454,7 @@ async def list_inbox_conversations(
     since: str = "all",
     tag: Optional[str] = None,
     contact_status: Optional[str] = None,
+    stage: Optional[str] = None,
 ):
     pool = await get_pool()
     grouped: dict = {}
@@ -472,6 +473,10 @@ async def list_inbox_conversations(
             if contact_status and contact_status != "all":
                 args.append(contact_status)
                 clauses.append(f"c.status = ${len(args)}")
+            if stage == "not_interested":
+                clauses.append("sc.disposition = 'not_interested'")
+            elif stage in _STAGE_COLUMNS:
+                clauses.append(f"sc.stage_{stage} = true")
             sms_rows = await conn.fetch(
                 f"""
                 SELECT sc.contact_id, sc.status, sc.disposition,
@@ -494,7 +499,10 @@ async def list_inbox_conversations(
             for r in sms_rows:
                 _merge_contact_row(grouped, dict(r), "sms")
 
-        if channel in ("all", "email"):
+        # Stage checkboxes (initial_outreach/replied/dm_reached/primed/engaged/interested) only
+        # exist on sms_conversations, so an active stage filter (other than not_interested,
+        # which is disposition-based on both channels) excludes email entirely.
+        if channel in ("all", "email") and not (stage and stage != "not_interested"):
             clauses = ["ec.contact_id IS NOT NULL"]
             args = []
             if since in _SINCE_INTERVAL:
@@ -508,6 +516,8 @@ async def list_inbox_conversations(
             if contact_status and contact_status != "all":
                 args.append(contact_status)
                 clauses.append(f"c.status = ${len(args)}")
+            if stage == "not_interested":
+                clauses.append("ec.disposition = 'not_interested'")
             email_rows = await conn.fetch(
                 f"""
                 SELECT ec.contact_id, ec.status, ec.disposition,
