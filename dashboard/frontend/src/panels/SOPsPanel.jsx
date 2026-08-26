@@ -10,6 +10,7 @@ import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 import { marked } from "marked";
 import SequenceQueueModal from "./SequenceQueueModal";
+import DmFollowUpQueueModal from "./DmFollowUpQueueModal";
 
 function isMarkdown(str) {
   return /^#{1,6} |\*\*[^*]|\*[^*\n]|^- |\n- |\d+\. /m.test(str || "");
@@ -1714,6 +1715,7 @@ function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -1803,6 +1805,11 @@ function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
         )}
         <button
+          onClick={() => setShowQueue(true)}
+          className="btn btn-secondary"
+          style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
+        >View Active Prospects</button>
+        <button
           onClick={save}
           disabled={saving || !dirty}
           style={{
@@ -1816,6 +1823,8 @@ function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
           }}
         >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
       </div>
+
+      {showQueue && <DmFollowUpQueueModal onClose={() => setShowQueue(false)} />}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         {DM_FOLLOWUP_FIELDS.map((f, i) => {

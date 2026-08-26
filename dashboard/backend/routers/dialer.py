@@ -328,6 +328,70 @@ async def save_dm_followup_template(body: dict):
     return {"ok": True}
 
 
+@router.get("/dialer/dm-followup-active")
+async def list_dm_followup_active():
+    """Prospects currently mid an active DM Follow-Up silence cycle — backs
+    the Outreach Templates tab's 'View Active Prospects' queue for DM
+    Follow-Up, same idea as the appointment-sequence queues in
+    routers/appointments.py but keyed off sms_conversations instead of
+    appointment_reminders.
+
+    Filtered to dm_followup_anchor_at IS NOT NULL (a live countdown is
+    running) rather than the poller's broader enrollment WHERE in
+    dm_followup_sequence.send_due_touches() — that function clears the
+    anchor back to NULL the moment a reply lands (see its module
+    docstring's "ball in Dylan's court" step), so this one extra filter is
+    what makes a prospect drop off this list on reply, with no separate
+    stop hook needed — same self-correcting design as the send side.
+
+    A rep can still be enrolled (stage_dm_reached = true) without showing
+    here — e.g. right after they've replied and the anchor was just
+    cleared, waiting on Dylan's next outbound to start a new cycle. That's
+    correct: there's nothing actively counting down for them right now.
+
+    Add/remove aren't separate endpoints here — the existing
+    POST /inbox/contact/{contact_id}/stage (stage="dm_reached", checked)
+    already does exactly enroll/unenroll (see email_inbox.py's
+    set_contact_stage), so the frontend calls that directly instead of
+    duplicating the logic.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT sc.*, c.business, c.owner FROM sms_conversations sc
+            LEFT JOIN contacts c ON c.id = sc.contact_id
+            WHERE sc.stage_dm_reached = true AND sc.status != 'closed' AND sc.disposition IS NULL
+            AND sc.dm_followup_enrolled_at IS NOT NULL AND sc.dm_followup_anchor_at IS NOT NULL
+            ORDER BY sc.dm_followup_anchor_at ASC
+            """
+        )
+
+    touches = dm_followup_sequence._TOUCHES
+    total = len(touches)
+    results = []
+    for r in rows:
+        row = dict(r)
+        anchor = row["dm_followup_anchor_at"]
+        sent_count = sum(1 for _, col, _, _ in touches if row.get(col) is not None)
+        next_due = None
+        for _touch_num, sent_col, ref_col, delay in touches:
+            if row.get(sent_col) is not None:
+                continue
+            reference = anchor if ref_col is None else row.get(ref_col)
+            if reference is not None:
+                next_due = reference + delay
+            break
+        results.append({
+            **row,
+            "touches_sent": sent_count,
+            "touches_total": total,
+            "step_label": f"Touch {sent_count} of {total} sent" if sent_count else "Countdown to Touch 1",
+            "next_touch_due_at": next_due,
+        })
+    return results
+
+
 # ── Appointment reminder templates (Business Resources → Outreach Templates).
 # Same key/value store as the two editors above; reminder_engine.py's
 # send_due_reminders()/send_reschedule_confirmation() read these keys fresh at
