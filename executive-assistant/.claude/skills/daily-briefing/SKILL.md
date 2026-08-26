@@ -95,9 +95,17 @@ If found and it contains cold-calling columns (calls, contacts, appointments):
 
 If not found or no cold-calling columns exist: "No cold calling tracker found in Drive. If a separate file tracks calls made or contacts reached, confirm the file name."
 
-**A-SMS) SMS outreach (live from OS)** — call the `os_sms_outreach_stats` tool. It returns messages sent, reply rate, interested rate, and appointments booked for the last 7 days, last 30 days, and all-time, computed directly from the OS's own `sms_messages`/`sms_conversations` tables. Report the 7-day figures as the headline, with the all-time total in parentheses. This tool result is the sole source for SMS numbers in the briefing — do not look for SMS columns in the Drive tracker even if present.
+**A-SMS) SMS outreach (live from OS)** — call the `os_sms_outreach_stats` tool if it's available (this is the case when running interactively through the OS dashboard chat panel). It returns messages sent, reply rate, interested rate, and appointments booked for the last 7 days, last 30 days, and all-time, computed directly from the OS's own `sms_messages`/`sms_conversations` tables. Report the 7-day figures as the headline, with the all-time total in parentheses. This is the sole source for SMS numbers in the briefing — do not look for SMS columns in the Drive tracker even if present.
 
-If the tool returns "No SMS activity in the OS yet.": write that verbatim and continue — don't treat it as an error, and don't fall back to Drive for this line.
+**Cloud-routine substitution:** the `os_sms_outreach_stats` tool only exists inside the dashboard's own chat tool loop — it is not exposed to the cloud routine sandbox, so a `ToolSearch` for it there will always come back empty (this caused SMS stats to silently read as "unreachable" for a while). When running as the scheduled cloud routine, hit the same data live instead:
+
+```
+curl -s -u 'dylan:<DASHBOARD_PASSWORD>' 'https://digigrowth-brain-production.up.railway.app/api/analytics/outreach?days=7'
+```
+
+The response's `sms.period` object is the 7-day figures (`total_outreach` = messages sent, `reply_rate`, `interested_rate`, `booked`/`abr` = appointments booked); `sms.all_time` is the all-time total. Report exactly as the tool-based path above would.
+
+If SMS numbers can't be obtained by either path (tool unavailable AND curl fails/unreachable), write "No SMS activity in the OS yet." and continue — don't treat it as an error, and don't fall back to Drive for this line.
 
 **B) Daily Input Tracker** — search for the file named **"[Month] Daily Input Tracker"** (e.g. "June Daily Input Tracker"), owned by Dylan. Read and store its data — this is a **habits tracker** (wake time, morning routine, gym, healthy diet, etc.) used only in Step 3.5 below. Do **not** display habits data in this Outreach section.
 
