@@ -21,6 +21,12 @@ Skills live in `.claude/skills/`. Load the relevant skill for the task:
   handling, close), grounded in Dylan's own call-review data, rebuttal vault, and booking metrics.
   Use this any time Dylan or a client needs a new cold calling script, a revision to an existing
   one, or help with a specific beat like the opener or an objection.
+- `outbound-sequences` — build or iterate SMS/email sequences tied to the appointment-booking
+  lifecycle: cold outbound, pre-appointment reminders, no-show recovery, cancellations, and
+  general follow-ups. Grounded in the DigiGrowth OS's real sequence engines (`sms_sequences.py`,
+  `reminder_engine.py`, `no_show_sequence.py`) so copy matches the actual touch counts, timing,
+  channels, and merge fields the system supports. Use this any time Dylan or a client needs new
+  or revised booking-lifecycle messaging.
 
 ## Output Files
 

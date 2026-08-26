@@ -11,6 +11,8 @@ Requires the `playwright` MCP server (configured in the repo's `.mcp.json`) — 
 
 Before starting, check `config.json` — if `"enabled": false`, stop and report that leadgen is paused.
 
+**Never background this work.** Do all scraping, qualification, and pushing synchronously in the current turn — never delegate any part of it to a background task/subagent, and never respond with something like "I'll wait for the background scrape to finish" or "I've kicked this off and will check back." This skill runs unattended via `claude -p` (see `run-scrape-leads.ps1`), which exits the instant a response is produced for the turn — a background task has no later turn to report back to, so backgrounding silently kills the whole run after only a few files get touched. If Playwright browser calls are slow, that's fine; just make them inline and keep going in the same turn until step 9's report is posted.
+
 ## 1. Load state
 
 Run `python lib.py progress-get` (from `leadgen-agent/`) to get the current `{state, city, term_index}` cursor, and read `scraped_ids.json` (or use `python lib.py scraped-has <id>`) for dedup — `<id>` is `"<business name>|<city>|<state>"` lowercased (no Places `place_id` available anymore).

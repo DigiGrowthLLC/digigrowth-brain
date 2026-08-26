@@ -5,9 +5,9 @@ CHAIN / FRANCHISE BLACKLIST:
 ATI Physical Therapy, Athletico, US Physical Therapy, Select Physical Therapy, Select Medical, Ivy Rehab, FYZICAL, CORA Physical Therapy, NovaCare Rehabilitation, Results Physiotherapy, BAYADA Home Health, Interim HealthCare, Amedisys, LHC Group, Encompass Health
 
 NICHE DEFINITION:
-Qualified = independently owned mobile or in-home physical therapy practice where house-call or in-home visits are the PRIMARY or a core service. Focuses on general orthopedic, post-surgical, or geriatric patients. Owner-operated with a small team (1–6 staff). No in-house marketing team or agency.
+Qualified = independently owned, single-location physical therapy practice. Mobile/in-home service is NOT required — a normal clinic/office-based practice qualifies. Focuses on general orthopedic, post-surgical, or geriatric patients. Owner-operated with a small team (1–6 staff). No in-house marketing team or agency.
 
-Disqualified = corporate-owned or franchise PT clinics, brick-and-mortar-only practices with no mobile component, hospital-based or specialty-only clinics (e.g. sports-performance-only), university or teaching hospital PT programs, practices with active paid advertising or an in-house marketing coordinator.
+Disqualified = corporate-owned or franchise PT clinics, any practice with more than one location, hospital-based or specialty-only clinics (e.g. sports-performance-only), university or teaching hospital PT programs, practices with active paid advertising or an in-house marketing coordinator.
 
 CURRENT TARGET MARKETS:
 All US states — priority on Sun Belt markets: Florida, Texas, Georgia, South Carolina, North Carolina, Arizona, Tennessee, Virginia
@@ -15,17 +15,15 @@ All US states — priority on Sun Belt markets: Florida, Texas, Georgia, South C
 DISQUALIFIER SIGNALS (check website and social):
 - Actively running Meta or Google ads
 - Has a marketing coordinator or agency listed
-- Corporate group ownership mentioned (multiple locations under one brand)
-- Brick-and-mortar only — no mention of mobile, house call, or in-home
+- Corporate group ownership mentioned, or more than one location (a "Locations" page listing multiple cities/addresses, "our other clinics", etc.)
 - Sports-performance-only or pediatric-only (narrow specialty focus)
 - Hospital-based or specialty rehab center (no general orthopedic/geriatric care)
 
 GOOD LEAD SIGNALS:
-- "House call", "in-home", "mobile PT", or "we come to you" on website or in business name
-- Independent PT/DPT owner (Dr. [Name]'s Mobile Physical Therapy, [Name] PT House Calls)
+- Independent PT/DPT owner named on the site (Dr. [Name]'s Physical Therapy, [Name] PT & Wellness)
+- Single physical address, no "locations" or multi-city language
 - Website exists but minimal paid marketing evidence
 - Google reviews but no recent social media posts (30+ days since last post)
-- Suburban service area listed with radius or zip codes
 - General orthopedic, post-surgical, or geriatric patients as primary focus
 
 AGENCY CONTEXT:
@@ -36,15 +34,15 @@ The one-line opener feeds into this exact cold call framework:
 The opener must complete that sentence naturally. It should sound like something Dylan genuinely noticed — not a compliment, not a pitch.
 
 ARTICLE RULE: Always use "a" or "an" before the service, offer, or specialty. NEVER use "that", "the", or "your".
-  ✅ "you offer a complimentary first in-home wellness visit"
-  ❌ "you offer that complimentary first in-home wellness visit"
-  ❌ "you offer your complimentary first in-home wellness visit"
+  ✅ "you offer a complimentary first evaluation"
+  ❌ "you offer that complimentary first evaluation"
+  ❌ "you offer your complimentary first evaluation"
 
 Priority order for what to pull from the website:
 1. A specific RESULT or OFFER they advertise (complimentary first visit, free consultation, new patient special)
-2. A specific SERVICE or PROGRAM (in-home post-surgical rehab, fall-risk assessments, senior mobility program, balance and gait training)
-3. A specific NICHE or PATIENT TYPE (post-surgical only, senior/geriatric patients, house call only practice)
-4. A specific METHOD or APPROACH (no waiting room, same-day scheduling, in-home sessions, house call model)
+2. A specific SERVICE or PROGRAM (post-surgical rehab, fall-risk assessments, senior mobility program, balance and gait training, dry needling, blood flow restriction training)
+3. A specific NICHE or PATIENT TYPE (post-surgical only, senior/geriatric patients, sports/athletic patients)
+4. A specific METHOD or APPROACH (one-on-one sessions with the same therapist every visit, no waiting room, same-day scheduling, cash-pay/out-of-network model)
 5. If nothing specific exists — return null. Do not fabricate.
 
 OPENER TONE RULES:
@@ -57,12 +55,12 @@ OPENER TONE RULES:
 - Observation only — no question. Dylan handles the question on the call.
 
 OPENER EXAMPLES (use these as style reference — observation only, no question):
-✅ "you offer a complimentary first in-home evaluation"
+✅ "you offer a complimentary first evaluation"
 ✅ "you specialize in senior mobility and fall prevention"
-✅ "you do in-home post-surgical rehab appointments"
+✅ "you do one-on-one post-surgical rehab appointments"
 ✅ "you focus exclusively on post-surgical patients"
 ✅ "you offer a free consultation for new patients"
-✅ "you cap appointments to allow a full in-home session every visit"
+✅ "you book a full hour with the same therapist every visit"
 ✅ "you run a senior mobility program for adults over sixty-five"
 
 DYNAMIC MEMORY LOG:

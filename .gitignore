@@ -14,3 +14,16 @@ dist/
 .env.*
 !.env.example
 credentials.json
+reauth_google.py
+
+# Video render workspace and vendored skill cache — large/binary, regenerated locally
+content-agent/projects/
+content-agent/raw/
+content-agent/exports/
+content-agent/.agents/
+
+# Playwright MCP debug artifacts (console logs, screenshots)
+.playwright-mcp/
+
+# leadgen-agent scrape run logs/intermediates
+leadgen-agent/logs/
