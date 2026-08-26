@@ -146,7 +146,7 @@ async def _send_touch(row: dict, instance: str, templates: dict, stage: str):
             pool = await get_pool()
             async with pool.acquire() as conn:
                 await sms_router._get_or_create_conversation(conn, phone)
-                await sms_router._store_message(conn, phone, "assistant", sms_text, stage=stage)
+                await sms_router._store_message(conn, phone, "assistant", sms_text, stage=stage, is_automated=True)
         except Exception as e:
             print(f"[no_show_sequence] SMS failed for {phone}: {e}")
 
@@ -155,7 +155,7 @@ async def _send_touch(row: dict, instance: str, templates: dict, stage: str):
         try:
             subject = _fill(subject_template, row)
             body = _fill(body_template, row)
-            result = await asyncio.to_thread(integrations.gmail_send, email, subject, body)
+            result = await asyncio.to_thread(integrations.gmail_send, email, subject, body, is_automated=True)
             if not result.startswith("Sent email"):
                 print(f"[no_show_sequence] email to {email} did not send: {result}")
         except Exception as e:

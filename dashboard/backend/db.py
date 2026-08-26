@@ -329,6 +329,21 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_touch3_sent_at TIMESTAMPTZ;
             ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
             ALTER TABLE sms_messages ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
+            -- Excludes automated sequence sends (no_show/cancel/dm_followup/
+            -- reminder) from outreach-volume analytics -- those aren't fresh
+            -- outreach, they're follow-up on an existing relationship. See
+            -- routers/sms.py::_store_message and integrations.py::gmail_send.
+            ALTER TABLE sms_messages ADD COLUMN IF NOT EXISTS is_automated BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS is_automated BOOLEAN NOT NULL DEFAULT false;
+            -- When each stage checkbox was actually set (see
+            -- email_inbox.py::set_contact_stage) -- lets analytics.py narrow
+            -- these to a period accurately instead of the phone-was-contacted
+            -- proxy it used before these existed.
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_replied_at TIMESTAMPTZ;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_dm_reached_at TIMESTAMPTZ;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_primed_at TIMESTAMPTZ;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_engaged_at TIMESTAMPTZ;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_interested_at TIMESTAMPTZ;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pending_sms_campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pending_email_campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;

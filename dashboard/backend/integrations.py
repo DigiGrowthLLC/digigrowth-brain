@@ -233,7 +233,8 @@ def gmail_read_thread(thread_id: str) -> str:
 
 
 async def _record_outbound_email(to: str, subject: str, body: str, message_id: str, thread_id: str,
-                                  tracking_token: str | None = None, is_test: bool = False) -> None:
+                                  tracking_token: str | None = None, is_test: bool = False,
+                                  is_automated: bool = False) -> None:
     """Mirror email_inbox.py's manual_email_send() bookkeeping for sends that
     go through gmail_send/gmail_send_html directly (newsletter, send-info,
     appointment reminders) instead of the Inbox reply box. Without this, a
@@ -273,22 +274,23 @@ async def _record_outbound_email(to: str, subject: str, body: str, message_id: s
             )
 
         await conn.execute(
-            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token, is_test, campaign_id)
-               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7, $8, $9)
+            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, tracking_token, is_test, campaign_id, is_automated)
+               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7, $8, $9, $10)
                ON CONFLICT (gmail_message_id) DO NOTHING""",
-            contact_id, thread_id, to, subject, body, message_id, tracking_token, is_test, active_campaign_id,
+            contact_id, thread_id, to, subject, body, message_id, tracking_token, is_test, active_campaign_id, is_automated,
         )
     finally:
         await conn.close()
 
 
 def _record_outbound_email_sync(to: str, subject: str, body: str, message_id: str, thread_id: str,
-                                 tracking_token: str | None = None, is_test: bool = False) -> None:
+                                 tracking_token: str | None = None, is_test: bool = False,
+                                 is_automated: bool = False) -> None:
     """gmail_send/gmail_send_html are plain sync functions always invoked via
     asyncio.to_thread (worker thread, no running loop) — asyncio.run() here
     is therefore safe."""
     try:
-        asyncio.run(_record_outbound_email(to, subject, body, message_id, thread_id, tracking_token, is_test))
+        asyncio.run(_record_outbound_email(to, subject, body, message_id, thread_id, tracking_token, is_test, is_automated))
     except Exception as e:
         print(f"[gmail_send] failed to record outbound conversation: {e}", flush=True)
 
@@ -329,12 +331,16 @@ def _wrap_outreach_html(body: str, tracking_token: str, contact_id: str | None) 
     return "".join(parts)
 
 
-def gmail_send(to: str, subject: str, body: str, track: bool = False) -> str:
+def gmail_send(to: str, subject: str, body: str, track: bool = False, is_automated: bool = False) -> str:
     """track=True marks this as an outreach send: wraps the body as HTML with
     an open-tracking pixel and (for known contacts) an unsubscribe link, and
     is skipped outright if that contact has opted out. Transactional mail
     (appointment reminders) and general AI-agent-composed email must NOT be
-    tracked — they stay plain text and always send, so leave track=False."""
+    tracked — they stay plain text and always send, so leave track=False.
+
+    is_automated=True marks a send from an unattended sequence (no_show/
+    cancel/reminder) rather than fresh cold outreach — excluded from
+    outreach-volume analytics (see analytics.py::_email_metrics)."""
     guard = _verify_sender_identity()
     if guard:
         return guard
@@ -353,7 +359,7 @@ def gmail_send(to: str, subject: str, body: str, track: bool = False) -> str:
         msg["subject"] = subject
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         sent = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
-        _record_outbound_email_sync(to, subject, body, sent["id"], sent["threadId"], tracking_token)
+        _record_outbound_email_sync(to, subject, body, sent["id"], sent["threadId"], tracking_token, is_automated=is_automated)
         return f"Sent email to {to}: {subject}"
     except RuntimeError as e:
         return str(e)

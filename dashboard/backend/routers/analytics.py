@@ -225,31 +225,32 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     date range).
 
     Replied/Primed/Engaged/Interested are read straight off sms_conversations'
-    checkboxes — NOT recomputed from message counts here. They're auto-set
-    from the prospect's inbound reply count (1+/2+/3+/4+ respectively) by
-    sms.py::_recompute_stage_flags() on every inbound message, and Initial
-    Outreach is auto-set the moment the first outbound message goes out
-    (sms.py::_store_message) — but a rep can manually check/uncheck any of
-    them from the Inbox (POST /inbox/contact/{contact_id}/stage in
-    email_inbox.py) — once touched manually, the checkbox is authoritative
-    and stops tracking the raw count/send. So this function always trusts
-    the stored checkbox, by design.
+    checkboxes — NOT recomputed from message counts here. Replied is auto-set
+    the moment any inbound reply lands (sms.py::_recompute_stage_flags);
+    Primed/Engaged/Interested/DM Reached are exclusively manual. Any of them
+    can be corrected by hand from the Inbox (POST /inbox/contact/{contact_id}
+    /stage in email_inbox.py) — once touched manually, the checkbox is
+    authoritative and stops tracking the raw reply count. Whenever a
+    checkbox is actually set, its stage_{x}_at column is stamped at the same
+    time (see db.py's migration comment) — `since` narrows all five of these
+    using that column, not the boolean alone, so it's an accurate answer to
+    "how many became DM Reached in this period", not a proxy. A conversation
+    whose flag was set before these timestamp columns existed (or via the
+    auto-reply path before this was added) simply won't match a period
+    filter, which is the correct behavior — there's no accurate historical
+    "when" to recover for those.
 
-    Outside campaign mode, Total Outreach/Contacted stay message-count based
-    (sms_messages, scoped by since) — a real send-volume metric for the
-    period toggle, distinct from the campaign view's per-prospect funnel.
+    Total Outreach/Contacted are message-count based (sms_messages, scoped
+    by since) — a real send-volume metric for the period toggle, distinct
+    from the boolean-based per-prospect funnel above. Both exclude
+    is_automated sends (no_show/cancel/dm_followup/reminder sequence
+    touches) — those are follow-up on an existing relationship, not fresh
+    outreach.
 
-    In campaign mode, `since` CANNOT narrow Replied/DM Reached/Primed/
-    Engaged/Interested — those are plain booleans with no column recording
-    when the flag was actually set, only whether it's set now, so there is
-    no historical answer to "how many became DM Reached in the last 24h"
-    with the current schema. Those five always reflect the whole campaign
-    regardless of `since`. Total Outreach/Contacted (from sms_messages,
-    genuinely timestamped) and Booked/Not Interested (from disposition +
-    sms_conversations.updated_at, an approximation — updated_at bumps on
-    other edits too, not just a disposition change, but a disposition set
-    is rare enough after the fact that this is close enough) DO respect
-    `since` when given.
+    Booked/Not Interested are windowed by sms_conversations.updated_at
+    (bumped when disposition is set) — an approximation, since updated_at
+    bumps on other edits too, not just a disposition change, but a
+    disposition set is rare enough after the fact that this is close enough.
     """
     if campaign_id is not None:
         msg_row = await conn.fetchrow(
@@ -258,18 +259,23 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
                    COUNT(DISTINCT sm.phone) FILTER (WHERE sm.direction = 'outbound') AS contacted
             FROM sms_messages sm
             JOIN sms_conversations sc ON sc.phone = sm.phone
-            WHERE sc.campaign_id = $1
+            WHERE sc.campaign_id = $1 AND NOT sm.is_automated
             """ + (" AND sm.sent_at >= $2" if since else ""),
             *([campaign_id, since] if since else [campaign_id]),
         )
+        # Narrowed by stage_{x}_at, now that it exists (stamped in
+        # email_inbox.py's set_contact_stage()) — pre-existing conversations
+        # set before these timestamp columns existed just won't match a
+        # period filter, which is correct (no accurate historical "when" for
+        # those). $2::timestamptz IS NULL means "no period filter" (All Time).
         stage_row = await conn.fetchrow(
             """
             SELECT
-                COUNT(*) FILTER (WHERE stage_replied)          AS replied,
-                COUNT(*) FILTER (WHERE stage_dm_reached)        AS dm_reached,
-                COUNT(*) FILTER (WHERE stage_primed)            AS primed,
-                COUNT(*) FILTER (WHERE stage_engaged)           AS engaged,
-                COUNT(*) FILTER (WHERE stage_interested)        AS interested,
+                COUNT(*) FILTER (WHERE stage_replied     AND ($2::timestamptz IS NULL OR stage_replied_at     >= $2)) AS replied,
+                COUNT(*) FILTER (WHERE stage_dm_reached   AND ($2::timestamptz IS NULL OR stage_dm_reached_at  >= $2)) AS dm_reached,
+                COUNT(*) FILTER (WHERE stage_primed       AND ($2::timestamptz IS NULL OR stage_primed_at      >= $2)) AS primed,
+                COUNT(*) FILTER (WHERE stage_engaged      AND ($2::timestamptz IS NULL OR stage_engaged_at     >= $2)) AS engaged,
+                COUNT(*) FILTER (WHERE stage_interested   AND ($2::timestamptz IS NULL OR stage_interested_at  >= $2)) AS interested,
                 COUNT(*) FILTER (WHERE disposition = 'booked'         AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS booked,
                 COUNT(*) FILTER (WHERE disposition = 'not_interested' AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS not_interested
             FROM sms_conversations
@@ -300,17 +306,13 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
             "not_interested_rate": _pct(not_interested, contacted),
         }
 
-    msg_filter = "AND sent_at >= $1" if since else ""
+    # AND NOT is_automated excludes no_show/cancel/dm_followup/reminder
+    # sequence sends from outreach-volume metrics — those are follow-up on
+    # an existing relationship, not fresh outreach (see
+    # routers/sms.py::_store_message).
+    msg_filter = "AND NOT is_automated" + (" AND sent_at >= $1" if since else "")
     params = [since] if since else []
 
-    stage_filter = "AND sc.phone = ANY($1)" if since else ""
-    stage_params = params.copy()
-    if since:
-        contacted_phones = await conn.fetch(
-            f"SELECT DISTINCT phone FROM sms_messages WHERE direction='outbound' {msg_filter}",
-            *params,
-        )
-        stage_params = [[r["phone"] for r in contacted_phones]]
     # Windowed by updated_at (bumped when disposition is set), not created_at
     # (when the conversation first started) — same fix as _email_metrics
     # below, whose comment explains why: a booking that lands in this period
@@ -331,25 +333,34 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         *params,
     )
 
+    # Narrowed directly by stage_{x}_at (stamped in email_inbox.py's
+    # set_contact_stage() the moment each checkbox is set — see db.py's
+    # migration comment) instead of the old "phone was contacted in this
+    # window" proxy, which only approximated "reached this stage in this
+    # window". Pre-existing conversations set before these timestamp columns
+    # existed simply won't match a period filter (stage_*_at is NULL there),
+    # which is the correct behavior — a stage that predates tracking has no
+    # accurate historical answer to "when".
+    stage_since_filter = "AND {col} >= $1" if since else ""
     replied = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_replied {stage_filter}",
-        *stage_params,
+        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_replied {stage_since_filter.format(col='stage_replied_at')}",
+        *params,
     )
     dm_reached = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_dm_reached {stage_filter}",
-        *stage_params,
+        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_dm_reached {stage_since_filter.format(col='stage_dm_reached_at')}",
+        *params,
     )
     primed = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_primed {stage_filter}",
-        *stage_params,
+        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_primed {stage_since_filter.format(col='stage_primed_at')}",
+        *params,
     )
     engaged = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_engaged {stage_filter}",
-        *stage_params,
+        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_engaged {stage_since_filter.format(col='stage_engaged_at')}",
+        *params,
     )
     interested = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations sc WHERE stage_interested {stage_filter}",
-        *stage_params,
+        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_interested {stage_since_filter.format(col='stage_interested_at')}",
+        *params,
     )
 
     booked = await conn.fetchval(
@@ -404,7 +415,7 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     same as SMS.
     """
     if campaign_id is not None:
-        msg_filter = "AND NOT is_test AND campaign_id = $1" + (" AND sent_at >= $2" if since else "")
+        msg_filter = "AND NOT is_test AND NOT is_automated AND campaign_id = $1" + (" AND sent_at >= $2" if since else "")
         params = [campaign_id, since] if since else [campaign_id]
         booked_filter = "AND campaign_id = $1" + (" AND updated_at >= $2" if since else "")
         unsub_filter = ""  # unsubscribes are tracked on contacts, not per-conversation — no clean campaign scope
@@ -413,8 +424,10 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         # is_test excludes diagnostic sends (e.g. /newsletter/test-send, used to
         # verify the open-tracking pixel end-to-end) — those are self-opened by
         # whoever ran the test, which skews open rate badly against a real
-        # campaign's small early denominator if left in.
-        msg_filter = "AND NOT is_test" + (" AND sent_at >= $1" if since else "")
+        # campaign's small early denominator if left in. is_automated excludes
+        # no_show/cancel/reminder sequence sends — follow-up on an existing
+        # relationship, not fresh outreach.
+        msg_filter = "AND NOT is_test AND NOT is_automated" + (" AND sent_at >= $1" if since else "")
         params = [since] if since else []
         booked_filter = "AND updated_at >= $1" if since else ""
         unsub_filter = "AND opted_out_at >= $1" if since else ""

@@ -209,7 +209,7 @@ function CampaignsView({ days }) {
 
           {channel === "sms" && days !== 0 && (
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a8a", letterSpacing: "0.04em" }}>
-              DM Reached / Primed / Engaged / Interested are whole-campaign totals — those checkboxes don't record when they were set, so they can't be narrowed to {ANALYTICS_PERIOD_OPTIONS.find(([d]) => d === days)?.[1] || "this period"}. Total Outreach, Booked, and Not Interested Rate are.
+              DM Reached / Primed / Engaged / Interested narrow to {ANALYTICS_PERIOD_OPTIONS.find(([d]) => d === days)?.[1] || "this period"} using when each was actually checked — a conversation whose checkbox was set before that tracking existed won't show up in a period filter, since there's no accurate historical record for it. All-Time still reflects everyone.
             </div>
           )}
           {channel === "sms" && <SmsOutreachCard outreach={outreachShape} tab="campaign" />}

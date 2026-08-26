@@ -676,7 +676,7 @@ async def set_contact_stage(contact_id: str, payload: dict):
                     """
                     UPDATE sms_conversations
                     SET stage_dm_reached = true, stage_dm_reached_manual = true,
-                        dm_followup_enrolled_at = now(), updated_at = now()
+                        stage_dm_reached_at = now(), dm_followup_enrolled_at = now(), updated_at = now()
                     WHERE contact_id = $1 AND stage_dm_reached = false
                     """,
                     contact_id,
@@ -692,7 +692,7 @@ async def set_contact_stage(contact_id: str, payload: dict):
                     """
                     UPDATE sms_conversations
                     SET stage_dm_reached = false, stage_dm_reached_manual = true,
-                        dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
+                        stage_dm_reached_at = NULL, dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
                         dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL,
                         dm_followup_touch3_sent_at = NULL, updated_at = now()
                     WHERE contact_id = $1
@@ -700,10 +700,16 @@ async def set_contact_stage(contact_id: str, payload: dict):
                     contact_id,
                 )
         else:
+            # Analytics narrows Replied/Primed/Engaged/Interested to a period
+            # using stage_{stage}_at (see analytics.py::_sms_metrics) — stamp
+            # it whenever this checkbox is set, clear it when unset. Initial
+            # Outreach has no _at column (Total Outreach is already message-
+            # count based and genuinely timestamped, so it doesn't need one).
+            at_clause = f", stage_{stage}_at = " + ("now()" if checked else "NULL") if stage != "initial_outreach" else ""
             await conn.execute(
                 f"""
                 UPDATE sms_conversations
-                SET stage_{stage} = $2, stage_{stage}_manual = true, updated_at = now()
+                SET stage_{stage} = $2, stage_{stage}_manual = true{at_clause}, updated_at = now()
                 WHERE contact_id = $1
                 """,
                 contact_id, checked,

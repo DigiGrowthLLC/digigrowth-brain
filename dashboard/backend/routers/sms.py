@@ -127,7 +127,14 @@ async def _get_or_create_conversation(conn, phone: str) -> dict:
     }
 
 
-async def _store_message(conn, phone: str, role: str, body: str, stage: str | None = None):
+async def _store_message(conn, phone: str, role: str, body: str, stage: str | None = None, is_automated: bool = False):
+    """is_automated marks a send from an unattended sequence (no_show/cancel/
+    dm_followup/reminder — see those modules) rather than fresh cold outreach
+    or a rep's own manual send. Excluded from outreach-volume analytics (see
+    analytics.py::_sms_metrics) and never counts as the "Initial Outreach"
+    moment — a follow-up on an existing relationship isn't a prospect's first
+    contact, even on the rare case a sequence somehow fires before any manual
+    outbound exists."""
     conv = await conn.fetchrow(
         f"SELECT messages, phone FROM sms_conversations WHERE {_phone_match('phone', '$1')}", phone
     )
@@ -182,18 +189,21 @@ async def _store_message(conn, phone: str, role: str, body: str, stage: str | No
         # separate backfill needed — it's just re-filtering conversations by
         # campaign_id. `NOT stage_initial_outreach_manual` respects a human
         # override from the Inbox (see email_inbox.py's stage endpoint).
-        await conn.execute(
-            f"""
-            UPDATE sms_conversations SET stage_initial_outreach = true
-            WHERE {_phone_match('phone', '$1')} AND NOT stage_initial_outreach_manual
-            """,
-            canonical_phone,
-        )
+        # Skipped for automated sends — a sequence follow-up isn't a
+        # prospect's first contact.
+        if not is_automated:
+            await conn.execute(
+                f"""
+                UPDATE sms_conversations SET stage_initial_outreach = true
+                WHERE {_phone_match('phone', '$1')} AND NOT stage_initial_outreach_manual
+                """,
+                canonical_phone,
+            )
 
     await conn.execute(
         """
-        INSERT INTO sms_messages (contact_id, phone, direction, body, stage, campaign_id)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO sms_messages (contact_id, phone, direction, body, stage, campaign_id, is_automated)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         """,
         contact_id,
         canonical_phone,
@@ -201,6 +211,7 @@ async def _store_message(conn, phone: str, role: str, body: str, stage: str | No
         body,
         stage,
         active_sms_campaign_id,
+        is_automated,
     )
 
     if direction == "inbound":
@@ -224,16 +235,21 @@ async def _recompute_stage_flags(conn, phone: str):
         phone,
     )
     row = await conn.fetchrow(
-        f"SELECT stage_replied_manual FROM sms_conversations WHERE {_phone_match('phone', '$1')}",
+        f"SELECT stage_replied, stage_replied_manual FROM sms_conversations WHERE {_phone_match('phone', '$1')}",
         phone,
     )
     if not row or row["stage_replied_manual"]:
         return
 
+    now_replied = inbound_count >= 1
+    # Stamp the moment this flips true (first reply ever) so analytics can
+    # narrow "Replied" to a period — never overwritten on subsequent
+    # replies, this is specifically "when did they first reply".
+    stamp_clause = ", stage_replied_at = now()" if (now_replied and not row["stage_replied"]) else ""
     await conn.execute(
-        f"UPDATE sms_conversations SET stage_replied = $2 WHERE {_phone_match('phone', '$1')}",
+        f"UPDATE sms_conversations SET stage_replied = $2{stamp_clause} WHERE {_phone_match('phone', '$1')}",
         phone,
-        inbound_count >= 1,
+        now_replied,
     )
 
 

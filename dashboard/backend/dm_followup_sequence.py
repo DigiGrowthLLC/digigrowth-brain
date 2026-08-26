@@ -132,7 +132,7 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict, stage: st
     if sms_text.strip():
         try:
             sms_router._send_twilio(phone, sms_text)
-            await sms_router._store_message(conn, phone, "assistant", sms_text, stage=stage)
+            await sms_router._store_message(conn, phone, "assistant", sms_text, stage=stage, is_automated=True)
         except Exception as e:
             print(f"[dm_followup_sequence] SMS failed for {phone}: {e}")
 
