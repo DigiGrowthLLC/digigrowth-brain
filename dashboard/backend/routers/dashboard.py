@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone, date
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
-from routers.analytics import _sms_metrics, _email_metrics, _app_booked_count
+from routers.analytics import _sms_metrics, _email_metrics, _app_booked_count, _sheet_stat
 
 _SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 
@@ -74,10 +74,15 @@ async def summary(period: str = "day"):
         email_funnel = await _email_metrics(conn, None if p_days == 0 else since)
         app_booked   = await _app_booked_count(conn, stats, p_days)
 
+    # "Today" (period=day, p_days=1) has no base_key_1d bucket in
+    # sales_stats.json — the Sheets Digest only tracks fixed 7d/30d/
+    # all-time snapshots for cold calling. Delegate to analytics.py's
+    # _sheet_stat, which for p_days==1 pulls from the digest's per-day
+    # breakdown instead — previously this fell through to a `_1d`-suffixed
+    # key that never existed, so Total Reached silently dropped the calling
+    # side to 0 every time "Today" was selected.
     def _sheet(key):
-        if p_days == 0:
-            return stats.get(key, 0) or 0
-        return stats.get(f"{key}_{p_days}d", 0) or 0
+        return _sheet_stat(stats, key, p_days)
 
     calls_made     = _sheet("sheet_calls_made")
     calls_answered = _sheet("sheet_calls_answered")

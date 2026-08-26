@@ -33,9 +33,24 @@ def _stat_is_stale(iso_ts: str, days: int) -> bool:
     return datetime.now(timezone.utc) - last_changed > timedelta(days=days)
 
 
+# Cold-calling fields the Sheets Digest breaks out per-day in
+# sales_stats.json["daily"] (see _calling_metrics_for_campaign) — the only
+# granularity fine enough to answer "how many today", since the digest's
+# other buckets are fixed 7d/30d/all-time snapshots.
+_DAILY_FIELD_MAP = {
+    "sheet_calls_made":          "calls_made",
+    "sheet_calls_answered":      "calls_answered",
+    "sheet_contacts_reached":    "contacts_reached",
+    "sheet_resonations":         "resonations",
+    "sheet_appointments_booked": "appointments_booked",
+}
+
+
 def _sheet_stat(stats: dict, base_key: str, days: int) -> int:
     """Return the right period bucket from sales_stats.json.
     days=0 → all-time (base_key)
+    days=1 → today's entry in the per-day breakdown (base_key in
+             _DAILY_FIELD_MAP only — there's no base_key_1d bucket)
     days=7 → base_key_7d, falling back to 0
     days=30 → base_key_30d, falling back to 0
 
@@ -57,6 +72,10 @@ def _sheet_stat(stats: dict, base_key: str, days: int) -> int:
     """
     if days == 0:
         return stats.get(base_key, 0) or 0
+    if days == 1 and base_key in _DAILY_FIELD_MAP:
+        today_key = datetime.now(timezone.utc).date().isoformat()
+        day_fields = (stats.get("daily") or {}).get(today_key) or {}
+        return day_fields.get(_DAILY_FIELD_MAP[base_key], 0) or 0
     if base_key.startswith("sheet_"):
         last_changed = stats.get("sheet_data_last_changed")
         if not last_changed or _stat_is_stale(last_changed, days):
