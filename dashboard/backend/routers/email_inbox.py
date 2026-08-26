@@ -661,14 +661,53 @@ async def set_contact_stage(contact_id: str, payload: dict):
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            f"""
-            UPDATE sms_conversations
-            SET stage_{stage} = $2, stage_{stage}_manual = true, updated_at = now()
-            WHERE contact_id = $1
-            """,
-            contact_id, checked,
-        )
+        if stage == "dm_reached":
+            # dm_followup_sequence.py only ever acts on conversations with
+            # dm_followup_enrolled_at set — deliberately NOT backfilled for
+            # rows that were already stage_dm_reached=true before this
+            # enrollment gate existed, so the DM Follow-Up sequence never
+            # auto-applies to prospects reached before it shipped. Checking
+            # the box (from false, or for the first time) enrolls; the rep
+            # can also intentionally re-enroll an old prospect by unchecking
+            # then rechecking. Unchecking always clears enrollment and any
+            # in-flight cycle, whether or not it was ever enrolled.
+            if checked:
+                await conn.execute(
+                    """
+                    UPDATE sms_conversations
+                    SET stage_dm_reached = true, stage_dm_reached_manual = true,
+                        dm_followup_enrolled_at = now(), updated_at = now()
+                    WHERE contact_id = $1 AND stage_dm_reached = false
+                    """,
+                    contact_id,
+                )
+                # No-op if already true (the WHERE above skipped it) — still
+                # need to ensure the manual flag is set for that case.
+                await conn.execute(
+                    "UPDATE sms_conversations SET stage_dm_reached_manual = true, updated_at = now() WHERE contact_id = $1",
+                    contact_id,
+                )
+            else:
+                await conn.execute(
+                    """
+                    UPDATE sms_conversations
+                    SET stage_dm_reached = false, stage_dm_reached_manual = true,
+                        dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
+                        dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL,
+                        dm_followup_touch3_sent_at = NULL, updated_at = now()
+                    WHERE contact_id = $1
+                    """,
+                    contact_id,
+                )
+        else:
+            await conn.execute(
+                f"""
+                UPDATE sms_conversations
+                SET stage_{stage} = $2, stage_{stage}_manual = true, updated_at = now()
+                WHERE contact_id = $1
+                """,
+                contact_id, checked,
+            )
     return {"ok": True, "stage": stage, "checked": checked}
 
 

@@ -322,6 +322,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_interested BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS stage_interested_manual BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_enrolled_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_anchor_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_touch1_sent_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_touch2_sent_at TIMESTAMPTZ;

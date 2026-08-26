@@ -15,9 +15,18 @@ naturally re-derivable every time from the message log itself:
      disposition IS NULL — the latter covers both the "Not Interested" stop and
      the "booked" stop, since both set disposition via existing paths in
      email_inbox.py's stage-set handler and routers/appointments.py's
-     create_appointment()), compute live: last_outbound_at = MAX(sent_at)
+     create_appointment() — AND dm_followup_enrolled_at IS NOT NULL, see
+     enrollment note below), compute live: last_outbound_at = MAX(sent_at)
      FROM sms_messages WHERE direction='outbound', last_inbound_at = same for
      'inbound'.
+
+  Enrollment gate: dm_followup_enrolled_at is stamped by email_inbox.py's
+  set_contact_stage() the moment stage_dm_reached transitions from false to
+  true — NOT backfilled for conversations that were already DM Reached
+  before this sequence existed. This means the sequence only ever applies to
+  prospects marked DM Reached from this feature's ship date forward; a rep
+  can deliberately opt an older prospect in by unchecking DM Reached and
+  rechecking it (which re-stamps dm_followup_enrolled_at = now()).
   2. Ball in Dylan's court (last_inbound_at >= last_outbound_at, i.e. they
      just replied, or no outbound has been sent yet): clear
      dm_followup_anchor_at and all three touch-sent columns to NULL. This IS
@@ -30,12 +39,26 @@ naturally re-derivable every time from the message log itself:
      of this sequence's own touches echoing back as "last outbound"). Set
      dm_followup_anchor_at = last_outbound_at and clear the touch columns —
      this IS the "restarts after a reply, if quiet again for 24h" behavior.
-  4. Send whichever touch is next due against the fixed dm_followup_anchor_at
-     (24h / 72h / 7d). Sending a touch becomes the new "last_outbound_at" on
-     the NEXT poll, but since it's never newer than the anchor/touch
-     timestamp we just recorded, step 3 correctly treats it as "still the
-     same cycle" — Touch 2/3 stay anchored to the original silence event
-     instead of restarting every time this sequence itself sends something.
+  4. Send whichever touch is next due. Touch 1 waits 24h from
+     dm_followup_anchor_at; Touch 2 waits 48h from Touch 1's actual send;
+     Touch 3 waits 4 days from Touch 2's actual send (24h/48h/4d chains to
+     the intended 24h/72h/7d-from-anchor cadence when each touch sends right
+     on schedule). Sending a touch becomes the new "last_outbound_at" on the
+     NEXT poll, but since it's never newer than the anchor/touch timestamp we
+     just recorded, step 3 correctly treats it as "still the same cycle" —
+     Touch 2/3 stay anchored to real send times instead of restarting every
+     time this sequence itself sends something.
+
+     Chaining each touch off the PREVIOUS touch's real send (rather than off
+     a single fixed anchor) matters for prospects who were already DM-Reached
+     and silent before this sequence existed: their anchor backfills to
+     whatever their last real outbound message was, which can be weeks old.
+     Anchored-from-a-single-point timing would find all three delays already
+     satisfied simultaneously and fire Touch 1/2/3 back-to-back within
+     minutes on the first poll after deploy. Chaining from real sends means
+     Touch 1 can fire immediately (it genuinely is overdue), but Touch 2/3
+     still each wait their full interval from there — so it can never
+     produce a burst.
 
 Each touch's SMS text is independently editable from Business Resources →
 Outreach Templates → DM Follow-Up. Templates support {first_name} and
@@ -48,11 +71,14 @@ import integrations
 from db import get_pool
 from merge_fields import first_name_from_owner
 
-# (touch number, sent-at column, delay after dm_followup_anchor_at)
+# (touch number, sent-at column, reference column to count the delay from —
+# None means "the anchor"; otherwise the previous touch's own sent-at column
+# — see module docstring for why chaining off real sends, not the anchor,
+# matters for prospects who were already silent before this sequence existed)
 _TOUCHES = [
-    (1, "dm_followup_touch1_sent_at", timedelta(hours=24)),
-    (2, "dm_followup_touch2_sent_at", timedelta(hours=72)),
-    (3, "dm_followup_touch3_sent_at", timedelta(days=7)),
+    (1, "dm_followup_touch1_sent_at", None, timedelta(hours=24)),
+    (2, "dm_followup_touch2_sent_at", "dm_followup_touch1_sent_at", timedelta(hours=48)),
+    (3, "dm_followup_touch3_sent_at", "dm_followup_touch2_sent_at", timedelta(days=4)),
 ]
 
 _TOUCH1_SMS_DEFAULT = (
@@ -124,6 +150,7 @@ async def send_due_touches():
             SELECT sc.*, c.owner FROM sms_conversations sc
             LEFT JOIN contacts c ON c.id = sc.contact_id
             WHERE sc.stage_dm_reached = true AND sc.status != 'closed' AND sc.disposition IS NULL
+            AND sc.dm_followup_enrolled_at IS NOT NULL
             """
         )
         if not rows:
@@ -178,10 +205,13 @@ async def send_due_touches():
                 row["dm_followup_touch3_sent_at"] = None
 
             anchor = row["dm_followup_anchor_at"]
-            for touch_num, sent_col, delay in _TOUCHES:
+            for touch_num, sent_col, ref_col, delay in _TOUCHES:
                 if row[sent_col] is not None:
                     continue
-                if now >= anchor + delay:
+                reference = anchor if ref_col is None else row[ref_col]
+                # reference is None here only if the previous touch hasn't
+                # sent yet — nothing to do this poll, wait for it.
+                if reference is not None and now >= reference + delay:
                     await _send_touch(conn, row, f"touch{touch_num}", templates, f"dm_followup_touch{touch_num}")
                     await conn.execute(
                         f"UPDATE sms_conversations SET {sent_col} = now() WHERE id = $1", row["id"],
