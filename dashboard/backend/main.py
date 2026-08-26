@@ -18,6 +18,7 @@ import integrations
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals
 from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns
+import call_reminders
 import cancel_sequence
 import no_show_sequence
 import reminder_engine
@@ -301,6 +302,12 @@ async def lifespan(app: FastAPI):
         cancel_sequence.send_due_touches,
         IntervalTrigger(minutes=5),
         id="cancel-sequence",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        call_reminders.check_all,
+        IntervalTrigger(minutes=5),
+        id="call-reminders",
         replace_existing=True,
     )
     scheduler.start()
