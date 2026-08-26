@@ -11,9 +11,17 @@ their normal schedule from there.
 
 The /cancel endpoint below drives the same shape of sequence for
 cancellations — cancel_sequence.py, see that module's docstring.
+
+GET  /appointment-reminders/sequence/{sequence} and the /add, /remove
+sub-routes below (sequence in "no_show"/"cancel"/"reminder") back the
+Outreach Templates tab's "View Active Prospects" queue for each of the three
+sequence types — list who's currently mid-sequence with their progress, pull
+someone out early, or manually (re-)enroll a specific appointment row. These
+reuse the exact same columns/engines above; they don't introduce a new send
+path, just manual control over the existing one.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -26,6 +34,73 @@ import no_show_sequence
 import reminder_engine
 
 router = APIRouter()
+
+# sequence key -> engine module + the columns that track its 4-touch drip,
+# shared by the /sequence/{sequence} list/add/remove endpoints below. The
+# "reminder" sequence isn't in here — it's a fixed 3-window (24h/6h/1h)
+# countdown to appointment_at rather than a 4-touch drip from an anchor
+# event, so it's handled separately in the endpoints below.
+_SEQUENCE_CONFIG = {
+    "no_show": {
+        "module": no_show_sequence,
+        "active_where": "ar.outcome_show = 'no_show' AND ar.no_show_sequence_stopped_at IS NULL",
+        "anchor_col": "outcome_show_at",
+        "touch_cols": [
+            "no_show_touch1_sent_at", "no_show_touch2_sent_at",
+            "no_show_touch3_sent_at", "no_show_touch4_sent_at",
+        ],
+        "touch_delays": [timedelta(hours=0), timedelta(hours=3), timedelta(hours=24), timedelta(hours=72)],
+        "stopped_col": "no_show_sequence_stopped_at",
+    },
+    "cancel": {
+        "module": cancel_sequence,
+        "active_where": "ar.status = 'canceled' AND ar.cancel_sequence_stopped_at IS NULL",
+        "anchor_col": "canceled_at",
+        "touch_cols": [
+            "cancel_touch1_sent_at", "cancel_touch2_sent_at",
+            "cancel_touch3_sent_at", "cancel_touch4_sent_at",
+        ],
+        "touch_delays": [timedelta(hours=0), timedelta(hours=3), timedelta(hours=24), timedelta(hours=72)],
+        "stopped_col": "cancel_sequence_stopped_at",
+    },
+}
+
+
+def _touch_progress(row: dict, cfg: dict) -> dict:
+    """4-touch-drip progress (no_show/cancel) — how many touches have gone
+    out and when the next one is due, for display in the queue list."""
+    anchor = row.get(cfg["anchor_col"])
+    sent_count = sum(1 for c in cfg["touch_cols"] if row.get(c) is not None)
+    total = len(cfg["touch_cols"])
+    next_due = anchor + cfg["touch_delays"][sent_count] if anchor and sent_count < total else None
+    return {
+        "touches_sent": sent_count,
+        "touches_total": total,
+        "step_label": f"Touch {sent_count} of {total} sent" if sent_count else "Touch 1 pending",
+        "next_touch_due_at": next_due,
+    }
+
+
+def _reminder_progress(row: dict) -> dict:
+    """24h/6h/1h reminder-window progress, mirroring reminder_engine.py's
+    own lead-time logic so the displayed 'next due' matches what will
+    actually fire."""
+    windows = [("24h", "reminder_24h_sent_at", 24), ("6h", "reminder_6h_sent_at", 6), ("1h", "reminder_1h_sent_at", 1)]
+    sent_labels = [label for label, col, _ in windows if row.get(col) is not None]
+    appt_at = row["appointment_at"]
+    lead_time = appt_at - row["reminders_armed_at"]
+    next_due = None
+    for _label, col, hours in windows:
+        if row.get(col) is not None or lead_time < timedelta(hours=hours):
+            continue
+        next_due = appt_at - timedelta(hours=hours)
+        break
+    return {
+        "touches_sent": len(sent_labels),
+        "touches_total": 3,
+        "step_label": f"Sent: {', '.join(sent_labels)}" if sent_labels else "None sent yet",
+        "next_touch_due_at": next_due,
+    }
 
 
 @router.get("/appointment-reminders/timezones")
@@ -286,5 +361,107 @@ async def cancel_appointment(appointment_id: int):
         await cancel_sequence.send_first_touch(dict(row))
     except Exception as e:
         print(f"[appointments] cancel touch 1 failed for {appointment_id}: {e}")
+
+    return {"ok": True}
+
+
+def _validate_sequence(sequence: str):
+    if sequence not in ("no_show", "cancel", "reminder"):
+        raise HTTPException(400, "sequence must be 'no_show', 'cancel', or 'reminder'")
+
+
+@router.get("/appointment-reminders/sequence/{sequence}")
+async def list_sequence_active(sequence: str):
+    """Everyone currently mid-sequence for the given type, with computed
+    touch/window progress — backs the Outreach Templates tab's 'View Active
+    Prospects' queue for No Show / Cancellation / Reminders."""
+    _validate_sequence(sequence)
+    where = (
+        "ar.status = 'scheduled' AND ar.appointment_at > now() AND ar.reminders_stopped_at IS NULL"
+        if sequence == "reminder" else _SEQUENCE_CONFIG[sequence]["active_where"]
+    )
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""
+            SELECT ar.*, c.business, c.owner FROM appointment_reminders ar
+            LEFT JOIN contacts c ON c.id = ar.contact_id
+            WHERE {where}
+            ORDER BY ar.appointment_at ASC
+            """
+        )
+
+    results = []
+    for r in rows:
+        row = dict(r)
+        progress = _reminder_progress(row) if sequence == "reminder" else _touch_progress(row, _SEQUENCE_CONFIG[sequence])
+        results.append({**row, **progress})
+    return results
+
+
+@router.post("/appointment-reminders/{appointment_id}/sequence/{sequence}/remove")
+async def remove_from_sequence(appointment_id: int, sequence: str):
+    """Pull one prospect out of an active sequence early — same effect as a
+    reply triggering stop_sequence_for_reply(), just manual."""
+    _validate_sequence(sequence)
+    stopped_col = "reminders_stopped_at" if sequence == "reminder" else _SEQUENCE_CONFIG[sequence]["stopped_col"]
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            f"UPDATE appointment_reminders SET {stopped_col} = now() "
+            f"WHERE id = $1 AND {stopped_col} IS NULL RETURNING id",
+            appointment_id,
+        )
+    if row is None:
+        raise HTTPException(404, "appointment not found or not currently active in that sequence")
+    return {"ok": True}
+
+
+@router.post("/appointment-reminders/{appointment_id}/sequence/{sequence}/add")
+async def add_to_sequence(appointment_id: int, sequence: str):
+    """Manually (re-)enroll an existing appointment row into a sequence —
+    resets its touch/window columns and, for no_show/cancel, fires Touch 1
+    immediately, same as the PATCH/cancel handlers above do when a rep
+    triggers it from the Appointments tab."""
+    _validate_sequence(sequence)
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow("SELECT * FROM appointment_reminders WHERE id = $1", appointment_id)
+    if not existing:
+        raise HTTPException(404, "appointment not found")
+    existing = dict(existing)
+
+    if sequence == "reminder":
+        if existing["appointment_at"] <= datetime.now(dt_timezone.utc):
+            raise HTTPException(400, "cannot enroll reminders for an appointment already in the past")
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE appointment_reminders SET status = 'scheduled', reminders_armed_at = now(), "
+                "reminder_24h_sent_at = NULL, reminder_6h_sent_at = NULL, reminder_1h_sent_at = NULL, "
+                "reminders_stopped_at = NULL WHERE id = $1",
+                appointment_id,
+            )
+        return {"ok": True}
+
+    cfg = _SEQUENCE_CONFIG[sequence]
+    touch_resets = ", ".join(f"{c} = NULL" for c in cfg["touch_cols"])
+    extra = ", status = 'canceled'" if sequence == "cancel" else ", outcome_show = 'no_show'"
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        updated = await conn.fetchrow(
+            f"UPDATE appointment_reminders SET {cfg['anchor_col']} = now(), {touch_resets}, "
+            f"{cfg['stopped_col']} = NULL{extra} WHERE id = $1 RETURNING *",
+            appointment_id,
+        )
+
+    try:
+        await cfg["module"].send_first_touch(dict(updated))
+    except Exception as e:
+        print(f"[appointments] manual re-enroll ({sequence}) touch 1 failed for {appointment_id}: {e}")
 
     return {"ok": True}

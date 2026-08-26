@@ -9,6 +9,7 @@ import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 import { marked } from "marked";
+import SequenceQueueModal from "./SequenceQueueModal";
 
 function isMarkdown(str) {
   return /^#{1,6} |\*\*[^*]|\*[^*\n]|^- |\n- |\d+\. /m.test(str || "");
@@ -1140,6 +1141,7 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -1233,6 +1235,11 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
         )}
         <button
+          onClick={() => setShowQueue(true)}
+          className="btn btn-secondary"
+          style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
+        >View Active Prospects</button>
+        <button
           onClick={save}
           disabled={saving || !dirty}
           style={{
@@ -1246,6 +1253,8 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
           }}
         >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
       </div>
+
+      {showQueue && <SequenceQueueModal sequence="reminder" onClose={() => setShowQueue(false)} />}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         {REMINDER_FIELDS.map((f, i) => {
@@ -1324,6 +1333,7 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -1417,6 +1427,11 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
         )}
         <button
+          onClick={() => setShowQueue(true)}
+          className="btn btn-secondary"
+          style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
+        >View Active Prospects</button>
+        <button
           onClick={save}
           disabled={saving || !dirty}
           style={{
@@ -1430,6 +1445,8 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
           }}
         >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
       </div>
+
+      {showQueue && <SequenceQueueModal sequence="no_show" onClose={() => setShowQueue(false)} />}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         {NO_SHOW_FIELDS.map((f, i) => {
@@ -1507,6 +1524,7 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -1600,6 +1618,11 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
         )}
         <button
+          onClick={() => setShowQueue(true)}
+          className="btn btn-secondary"
+          style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
+        >View Active Prospects</button>
+        <button
           onClick={save}
           disabled={saving || !dirty}
           style={{
@@ -1613,6 +1636,8 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
           }}
         >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
       </div>
+
+      {showQueue && <SequenceQueueModal sequence="cancel" onClose={() => setShowQueue(false)} />}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         {CANCEL_FIELDS.map((f, i) => {

@@ -156,7 +156,8 @@ async def send_due_reminders():
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM appointment_reminders WHERE status = 'scheduled' AND appointment_at > now()"
+            "SELECT * FROM appointment_reminders WHERE status = 'scheduled' AND appointment_at > now() "
+            "AND reminders_stopped_at IS NULL"
         )
     if not rows:
         return

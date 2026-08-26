@@ -7,6 +7,9 @@ description: Build or iterate SMS/email sequences tied to the appointment-bookin
 
 Write SMS and email copy for the messaging that surrounds booking an appointment: initial cold outbound, pre-appointment reminders, no-show recovery, cancellation/win-back, and general follow-up. Works for DigiGrowth itself or a client business (same any-business scope as the rest of `copy-agent`).
 
+Sources:
+- `references/no-show-psychology.md` — why no-shows actually happen (commitment/consistency research, healthcare no-show studies, temporal discounting, post-booking dissonance) and what it implies for recovery copy. Read this before drafting or revising **any no-show sequence** — it should drive the copy, not just tone.
+
 ## Trigger
 
 Use this skill when Dylan asks to:
@@ -57,6 +60,13 @@ These aren't arbitrary style choices — they're patterns already proven in the 
 - **Tone across all shipped defaults**: casual, first-name led, blame-neutral/low-pressure, one clear CTA per message, never guilt-trippy or salesy. SMS stays to 1-2 short sentences; email mirrors the same message with a touch more warmth, not a different pitch.
 - **Later touches soften, not escalate.** The no-show progression goes disarm → re-pitch → normalize → close-the-loop, never ramps up pressure.
 
+**No-show sequences specifically — apply `references/no-show-psychology.md`:**
+- The shipped defaults above are blame-neutral and low-pressure, which is correct, but on their own they're still fairly generic ("must've missed each other," a bare `{link}`) — the research says generic reminders barely move reply/rebook rates while *specific* framing does. Sharpen, don't replace: keep the blame-neutral tone, but make at least one touch name the *specific* thing they lose by staying no-showed (the concrete pain/gap the offer solves for that business), not just "let's find a new time."
+- A no-show happened because the original commitment was weak (a passive link click), so don't just offer another passive link on the reschedule ask — build in a small active step somewhere in the sequence (asking them to reply with a day/time that works, or confirm back "does Tuesday work?") rather than pure link-and-silence.
+- The first touch must land same-day/immediately (this already matches the 0h timing of the shipped no-show engine) — the psychology behind that: dissonance hardens into a settled "not interested" story the longer it sits.
+- At least one touch should reactivate the *original* pain that got them to book in the first place, not just process the logistics of the miss — the pain is decaying (temporal discounting) faster than the prospect's memory of agreeing to the call.
+- Never add guilt or a confessional tone ("you missed your appointment") — shame increases avoidance, it doesn't reduce it.
+
 ## Workflow
 
 1. **Clarify scope**: which lifecycle stage (cold outbound / reminder / no-show / cancellation / general follow-up / something custom), which business (DigiGrowth or a named client — don't assume DigiGrowth's voice/offer applies to a client), channel(s), and whether Dylan wants to match an existing engine's touch count/timing or design new mechanics.
@@ -80,3 +90,4 @@ These aren't arbitrary style choices — they're patterns already proven in the 
 - Match existing touch counts/timing/channel patterns unless asked to change them, and flag it clearly when a request needs a backend change.
 - Every touch must stand alone — sequences stop on first reply, so don't chain logic across touches.
 - Keep the tone consistent with the shipped defaults: casual, low-pressure, one CTA, softening (not escalating) over a sequence's later touches.
+- No-show copy specifically: name a specific loss (not a vague "we missed you"), build in one active-commitment step rather than an all-link sequence, reactivate the original pain rather than just apologizing for the miss, and never add guilt.
