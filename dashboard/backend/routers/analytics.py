@@ -251,13 +251,22 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     /stage in email_inbox.py) — once touched manually, the checkbox is
     authoritative and stops tracking the raw reply count. Whenever a
     checkbox is actually set, its stage_{x}_at column is stamped at the same
-    time (see db.py's migration comment) — `since` narrows all five of these
-    using that column, not the boolean alone, so it's an accurate answer to
-    "how many became DM Reached in this period", not a proxy. A conversation
-    whose flag was set before these timestamp columns existed (or via the
-    auto-reply path before this was added) simply won't match a period
-    filter, which is the correct behavior — there's no accurate historical
-    "when" to recover for those.
+    time (see db.py's migration comment) — `since` narrows Replied/Primed/
+    Engaged/Interested using that column, not the boolean alone, so it's an
+    accurate answer to "how many became this stage in this period", not a
+    proxy. A conversation whose flag was set before these timestamp columns
+    existed (or via the auto-reply path before this was added) simply won't
+    match a period filter, which is the correct behavior — there's no
+    accurate historical "when" to recover for those.
+
+    DM Reached is the one stage that also counts by activity, not just by
+    when it was first flagged: a conversation reached on an earlier day
+    still counts toward this period if it got fresh SMS activity (either
+    direction) within it. Most of a rep's day-to-day SMS work is following
+    up with people already flagged reached, not freshly flagging new ones —
+    narrowing DM Reached to stage_dm_reached_at alone would only answer "how
+    many became newly reached today", undercounting what "Total Reached"
+    actually means for a working day of outreach.
 
     Total Outreach counts each prospect's FIRST-EVER non-automated outbound
     message only — MIN(sent_at) per phone across all history, not every
@@ -312,17 +321,28 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         # set before these timestamp columns existed just won't match a
         # period filter, which is correct (no accurate historical "when" for
         # those). $2::timestamptz IS NULL means "no period filter" (All Time).
+        #
+        # DM Reached is the one exception: it also counts a conversation
+        # that was reached on an earlier day but got fresh SMS activity
+        # (either direction — a follow-up touch or a new reply) in this
+        # period. stage_dm_reached_at alone answers "newly reached this
+        # period", which undercounts what "Total Reached" means day to day —
+        # most of a rep's SMS work on a given day is following up with
+        # people already flagged reached, not freshly flagging new ones, and
+        # that follow-up activity is still a real "reach" in the period.
         stage_row = await conn.fetchrow(
             """
             SELECT
                 COUNT(*) FILTER (WHERE stage_replied     AND ($2::timestamptz IS NULL OR stage_replied_at     >= $2)) AS replied,
-                COUNT(*) FILTER (WHERE stage_dm_reached   AND ($2::timestamptz IS NULL OR stage_dm_reached_at  >= $2)) AS dm_reached,
+                COUNT(*) FILTER (WHERE stage_dm_reached   AND ($2::timestamptz IS NULL
+                                                                OR stage_dm_reached_at >= $2
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS dm_reached,
                 COUNT(*) FILTER (WHERE stage_primed       AND ($2::timestamptz IS NULL OR stage_primed_at      >= $2)) AS primed,
                 COUNT(*) FILTER (WHERE stage_engaged      AND ($2::timestamptz IS NULL OR stage_engaged_at     >= $2)) AS engaged,
                 COUNT(*) FILTER (WHERE stage_interested   AND ($2::timestamptz IS NULL OR stage_interested_at  >= $2)) AS interested,
                 COUNT(*) FILTER (WHERE disposition = 'booked'         AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS booked,
                 COUNT(*) FILTER (WHERE disposition = 'not_interested' AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS not_interested
-            FROM sms_conversations
+            FROM sms_conversations sc
             WHERE campaign_id = $1
             """,
             campaign_id, since,
@@ -402,10 +422,25 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         f"SELECT COUNT(*) FROM sms_conversations WHERE stage_replied {stage_since_filter.format(col='stage_replied_at')}",
         *params,
     )
-    dm_reached = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_dm_reached {stage_since_filter.format(col='stage_dm_reached_at')}",
-        *params,
-    )
+    # DM Reached also counts a conversation reached on an earlier day that
+    # got fresh SMS activity (either direction) in this period — most of a
+    # rep's day-to-day SMS work is following up with people already flagged
+    # reached, not freshly flagging new ones, and that follow-up is still a
+    # real "reach" in the period. stage_dm_reached_at alone only answers
+    # "newly reached this period", which undercounts what Total Reached
+    # means for an active day of outreach.
+    if since:
+        dm_reached = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM sms_conversations sc
+            WHERE stage_dm_reached
+              AND (stage_dm_reached_at >= $1
+                   OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $1))
+            """,
+            since,
+        )
+    else:
+        dm_reached = await conn.fetchval("SELECT COUNT(*) FROM sms_conversations WHERE stage_dm_reached")
     primed = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_conversations WHERE stage_primed {stage_since_filter.format(col='stage_primed_at')}",
         *params,
