@@ -240,12 +240,22 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     filter, which is the correct behavior — there's no accurate historical
     "when" to recover for those.
 
-    Total Outreach/Contacted are message-count based (sms_messages, scoped
-    by since) — a real send-volume metric for the period toggle, distinct
-    from the boolean-based per-prospect funnel above. Both exclude
-    is_automated sends (no_show/cancel/dm_followup/reminder sequence
-    touches) — those are follow-up on an existing relationship, not fresh
-    outreach.
+    Total Outreach counts each prospect's FIRST-EVER non-automated outbound
+    message only — MIN(sent_at) per phone across all history, not every
+    message in the conversation. A rep's later sequence steps
+    (curiosity_opener/relevance/guarantee/ask/cta only fire after the
+    phone's first message already got a reply, per sms.py's docstring) and
+    Inbox replies to an ongoing conversation are real activity but not new
+    outreach — they'd otherwise double (or 5x-, for a full sequence) count
+    the same prospect as if each step were a new person contacted. `since`
+    narrows to prospects whose first-ever message fell in this window,
+    still excluding is_automated (no_show/cancel/dm_followup/reminder
+    sequence touches, which are follow-up on an existing relationship, not
+    fresh outreach, and shouldn't set anyone's "first contact" moment
+    anyway). Contacted stays the broader "distinct phones touched at all in
+    this window" — used as the denominator for reply/DM-reached/etc. rates,
+    where every touch in the window is a legitimate opportunity to reply,
+    not just the first one.
 
     Booked/Not Interested are windowed by sms_conversations.updated_at
     (bumped when disposition is set) — an approximation, since updated_at
@@ -253,15 +263,30 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     disposition set is rare enough after the fact that this is close enough.
     """
     if campaign_id is not None:
-        msg_row = await conn.fetchrow(
+        contacted_row = await conn.fetchrow(
             """
-            SELECT COUNT(*) FILTER (WHERE sm.direction = 'outbound') AS total_outreach,
-                   COUNT(DISTINCT sm.phone) FILTER (WHERE sm.direction = 'outbound') AS contacted
+            SELECT COUNT(DISTINCT sm.phone) FILTER (WHERE sm.direction = 'outbound') AS contacted
             FROM sms_messages sm
             JOIN sms_conversations sc ON sc.phone = sm.phone
             WHERE sc.campaign_id = $1 AND NOT sm.is_automated
             """ + (" AND sm.sent_at >= $2" if since else ""),
             *([campaign_id, since] if since else [campaign_id]),
+        )
+        # Total Outreach — each phone's first-ever non-automated outbound
+        # message in this campaign only, not every message (see
+        # _sms_metrics' module docstring for why).
+        total_outreach = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM (
+                SELECT sm.phone, MIN(sm.sent_at) AS first_sent
+                FROM sms_messages sm
+                JOIN sms_conversations sc ON sc.phone = sm.phone
+                WHERE sc.campaign_id = $1 AND sm.direction = 'outbound' AND NOT sm.is_automated
+                GROUP BY sm.phone
+            ) first_touch
+            WHERE $2::timestamptz IS NULL OR first_sent >= $2
+            """,
+            campaign_id, since,
         )
         # Narrowed by stage_{x}_at, now that it exists (stamped in
         # email_inbox.py's set_contact_stage()) — pre-existing conversations
@@ -283,7 +308,7 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
             """,
             campaign_id, since,
         )
-        total_outreach, contacted = msg_row["total_outreach"], msg_row["contacted"]
+        contacted = contacted_row["contacted"]
         replied, primed, engaged, interested = stage_row["replied"], stage_row["primed"], stage_row["engaged"], stage_row["interested"]
         dm_reached = stage_row["dm_reached"]
         booked, not_interested = stage_row["booked"], stage_row["not_interested"]
@@ -322,10 +347,22 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     # booking itself was.
     booked_filter = "AND updated_at >= $1" if since else ""
 
-    # Total Outreach — every outbound SMS sent, counted the moment it's sent.
+    # Total Outreach — each phone's first-ever non-automated outbound
+    # message only (MIN(sent_at) across all history), not every message —
+    # see module docstring for why. $1::timestamptz IS NULL means "no
+    # period filter" (All Time — every phone that's ever gotten a first
+    # message counts).
     total_outreach = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_messages WHERE direction='outbound' {msg_filter}",
-        *params,
+        """
+        SELECT COUNT(*) FROM (
+            SELECT phone, MIN(sent_at) AS first_sent
+            FROM sms_messages
+            WHERE direction='outbound' AND NOT is_automated
+            GROUP BY phone
+        ) first_touch
+        WHERE $1::timestamptz IS NULL OR first_sent >= $1
+        """,
+        since,
     )
 
     contacted = await conn.fetchval(
