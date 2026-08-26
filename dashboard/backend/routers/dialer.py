@@ -17,6 +17,8 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   PUT  /api/dialer/info-template — save "Send Info" SMS/email templates
   GET  /api/dialer/no-show-template — "No Show" SMS/email templates
   PUT  /api/dialer/no-show-template — save "No Show" SMS/email templates
+  GET  /api/dialer/cancel-template — "Cancellation" recovery SMS/email templates
+  PUT  /api/dialer/cancel-template — save "Cancellation" recovery SMS/email templates
   GET  /api/dialer/reminder-template — appointment reminder SMS/email templates
   PUT  /api/dialer/reminder-template — save appointment reminder templates
 
@@ -35,6 +37,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
+import cancel_sequence
 import dialer_engine as engine
 import integrations
 import no_show_sequence
@@ -216,6 +219,55 @@ async def save_no_show_template(body: dict):
             await conn.execute(
                 """
                 INSERT INTO dialer_settings (key, value, updated_at) VALUES ('no_show_category', $1, now())
+                ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
+                """,
+                body["category"],
+            )
+    return {"ok": True}
+
+
+# ── "Cancellation" 4-touch sequence templates (Business Resources → Outreach ─
+# Templates). Same key/value store as the editors above; cancel_sequence.py's
+# send_due_touches() reads these same keys fresh at send time via
+# cancel_sequence._get_templates(). Fired automatically after a rep clicks
+# Cancel on an appointment in the Appointments tab — see
+# routers/appointments.py's cancel_appointment() handler.
+
+@router.get("/dialer/cancel-template")
+async def get_cancel_template():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
+            list(cancel_sequence.TEMPLATE_DEFAULTS.keys()) + ["cancel_category"],
+        )
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    result = {
+        key: values.get(key, default)
+        for key, default in cancel_sequence.TEMPLATE_DEFAULTS.items()
+    }
+    result["category"] = values.get("cancel_category") or "General"
+    return result
+
+
+@router.put("/dialer/cancel-template")
+async def save_cancel_template(body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for key in cancel_sequence.TEMPLATE_DEFAULTS:
+            if key not in body:
+                continue
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+                """,
+                key, body[key],
+            )
+        if "category" in body:
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ('cancel_category', $1, now())
                 ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
                 """,
                 body["category"],

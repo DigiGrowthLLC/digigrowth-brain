@@ -8,6 +8,9 @@ an appointment's outcome_show = 'no_show' stamps outcome_show_at, resets its
 touch/stop columns, and sends Touch 1 immediately — no_show_sequence.
 send_due_touches() (also scheduled from main.py) picks up Touches 2-4 on
 their normal schedule from there.
+
+The /cancel endpoint below drives the same shape of sequence for
+cancellations — cancel_sequence.py, see that module's docstring.
 """
 
 from datetime import datetime
@@ -18,6 +21,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from db import get_pool
 from timezone_lookup import guess_timezone, US_TIMEZONES
+import cancel_sequence
 import no_show_sequence
 import reminder_engine
 
@@ -258,17 +262,29 @@ async def update_appointment(appointment_id: int, payload: dict):
 
 @router.post("/appointment-reminders/{appointment_id}/cancel")
 async def cancel_appointment(appointment_id: int):
+    """Marks the appointment canceled and kicks off the cancellation-recovery
+    drip (cancel_sequence.py) — stamps canceled_at, the clock that sequence's
+    4-touch drip counts its 0h/3h/24h/72h delays from, and fires Touch 1
+    immediately (same synchronous-send-then-poller-picks-up-the-rest pattern
+    as no_show_sequence.send_first_touch, see routers/appointments.py's PATCH
+    handler above)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        result = await conn.execute(
+        row = await conn.fetchrow(
             # Also halts any active No Show drip (no_show_sequence.py's poller
             # requires no_show_sequence_stopped_at IS NULL to send) so a
             # canceled appointment stops getting no-show touches.
-            "UPDATE appointment_reminders SET status = 'canceled', "
+            "UPDATE appointment_reminders SET status = 'canceled', canceled_at = now(), "
             "no_show_sequence_stopped_at = COALESCE(no_show_sequence_stopped_at, now()) "
-            "WHERE id = $1 AND status = 'scheduled'",
+            "WHERE id = $1 AND status = 'scheduled' RETURNING *",
             appointment_id,
         )
-    if result == "UPDATE 0":
+    if row is None:
         raise HTTPException(404, "appointment not found or already resolved")
+
+    try:
+        await cancel_sequence.send_first_touch(dict(row))
+    except Exception as e:
+        print(f"[appointments] cancel touch 1 failed for {appointment_id}: {e}")
+
     return {"ok": True}

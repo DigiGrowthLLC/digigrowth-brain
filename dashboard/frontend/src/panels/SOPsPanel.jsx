@@ -329,6 +329,14 @@ const SEND_INFO_ITEM = { id: SEND_INFO_PSEUDO_ID, title: "Send Info (SMS + Email
 const NO_SHOW_PSEUDO_ID = "__no_show__";
 const NO_SHOW_ITEM = { id: NO_SHOW_PSEUDO_ID, title: "No Show (SMS + Email)", noShow: true };
 
+// Same pattern again, for cancellation recovery — backed by GET/PUT
+// /api/dialer/cancel-template, since clicking Cancel on an appointment in
+// the Appointments tab reads from that store (see
+// dashboard/backend/routers/appointments.py's cancel_appointment() handler),
+// not from `sops`.
+const CANCEL_PSEUDO_ID = "__cancel__";
+const CANCEL_ITEM = { id: CANCEL_PSEUDO_ID, title: "Cancellation (SMS + Email)", cancelTemplate: true };
+
 // Unlike SEND_INFO_ITEM/REMINDER_TEMPLATE_ITEM above, SMS Sequences are no
 // longer a single pinned pseudo-doc — there can be many, named and switchable
 // (see the `sequences` state / GET /api/sms-sequences below). Each fetched
@@ -1467,12 +1475,196 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
   );
 }
 
+// ── Cancellation recovery sequence editor ───────────────────────────────────
+// Editable SMS + email templates for the 4-touch cancellation-recovery drip
+// (dashboard/backend/cancel_sequence.py), fired automatically after a rep
+// clicks Cancel on an appointment in the Appointments tab — touch 1
+// immediately, touch 2 a few hours later, touch 3 the next day, touch 4 (the
+// "breakup") on day 3. Backed by GET/PUT /api/dialer/cancel-template —
+// cancel_sequence.py reads these same keys fresh from dialer_settings at
+// send time. The sequence stops permanently the moment the prospect replies
+// on either channel (see stop_sequence_for_reply() in cancel_sequence.py).
+// Touch 2 is SMS-only by design — leave its email fields blank to skip that
+// channel for that touch, same as it ships by default.
+const CANCEL_FIELDS = [
+  { heading: "Touch 1 — No Worries", hint: "Sent immediately when canceled. SMS + email.", instance: "touch1" },
+  { heading: "Touch 2 — Same-Day Follow-Up", hint: "3 hours after. SMS only — leave email fields blank to keep it that way.", instance: "touch2" },
+  { heading: "Touch 3 — Still Worth 15 Minutes", hint: "24 hours after. SMS + email.", instance: "touch3" },
+  { heading: "Touch 4 — Final / Breakup", hint: "72 hours after. Closes the loop unless the prospect replies. SMS + email.", instance: "touch4" },
+];
+
+function CancelSequenceEditor({ categories, onCategoryChange }) {
+  const [values, setValues] = useState({ category: "General" });
+  const [saved, setSaved] = useState({ category: "General" });
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/dialer/cancel-template");
+      if (r.ok) {
+        const data = await r.json();
+        setValues(data);
+        setSaved(data);
+        onCategoryChange?.(data.category || "General");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const allKeys = [
+    ...CANCEL_FIELDS.flatMap(f => [
+      `cancel_${f.instance}_sms`,
+      `cancel_${f.instance}_email_subject`,
+      `cancel_${f.instance}_email_body`,
+    ]),
+    "category",
+  ];
+  const dirty = allKeys.some(k => (values[k] || "") !== (saved[k] || ""));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/cancel-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (r.ok) {
+        setSaved(values);
+        onCategoryChange?.(values.category || "General");
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = {
+    width: "100%", background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+    padding: "10px 12px", color: "#e8f0ff",
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    outline: "none", resize: "vertical", boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block", marginBottom: 6,
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+    color: "#3a5a80", letterSpacing: "0.12em",
+  };
+  const headingStyle = {
+    display: "block", marginBottom: 8,
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
+    color: "#e8f0ff", letterSpacing: "0.01em",
+  };
+  const hintStyle = {
+    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 11, color: "#4a6a8a",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+          Fires automatically after an appointment is marked <strong style={{ color: "#a080f0" }}>Cancel</strong> in the Appointments tab — 4 touches, stops the moment the prospect replies. Edits apply to the very next send.
+        </span>
+        <CategoryPicker
+          categories={categories}
+          category={values.category || "General"}
+          setCategory={c => setValues(v => ({ ...v, category: c }))}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={save}
+          disabled={saving || !dirty}
+          style={{
+            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {CANCEL_FIELDS.map((f, i) => {
+          const smsKey = `cancel_${f.instance}_sms`;
+          const subjectKey = `cancel_${f.instance}_email_subject`;
+          const bodyKey = `cancel_${f.instance}_email_body`;
+          return (
+          <div key={f.instance} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
+            <label style={headingStyle}>{f.heading}</label>
+            {f.hint && <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
+
+            <label style={labelStyle}>SMS MESSAGE</label>
+            <textarea
+              value={values[smsKey] || ""}
+              onChange={e => setValues(v => ({ ...v, [smsKey]: e.target.value }))}
+              rows={3}
+              placeholder="Hey {first_name}, ..."
+              style={fieldStyle}
+            />
+
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>EMAIL SUBJECT {f.instance === "touch2" && "(leave blank to skip email)"}</label>
+              <input
+                value={values[subjectKey] || ""}
+                onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
+                style={fieldStyle}
+              />
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>EMAIL BODY {f.instance === "touch2" && "(leave blank to skip email)"}</label>
+              <textarea
+                value={values[bodyKey] || ""}
+                onChange={e => setValues(v => ({ ...v, [bodyKey]: e.target.value }))}
+                rows={4}
+                placeholder="Hey {first_name}, ..."
+                style={fieldStyle}
+              />
+            </div>
+
+            <div style={hintStyle}>
+              Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the prospect's first name and{" "}
+              <code style={{ color: "#6ab0ff" }}>{"{link}"}</code> for the booking link.
+            </div>
+          </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main panel ───────────────────────────────────────────────────────────────
 export default function SOPsPanel() {
   const [activeSection, setActiveSection] = useState("sop");
   const [sops, setSops] = useState([]);
   const [sendInfoCategory, setSendInfoCategory] = useState("General");
   const [noShowCategory, setNoShowCategory] = useState("General");
+  const [cancelCategory, setCancelCategory] = useState("General");
   const [remCategory, setRemCategory] = useState("General");
   const [sequences, setSequences] = useState([]);
   const [selectedSequenceId, setSelectedSequenceId] = useState(null);
@@ -1547,13 +1739,15 @@ export default function SOPsPanel() {
     fetchSequences();
     fetchCallScripts();
     (async () => {
-      const [infoR, noShowR, remR] = await Promise.all([
+      const [infoR, noShowR, cancelR, remR] = await Promise.all([
         fetch("/api/dialer/info-template"),
         fetch("/api/dialer/no-show-template"),
+        fetch("/api/dialer/cancel-template"),
         fetch("/api/dialer/reminder-template"),
       ]);
       if (infoR.ok) setSendInfoCategory((await infoR.json()).category || "General");
       if (noShowR.ok) setNoShowCategory((await noShowR.json()).category || "General");
+      if (cancelR.ok) setCancelCategory((await cancelR.json()).category || "General");
       if (remR.ok) setRemCategory((await remR.json()).category || "General");
     })();
   }, [activeSection, fetchSequences, fetchCallScripts]);
@@ -1583,7 +1777,7 @@ export default function SOPsPanel() {
     ...sops.map(s => s.category || "General"),
     ...(activeSection === "outreach_templates"
       ? [
-          sendInfoCategory, noShowCategory, remCategory,
+          sendInfoCategory, noShowCategory, cancelCategory, remCategory,
           ...sequences.map(s => s.category || "General"),
           ...callScripts.map(s => s.category || "General"),
         ]
@@ -1612,7 +1806,7 @@ export default function SOPsPanel() {
     setCustomCatMode(false);
     setSelectedSequenceId(sop.smsSequence ? sop.sequenceId : null);
     setSelectedScriptId(sop.callScript ? sop.scriptId : null);
-    if (sop.sendInfo || sop.noShow || sop.smsSequence || sop.reminderTemplate || sop.callScript) return;
+    if (sop.sendInfo || sop.noShow || sop.cancelTemplate || sop.smsSequence || sop.reminderTemplate || sop.callScript) return;
     setTitle(sop.title);
     setCategory(sop.category || "General");
     setVisibility(sop.visibility || "private");
@@ -1723,6 +1917,7 @@ export default function SOPsPanel() {
   const pseudoItems = activeSection === "outreach_templates" ? [
     { ...SEND_INFO_ITEM,        category: sendInfoCategory, icon: "☎" },
     { ...NO_SHOW_ITEM,          category: noShowCategory,   icon: "🚫" },
+    { ...CANCEL_ITEM,           category: cancelCategory,   icon: "✕" },
     ...sequences.map(seq => ({
       id: `seq-${seq.id}`,
       title: seq.name,
@@ -1770,10 +1965,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -1790,7 +1985,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -1946,6 +2141,8 @@ export default function SOPsPanel() {
             <OutreachTemplatesEditor categories={categories} onCategoryChange={setSendInfoCategory} />
           ) : selectedItem?.noShow ? (
             <NoShowSequenceEditor categories={categories} onCategoryChange={setNoShowCategory} />
+          ) : selectedItem?.cancelTemplate ? (
+            <CancelSequenceEditor categories={categories} onCategoryChange={setCancelCategory} />
           ) : selectedItem?.smsSequence ? (
             <SmsSequenceEditor
               sequence={sequences.find(s => s.id === selectedSequenceId)}

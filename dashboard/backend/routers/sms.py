@@ -255,11 +255,13 @@ async def twilio_inbound(request: Request):
         if conv["status"] != "closed":
             await _store_message(conn, from_phone, "user", body)
 
-    # Deferred import — no_show_sequence imports this module (for _send_twilio/
-    # _get_or_create_conversation/_store_message), so importing it at module
-    # level here would be circular.
+    # Deferred import — no_show_sequence/cancel_sequence import this module
+    # (for _send_twilio/_get_or_create_conversation/_store_message), so
+    # importing them at module level here would be circular.
+    import cancel_sequence
     import no_show_sequence
     await no_show_sequence.stop_sequence_for_reply(phone=from_phone)
+    await cancel_sequence.stop_sequence_for_reply(phone=from_phone)
 
     return Response(content="", media_type="text/plain")
 
