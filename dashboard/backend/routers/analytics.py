@@ -90,6 +90,31 @@ def _pct(num, denom) -> float:
     return round(num / denom * 100, 1)
 
 
+# contacts.state is free text pulled from whatever a given lead-source scrape
+# wrote — the same state ends up stored as both a full name ("Florida") and
+# an abbreviation ("FL") depending on which run touched it, which used to
+# split one state's count into two separate Top States rows. Normalize both
+# forms to the full name before aggregating (see _normalize_state below).
+_US_STATE_ABBR = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+    "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa",
+    "KS": "Kansas", "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri",
+    "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey",
+    "NM": "New Mexico", "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio",
+    "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+    "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont",
+    "VA": "Virginia", "WA": "Washington", "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming",
+    "DC": "District of Columbia",
+}
+
+
+def _normalize_state(raw: str) -> str:
+    s = (raw or "").strip()
+    return _US_STATE_ABBR.get(s.upper(), s)
+
+
 def _last_sheet_sync(stats: dict):
     ts = stats.get("last_sheet_sync")
     if not ts:
@@ -719,12 +744,17 @@ async def pipeline(days: int = 0):
             GROUP BY grade ORDER BY grade
             """
         )
-        state_rows = await conn.fetch(
+        # Raw GROUP BY state used to split the same state into two rows
+        # whenever it was stored inconsistently (e.g. "Florida" from one
+        # scrape vs "FL" from another) — fetch every distinct value
+        # ungrouped-by-abbreviation and normalize in Python below instead of
+        # a giant SQL CASE expression.
+        state_rows_raw = await conn.fetch(
             """
             SELECT state, COUNT(*) AS cnt
             FROM contacts
             WHERE state IS NOT NULL AND state != ''
-            GROUP BY state ORDER BY cnt DESC LIMIT 8
+            GROUP BY state
             """
         )
         app_booked = await _app_booked_count(conn, sales, days)
@@ -733,6 +763,15 @@ async def pipeline(days: int = 0):
         {"grade": r["grade"], "cnt": r["cnt"], "booked": r["booked"], "book_rate": _pct(r["booked"], r["cnt"])}
         for r in grade_rows
     ]
+
+    state_counts: dict[str, int] = {}
+    for r in state_rows_raw:
+        norm = _normalize_state(r["state"])
+        state_counts[norm] = state_counts.get(norm, 0) + r["cnt"]
+    top_states = sorted(
+        ({"state": s, "cnt": c} for s, c in state_counts.items()),
+        key=lambda x: x["cnt"], reverse=True,
+    )[:8]
 
     # Funnel is channel-agnostic — cold calling (sheets) + SMS (DB) + email
     # (DB) combined at every stage, not cold-calling-only. Shows/closes are
@@ -775,7 +814,7 @@ async def pipeline(days: int = 0):
             "closes":   _sheet_stat(sales, "closes", days),
         },
         "by_grade":       by_grade,
-        "top_states":     [{"state": r["state"], "cnt": r["cnt"]} for r in state_rows],
+        "top_states":     top_states,
         "new_this_week":  new_week  or 0,
         "new_this_month": new_month or 0,
     }
