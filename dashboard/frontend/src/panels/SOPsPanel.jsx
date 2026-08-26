@@ -337,6 +337,13 @@ const NO_SHOW_ITEM = { id: NO_SHOW_PSEUDO_ID, title: "No Show (SMS + Email)", no
 const CANCEL_PSEUDO_ID = "__cancel__";
 const CANCEL_ITEM = { id: CANCEL_PSEUDO_ID, title: "Cancellation (SMS + Email)", cancelTemplate: true };
 
+// Same pattern again, for the DM Reach follow-up sequence — backed by
+// GET/PUT /api/dialer/dm-followup-template. SMS-only, since DM Reach has no
+// email equivalent. Fires automatically once a conversation marked DM
+// Reached in the Inbox goes 24h without a reply (dm_followup_sequence.py).
+const DM_FOLLOWUP_PSEUDO_ID = "__dm_followup__";
+const DM_FOLLOWUP_ITEM = { id: DM_FOLLOWUP_PSEUDO_ID, title: "DM Follow-Up (SMS)", dmFollowupTemplate: true };
+
 // Unlike SEND_INFO_ITEM/REMINDER_TEMPLATE_ITEM above, SMS Sequences are no
 // longer a single pinned pseudo-doc — there can be many, named and switchable
 // (see the `sequences` state / GET /api/sms-sequences below). Each fetched
@@ -1658,6 +1665,162 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
   );
 }
 
+// ── DM Follow-Up sequence editor ────────────────────────────────────────────
+// Editable SMS templates (no email — DM Reach has no email equivalent) for
+// the 3-touch DM Follow-Up drip (dashboard/backend/dm_followup_sequence.py),
+// fired automatically once a conversation marked DM Reached in the Inbox
+// goes 24h without a reply — touch 1 at 24h, touch 2 at 72h, touch 3
+// (breakup) at 7 days. Backed by GET/PUT /api/dialer/dm-followup-template —
+// dm_followup_sequence.py reads these same keys fresh from dialer_settings
+// at send time. Stops the moment the prospect replies and restarts if
+// they go quiet again after a later reply — both derived live from message
+// timestamps each poll, no explicit stop action needed (see that module's
+// docstring for the full mechanism).
+const DM_FOLLOWUP_FIELDS = [
+  { heading: "Touch 1 — Still Around?", hint: "24 hours after your last message goes unanswered.", instance: "touch1" },
+  { heading: "Touch 2 — Value Reminder", hint: "72 hours after your last message goes unanswered.", instance: "touch2" },
+  { heading: "Touch 3 — Final / Breakup", hint: "7 days after your last message goes unanswered. Closes the loop unless the prospect replies.", instance: "touch3" },
+];
+
+function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
+  const [values, setValues] = useState({ category: "General" });
+  const [saved, setSaved] = useState({ category: "General" });
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/dialer/dm-followup-template");
+      if (r.ok) {
+        const data = await r.json();
+        setValues(data);
+        setSaved(data);
+        onCategoryChange?.(data.category || "General");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const allKeys = [
+    ...DM_FOLLOWUP_FIELDS.map(f => `dm_followup_${f.instance}_sms`),
+    "category",
+  ];
+  const dirty = allKeys.some(k => (values[k] || "") !== (saved[k] || ""));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/dm-followup-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+      if (r.ok) {
+        setSaved(values);
+        onCategoryChange?.(values.category || "General");
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = {
+    width: "100%", background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+    padding: "10px 12px", color: "#e8f0ff",
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    outline: "none", resize: "vertical", boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block", marginBottom: 6,
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+    color: "#3a5a80", letterSpacing: "0.12em",
+  };
+  const headingStyle = {
+    display: "block", marginBottom: 8,
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
+    color: "#e8f0ff", letterSpacing: "0.01em",
+  };
+  const hintStyle = {
+    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 11, color: "#4a6a8a",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+          Fires automatically once a conversation marked <strong style={{ color: "#a080f0" }}>DM Reached</strong> in the Inbox goes 24h without a reply — 3 touches, stops on reply, restarts if quiet again. Edits apply to the very next send.
+        </span>
+        <CategoryPicker
+          categories={categories}
+          category={values.category || "General"}
+          setCategory={c => setValues(v => ({ ...v, category: c }))}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={save}
+          disabled={saving || !dirty}
+          style={{
+            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {DM_FOLLOWUP_FIELDS.map((f, i) => {
+          const smsKey = `dm_followup_${f.instance}_sms`;
+          return (
+          <div key={f.instance} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
+            <label style={headingStyle}>{f.heading}</label>
+            {f.hint && <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
+
+            <label style={labelStyle}>SMS MESSAGE</label>
+            <textarea
+              value={values[smsKey] || ""}
+              onChange={e => setValues(v => ({ ...v, [smsKey]: e.target.value }))}
+              rows={3}
+              placeholder="Hey {first_name}, ..."
+              style={fieldStyle}
+            />
+
+            <div style={hintStyle}>
+              Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the prospect's first name and{" "}
+              <code style={{ color: "#6ab0ff" }}>{"{link}"}</code> for the booking link.
+            </div>
+          </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main panel ───────────────────────────────────────────────────────────────
 export default function SOPsPanel() {
   const [activeSection, setActiveSection] = useState("sop");
@@ -1665,6 +1828,7 @@ export default function SOPsPanel() {
   const [sendInfoCategory, setSendInfoCategory] = useState("General");
   const [noShowCategory, setNoShowCategory] = useState("General");
   const [cancelCategory, setCancelCategory] = useState("General");
+  const [dmFollowupCategory, setDmFollowupCategory] = useState("General");
   const [remCategory, setRemCategory] = useState("General");
   const [sequences, setSequences] = useState([]);
   const [selectedSequenceId, setSelectedSequenceId] = useState(null);
@@ -1739,15 +1903,17 @@ export default function SOPsPanel() {
     fetchSequences();
     fetchCallScripts();
     (async () => {
-      const [infoR, noShowR, cancelR, remR] = await Promise.all([
+      const [infoR, noShowR, cancelR, dmFollowupR, remR] = await Promise.all([
         fetch("/api/dialer/info-template"),
         fetch("/api/dialer/no-show-template"),
         fetch("/api/dialer/cancel-template"),
+        fetch("/api/dialer/dm-followup-template"),
         fetch("/api/dialer/reminder-template"),
       ]);
       if (infoR.ok) setSendInfoCategory((await infoR.json()).category || "General");
       if (noShowR.ok) setNoShowCategory((await noShowR.json()).category || "General");
       if (cancelR.ok) setCancelCategory((await cancelR.json()).category || "General");
+      if (dmFollowupR.ok) setDmFollowupCategory((await dmFollowupR.json()).category || "General");
       if (remR.ok) setRemCategory((await remR.json()).category || "General");
     })();
   }, [activeSection, fetchSequences, fetchCallScripts]);
@@ -1777,7 +1943,7 @@ export default function SOPsPanel() {
     ...sops.map(s => s.category || "General"),
     ...(activeSection === "outreach_templates"
       ? [
-          sendInfoCategory, noShowCategory, cancelCategory, remCategory,
+          sendInfoCategory, noShowCategory, cancelCategory, dmFollowupCategory, remCategory,
           ...sequences.map(s => s.category || "General"),
           ...callScripts.map(s => s.category || "General"),
         ]
@@ -1806,7 +1972,7 @@ export default function SOPsPanel() {
     setCustomCatMode(false);
     setSelectedSequenceId(sop.smsSequence ? sop.sequenceId : null);
     setSelectedScriptId(sop.callScript ? sop.scriptId : null);
-    if (sop.sendInfo || sop.noShow || sop.cancelTemplate || sop.smsSequence || sop.reminderTemplate || sop.callScript) return;
+    if (sop.sendInfo || sop.noShow || sop.cancelTemplate || sop.dmFollowupTemplate || sop.smsSequence || sop.reminderTemplate || sop.callScript) return;
     setTitle(sop.title);
     setCategory(sop.category || "General");
     setVisibility(sop.visibility || "private");
@@ -1918,6 +2084,7 @@ export default function SOPsPanel() {
     { ...SEND_INFO_ITEM,        category: sendInfoCategory, icon: "☎" },
     { ...NO_SHOW_ITEM,          category: noShowCategory,   icon: "🚫" },
     { ...CANCEL_ITEM,           category: cancelCategory,   icon: "✕" },
+    { ...DM_FOLLOWUP_ITEM,      category: dmFollowupCategory, icon: "💭" },
     ...sequences.map(seq => ({
       id: `seq-${seq.id}`,
       title: seq.name,
@@ -1965,10 +2132,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -1985,7 +2152,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -2143,6 +2310,8 @@ export default function SOPsPanel() {
             <NoShowSequenceEditor categories={categories} onCategoryChange={setNoShowCategory} />
           ) : selectedItem?.cancelTemplate ? (
             <CancelSequenceEditor categories={categories} onCategoryChange={setCancelCategory} />
+          ) : selectedItem?.dmFollowupTemplate ? (
+            <DmFollowupSequenceEditor categories={categories} onCategoryChange={setDmFollowupCategory} />
           ) : selectedItem?.smsSequence ? (
             <SmsSequenceEditor
               sequence={sequences.find(s => s.id === selectedSequenceId)}

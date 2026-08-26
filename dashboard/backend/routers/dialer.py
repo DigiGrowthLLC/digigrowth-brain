@@ -19,6 +19,8 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   PUT  /api/dialer/no-show-template — save "No Show" SMS/email templates
   GET  /api/dialer/cancel-template — "Cancellation" recovery SMS/email templates
   PUT  /api/dialer/cancel-template — save "Cancellation" recovery SMS/email templates
+  GET  /api/dialer/dm-followup-template — "DM Follow-Up" SMS-only templates
+  PUT  /api/dialer/dm-followup-template — save "DM Follow-Up" SMS-only templates
   GET  /api/dialer/reminder-template — appointment reminder SMS/email templates
   PUT  /api/dialer/reminder-template — save appointment reminder templates
 
@@ -39,6 +41,7 @@ from fastapi import APIRouter, HTTPException
 
 import cancel_sequence
 import dialer_engine as engine
+import dm_followup_sequence
 import integrations
 import no_show_sequence
 import reminder_engine
@@ -268,6 +271,56 @@ async def save_cancel_template(body: dict):
             await conn.execute(
                 """
                 INSERT INTO dialer_settings (key, value, updated_at) VALUES ('cancel_category', $1, now())
+                ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
+                """,
+                body["category"],
+            )
+    return {"ok": True}
+
+
+# ── "DM Follow-Up" 3-touch sequence templates (Business Resources → Outreach ─
+# Templates). Same key/value store as the editors above; dm_followup_sequence.
+# py's send_due_touches() reads these same keys fresh at send time via
+# dm_followup_sequence._get_templates(). SMS-only — no email fields, since DM
+# Reach has no email equivalent. Fired automatically once a conversation
+# marked DM Reached in the Inbox goes 24h without a reply — see
+# dm_followup_sequence.py's module docstring for the full mechanism.
+
+@router.get("/dialer/dm-followup-template")
+async def get_dm_followup_template():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
+            list(dm_followup_sequence.TEMPLATE_DEFAULTS.keys()) + ["dm_followup_category"],
+        )
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    result = {
+        key: values.get(key, default)
+        for key, default in dm_followup_sequence.TEMPLATE_DEFAULTS.items()
+    }
+    result["category"] = values.get("dm_followup_category") or "General"
+    return result
+
+
+@router.put("/dialer/dm-followup-template")
+async def save_dm_followup_template(body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for key in dm_followup_sequence.TEMPLATE_DEFAULTS:
+            if key not in body:
+                continue
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+                """,
+                key, body[key],
+            )
+        if "category" in body:
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ('dm_followup_category', $1, now())
                 ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
                 """,
                 body["category"],
