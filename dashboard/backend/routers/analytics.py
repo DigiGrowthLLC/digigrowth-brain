@@ -734,41 +734,5 @@ async def campaign_analytics(campaign_id: int, days: int = 0):
     }
 
 
-@router.get("/analytics/debug/sms-outreach-breakdown")
-async def debug_sms_outreach_breakdown(days: int = 1):
-    """Temporary diagnostic — not linked from the UI. Breaks down what's
-    actually contributing to Total Outreach for a period, since is_automated
-    alone wasn't enough to explain a count that didn't match Dylan's own
-    manual sends. Safe to delete once the discrepancy is understood."""
-    since = _since(days) if days else None
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        where = "WHERE direction = 'outbound'" + (" AND sent_at >= $1" if since else "")
-        params = [since] if since else []
-
-        by_stage = await conn.fetch(
-            f"SELECT COALESCE(stage, '(none)') AS stage, is_automated, COUNT(*) AS cnt "
-            f"FROM sms_messages {where} GROUP BY stage, is_automated ORDER BY cnt DESC",
-            *params,
-        )
-        total = await conn.fetchval(f"SELECT COUNT(*) FROM sms_messages {where}", *params)
-        total_excl_automated = await conn.fetchval(
-            f"SELECT COUNT(*) FROM sms_messages {where} AND NOT is_automated", *params
-        )
-        sample_rows = await conn.fetch(
-            f"SELECT phone, stage, is_automated, sent_at FROM sms_messages {where} "
-            f"ORDER BY sent_at DESC LIMIT 30",
-            *params,
-        )
-
-    return {
-        "since": since.isoformat() if since else None,
-        "total_outbound_all": total,
-        "total_outbound_excluding_automated": total_excl_automated,
-        "by_stage": [dict(r) for r in by_stage],
-        "most_recent_30": [dict(r) for r in sample_rows],
-    }
-
-
 
 
