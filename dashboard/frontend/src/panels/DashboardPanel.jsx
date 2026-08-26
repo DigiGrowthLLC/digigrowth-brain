@@ -358,11 +358,15 @@ export default function DashboardPanel({ onNavigate }) {
 
   // Disposition bar data from chart — channel-agnostic (calling + SMS)
   // totals, matching the Analytics tab's 6-Stage Acquisition Funnel.
+  // "SMS" uses sms.messages (period-scoped message count), not sms.active
+  // (a static snapshot of currently-active conversations, unrelated to the
+  // period toggle) — it wasn't moving at all when switching Today/Week/
+  // Month/All Time, unlike every other bar in this "Period Breakdown" chart.
   const barData = [
     { name: "Outreach", value: calling.total_outreach     ?? 0, fill: "#3a7bd5" },
     { name: "Reached",  value: calling.total_reached       ?? 0, fill: "#14c882" },
     { name: "Booked",   value: calling.total_appointments  ?? 0, fill: "#f0a028" },
-    { name: "SMS",      value: sms.active                   ?? 0, fill: "#a080f0" },
+    { name: "SMS",      value: sms.messages                 ?? 0, fill: "#a080f0" },
   ];
 
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });

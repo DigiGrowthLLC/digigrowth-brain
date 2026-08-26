@@ -534,6 +534,30 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         *params,
     )
 
+    # "Total Outreach" equivalent — each recipient's first-ever non-test,
+    # non-automated outbound email only (MIN(sent_at) across all history),
+    # not every email sent to them in this window. Same principle as
+    # _sms_metrics' total_outreach — see that docstring for why: a
+    # follow-up/newsletter send to someone already emailed before isn't a
+    # new prospect reached. initial_sent above stays the broader "distinct
+    # recipients touched at all in this window" — still used as the rate
+    # denominator, since a reply/open in this window is a legitimate
+    # outcome of ANY email sent then, not just their first ever.
+    first_contact_filter = "AND campaign_id = $1" if campaign_id is not None else ""
+    first_contact_params = [campaign_id] if campaign_id is not None else []
+    total_outreach = await conn.fetchval(
+        f"""
+        SELECT COUNT(*) FROM (
+            SELECT email, MIN(sent_at) AS first_sent
+            FROM email_messages
+            WHERE direction='outbound' AND NOT is_test AND NOT is_automated {first_contact_filter}
+            GROUP BY email
+        ) first_touch
+        WHERE $%d::timestamptz IS NULL OR first_sent >= $%d
+        """ % (len(first_contact_params) + 1, len(first_contact_params) + 1),
+        *first_contact_params, since,
+    )
+
     # Replied: distinct contacts who received an outbound email in this
     # window AND have at least one inbound message on the same thread.
     replied = await conn.fetchval(
@@ -611,6 +635,7 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     return {
         "total_sent":       total_sent   or 0,
         "initial_sent":     initial_sent or 0,
+        "total_outreach":   total_outreach or 0,
         "replied":          replied or 0,
         "reply_rate":       _pct(replied, initial_sent),
         "abr":              _pct(booked_total, initial_sent),
@@ -727,7 +752,14 @@ async def pipeline(days: int = 0):
     # already uses — so use that as the base, plus app_booked (bookings made
     # in the app itself, not yet reflected in that sheet — see
     # _app_booked_count) instead of sheet_appointments_booked + sms.booked.
-    dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["contacted"] + email["initial_sent"]
+    # "Dialed" (labeled "Total Outreach" in the funnel UI) uses SMS/email's
+    # total_outreach — each prospect's first-ever message only, not
+    # sms["contacted"]/email["initial_sent"] (every distinct recipient
+    # touched in the window, including follow-ups) — see
+    # _sms_metrics'/_email_metrics' docstrings for why that distinction
+    # matters: a rep's later sequence steps or a newsletter to an existing
+    # contact aren't new prospects reached.
+    dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["total_outreach"] + email["total_outreach"]
     answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]      + email["replied"]
     pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["dm_reached"] + email["opened"]
     booked   = _sheet_stat(sales, "discovery_calls",        days) + app_booked

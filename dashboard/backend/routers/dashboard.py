@@ -60,8 +60,12 @@ async def summary(period: str = "day"):
         sms_booked = await conn.fetchval(
             "SELECT COUNT(*) FROM sms_conversations WHERE status = 'closed' AND updated_at >= $1", since,
         )
+        # Excludes automated sequence sends (no_show/cancel/dm_followup/
+        # reminder), same as everywhere else in analytics.py — this feeds
+        # the Dashboard's "SMS" bar in Period Breakdown, and shouldn't be
+        # the one remaining place that still counts them.
         sms_messages_period = await conn.fetchval(
-            "SELECT COUNT(*) FROM sms_messages WHERE sent_at >= $1", since
+            "SELECT COUNT(*) FROM sms_messages WHERE sent_at >= $1 AND NOT is_automated", since
         )
         total_contacts = await conn.fetchval("SELECT COUNT(*) FROM contacts")
         new_contacts   = await conn.fetchval(
@@ -103,7 +107,12 @@ async def summary(period: str = "day"):
     # "reached" equivalent for SMS, not the later Engaged stage) + email
     # opened (confirmed opens, not counting the tracking pixel's own
     # self-open — see analytics.py::_email_metrics).
-    total_outreach     = calls_made + sms_funnel["contacted"]
+    # Outreach uses total_outreach (each prospect's first-ever message
+    # only), not contacted/initial_sent (every distinct recipient touched
+    # this window, including follow-ups) — same fix as
+    # analytics.py::pipeline's "dialed", and the comment above already
+    # said "calling + SMS + email" but the email term was missing entirely.
+    total_outreach     = calls_made + sms_funnel["total_outreach"] + email_funnel["total_outreach"]
     total_answered      = calls_answered + sms_funnel["replied"]
     total_reached       = dms_reached + sms_funnel["dm_reached"] + email_funnel["opened"]
     total_appointments  = _sheet("discovery_calls") + app_booked
