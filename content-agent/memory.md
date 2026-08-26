@@ -48,3 +48,10 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   (research cache stale) — 2026-08-19 — drafted, not submitted (local Claude Code session has no
   Railway/approvals-API access; draft saved to `content-agent/pending_approvals/blog-2026-08-19.json`
   for the relay job or manual review)
+- "The Email System That Keeps 500 Leads Warm Without You Writing a Single One" (slug:
+  email-system-keeps-leads-warm-ai) — pillar: Lead Follow-Up & Automation — topic: rotation #17
+  (AI email keeps brand top-of-mind with 500 leads), research cache stale (dated 2026-08-24, from
+  Monday's newsletter), own web search — 2026-08-26 — pending approval (draft pushed to
+  `content-agent/pending_approvals/blog-2026-08-26.json` on branch `claude/sweet-einstein-gx1hbi`,
+  not `main` — this run's session policy blocked pushing to `main`; needs merge before Railway's
+  relay job will see it)
