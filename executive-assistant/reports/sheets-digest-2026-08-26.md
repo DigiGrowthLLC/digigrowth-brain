@@ -1,13 +1,24 @@
 # Sheets Digest — 2026-08-26
 
-No changes to the DigiGrowth Sales Performance Tracker since the last sync — sheet last modified 2026-08-20T14:28:01.323Z, no new rows since.
+**Run:** 2026-08-26
+**Status:** Complete
 
-No cold calling sheet ("[Month Year] DigiGrowth Cold Calling Metrics") was opened in the last 24 hours, so sheet_* fields (calls, contacts reached, resonations, appointments booked) were left untouched.
+## Sources Read
+- DigiGrowth Sales Performance Tracker (file ID: 1ewxbSzMWYgbPnxIHdQmWyFG9US47vhhyhU2ZjYnw_-0)
+- No `[Month Year] DigiGrowth Cold Calling Metrics` file opened in last 24h — cold calling fields not updated
 
-**Updated:**
-- discovery_calls = 19 (all-time), 30d = 1, 7d = 1
-- shows = 10 (all-time), 30d = 1, 7d = 1
-- closes = 0 (all-time, 30d, 7d)
-- total_revenue = 0 (all-time, 30d, 7d)
+## Period Windows
+- 7D: 2026-08-19 – 2026-08-26
+- 30D: 2026-07-27 – 2026-08-26
 
-**Source:** DigiGrowth Sales Performance Tracker (Google Sheets), all-time / 30d / 7d buckets as of 2026-08-26.
+## Stats Written
+| Field | 7D | 30D | All-time |
+|---|---|---|---|
+| discovery_calls | 1 | 1 | 19 |
+| shows | 1 | 1 | 10 |
+| closes | 0 | 0 | 0 |
+| total_revenue | $0 | $0 | $0 |
+
+## Notes
+- No changes since last sync (last entry: Call 19, Austin Treadwell, 08/20/26, Show=Y, outcome blank)
+- Still no August Cold Calling Metrics file — most recent is July 2026 (last touched 07/21/26)
