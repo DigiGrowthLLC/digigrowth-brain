@@ -361,10 +361,20 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         # reply ever (see sms.py::_recompute_stage_flags), so without this
         # fallback, anyone who'd already replied on an earlier day showed 0
         # replies today no matter how many times they replied again today.
-        # Primed/Engaged/Interested don't need this — those are purely
-        # manual judgment calls that re-stamp stage_{x}_at on every toggle
-        # (see email_inbox.py::set_contact_stage), so the plain "narrow to
-        # stage_{x}_at" rule already reflects real activity for them.
+        #
+        # Primed/Engaged/Interested need the same fallback for a different
+        # reason: stage_{x}_at only started getting stamped the moment that
+        # tracking shipped (see email_inbox.py::set_contact_stage) — every
+        # one of these flags set by hand BEFORE that (which, for any
+        # campaign older than a few hours, is effectively all of them) has
+        # stage_{x}_at = NULL forever, since there's no way to recover when
+        # it actually happened. Without the fallback, a campaign's real
+        # Primed/Engaged/Interested activity was invisible under every
+        # period filter except All Time — confirmed live: a 30-day window
+        # covering virtually the whole campaign's history still showed 0%
+        # for both. Any SMS activity on the conversation in the period is
+        # "this milestone is still current" evidence, same reasoning as
+        # DM Reached.
         stage_row = await conn.fetchrow(
             """
             SELECT
@@ -374,9 +384,15 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
                 COUNT(*) FILTER (WHERE stage_dm_reached   AND ($2::timestamptz IS NULL
                                                                 OR stage_dm_reached_at >= $2
                                                                 OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS dm_reached,
-                COUNT(*) FILTER (WHERE stage_primed       AND ($2::timestamptz IS NULL OR stage_primed_at      >= $2)) AS primed,
-                COUNT(*) FILTER (WHERE stage_engaged      AND ($2::timestamptz IS NULL OR stage_engaged_at     >= $2)) AS engaged,
-                COUNT(*) FILTER (WHERE stage_interested   AND ($2::timestamptz IS NULL OR stage_interested_at  >= $2)) AS interested,
+                COUNT(*) FILTER (WHERE stage_primed       AND ($2::timestamptz IS NULL
+                                                                OR stage_primed_at     >= $2
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS primed,
+                COUNT(*) FILTER (WHERE stage_engaged      AND ($2::timestamptz IS NULL
+                                                                OR stage_engaged_at    >= $2
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS engaged,
+                COUNT(*) FILTER (WHERE stage_interested   AND ($2::timestamptz IS NULL
+                                                                OR stage_interested_at >= $2
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS interested,
                 COUNT(*) FILTER (WHERE disposition = 'booked'         AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS booked,
                 COUNT(*) FILTER (WHERE disposition = 'not_interested' AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS not_interested
             FROM sms_conversations sc
@@ -446,15 +462,10 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         *params,
     )
 
-    # Narrowed directly by stage_{x}_at (stamped in email_inbox.py's
+    # Narrowed by stage_{x}_at (stamped in email_inbox.py's
     # set_contact_stage() the moment each checkbox is set — see db.py's
-    # migration comment) instead of the old "phone was contacted in this
-    # window" proxy, which only approximated "reached this stage in this
-    # window". Pre-existing conversations set before these timestamp columns
-    # existed simply won't match a period filter (stage_*_at is NULL there),
-    # which is the correct behavior — a stage that predates tracking has no
-    # accurate historical answer to "when".
-    stage_since_filter = "AND {col} >= $1" if since else ""
+    # migration comment), with an activity fallback for the reasons
+    # explained at each metric below.
     # Replied also counts a conversation whose FIRST-ever reply was on an
     # earlier day but got a fresh INBOUND message in this period —
     # stage_replied_at only ever stamps once, on someone's first reply ever
@@ -492,18 +503,33 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         )
     else:
         dm_reached = await conn.fetchval("SELECT COUNT(*) FROM sms_conversations WHERE stage_dm_reached")
-    primed = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_primed {stage_since_filter.format(col='stage_primed_at')}",
-        *params,
-    )
-    engaged = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_engaged {stage_since_filter.format(col='stage_engaged_at')}",
-        *params,
-    )
-    interested = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE stage_interested {stage_since_filter.format(col='stage_interested_at')}",
-        *params,
-    )
+
+    # Primed/Engaged/Interested need the same fallback as DM Reached, for a
+    # different reason: stage_{x}_at only started getting stamped the
+    # moment that tracking shipped (see email_inbox.py::set_contact_stage)
+    # — every one of these flags set by hand before that has stage_{x}_at =
+    # NULL forever, with no way to recover when it actually happened.
+    # Without this fallback, real Primed/Engaged/Interested activity was
+    # invisible under every period filter except All Time — confirmed live:
+    # a 30-day window covering virtually a whole campaign's history still
+    # showed 0% for both. Any SMS activity on the conversation in the
+    # period is "this milestone is still current" evidence.
+    async def _stage_count_with_activity_fallback(column: str):
+        if not since:
+            return await conn.fetchval(f"SELECT COUNT(*) FROM sms_conversations WHERE {column}")
+        return await conn.fetchval(
+            f"""
+            SELECT COUNT(*) FROM sms_conversations sc
+            WHERE {column}
+              AND ({column}_at >= $1
+                   OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $1))
+            """,
+            since,
+        )
+
+    primed      = await _stage_count_with_activity_fallback("stage_primed")
+    engaged     = await _stage_count_with_activity_fallback("stage_engaged")
+    interested  = await _stage_count_with_activity_fallback("stage_interested")
 
     booked = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='booked' {booked_filter}",
