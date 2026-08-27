@@ -97,15 +97,15 @@ If not found or no cold-calling columns exist: "No cold calling tracker found in
 
 **A-SMS) SMS outreach (live from OS)** — call the `os_sms_outreach_stats` tool if it's available (this is the case when running interactively through the OS dashboard chat panel). It returns messages sent, reply rate, interested rate, and appointments booked for the last 7 days, last 30 days, and all-time, computed directly from the OS's own `sms_messages`/`sms_conversations` tables. Report the 7-day figures as the headline, with the all-time total in parentheses. This is the sole source for SMS numbers in the briefing — do not look for SMS columns in the Drive tracker even if present.
 
-**Cloud-routine substitution:** the `os_sms_outreach_stats` tool only exists inside the dashboard's own chat tool loop — it is not exposed to the cloud routine sandbox, so a `ToolSearch` for it there will always come back empty (this caused SMS stats to silently read as "unreachable" for a while). When running as the scheduled cloud routine, hit the same data live instead:
+**Fallback for any session without the tool:** the `os_sms_outreach_stats` tool only exists inside the dashboard's own chat tool loop — it is NOT exposed to the scheduled cloud routine sandbox, nor to an interactive Claude Code session run outside the OS chat panel (e.g. VSCode/CLI). A `ToolSearch` for it in either of those contexts will always come back empty. **Do not treat "tool not found" as "SMS data unreachable"** — this caused SMS stats to silently (and incorrectly) read as "unreachable"/"no activity" even when real data existed. Whenever the tool isn't available, for ANY reason, hit the same data live via curl instead — this is not limited to the scheduled cloud routine:
 
 ```
-curl -s -u 'dylan:<DASHBOARD_PASSWORD>' 'https://digigrowth-brain-production.up.railway.app/api/analytics/outreach?days=7'
+curl -s -u "dylan:$(doppler secrets get DASHBOARD_PASSWORD --project digigrowth --config prd --plain)" 'https://digigrowth-brain-production.up.railway.app/api/analytics/outreach?days=7'
 ```
 
-The response's `sms.period` object is the 7-day figures (`total_outreach` = messages sent, `reply_rate`, `interested_rate`, `booked`/`abr` = appointments booked); `sms.all_time` is the all-time total. Report exactly as the tool-based path above would.
+(Fetch the password fresh via Doppler each time — don't hardcode or reuse a stale value.) The response's `sms.period` object is the 7-day figures (`total_outreach` = messages sent, `reply_rate`, `interested_rate`, `booked`/`abr` = appointments booked); `sms.all_time` is the all-time total. Report exactly as the tool-based path above would.
 
-If SMS numbers can't be obtained by either path (tool unavailable AND curl fails/unreachable), write "No SMS activity in the OS yet." and continue — don't treat it as an error, and don't fall back to Drive for this line.
+Only if BOTH the tool is unavailable AND the curl call itself fails or errors (bad auth, network unreachable, non-200 response) should you write "No SMS activity in the OS yet." — and even then, say so as a *fetch failure*, not as "no activity", since the two mean very different things to Dylan. Never fall back to Drive for this line.
 
 **B) Daily Input Tracker** — search for the file named **"[Month] Daily Input Tracker"** (e.g. "June Daily Input Tracker"), owned by Dylan. Read and store its data — this is a **habits tracker** (wake time, morning routine, gym, healthy diet, etc.) used only in Step 3.5 below. Do **not** display habits data in this Outreach section.
 
@@ -290,7 +290,9 @@ Formatting rules that apply throughout:
 - **Gmail returns no results:** Write "Inbox clear" and continue.
 - **Calendar unavailable:** Write "Calendar unavailable — check manually" and continue.
 - **No cold calling tracker in Drive:** Write the Step 3A fallback message and continue. Still attempt to read the Daily Input Tracker for Step 3.5.
-- **`os_sms_outreach_stats` returns no activity:** Write "No SMS activity in the OS yet." for the SMS line and continue — don't treat it as an error, don't fall back to Drive.
+- **Tool unavailable in this session:** Don't write "unreachable"/"no activity" — try the curl fallback in Step 3A-SMS first, since the tool being absent says nothing about whether data exists.
+- **Both tool and curl fail (bad auth, network error, non-200):** Write "No SMS activity in the OS yet." for the SMS line, framed as a fetch failure, and continue — don't fall back to Drive.
+- **`os_sms_outreach_stats` (or the curl fallback) genuinely returns zero all-time outreach:** Write "No SMS activity in the OS yet." and continue.
 - **No Sales Performance Tracker in Drive:** Write the Step 3.7 fallback message and continue. Do not substitute it with the outreach tracker or omit the section.
 - **No 7-day-old briefing found for Step 3.7:** Show all-time totals only, per the Step 3.7 fallback, and still write the snapshot line.
 - **No Daily Input Tracker in Drive:** Write "No habit data found." in Yesterday's Performance and continue.
