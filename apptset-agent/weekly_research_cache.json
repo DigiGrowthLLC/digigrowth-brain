@@ -1,7 +1,6 @@
 {
-  "date": "2026-08-24",
-  "topic": "How AI helps service-based businesses personalize outreach at scale (without it feeling robotic)",
+  "date": "2026-08-28",
+  "topic": "The AI email strategy that keeps your brand top-of-mind with 500 leads at once",
   "findings": [],
-  "sources": [],
-  "note": "Search returned candidate stats (AI outreach personalization / small business adoption), but every candidate source URL (hausadvisors.com, involve.me, sqmagazine.co.uk, bearstarmarketing.com, thestacc.com, datarefs.com, and a control fetch to en.wikipedia.org) was blocked by this sandbox's network egress proxy, so none could be verified per the per-claim source-check requirement. Findings left empty rather than caching an unconfirmed stat; email written from general knowledge only this week."
+  "sources": []
 }
