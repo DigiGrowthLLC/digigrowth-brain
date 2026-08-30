@@ -27,3 +27,11 @@ content-agent/.agents/
 
 # leadgen-agent scrape run logs/intermediates
 leadgen-agent/logs/
+
+# Stray screenshots/scratch images dropped at repo root by agent tool use
+# (browser screenshots, visual QA checks, etc.) — these belong in the
+# session scratchpad, not the repo. Only blocks root-level files so
+# legitimate image assets nested in project directories still commit.
+/*.png
+/*.jpg
+/*.jpeg

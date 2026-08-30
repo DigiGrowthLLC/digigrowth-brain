@@ -30,6 +30,7 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 - **Agent chat history**: stored in `agent_chats` table (JSONB `content` = full Anthropic content blocks to preserve tool_use/tool_result alternation)
 - **Secrets**: all API keys and passwords (`ANTHROPIC_API_KEY`, `DASHBOARD_PASSWORD`, `DASHBOARD_URL`, `PLACES_API_KEY`, etc.) live in the shared `digigrowth` Doppler vault (project `digigrowth`, config `prd` for production), not in any local `.env` file. Fetch via `doppler secrets get <NAME> --project digigrowth --config prd --plain`. Railway pulls the same vault at deploy time.
 - **NEVER touch**: `.env`, `credentials.json`, `settings.local.json`
+- **Screenshots/visual QA artifacts**: never save `.png`/`.jpg`/`.jpeg` files to the repo root (or any tracked project directory) for browser screenshots, visual checks, or other scratch images — use the session's scratchpad/temp directory instead. Root-level images are `.gitignore`'d as a backstop, but avoid creating them there in the first place.
 
 ## Frontend Patterns
 
