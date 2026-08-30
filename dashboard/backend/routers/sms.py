@@ -500,6 +500,19 @@ async def close_conversation(phone: str, payload: Optional[dict] = None):
     return {"ok": True}
 
 
+@router.post("/sms/conversations/{phone}/reopen")
+async def reopen_conversation(phone: str):
+    """Undo a close — sets the thread back to active so it shows up in the
+    Inbox again (e.g. a conversation auto-closed by an old booking flow)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE sms_conversations SET status = 'active', updated_at = now() WHERE phone = $1",
+            phone,
+        )
+    return {"ok": True}
+
+
 @router.delete("/sms/conversations/{phone}")
 async def delete_conversation(phone: str):
     pool = await get_pool()
