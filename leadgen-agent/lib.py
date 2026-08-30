@@ -204,7 +204,7 @@ def save_scraped_ids(ids: set):
 #  DIGIGROWTH OS PUSH
 # ════════════════════════════════════════════════════════════════════════════
 
-def push_to_os(leads: list, lead_status: str = "dialer-lead"):
+def push_to_os(leads: list, lead_status: str = "new"):
     if not leads:
         print("No qualified leads to push.")
         return
@@ -289,7 +289,7 @@ def _cli():
 
     elif cmd == "push":
         leads_path = sys.argv[2]
-        status = sys.argv[3] if len(sys.argv) > 3 else "dialer-lead"
+        status = sys.argv[3] if len(sys.argv) > 3 else "new"
         with open(leads_path, "r", encoding="utf-8") as f:
             leads = json.load(f)
         push_to_os(leads, status)
