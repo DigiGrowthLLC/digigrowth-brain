@@ -1,35 +1,10 @@
 {
-  "count": 12,
+  "count": 3,
   "recipients": [
-    {
-      "owner": "Phil",
-      "business": "Body By U Fit",
-      "email": "phildatrainer@gmail.com"
-    },
-    {
-      "owner": "Will Evans",
-      "business": "Butterfly Training LLC (Butterfly Sports Performance Fitness & Wellness Institute)",
-      "email": "will.evans3@yahoo.com"
-    },
     {
       "owner": "Dylan",
       "business": "DigiGrowth",
       "email": "dylangroenendijk@gmail.com"
-    },
-    {
-      "owner": "Alex Osuna",
-      "business": "GRIT Miami",
-      "email": "gritmiami@gmail.com"
-    },
-    {
-      "owner": "Will Blanscet",
-      "business": "Impact Martial Arts Academy",
-      "email": "806impact@gmail.com"
-    },
-    {
-      "owner": "John sauerland",
-      "business": "JS Fit For Life",
-      "email": "sauerlandjohn@gmail.com"
     },
     {
       "owner": "Dr. Dallas Tew",
@@ -37,30 +12,10 @@
       "email": null
     },
     {
-      "owner": "Terrance Crawford",
-      "business": "Shock Performance Training",
-      "email": "info@shockpt.com"
-    },
-    {
-      "owner": "Jay Sutaria",
-      "business": "STF Houston",
-      "email": "jay@stfhouston.com"
-    },
-    {
-      "owner": "Chris",
-      "business": "Sweetscience VB LLC",
-      "email": "classychrisgray@gmail.com"
-    },
-    {
-      "owner": "Keseana Smith",
-      "business": "The Village New Orleans",
-      "email": "keseana.smith@gmail.com"
-    },
-    {
       "owner": "Austin Treadwell",
       "business": "Treadwell, DPT",
       "email": "llewdaertnitsua@gmail.com"
     }
   ],
-  "exported_at": "2026-08-29T09:45:00.005328+00:00"
+  "exported_at": "2026-08-30T09:45:00.003327+00:00"
 }
