@@ -204,6 +204,29 @@ async def send_due_touches():
                 row["dm_followup_touch2_sent_at"] = None
                 row["dm_followup_touch3_sent_at"] = None
 
+            # Sequence-complete escalation: touch 3 is the last touch, so once
+            # it's been sent and 7 more days pass with still no reply, this
+            # prospect has exhausted the SMS sequence entirely — hand them to
+            # the dialer for a phone follow-up instead of leaving them to sit
+            # silently in the SMS inbox forever. Guarded on still_silent using
+            # last_inbound_at (already computed above) so a reply that arrives
+            # anytime after touch 3 — even right at the 7-day mark — correctly
+            # skips this (it'd already have hit the "ball in Dylan's court"
+            # branch above and cleared the cycle before reaching here).
+            touch3_at = row["dm_followup_touch3_sent_at"]
+            if touch3_at is not None and now >= touch3_at + timedelta(days=7):
+                still_silent = last_inbound_at is None or last_inbound_at < touch3_at
+                if still_silent and row["contact_id"]:
+                    current_status = await conn.fetchval(
+                        "SELECT status FROM contacts WHERE id = $1", row["contact_id"],
+                    )
+                    if current_status != "dialer-lead":
+                        await conn.execute(
+                            "UPDATE contacts SET status = 'dialer-lead', updated_at = now() WHERE id = $1",
+                            row["contact_id"],
+                        )
+                continue
+
             anchor = row["dm_followup_anchor_at"]
             for touch_num, sent_col, ref_col, delay in _TOUCHES:
                 if row[sent_col] is not None:
