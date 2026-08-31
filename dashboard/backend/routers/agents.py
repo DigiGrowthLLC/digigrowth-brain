@@ -1036,6 +1036,41 @@ async def process_pending_approvals_now(date: str | None = None):
     return {"result": result}
 
 
+@router.get("/agents/campaign-sms-export")
+async def campaign_sms_export(campaign_id: int):
+    """Read-only dump of every SMS conversation tagged to a campaign — full
+    message thread per contact, plus funnel stage flags and disposition.
+    One-shot ad-hoc report, not a paginated UI feed: built for pulling a
+    campaign's raw messaging data out for qualitative/psychology-driven
+    analysis (message wording, response patterns) that the aggregate
+    /analytics/outreach numbers can't answer on their own."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        convs = await conn.fetch(
+            """
+            SELECT sc.phone, sc.status, sc.disposition, sc.updated_at,
+                   sc.stage_initial_outreach, sc.stage_replied, sc.stage_dm_reached,
+                   sc.stage_primed, sc.stage_engaged, sc.stage_interested,
+                   c.id AS contact_id, c.business, c.owner, c.grade, c.state, c.opener
+            FROM sms_conversations sc
+            LEFT JOIN contacts c ON c.id = sc.contact_id
+            WHERE sc.campaign_id = $1
+            ORDER BY sc.updated_at DESC NULLS LAST
+            """,
+            campaign_id,
+        )
+        result = []
+        for conv in convs:
+            msgs = await conn.fetch(
+                "SELECT direction, body, sent_at, stage FROM sms_messages WHERE phone = $1 ORDER BY sent_at",
+                conv["phone"],
+            )
+            row = dict(conv)
+            row["messages"] = [dict(m) for m in msgs]
+            result.append(row)
+    return {"campaign_id": campaign_id, "conversation_count": len(result), "conversations": result}
+
+
 @router.post("/agents/export-sms-stats-now")
 async def export_sms_stats_now():
     """On-demand trigger for the SMS outreach snapshot export (see
