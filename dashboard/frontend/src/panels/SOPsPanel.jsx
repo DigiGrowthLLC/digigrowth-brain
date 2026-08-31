@@ -573,6 +573,7 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
 // exactly one is "active" (the Default) at a time — see the "Set as Default"
 // button below and POST /api/sms-sequences/{id}/activate.
 const SMS_SEQUENCE_STEPS = [
+  { key: "gatekeeper", label: "0. Gatekeeper Message" },
   { key: "curiosity_opener", label: "1. Initial Message" },
   { key: "relevance", label: "2. Primed Message" },
   { key: "guarantee", label: "3. Engaged Message" },
