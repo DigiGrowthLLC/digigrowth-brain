@@ -95,17 +95,23 @@ If found and it contains cold-calling columns (calls, contacts, appointments):
 
 If not found or no cold-calling columns exist: "No cold calling tracker found in Drive. If a separate file tracks calls made or contacts reached, confirm the file name."
 
-**A-SMS) SMS outreach (live from OS)** — call the `os_sms_outreach_stats` tool if it's available (this is the case when running interactively through the OS dashboard chat panel). It returns messages sent, reply rate, interested rate, and appointments booked for the last 7 days, last 30 days, and all-time, computed directly from the OS's own `sms_messages`/`sms_conversations` tables. Report the 7-day figures as the headline, with the all-time total in parentheses. This is the sole source for SMS numbers in the briefing — do not look for SMS columns in the Drive tracker even if present.
+**A-SMS) SMS outreach** — try these three sources **in order**, and use the first one that works. Do not skip straight to the last one just because it's simplest to reason about.
 
-**Fallback for any session without the tool:** the `os_sms_outreach_stats` tool only exists inside the dashboard's own chat tool loop — it is NOT exposed to the scheduled cloud routine sandbox, nor to an interactive Claude Code session run outside the OS chat panel (e.g. VSCode/CLI). A `ToolSearch` for it in either of those contexts will always come back empty. **Do not treat "tool not found" as "SMS data unreachable"** — this caused SMS stats to silently (and incorrectly) read as "unreachable"/"no activity" even when real data existed. Whenever the tool isn't available, for ANY reason, hit the same data live via curl instead — this is not limited to the scheduled cloud routine:
+1. **Tool (interactive OS sessions only)** — call the `os_sms_outreach_stats` tool if it's available (this is the case when running interactively through the OS dashboard chat panel). It returns messages sent, reply rate, interested rate, and appointments booked for the last 7 days, last 30 days, and all-time, computed directly from the OS's own `sms_messages`/`sms_conversations` tables.
+
+2. **GitHub snapshot (the scheduled cloud routine's primary source)** — Railway exports this same data to `executive-assistant/sms_outreach_snapshot.json` in the repo every morning at 5:50am ET, ~13 minutes before this routine runs (`_export_sms_outreach_stats` in `dashboard/backend/main.py`), specifically because the routine's sandbox sits behind a network egress proxy that rejects outbound connections to Railway — the curl fallback below fails for that reason, not auth, and no amount of retrying the curl fixes a proxy-level block. Use `read_file` (or `git pull` + local read, whichever this session already has checked out) on that path. Its shape: `{"period_7d": {...}, "period_30d": {...}, "all_time": {...}, "exported_at": "YYYY-MM-DD"}` — same fields as the tool/curl paths (`total_outreach`, `reply_rate`, `interested_rate`, `booked`/`abr`). **Check `exported_at` is today's date** (or yesterday's, if this run is unusually early) before trusting it — a stale snapshot means the 5:50am export job itself failed, in which case fall through to step 3.
+
+3. **Live curl (last resort — only if 1 and 2 both fail)** — the `os_sms_outreach_stats` tool only exists inside the dashboard's own chat tool loop; it is NOT exposed to the scheduled cloud routine sandbox, nor to an interactive Claude Code session run outside the OS chat panel (e.g. VSCode/CLI). A `ToolSearch` for it in either of those contexts will always come back empty — **that alone is not a reason to skip to "unreachable"**, try the GitHub snapshot first. If the snapshot file is also missing or stale, hit the same data live via curl:
 
 ```
 curl -s -u "dylan:$(doppler secrets get DASHBOARD_PASSWORD --project digigrowth --config prd --plain)" 'https://digigrowth-brain-production.up.railway.app/api/analytics/outreach?days=7'
 ```
 
-(Fetch the password fresh via Doppler each time — don't hardcode or reuse a stale value.) The response's `sms.period` object is the 7-day figures (`total_outreach` = messages sent, `reply_rate`, `interested_rate`, `booked`/`abr` = appointments booked); `sms.all_time` is the all-time total. Report exactly as the tool-based path above would.
+(Fetch the password fresh via Doppler each time — don't hardcode or reuse a stale value.) The response's `sms.period` object is the 7-day figures (`total_outreach` = messages sent, `reply_rate`, `interested_rate`, `booked`/`abr` = appointments booked); `sms.all_time` is the all-time total.
 
-Only if BOTH the tool is unavailable AND the curl call itself fails or errors (bad auth, network unreachable, non-200 response) should you write "No SMS activity in the OS yet." — and even then, say so as a *fetch failure*, not as "no activity", since the two mean very different things to Dylan. Never fall back to Drive for this line.
+Report the 7-day figures as the headline, with the all-time total in parentheses, from whichever of the three sources succeeded. This is the sole source for SMS numbers in the briefing — do not look for SMS columns in the Drive tracker even if present.
+
+Only if ALL THREE sources fail (tool not found, snapshot missing/stale, and the curl call itself fails or errors — bad auth, network unreachable, non-200 response) should you write "No SMS activity in the OS yet." — and even then, say so as a *fetch failure*, not as "no activity", since the two mean very different things to Dylan. Never fall back to Drive for this line.
 
 **B) Daily Input Tracker** — search for the file named **"[Month] Daily Input Tracker"** (e.g. "June Daily Input Tracker"), owned by Dylan. Read and store its data — this is a **habits tracker** (wake time, morning routine, gym, healthy diet, etc.) used only in Step 3.5 below. Do **not** display habits data in this Outreach section.
 
@@ -216,7 +222,7 @@ Skip this step if today is not Monday.
 
 If today is Monday: use `list_files` on `reports/` to find files matching `weekly-cleanup-*.md`, then `read_file` the most recent one (should be from yesterday, Sunday). Extract its `## Needs Approval` section. If it says "Nothing pending." or is empty, skip this section entirely — do not include it in the brief.
 
-**Capture the full section verbatim**, same rule as Steps 4.5/4.6: it ends with a literal `[[APPROVAL:<id>]]` marker line (the cleanup routine's review card) that must be preserved character-for-character into the `## Pending Cleanup Approvals` section below — don't summarize it away, the frontend needs the exact marker text to render the inline diff view and Approve/Decline buttons.
+**Capture the section as a plain-text summary**, same async pattern as Steps 4.5/4.6: the weekly-cleanup routine no longer embeds a `[[APPROVAL:<id>]]` marker in its report — it drops a request file that a Railway-side relay job (`weekly-cleanup/CLAUDE.md` → `process_pending_cleanup_approval`, polled Sunday ~8:20pm ET, ~15 min after the routine itself runs) turns into a real Approve/Decline card posted as its own chat message *Sunday night*, well before this Monday briefing runs. So by the time you're writing this section, that card has already gone out separately — just summarize what's pending (item count, one-line list of what each item is) and note that the Approve/Decline card was already posted Sunday evening. No marker to preserve here.
 
 ### Step 5 — Save and Deliver
 
@@ -279,7 +285,7 @@ Formatting rules that apply throughout:
 
 ## Pending Cleanup Approvals
 
-[Step 4.7 output — the weekly cleanup report's "## Needs Approval" section, verbatim]
+[Step 4.7 output — a plain-text summary of the weekly cleanup report's "## Needs Approval" section, plus the note that its Approve/Decline card already went out as a separate chat message Sunday night]
 
 *Daily briefing — [Day, Month Date]*
 
@@ -290,9 +296,10 @@ Formatting rules that apply throughout:
 - **Gmail returns no results:** Write "Inbox clear" and continue.
 - **Calendar unavailable:** Write "Calendar unavailable — check manually" and continue.
 - **No cold calling tracker in Drive:** Write the Step 3A fallback message and continue. Still attempt to read the Daily Input Tracker for Step 3.5.
-- **Tool unavailable in this session:** Don't write "unreachable"/"no activity" — try the curl fallback in Step 3A-SMS first, since the tool being absent says nothing about whether data exists.
-- **Both tool and curl fail (bad auth, network error, non-200):** Write "No SMS activity in the OS yet." for the SMS line, framed as a fetch failure, and continue — don't fall back to Drive.
-- **`os_sms_outreach_stats` (or the curl fallback) genuinely returns zero all-time outreach:** Write "No SMS activity in the OS yet." and continue.
+- **Tool unavailable in this session:** Don't write "unreachable"/"no activity" — try the GitHub snapshot next, then the curl fallback, per Step 3A-SMS, since the tool being absent says nothing about whether data exists.
+- **GitHub snapshot missing or `exported_at` stale:** Fall through to the curl fallback — don't treat a stale/missing snapshot as "no data".
+- **All three of tool, snapshot, and curl fail (bad auth, network error, non-200):** Write "No SMS activity in the OS yet." for the SMS line, framed as a fetch failure, and continue — don't fall back to Drive.
+- **Any of the three sources genuinely returns zero all-time outreach:** Write "No SMS activity in the OS yet." and continue.
 - **No Sales Performance Tracker in Drive:** Write the Step 3.7 fallback message and continue. Do not substitute it with the outreach tracker or omit the section.
 - **No 7-day-old briefing found for Step 3.7:** Show all-time totals only, per the Step 3.7 fallback, and still write the snapshot line.
 - **No Daily Input Tracker in Drive:** Write "No habit data found." in Yesterday's Performance and continue.

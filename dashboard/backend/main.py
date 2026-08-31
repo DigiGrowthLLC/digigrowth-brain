@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 import integrations
 from db import get_pool
-from pending_approvals_relay import process_pending_approvals
+from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
 from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns
 import call_reminders
 import cancel_sequence
@@ -181,6 +181,44 @@ async def _export_newsletter_contacts() -> None:
     print(f"[cron] newsletter-export: {len(rows)} contacts ({status})", flush=True)
 
 
+async def _export_sms_outreach_stats() -> None:
+    """Export live SMS outreach stats (7d/30d/all-time) to a git-tracked JSON
+    file the daily-briefing cloud routine can read locally, instead of
+    calling Railway's API mid-run. That live call has repeatedly failed —
+    the routine's sandbox sits behind a network egress proxy that rejects
+    outbound connections to Railway before any response comes back, so even
+    the curl fallback in the skill's Step 3A-SMS fails the same way an auth
+    problem would, just for an unrelated reason. Since Railway can reach its
+    own DB and GitHub trivially, it's the one side of this that should do
+    the network call — same pattern as _export_newsletter_contacts above."""
+    from routers.analytics import outreach as _outreach
+
+    try:
+        stats_7d  = await _outreach(days=7)
+        stats_30d = await _outreach(days=30)
+    except Exception as e:
+        print(f"[cron] sms-outreach-export: query failed: {e}", flush=True)
+        return
+
+    payload = {
+        "period_7d":  stats_7d["sms"]["period"],
+        "period_30d": stats_30d["sms"]["period"],
+        "all_time":   stats_7d["sms"]["all_time"],
+        "exported_at": _today_eastern(),
+    }
+    content = json.dumps(payload, indent=2)
+
+    local_path = pathlib.Path("/repo/executive-assistant/sms_outreach_snapshot.json")
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    local_path.write_text(content, encoding="utf-8")
+
+    status = await _push_file_to_github(
+        "executive-assistant/sms_outreach_snapshot.json", content,
+        f"SMS outreach snapshot: {_today_eastern()}",
+    )
+    print(f"[cron] sms-outreach-export: ({status})", flush=True)
+
+
 async def _process_newsletter_queue() -> None:
     """Scheduled wrapper — runs every ~25 min during business hours on weekdays
     (see the CronTrigger below). Actual logic lives in
@@ -205,6 +243,21 @@ async def _process_pending_approvals_job() -> None:
         print(f"[cron] {result}", flush=True)
     except Exception as e:
         print(f"[cron] pending-approvals-relay failed: {e}", flush=True)
+
+
+async def _process_cleanup_approval_relay_job() -> None:
+    """Picks up the weekly-cleanup routine's cleanup-<date>.json request file
+    from GitHub (see weekly-cleanup/CLAUDE.md 'Posting a Review Card') and
+    turns it into a real pending_approvals row + agent_chats card — same
+    can't-reach-Railway-directly reason as _process_pending_approvals_job,
+    just on its own Sunday-evening schedule since weekly-cleanup doesn't run
+    on the daily-briefing's cadence. Runs weekly; no-ops harmlessly if the
+    routine found nothing worth flagging that week."""
+    try:
+        result = await process_pending_cleanup_approval()
+        print(f"[cron] {result}", flush=True)
+    except Exception as e:
+        print(f"[cron] cleanup-approval-relay failed: {e}", flush=True)
 
 
 async def _post_weekly_cleanup_report() -> None:
@@ -249,6 +302,12 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
+        _export_sms_outreach_stats,
+        CronTrigger(hour=5, minute=50, timezone=eastern),
+        id="sms-outreach-export-daily",
+        replace_existing=True,
+    )
+    scheduler.add_job(
         _post_report_from_github,
         CronTrigger(hour=6, minute=15, timezone=eastern, day_of_week="mon-fri"),
         args=["sheets-digest", "sheets-digest"],
@@ -267,6 +326,12 @@ async def lifespan(app: FastAPI):
         _process_pending_approvals_job,
         CronTrigger(hour=6, minute=40, timezone=eastern),
         id="pending-approvals-relay",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _process_cleanup_approval_relay_job,
+        CronTrigger(hour=20, minute=20, timezone=eastern, day_of_week="sun"),
+        id="cleanup-approval-relay",
         replace_existing=True,
     )
     scheduler.add_job(

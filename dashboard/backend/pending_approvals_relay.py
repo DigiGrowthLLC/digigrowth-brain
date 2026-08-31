@@ -165,3 +165,10 @@ async def process_pending_approvals(date_str: str | None = None) -> str:
     newsletter_result = await process_pending_approval("apptset-agent", "newsletter", date_str)
     blog_result = await process_pending_approval("content-agent", "blog", date_str)
     return f"{newsletter_result}; {blog_result}"
+
+
+async def process_pending_cleanup_approval(date_str: str | None = None) -> str:
+    """Separate entry point (not folded into process_pending_approvals above,
+    which runs daily at 6:40am) because weekly-cleanup runs Sunday ~8:04pm ET
+    — see the dedicated 'weekly-cleanup-approval-relay' cron job in main.py."""
+    return await process_pending_approval("weekly-cleanup", "cleanup", date_str)

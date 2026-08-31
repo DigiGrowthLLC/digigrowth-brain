@@ -23,9 +23,20 @@ The routine commits its report to `executive-assistant/reports/weekly-cleanup-YY
 
 ## Posting a Review Card (Approve/Decline)
 
-In addition to the markdown report, the routine posts one `kind: "cleanup"` approval so Dylan gets
-an inline card in the OS chat — the same mechanism the newsletter and blog-post skills use — instead
-of only a wall of report text. Build `payload` from this run's own results:
+In addition to the markdown report, the routine drops one `kind: "cleanup"` pending-approval
+**request file** so Dylan gets an inline Approve/Decline card in the OS chat — the same relay
+mechanism the newsletter and blog-post skills use (`apptset-agent/.claude/skills/newsletter/SKILL.md`
+Step 6) — instead of only a wall of report text, and instead of needing Dylan to open Claude Code
+or a terminal to apply anything himself.
+
+**Do not call the dashboard's `/api/approvals` endpoint directly** — this routine's sandbox sits
+behind a network egress proxy that rejects outbound connections to Railway before any response
+comes back, the same reason `_export_sms_outreach_stats`/`_export_newsletter_contacts` in
+`dashboard/backend/main.py` exist. A direct curl here fails silently in the same way every time,
+which is why Dylan previously never actually got a working button — write the request file instead
+and let Railway's own relay job make the call from its side, where it can reach itself.
+
+Build `payload` from this run's own results:
 
 - `payload.auto_fixed`: one entry per item already fixed this run (the "Auto-Fixed" section) —
   `{"file": "path/in/repo", "summary": "<one-line description>", "diff": "<unified diff, e.g. from `git show <sha> -- <file>` or `git diff HEAD~1 -- <file>` right after committing it>"}`.
@@ -34,28 +45,31 @@ of only a wall of report text. Build `payload` from this run's own results:
   `{"file": "path/in/repo", "action": "write" | "delete", "content": "<full proposed file text, only for action=write>", "summary": "<why>", "diff": "<unified diff of current vs proposed>"}`.
   These are **not** applied by the routine — approving the card is what applies them (via the
   Contents API against `digigrowth-brain`, same pattern as blog-post publishing). If a run has no
-  judgment calls, omit `payload.changes` (or leave it `[]`) and skip posting a card entirely if
-  `auto_fixed` is also empty.
+  judgment calls, omit `payload.changes` (or leave it `[]`) and skip writing a request file entirely
+  if `auto_fixed` is also empty.
 
-Post it the same way the blog-post skill does (`content-agent/.claude/skills/weekly-ai-blog/SKILL.md`):
+Write the file directly rather than inlining it in a shell one-liner — diffs contain quotes and
+backticks that are painful and error-prone to shell-escape inline:
 
 ```bash
-cat > /tmp/approval_payload.json <<'JSONEOF'
+mkdir -p weekly-cleanup/pending_approvals
+cat > weekly-cleanup/pending_approvals/cleanup-YYYY-MM-DD.json <<'JSONEOF'
 {
-  "kind": "cleanup",
-  "title": "Weekly Cleanup — <YYYY-MM-DD>",
+  "title": "Weekly Cleanup — YYYY-MM-DD",
   "summary": "<N auto-fixed, M needing approval>",
   "payload": {"auto_fixed": [...], "changes": [...]}
 }
 JSONEOF
-curl -s -u "admin:$DASHBOARD_PASSWORD" -X POST \
-  -H "Content-Type: application/json" \
-  -d @/tmp/approval_payload.json \
-  https://digigrowth-brain-production.up.railway.app/api/approvals
 ```
 
-This returns `{"id": <n>, ...}`. Put the literal marker line `[[APPROVAL:<id>]]` at the end of the
-report's `## Needs Approval` section (verbatim, nothing else around it) — the daily-briefing skill
-carries it through character-for-character (Step 4.7 in `executive-assistant/.claude/skills/daily-briefing/SKILL.md`)
-so the OS chat frontend renders it as a live card with a diff view and Approve/Decline buttons.
+Push `weekly-cleanup/pending_approvals/cleanup-YYYY-MM-DD.json` to GitHub (`push_file()` from
+`shared/github_sync.py`, or `git add`/`commit`/`push` directly). A Railway-side job
+(`process_pending_approval("weekly-cleanup", "cleanup", ...)` in `pending_approvals_relay.py`,
+polled Sunday ~8:20pm ET — 15 minutes after this routine's own 8:04pm run) picks it up, creates
+the real `pending_approvals` row, and posts the live card into the OS chat as its own message —
+no marker to embed in the report itself, same async pattern as the newsletter/blog cards. The
+report's `## Needs Approval` section (read by Step 4.7 of
+`executive-assistant/.claude/skills/daily-briefing/SKILL.md` on the following Monday) should just
+summarize what's pending in plain text — it no longer needs to carry a `[[APPROVAL:<id>]]` marker,
+since the card will already have gone out Sunday night, separately from Monday's briefing.
 Declining leaves every file untouched; approving pushes each `changes` item straight to GitHub.
