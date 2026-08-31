@@ -1036,6 +1036,17 @@ async def process_pending_approvals_now(date: str | None = None):
     return {"result": result}
 
 
+@router.post("/agents/export-sms-stats-now")
+async def export_sms_stats_now():
+    """On-demand trigger for the SMS outreach snapshot export (see
+    main.py's _export_sms_outreach_stats, scheduled daily 5:50am ET) —
+    lets Dylan verify the file lands on GitHub right now instead of
+    waiting for tomorrow's export."""
+    import main
+    await main._export_sms_outreach_stats()
+    return {"ok": True}
+
+
 @router.post("/agents/post-report-now")
 async def post_report_now(filename_prefix: str, date: str | None = None):
     """On-demand trigger mirroring main.py's _post_report_from_github cron
@@ -1287,7 +1298,11 @@ async def chat(agent_id: str, request: Request):
     history.append({"role": "user", "content": user_content})
     mode = (body.get("mode") or "auto").strip()
     system_prompt = _build_system_prompt(agent, mode, match_message=user_message)
-    model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-4-6")
+    # Per-agent model override (agents_registry.json's "model" field) takes priority over the
+    # shared env var — copy-heavy agents (content-agent, copy-agent) are pinned to the most
+    # capable model since copy quality matters more there than latency/cost; agents without an
+    # explicit "model" fall back to the shared default, which stays the faster/cheaper tier.
+    model = agent.get("model") or os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-5")
 
     async def event_stream():
         try:
