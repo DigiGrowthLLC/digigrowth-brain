@@ -46,6 +46,7 @@ OPENING_MESSAGE = "Hey is this {first_name}?"
 # the SMS inbox's SEQUENCE dropdown. Editable in Business Resources →
 # Outreach Templates → Outreach Templates category.
 SEQUENCE_STEPS = [
+    ("gatekeeper", "0. Gatekeeper Message"),
     ("curiosity_opener", "1. Initial Message"),
     ("relevance", "2. Primed Message"),
     ("guarantee", "3. Engaged Message"),

@@ -59,12 +59,12 @@ async def create_sequence(body: dict):
         row = await conn.fetchrow(
             """
             INSERT INTO sms_sequences
-                (name, category, is_default, curiosity_opener, relevance, guarantee, ask, cta)
-            VALUES ($1, $2, false, $3, $4, $5, $6, $7)
+                (name, category, is_default, gatekeeper, curiosity_opener, relevance, guarantee, ask, cta)
+            VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8)
             RETURNING *
             """,
             name, category,
-            steps.get("curiosity_opener", ""), steps.get("relevance", ""),
+            steps.get("gatekeeper", ""), steps.get("curiosity_opener", ""), steps.get("relevance", ""),
             steps.get("guarantee", ""), steps.get("ask", ""), steps.get("cta", ""),
         )
     return _row_to_dict(row)
@@ -84,13 +84,13 @@ async def update_sequence(sequence_id: int, body: dict):
             """
             UPDATE sms_sequences
             SET name = $1, category = $2,
-                curiosity_opener = $3, relevance = $4, guarantee = $5, ask = $6, cta = $7,
+                gatekeeper = $3, curiosity_opener = $4, relevance = $5, guarantee = $6, ask = $7, cta = $8,
                 updated_at = now()
-            WHERE id = $8
+            WHERE id = $9
             RETURNING *
             """,
             name, category,
-            steps.get("curiosity_opener", ""), steps.get("relevance", ""),
+            steps.get("gatekeeper", ""), steps.get("curiosity_opener", ""), steps.get("relevance", ""),
             steps.get("guarantee", ""), steps.get("ask", ""), steps.get("cta", ""),
             sequence_id,
         )
