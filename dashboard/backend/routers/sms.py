@@ -500,6 +500,19 @@ async def close_conversation(phone: str, payload: Optional[dict] = None):
     return {"ok": True}
 
 
+@router.post("/sms/conversations/{phone}/mark-unread")
+async def mark_unread(phone: str):
+    """Undo read-tracking — clears last_read_at so the thread reappears in
+    the Inbox's Needs Reply / unread list, symmetric to the auto mark-read
+    that happens on GET /sms/conversations/{phone}."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE sms_conversations SET last_read_at = NULL WHERE phone = $1", phone
+        )
+    return {"ok": True}
+
+
 @router.post("/sms/conversations/{phone}/reopen")
 async def reopen_conversation(phone: str):
     """Undo a close — sets the thread back to active so it shows up in the
