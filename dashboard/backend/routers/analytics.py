@@ -636,7 +636,13 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     )
 
     # Replied: distinct contacts who received an outbound email in this
-    # window AND have at least one inbound message on the same thread.
+    # window AND have at least one inbound message on the same thread in
+    # this same window. The inbound side used to have no date bound at
+    # all, so an outbound sent this window to a thread that got any inbound
+    # reply at any point in its history — even months earlier, unrelated to
+    # this send — counted as "replied", inflating reply_rate for narrow
+    # periods. Bounded to match msg_filter's outbound-side window, same
+    # principle as _sms_metrics' equivalent check above.
     replied = await conn.fetchval(
         f"""
         SELECT COUNT(DISTINCT out.email)
@@ -645,6 +651,7 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         AND EXISTS (
             SELECT 1 FROM email_messages inb
             WHERE inb.thread_id = out.thread_id AND inb.direction='inbound'
+            {" AND inb.sent_at >= $1" if since else ""}
         )
         """,
         *params,
@@ -901,7 +908,12 @@ async def sales_stats(days: int = 0):
         "discovery_calls":   discovery,
         "strategy_sessions": stats.get("strategy_sessions", 0),
         "closes":            closes,
-        "close_rate":        _pct(closes, discovery),
+        # Closed ÷ shows (who actually showed up), not ÷ discovery calls
+        # booked — a booked call that no-shows was never a chance to close,
+        # so counting it in the denominator understated the real close
+        # rate. Matches the funnel widget's own close-rate math elsewhere
+        # in AnalyticsPanel.jsx, which already divides by shows.
+        "close_rate":        _pct(closes, shows),
         "total_revenue":     revenue,
         "avg_deal_size":     round(revenue / closes) if closes else 0,
         "shows":             shows,

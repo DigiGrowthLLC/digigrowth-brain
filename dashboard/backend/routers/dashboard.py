@@ -60,13 +60,6 @@ async def summary(period: str = "day"):
         sms_booked = await conn.fetchval(
             "SELECT COUNT(*) FROM sms_conversations WHERE status = 'closed' AND updated_at >= $1", since,
         )
-        # Excludes automated sequence sends (no_show/cancel/dm_followup/
-        # reminder), same as everywhere else in analytics.py — this feeds
-        # the Dashboard's "SMS" bar in Period Breakdown, and shouldn't be
-        # the one remaining place that still counts them.
-        sms_messages_period = await conn.fetchval(
-            "SELECT COUNT(*) FROM sms_messages WHERE sent_at >= $1 AND NOT is_automated", since
-        )
         total_contacts = await conn.fetchval("SELECT COUNT(*) FROM contacts")
         new_contacts   = await conn.fetchval(
             "SELECT COUNT(*) FROM contacts WHERE created_at >= $1", since
@@ -134,7 +127,15 @@ async def summary(period: str = "day"):
         "sms": {
             "active":   sms_active,
             "booked":   sms_booked,
-            "messages": sms_messages_period,
+            # Same "each prospect's first-ever message" count as the
+            # Analytics tab's total_outreach — not a raw sms_messages row
+            # count. The Period Breakdown bar this feeds sits next to
+            # Outreach/Reached/Booked, which are all prospect-stage counts,
+            # not message volume; a raw count here (which includes every
+            # sequence step per prospect) made this bar read 3x too high
+            # and disagree with Analytics' number for what looked like the
+            # same metric.
+            "messages": sms_funnel["total_outreach"],
         },
         "contacts": {
             "total": total_contacts,
