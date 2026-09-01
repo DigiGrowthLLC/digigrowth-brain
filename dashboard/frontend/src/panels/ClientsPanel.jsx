@@ -62,15 +62,26 @@ function OnboardingAnswers({ clientId }) {
   );
 }
 
-function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete }) {
+function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact }) {
   const [copied, setCopied] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [pendingContact, setPendingContact] = useState(null);
+  const [savingLink, setSavingLink] = useState(false);
 
   const copyLink = () => {
     navigator.clipboard.writeText(client.portal_url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
+  };
+
+  const saveLink = async () => {
+    setSavingLink(true);
+    await onLinkContact(client.id, pendingContact?.id || null);
+    setSavingLink(false);
+    setLinking(false);
+    setPendingContact(null);
   };
 
   const revoked = !!client.token_revoked_at;
@@ -87,6 +98,15 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete }) {
               {client.status}
             </span>
             {revoked && <span className="badge badge-red">TOKEN REVOKED</span>}
+            {client.linked_contact ? (
+              <span className="badge badge-blue" title="Onboarding follow-up will send this client's portal link">
+                LINKED: {client.linked_contact.owner || client.linked_contact.business || "contact"}
+              </span>
+            ) : (
+              <span className="badge badge-amber" title="No contact linked — the next-morning onboarding email/SMS has nothing to send for this client">
+                NO CONTACT LINKED
+              </span>
+            )}
           </div>
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a5a80", marginTop: 4 }}>
             Onboarding {client.onboarding_progress} · {client.contact_name || "no contact set"}
@@ -102,6 +122,9 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete }) {
         <a href={client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10, textDecoration: "none" }}>
           VIEW PORTAL ↗
         </a>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setPendingContact(client.linked_contact || null); setLinking((s) => !s); }}>
+          {linking ? "CANCEL" : "LINK CONTACT"}
+        </button>
         <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onEdit(client)}>
           EDIT
         </button>
@@ -118,7 +141,99 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete }) {
           DELETE
         </button>
       </div>
+      {linking && (
+        <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <ContactPicker selected={pendingContact} onSelect={setPendingContact} />
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={saveLink} disabled={savingLink}>
+              {savingLink ? "SAVING…" : "SAVE LINK"}
+            </button>
+          </div>
+        </div>
+      )}
       {showOnboarding && <OnboardingAnswers clientId={client.id} />}
+    </div>
+  );
+}
+
+// Search-and-pick widget for linking the CRM contact/prospect this client's
+// deal actually came from. Points contacts.client_id at the client once
+// selected (create_client / link-contact endpoints) — this is what
+// onboarding_sequence.py's next-morning follow-up resolves to find which
+// client's portal link to send, so a client with no contact linked never
+// gets that email/SMS sent for it.
+function ContactPicker({ selected, onSelect, disabled }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); return; }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      const r = await fetch(API(`/contacts?search=${encodeURIComponent(query.trim())}&limit=8`));
+      if (r.ok) {
+        const data = await r.json();
+        setResults(data.contacts || []);
+      }
+      setSearching(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  if (selected) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)" }}>
+        <span style={{ fontSize: 11, color: "#5a7096" }}>Linked to:</span>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#d0e8ff" }}>
+          {selected.owner || selected.business || "Unnamed contact"}{selected.owner && selected.business ? ` — ${selected.business}` : ""}
+        </span>
+        {!disabled && (
+          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onSelect(null)}>CHANGE</button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        className="dg-input"
+        placeholder="Link the contact this deal came from — search by business, owner, or phone…"
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        disabled={disabled}
+      />
+      {open && query.trim() && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 10,
+          background: "#0d1a3a", border: "1px solid rgba(58,123,213,0.25)", borderRadius: 8,
+          maxHeight: 220, overflowY: "auto",
+        }}>
+          {searching && (
+            <div style={{ padding: "10px 14px", fontSize: 11, color: "#3a5a80" }}>Searching…</div>
+          )}
+          {!searching && results.length === 0 && (
+            <div style={{ padding: "10px 14px", fontSize: 11, color: "#3a5a80" }}>No matching contacts</div>
+          )}
+          {results.map((c) => (
+            <div
+              key={c.id}
+              onClick={() => { onSelect(c); setQuery(""); setResults([]); setOpen(false); }}
+              style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid rgba(58,123,213,0.08)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(58,123,213,0.1)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#d0e8ff" }}>
+                {c.owner || "—"}{c.business ? ` — ${c.business}` : ""}
+              </div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", marginTop: 2 }}>{c.phone}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -131,9 +246,16 @@ function ClientForm({ initial, onSave, onCancel, saving }) {
     phone: initial?.phone || "",
     notes: initial?.notes || "",
   });
+  const [linkedContact, setLinkedContact] = useState(initial?.linked_contact || null);
 
   return (
     <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+      <ContactPicker selected={linkedContact} onSelect={setLinkedContact} disabled={!!initial} />
+      {initial && (
+        <div style={{ fontSize: 11, color: "#5a7096" }}>
+          To change the linked contact on an existing client, use the LINK CONTACT button on its row instead.
+        </div>
+      )}
       <input
         className="dg-input"
         placeholder="Practice name…"
@@ -175,7 +297,7 @@ function ClientForm({ initial, onSave, onCancel, saving }) {
         <button className="btn btn-secondary" onClick={onCancel} style={{ fontSize: 11 }}>CANCEL</button>
         <button
           className="btn btn-primary"
-          onClick={() => onSave(form)}
+          onClick={() => onSave({ ...form, contact_id: initial ? undefined : (linkedContact?.id || undefined) })}
           disabled={saving || !form.name.trim()}
           style={{ fontSize: 11 }}
         >
@@ -473,6 +595,14 @@ export default function ClientsPanel() {
     load();
   };
 
+  const linkContact = async (id, contactId) => {
+    await fetch(API(`/clients/${id}/link-contact`), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contact_id: contactId }),
+    });
+    load();
+  };
+
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 0 }}>
 
@@ -531,6 +661,7 @@ export default function ClientsPanel() {
             onRegenerate={regenerate}
             onRevoke={revoke}
             onDelete={remove}
+            onLinkContact={linkContact}
           />
         ))}
       </div>

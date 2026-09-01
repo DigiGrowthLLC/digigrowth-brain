@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException
 
 from db import get_pool
 from models import (
-    ClientCreate, ClientUpdate, OnboardingVideoCreate, OnboardingVideoUpdate,
+    ClientCreate, ClientUpdate, ClientLinkContact, OnboardingVideoCreate, OnboardingVideoUpdate,
     ActionItemCreate, ActionItemUpdate, ONBOARDING_SECTIONS,
 )
 
@@ -23,6 +23,20 @@ _DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-produ
 
 def _portal_url(token: str) -> str:
     return f"{_DASHBOARD_URL}/portal/{token}"
+
+
+async def _linked_contact_summary(conn, client_id: int) -> dict | None:
+    """One representative linked contact (business/owner) for display in the
+    Clients list — e.g. "Linked to: Erin Morley — More Physical Therapy".
+    contacts.client_id is many-to-one (a client can have more than one
+    contact row pointed at it — e.g. extra leads added later via the portal
+    itself), so this is just the most recently linked one, not a strict
+    "primary contact" concept the schema doesn't otherwise have."""
+    row = await conn.fetchrow(
+        "SELECT id, business, owner FROM contacts WHERE client_id = $1 ORDER BY updated_at DESC LIMIT 1",
+        client_id,
+    )
+    return dict(row) if row else None
 
 
 @router.get("/clients")
@@ -38,12 +52,13 @@ async def list_clients():
             ORDER BY c.created_at DESC
             """
         )
-    out = []
-    for r in rows:
-        d = dict(r)
-        d["onboarding_progress"] = f"{d.pop('sections_completed')}/{len(ONBOARDING_SECTIONS)}"
-        d["portal_url"] = _portal_url(d["portal_token"])
-        out.append(d)
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["onboarding_progress"] = f"{d.pop('sections_completed')}/{len(ONBOARDING_SECTIONS)}"
+            d["portal_url"] = _portal_url(d["portal_token"])
+            d["linked_contact"] = await _linked_contact_summary(conn, d["id"])
+            out.append(d)
     return out
 
 
@@ -63,7 +78,19 @@ async def create_client(body: ClientCreate):
             """,
             name, body.contact_name, body.email, body.phone, body.notes, token,
         )
-    d = dict(row)
+        # Links the specific prospect/contact whose deal this client came
+        # from — this is what onboarding_sequence.py's next-morning
+        # follow-up resolves (contact -> contacts.client_id -> this row's
+        # portal_token) to know which portal link to send. Without this,
+        # the client record exists but no contact ever points back at it,
+        # so the follow-up send has nothing to resolve and skips forever.
+        if body.contact_id:
+            await conn.execute(
+                "UPDATE contacts SET client_id = $1, updated_at = now() WHERE id = $2",
+                row["id"], body.contact_id,
+            )
+        d = dict(row)
+        d["linked_contact"] = await _linked_contact_summary(conn, d["id"])
     d["portal_url"] = _portal_url(d["portal_token"])
     return d
 
@@ -81,6 +108,7 @@ async def get_client(client_id: int):
         contacts_count = await conn.fetchval(
             "SELECT count(*) FROM contacts WHERE client_id = $1", client_id
         )
+        linked_contact = await _linked_contact_summary(conn, client_id)
     d = dict(client)
     d["portal_url"] = _portal_url(d["portal_token"])
     def _decode(r):
@@ -89,7 +117,37 @@ async def get_client(client_id: int):
         return row
     d["onboarding"] = {r["section"]: _decode(r) for r in responses}
     d["contacts_count"] = contacts_count
+    d["linked_contact"] = linked_contact
     return d
+
+
+@router.post("/clients/{client_id}/link-contact")
+async def link_contact(client_id: int, body: ClientLinkContact):
+    """Point a contact at this client (contacts.client_id), or clear it if
+    contact_id is null. This is what onboarding_sequence.py's next-morning
+    follow-up resolves to find a client's portal link — use this to fix a
+    client created without picking a contact, or to relink after a mistake."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        if body.contact_id:
+            contact = await conn.fetchrow("SELECT id FROM contacts WHERE id = $1", body.contact_id)
+            if not contact:
+                raise HTTPException(status_code=404, detail="Contact not found")
+            await conn.execute(
+                "UPDATE contacts SET client_id = $1, updated_at = now() WHERE id = $2",
+                client_id, body.contact_id,
+            )
+        else:
+            # Unlink every contact currently pointed at this client.
+            await conn.execute(
+                "UPDATE contacts SET client_id = NULL, updated_at = now() WHERE client_id = $1",
+                client_id,
+            )
+        linked_contact = await _linked_contact_summary(conn, client_id)
+    return {"ok": True, "linked_contact": linked_contact}
 
 
 @router.patch("/clients/{client_id}")

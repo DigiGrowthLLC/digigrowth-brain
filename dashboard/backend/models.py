@@ -122,6 +122,7 @@ class ClientCreate(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     notes: Optional[str] = None
+    contact_id: Optional[str] = None
 
 
 class ClientUpdate(BaseModel):
@@ -131,6 +132,10 @@ class ClientUpdate(BaseModel):
     phone: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+
+
+class ClientLinkContact(BaseModel):
+    contact_id: Optional[str] = None
 
 
 class OnboardingVideoCreate(BaseModel):
