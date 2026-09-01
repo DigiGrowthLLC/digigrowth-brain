@@ -454,7 +454,7 @@ const [notes, setNotes]                 = useState("");
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
-            Parallel Dialer
+            Dialer {sessionActive && (sess?.max_lines ?? 1) > 1 ? "· Power Dialer" : "· Single Dial"}
           </div>
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.18em", marginTop: 3 }}>
             {sessionActive ? (liveStatus === "connected" ? "SESSION · LIVE CALL" : "SESSION · ACTIVE") : "SESSION · IDLE"}
@@ -548,13 +548,17 @@ const [notes, setNotes]                 = useState("");
                     fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
                     padding: "4px 8px", cursor: "pointer",
                   }}
-                  defaultValue="5"
-                  onChange={(e) => fetch(API("/dialer/set-lines"), {
-                    method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ lines: parseInt(e.target.value) }),
-                  }).catch(() => {})}
+                  value={sess?.max_lines ?? 1}
+                  onChange={(e) => {
+                    const lines = parseInt(e.target.value);
+                    fetch(API("/dialer/set-lines"), {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ lines }),
+                    }).then(() => setSess(s => s ? { ...s, max_lines: lines } : s)).catch(() => {});
+                  }}
                 >
-                  {[1, 3, 5, 10].map(n => <option key={n} value={n}>{n} Lines</option>)}
+                  <option value={1}>Single Dial</option>
+                  {[3, 5, 10].map(n => <option key={n} value={n}>{n} Lines (Power Dialer)</option>)}
                 </select>
 
                 {!deviceReady ? (

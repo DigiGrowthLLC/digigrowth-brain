@@ -770,3 +770,27 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
         "status": "not_connected",
         "detail": "Your SMS/email account isn't connected yet — DigiGrowth is setting this up and will notify you once replies can be sent from here.",
     }
+
+
+@router.post("/{token}/leads/{contact_id}/call")
+async def portal_call_lead(token: str, contact_id: str):
+    """Same stub shape as portal_send_message above — no client has their own
+    Twilio calling line connected yet, so a real call here would place it
+    through DigiGrowth's own shared Twilio number "as" the client. Validates
+    the lead belongs to this client via the token, then responds without
+    placing any call."""
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow(
+            "SELECT id FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
+            contact_id, client["id"],
+        )
+    if not contact:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    return {
+        "ok": False,
+        "status": "not_connected",
+        "detail": "Calling isn't connected for your account yet — DigiGrowth is setting this up and will notify you once you can call leads directly from here.",
+    }

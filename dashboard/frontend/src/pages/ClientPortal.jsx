@@ -830,8 +830,19 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const [tagPick, setTagPick] = useState("");
+  const [callMsg, setCallMsg] = useState("");
+  const [calling, setCalling] = useState(false);
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleCall = async () => {
+    setCalling(true);
+    setCallMsg("");
+    const r = await fetch(`/portal-api/${token}/leads/${lead.id}/call`, { method: "POST" });
+    const d = await r.json().catch(() => ({}));
+    setCallMsg(d.detail || "Calling isn't available yet.");
+    setCalling(false);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -924,20 +935,43 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
           {saveErr && <div style={{ fontSize: 11, color: "#f06060", fontFamily: "'Share Tech Mono', monospace" }}>{saveErr}</div>}
           <button onClick={handleSave} disabled={saving} className="btn btn-primary">{saving ? "Saving…" : "Save Changes"}</button>
 
-          {/* Jumps to the Inbox tab with this lead's thread open — mirrors
-              the internal CRM's ContactDrawer "✉ Message" button
-              (messageContact() -> onNavigate("inbox", {contactId})). */}
-          <button
-            onClick={onMessage}
-            style={{
-              padding: "9px 12px", borderRadius: 8,
-              background: "rgba(160,110,240,0.12)", border: "1px solid rgba(160,110,240,0.35)",
-              color: "#a06ef0", fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 12, fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            ✉ Message
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {/* Jumps to the Inbox tab with this lead's thread open — mirrors
+                the internal CRM's ContactDrawer "✉ Message" button
+                (messageContact() -> onNavigate("inbox", {contactId})). */}
+            <button
+              onClick={onMessage}
+              style={{
+                flex: 1, padding: "9px 12px", borderRadius: 8,
+                background: "rgba(160,110,240,0.12)", border: "1px solid rgba(160,110,240,0.35)",
+                color: "#a06ef0", fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              ✉ Message
+            </button>
+            {/* Stub — no client has their own Twilio calling line connected
+                yet, so this just reports the not-connected state from the
+                backend rather than placing a real call. */}
+            <button
+              onClick={handleCall}
+              disabled={calling}
+              style={{
+                flex: 1, padding: "9px 12px", borderRadius: 8,
+                background: "rgba(90,200,140,0.12)", border: "1px solid rgba(90,200,140,0.35)",
+                color: "#5ac88c", fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 12, fontWeight: 600, cursor: calling ? "default" : "pointer",
+                opacity: calling ? 0.7 : 1,
+              }}
+            >
+              📞 {calling ? "Calling…" : "Call"}
+            </button>
+          </div>
+          {callMsg && (
+            <div style={{ fontSize: 11, color: "#8aaad0", fontFamily: "'Share Tech Mono', monospace", lineHeight: 1.5 }}>
+              {callMsg}
+            </div>
+          )}
 
           <div>
             <div style={{ ...labelStyle, marginBottom: 10 }}>TAGS</div>

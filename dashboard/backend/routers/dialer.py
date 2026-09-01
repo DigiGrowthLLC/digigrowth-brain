@@ -508,6 +508,7 @@ async def get_session():
         gk           = engine._session.get("gatekeeper_pending")
         end_req      = engine._session.get("end_requested", False)
         remaining    = max(0, len(engine._session.get("eligible_leads", [])))
+        max_lines    = engine._session.get("max_lines", 1)
 
     calls_made  = stats.get("calls_made", 0)
     dms_reached = stats.get("dms_reached", 0)
@@ -529,6 +530,7 @@ async def get_session():
         "connected_at":  connected_at,
         "gatekeeper":    gk["lead"] if gk else None,
         "end_requested": end_req,
+        "max_lines":     max_lines,
         "stats": {
             "calls_made":  calls_made,
             "dms_reached": dms_reached,
