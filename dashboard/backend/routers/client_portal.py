@@ -303,33 +303,51 @@ async def portal_stats(token: str, period: str = "all"):
 # with a business (the discovery call before they signed, the Onboarding
 # Call after) — every row in it is a meeting between Dylan and the client,
 # not a new-patient appointment the client's own campaign generated for
-# them. Surfacing that table to the client read as "Dylan's own appointment
-# with himself" on their portal (their own name/business shown as if it
-# were their patient activity) — confirmed live on Brandon Crosdale's
-# portal. There's no separate "appointments this client's campaign booked
-# for their patients" data source anywhere in this codebase yet, so rather
-# than show the wrong thing, this returns empty until that real data source
-# exists. See portal_stats() above for the matching zeroed-out stats.
+# them. Surfacing that table to a REAL client read as "Dylan's own
+# appointment with himself" on their portal (their own name/business shown
+# as if it were their patient activity) — confirmed live on Brandon
+# Crosdale's portal. There's no separate "appointments this client's
+# campaign booked for their patients" data source anywhere in this
+# codebase yet.
+#
+# Per Dylan's explicit call (2026-09-01): only the is_test client's portal
+# should show real appointment data — every other real client keeps
+# getting an empty list, same as before, until a real per-client-patient
+# data source exists. Gated the same way as the Twilio/Gmail endpoints
+# above (_require_test_client), not just left stubbed by omission.
 
 @router.get("/{token}/appointments")
 async def portal_appointments(token: str, status: str = "scheduled"):
-    await get_client_from_token(token)
-    return []
+    client = await get_client_from_token(token)
+    if not client.get("is_test"):
+        return []
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT ar.* FROM appointment_reminders ar
+            JOIN contacts c ON c.id = ar.contact_id
+            WHERE c.client_id = $1 AND ar.status = $2
+            ORDER BY ar.appointment_at ASC
+            """,
+            client["id"], status,
+        )
+    return [dict(r) for r in rows]
 
 
 @router.patch("/{token}/appointments/{appointment_id}")
 async def portal_update_appointment_outcome(token: str, appointment_id: int, body: dict):
-    """Client-facing outcome marking only (outcome_show/outcome_close) — no
-    reschedule/cancel from the portal. Mirrors the outcome-only branch of
-    routers/appointments.py's PATCH handler, including its side effects
-    (No Show sequence touch 1, onboarding kickoff on Closed), scoped to
-    appointments that actually belong to this client.
-
-    Unreachable from the current UI now that portal_appointments() above
-    returns [] (see its comment) — nothing to click to get here. Left
-    working rather than removed in case a client-actionable appointment
-    type (e.g. their own patient no-shows) gets a real data source later."""
+    """Client-facing outcome marking only (outcome_show/outcome_close/
+    outcome_notes) — no reschedule/cancel from the portal. Mirrors the
+    outcome-only branch of routers/appointments.py's PATCH handler,
+    including its side effects (No Show sequence touch 1, onboarding
+    kickoff on Closed), scoped to appointments that actually belong to
+    this client. is_test-gated like portal_appointments() above — a real
+    client has nothing to click through to this from the UI, but the
+    route itself must refuse it too (public/unauthenticated, reachable
+    directly by anyone holding that client's own portal token)."""
     client = await get_client_from_token(token)
+    _require_test_client(client)
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -354,6 +372,8 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
         if value not in (None, "closed", "not_closed"):
             raise HTTPException(status_code=400, detail="outcome_close must be 'closed', 'not_closed', or null")
         updates["outcome_close"] = value
+    if "outcome_notes" in body:
+        updates["outcome_notes"] = (body["outcome_notes"] or "").strip() or None
     if not updates:
         return dict(row)
 

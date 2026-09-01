@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import {
   LineChart, Line,
@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { SECTIONS } from "../onboardingSections.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
+import AppointmentOutcomeCard from "../AppointmentOutcomeCard.jsx";
 
 // Shared "All Time / Month / Week / Today" bucket vocabulary — matches
 // dashboard/backend/routers/client_portal.py's _PERIOD_INTERVAL exactly
@@ -615,55 +616,39 @@ function fmtLocal(iso, tz) {
   }
 }
 
-function OutcomePill({ active, color, onClick, disabled, children }) {
+// Compact clickable summary that opens AppointmentOutcomeCard — same
+// "click the appointment -> graphic card" pattern as the internal OS's
+// AppointmentsPanel.jsx, sharing the same modal component.
+function OutcomeSummary({ appointment, onClick }) {
+  const showLabel  = appointment.outcome_show === "show" ? "Show" : appointment.outcome_show === "no_show" ? "No Show" : null;
+  const closeLabel = appointment.outcome_close === "closed" ? "Closed" : appointment.outcome_close === "not_closed" ? "Not Closed" : null;
+  const showColor  = appointment.outcome_show === "show" ? "#14c882" : "#dc3c3c";
+  const closeColor = appointment.outcome_close === "closed" ? "#14c882" : "#dc3c3c";
+  const hasOutcome = showLabel || closeLabel;
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
-      style={{
-        fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.04em",
-        padding: "3px 8px", borderRadius: 4, cursor: disabled ? "not-allowed" : "pointer",
-        color: active ? color : "#3a5a80",
-        background: active ? `${color}1a` : "transparent",
-        border: `1px solid ${active ? color : "#1a2540"}`,
-        opacity: disabled ? 0.5 : 1,
-      }}
-    >{children}</button>
+      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 8px", borderRadius: 6, textAlign: "left", fontFamily: "'Share Tech Mono', monospace", fontSize: 10.5 }}
+    >
+      {hasOutcome ? (
+        <span>
+          {showLabel && <span style={{ color: showColor }}>{showLabel}</span>}
+          {showLabel && closeLabel && <span style={{ color: "#3a5a80" }}> · </span>}
+          {closeLabel && <span style={{ color: closeColor }}>{closeLabel}</span>}
+          {appointment.outcome_notes && <span style={{ color: "#5a6f8f" }}> · 📝</span>}
+        </span>
+      ) : (
+        <span style={{ color: "#5a6f8f" }}>Set outcome ›</span>
+      )}
+    </button>
   );
 }
 
-function AppointmentOutcome({ token, appointment, onUpdated }) {
-  const [saving, setSaving] = useState(false);
-
-  const setOutcome = async (field, value) => {
-    const next = appointment[field] === value ? null : value;
-    setSaving(true);
-    try {
-      const r = await fetch(`/portal-api/${token}/appointments/${appointment.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: next }),
-      });
-      if (r.ok) onUpdated(await r.json());
-    } finally {
-      setSaving(false);
-    }
-  };
-
+function ApptStatChip({ label, value, color }) {
   return (
-    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", gap: 4 }}>
-        <OutcomePill active={appointment.outcome_show === "show"} color="#14c882" disabled={saving}
-          onClick={() => setOutcome("outcome_show", "show")}>SHOW</OutcomePill>
-        <OutcomePill active={appointment.outcome_show === "no_show"} color="#dc3c3c" disabled={saving}
-          onClick={() => setOutcome("outcome_show", "no_show")}>NO SHOW</OutcomePill>
-      </div>
-      <div style={{ display: "flex", gap: 4 }}>
-        <OutcomePill active={appointment.outcome_close === "closed"} color="#14c882" disabled={saving}
-          onClick={() => setOutcome("outcome_close", "closed")}>CLOSED</OutcomePill>
-        <OutcomePill active={appointment.outcome_close === "not_closed"} color="#dc3c3c" disabled={saving}
-          onClick={() => setOutcome("outcome_close", "not_closed")}>LOST</OutcomePill>
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.15)", minWidth: 84 }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a6f8f", letterSpacing: "0.1em" }}>{label}</div>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: color || "#f0f4ff" }}>{value}</div>
     </div>
   );
 }
@@ -674,6 +659,7 @@ function AppointmentsTab({ token }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("upcoming");
+  const [outcomeTarget, setOutcomeTarget] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -695,8 +681,20 @@ function AppointmentsTab({ token }) {
     ? rows.filter((r) => new Date(r.appointment_at).getTime() + APPT_PAST_GRACE_MS <= Date.now())
     : rows;
 
-  const handleUpdated = (updated) => {
+  // Same DB-derived-only stat strip as the internal OS's AppointmentsPanel —
+  // computed from whatever's on screen, not wired into portal_stats()'s
+  // sheet-adjacent numbers.
+  const stats = useMemo(() => {
+    const shows     = displayRows.filter((r) => r.outcome_show === "show").length;
+    const noShows   = displayRows.filter((r) => r.outcome_show === "no_show").length;
+    const closed    = displayRows.filter((r) => r.outcome_close === "closed").length;
+    const notClosed = displayRows.filter((r) => r.outcome_close === "not_closed").length;
+    return { shows, noShows, closed, notClosed };
+  }, [displayRows]);
+
+  const handleOutcomeSaved = (updated) => {
     setRows((rs) => rs.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
+    setOutcomeTarget(null);
   };
 
   return (
@@ -709,6 +707,13 @@ function AppointmentsTab({ token }) {
           <option value="canceled">Canceled</option>
           <option value="all">All</option>
         </select>
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+        <ApptStatChip label="SHOWS" value={stats.shows} color="#14c882" />
+        <ApptStatChip label="NO SHOWS" value={stats.noShows} color="#dc3c3c" />
+        <ApptStatChip label="CLOSED" value={stats.closed} color="#14c882" />
+        <ApptStatChip label="NOT CLOSED" value={stats.notClosed} color="#dc3c3c" />
       </div>
 
       <div className="glass-card" style={{ padding: 0, overflow: "hidden", overflowX: "auto" }}>
@@ -730,7 +735,7 @@ function AppointmentsTab({ token }) {
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.business || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</td>
                 <td style={{ padding: "10px 14px" }}>
-                  {row.status !== "canceled" && <AppointmentOutcome token={token} appointment={row} onUpdated={handleUpdated} />}
+                  {row.status !== "canceled" && <OutcomeSummary appointment={row} onClick={() => setOutcomeTarget(row)} />}
                   {row.status === "canceled" && <span style={{ fontSize: 11, color: "#3a5a80" }}>canceled</span>}
                 </td>
               </tr>
@@ -738,6 +743,15 @@ function AppointmentsTab({ token }) {
           </tbody>
         </table>
       </div>
+
+      {outcomeTarget && (
+        <AppointmentOutcomeCard
+          appointment={outcomeTarget}
+          patchUrl={`/portal-api/${token}/appointments/${outcomeTarget.id}`}
+          onClose={() => setOutcomeTarget(null)}
+          onSaved={handleOutcomeSaved}
+        />
+      )}
     </div>
   );
 }

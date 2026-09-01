@@ -290,6 +290,8 @@ async def update_appointment(appointment_id: int, payload: dict):
         if value not in (None, "closed", "not_closed"):
             raise HTTPException(400, "outcome_close must be 'closed', 'not_closed', or null")
         updates["outcome_close"] = value
+    if "outcome_notes" in payload:
+        updates["outcome_notes"] = (payload["outcome_notes"] or "").strip() or None
 
     if not updates:
         return {"ok": True, "id": appointment_id}
