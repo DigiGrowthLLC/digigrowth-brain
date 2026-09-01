@@ -106,7 +106,13 @@ def _require_test_client(client: dict) -> None:
 @router.get("/{token}")
 async def portal_home(token: str):
     client = await get_client_from_token(token)
-    return {"id": client["id"], "name": client["name"], "status": client["status"]}
+    return {
+        "id": client["id"], "name": client["name"], "status": client["status"],
+        # NULL for every real client until they connect their own Calendly
+        # (see db.py's calendly_url migration note) — the portal's booking
+        # UI shows "not connected" in place of the iframe when this is null.
+        "calendly_url": client.get("calendly_url"),
+    }
 
 
 @router.get("/{token}/onboarding")

@@ -125,6 +125,7 @@ class ClientCreate(BaseModel):
     notes: Optional[str] = None
     contact_id: Optional[str] = None
     is_test: bool = False
+    calendly_url: Optional[str] = None
 
 
 class ClientUpdate(BaseModel):
@@ -135,6 +136,7 @@ class ClientUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     is_test: Optional[bool] = None
+    calendly_url: Optional[str] = None
 
 
 class ClientLinkContact(BaseModel):

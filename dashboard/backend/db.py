@@ -445,6 +445,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_tab TEXT;
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_url TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS calendly_url TEXT;
         """)
         # Real clients' portals must never touch DigiGrowth's own shared
         # Twilio/Gmail credentials (real calling, real SMS/email send) — only
@@ -453,6 +454,16 @@ async def _create_schema(pool: asyncpg.Pool):
         # is_test), safe to run every startup.
         await conn.execute(
             "UPDATE clients SET is_test = true WHERE name = 'DigiGrowth Test' AND NOT is_test"
+        )
+        # Same "stub what needs real per-client credentials" pattern as
+        # Twilio/Gmail: no real client has connected their own Calendly yet,
+        # so calendly_url stays NULL for everyone except the self-test
+        # client, which reuses DigiGrowth's own internal Calendly (the
+        # same CALENDLY_URL the OS's BookingModal.jsx uses) since it's
+        # Dylan's own account either way. Idempotent, safe every startup.
+        await conn.execute(
+            "UPDATE clients SET calendly_url = 'https://calendly.com/dylanrg-digigrowthllc/30min' "
+            "WHERE name = 'DigiGrowth Test' AND calendly_url IS NULL"
         )
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;

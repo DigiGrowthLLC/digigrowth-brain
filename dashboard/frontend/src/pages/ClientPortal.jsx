@@ -833,7 +833,7 @@ const LEAD_DRAWER_FIELDS = [
   { label: "State", k: "state" },
 ];
 
-function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
+function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onMessage }) {
   const [display, setDisplay] = useState(lead);
   const [form, setForm] = useState(() => {
     const initial = {};
@@ -851,36 +851,6 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
   const activeCallRef = useRef(null);
   const pollRef = useRef(null);
   const [showBook, setShowBook] = useState(false);
-  const [timezones, setTimezones] = useState([]);
-  const [bookDate, setBookDate] = useState("");
-  const [bookTime, setBookTime] = useState("");
-  const [bookTz, setBookTz] = useState("America/New_York");
-  const [booking, setBooking] = useState(false);
-  const [bookMsg, setBookMsg] = useState("");
-
-  useEffect(() => {
-    if (!showBook || timezones.length) return;
-    fetch(`/portal-api/${token}/appointments/timezones`).then((r) => r.json()).then(setTimezones).catch(() => {});
-  }, [showBook, token, timezones.length]);
-
-  const bookAppointment = async () => {
-    if (!bookDate || !bookTime) { setBookMsg("Enter the appointment date and time."); return; }
-    setBooking(true);
-    setBookMsg("");
-    try {
-      const r = await fetch(`/portal-api/${token}/leads/${lead.id}/book`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: bookDate, time: bookTime, timezone: bookTz }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { setBookMsg(d.detail || "Couldn't book appointment."); setBooking(false); return; }
-      setBookMsg("✅ Appointment booked — reminders scheduled.");
-      setBookDate(""); setBookTime("");
-    } catch (e) {
-      setBookMsg("Couldn't book appointment: " + e.message);
-    }
-    setBooking(false);
-  };
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -1103,41 +1073,17 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
             </div>
           )}
 
-          <div>
-            <button
-              onClick={() => setShowBook((s) => !s)}
-              style={{
-                width: "100%", padding: "9px 12px", borderRadius: 8,
-                background: "rgba(240,160,40,0.12)", border: "1px solid rgba(240,160,40,0.35)",
-                color: "#f0a028", fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 12, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              📅 {showBook ? "Cancel Booking" : "Book Appointment"}
-            </button>
-            {showBook && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10, padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid #1a2540" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  <label style={{ fontSize: 10, color: "#5a6f8f" }}>Date</label>
-                  <input type="date" className="dg-input" value={bookDate} onChange={(e) => setBookDate(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  <label style={{ fontSize: 10, color: "#5a6f8f" }}>Time</label>
-                  <input type="time" className="dg-input" value={bookTime} onChange={(e) => setBookTime(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 140 }}>
-                  <label style={{ fontSize: 10, color: "#5a6f8f" }}>Timezone</label>
-                  <select className="dg-input" value={bookTz} onChange={(e) => setBookTz(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }}>
-                    {timezones.map((t) => <option key={t.iana} value={t.iana}>{t.label}</option>)}
-                  </select>
-                </div>
-                <button onClick={bookAppointment} disabled={booking} className="btn btn-primary" style={{ fontSize: 12, padding: "7px 14px" }}>
-                  {booking ? "Booking…" : "Confirm"}
-                </button>
-                {bookMsg && <div style={{ fontSize: 11, color: bookMsg.startsWith("✅") ? "#14c882" : "#f06060", width: "100%" }}>{bookMsg}</div>}
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => setShowBook(true)}
+            style={{
+              width: "100%", padding: "9px 12px", borderRadius: 8,
+              background: "rgba(240,160,40,0.12)", border: "1px solid rgba(240,160,40,0.35)",
+              color: "#f0a028", fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 12, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            📅 Book Appointment
+          </button>
 
           <div>
             <div style={{ ...labelStyle, marginBottom: 10 }}>TAGS</div>
@@ -1158,11 +1104,126 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
           </div>
         </div>
       </aside>
+      {showBook && (
+        <PortalBookingModal
+          token={token}
+          lead={display}
+          calendlyUrl={calendlyUrl}
+          onClose={() => setShowBook(false)}
+        />
+      )}
     </div>
   );
 }
 
-function LeadsTab({ token, onMessage }) {
+// Full-screen booking modal — mirrors the internal OS's BookingModal.jsx
+// (Calendly iframe + date/time/timezone capture form) so booking through
+// the client portal looks and works the same way. `calendlyUrl` is null
+// for every real client until they connect their own Calendly (see db.py's
+// migration note) — shows a plain "not connected yet" message instead of
+// the iframe in that case, while the manual date/time form (the actual
+// mechanism that creates the appointment_reminders row) still works either way.
+function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
+  const [timezones, setTimezones] = useState([]);
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [tz, setTz] = useState("America/New_York");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch(`/portal-api/${token}/appointments/timezones`).then((r) => r.json()).then(setTimezones).catch(() => {});
+  }, [token]);
+
+  const save = async () => {
+    if (!date || !time) { setError("Enter the appointment date and time"); return; }
+    setSaving(true);
+    setError("");
+    try {
+      const r = await fetch(`/portal-api/${token}/leads/${lead.id}/book`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, time, timezone: tz }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setError(d.detail || "Couldn't book appointment."); setSaving(false); return; }
+      setSaved(true);
+    } catch (e) {
+      setError("Couldn't book appointment: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24,
+    }}>
+      <div style={{
+        background: "#0d1830", border: "1px solid #1a2540", borderRadius: 12,
+        width: "100%", maxWidth: 1180, height: "85vh",
+        display: "flex", flexDirection: "column", overflow: "hidden",
+        boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff", fontFamily: "'Space Grotesk', sans-serif" }}>
+            Book Appointment — {lead.business || lead.owner || "Lead"}
+          </span>
+          <button onClick={onClose} style={{ background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540", borderRadius: 6, color: "#5a6f8f", width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>✕</button>
+        </div>
+
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ flex: 1, overflow: "hidden" }}>
+            {calendlyUrl ? (
+              <iframe src={calendlyUrl} style={{ width: "100%", height: "100%", border: "none" }} allow="camera; microphone" />
+            ) : (
+              <div style={{
+                width: "100%", height: "100%", display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center", gap: 8,
+                fontFamily: "'Share Tech Mono', monospace", color: "#3a5a80", textAlign: "center", padding: 24,
+              }}>
+                <div style={{ fontSize: 32 }}>📅</div>
+                <div style={{ fontSize: 13, color: "#8a9cc0", fontFamily: "'Space Grotesk', sans-serif" }}>No Calendly connected yet</div>
+                <div style={{ fontSize: 11, maxWidth: 380 }}>
+                  DigiGrowth hasn't connected a Calendly account for this business yet — you can still log an appointment manually below.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {saved ? (
+            <div style={{ padding: "10px 14px", fontSize: 12, color: "#14c882", fontFamily: "'Space Grotesk', sans-serif", borderTop: "1px solid #1a2540" }}>
+              ✅ Appointment booked, reminders scheduled — 24h, 6h, and 1h before the appointment.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 8, padding: "10px 14px", borderTop: "1px solid #1a2540" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 10, color: "#5a6f8f" }}>Date</label>
+                <input type="date" className="dg-input" value={date} onChange={(e) => setDate(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 10, color: "#5a6f8f" }}>Time</label>
+                <input type="time" className="dg-input" value={time} onChange={(e) => setTime(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                <label style={{ fontSize: 10, color: "#5a6f8f" }}>Timezone</label>
+                <select className="dg-input" value={tz} onChange={(e) => setTz(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }}>
+                  {timezones.map((t) => <option key={t.iana} value={t.iana}>{t.label}</option>)}
+                </select>
+              </div>
+              <button className="btn btn-primary" disabled={saving} onClick={save} style={{ fontSize: 12, padding: "7px 14px" }}>
+                {saving ? "Saving…" : "Schedule Reminders"}
+              </button>
+              {error && <div style={{ fontSize: 11, color: "#dc3c3c", width: "100%" }}>{error}</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LeadsTab({ token, onMessage, calendlyUrl }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -1395,6 +1456,7 @@ function LeadsTab({ token, onMessage }) {
           token={token}
           lead={selectedLead}
           allTags={allTags}
+          calendlyUrl={calendlyUrl}
           onClose={() => setSelectedLead(null)}
           onUpdated={(updated) => {
             setSelectedLead(updated);
@@ -1784,6 +1846,7 @@ export default function ClientPortal() {
         {tab === "leads" && (
           <LeadsTab
             token={token}
+            calendlyUrl={client?.calendly_url}
             onMessage={(contactId) => { setInboxTargetContactId(contactId); setTab("inbox"); }}
           />
         )}
