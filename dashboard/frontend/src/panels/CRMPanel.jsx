@@ -37,6 +37,43 @@ const GRADE_BADGE = {
 
 const DEFAULT_TAG_COLOR = "#3a7bd5";
 const TAG_COLOR_PRESETS = ["#3a7bd5", "#5a9a5a", "#e0a030", "#e05555", "#a05ae0", "#5adcc8", "#e05a9e", "#8a9dc0"];
+const STATUS_COLOR_PRESETS = ["#3a7bd5", "#5a9a5a", "#e0a030", "#e05555", "#a05ae0", "#5adcc8", "#e05a9e", "#8a9dc0"];
+
+// Custom statuses (crm_custom_statuses, admin-created pipeline stages —
+// separate from the built-in STATUSES above, which drive real dialer/
+// disposition automation and stay fixed in code). Fetched once per
+// mounted component that needs them; the table is tiny so independent
+// fetches across a few modals/rows is cheap and keeps this a drop-in
+// addition instead of threading one more prop through the whole tree.
+function useCustomStatuses() {
+  const [customStatuses, setCustomStatuses] = useState([]);
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/crm/custom-statuses");
+      setCustomStatuses(await res.json());
+    } catch { setCustomStatuses([]); }
+  }, []);
+  useEffect(() => { refresh(); }, [refresh]);
+  return [customStatuses, refresh];
+}
+
+// Merges built-in STATUSES with fetched custom ones into one option list —
+// custom entries carry `color` (and `custom: true`) so callers can render
+// an inline-colored badge instead of a fixed badge-xxx CSS class.
+function mergeStatusOptions(customStatuses) {
+  return [
+    ...STATUSES,
+    ...customStatuses.map(s => ({ value: s.key, label: s.label.toUpperCase(), color: s.color, custom: true })),
+  ];
+}
+
+function statusBadgeStyle(status, customStatuses) {
+  const custom = customStatuses.find(s => s.key === status);
+  if (custom) {
+    return { className: "badge", style: { background: `${custom.color}22`, border: `0.5px solid ${custom.color}80`, color: custom.color } };
+  }
+  return { className: `badge ${STATUS_BADGE[status] || "badge-gray"}`, style: undefined };
+}
 
 function TagChip({ name, color, onRemove }) {
   return (
@@ -127,6 +164,99 @@ function ManageTagsModal({ tags, onClose, onChanged }) {
           {err && <div style={{ fontSize: 12, color: "#e05555" }}>{err}</div>}
           <button type="submit" className="btn btn-primary" disabled={saving || !name.trim()}>
             {saving ? "Saving…" : "+ Create Tag"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Manage Custom Statuses Modal ─────────────────────────────────────────────
+//
+// Built-in statuses (STATUSES/VALID_STATUSES) drive real dialer/disposition
+// automation and aren't editable here — this only manages
+// crm_custom_statuses, user-defined pipeline stages for manual
+// organization (filter/group/set on a contact, nothing more).
+
+function ManageStatusesModal({ customStatuses, onClose, onChanged }) {
+  const [label, setLabel] = useState("");
+  const [color, setColor] = useState(DEFAULT_TAG_COLOR);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function createStatus(e) {
+    e.preventDefault();
+    if (!label.trim()) return;
+    setSaving(true); setErr("");
+    const res = await fetch("/api/crm/custom-statuses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: label.trim(), label: label.trim(), color }),
+    });
+    if (res.ok) { setLabel(""); setColor(DEFAULT_TAG_COLOR); onChanged(); }
+    else { const d = await res.json().catch(() => ({})); setErr(d.detail || "Failed to create status."); }
+    setSaving(false);
+  }
+
+  async function deleteStatus(s) {
+    if (!window.confirm(`Delete status "${s.label}"? Contacts already on it keep it, but it won't be selectable going forward.`)) return;
+    await fetch(`/api/crm/custom-statuses/${s.id}`, { method: "DELETE" });
+    onChanged();
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(4,8,16,0.85)" }} onClick={onClose} />
+      <div style={{ position: "relative", background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 8, width: 420, maxHeight: "80vh", overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>Manage Statuses</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 14 }}>✕</button>
+        </div>
+
+        <div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.15em", marginBottom: 8 }}>BUILT-IN (FIXED)</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {STATUSES.filter(s => s.value !== "all").map(s => (
+              <span key={s.value} className={`badge ${STATUS_BADGE[s.value] || "badge-gray"}`}>{s.label}</span>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.15em" }}>CUSTOM</div>
+          {customStatuses.length === 0 && (
+            <div style={{ fontSize: 12, color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace" }}>No custom statuses yet.</div>
+          )}
+          {customStatuses.map(s => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", background: "#060a14", border: "0.5px solid #121e36", borderRadius: 6 }}>
+              <TagChip name={s.label} color={s.color} />
+              <span style={{ marginLeft: "auto" }} />
+              <button onClick={() => deleteStatus(s)}
+                style={{ background: "none", border: "none", color: "#5a3a3a", cursor: "pointer", fontSize: 11, fontFamily: "'Share Tech Mono', monospace" }}>
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <form onSubmit={createStatus} style={{ display: "flex", flexDirection: "column", gap: 10, borderTop: "0.5px solid #1a2540", paddingTop: 16 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.15em" }}>NEW STATUS</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Status name, e.g. Qualified…"
+              className="dg-input" style={{ flex: 1 }} />
+            <input type="color" value={color} onChange={e => setColor(e.target.value)}
+              style={{ width: 36, height: 34, padding: 2, background: "#080c14", border: "0.5px solid #1a2540", borderRadius: 4, cursor: "pointer" }} />
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {STATUS_COLOR_PRESETS.map(c => (
+              <button type="button" key={c} onClick={() => setColor(c)}
+                style={{ width: 18, height: 18, borderRadius: "50%", background: c, cursor: "pointer",
+                         border: c === color ? "2px solid #f0f4ff" : "1px solid rgba(255,255,255,0.2)" }} />
+            ))}
+          </div>
+          {err && <div style={{ fontSize: 12, color: "#e05555" }}>{err}</div>}
+          <button type="submit" className="btn btn-primary" disabled={saving || !label.trim()}>
+            {saving ? "Saving…" : "+ Create Status"}
           </button>
         </form>
       </div>
@@ -261,6 +391,7 @@ function AddContactModal({ onClose, onSaved }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [customStatuses] = useCustomStatuses();
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -312,7 +443,7 @@ function AddContactModal({ onClose, onSaved }) {
             {field("City", "city")}
             {field("State", "state")}
             {field("Grade", "grade", { type: "select", options: [{ value: "", label: "—" }, { value: "A", label: "A" }, { value: "B", label: "B" }, { value: "C", label: "C" }, { value: "D", label: "D" }] })}
-            {field("Status", "status", { type: "select", options: STATUSES.filter(s => s.value !== "all").map(s => ({ value: s.value, label: s.label })) })}
+            {field("Status", "status", { type: "select", options: mergeStatusOptions(customStatuses).filter(s => s.value !== "all").map(s => ({ value: s.value, label: s.label })) })}
           </div>
           {field("Website", "website")}
           {field("Cold Call Opener", "opener", { type: "textarea", placeholder: "Opening line for cold call…" })}
@@ -338,6 +469,7 @@ function ImportModal({ onClose, onImported, tags, onTagsChanged }) {
   const fileRef               = useRef();
   const [importStatus, setImportStatus] = useState("");
   const [importTags, setImportTags]     = useState([]);
+  const [customStatuses] = useCustomStatuses();
   const [newTagName, setNewTagName]     = useState("");
 
   function toggleImportTag(name) {
@@ -450,7 +582,7 @@ function ImportModal({ onClose, onImported, tags, onTagsChanged }) {
                 <select value={importStatus} onChange={e => setImportStatus(e.target.value)}
                   className="dg-input" style={{ width: "100%", background: "#080c14" }}>
                   <option value="">— use CSV value / default "new" —</option>
-                  {STATUSES.filter(s => s.value !== "all").map(s => (
+                  {mergeStatusOptions(customStatuses).filter(s => s.value !== "all").map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
                 </select>
@@ -519,7 +651,8 @@ function ImportModal({ onClose, onImported, tags, onTagsChanged }) {
   );
 }
 
-function ContactRow({ contact, checked, onCheck, onSelect, tagColor }) {
+function ContactRow({ contact, checked, onCheck, onSelect, tagColor, customStatuses }) {
+  const badge = statusBadgeStyle(contact.status, customStatuses);
   return (
     <tr
       style={{ borderBottom: "0.5px solid #1a2540", cursor: "pointer", transition: "background 0.1s", background: checked ? "rgba(40,87,160,0.1)" : "transparent" }}
@@ -549,7 +682,7 @@ function ContactRow({ contact, checked, onCheck, onSelect, tagColor }) {
           : <span style={{ color: "#1a2f52" }}>—</span>}
       </td>
       <td style={{ padding: "10px 14px" }} onClick={() => onSelect(contact)}>
-        <span className={`badge ${STATUS_BADGE[contact.status] || "badge-gray"}`}>
+        <span className={badge.className} style={badge.style}>
           {contact.status}
         </span>
       </td>
@@ -587,6 +720,7 @@ const CONTACT_FIELDS = [
 ];
 
 function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor, onTagsChanged }) {
+  const [customStatuses] = useCustomStatuses();
   const [display, setDisplay] = useState(contact);
   const [form, setForm] = useState(() => {
     const initial = {};
@@ -857,7 +991,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
               </div>
               <select value={form.status} onChange={e => setField("status", e.target.value)}
                 className="dg-input" style={{ width: "100%", fontSize: 12 }}>
-                {STATUSES.filter(s => s.value !== "all").map(s => (
+                {mergeStatusOptions(customStatuses).filter(s => s.value !== "all").map(s => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
@@ -1047,8 +1181,10 @@ export default function CRMPanel({ onNavigate }) {
   const [showAdd, setShowAdd]         = useState(false);
   const [showImport, setShowImport]   = useState(false);
   const [showManageTags, setShowManageTags] = useState(false);
+  const [showManageStatuses, setShowManageStatuses] = useState(false);
   const [showNewsletterQueue, setShowNewsletterQueue] = useState(false);
   const [tags, setTags]               = useState([]);
+  const [customStatuses, refreshCustomStatuses] = useCustomStatuses();
 
   const fetchTags = useCallback(async () => {
     try {
@@ -1206,7 +1342,7 @@ export default function CRMPanel({ onNavigate }) {
         <select value={activeStatus} onChange={e => handleStatus(e.target.value)}
           style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#8aaad0",
                    fontFamily: "'Share Tech Mono', monospace", fontSize: 10, padding: "5px 8px", cursor: "pointer", flexShrink: 0 }}>
-          {STATUSES.map(({ value, label }) => (
+          {mergeStatusOptions(customStatuses).map(({ value, label }) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
@@ -1217,6 +1353,13 @@ export default function CRMPanel({ onNavigate }) {
           <option value="">ALL TAGS</option>
           {tags.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
         </select>
+        <div style={{ width: 1, height: 18, background: "#1a2540", flexShrink: 0 }} />
+        <button onClick={() => setShowManageStatuses(true)} style={{
+          background: "none", border: "0.5px solid #1a2540", borderRadius: 4, color: "#5a9bf0",
+          fontFamily: "'Share Tech Mono', monospace", fontSize: 10, padding: "5px 8px", cursor: "pointer", flexShrink: 0,
+        }}>
+          + STATUS
+        </button>
       </div>
 
       {/* Bulk action bar */}
@@ -1272,7 +1415,7 @@ export default function CRMPanel({ onNavigate }) {
               style={{ background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 4, color: "#8aaad0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, padding: "4px 8px", cursor: "pointer" }}
             >
               <option value="">— pick status —</option>
-              {STATUSES.filter(s => s.value !== "all").map(s => (
+              {mergeStatusOptions(customStatuses).filter(s => s.value !== "all").map(s => (
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
@@ -1371,6 +1514,7 @@ export default function CRMPanel({ onNavigate }) {
                   onCheck={toggleCheck}
                   onSelect={setSelected}
                   tagColor={tagColor}
+                  customStatuses={customStatuses}
                 />
               ))}
             </tbody>
@@ -1414,6 +1558,10 @@ export default function CRMPanel({ onNavigate }) {
       {showManageTags && (
         <ManageTagsModal tags={tags} onClose={() => setShowManageTags(false)}
           onChanged={() => { fetchTags(); fetchContacts(); }} />
+      )}
+      {showManageStatuses && (
+        <ManageStatusesModal customStatuses={customStatuses} onClose={() => setShowManageStatuses(false)}
+          onChanged={refreshCustomStatuses} />
       )}
       {showNewsletterQueue && (
         <NewsletterQueueModal onClose={() => setShowNewsletterQueue(false)} />

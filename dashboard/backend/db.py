@@ -306,6 +306,15 @@ async def _create_schema(pool: asyncpg.Pool):
                 UNIQUE(client_id, section)
             );
 
+            CREATE TABLE IF NOT EXISTS crm_custom_statuses (
+                id          SERIAL PRIMARY KEY,
+                key         TEXT UNIQUE NOT NULL,
+                label       TEXT NOT NULL,
+                color       TEXT NOT NULL DEFAULT '#3a7bd5',
+                sort_order  INTEGER NOT NULL DEFAULT 0,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
             CREATE TABLE IF NOT EXISTS onboarding_videos (
                 id          SERIAL PRIMARY KEY,
                 title       TEXT NOT NULL,

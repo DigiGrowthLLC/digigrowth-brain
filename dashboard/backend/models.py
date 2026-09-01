@@ -96,6 +96,18 @@ VALID_STATUSES = {
     "gatekeeper-blocked", "manual-followup",
 }
 
+
+class CustomStatusCreate(BaseModel):
+    key: str
+    label: str
+    color: Optional[str] = None
+
+
+class CustomStatusUpdate(BaseModel):
+    label: Optional[str] = None
+    color: Optional[str] = None
+    sort_order: Optional[int] = None
+
 DISPOSITION_TO_STATUS = {
     "Appointment Booked": "appointment-booked",
     "Follow Up 30 Day":   "dialer-lead",

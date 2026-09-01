@@ -4,7 +4,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 from db import get_pool
-from models import Contact, ContactUpdate, NoteAdd, DispositionUpdate, BulkAction, TagAssign, VALID_STATUSES, DISPOSITION_TO_STATUS
+from models import (
+    Contact, ContactUpdate, NoteAdd, DispositionUpdate, BulkAction, TagAssign,
+    VALID_STATUSES, DISPOSITION_TO_STATUS, CustomStatusCreate, CustomStatusUpdate,
+)
 from routers import sms as sms_router
 
 router = APIRouter()
@@ -12,6 +15,23 @@ router = APIRouter()
 HANDOFF_STATUS = "sms-handoff"
 NEWSLETTER_TAG = "Newsletter"
 NEWSLETTER_TAG_DISPOSITIONS = {"Follow Up 30 Day", "Follow Up 90 Day"}
+
+
+async def _custom_status_keys(conn) -> set:
+    rows = await conn.fetch("SELECT key FROM crm_custom_statuses")
+    return {r["key"] for r in rows}
+
+
+async def _is_valid_status(conn, status: str) -> bool:
+    """Built-in statuses (VALID_STATUSES) drive real automated behavior —
+    dialer eligibility, no-show/cancel sequences, DISPOSITION_TO_STATUS —
+    so that set stays fixed in code. Custom statuses (crm_custom_statuses)
+    are purely user-defined pipeline stages for manual organization: never
+    auto-assigned by the dialer/disposition system, just a status value a
+    contact can be set to and filtered/grouped by in the CRM."""
+    if status in VALID_STATUSES:
+        return True
+    return status in await _custom_status_keys(conn)
 
 
 def _same_business(a: Optional[str], b: Optional[str]) -> bool:
@@ -112,13 +132,13 @@ async def update_contact(contact_id: str, body: ContactUpdate):
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    if "status" in updates and updates["status"] not in VALID_STATUSES:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {updates['status']}")
 
     set_parts = [f"{k} = ${i+2}" for i, k in enumerate(updates)]
     set_parts.append("updated_at = now()")
     sql = f"UPDATE contacts SET {', '.join(set_parts)} WHERE id = $1 RETURNING *"
     async with pool.acquire() as conn:
+        if "status" in updates and not await _is_valid_status(conn, updates["status"]):
+            raise HTTPException(status_code=400, detail=f"Invalid status: {updates['status']}")
         prev = await conn.fetchrow("SELECT status FROM contacts WHERE id = $1", contact_id)
         row = await conn.fetchrow(sql, contact_id, *updates.values())
         if not row:
@@ -200,7 +220,7 @@ async def bulk_action(body: BulkAction):
             affected = int(result.split()[-1])
 
         elif body.action == "set_status":
-            if body.value not in VALID_STATUSES:
+            if not await _is_valid_status(conn, body.value):
                 raise HTTPException(status_code=400, detail=f"Invalid status: {body.value}")
             rows = await conn.fetch(
                 """
@@ -396,14 +416,14 @@ async def import_contacts(body: dict):
         raise HTTPException(status_code=400, detail="No contacts provided")
 
     default_status = (body.get("status") or "").strip() or None
-    if default_status and default_status not in VALID_STATUSES:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {default_status}")
     import_tags = [t.strip() for t in (body.get("tags") or []) if t and t.strip()]
 
     pool = await get_pool()
     inserted = updated = skipped = 0
 
     async with pool.acquire() as conn:
+        if default_status and not await _is_valid_status(conn, default_status):
+            raise HTTPException(status_code=400, detail=f"Invalid status: {default_status}")
         for c in rows:
             phone = (c.get("phone") or "").strip()
             if not phone:
@@ -462,3 +482,82 @@ async def import_contacts(body: dict):
                 updated += 1
 
     return {"inserted": inserted, "updated": updated, "skipped": skipped}
+
+
+# ---------------- Custom CRM statuses ----------------
+#
+# Built-in statuses (VALID_STATUSES/DISPOSITION_TO_STATUS in models.py)
+# drive real automated behavior — dialer queue eligibility, no-show/
+# cancel sequences — and stay fixed in code. These are purely user-
+# defined pipeline stages for manual organization: a contact can be set
+# to one, filtered/grouped by it in the CRM, but nothing in the dialer
+# or disposition system ever assigns one automatically.
+
+_KEY_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify_status_key(raw: str) -> str:
+    return _KEY_RE.sub("-", raw.strip().lower()).strip("-")
+
+
+@router.get("/crm/custom-statuses")
+async def list_custom_statuses():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM crm_custom_statuses ORDER BY sort_order, id")
+    return [dict(r) for r in rows]
+
+
+@router.post("/crm/custom-statuses")
+async def create_custom_status(body: CustomStatusCreate):
+    label = body.label.strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="label required")
+    key = _slugify_status_key(body.key or label)
+    if not key:
+        raise HTTPException(status_code=400, detail="key required")
+    if key in VALID_STATUSES:
+        raise HTTPException(status_code=400, detail=f"'{key}' is a built-in status and can't be redefined")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow("SELECT id FROM crm_custom_statuses WHERE key = $1", key)
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Status '{key}' already exists")
+        max_sort = await conn.fetchval("SELECT COALESCE(MAX(sort_order), -1) FROM crm_custom_statuses")
+        row = await conn.fetchrow(
+            "INSERT INTO crm_custom_statuses (key, label, color, sort_order) "
+            "VALUES ($1, $2, $3, $4) RETURNING *",
+            key, label, body.color or "#3a7bd5", max_sort + 1,
+        )
+    return dict(row)
+
+
+@router.patch("/crm/custom-statuses/{status_id}")
+async def update_custom_status(status_id: int, body: CustomStatusUpdate):
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        set_clauses = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(fields))
+        row = await conn.fetchrow(
+            f"UPDATE crm_custom_statuses SET {set_clauses} WHERE id = $1 RETURNING *",
+            status_id, *fields.values(),
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Status not found")
+    return dict(row)
+
+
+@router.delete("/crm/custom-statuses/{status_id}")
+async def delete_custom_status(status_id: int):
+    """Contacts currently on this status keep their status string as-is
+    (not reset to 'new') — it just stops appearing as a selectable option
+    going forward. Matches how deleting a tag/onboarding video doesn't
+    retroactively touch rows that already reference it."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("DELETE FROM crm_custom_statuses WHERE id = $1 RETURNING id", status_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Status not found")
+    return {"ok": True}
