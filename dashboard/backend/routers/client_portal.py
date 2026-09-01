@@ -298,7 +298,7 @@ async def portal_stats(token: str, period: str = "all"):
                     COALESCE(SUM((ar.outcome_close = 'not_closed')::int), 0) AS not_closed
                 FROM appointment_reminders ar
                 JOIN contacts c ON c.id = ar.contact_id
-                WHERE c.client_id = $1
+                WHERE c.client_id = $1 AND c.is_client_anchor
                 """,
                 client["id"],
             )
@@ -351,6 +351,15 @@ async def portal_stats(token: str, period: str = "all"):
 # getting an empty list, same as before, until a real per-client-patient
 # data source exists. Gated the same way as the Twilio/Gmail endpoints
 # above (_require_test_client), not just left stubbed by omission.
+#
+# `AND c.is_client_anchor` (added same day, after the numbers looked wrong
+# live): contacts.client_id is also set in bulk by clients.py's
+# link-all-unassigned admin action (built to give the test client's portal
+# real data to look at) — that swept in unrelated leads like "Austin
+# Treadwell" whose OWN appointments then counted toward this client's
+# totals. Scoping to just the anchor contact (the one actual contact this
+# client record represents) keeps the numbers meaning what they look like
+# they mean.
 
 @router.get("/{token}/appointments")
 async def portal_appointments(token: str, status: str = "scheduled"):
@@ -363,7 +372,7 @@ async def portal_appointments(token: str, status: str = "scheduled"):
             """
             SELECT ar.* FROM appointment_reminders ar
             JOIN contacts c ON c.id = ar.contact_id
-            WHERE c.client_id = $1 AND ar.status = $2
+            WHERE c.client_id = $1 AND c.is_client_anchor AND ar.status = $2
             ORDER BY ar.appointment_at ASC
             """,
             client["id"], status,
@@ -390,7 +399,7 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
             """
             SELECT ar.* FROM appointment_reminders ar
             JOIN contacts c ON c.id = ar.contact_id
-            WHERE ar.id = $1 AND c.client_id = $2
+            WHERE ar.id = $1 AND c.client_id = $2 AND c.is_client_anchor
             """,
             appointment_id, client["id"],
         )
