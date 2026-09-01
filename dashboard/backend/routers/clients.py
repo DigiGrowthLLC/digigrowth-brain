@@ -191,6 +191,30 @@ async def link_all_unassigned(client_id: int):
     return {"ok": True, "linked_count": len(rows)}
 
 
+@router.post("/clients/{client_id}/unlink-all-leads")
+async def unlink_all_leads(client_id: int):
+    """Reverse of link_all_unassigned above: clears client_id on every
+    contact linked to this client EXCEPT the anchor (never touches
+    is_client_anchor=true — that's the one real prospect-turned-client
+    contact, not a bulk-assigned lead). Sets those contacts back to
+    client_id = NULL, restoring them to the internal OS's CRM/Dialer/
+    Inbox/Analytics (which now exclude any contact with a client_id, per
+    the 2026-09-01 CRM-isolation fix) instead of the client's own portal
+    Leads tab. Built to undo a link_all_unassigned run that swept up real
+    working leads Dylan still needed internally."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        rows = await conn.fetch(
+            "UPDATE contacts SET client_id = NULL, updated_at = now() "
+            "WHERE client_id = $1 AND NOT is_client_anchor RETURNING id",
+            client_id,
+        )
+    return {"ok": True, "unlinked_count": len(rows)}
+
+
 @router.patch("/clients/{client_id}")
 async def update_client(client_id: int, body: ClientUpdate):
     fields = body.model_dump(exclude_unset=True)
