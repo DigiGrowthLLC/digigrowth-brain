@@ -1,8 +1,70 @@
 import React, { useState, useEffect } from "react";
 import { API } from "../api.js";
+import { SECTIONS } from "../onboardingSections.js";
+
+function OnboardingAnswers({ clientId }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(API(`/clients/${clientId}`))
+      .then((r) => r.json())
+      .then((data) => { setDetail(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [clientId]);
+
+  if (loading) {
+    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  }
+  if (!detail) return null;
+
+  const onboarding = detail.onboarding || {};
+  const anyAnswers = Object.values(onboarding).some((s) => s.answers && Object.keys(s.answers).length > 0);
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 16 }}>
+      {!anyAnswers && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
+          NOTHING SUBMITTED YET
+        </div>
+      )}
+      {SECTIONS.map((s) => {
+        const section = onboarding[s.key];
+        const answers = section?.answers || {};
+        const hasAny = Object.values(answers).some((v) => (v || "").toString().trim());
+        if (!hasAny) return null;
+        return (
+          <div key={s.key}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 12.5, color: "#c4d0e8" }}>{s.title}</span>
+              {section?.completed_at ? (
+                <span className="badge badge-green" style={{ fontSize: 9 }}>COMPLETE</span>
+              ) : (
+                <span className="badge badge-amber" style={{ fontSize: 9 }}>IN PROGRESS</span>
+              )}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {s.questions.map((q) => {
+                const val = (answers[q.key] || "").toString().trim();
+                if (!val) return null;
+                return (
+                  <div key={q.key}>
+                    <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 2 }}>{q.label}</div>
+                    <div style={{ fontSize: 12.5, color: "#d0e8ff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{val}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete }) {
   const [copied, setCopied] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const copyLink = () => {
     navigator.clipboard.writeText(client.portal_url).then(() => {
@@ -14,47 +76,49 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete }) {
   const revoked = !!client.token_revoked_at;
 
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 14,
-      padding: "14px 16px", borderRadius: 10,
-      background: "rgba(255,255,255,0.02)", marginBottom: 8,
-    }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
-            {client.name}
-          </span>
-          <span className={`badge ${client.status === "active" ? "badge-green" : client.status === "paused" ? "badge-amber" : "badge-gray"}`}>
-            {client.status}
-          </span>
-          {revoked && <span className="badge badge-red">TOKEN REVOKED</span>}
+    <div style={{ borderRadius: 10, background: "rgba(255,255,255,0.02)", marginBottom: 8, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
+              {client.name}
+            </span>
+            <span className={`badge ${client.status === "active" ? "badge-green" : client.status === "paused" ? "badge-amber" : "badge-gray"}`}>
+              {client.status}
+            </span>
+            {revoked && <span className="badge badge-red">TOKEN REVOKED</span>}
+          </div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a5a80", marginTop: 4 }}>
+            Onboarding {client.onboarding_progress} · {client.contact_name || "no contact set"}
+          </div>
         </div>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a5a80", marginTop: 4 }}>
-          Onboarding {client.onboarding_progress} · {client.contact_name || "no contact set"}
-        </div>
-      </div>
 
-      <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={copyLink}>
-        {copied ? "COPIED" : "COPY LINK"}
-      </button>
-      <a href={client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10, textDecoration: "none" }}>
-        VIEW PORTAL ↗
-      </a>
-      <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onEdit(client)}>
-        EDIT
-      </button>
-      {revoked ? (
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onRegenerate(client.id)}>
-          REGENERATE
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowOnboarding((s) => !s)}>
+          {showOnboarding ? "HIDE ONBOARDING" : "VIEW ONBOARDING"}
         </button>
-      ) : (
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onRevoke(client.id)}>
-          REVOKE
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={copyLink}>
+          {copied ? "COPIED" : "COPY LINK"}
         </button>
-      )}
-      <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(client.id)}>
-        DELETE
-      </button>
+        <a href={client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10, textDecoration: "none" }}>
+          VIEW PORTAL ↗
+        </a>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onEdit(client)}>
+          EDIT
+        </button>
+        {revoked ? (
+          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onRegenerate(client.id)}>
+            REGENERATE
+          </button>
+        ) : (
+          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onRevoke(client.id)}>
+            REVOKE
+          </button>
+        )}
+        <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(client.id)}>
+          DELETE
+        </button>
+      </div>
+      {showOnboarding && <OnboardingAnswers clientId={client.id} />}
     </div>
   );
 }
