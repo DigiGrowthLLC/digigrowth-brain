@@ -1602,7 +1602,12 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
             );
           })}
         </div>
-        <div>
+        {/* Grid items default to min-height: auto, so without an explicit
+            height + overflow:hidden here this column grows to fit
+            InboxThread's content instead of being capped at the grid
+            row's 560px track — that's what let the thread panel overflow
+            past the glass-card and get clipped instead of scrolling. */}
+        <div style={{ height: 560, overflow: "hidden" }}>
           {selected ? (
             <InboxThread token={token} contactId={selected} onSent={load} />
           ) : (
