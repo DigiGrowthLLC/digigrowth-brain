@@ -1389,7 +1389,14 @@ function InboxThread({ token, contactId, onSent }) {
   if (loading) return <div style={{ padding: 40, color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>LOADING...</div>;
   if (!thread) return null;
 
-  const { contact, messages } = thread;
+  const { contact } = thread;
+  // The SMS/EMAIL buttons below double as the reply channel AND a filter
+  // on the thread itself — previously they only set the send channel, so
+  // clicking them visibly changed nothing in the message list, which read
+  // as "doesn't do anything." Only filters when the contact actually has
+  // both channels present; otherwise there's nothing to filter.
+  const hasBothChannels = Boolean(contact.phone) && Boolean(contact.email);
+  const messages = hasBothChannels ? thread.messages.filter((m) => m.channel === channel) : thread.messages;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
