@@ -1,7 +1,15 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Bash: git add / git commit / git push to origin main, run by a scheduled Claude Code cloud routine in this repo (EA Daily Briefing, EA Sheets Digest, EA Weekly Cleanup, or similar executive-assistant automation) to save its own generated report file (e.g. under executive-assistant/reports/) or a small generated JSON snapshot it produced this run. This is expected, low-risk, pre-authorized routine automation committing its own output to this repo's existing report archive — not an arbitrary or unreviewed push."
     ]
   }
 }
