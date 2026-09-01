@@ -31,7 +31,7 @@ from fastapi import APIRouter, Request, Response
 from twilio.rest import Client as TwilioClient
 
 from db import get_pool
-from merge_fields import apply_merge_fields, first_name_from_owner
+from merge_fields import apply_merge_fields, first_name_from_owner, greeting_name_from_owner
 from routers import campaigns as campaigns_router
 
 router         = APIRouter()   # authenticated API routes
@@ -302,7 +302,11 @@ async def send_opening_message(contact: dict) -> bool:
     if not phone:
         return False
 
-    first_name = first_name_from_owner(contact.get("owner"))
+    # greeting_name_from_owner (not first_name_from_owner) — a "Dr." title on
+    # file gets addressed as "Doctor {name}" in this very first text, which
+    # reads more professional than a bare first name for a cold open. Every
+    # later touch in the funnel still uses first_name_from_owner.
+    first_name = greeting_name_from_owner(contact.get("owner"))
     body = OPENING_MESSAGE.format(first_name=first_name)
 
     pool = await get_pool()

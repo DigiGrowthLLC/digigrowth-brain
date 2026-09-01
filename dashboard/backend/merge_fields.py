@@ -18,6 +18,23 @@ def first_name_from_owner(owner: str | None) -> str:
         return parts[1]
     return parts[0]
 
+
+_DR_RE = re.compile(r"^dr\.?$", re.I)
+
+
+def greeting_name_from_owner(owner: str | None) -> str:
+    """Like first_name_from_owner, but keeps a leading "Dr." title instead of
+    stripping it — "Dr. Jaci" resolves to "Doctor Jaci", not "Jaci". Used
+    only for the very first cold-outreach SMS (sms.py's auto_opener), where
+    addressing a doctor by title reads as more professional than a bare
+    first name; every other greeting (sequences, follow-ups, etc.) still
+    uses first_name_from_owner. Falls back to first_name_from_owner's
+    behavior for anyone without a "Dr." title."""
+    parts = (owner or "").split()
+    if len(parts) > 1 and _DR_RE.match(parts[0]):
+        return f"Doctor {parts[1]}"
+    return first_name_from_owner(owner)
+
 # Maps a normalized token (lowercased, whitespace-collapsed) to a merge-value
 # key. Supports both {{double-brace}} tokens and [Square Bracket] tokens
 # (the latter matching how the user already writes scripts elsewhere) —
