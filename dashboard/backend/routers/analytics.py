@@ -569,93 +569,88 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     actually supports: outbound sends, whether the contact replied, and
     conversations marked booked.
 
+    Sent/opened/bounced/replied are all scoped to each recipient's ORIGINAL
+    initial outbound message only (MIN(sent_at) per email address) —
+    requested 2026-09-01 so a follow-up or later re-send in the same thread
+    never counts as a second "sent", and an open/bounce/reply is only
+    counted against that first message, not anything sent afterward. This
+    replaced an earlier design where total_sent counted every outbound row
+    and initial_sent/total_outreach were separate, looser figures — those
+    three fields are now the same number by construction and kept for
+    backward compatibility with existing callers.
+
+    `since` is also clamped to the 'email_stats_reset_at' dialer_settings
+    value (see db.py's one-time seed) — historical email data before that
+    date is unreliable, so "All Time" here effectively means "since that
+    date" now, not true all-time.
+
     If campaign_id is given, a campaign is already its own time boundary,
     same as _sms_metrics — since further narrows within it (the Analytics
     tab's Today/7D/30D/All Time toggle, applied on top of the campaign's own
-    date range). Unlike SMS, every one of these metrics is genuinely
-    timestamped (email_messages.sent_at, email_conversations.updated_at),
-    so since narrows all of them accurately — no boolean-with-no-history
-    limitation here. Sent/reply/open/bounce counts are scoped by
-    email_messages.campaign_id (tagged per message at send time — see
-    email_inbox.py/integrations.py), not by thread, so a thread with send
-    history predating the campaign doesn't inflate its counts. Booked stays
-    scoped by the conversation-level tag (email_conversations.campaign_id),
-    same as SMS.
+    date range). Booked/not-interested stay scoped by the conversation-level
+    tag (email_conversations.campaign_id/updated_at), same as SMS.
     """
+    reset_at_raw = await conn.fetchval(
+        "SELECT value FROM dialer_settings WHERE key = 'email_stats_reset_at'"
+    )
+    if reset_at_raw:
+        reset_at = datetime.fromisoformat(reset_at_raw.replace("Z", "+00:00"))
+        since = max(since, reset_at) if since else reset_at
+
     if campaign_id is not None:
-        msg_filter = "AND NOT is_test AND NOT is_automated AND campaign_id = $1" + (" AND sent_at >= $2" if since else "")
         params = [campaign_id, since] if since else [campaign_id]
         booked_filter = "AND campaign_id = $1" + (" AND updated_at >= $2" if since else "")
         unsub_filter = ""  # unsubscribes are tracked on contacts, not per-conversation — no clean campaign scope
         unsub_params = []
     else:
-        # is_test excludes diagnostic sends (e.g. /newsletter/test-send, used to
-        # verify the open-tracking pixel end-to-end) — those are self-opened by
-        # whoever ran the test, which skews open rate badly against a real
-        # campaign's small early denominator if left in. is_automated excludes
-        # no_show/cancel/reminder sequence sends — follow-up on an existing
-        # relationship, not fresh outreach.
-        msg_filter = "AND NOT is_test AND NOT is_automated" + (" AND sent_at >= $1" if since else "")
         params = [since] if since else []
         booked_filter = "AND updated_at >= $1" if since else ""
         unsub_filter = "AND opted_out_at >= $1" if since else ""
         unsub_params = params
 
-    total_sent = await conn.fetchval(
-        f"SELECT COUNT(*) FROM email_messages WHERE direction='outbound' {msg_filter}",
-        *params,
-    )
-
-    initial_sent = await conn.fetchval(
-        f"SELECT COUNT(DISTINCT email) FROM email_messages WHERE direction='outbound' {msg_filter}",
-        *params,
-    )
-
-    # "Total Outreach" equivalent — each recipient's first-ever non-test,
-    # non-automated outbound email only (MIN(sent_at) across all history),
-    # not every email sent to them in this window. Same principle as
-    # _sms_metrics' total_outreach — see that docstring for why: a
-    # follow-up/newsletter send to someone already emailed before isn't a
-    # new prospect reached. initial_sent above stays the broader "distinct
-    # recipients touched at all in this window" — still used as the rate
-    # denominator, since a reply/open in this window is a legitimate
-    # outcome of ANY email sent then, not just their first ever.
-    first_contact_filter = "AND campaign_id = $1" if campaign_id is not None else ""
-    first_contact_params = [campaign_id] if campaign_id is not None else []
-    total_outreach = await conn.fetchval(
+    # Each recipient's ORIGINAL initial outbound message only — the earliest
+    # non-test, non-automated outbound row per email address, full stop.
+    # Fetched once and filtered/aggregated in Python rather than repeating a
+    # near-identical CTE five times: sent/opened/bounced/replied all derive
+    # from this same fixed population, so a follow-up or later re-send in
+    # the same thread can never be counted as a fresh "sent", nor can an
+    # open/bounce/reply on a follow-up message count toward these rates.
+    campaign_clause  = "AND campaign_id = $1" if campaign_id is not None else ""
+    campaign_params  = [campaign_id] if campaign_id is not None else []
+    initial_rows = await conn.fetch(
         f"""
-        SELECT COUNT(*) FROM (
-            SELECT email, MIN(sent_at) AS first_sent
-            FROM email_messages
-            WHERE direction='outbound' AND NOT is_test AND NOT is_automated {first_contact_filter}
-            GROUP BY email
-        ) first_touch
-        WHERE $%d::timestamptz IS NULL OR first_sent >= $%d
-        """ % (len(first_contact_params) + 1, len(first_contact_params) + 1),
-        *first_contact_params, since,
-    )
-
-    # Replied: distinct contacts who received an outbound email in this
-    # window AND have at least one inbound message on the same thread in
-    # this same window. The inbound side used to have no date bound at
-    # all, so an outbound sent this window to a thread that got any inbound
-    # reply at any point in its history — even months earlier, unrelated to
-    # this send — counted as "replied", inflating reply_rate for narrow
-    # periods. Bounded to match msg_filter's outbound-side window, same
-    # principle as _sms_metrics' equivalent check above.
-    replied = await conn.fetchval(
-        f"""
-        SELECT COUNT(DISTINCT out.email)
-        FROM email_messages out
-        WHERE out.direction='outbound' {msg_filter.replace('sent_at', 'out.sent_at')}
-        AND EXISTS (
-            SELECT 1 FROM email_messages inb
-            WHERE inb.thread_id = out.thread_id AND inb.direction='inbound'
-            {" AND inb.sent_at >= $1" if since else ""}
-        )
+        SELECT DISTINCT ON (email) email, thread_id, sent_at, opened_at, bounced_at
+        FROM email_messages
+        WHERE direction='outbound' AND NOT is_test AND NOT is_automated {campaign_clause}
+        ORDER BY email, sent_at ASC
         """,
-        *params,
+        *campaign_params,
     )
+    if since:
+        initial_rows = [r for r in initial_rows if r["sent_at"] >= since]
+
+    total_sent = initial_sent = total_outreach = len(initial_rows)
+
+    confirmed_opened = sum(
+        1 for r in initial_rows
+        if r["opened_at"] and (r["opened_at"] - r["sent_at"]) > timedelta(minutes=2)
+    )
+    bounced = sum(1 for r in initial_rows if r["bounced_at"])
+
+    # Replied: of those initial messages, how many threads got an inbound
+    # reply at all. No separate date bound needed on the inbound side — a
+    # reply necessarily comes after its initial message, which is already
+    # within the window, so this can't pick up an unrelated historical
+    # reply the way the old (pre-2026-09-01) all-outbound-rows version could.
+    replied = 0
+    thread_ids = [r["thread_id"] for r in initial_rows]
+    if thread_ids:
+        reply_rows = await conn.fetch(
+            "SELECT DISTINCT thread_id FROM email_messages WHERE direction='inbound' AND thread_id = ANY($1)",
+            thread_ids,
+        )
+        replied_threads = {r["thread_id"] for r in reply_rows}
+        replied = sum(1 for r in initial_rows if r["thread_id"] in replied_threads)
 
     # Windowed by updated_at (bumped when disposition is set — see
     # email_inbox.py's close-conversation handler), not created_at (when the
@@ -671,32 +666,15 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         *params,
     )
 
-    # Opened (confirmed): only counting a pixel fire more than 2
-    # minutes after send. Apple Mail Privacy Protection fetches every
-    # tracking pixel within seconds of delivery regardless of whether a
-    # human ever reads the email, so a very fast open is far more likely an
-    # auto-prefetch than a real read. Heuristic, not a guarantee — a
-    # genuinely fast human open gets miscounted as prefetch, and a slow
-    # prefetch could still land here — but it's a meaningfully better human-
-    # read signal than the raw pixel-fired count alone.
-    confirmed_opened = await conn.fetchval(
-        f"""
-        SELECT COUNT(DISTINCT email) FROM email_messages
-        WHERE direction='outbound' AND opened_at IS NOT NULL
-        AND opened_at - sent_at > interval '2 minutes' {msg_filter}
-        """,
-        *params,
-    )
-
-    # Bounced: outbound sends whose delivery-failure notice was detected by
-    # the inbox sync (mailer-daemon pattern match — see email_inbox.py).
-    bounced = await conn.fetchval(
-        f"""
-        SELECT COUNT(*) FROM email_messages
-        WHERE direction='outbound' AND bounced_at IS NOT NULL {msg_filter}
-        """,
-        *params,
-    )
+    # confirmed_opened/bounced are computed above from initial_rows —
+    # "Opened" only counts a pixel fire more than 2 minutes after send
+    # (Apple Mail Privacy Protection fetches every tracking pixel within
+    # seconds of delivery regardless of whether a human ever reads the
+    # email, so a very fast open is far more likely an auto-prefetch than a
+    # real read — heuristic, not a guarantee, but meaningfully better than
+    # the raw pixel-fired count alone). "Bounced" counts a delivery-failure
+    # notice detected by the inbox sync (mailer-daemon pattern match — see
+    # email_inbox.py) on that same initial message.
 
     # Unsubscribed: contacts who clicked either unsubscribe link — the 1:1
     # outreach one (email_opted_out) or the newsletter one (contacts.newsletter

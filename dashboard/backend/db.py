@@ -592,3 +592,15 @@ async def _create_schema(pool: asyncpg.Pool):
                     """,
                     old_script,
                 )
+        # One-time seed: email stats reset floor, requested 2026-09-01 after
+        # historical email data turned out to be unreliable — email analytics
+        # (routers/analytics.py::_email_metrics) now clamp `since` to this
+        # date, so "All Time" effectively means "since this date" going
+        # forward instead of true all-time. ON CONFLICT DO NOTHING makes this
+        # genuinely one-time: it sets the floor to "yesterday" the first time
+        # this migration runs and is never overwritten by a later deploy.
+        await conn.execute("""
+            INSERT INTO dialer_settings (key, value, updated_at)
+            VALUES ('email_stats_reset_at', to_char(date_trunc('day', now() - interval '1 day'), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), now())
+            ON CONFLICT (key) DO NOTHING
+        """)
