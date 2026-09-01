@@ -819,7 +819,7 @@ const LEAD_DRAWER_FIELDS = [
   { label: "State", k: "state" },
 ];
 
-function LeadDrawer({ token, lead, allTags, onClose, onUpdated }) {
+function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
   const [display, setDisplay] = useState(lead);
   const [form, setForm] = useState(() => {
     const initial = {};
@@ -924,6 +924,21 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated }) {
           {saveErr && <div style={{ fontSize: 11, color: "#f06060", fontFamily: "'Share Tech Mono', monospace" }}>{saveErr}</div>}
           <button onClick={handleSave} disabled={saving} className="btn btn-primary">{saving ? "Saving…" : "Save Changes"}</button>
 
+          {/* Jumps to the Inbox tab with this lead's thread open — mirrors
+              the internal CRM's ContactDrawer "✉ Message" button
+              (messageContact() -> onNavigate("inbox", {contactId})). */}
+          <button
+            onClick={onMessage}
+            style={{
+              padding: "9px 12px", borderRadius: 8,
+              background: "rgba(160,110,240,0.12)", border: "1px solid rgba(160,110,240,0.35)",
+              color: "#a06ef0", fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: 12, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            ✉ Message
+          </button>
+
           <div>
             <div style={{ ...labelStyle, marginBottom: 10 }}>TAGS</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
@@ -947,7 +962,7 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated }) {
   );
 }
 
-function LeadsTab({ token }) {
+function LeadsTab({ token, onMessage }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -1185,6 +1200,7 @@ function LeadsTab({ token }) {
             setSelectedLead(updated);
             setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
           }}
+          onMessage={() => { onMessage(selectedLead.id); setSelectedLead(null); }}
         />
       )}
     </div>
@@ -1306,7 +1322,7 @@ function InboxThread({ token, contactId, onSent }) {
 // reasoning as excluding the anchor contact elsewhere in this file.
 const INBOX_CHANNEL_OPTIONS = [["all", "All Channels"], ["sms", "SMS"], ["email", "Email"]];
 
-function InboxTab({ token }) {
+function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
   const [convos, setConvos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -1314,6 +1330,10 @@ function InboxTab({ token }) {
   const [sinceFilter, setSinceFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("");
   const [allTags, setAllTags] = useState([]);
+  // Search — same business/owner/phone/email match the CRM's contact
+  // search uses (GET /contacts?search=), applied client-side here since
+  // the inbox list is small per client and already fully loaded.
+  const [searchQuery, setSearchQuery] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -1330,16 +1350,41 @@ function InboxTab({ token }) {
   }, [token]);
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [token, channelFilter, sinceFilter, tagFilter]);
 
+  // Jumped here from a lead's "Message" button — open that contact's
+  // thread directly even if it has no prior messages yet (InboxThread/the
+  // backend's GET /{token}/inbox/{contactId} both handle an empty
+  // history fine), then clear the pending target so re-visiting the tab
+  // later doesn't keep forcing it back open.
+  useEffect(() => {
+    if (initialContactId) {
+      setSelected(initialContactId);
+      onInitialContactConsumed?.();
+    }
+    /* eslint-disable-next-line */
+  }, [initialContactId]);
+
   const openConvo = (contactId) => {
     setSelected(contactId);
     setConvos((prev) => prev.map((c) => (c.contact_id === contactId ? { ...c, unread: false } : c)));
   };
+
+  const q = searchQuery.trim().toLowerCase();
+  const visibleConvos = q
+    ? convos.filter((c) => [c.business, c.owner, c.phone, c.email, c.last_message].some((v) => (v || "").toLowerCase().includes(q)))
+    : convos;
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <SectionHeading>Inbox</SectionHeading>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            className="dg-input"
+            placeholder="Search business, owner, phone, email…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ fontSize: 11, padding: "6px 10px", width: 220 }}
+          />
           <select className="dg-input" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 130 }}>
             {INBOX_CHANNEL_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
           </select>
@@ -1353,12 +1398,12 @@ function InboxTab({ token }) {
       <div className="glass-card" style={{ padding: 0, overflow: "hidden", display: "grid", gridTemplateColumns: "300px 1fr", height: 560 }}>
         <div style={{ borderRight: "1px solid rgba(58,123,213,0.12)", overflowY: "auto" }}>
           {loading && <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
-          {!loading && convos.length === 0 && (
+          {!loading && visibleConvos.length === 0 && (
             <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", lineHeight: 1.6 }}>
-              NO CONVERSATIONS YET — this fills in once your SMS/email account is connected.
+              {q ? "NO MATCHES" : "NO CONVERSATIONS YET — this fills in once your SMS/email account is connected."}
             </div>
           )}
-          {convos.map((c) => (
+          {visibleConvos.map((c) => (
             <button
               key={c.contact_id}
               onClick={() => openConvo(c.contact_id)}
@@ -1405,6 +1450,12 @@ export default function ClientPortal() {
   const [client, setClient] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [tab, setTab] = useState("dashboard");
+  // Set by LeadDrawer's "Message" button (via LeadsTab's onMessage prop) to
+  // jump to the Inbox tab with that lead's thread already open — mirrors
+  // the internal CRM's ContactDrawer messageContact()/onNavigate("inbox",
+  // {contactId}) pattern. Lives here (not in InboxTab's own state) since
+  // Leads and Inbox are sibling tabs.
+  const [inboxTargetContactId, setInboxTargetContactId] = useState(null);
 
   useEffect(() => {
     fetch(`/portal-api/${token}`)
@@ -1466,8 +1517,19 @@ export default function ClientPortal() {
 
         {tab === "dashboard" && <DashboardTab token={token} />}
         {tab === "appointments" && <AppointmentsTab token={token} />}
-        {tab === "leads" && <LeadsTab token={token} />}
-        {tab === "inbox" && <InboxTab token={token} />}
+        {tab === "leads" && (
+          <LeadsTab
+            token={token}
+            onMessage={(contactId) => { setInboxTargetContactId(contactId); setTab("inbox"); }}
+          />
+        )}
+        {tab === "inbox" && (
+          <InboxTab
+            token={token}
+            initialContactId={inboxTargetContactId}
+            onInitialContactConsumed={() => setInboxTargetContactId(null)}
+          />
+        )}
         {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
         {tab === "videos" && <VideosTab token={token} />}
       </div>
