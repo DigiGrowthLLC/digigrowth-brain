@@ -89,11 +89,93 @@ function Field({ q, value, onChange }) {
   );
 }
 
-function OnboardingTab({ token }) {
+function ActionItemRow({ token, item, onUpdated, onGoToVideos }) {
+  const [saving, setSaving] = useState(false);
+  const done = !!item.completed_at;
+
+  const toggle = async () => {
+    setSaving(true);
+    const r = await fetch(`/portal-api/${token}/action-items/${item.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed: !done }),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      onUpdated({ ...item, completed_at: updated.completed_at });
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 16px", borderRadius: 10,
+      background: done ? "rgba(20,200,130,0.05)" : "rgba(255,255,255,0.02)",
+      border: done ? "1px solid rgba(20,200,130,0.2)" : "1px solid transparent",
+    }}>
+      <button onClick={toggle} disabled={saving} style={{
+        flexShrink: 0, width: 20, height: 20, marginTop: 2, borderRadius: 5, cursor: "pointer",
+        border: done ? "1px solid #14c882" : "1px solid rgba(58,123,213,0.35)",
+        background: done ? "#14c882" : "transparent",
+        color: "#06110c", fontSize: 12, fontWeight: 700,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>{done ? "✓" : ""}</button>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: done ? "#8fd9bd" : "#d0e8ff", textDecoration: done ? "line-through" : "none" }}>
+          {item.title}
+        </div>
+        {item.description && (
+          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5 }}>{item.description}</div>
+        )}
+        {onGoToVideos && (
+          <button onClick={onGoToVideos} style={{ marginTop: 6, background: "none", border: "none", color: "#3a7bd5", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+            ▶ Watch in Get Started Videos
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NextStepsSection({ token, onGoToVideos }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/portal-api/${token}/action-items`)
+      .then((r) => r.json())
+      .then((data) => { setItems(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [token]);
+
+  if (loading || items.length === 0) return null;
+
+  const doneCount = items.filter((i) => i.completed_at).length;
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <SectionHeading>Next Steps ({doneCount}/{items.length})</SectionHeading>
+      <div className="glass-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((item) => (
+          <ActionItemRow
+            key={item.id}
+            token={token}
+            item={item}
+            onUpdated={(updated) => setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))}
+            onGoToVideos={onGoToVideos}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OnboardingFormSection({ token }) {
   const [responses, setResponses] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
   const [openSection, setOpenSection] = useState(SECTIONS[0].key);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     fetch(`/portal-api/${token}/onboarding`)
@@ -125,56 +207,70 @@ function OnboardingTab({ token }) {
     setSaving(null);
   };
 
-  if (loading) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
-
   const completedCount = SECTIONS.filter((s) => responses[s.key]?.completed_at).length;
 
   return (
     <div>
-      <div className="stat-card" style={{ marginBottom: 24, maxWidth: 260 }}>
-        <div className="stat-card-label">Onboarding Progress</div>
-        <div className="stat-card-value">{completedCount}/{SECTIONS.length}</div>
+      <div
+        onClick={() => setCollapsed((c) => !c)}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: collapsed ? 0 : 12 }}
+      >
+        <SectionHeading>Onboarding Form ({completedCount}/{SECTIONS.length})</SectionHeading>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>{collapsed ? "▼" : "▲"}</span>
       </div>
 
-      {SECTIONS.map((s) => {
-        const isDone = !!responses[s.key]?.completed_at;
-        const isOpen = openSection === s.key;
-        return (
-          <div key={s.key} className="glass-card" style={{ marginBottom: 14, padding: 0, overflow: "hidden" }}>
-            <button
-              onClick={() => setOpenSection(isOpen ? null : s.key)}
-              style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}
-            >
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff", flex: 1 }}>
-                {s.title}
-              </span>
-              {isDone && (
-                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882", letterSpacing: "0.08em" }}>
-                  ✓ COMPLETE
+      {!collapsed && (loading ? (
+        <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>
+      ) : (
+        SECTIONS.map((s) => {
+          const isDone = !!responses[s.key]?.completed_at;
+          const isOpen = openSection === s.key;
+          return (
+            <div key={s.key} className="glass-card" style={{ marginBottom: 14, padding: 0, overflow: "hidden" }}>
+              <button
+                onClick={() => setOpenSection(isOpen ? null : s.key)}
+                style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}
+              >
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff", flex: 1 }}>
+                  {s.title}
                 </span>
-              )}
-              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
-                {isOpen ? "▲" : "▼"}
-              </span>
-            </button>
-            {isOpen && (
-              <div style={{ padding: "0 20px 20px", borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 16 }}>
-                {s.questions.map((q) => (
-                  <Field key={q.key} q={q} value={answersFor(s.key)[q.key]} onChange={(qk, val) => setAnswer(s.key, qk, val)} />
-                ))}
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button className="btn btn-secondary" onClick={() => save(s.key, false)} disabled={saving === s.key}>
-                    {saving === s.key ? "Saving..." : "Save"}
-                  </button>
-                  <button className="btn btn-primary" onClick={() => save(s.key, true)} disabled={saving === s.key}>
-                    {saving === s.key ? "Saving..." : "Save & Mark Complete"}
-                  </button>
+                {isDone && (
+                  <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882", letterSpacing: "0.08em" }}>
+                    ✓ COMPLETE
+                  </span>
+                )}
+                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
+                  {isOpen ? "▲" : "▼"}
+                </span>
+              </button>
+              {isOpen && (
+                <div style={{ padding: "0 20px 20px", borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 16 }}>
+                  {s.questions.map((q) => (
+                    <Field key={q.key} q={q} value={answersFor(s.key)[q.key]} onChange={(qk, val) => setAnswer(s.key, qk, val)} />
+                  ))}
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button className="btn btn-secondary" onClick={() => save(s.key, false)} disabled={saving === s.key}>
+                      {saving === s.key ? "Saving..." : "Save"}
+                    </button>
+                    <button className="btn btn-primary" onClick={() => save(s.key, true)} disabled={saving === s.key}>
+                      {saving === s.key ? "Saving..." : "Save & Mark Complete"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
+              )}
+            </div>
+          );
+        })
+      ))}
+    </div>
+  );
+}
+
+function OnboardingTab({ token, onGoToVideos }) {
+  return (
+    <div>
+      <NextStepsSection token={token} onGoToVideos={onGoToVideos} />
+      <OnboardingFormSection token={token} />
     </div>
   );
 }
@@ -918,7 +1014,7 @@ export default function ClientPortal() {
         {tab === "dashboard" && <DashboardTab token={token} />}
         {tab === "appointments" && <AppointmentsTab token={token} />}
         {tab === "leads" && <LeadsTab token={token} />}
-        {tab === "onboarding" && <OnboardingTab token={token} />}
+        {tab === "onboarding" && <OnboardingTab token={token} onGoToVideos={() => setTab("videos")} />}
         {tab === "videos" && <VideosTab token={token} />}
       </div>
     </div>

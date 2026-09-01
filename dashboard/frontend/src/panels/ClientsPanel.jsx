@@ -229,6 +229,99 @@ function VideosSection() {
   );
 }
 
+function ActionItemRow({ item, onDelete }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff" }}>{item.title}</div>
+        {item.description && (
+          <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{item.description}</div>
+        )}
+      </div>
+      <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(item.id)}>DELETE</button>
+    </div>
+  );
+}
+
+function ActionItemsSection() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "" });
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    const r = await fetch(API("/action-items"));
+    if (r.ok) setItems(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    await fetch(API("/action-items"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        sort_order: items.length,
+      }),
+    });
+    setForm({ title: "", description: "" });
+    setShowForm(false);
+    setSaving(false);
+    load();
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this Next Step from every client's onboarding checklist?")) return;
+    await fetch(API(`/action-items/${id}`), { method: "DELETE" });
+    load();
+  };
+
+  return (
+    <div style={{ marginTop: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
+            Onboarding Next Steps
+          </div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.14em", marginTop: 3 }}>
+            SHARED CHECKLIST ON EVERY CLIENT'S ONBOARDING TAB
+          </div>
+        </div>
+        <button className="btn btn-primary" style={{ fontSize: 11, padding: "8px 18px" }} onClick={() => setShowForm((s) => !s)}>
+          {showForm ? "CANCEL" : "+ ADD STEP"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <input className="dg-input" placeholder="Title, e.g. Give Meta Ads Manager Access" value={form.title}
+            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
+          <textarea className="dg-input" rows={2} placeholder="Description — what they need to do (optional)" value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} style={{ resize: "vertical" }} />
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn btn-primary" onClick={save} disabled={saving || !form.title.trim()} style={{ fontSize: 11 }}>
+              {saving ? "SAVING…" : "SAVE STEP"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="glass-card" style={{ padding: "10px 8px" }}>
+        {loading && <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
+        {!loading && items.length === 0 && (
+          <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO STEPS YET</div>
+        )}
+        {items.map((item) => <ActionItemRow key={item.id} item={item} onDelete={remove} />)}
+      </div>
+    </div>
+  );
+}
+
 export default function ClientsPanel() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -347,6 +440,7 @@ export default function ClientsPanel() {
       </div>
 
       <VideosSection />
+      <ActionItemsSection />
     </div>
   );
 }

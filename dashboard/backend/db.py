@@ -329,6 +329,23 @@ async def _create_schema(pool: asyncpg.Pool):
                 synced_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE(client_id, platform, stat_date)
             );
+
+            CREATE TABLE IF NOT EXISTS onboarding_action_items (
+                id          SERIAL PRIMARY KEY,
+                title       TEXT NOT NULL,
+                description TEXT,
+                sort_order  INTEGER NOT NULL DEFAULT 0,
+                active      BOOLEAN NOT NULL DEFAULT true,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE IF NOT EXISTS client_action_item_completions (
+                id             SERIAL PRIMARY KEY,
+                client_id      INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                action_item_id INTEGER NOT NULL REFERENCES onboarding_action_items(id) ON DELETE CASCADE,
+                completed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(client_id, action_item_id)
+            );
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""

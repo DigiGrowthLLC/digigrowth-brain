@@ -20,7 +20,7 @@ import uuid
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
-from models import OnboardingSectionSave, ONBOARDING_SECTIONS
+from models import OnboardingSectionSave, ONBOARDING_SECTIONS, ActionItemComplete
 import cancel_sequence
 import no_show_sequence
 import onboarding_sequence
@@ -100,6 +100,53 @@ async def portal_videos(token: str):
             "WHERE active ORDER BY sort_order, id"
         )
     return [dict(r) for r in rows]
+
+
+@router.get("/{token}/action-items")
+async def portal_action_items(token: str):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT ai.id, ai.title, ai.description, ai.sort_order, c.completed_at
+            FROM onboarding_action_items ai
+            LEFT JOIN client_action_item_completions c
+                ON c.action_item_id = ai.id AND c.client_id = $1
+            WHERE ai.active
+            ORDER BY ai.sort_order, ai.id
+            """,
+            client["id"],
+        )
+    return [dict(r) for r in rows]
+
+
+@router.put("/{token}/action-items/{item_id}")
+async def portal_set_action_item_complete(token: str, item_id: int, body: ActionItemComplete):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        item = await conn.fetchrow("SELECT id FROM onboarding_action_items WHERE id = $1", item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Action item not found")
+        if body.completed:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO client_action_item_completions (client_id, action_item_id)
+                VALUES ($1, $2)
+                ON CONFLICT (client_id, action_item_id) DO UPDATE SET completed_at = client_action_item_completions.completed_at
+                RETURNING completed_at
+                """,
+                client["id"], item_id,
+            )
+            completed_at = row["completed_at"]
+        else:
+            await conn.execute(
+                "DELETE FROM client_action_item_completions WHERE client_id = $1 AND action_item_id = $2",
+                client["id"], item_id,
+            )
+            completed_at = None
+    return {"id": item_id, "completed_at": completed_at}
 
 
 @router.get("/{token}/stats")

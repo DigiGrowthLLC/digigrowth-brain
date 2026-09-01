@@ -10,7 +10,10 @@ import secrets
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
-from models import ClientCreate, ClientUpdate, OnboardingVideoCreate, OnboardingVideoUpdate, ONBOARDING_SECTIONS
+from models import (
+    ClientCreate, ClientUpdate, OnboardingVideoCreate, OnboardingVideoUpdate,
+    ActionItemCreate, ActionItemUpdate, ONBOARDING_SECTIONS,
+)
 
 router = APIRouter()
 
@@ -195,4 +198,55 @@ async def delete_onboarding_video(video_id: int):
         row = await conn.fetchrow("DELETE FROM onboarding_videos WHERE id = $1 RETURNING id", video_id)
     if not row:
         raise HTTPException(status_code=404, detail="Video not found")
+    return {"ok": True}
+
+
+# ---------------- Onboarding "Next Steps" action items (shared across all clients) ----------------
+
+@router.get("/action-items")
+async def list_action_items():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM onboarding_action_items ORDER BY sort_order, id")
+    return [dict(r) for r in rows]
+
+
+@router.post("/action-items")
+async def create_action_item(body: ActionItemCreate):
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO onboarding_action_items (title, description, sort_order) VALUES ($1, $2, $3) RETURNING *",
+            title, body.description, body.sort_order,
+        )
+    return dict(row)
+
+
+@router.patch("/action-items/{item_id}")
+async def update_action_item(item_id: int, body: ActionItemUpdate):
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        set_clauses = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(fields))
+        row = await conn.fetchrow(
+            f"UPDATE onboarding_action_items SET {set_clauses} WHERE id = $1 RETURNING *",
+            item_id, *fields.values(),
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Action item not found")
+    return dict(row)
+
+
+@router.delete("/action-items/{item_id}")
+async def delete_action_item(item_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("DELETE FROM onboarding_action_items WHERE id = $1 RETURNING id", item_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Action item not found")
     return {"ok": True}

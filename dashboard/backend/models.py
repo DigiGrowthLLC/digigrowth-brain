@@ -153,6 +153,23 @@ class OnboardingSectionSave(BaseModel):
     completed: bool = False
 
 
+class ActionItemCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    sort_order: int = 0
+
+
+class ActionItemUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    sort_order: Optional[int] = None
+    active: Optional[bool] = None
+
+
+class ActionItemComplete(BaseModel):
+    completed: bool
+
+
 ONBOARDING_SECTIONS = [
     "practice_snapshot",
     "ideal_patient",
