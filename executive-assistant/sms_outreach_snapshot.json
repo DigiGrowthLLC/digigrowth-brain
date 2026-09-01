@@ -14,8 +14,8 @@
     "interested_rate": 1.4,
     "booked": 1,
     "abr": 0.7,
-    "not_interested": 18,
-    "not_interested_rate": 12.2
+    "not_interested": 19,
+    "not_interested_rate": 12.9
   },
   "period_30d": {
     "total_outreach": 232,
@@ -32,8 +32,8 @@
     "interested_rate": 1.3,
     "booked": 2,
     "abr": 0.8,
-    "not_interested": 27,
-    "not_interested_rate": 11.4
+    "not_interested": 28,
+    "not_interested_rate": 11.9
   },
   "all_time": {
     "total_outreach": 242,
@@ -50,8 +50,8 @@
     "interested_rate": 1.2,
     "booked": 2,
     "abr": 0.8,
-    "not_interested": 27,
-    "not_interested_rate": 11.2
+    "not_interested": 28,
+    "not_interested_rate": 11.6
   },
   "exported_at": "2026-09-01"
 }
