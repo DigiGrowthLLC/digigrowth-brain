@@ -89,7 +89,7 @@ function Field({ q, value, onChange }) {
   );
 }
 
-function ActionItemRow({ token, item, onUpdated, onGoToVideos }) {
+function ActionItemRow({ token, item, onUpdated, onGoToTab }) {
   const [saving, setSaving] = useState(false);
   const done = !!item.completed_at;
 
@@ -127,9 +127,9 @@ function ActionItemRow({ token, item, onUpdated, onGoToVideos }) {
         {item.description && (
           <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5 }}>{item.description}</div>
         )}
-        {onGoToVideos && (
-          <button onClick={onGoToVideos} style={{ marginTop: 6, background: "none", border: "none", color: "#3a7bd5", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
-            ▶ Watch in Get Started Videos
+        {item.link_tab && TAB_LABELS[item.link_tab] && (
+          <button onClick={() => onGoToTab(item.link_tab)} style={{ marginTop: 6, background: "none", border: "none", color: "#3a7bd5", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+            ▶ Go to {TAB_LABELS[item.link_tab]}
           </button>
         )}
       </div>
@@ -137,7 +137,7 @@ function ActionItemRow({ token, item, onUpdated, onGoToVideos }) {
   );
 }
 
-function NextStepsSection({ token, onGoToVideos }) {
+function NextStepsSection({ token, onGoToTab }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -162,7 +162,7 @@ function NextStepsSection({ token, onGoToVideos }) {
             token={token}
             item={item}
             onUpdated={(updated) => setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))}
-            onGoToVideos={onGoToVideos}
+            onGoToTab={onGoToTab}
           />
         ))}
       </div>
@@ -266,10 +266,10 @@ function OnboardingFormSection({ token }) {
   );
 }
 
-function OnboardingTab({ token, onGoToVideos }) {
+function OnboardingTab({ token, onGoToTab }) {
   return (
     <div>
-      <NextStepsSection token={token} onGoToVideos={onGoToVideos} />
+      <NextStepsSection token={token} onGoToTab={onGoToTab} />
       <OnboardingFormSection token={token} />
     </div>
   );
@@ -1014,7 +1014,7 @@ export default function ClientPortal() {
         {tab === "dashboard" && <DashboardTab token={token} />}
         {tab === "appointments" && <AppointmentsTab token={token} />}
         {tab === "leads" && <LeadsTab token={token} />}
-        {tab === "onboarding" && <OnboardingTab token={token} onGoToVideos={() => setTab("videos")} />}
+        {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
         {tab === "videos" && <VideosTab token={token} />}
       </div>
     </div>

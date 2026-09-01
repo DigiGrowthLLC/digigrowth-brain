@@ -219,8 +219,8 @@ async def create_action_item(body: ActionItemCreate):
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "INSERT INTO onboarding_action_items (title, description, sort_order) VALUES ($1, $2, $3) RETURNING *",
-            title, body.description, body.sort_order,
+            "INSERT INTO onboarding_action_items (title, description, link_tab, sort_order) VALUES ($1, $2, $3, $4) RETURNING *",
+            title, body.description, body.link_tab, body.sort_order,
         )
     return dict(row)
 
