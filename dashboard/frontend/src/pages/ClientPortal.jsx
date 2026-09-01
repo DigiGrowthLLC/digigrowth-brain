@@ -8,10 +8,21 @@ import {
 } from "recharts";
 import { SECTIONS } from "../onboardingSections.js";
 
+// An appointment counts as "still upcoming" until an hour past its actual
+// time — a bit of grace for a call running long — rather than the instant
+// its clock time passes. Defined once here (not just near the Appointments
+// tab further down) so the dashboard's UpcomingAppointmentsWidget can apply
+// the same rule: the backend's status=scheduled filter alone doesn't mean
+// "in the future" — a past appointment whose outcome was never marked
+// Show/No-Show/Closed stays status='scheduled' forever, so without this
+// client-side time check it would show up as "upcoming" indefinitely.
+const APPT_PAST_GRACE_MS = 60 * 60 * 1000;
+
 const TAB_LABELS = {
   dashboard: "Dashboard",
   appointments: "Appointments",
   leads: "Leads",
+  inbox: "Inbox",
   onboarding: "Onboarding",
   videos: "Get Started Videos",
 };
@@ -371,7 +382,17 @@ function UpcomingAppointmentsWidget({ token }) {
   useEffect(() => {
     fetch(`/portal-api/${token}/appointments?status=scheduled`)
       .then((r) => r.json())
-      .then((data) => { setRows((data || []).slice(0, 5)); setLoading(false); })
+      .then((data) => {
+        // status=scheduled alone doesn't mean "in the future" — see
+        // APPT_PAST_GRACE_MS's comment above. Without this filter, an
+        // appointment whose outcome was never marked keeps showing here as
+        // "upcoming" long after it's actually happened.
+        const stillUpcoming = (data || []).filter(
+          (r) => new Date(r.appointment_at).getTime() + APPT_PAST_GRACE_MS > Date.now()
+        );
+        setRows(stillUpcoming.slice(0, 5));
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [token]);
 
@@ -631,7 +652,6 @@ function AppointmentOutcome({ token, appointment, onUpdated }) {
   );
 }
 
-const APPT_PAST_GRACE_MS = 60 * 60 * 1000;
 const APPT_FILTER_LABELS = { upcoming: "Upcoming", past: "Past", canceled: "Canceled", all: "All" };
 
 function AppointmentsTab({ token }) {
@@ -896,6 +916,182 @@ function LeadsTab({ token }) {
   );
 }
 
+function fmtMsgTime(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function InboxThread({ token, contactId, onSent }) {
+  const [thread, setThread] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [channel, setChannel] = useState("sms");
+  const [draft, setDraft] = useState("");
+  const [notice, setNotice] = useState(null);
+  const [sending, setSending] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const r = await fetch(`/portal-api/${token}/inbox/${contactId}`);
+    if (r.ok) {
+      const data = await r.json();
+      setThread(data);
+      setChannel(data.contact.phone ? "sms" : "email");
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { setNotice(null); setDraft(""); load(); /* eslint-disable-next-line */ }, [token, contactId]);
+
+  const send = async () => {
+    if (!draft.trim()) return;
+    setSending(true);
+    const r = await fetch(`/portal-api/${token}/inbox/${contactId}/send`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, body: draft.trim() }),
+    });
+    const data = await r.json().catch(() => ({}));
+    setNotice(data.detail || "Couldn't send — try again.");
+    setSending(false);
+    onSent?.();
+  };
+
+  if (loading) return <div style={{ padding: 40, color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>LOADING...</div>;
+  if (!thread) return null;
+
+  const { contact, messages } = thread;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(58,123,213,0.12)" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
+          {contact.owner || contact.business || "—"}
+        </div>
+        <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>
+          {[contact.phone, contact.email].filter(Boolean).join(" · ")}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+        {messages.length === 0 && (
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO MESSAGES YET</div>
+        )}
+        {messages.map((m, i) => {
+          const outbound = m.direction === "outbound";
+          return (
+            <div key={i} style={{ display: "flex", justifyContent: outbound ? "flex-end" : "flex-start" }}>
+              <div style={{
+                maxWidth: "72%", padding: "9px 13px", borderRadius: 12,
+                background: outbound ? "rgba(58,123,213,0.18)" : "rgba(255,255,255,0.04)",
+                border: outbound ? "1px solid rgba(58,123,213,0.3)" : "1px solid rgba(255,255,255,0.06)",
+              }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 3 }}>
+                  <span className="mono" style={{ fontSize: 9, color: "#3a7bd5", letterSpacing: "0.06em" }}>{m.channel.toUpperCase()}</span>
+                  <span style={{ fontSize: 9, color: "#3a5a80" }}>{fmtMsgTime(m.sent_at)}</span>
+                </div>
+                {m.subject && <div style={{ fontSize: 12, fontWeight: 600, color: "#c4d0e8", marginBottom: 3 }}>{m.subject}</div>}
+                <div style={{ fontSize: 13, color: "#d0e8ff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ padding: 14, borderTop: "1px solid rgba(58,123,213,0.12)" }}>
+        {notice && (
+          <div style={{ fontSize: 11.5, color: "#f0a028", marginBottom: 10, lineHeight: 1.5 }}>{notice}</div>
+        )}
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          {contact.phone && (
+            <button onClick={() => setChannel("sms")} className="btn btn-secondary" style={{ fontSize: 10, opacity: channel === "sms" ? 1 : 0.5 }}>SMS</button>
+          )}
+          {contact.email && (
+            <button onClick={() => setChannel("email")} className="btn btn-secondary" style={{ fontSize: 10, opacity: channel === "email" ? 1 : 0.5 }}>EMAIL</button>
+          )}
+        </div>
+        <textarea
+          className="dg-input" rows={2} placeholder="Type a reply..."
+          value={draft} onChange={(e) => setDraft(e.target.value)}
+          style={{ width: "100%", resize: "vertical", marginBottom: 8 }}
+        />
+        <button className="btn btn-primary" onClick={send} disabled={sending || !draft.trim()} style={{ fontSize: 11 }}>
+          {sending ? "SENDING..." : "SEND"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InboxTab({ token }) {
+  const [convos, setConvos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
+
+  const load = async () => {
+    const r = await fetch(`/portal-api/${token}/inbox`);
+    if (r.ok) setConvos(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token]);
+
+  const openConvo = (contactId) => {
+    setSelected(contactId);
+    setConvos((prev) => prev.map((c) => (c.contact_id === contactId ? { ...c, unread: false } : c)));
+  };
+
+  return (
+    <div>
+      <SectionHeading>Inbox</SectionHeading>
+      <div className="glass-card" style={{ padding: 0, overflow: "hidden", display: "grid", gridTemplateColumns: "300px 1fr", height: 560 }}>
+        <div style={{ borderRight: "1px solid rgba(58,123,213,0.12)", overflowY: "auto" }}>
+          {loading && <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
+          {!loading && convos.length === 0 && (
+            <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", lineHeight: 1.6 }}>
+              NO CONVERSATIONS YET — this fills in once your SMS/email account is connected.
+            </div>
+          )}
+          {convos.map((c) => (
+            <button
+              key={c.contact_id}
+              onClick={() => openConvo(c.contact_id)}
+              style={{
+                display: "block", width: "100%", textAlign: "left", background: selected === c.contact_id ? "rgba(58,123,213,0.1)" : "none",
+                border: "none", borderBottom: "1px solid rgba(58,123,213,0.08)", cursor: "pointer", padding: "12px 16px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {c.unread && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#3a7bd5", flexShrink: 0 }} />}
+                <span style={{ fontSize: 13, fontWeight: c.unread ? 700 : 600, color: "#d0e8ff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {c.owner || c.business || c.phone || c.email}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                {c.channels.map((ch) => (
+                  <span key={ch} className="mono" style={{ fontSize: 8, color: "#3a7bd5", letterSpacing: "0.06em" }}>{ch.toUpperCase()}</span>
+                ))}
+              </div>
+              {c.last_message && (
+                <div style={{ fontSize: 11, color: "#5a7096", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {c.last_message}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+        <div>
+          {selected ? (
+            <InboxThread token={token} contactId={selected} onSent={load} />
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#3a5a80", fontSize: 13 }}>
+              Select a conversation
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ClientPortal() {
   const { token } = useParams();
   const [client, setClient] = useState(null);
@@ -963,6 +1159,7 @@ export default function ClientPortal() {
         {tab === "dashboard" && <DashboardTab token={token} />}
         {tab === "appointments" && <AppointmentsTab token={token} />}
         {tab === "leads" && <LeadsTab token={token} />}
+        {tab === "inbox" && <InboxTab token={token} />}
         {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
         {tab === "videos" && <VideosTab token={token} />}
       </div>

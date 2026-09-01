@@ -456,3 +456,143 @@ async def portal_import_leads(token: str, body: dict):
                 updated += 1
 
     return {"inserted": inserted, "updated": updated, "skipped": skipped}
+
+
+# ---------------- Inbox (scoped via contacts/sms_conversations/email_conversations.client_id) ----------------
+#
+# Read side (list + thread + mark-read) is fully real, scoped the same way as
+# every other portal endpoint. Sending is intentionally a stub for now — no
+# client has their own Twilio number or email inbox connected yet, so a real
+# send here would go out through DigiGrowth's own shared Twilio/Gmail
+# credentials "as" the client, which is wrong the moment a second client
+# exists and unsafe even for the first. portal_send_message below validates
+# and responds, but never actually calls integrations.gmail_send_reply or a
+# Twilio send — that wiring is future work, once per-client channel
+# credentials exist (see meta_ads.py for the same "stub the parts that need
+# real per-client credentials, build the rest now" shape).
+
+@router.get("/{token}/inbox")
+async def portal_inbox_list(token: str):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        sms_rows = await conn.fetch(
+            """
+            SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
+                   sc.updated_at,
+                   (SELECT sm.body FROM sms_messages sm WHERE sm.contact_id = c.id
+                        ORDER BY sm.sent_at DESC LIMIT 1) AS last_message,
+                   (SELECT sm.sent_at FROM sms_messages sm WHERE sm.contact_id = c.id
+                        ORDER BY sm.sent_at DESC LIMIT 1) AS last_message_at,
+                   EXISTS(
+                       SELECT 1 FROM sms_messages sm WHERE sm.contact_id = c.id
+                       AND sm.direction = 'inbound'
+                       AND sm.sent_at > COALESCE(sc.last_read_at, '-infinity'::timestamptz)
+                   ) AS unread
+            FROM sms_conversations sc
+            JOIN contacts c ON c.id = sc.contact_id
+            WHERE sc.client_id = $1
+            """,
+            client["id"],
+        )
+        email_rows = await conn.fetch(
+            """
+            SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
+                   ec.updated_at,
+                   (SELECT em.body FROM email_messages em WHERE em.contact_id = c.id
+                        ORDER BY em.sent_at DESC LIMIT 1) AS last_message,
+                   (SELECT em.sent_at FROM email_messages em WHERE em.contact_id = c.id
+                        ORDER BY em.sent_at DESC LIMIT 1) AS last_message_at,
+                   EXISTS(
+                       SELECT 1 FROM email_messages em WHERE em.contact_id = c.id
+                       AND em.direction = 'inbound'
+                       AND em.sent_at > COALESCE(ec.last_read_at, '-infinity'::timestamptz)
+                   ) AS unread
+            FROM email_conversations ec
+            JOIN contacts c ON c.id = ec.contact_id
+            WHERE ec.client_id = $1
+            """,
+            client["id"],
+        )
+
+    by_contact: dict = {}
+    for rows, channel in ((sms_rows, "sms"), (email_rows, "email")):
+        for r in rows:
+            d = dict(r)
+            cid = d["contact_id"]
+            entry = by_contact.setdefault(cid, {
+                "contact_id": cid, "business": d["business"], "owner": d["owner"],
+                "phone": d["phone"], "email": d["email"],
+                "channels": [], "last_message": None, "last_message_at": None, "unread": False,
+            })
+            entry["channels"].append(channel)
+            entry["unread"] = entry["unread"] or d["unread"]
+            if d["last_message_at"] and (
+                entry["last_message_at"] is None or d["last_message_at"] > entry["last_message_at"]
+            ):
+                entry["last_message"] = d["last_message"]
+                entry["last_message_at"] = d["last_message_at"]
+
+    return sorted(by_contact.values(), key=lambda e: e["last_message_at"] or "", reverse=True)
+
+
+@router.get("/{token}/inbox/{contact_id}")
+async def portal_inbox_thread(token: str, contact_id: str):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow(
+            "SELECT id, business, owner, phone, email FROM contacts WHERE id = $1 AND client_id = $2",
+            contact_id, client["id"],
+        )
+        if not contact:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        sms_msgs = await conn.fetch(
+            "SELECT direction, body, sent_at FROM sms_messages WHERE contact_id = $1 ORDER BY sent_at",
+            contact_id,
+        )
+        email_msgs = await conn.fetch(
+            "SELECT direction, body, subject, sent_at FROM email_messages WHERE contact_id = $1 ORDER BY sent_at",
+            contact_id,
+        )
+        await conn.execute(
+            "UPDATE sms_conversations SET last_read_at = now() WHERE contact_id = $1 AND client_id = $2",
+            contact_id, client["id"],
+        )
+        await conn.execute(
+            "UPDATE email_conversations SET last_read_at = now() WHERE contact_id = $1 AND client_id = $2",
+            contact_id, client["id"],
+        )
+
+    messages = (
+        [{"channel": "sms", "direction": m["direction"], "body": m["body"], "subject": None, "sent_at": m["sent_at"]} for m in sms_msgs]
+        + [{"channel": "email", "direction": m["direction"], "body": m["body"], "subject": m["subject"], "sent_at": m["sent_at"]} for m in email_msgs]
+    )
+    messages.sort(key=lambda m: m["sent_at"])
+
+    return {"contact": dict(contact), "messages": messages}
+
+
+@router.post("/{token}/inbox/{contact_id}/send")
+async def portal_send_message(token: str, contact_id: str, body: dict):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow(
+            "SELECT id FROM contacts WHERE id = $1 AND client_id = $2", contact_id, client["id"]
+        )
+    if not contact:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    channel = body.get("channel")
+    if channel not in ("sms", "email"):
+        raise HTTPException(status_code=400, detail="channel must be 'sms' or 'email'")
+
+    # Deliberately does not send — see module note above. Returns 200 with
+    # ok:false so the frontend shows this as an expected state, not an error.
+    return {
+        "ok": False,
+        "status": "not_connected",
+        "detail": "Your SMS/email account isn't connected yet — DigiGrowth is setting this up and will notify you once replies can be sent from here.",
+    }
