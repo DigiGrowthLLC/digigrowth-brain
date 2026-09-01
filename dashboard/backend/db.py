@@ -280,6 +280,55 @@ async def _create_schema(pool: asyncpg.Pool):
             );
             CREATE INDEX IF NOT EXISTS idx_appointment_reminders_at ON appointment_reminders(appointment_at);
             CREATE INDEX IF NOT EXISTS idx_appointment_reminders_status ON appointment_reminders(status);
+
+            CREATE TABLE IF NOT EXISTS clients (
+                id               SERIAL PRIMARY KEY,
+                name             TEXT NOT NULL,
+                contact_name     TEXT,
+                email            TEXT,
+                phone            TEXT,
+                status           TEXT NOT NULL DEFAULT 'active',
+                portal_token     TEXT UNIQUE NOT NULL,
+                token_revoked_at TIMESTAMPTZ,
+                notes            TEXT,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_portal_token ON clients(portal_token);
+
+            CREATE TABLE IF NOT EXISTS client_onboarding_responses (
+                id           SERIAL PRIMARY KEY,
+                client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                section      TEXT NOT NULL,
+                answers      JSONB NOT NULL DEFAULT '{}',
+                completed_at TIMESTAMPTZ,
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(client_id, section)
+            );
+
+            CREATE TABLE IF NOT EXISTS onboarding_videos (
+                id          SERIAL PRIMARY KEY,
+                title       TEXT NOT NULL,
+                description TEXT,
+                embed_url   TEXT NOT NULL,
+                sort_order  INTEGER NOT NULL DEFAULT 0,
+                active      BOOLEAN NOT NULL DEFAULT true,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE IF NOT EXISTS ad_campaign_stats (
+                id          SERIAL PRIMARY KEY,
+                client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                platform    TEXT NOT NULL DEFAULT 'meta',
+                stat_date   DATE NOT NULL,
+                spend       NUMERIC(10,2),
+                impressions INTEGER,
+                clicks      INTEGER,
+                leads       INTEGER,
+                raw         JSONB,
+                synced_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(client_id, platform, stat_date)
+            );
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""
@@ -369,12 +418,19 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS outcome_close_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS onboarding_kickoff_sent_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS onboarding_followup_sent_at TIMESTAMPTZ;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
+            ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
         """)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_email_messages_tracking_token ON email_messages(tracking_token) WHERE tracking_token IS NOT NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_sequences_single_default ON sms_sequences (is_default) WHERE is_default;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_cold_call_scripts_single_default ON cold_call_scripts (is_default) WHERE is_default;
+            CREATE INDEX IF NOT EXISTS idx_contacts_client ON contacts(client_id) WHERE client_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_sms_conversations_client ON sms_conversations(client_id) WHERE client_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_email_conversations_client ON email_conversations(client_id) WHERE client_id IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_ad_campaign_stats_client ON ad_campaign_stats(client_id, stat_date);
         """)
         # One-time migration: the old single-value 'interested' disposition becomes
         # the new stage_interested checkbox (manually set, since a human set it).

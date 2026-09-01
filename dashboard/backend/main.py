@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 import integrations
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
-from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns
+from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal
 import call_reminders
 import cancel_sequence
 import dm_followup_sequence
@@ -425,10 +425,12 @@ app.include_router(newsletter_queue.router, prefix="/api", dependencies=[Depends
 app.include_router(tags.router,       prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(appointments.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(campaigns.router,  prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(clients.router,    prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(public_sops.router)  # no auth — readable by team
 app.include_router(legal.router)        # no auth — Twilio campaign registration
 app.include_router(newsletter.router, prefix="/api")  # no auth — clicked from an email link
 app.include_router(email_tracking.router, prefix="/api")  # no auth — pixel + unsubscribe links, clicked from outreach emails
+app.include_router(client_portal.router)  # no auth — client-facing, scoped by unguessable token
 
 # Serve built frontend (populated by Railway build step)
 frontend_dist = os.path.join(os.path.dirname(__file__), "frontend/dist")

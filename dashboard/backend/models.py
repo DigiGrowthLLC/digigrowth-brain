@@ -114,3 +114,50 @@ DISPOSITION_TO_STATUS = {
     # follows up himself rather than the system re-queueing it.
     "Follow Up (Manual)": "manual-followup",
 }
+
+
+class ClientCreate(BaseModel):
+    name: str
+    contact_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class ClientUpdate(BaseModel):
+    name: Optional[str] = None
+    contact_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class OnboardingVideoCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    embed_url: str
+    sort_order: int = 0
+
+
+class OnboardingVideoUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    embed_url: Optional[str] = None
+    sort_order: Optional[int] = None
+    active: Optional[bool] = None
+
+
+class OnboardingSectionSave(BaseModel):
+    answers: dict
+    completed: bool = False
+
+
+ONBOARDING_SECTIONS = [
+    "practice_snapshot",
+    "ideal_patient",
+    "offer_economics",
+    "differentiation_voice",
+    "current_marketing",
+    "ops",
+]

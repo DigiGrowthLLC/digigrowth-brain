@@ -10,6 +10,7 @@ import FinancesPanel  from "./panels/FinancesPanel.jsx";
 import SOPsPanel      from "./panels/SOPsPanel.jsx";
 import TodoPanel      from "./panels/TodoPanel.jsx";
 import WebsitePanel  from "./panels/WebsitePanel.jsx";
+import ClientsPanel  from "./panels/ClientsPanel.jsx";
 import IncomingCallWidget from "./IncomingCallWidget.jsx";
 import CallScreen     from "./CallScreen.jsx";
 import useIncomingCall from "./useIncomingCall.js";
@@ -22,6 +23,7 @@ const NAV = [
   { id: "crm",       label: "CRM" },
   { id: "dialer",    label: "Dialer" },
   { id: "appointments", label: "Appointments" },
+  { id: "clients",   label: "Clients" },
   { id: "inbox",     label: "Inbox" },
   { id: "agents",    label: "Agents" },
   { id: "todos",     label: "To-Do" },
@@ -101,6 +103,14 @@ const NAV_ICONS = {
     <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
       <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
       <path d="M5 5h6M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
+  clients: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.4"/>
+      <circle cx="6.5" cy="7" r="1.6" stroke="currentColor" strokeWidth="1.3"/>
+      <path d="M4 11.5c0-1.38 1.12-2.5 2.5-2.5S9 10.12 9 11.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+      <path d="M10.5 6h2M10.5 8.5h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
     </svg>
   ),
   website: (
@@ -262,6 +272,7 @@ export default function App() {
         {active === "inbox"    && <InboxPanel initialTarget={navContext} />}
         {active === "dialer"   && <DialerPanel />}
         {active === "appointments" && <AppointmentsPanel />}
+        {active === "clients"   && <ClientsPanel />}
         {active === "agents"    && <AgentsPanel initialAgentId={navContext} />}
         {active === "analytics" && <AnalyticsPanel />}
         {active === "finances"  && <FinancesPanel />}
