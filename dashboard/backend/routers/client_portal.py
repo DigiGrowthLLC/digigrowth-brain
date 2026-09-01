@@ -207,22 +207,10 @@ async def portal_stats(token: str):
         leads_total = await conn.fetchval(
             "SELECT count(*) FROM contacts WHERE client_id = $1", client["id"]
         )
-        appt_row = await conn.fetchrow(
-            """
-            SELECT
-                count(*) AS total,
-                count(*) FILTER (WHERE ar.status = 'scheduled' AND ar.appointment_at > now()) AS upcoming,
-                count(*) FILTER (WHERE ar.outcome_show = 'show') AS shows,
-                count(*) FILTER (WHERE ar.outcome_show = 'no_show') AS no_shows,
-                count(*) FILTER (WHERE ar.outcome_close = 'closed') AS closed,
-                count(*) FILTER (WHERE ar.outcome_close = 'not_closed') AS not_closed
-            FROM appointment_reminders ar
-            JOIN contacts c ON c.id = ar.contact_id
-            WHERE c.client_id = $1
-            """,
-            client["id"],
-        )
-    appt = dict(appt_row)
+        # No appointment_reminders query here — see portal_appointments()'s
+        # docstring below for why every row in that table is a DigiGrowth-
+        # internal sales/onboarding meeting, not the client's own patient
+        # appointments, and doesn't belong in front of a client at all.
     return {
         "sms": dict(sms_row),
         "email": dict(email_row),
@@ -233,43 +221,30 @@ async def portal_stats(token: str):
         },
         "leads": {"total": leads_total},
         "appointments": {
-            "total": appt["total"],
-            "upcoming": appt["upcoming"],
-            "shows": appt["shows"],
-            "no_shows": appt["no_shows"],
-            "show_rate": _pct(appt["shows"], appt["shows"] + appt["no_shows"]),
-            "closed": appt["closed"],
-            "not_closed": appt["not_closed"],
-            "close_rate": _pct(appt["closed"], appt["closed"] + appt["not_closed"]),
+            "total": 0, "upcoming": 0, "shows": 0, "no_shows": 0,
+            "show_rate": 0.0, "closed": 0, "not_closed": 0, "close_rate": 0.0,
         },
     }
 
 
-# ---------------- Appointments (scoped via contacts.client_id) ----------------
+# ---------------- Appointments ----------------
+#
+# appointment_reminders holds ONLY DigiGrowth's own sales-pipeline meetings
+# with a business (the discovery call before they signed, the Onboarding
+# Call after) — every row in it is a meeting between Dylan and the client,
+# not a new-patient appointment the client's own campaign generated for
+# them. Surfacing that table to the client read as "Dylan's own appointment
+# with himself" on their portal (their own name/business shown as if it
+# were their patient activity) — confirmed live on Brandon Crosdale's
+# portal. There's no separate "appointments this client's campaign booked
+# for their patients" data source anywhere in this codebase yet, so rather
+# than show the wrong thing, this returns empty until that real data source
+# exists. See portal_stats() above for the matching zeroed-out stats.
 
 @router.get("/{token}/appointments")
 async def portal_appointments(token: str, status: str = "scheduled"):
-    """Mirrors GET /api/appointment-reminders' contract (status=scheduled by
-    default; 'all' returns everything) so the portal's Upcoming/Past/Canceled
-    tabs can reuse the same client-side time-split as AppointmentsPanel.jsx."""
-    client = await get_client_from_token(token)
-    conditions = ["c.client_id = $1"]
-    params = [client["id"]]
-    if status != "all":
-        params.append(status)
-        conditions.append(f"ar.status = ${len(params)}")
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            f"""
-            SELECT ar.*, c.business, c.owner FROM appointment_reminders ar
-            JOIN contacts c ON c.id = ar.contact_id
-            WHERE {' AND '.join(conditions)}
-            ORDER BY ar.appointment_at ASC
-            """,
-            *params,
-        )
-    return [dict(r) for r in rows]
+    await get_client_from_token(token)
+    return []
 
 
 @router.patch("/{token}/appointments/{appointment_id}")
@@ -278,7 +253,12 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
     reschedule/cancel from the portal. Mirrors the outcome-only branch of
     routers/appointments.py's PATCH handler, including its side effects
     (No Show sequence touch 1, onboarding kickoff on Closed), scoped to
-    appointments that actually belong to this client."""
+    appointments that actually belong to this client.
+
+    Unreachable from the current UI now that portal_appointments() above
+    returns [] (see its comment) — nothing to click to get here. Left
+    working rather than removed in case a client-actionable appointment
+    type (e.g. their own patient no-shows) gets a real data source later."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
