@@ -173,6 +173,18 @@ async def portal_stats(token: str):
         # linked contact's SMS/email history was invisible in stats/inbox
         # list despite being reachable directly via the thread endpoint,
         # which already scoped correctly through contacts.
+        #
+        # `AND NOT c.is_client_anchor` everywhere below: the anchor contact
+        # is Dylan's own internal sales-pipeline contact for this business
+        # (the prospect who became this client) — its SMS/email history is
+        # DigiGrowth's own cold-outreach conversation with them, not the
+        # client's own patient-facing activity. Without this exclusion a
+        # client's portal showed Dylan's personal outreach thread with them
+        # back as if it were their own channel activity — confirmed live on
+        # Brandon Crosdale's portal (11 sent/19 replies that were entirely
+        # Dylan <-> Brandon's sales conversation, not anything Brandon's own
+        # business had done). See clients.py's _linked_contact_summary for
+        # the same anchor-vs-lead distinction on the admin side.
         sms_row = await conn.fetchrow(
             """
             SELECT
@@ -182,7 +194,7 @@ async def portal_stats(token: str):
             FROM sms_conversations sc
             JOIN contacts c ON c.id = sc.contact_id
             LEFT JOIN sms_messages sm ON sm.contact_id = sc.contact_id
-            WHERE c.client_id = $1
+            WHERE c.client_id = $1 AND NOT c.is_client_anchor
             """,
             client["id"],
         )
@@ -195,7 +207,7 @@ async def portal_stats(token: str):
             FROM email_conversations ec
             JOIN contacts c ON c.id = ec.contact_id
             LEFT JOIN email_messages em ON em.contact_id = ec.contact_id
-            WHERE c.client_id = $1
+            WHERE c.client_id = $1 AND NOT c.is_client_anchor
             """,
             client["id"],
         )
@@ -205,7 +217,7 @@ async def portal_stats(token: str):
             client["id"],
         )
         leads_total = await conn.fetchval(
-            "SELECT count(*) FROM contacts WHERE client_id = $1", client["id"]
+            "SELECT count(*) FROM contacts WHERE client_id = $1 AND NOT is_client_anchor", client["id"]
         )
         # No appointment_reminders query here — see portal_appointments()'s
         # docstring below for why every row in that table is a DigiGrowth-
@@ -335,11 +347,16 @@ _LEAD_FIELDS = ("business", "owner", "phone", "email", "website", "city", "state
 
 @router.get("/{token}/leads")
 async def portal_list_leads(token: str):
+    """Excludes the anchor contact (is_client_anchor) — that's Dylan's own
+    internal sales-pipeline contact for this business (see portal_stats()'s
+    comment), not a lead the client's own business generated. Without this
+    exclusion a client's own business showed up as "1 lead" in their own
+    Leads tab."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM contacts WHERE client_id = $1 ORDER BY created_at DESC",
+            "SELECT * FROM contacts WHERE client_id = $1 AND NOT is_client_anchor ORDER BY created_at DESC",
             client["id"],
         )
     return [dict(r) for r in rows]
@@ -357,9 +374,12 @@ async def portal_create_lead(token: str, body: dict):
         # contacts.phone is globally unique — never silently claim a lead
         # that already belongs to someone else (another client, or an
         # unattributed internal DigiGrowth lead) just because it shares a
-        # phone number. Only update if it's already this client's own row.
-        existing = await conn.fetchrow("SELECT client_id FROM contacts WHERE phone = $1", phone)
-        if existing and existing["client_id"] != client["id"]:
+        # phone number. Only update if it's already this client's own row —
+        # and never the anchor contact even if it is this client's own row
+        # (that's Dylan's internal sales contact for this business, not a
+        # lead the portal should ever create/overwrite).
+        existing = await conn.fetchrow("SELECT client_id, is_client_anchor FROM contacts WHERE phone = $1", phone)
+        if existing and (existing["client_id"] != client["id"] or existing["is_client_anchor"]):
             raise HTTPException(status_code=409, detail="A lead with this phone number already exists")
 
         row = await conn.fetchrow(
@@ -410,8 +430,8 @@ async def portal_import_leads(token: str, body: dict):
             if not phone:
                 skipped += 1
                 continue
-            existing = await conn.fetchrow("SELECT client_id FROM contacts WHERE phone = $1", phone)
-            if existing and existing["client_id"] != client["id"]:
+            existing = await conn.fetchrow("SELECT client_id, is_client_anchor FROM contacts WHERE phone = $1", phone)
+            if existing and (existing["client_id"] != client["id"] or existing["is_client_anchor"]):
                 skipped += 1
                 continue
 
@@ -464,6 +484,10 @@ async def portal_import_leads(token: str, body: dict):
 
 @router.get("/{token}/inbox")
 async def portal_inbox_list(token: str):
+    """Excludes the anchor contact (is_client_anchor) — same reasoning as
+    portal_stats()'s SMS/email totals: that thread is Dylan's own cold-
+    outreach conversation with this business, not something that belongs in
+    their own portal inbox."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -482,7 +506,7 @@ async def portal_inbox_list(token: str):
                    ) AS unread
             FROM sms_conversations sc
             JOIN contacts c ON c.id = sc.contact_id
-            WHERE c.client_id = $1
+            WHERE c.client_id = $1 AND NOT c.is_client_anchor
             """,
             client["id"],
         )
@@ -501,7 +525,7 @@ async def portal_inbox_list(token: str):
                    ) AS unread
             FROM email_conversations ec
             JOIN contacts c ON c.id = ec.contact_id
-            WHERE c.client_id = $1
+            WHERE c.client_id = $1 AND NOT c.is_client_anchor
             """,
             client["id"],
         )
@@ -529,11 +553,14 @@ async def portal_inbox_list(token: str):
 
 @router.get("/{token}/inbox/{contact_id}")
 async def portal_inbox_thread(token: str, contact_id: str):
+    """NOT is_client_anchor here too (not just in the list above) — a
+    client can't reach their own anchor contact's thread by guessing/
+    remembering its contact_id either."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
         contact = await conn.fetchrow(
-            "SELECT id, business, owner, phone, email FROM contacts WHERE id = $1 AND client_id = $2",
+            "SELECT id, business, owner, phone, email FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
             contact_id, client["id"],
         )
         if not contact:
@@ -571,7 +598,8 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
         contact = await conn.fetchrow(
-            "SELECT id FROM contacts WHERE id = $1 AND client_id = $2", contact_id, client["id"]
+            "SELECT id FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
+            contact_id, client["id"],
         )
     if not contact:
         raise HTTPException(status_code=404, detail="Conversation not found")

@@ -438,6 +438,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS onboarding_kickoff_sent_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS onboarding_followup_sent_at TIMESTAMPTZ;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_client_anchor BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
             ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_tab TEXT;

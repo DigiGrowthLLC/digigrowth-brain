@@ -26,14 +26,19 @@ def _portal_url(token: str) -> str:
 
 
 async def _linked_contact_summary(conn, client_id: int) -> dict | None:
-    """One representative linked contact (business/owner) for display in the
-    Clients list — e.g. "Linked to: Erin Morley — More Physical Therapy".
-    contacts.client_id is many-to-one (a client can have more than one
-    contact row pointed at it — e.g. extra leads added later via the portal
-    itself), so this is just the most recently linked one, not a strict
-    "primary contact" concept the schema doesn't otherwise have."""
+    """The anchor contact — the specific prospect this client's deal came
+    from — for display in the Clients list, e.g. "Linked to: Erin Morley —
+    More Physical Therapy". Filtered on is_client_anchor=true specifically
+    (not just any contact with this client_id) because contacts.client_id
+    is also used for a completely different thing: leads the client's own
+    campaign generates, added via their portal (portal_create_lead) or a
+    future real integration. Those are the client's own business activity
+    and must never be confused with the one internal DigiGrowth contact
+    used to resolve the portal link — see client_portal.py's module note on
+    why mixing the two showed a client's own sales-pipeline history back at
+    them as if it were their own patient activity."""
     row = await conn.fetchrow(
-        "SELECT id, business, owner FROM contacts WHERE client_id = $1 ORDER BY updated_at DESC LIMIT 1",
+        "SELECT id, business, owner FROM contacts WHERE client_id = $1 AND is_client_anchor LIMIT 1",
         client_id,
     )
     return dict(row) if row else None
@@ -86,7 +91,7 @@ async def create_client(body: ClientCreate):
         # so the follow-up send has nothing to resolve and skips forever.
         if body.contact_id:
             await conn.execute(
-                "UPDATE contacts SET client_id = $1, updated_at = now() WHERE id = $2",
+                "UPDATE contacts SET client_id = $1, is_client_anchor = true, updated_at = now() WHERE id = $2",
                 row["id"], body.contact_id,
             )
         d = dict(row)
@@ -136,14 +141,25 @@ async def link_contact(client_id: int, body: ClientLinkContact):
             contact = await conn.fetchrow("SELECT id FROM contacts WHERE id = $1", body.contact_id)
             if not contact:
                 raise HTTPException(status_code=404, detail="Contact not found")
+            # Clear anchor status off any previous anchor for this client
+            # first — there should only ever be one, and relinking is how a
+            # mistake gets fixed.
             await conn.execute(
-                "UPDATE contacts SET client_id = $1, updated_at = now() WHERE id = $2",
+                "UPDATE contacts SET is_client_anchor = false, updated_at = now() WHERE client_id = $1 AND is_client_anchor",
+                client_id,
+            )
+            await conn.execute(
+                "UPDATE contacts SET client_id = $1, is_client_anchor = true, updated_at = now() WHERE id = $2",
                 client_id, body.contact_id,
             )
         else:
-            # Unlink every contact currently pointed at this client.
+            # Unlink every contact currently pointed at this client (leads
+            # the client's own portal generated keep their client_id — only
+            # the anchor gets fully cleared here, since "unlink" means "this
+            # client has no anchor contact anymore").
             await conn.execute(
-                "UPDATE contacts SET client_id = NULL, updated_at = now() WHERE client_id = $1",
+                "UPDATE contacts SET client_id = NULL, is_client_anchor = false, updated_at = now() "
+                "WHERE client_id = $1 AND is_client_anchor",
                 client_id,
             )
         linked_contact = await _linked_contact_summary(conn, client_id)
