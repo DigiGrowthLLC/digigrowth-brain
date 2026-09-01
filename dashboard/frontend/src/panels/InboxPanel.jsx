@@ -786,7 +786,15 @@ export default function InboxPanel({ initialTarget }) {
                   LOADING...
                 </div>
               )}
-              {thread?.messages?.map((m, i) => {
+              {/* The SMS/EMAIL buttons below the compose box double as a
+                  filter on this list — previously they only set the reply
+                  channel, so clicking them left the thread unchanged. Only
+                  filters when the contact has both a phone and email;
+                  otherwise there's nothing to filter. */}
+              {(thread?.phone && thread?.email
+                ? thread.messages?.filter(m => m.channel === replyChannel)
+                : thread?.messages
+              )?.map((m, i) => {
                 const isOut = m.direction === "outbound";
                 const chip = CHANNEL_CHIP[m.channel];
                 return (
