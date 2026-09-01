@@ -15,6 +15,7 @@ carefully-commented edge-case handling, and bolting a third scope dimension
 onto them risked breaking that. This is a simpler, self-contained rollup
 purpose-built for the portal's basic infrastructure pass.
 """
+import json
 import uuid
 
 from fastapi import APIRouter, HTTPException
@@ -26,6 +27,15 @@ import no_show_sequence
 import onboarding_sequence
 
 router = APIRouter(prefix="/portal-api")
+
+
+def _decode_response_row(r) -> dict:
+    """asyncpg has no JSONB codec registered on this pool (matches the rest
+    of the codebase, e.g. sms.py/agents.py — see their json.loads(row[...])
+    calls), so a JSONB column comes back as a raw JSON string, not a dict."""
+    d = dict(r)
+    d["answers"] = json.loads(d["answers"]) if isinstance(d["answers"], str) else d["answers"]
+    return d
 
 
 def _pct(num, denom) -> float:
@@ -60,7 +70,7 @@ async def get_onboarding(token: str):
         rows = await conn.fetch(
             "SELECT * FROM client_onboarding_responses WHERE client_id = $1", client["id"]
         )
-    by_section = {r["section"]: dict(r) for r in rows}
+    by_section = {r["section"]: _decode_response_row(r) for r in rows}
     return {
         "sections": ONBOARDING_SECTIONS,
         "responses": by_section,
@@ -85,9 +95,9 @@ async def save_onboarding_section(token: str, section: str, body: OnboardingSect
                 updated_at = now()
             RETURNING *
             """,
-            client["id"], section, body.answers, body.completed,
+            client["id"], section, json.dumps(body.answers), body.completed,
         )
-    return dict(row)
+    return _decode_response_row(row)
 
 
 @router.get("/{token}/videos")

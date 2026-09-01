@@ -4,6 +4,7 @@ practices), their portal access tokens, and the shared onboarding-video
 library. Mounted with require_auth like every other admin router; the
 client-facing counterpart (token-scoped, no auth) lives in client_portal.py.
 """
+import json
 import os
 import secrets
 
@@ -82,7 +83,11 @@ async def get_client(client_id: int):
         )
     d = dict(client)
     d["portal_url"] = _portal_url(d["portal_token"])
-    d["onboarding"] = {r["section"]: dict(r) for r in responses}
+    def _decode(r):
+        row = dict(r)
+        row["answers"] = json.loads(row["answers"]) if isinstance(row["answers"], str) else row["answers"]
+        return row
+    d["onboarding"] = {r["section"]: _decode(r) for r in responses}
     d["contacts_count"] = contacts_count
     return d
 
