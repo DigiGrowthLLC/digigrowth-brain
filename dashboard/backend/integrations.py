@@ -890,6 +890,13 @@ CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min"
 # Same static-URL pattern as CALENDLY_URL above — no Calendly API involved.
 ONBOARDING_CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/onboarding-call"
 
+# Placeholder — Dylan hasn't created the client-intake Google Form yet. This
+# is a static, hand-created form URL (no Google Forms API integration
+# exists or is planned), same pattern as CALENDLY_URL/ONBOARDING_CALENDLY_URL
+# above. Fill in once the form exists. Used by onboarding_sequence.py's
+# next-morning follow-up email/SMS.
+ONBOARDING_FORM_URL = ""
+
 
 def _extract_meeting_link(event: dict) -> str | None:
     """Pull whatever video/join link a Calendar event actually carries, in

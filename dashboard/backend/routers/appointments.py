@@ -327,7 +327,11 @@ async def update_appointment(appointment_id: int, payload: dict):
     # 'closed' clears outcome_close_at. Same shape as the outcome_show block
     # above — see onboarding_sequence.py.
     if updates.get("outcome_close") == "closed":
-        set_clauses += ["outcome_close_at = now()", "onboarding_kickoff_sent_at = NULL"]
+        set_clauses += [
+            "outcome_close_at = now()",
+            "onboarding_kickoff_sent_at = NULL",
+            "onboarding_followup_sent_at = NULL",
+        ]
     elif "outcome_close" in updates:
         set_clauses += ["outcome_close_at = NULL"]
     params.append(appointment_id)

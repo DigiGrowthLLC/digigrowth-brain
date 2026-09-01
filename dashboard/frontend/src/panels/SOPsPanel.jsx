@@ -352,7 +352,7 @@ const DM_FOLLOWUP_ITEM = { id: DM_FOLLOWUP_PSEUDO_ID, title: "DM Follow-Up (SMS)
 // marks an appointment's outcome "Closed" (won) in the Appointments tab —
 // onboarding_sequence.py.
 const ONBOARDING_PSEUDO_ID = "__onboarding__";
-const ONBOARDING_ITEM = { id: ONBOARDING_PSEUDO_ID, title: "Onboarding Kickoff (Email)", onboardingTemplate: true };
+const ONBOARDING_ITEM = { id: ONBOARDING_PSEUDO_ID, title: "Onboarding Sequence (Email + SMS)", onboardingTemplate: true };
 
 // Unlike SEND_INFO_ITEM/REMINDER_TEMPLATE_ITEM above, SMS Sequences are no
 // longer a single pinned pseudo-doc — there can be many, named and switchable
@@ -574,17 +574,25 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
   );
 }
 
-// ── Onboarding Kickoff editor ───────────────────────────────────────────────
-// Email-only welcome message sent the moment a rep marks an appointment's
-// outcome "Closed" (won) — dashboard/backend/onboarding_sequence.py reads
-// this from the dialer_settings table at send time via GET
+// ── Onboarding Sequence editor ──────────────────────────────────────────────
+// Two touches, both backed by dashboard/backend/onboarding_sequence.py
+// reading the dialer_settings table at send time via GET
 // /api/dialer/onboarding-template; this is the editor for that same store.
+// 1. Welcome email — fires immediately when a rep marks an appointment
+//    "Closed". No form/booking link (those come tomorrow).
+// 2. Onboarding email + SMS — the form link + booking link, sent the next
+//    calendar morning after the close (8am ET daily poll).
+const ONBOARDING_FIELD_KEYS = [
+  "onboarding_welcome_email_subject", "onboarding_welcome_email_body",
+  "onboarding_followup_email_subject", "onboarding_followup_email_body",
+  "onboarding_followup_sms",
+];
+
 function OnboardingKickoffEditor({ categories, onCategoryChange }) {
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailBody, setEmailBody] = useState("");
+  const [values, setValues] = useState({});
   const [category, setCategory] = useState("General");
   const [customCatMode, setCustomCatMode] = useState(false);
-  const [saved, setSaved] = useState({ emailSubject: "", emailBody: "", category: "General" });
+  const [saved, setSaved] = useState({ category: "General" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -594,21 +602,16 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
       const r = await fetch("/api/dialer/onboarding-template");
       if (r.ok) {
         const data = await r.json();
-        setEmailSubject(data.onboarding_welcome_email_subject || "");
-        setEmailBody(data.onboarding_welcome_email_body || "");
+        setValues(data);
         setCategory(data.category || "General");
-        setSaved({
-          emailSubject: data.onboarding_welcome_email_subject || "",
-          emailBody: data.onboarding_welcome_email_body || "",
-          category: data.category || "General",
-        });
+        setSaved({ ...data, category: data.category || "General" });
         onCategoryChange?.(data.category || "General");
       }
       setLoading(false);
     })();
   }, []);
 
-  const dirty = emailSubject !== saved.emailSubject || emailBody !== saved.emailBody || category !== saved.category;
+  const dirty = ONBOARDING_FIELD_KEYS.some(k => (values[k] || "") !== (saved[k] || "")) || category !== saved.category;
 
   const save = async () => {
     setSaving(true);
@@ -616,14 +619,10 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
       const r = await fetch("/api/dialer/onboarding-template", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          onboarding_welcome_email_subject: emailSubject,
-          onboarding_welcome_email_body: emailBody,
-          category,
-        }),
+        body: JSON.stringify({ ...values, category }),
       });
       if (r.ok) {
-        setSaved({ emailSubject, emailBody, category });
+        setSaved({ ...values, category });
         onCategoryChange?.(category);
         setSavedFlash(true);
         setTimeout(() => setSavedFlash(false), 2500);
@@ -645,6 +644,11 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
     fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
     color: "#3a5a80", letterSpacing: "0.12em",
   };
+  const headingStyle = {
+    display: "block", marginBottom: 8,
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
+    color: "#e8f0ff", letterSpacing: "0.01em",
+  };
   const hintStyle = {
     marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
     fontSize: 11, color: "#4a6a8a",
@@ -665,7 +669,7 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
         <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Sent automatically the moment a rep marks an appointment's outcome <strong style={{ color: "#a080f0" }}>Closed</strong> (won) in the Appointments tab. Edits apply to the very next send.
+          Welcome email fires immediately when a rep marks an appointment's outcome <strong style={{ color: "#a080f0" }}>Closed</strong> (won). The onboarding email + SMS fire the next morning (8am ET). Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -694,27 +698,59 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         <div>
-          <label style={labelStyle}>EMAIL SUBJECT</label>
+          <label style={headingStyle}>1. Welcome Email (sent immediately)</label>
+          <label style={{ ...labelStyle, marginTop: 4 }}>EMAIL SUBJECT</label>
           <input
-            value={emailSubject}
-            onChange={e => setEmailSubject(e.target.value)}
+            value={values.onboarding_welcome_email_subject || ""}
+            onChange={e => setValues(v => ({ ...v, onboarding_welcome_email_subject: e.target.value }))}
             placeholder="Welcome to DigiGrowth, {first_name}!"
             style={fieldStyle}
           />
-          <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the client's first name.</div>
-        </div>
+          <div style={{ ...hintStyle, marginBottom: 14 }}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the client's first name.</div>
 
-        <div>
           <label style={labelStyle}>EMAIL BODY</label>
           <textarea
-            value={emailBody}
-            onChange={e => setEmailBody(e.target.value)}
-            rows={12}
-            placeholder={"Hey {first_name},\n\nWelcome aboard...\n\nGrab a time for your Onboarding Call: {link}"}
+            value={values.onboarding_welcome_email_body || ""}
+            onChange={e => setValues(v => ({ ...v, onboarding_welcome_email_body: e.target.value }))}
+            rows={10}
+            placeholder={"Hey {first_name},\n\nWelcome aboard...\n\nKeep an eye out tomorrow morning for your form + booking link."}
             style={fieldStyle}
           />
           <div style={hintStyle}>
-            Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the client's first name and{" "}
+            Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the client's first name. No form/booking link here on purpose — those go out in the follow-up below.
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
+          <label style={headingStyle}>2. Onboarding Email + SMS (sent next morning)</label>
+          <label style={{ ...labelStyle, marginTop: 4 }}>EMAIL SUBJECT</label>
+          <input
+            value={values.onboarding_followup_email_subject || ""}
+            onChange={e => setValues(v => ({ ...v, onboarding_followup_email_subject: e.target.value }))}
+            placeholder="Your onboarding form + call link, {first_name}"
+            style={fieldStyle}
+          />
+          <div style={{ ...hintStyle, marginBottom: 14 }}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the client's first name.</div>
+
+          <label style={labelStyle}>EMAIL BODY</label>
+          <textarea
+            value={values.onboarding_followup_email_body || ""}
+            onChange={e => setValues(v => ({ ...v, onboarding_followup_email_body: e.target.value }))}
+            rows={10}
+            placeholder={"Hey {first_name},\n\nFill out this form: {form_link}\n\nGrab a time for your Onboarding Call: {link}"}
+            style={{ ...fieldStyle, marginBottom: 14 }}
+          />
+
+          <label style={labelStyle}>SMS MESSAGE</label>
+          <textarea
+            value={values.onboarding_followup_sms || ""}
+            onChange={e => setValues(v => ({ ...v, onboarding_followup_sms: e.target.value }))}
+            rows={4}
+            placeholder="Hey {first_name}, fill out this form {form_link} and grab your call time {link}"
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>
+            Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the client's first name, <code style={{ color: "#6ab0ff" }}>{"{form_link}"}</code> for the intake form, and{" "}
             <code style={{ color: "#6ab0ff" }}>{"{link}"}</code> for the Onboarding Call booking link.
           </div>
         </div>

@@ -368,6 +368,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sms_sequences ADD COLUMN IF NOT EXISTS gatekeeper TEXT;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS outcome_close_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS onboarding_kickoff_sent_at TIMESTAMPTZ;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS onboarding_followup_sent_at TIMESTAMPTZ;
         """)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;

@@ -22,6 +22,7 @@ import call_reminders
 import cancel_sequence
 import dm_followup_sequence
 import no_show_sequence
+import onboarding_sequence
 import reminder_engine
 
 security = HTTPBasic()
@@ -380,6 +381,12 @@ async def lifespan(app: FastAPI):
         dm_followup_sequence.send_due_touches,
         IntervalTrigger(minutes=5),
         id="dm-followup-sequence",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        onboarding_sequence.send_followup_touches,
+        CronTrigger(hour=8, minute=0, timezone=eastern),
+        id="onboarding-followup",
         replace_existing=True,
     )
     scheduler.start()
