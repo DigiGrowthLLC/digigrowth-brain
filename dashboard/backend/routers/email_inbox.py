@@ -230,6 +230,7 @@ async def list_email_conversations():
                     ORDER BY sent_at DESC LIMIT 1) AS last_direction
             FROM email_conversations ec
             LEFT JOIN contacts c ON c.id = ec.contact_id
+            WHERE c.client_id IS NULL OR c.is_client_anchor
             ORDER BY ec.updated_at DESC NULLS LAST
             """
         )
@@ -460,7 +461,10 @@ async def list_inbox_conversations(
     grouped: dict = {}
     async with pool.acquire() as conn:
         if channel in ("all", "sms"):
-            clauses = ["sc.contact_id IS NOT NULL"]
+            # A client's own portal-managed lead (client_id set, not the
+            # anchor) shouldn't show up mixed into Dylan's internal Inbox —
+            # same exclusion as crm.py/dialer.py/analytics.py.
+            clauses = ["sc.contact_id IS NOT NULL", "(c.client_id IS NULL OR c.is_client_anchor)"]
             args: list = []
             if since in _SINCE_INTERVAL:
                 clauses.append(
@@ -503,7 +507,7 @@ async def list_inbox_conversations(
         # exist on sms_conversations, so an active stage filter (other than not_interested,
         # which is disposition-based on both channels) excludes email entirely.
         if channel in ("all", "email") and not (stage and stage != "not_interested"):
-            clauses = ["ec.contact_id IS NOT NULL"]
+            clauses = ["ec.contact_id IS NOT NULL", "(c.client_id IS NULL OR c.is_client_anchor)"]
             args = []
             if since in _SINCE_INTERVAL:
                 clauses.append(

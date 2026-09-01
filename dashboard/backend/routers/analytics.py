@@ -762,13 +762,19 @@ async def pipeline(days: int = 0):
         # ignored the period toggle entirely, so "Today" showed the same
         # lifetime total as "All Time". Scope it to leads created within the
         # selected window, same pattern as new_week/new_month below.
+        # (client_id IS NULL OR is_client_anchor) everywhere below: a
+        # client's own portal-managed leads (client_id set, not the anchor)
+        # belong to that client's own Leads tab, not DigiGrowth's internal
+        # analytics — excluding them keeps this funnel scoped to Dylan's
+        # own lead-gen, same exclusion as crm.py's contact list and
+        # dialer.py's queue.
         total_leads = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts" if all_time
-            else "SELECT COUNT(*) FROM contacts WHERE created_at >= $1",
+            "SELECT COUNT(*) FROM contacts WHERE (client_id IS NULL OR is_client_anchor)" if all_time
+            else "SELECT COUNT(*) FROM contacts WHERE created_at >= $1 AND (client_id IS NULL OR is_client_anchor)",
             *([] if all_time else [_since(days)]),
         )
-        new_week    = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", week_ago)
-        new_month   = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1", month_ago)
+        new_week    = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1 AND (client_id IS NULL OR is_client_anchor)", week_ago)
+        new_month   = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1 AND (client_id IS NULL OR is_client_anchor)", month_ago)
         sms         = await _sms_metrics(conn, None if all_time else _since(days))
         email       = await _email_metrics(conn, None if all_time else _since(days))
         grade_rows  = await conn.fetch(
@@ -777,7 +783,7 @@ async def pipeline(days: int = 0):
                    COUNT(*) AS cnt,
                    COUNT(*) FILTER (WHERE status = 'appointment-booked') AS booked
             FROM contacts
-            WHERE grade IS NOT NULL
+            WHERE grade IS NOT NULL AND (client_id IS NULL OR is_client_anchor)
             GROUP BY grade ORDER BY grade
             """
         )
@@ -790,7 +796,7 @@ async def pipeline(days: int = 0):
             """
             SELECT state, COUNT(*) AS cnt
             FROM contacts
-            WHERE state IS NOT NULL AND state != ''
+            WHERE state IS NOT NULL AND state != '' AND (client_id IS NULL OR is_client_anchor)
             GROUP BY state
             """
         )
@@ -863,7 +869,9 @@ async def sales_stats(days: int = 0):
     stats = _load_sales_stats()
 
     async with pool.acquire() as conn:
-        total_leads = await conn.fetchval("SELECT COUNT(*) FROM contacts")
+        total_leads = await conn.fetchval(
+            "SELECT COUNT(*) FROM contacts WHERE (client_id IS NULL OR is_client_anchor)"
+        )
 
     discovery = _sheet_stat(stats, "discovery_calls", days)
     closes    = _sheet_stat(stats, "closes",           days)

@@ -52,7 +52,13 @@ async def list_contacts(
     offset: int = Query(0),
 ):
     pool = await get_pool()
-    conditions = []
+    # Contacts owned by a client's own portal (client_id set, not the
+    # anchor) belong to that client's own Leads tab, not DigiGrowth's
+    # internal CRM — exclude them here so a client's lead-gen doesn't show
+    # up mixed into Dylan's own list with no distinction. The anchor
+    # contact (client_id set but is_client_anchor=true) is exempt: that's
+    # Dylan's own sales-pipeline contact for that business.
+    conditions = ["(client_id IS NULL OR is_client_anchor)"]
     params = []
 
     if status and status != "all":

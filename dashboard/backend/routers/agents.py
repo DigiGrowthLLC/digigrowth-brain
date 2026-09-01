@@ -108,7 +108,7 @@ async def crm_list_followups(limit: int = 20) -> str:
             """
             SELECT business, owner, phone, last_disposition, last_called_at
             FROM contacts
-            WHERE last_disposition = 'Follow Up (Manual)'
+            WHERE last_disposition = 'Follow Up (Manual)' AND (client_id IS NULL OR is_client_anchor)
             ORDER BY last_called_at ASC NULLS LAST
             LIMIT $1
             """,

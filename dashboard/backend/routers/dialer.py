@@ -59,13 +59,19 @@ _CONFIG_FILE = pathlib.Path(__file__).parent.parent / "dialer_config.json"
 # Shared eligibility filter for the dialer queue: has a phone number, is
 # actively a dialer lead (or a logged voicemail — still eligible, just gated
 # by cooldown), isn't tagged not-qualified or not-interested (permanent
-# exclusions regardless of status), and either past its 6h cooldown or its
-# follow-up date has arrived.
+# exclusions regardless of status), either past its 6h cooldown or its
+# follow-up date has arrived, and isn't a client's own portal-managed lead
+# (client_id set and not the anchor contact) — those belong to that
+# client's own CRM/leads, not DigiGrowth's internal dialer queue. The
+# anchor contact (client_id set but is_client_anchor=true) is exempt since
+# that's Dylan's own sales-pipeline contact for that business, not a lead
+# generated for the client's own campaign.
 _ELIGIBLE_WHERE = """
     phone IS NOT NULL
     AND phone <> ''
     AND status IN ('dialer-lead', 'voicemail')
     AND NOT (tags && ARRAY['not-qualified', 'not-interested'])
+    AND (client_id IS NULL OR is_client_anchor)
     AND (
       (follow_up_at IS NULL     AND (last_called_at IS NULL OR last_called_at < now() - interval '6 hours'))
       OR
@@ -1040,7 +1046,7 @@ async def get_history_booked():
             SELECT id, phone, business, owner, grade, opener, email,
                    website, city, state, call_attempts, notes
             FROM contacts
-            WHERE status = 'appointment-booked'
+            WHERE status = 'appointment-booked' AND (client_id IS NULL OR is_client_anchor)
             ORDER BY updated_at DESC
             LIMIT 200
             """,
@@ -1058,7 +1064,7 @@ async def get_history_reached():
             SELECT id, phone, business, owner, grade, opener, email,
                    website, city, state, call_attempts, notes
             FROM contacts
-            WHERE last_disposition = ANY($1::text[])
+            WHERE last_disposition = ANY($1::text[]) AND (client_id IS NULL OR is_client_anchor)
             ORDER BY updated_at DESC
             LIMIT 200
             """,
@@ -1138,10 +1144,10 @@ async def get_stats():
         )
 
         booked = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts WHERE status = 'appointment-booked'"
+            "SELECT COUNT(*) FROM contacts WHERE status = 'appointment-booked' AND (client_id IS NULL OR is_client_anchor)"
         )
         reached = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts WHERE last_disposition = ANY($1::text[])",
+            "SELECT COUNT(*) FROM contacts WHERE last_disposition = ANY($1::text[]) AND (client_id IS NULL OR is_client_anchor)",
             list(_REACHED_DISPOSITIONS),
         )
         leads_ready = await conn.fetchval(
