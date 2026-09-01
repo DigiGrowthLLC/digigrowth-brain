@@ -1275,9 +1275,15 @@ function InboxThread({ token, contactId, onSent }) {
       body: JSON.stringify({ channel, body: draft.trim() }),
     });
     const data = await r.json().catch(() => ({}));
-    setNotice(data.detail || "Couldn't send — try again.");
+    if (r.ok && data.ok) {
+      setNotice(null);
+      setDraft("");
+      await load();
+      onSent?.();
+    } else {
+      setNotice(data.detail || "Couldn't send — try again.");
+    }
     setSending(false);
-    onSent?.();
   };
 
   if (loading) return <div style={{ padding: 40, color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>LOADING...</div>;
@@ -1368,6 +1374,9 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
   // search uses (GET /contacts?search=), applied client-side here since
   // the inbox list is small per client and already fully loaded.
   const [searchQuery, setSearchQuery] = useState("");
+  // Read/Unread/All — same client-side filter as the internal InboxPanel's
+  // readFilter (that one's client-side there too, not a backend param).
+  const [readFilter, setReadFilter] = useState("all");
 
   const load = async () => {
     setLoading(true);
@@ -1403,9 +1412,9 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
   };
 
   const q = searchQuery.trim().toLowerCase();
-  const visibleConvos = q
-    ? convos.filter((c) => [c.business, c.owner, c.phone, c.email, c.last_message].some((v) => (v || "").toLowerCase().includes(q)))
-    : convos;
+  const visibleConvos = convos
+    .filter((c) => !q || [c.business, c.owner, c.phone, c.email, c.last_message].some((v) => (v || "").toLowerCase().includes(q)))
+    .filter((c) => readFilter === "all" || (readFilter === "unread" ? c.unread : !c.unread));
 
   return (
     <div>
@@ -1422,6 +1431,11 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
           <select className="dg-input" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 130 }}>
             {INBOX_CHANNEL_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
           </select>
+          <select className="dg-input" value={readFilter} onChange={(e) => setReadFilter(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 110 }}>
+            <option value="all">All</option>
+            <option value="unread">Unread</option>
+            <option value="read">Read</option>
+          </select>
           <select className="dg-input" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 130 }}>
             <option value="">All tags</option>
             {allTags.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
@@ -1434,7 +1448,7 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
           {loading && <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
           {!loading && visibleConvos.length === 0 && (
             <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", lineHeight: 1.6 }}>
-              {q ? "NO MATCHES" : "NO CONVERSATIONS YET — this fills in once your SMS/email account is connected."}
+              {q || readFilter !== "all" ? "NO MATCHES" : "NO CONVERSATIONS YET — this fills in once your SMS/email account is connected."}
             </div>
           )}
           {visibleConvos.map((c) => (

@@ -15,6 +15,7 @@ carefully-commented edge-case handling, and bolting a third scope dimension
 onto them risked breaking that. This is a simpler, self-contained rollup
 purpose-built for the portal's basic infrastructure pass.
 """
+import asyncio
 import json
 import uuid
 from typing import Optional
@@ -25,6 +26,7 @@ from fastapi import APIRouter, HTTPException
 from db import get_pool
 from models import OnboardingSectionSave, ONBOARDING_SECTIONS, ActionItemComplete, TagAssign
 import cancel_sequence
+import integrations
 import no_show_sequence
 import onboarding_sequence
 
@@ -749,11 +751,20 @@ async def portal_inbox_thread(token: str, contact_id: str):
 
 @router.post("/{token}/inbox/{contact_id}/send")
 async def portal_send_message(token: str, contact_id: str, body: dict):
+    """Sends for real now, through the same shared Twilio/Gmail credentials
+    every other send in this codebase already uses (onboarding_sequence.py,
+    no_show_sequence.py, etc.) — not a per-client Twilio number or Gmail
+    inbox, since none exist yet. That's a real, known limitation worth
+    keeping in mind once there's more than one active client (a reply here
+    goes out looking like it's from DigiGrowth generally, not from a
+    client-specific identity), but "doesn't send at all" was the actual
+    reported bug, so this closes that gap with what already exists rather
+    than waiting on per-client credentials that aren't built."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
         contact = await conn.fetchrow(
-            "SELECT id FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
+            "SELECT id, phone, email FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
             contact_id, client["id"],
         )
     if not contact:
@@ -762,14 +773,43 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
     channel = body.get("channel")
     if channel not in ("sms", "email"):
         raise HTTPException(status_code=400, detail="channel must be 'sms' or 'email'")
+    text = (body.get("body") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="body required")
 
-    # Deliberately does not send — see module note above. Returns 200 with
-    # ok:false so the frontend shows this as an expected state, not an error.
-    return {
-        "ok": False,
-        "status": "not_connected",
-        "detail": "Your SMS/email account isn't connected yet — DigiGrowth is setting this up and will notify you once replies can be sent from here.",
-    }
+    if channel == "sms":
+        phone = (contact["phone"] or "").strip()
+        if not phone:
+            raise HTTPException(status_code=400, detail="This contact has no phone number on file")
+        from routers import sms as sms_router
+        try:
+            sms_router._send_twilio(phone, text)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"SMS send failed: {e}")
+        async with pool.acquire() as conn:
+            await sms_router._get_or_create_conversation(conn, phone)
+            await sms_router._store_message(conn, phone, "assistant", text, is_automated=False)
+        return {"ok": True}
+
+    # email — reuses the same subject as this contact's most recent email
+    # (if any) so it reads as a continuation, not a random new thread;
+    # gmail_send() below handles all the email_conversations/email_messages
+    # bookkeeping itself (matched by contact.email), same as every other
+    # direct gmail_send call in this codebase (see integrations.py's
+    # _record_outbound_email) — no manual DB write needed here.
+    email = (contact["email"] or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="This contact has no email on file")
+    async with pool.acquire() as conn:
+        last_subject = await conn.fetchval(
+            "SELECT subject FROM email_messages WHERE contact_id = $1 ORDER BY sent_at DESC LIMIT 1",
+            contact_id,
+        )
+    subject = last_subject or f"Message from {client['name']}"
+    result = await asyncio.to_thread(integrations.gmail_send, email, subject, text, False, False)
+    if not result.startswith("Sent email"):
+        raise HTTPException(status_code=502, detail=result)
+    return {"ok": True}
 
 
 @router.post("/{token}/leads/{contact_id}/call")
