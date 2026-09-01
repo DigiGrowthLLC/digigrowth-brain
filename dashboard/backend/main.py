@@ -13,6 +13,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 import integrations
 from db import get_pool
@@ -432,7 +433,16 @@ app.include_router(newsletter.router, prefix="/api")  # no auth — clicked from
 app.include_router(email_tracking.router, prefix="/api")  # no auth — pixel + unsubscribe links, clicked from outreach emails
 app.include_router(client_portal.router)  # no auth — client-facing, scoped by unguessable token
 
-# Serve built frontend (populated by Railway build step)
+# Serve built frontend (populated by Railway build step). Hashed JS/CSS/image
+# assets are served directly from /assets; everything else falls back to
+# index.html so react-router can handle deep-links client-side (/team,
+# /portal/:token, etc.) — StaticFiles(html=True) alone only serves index.html
+# for the bare "/", not for arbitrary sub-paths, so a direct hit or refresh
+# on any client-side route 404'd before this fallback existed.
 frontend_dist = os.path.join(os.path.dirname(__file__), "frontend/dist")
 if os.path.isdir(frontend_dist):
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def spa_fallback(full_path: str):
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
