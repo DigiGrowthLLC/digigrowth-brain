@@ -122,6 +122,113 @@ function ClientForm({ initial, onSave, onCancel, saving }) {
   );
 }
 
+// Accepts a plain YouTube watch/share URL (or an already-embeddable URL) and
+// normalizes it to an /embed/ URL — the only form that works inside an
+// <iframe> — so the person adding a video can just paste what's in their
+// browser bar instead of hand-building an embed link.
+function toEmbedUrl(url) {
+  const trimmed = (url || "").trim();
+  const watch = trimmed.match(/youtube\.com\/watch\?v=([\w-]+)/);
+  if (watch) return `https://www.youtube.com/embed/${watch[1]}`;
+  const short = trimmed.match(/youtu\.be\/([\w-]+)/);
+  if (short) return `https://www.youtube.com/embed/${short[1]}`;
+  return trimmed;
+}
+
+function VideoRow({ video, onDelete }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff" }}>{video.title}</div>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", marginTop: 2, wordBreak: "break-all" }}>{video.embed_url}</div>
+      </div>
+      <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(video.id)}>DELETE</button>
+    </div>
+  );
+}
+
+function VideosSection() {
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", url: "" });
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    const r = await fetch(API("/onboarding-videos"));
+    if (r.ok) setVideos(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if (!form.title.trim() || !form.url.trim()) return;
+    setSaving(true);
+    await fetch(API("/onboarding-videos"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        embed_url: toEmbedUrl(form.url),
+        sort_order: videos.length,
+      }),
+    });
+    setForm({ title: "", description: "", url: "" });
+    setShowForm(false);
+    setSaving(false);
+    load();
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this video from every client's Get Started Videos?")) return;
+    await fetch(API(`/onboarding-videos/${id}`), { method: "DELETE" });
+    load();
+  };
+
+  return (
+    <div style={{ marginTop: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
+            Get Started Videos
+          </div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.14em", marginTop: 3 }}>
+            SHARED ACROSS EVERY CLIENT PORTAL
+          </div>
+        </div>
+        <button className="btn btn-primary" style={{ fontSize: 11, padding: "8px 18px" }} onClick={() => setShowForm((s) => !s)}>
+          {showForm ? "CANCEL" : "+ ADD VIDEO"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <input className="dg-input" placeholder="Title, e.g. Give Meta Ads Manager Access" value={form.title}
+            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
+          <input className="dg-input" placeholder="YouTube link (paste from your browser bar)" value={form.url}
+            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} />
+          <textarea className="dg-input" rows={2} placeholder="Description (optional)" value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} style={{ resize: "vertical" }} />
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn btn-primary" onClick={save} disabled={saving || !form.title.trim() || !form.url.trim()} style={{ fontSize: 11 }}>
+              {saving ? "SAVING…" : "SAVE VIDEO"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="glass-card" style={{ padding: "10px 8px" }}>
+        {loading && <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
+        {!loading && videos.length === 0 && (
+          <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO VIDEOS YET</div>
+        )}
+        {videos.map((v) => <VideoRow key={v.id} video={v} onDelete={remove} />)}
+      </div>
+    </div>
+  );
+}
+
 export default function ClientsPanel() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -238,6 +345,8 @@ export default function ClientsPanel() {
           />
         ))}
       </div>
+
+      <VideosSection />
     </div>
   );
 }
