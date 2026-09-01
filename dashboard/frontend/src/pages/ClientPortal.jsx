@@ -801,6 +801,152 @@ function TagChip({ tag, onRemove }) {
   );
 }
 
+// Contact card / drawer — mirrors the internal CRM's ContactDrawer
+// (CRMPanel.jsx), scaled down to what's meaningful for a client editing
+// their own lead: contact fields + notes + tags. Deliberately leaves out
+// the internal-only sections (status/grade, SMS+email campaign assignment,
+// cold-call opener, Call Now/dialer-queue actions) — those are
+// DigiGrowth's own sales-pipeline machinery, not something a client's own
+// lead-editing view should expose, same reasoning as leaving contact
+// status out of the Inbox filter bar.
+const LEAD_DRAWER_FIELDS = [
+  { label: "Business", k: "business" },
+  { label: "Owner", k: "owner" },
+  { label: "Phone", k: "phone" },
+  { label: "Email", k: "email" },
+  { label: "Website", k: "website" },
+  { label: "City", k: "city" },
+  { label: "State", k: "state" },
+];
+
+function LeadDrawer({ token, lead, allTags, onClose, onUpdated }) {
+  const [display, setDisplay] = useState(lead);
+  const [form, setForm] = useState(() => {
+    const initial = {};
+    for (const f of LEAD_DRAWER_FIELDS) initial[f.k] = lead[f.k] || "";
+    initial.notes = lead.notes || "";
+    return initial;
+  });
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+  const [tagPick, setTagPick] = useState("");
+
+  const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveErr("");
+    const patch = {};
+    for (const f of LEAD_DRAWER_FIELDS) {
+      if (form[f.k] !== (display[f.k] || "")) patch[f.k] = form[f.k] || null;
+    }
+    if (form.notes !== (display.notes || "")) patch.notes = form.notes || null;
+
+    if (Object.keys(patch).length > 0) {
+      const r = await fetch(`/portal-api/${token}/leads/${lead.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (r.ok) {
+        const updated = await r.json();
+        setDisplay(updated);
+        onUpdated(updated);
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setSaveErr(d.detail || "Save failed.");
+      }
+    }
+    setSaving(false);
+  };
+
+  const addTag = async (tagName) => {
+    const name = tagName.trim();
+    if (!name) return;
+    const r = await fetch(`/portal-api/${token}/leads/${lead.id}/tags`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tag: name }),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      setDisplay(updated);
+      onUpdated(updated);
+    }
+    setTagPick("");
+  };
+
+  const removeTag = async (tagName) => {
+    const r = await fetch(`/portal-api/${token}/leads/${lead.id}/tags/${encodeURIComponent(tagName)}`, { method: "DELETE" });
+    if (r.ok) {
+      const updated = await r.json();
+      setDisplay(updated);
+      onUpdated(updated);
+    }
+  };
+
+  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#3a7bd5" };
+  const labelStyle = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.15em", marginBottom: 4 };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(8,12,20,0.7)" }} onClick={onClose} />
+      <aside style={{
+        position: "relative", width: 440, background: "#0d1626", borderLeft: "0.5px solid #1a2540",
+        height: "100%", overflowY: "auto", display: "flex", flexDirection: "column",
+      }}>
+        <div style={{ padding: "18px 20px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+          <div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
+              {display.business || "Unknown"}
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginTop: 3 }}>
+              {display.owner || "—"} · {display.phone || "—"}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#3a5a80", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>✕</button>
+        </div>
+
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+            {LEAD_DRAWER_FIELDS.map((f) => (
+              <div key={f.k} style={{ marginBottom: 12 }}>
+                <div style={labelStyle}>{f.label.toUpperCase()}</div>
+                <input value={form[f.k]} onChange={(e) => setField(f.k, e.target.value)} className="dg-input" style={{ width: "100%", fontSize: 12, boxSizing: "border-box" }} />
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <div style={labelStyle}>NOTES</div>
+            <textarea value={form.notes} onChange={(e) => setField("notes", e.target.value)} className="dg-input" rows={3}
+              style={{ width: "100%", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }} placeholder="Notes about this lead…" />
+          </div>
+
+          {saveErr && <div style={{ fontSize: 11, color: "#f06060", fontFamily: "'Share Tech Mono', monospace" }}>{saveErr}</div>}
+          <button onClick={handleSave} disabled={saving} className="btn btn-primary">{saving ? "Saving…" : "Save Changes"}</button>
+
+          <div>
+            <div style={{ ...labelStyle, marginBottom: 10 }}>TAGS</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {(display.tags || []).length > 0
+                ? display.tags.map((t) => <TagChip key={t} tag={tagByName(t)} onRemove={() => removeTag(t)} />)
+                : <span style={{ fontSize: 11, color: "#3a5a80" }}>No tags yet.</span>}
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <select value={tagPick} onChange={(e) => setTagPick(e.target.value)} className="dg-input" style={{ flex: 1, background: "#080c14" }}>
+                <option value="">— add existing tag —</option>
+                {allTags.filter((t) => !(display.tags || []).includes(t.name)).map((t) => (
+                  <option key={t.id} value={t.name}>{t.name}</option>
+                ))}
+              </select>
+              <button type="button" onClick={() => addTag(tagPick)} disabled={!tagPick} className="btn btn-secondary" style={{ fontSize: 11 }}>Add</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 function LeadsTab({ token }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -819,6 +965,7 @@ function LeadsTab({ token }) {
   const [allTags, setAllTags] = useState([]);
   const [activeTag, setActiveTag] = useState("");
   const [tagPickFor, setTagPickFor] = useState(null); // lead id currently showing the "add tag" picker
+  const [selectedLead, setSelectedLead] = useState(null); // lead currently open in the contact card drawer
 
   const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#3a7bd5" };
 
@@ -982,14 +1129,20 @@ function LeadsTab({ token }) {
               <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No leads yet.</td></tr>
             )}
             {leads.map((l) => (
-              <tr key={l.id} style={{ borderBottom: "1px solid rgba(58,123,213,0.08)" }}>
+              <tr
+                key={l.id}
+                onClick={() => setSelectedLead(l)}
+                style={{ borderBottom: "1px solid rgba(58,123,213,0.08)", cursor: "pointer" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(58,123,213,0.04)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{l.business || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.owner || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.phone || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.email || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.city || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.state || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12 }}>
+                <td style={{ padding: "10px 14px", fontSize: 12 }} onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
                     {(l.tags || []).map((tagName) => (
                       <TagChip key={tagName} tag={tagByName(tagName)} onRemove={() => removeTagFromLead(l.id, tagName)} />
@@ -1021,6 +1174,19 @@ function LeadsTab({ token }) {
           </tbody>
         </table>
       </div>
+
+      {selectedLead && (
+        <LeadDrawer
+          token={token}
+          lead={selectedLead}
+          allTags={allTags}
+          onClose={() => setSelectedLead(null)}
+          onUpdated={(updated) => {
+            setSelectedLead(updated);
+            setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+          }}
+        />
+      )}
     </div>
   );
 }

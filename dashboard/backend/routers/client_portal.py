@@ -19,6 +19,7 @@ import json
 import uuid
 from typing import Optional
 
+import asyncpg
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
@@ -440,6 +441,35 @@ async def portal_remove_lead_tag(token: str, contact_id: str, tag: str):
             "WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor RETURNING *",
             contact_id, client["id"], tag,
         )
+    if not row:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return dict(row)
+
+
+@router.patch("/{token}/leads/{contact_id}")
+async def portal_update_lead(token: str, contact_id: str, body: dict):
+    """Edit a lead's own fields — mirrors PATCH /contacts/{id} (routers/crm.py)
+    but restricted to _LEAD_FIELDS (no status/grade/campaign-assignment/etc.,
+    which are DigiGrowth-internal sales-pipeline concepts, not something a
+    client editing their own lead's contact info should touch) and scoped to
+    this client's own leads only — never the anchor contact, never another
+    client's, same guard as the tag endpoints above."""
+    client = await get_client_from_token(token)
+    updates = {k: (body[k] or None) for k in _LEAD_FIELDS if k in body}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    set_clauses = [f"{k} = ${i + 3}" for i, k in enumerate(updates)]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            row = await conn.fetchrow(
+                f"UPDATE contacts SET {', '.join(set_clauses)}, updated_at = now() "
+                f"WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor RETURNING *",
+                contact_id, client["id"], *updates.values(),
+            )
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(status_code=409, detail="Another contact already uses that phone number")
     if not row:
         raise HTTPException(status_code=404, detail="Lead not found")
     return dict(row)
