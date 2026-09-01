@@ -37,6 +37,7 @@ class ContactUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     newsletter: Optional[bool] = None
+    client_id: Optional[int] = None
 
 
 class BulkAction(BaseModel):
