@@ -781,7 +781,7 @@ async def portal_inbox_thread(token: str, contact_id: str):
 
     messages = (
         [{"channel": "sms", "direction": m["direction"], "body": m["body"], "subject": None, "sent_at": m["sent_at"]} for m in sms_msgs]
-        + [{"channel": "email", "direction": m["direction"], "body": m["body"], "subject": m["subject"], "sent_at": m["sent_at"]} for m in email_msgs]
+        + [{"channel": "email", "direction": m["direction"], "body": _strip_html(m["body"]), "subject": m["subject"], "sent_at": m["sent_at"]} for m in email_msgs]
     )
     messages.sort(key=lambda m: m["sent_at"])
 

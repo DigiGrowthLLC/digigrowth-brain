@@ -1402,7 +1402,13 @@ function InboxThread({ token, contactId, onSent }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* minHeight: 0 is load-bearing here — a flex child defaults to
+          min-height: auto, so without it this div grows to fit every
+          message instead of respecting flex:1, pushing the parent past
+          the glass-card's fixed 560px height and getting clipped by its
+          overflow:hidden instead of actually scrolling. Reported live as
+          "doesn't let me scroll" with the last message cut off. */}
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
         {messages.length === 0 && (
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO MESSAGES YET</div>
         )}
