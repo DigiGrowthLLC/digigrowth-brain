@@ -443,7 +443,16 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_tab TEXT;
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_url TEXT;
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
         """)
+        # Real clients' portals must never touch DigiGrowth's own shared
+        # Twilio/Gmail credentials (real calling, real SMS/email send) — only
+        # a client explicitly flagged is_test can. Backfill the one
+        # pre-existing self-test client by name; idempotent (WHERE NOT
+        # is_test), safe to run every startup.
+        await conn.execute(
+            "UPDATE clients SET is_test = true WHERE name = 'DigiGrowth Test' AND NOT is_test"
+        )
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_email_messages_tracking_token ON email_messages(tracking_token) WHERE tracking_token IS NOT NULL;

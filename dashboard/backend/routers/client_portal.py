@@ -16,7 +16,9 @@ onto them risked breaking that. This is a simpler, self-contained rollup
 purpose-built for the portal's basic infrastructure pass.
 """
 import asyncio
+import html
 import json
+import re
 import uuid
 from typing import Optional
 
@@ -57,6 +59,24 @@ def _pct(num, denom) -> float:
     return round(num / denom * 100, 1)
 
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text: str | None) -> str:
+    """Some outbound emails are composed as full HTML (gmail_send_html /
+    the tracked-outreach wrapper in integrations.py's _wrap_outreach_html)
+    and email_messages.body stores exactly what went out — showing that
+    raw markup (`<div style="max-width:600px;...`) straight in the portal
+    inbox is unreadable. Plain-text SMS bodies pass through unchanged
+    (no tags to strip), so this is safe to apply universally rather than
+    branching on channel."""
+    if not text:
+        return text
+    stripped = _HTML_TAG_RE.sub(" ", text)
+    stripped = html.unescape(stripped)
+    return re.sub(r"\s+", " ", stripped).strip()
+
+
 async def get_client_from_token(token: str) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -67,6 +87,18 @@ async def get_client_from_token(token: str) -> dict:
     if not row:
         raise HTTPException(status_code=404, detail="Invalid or revoked portal link")
     return dict(row)
+
+
+def _require_test_client(client: dict) -> None:
+    """Hard gate on every endpoint that touches DigiGrowth's own shared
+    Twilio/Gmail credentials (real calling, real SMS/email send) — those
+    must never be reachable from a real client's portal, only the one
+    client explicitly flagged is_test (see db.py's clients.is_test
+    migration). Checked server-side, not just hidden in the frontend,
+    since these routes are public/unauthenticated and reachable directly
+    by anyone holding a real client's own portal token."""
+    if not client.get("is_test"):
+        raise HTTPException(status_code=403, detail="Not available for this client")
 
 
 @router.get("/{token}")
@@ -691,12 +723,18 @@ async def portal_inbox_list(
                 "phone": d["phone"], "email": d["email"],
                 "channels": [], "last_message": None, "last_message_at": None, "unread": False,
             })
-            entry["channels"].append(ch)
+            # A contact can have more than one row in sms_conversations/
+            # email_conversations over time (email_conversations especially
+            # — one row per distinct Gmail thread_id, not per contact), so
+            # without this dedup check the list showed "EMAIL" repeated
+            # once per underlying thread row instead of once per contact.
+            if ch not in entry["channels"]:
+                entry["channels"].append(ch)
             entry["unread"] = entry["unread"] or d["unread"]
             if d["last_message_at"] and (
                 entry["last_message_at"] is None or d["last_message_at"] > entry["last_message_at"]
             ):
-                entry["last_message"] = d["last_message"]
+                entry["last_message"] = _strip_html(d["last_message"])
                 entry["last_message_at"] = d["last_message_at"]
 
     results = list(by_contact.values())
@@ -752,15 +790,14 @@ async def portal_inbox_thread(token: str, contact_id: str):
 
 @router.post("/{token}/inbox/{contact_id}/send")
 async def portal_send_message(token: str, contact_id: str, body: dict):
-    """Sends for real now, through the same shared Twilio/Gmail credentials
-    every other send in this codebase already uses (onboarding_sequence.py,
-    no_show_sequence.py, etc.) — not a per-client Twilio number or Gmail
-    inbox, since none exist yet. That's a real, known limitation worth
-    keeping in mind once there's more than one active client (a reply here
-    goes out looking like it's from DigiGrowth generally, not from a
-    client-specific identity), but "doesn't send at all" was the actual
-    reported bug, so this closes that gap with what already exists rather
-    than waiting on per-client credentials that aren't built."""
+    """Sends for real, through the same shared Twilio/Gmail credentials every
+    other automated send in this codebase already uses — but ONLY for the
+    is_test client (see _require_test_client). No per-client Twilio number
+    or Gmail inbox exists yet, so a real client's portal must never be able
+    to trigger a real send through DigiGrowth's own shared credentials
+    (wrong sender identity, real cost/liability, and a genuine cross-tenant
+    data/access leak). Every other real client gets the same friendly
+    "not connected yet" stub this endpoint always returned before."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -770,6 +807,13 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
         )
     if not contact:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    if not client.get("is_test"):
+        return {
+            "ok": False,
+            "status": "not_connected",
+            "detail": "Your SMS/email account isn't connected yet — DigiGrowth is setting this up and will notify you once replies can be sent from here.",
+        }
 
     channel = body.get("channel")
     if channel not in ("sms", "email"):
@@ -834,9 +878,12 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
 async def portal_call_lead(token: str, contact_id: str):
     """Places a real single-dial call through DigiGrowth's existing shared
     Twilio setup (same dialer_engine/TwiML app as the internal OS dialer) —
-    no per-client Twilio credentials exist yet, so this is deliberately the
-    same shared line the internal team uses, not a per-client integration.
-    Validates the lead belongs to this client via the token, then reuses
+    but ONLY for the is_test client (see _require_test_client's note on why:
+    no per-client Twilio credentials exist yet, so any other client would be
+    placing real calls through DigiGrowth's own shared line). Every other
+    real client gets the same friendly "not connected yet" stub this
+    endpoint always returned before. Validates the lead belongs to this
+    client via the token, then (for the test client only) reuses
     dialer.call_single() (the same one-lead session entrypoint the internal
     CRM's "Call Now" button uses) to seed the dialer engine's single global
     session. The portal frontend then drives it exactly like DialerPanel
@@ -844,10 +891,10 @@ async def portal_call_lead(token: str, contact_id: str):
     POST dial-batch once connected — see the /dialer/* proxy endpoints below.
 
     NOTE: dialer_engine's session is a single process-global session, not
-    per-caller — a client placing a call here will conflict with the admin
-    running the internal Dialer panel at the same time. Acceptable for now
-    (early/test-client use); would need real session isolation to support
-    concurrent internal + portal dialing."""
+    per-caller — the test client placing a call here will conflict with the
+    admin running the internal Dialer panel at the same time. Acceptable for
+    now (test-client-only use); would need real session isolation to
+    support concurrent internal + portal dialing."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -858,6 +905,13 @@ async def portal_call_lead(token: str, contact_id: str):
     if not contact:
         raise HTTPException(status_code=404, detail="Lead not found")
 
+    if not client.get("is_test"):
+        return {
+            "ok": False,
+            "status": "not_connected",
+            "detail": "Calling isn't connected for your account yet — DigiGrowth is setting this up and will notify you once you can call leads directly from here.",
+        }
+
     return await dialer_router.call_single({"contact_id": contact_id})
 
 
@@ -865,30 +919,36 @@ async def portal_call_lead(token: str, contact_id: str):
 async def portal_dialer_token(token: str):
     """Twilio Voice JS SDK access token for the portal's browser Device —
     same shared TwiML app/credentials as the internal OS dialer (see
-    dialer.get_token()); the portal user becomes the agent leg on the call."""
-    await get_client_from_token(token)
+    dialer.get_token()); the portal user becomes the agent leg on the call.
+    is_test-gated like every other endpoint below — see _require_test_client."""
+    client = await get_client_from_token(token)
+    _require_test_client(client)
     return await dialer_router.get_token()
 
 
 @router.post("/{token}/dialer/dial-batch")
 async def portal_dialer_dial_batch(token: str):
-    await get_client_from_token(token)
+    client = await get_client_from_token(token)
+    _require_test_client(client)
     return await dialer_router.dial_batch()
 
 
 @router.get("/{token}/dialer/session")
 async def portal_dialer_session(token: str):
-    await get_client_from_token(token)
+    client = await get_client_from_token(token)
+    _require_test_client(client)
     return await dialer_router.get_session()
 
 
 @router.post("/{token}/dialer/end-call")
 async def portal_dialer_end_call(token: str):
-    await get_client_from_token(token)
+    client = await get_client_from_token(token)
+    _require_test_client(client)
     return await dialer_router.end_call()
 
 
 @router.post("/{token}/dialer/end-session")
 async def portal_dialer_end_session(token: str):
-    await get_client_from_token(token)
+    client = await get_client_from_token(token)
+    _require_test_client(client)
     return await dialer_router.end_session()

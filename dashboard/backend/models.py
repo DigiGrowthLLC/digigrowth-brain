@@ -124,6 +124,7 @@ class ClientCreate(BaseModel):
     phone: Optional[str] = None
     notes: Optional[str] = None
     contact_id: Optional[str] = None
+    is_test: bool = False
 
 
 class ClientUpdate(BaseModel):
@@ -133,6 +134,7 @@ class ClientUpdate(BaseModel):
     phone: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+    is_test: Optional[bool] = None
 
 
 class ClientLinkContact(BaseModel):

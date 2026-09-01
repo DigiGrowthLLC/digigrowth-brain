@@ -878,6 +878,10 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
       const cr = await fetch(`/portal-api/${token}/leads/${lead.id}/call`, { method: "POST" });
       const cd = await cr.json().catch(() => ({}));
       if (!cr.ok) { setCallPhase("idle"); setCallMsg(cd.detail || "Couldn't start the call."); return; }
+      // Real clients get a 200 OK with ok:false (the "not connected yet"
+      // stub) rather than an HTTP error — stop here instead of trying to
+      // connect a Twilio Device that the backend will just 403 anyway.
+      if (cd.ok === false) { setCallPhase("idle"); setCallMsg(cd.detail || "Calling isn't available yet."); return; }
 
       const tr = await fetch(`/portal-api/${token}/dialer/token`);
       const td = await tr.json().catch(() => ({}));

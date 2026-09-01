@@ -77,11 +77,11 @@ async def create_client(body: ClientCreate):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO clients (name, contact_name, email, phone, notes, portal_token)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO clients (name, contact_name, email, phone, notes, portal_token, is_test)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
             """,
-            name, body.contact_name, body.email, body.phone, body.notes, token,
+            name, body.contact_name, body.email, body.phone, body.notes, token, body.is_test,
         )
         # Links the specific prospect/contact whose deal this client came
         # from — this is what onboarding_sequence.py's next-morning

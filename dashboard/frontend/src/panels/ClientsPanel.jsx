@@ -97,6 +97,11 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
             <span className={`badge ${client.status === "active" ? "badge-green" : client.status === "paused" ? "badge-amber" : "badge-gray"}`}>
               {client.status}
             </span>
+            {client.is_test && (
+              <span className="badge badge-blue" title="Only this client's portal can use DigiGrowth's real shared Twilio/Gmail credentials (calling, SMS/email send) — every other client always gets the 'not connected yet' stub.">
+                TEST CLIENT — LIVE INTEGRATIONS
+              </span>
+            )}
             {revoked && <span className="badge badge-red">TOKEN REVOKED</span>}
             {client.linked_contact ? (
               <span className="badge badge-blue" title="Onboarding follow-up will send this client's portal link">
