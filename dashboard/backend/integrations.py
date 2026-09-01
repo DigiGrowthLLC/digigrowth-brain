@@ -888,7 +888,7 @@ CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min"
 # event type yet. Fill in once it exists. Used by onboarding_sequence.py's
 # welcome email, sent the moment a rep marks an appointment "Closed" (won).
 # Same static-URL pattern as CALENDLY_URL above — no Calendly API involved.
-ONBOARDING_CALENDLY_URL = ""
+ONBOARDING_CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/onboarding-call"
 
 
 def _extract_meeting_link(event: dict) -> str | None:
