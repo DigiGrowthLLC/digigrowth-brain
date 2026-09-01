@@ -58,7 +58,13 @@ const SECTIONS = [
   },
 ];
 
-const TAB_LABELS = { onboarding: "Onboarding", videos: "Get Started Videos", stats: "Performance" };
+const TAB_LABELS = {
+  overview: "Overview",
+  appointments: "Appointments",
+  leads: "Leads",
+  onboarding: "Onboarding",
+  videos: "Get Started Videos",
+};
 
 function Field({ q, value, onChange }) {
   return (
@@ -215,7 +221,15 @@ function StatCell({ label, value }) {
   );
 }
 
-function StatsTab({ token }) {
+function SectionHeading({ children }) {
+  return (
+    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 12 }}>
+      {children}
+    </div>
+  );
+}
+
+function OverviewTab({ token }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -229,25 +243,374 @@ function StatsTab({ token }) {
   if (loading) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (!stats) return null;
 
+  const appt = stats.appointments;
+
   return (
     <div>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 12 }}>SMS</div>
+      <SectionHeading>Key Numbers</SectionHeading>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 14, marginBottom: 28 }}>
+        <StatCell label="Total Leads" value={stats.leads.total} />
+        <StatCell label="Total Appointments" value={appt.total} />
+        <StatCell label="Upcoming Appointments" value={appt.upcoming} />
+        <StatCell label="Show Rate" value={`${appt.show_rate}%`} />
+        <StatCell label="Close Rate" value={`${appt.close_rate}%`} />
+      </div>
+
+      <SectionHeading>Appointments Breakdown</SectionHeading>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 14, marginBottom: 28 }}>
+        <StatCell label="Shows" value={appt.shows} />
+        <StatCell label="No-Shows" value={appt.no_shows} />
+        <StatCell label="Closed" value={appt.closed} />
+        <StatCell label="Lost" value={appt.not_closed} />
+      </div>
+
+      <SectionHeading>SMS</SectionHeading>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 14, marginBottom: 28 }}>
         <StatCell label="Conversations" value={stats.sms.conversations} />
         <StatCell label="Messages Sent" value={stats.sms.sent} />
         <StatCell label="Replies" value={stats.sms.replies} />
       </div>
 
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 12 }}>Email</div>
+      <SectionHeading>Email</SectionHeading>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 14, marginBottom: 28 }}>
         <StatCell label="Conversations" value={stats.email.conversations} />
         <StatCell label="Emails Sent" value={stats.email.sent} />
         <StatCell label="Replies" value={stats.email.replies} />
       </div>
 
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 12 }}>Facebook Ads</div>
+      <SectionHeading>Facebook Ads</SectionHeading>
       <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
         Facebook Ads reporting — coming soon
+      </div>
+    </div>
+  );
+}
+
+function fmtLocal(iso, tz) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("en-US", {
+      timeZone: tz, month: "short", day: "numeric",
+      hour: "numeric", minute: "2-digit",
+    });
+  } catch {
+    return new Date(iso).toLocaleString("en-US");
+  }
+}
+
+function OutcomePill({ active, color, onClick, disabled, children }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.04em",
+        padding: "3px 8px", borderRadius: 4, cursor: disabled ? "not-allowed" : "pointer",
+        color: active ? color : "#3a5a80",
+        background: active ? `${color}1a` : "transparent",
+        border: `1px solid ${active ? color : "#1a2540"}`,
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >{children}</button>
+  );
+}
+
+function AppointmentOutcome({ token, appointment, onUpdated }) {
+  const [saving, setSaving] = useState(false);
+
+  const setOutcome = async (field, value) => {
+    const next = appointment[field] === value ? null : value;
+    setSaving(true);
+    try {
+      const r = await fetch(`/portal-api/${token}/appointments/${appointment.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: next }),
+      });
+      if (r.ok) onUpdated(await r.json());
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 4 }}>
+        <OutcomePill active={appointment.outcome_show === "show"} color="#14c882" disabled={saving}
+          onClick={() => setOutcome("outcome_show", "show")}>SHOW</OutcomePill>
+        <OutcomePill active={appointment.outcome_show === "no_show"} color="#dc3c3c" disabled={saving}
+          onClick={() => setOutcome("outcome_show", "no_show")}>NO SHOW</OutcomePill>
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <OutcomePill active={appointment.outcome_close === "closed"} color="#14c882" disabled={saving}
+          onClick={() => setOutcome("outcome_close", "closed")}>CLOSED</OutcomePill>
+        <OutcomePill active={appointment.outcome_close === "not_closed"} color="#dc3c3c" disabled={saving}
+          onClick={() => setOutcome("outcome_close", "not_closed")}>LOST</OutcomePill>
+      </div>
+    </div>
+  );
+}
+
+const APPT_PAST_GRACE_MS = 60 * 60 * 1000;
+const APPT_FILTER_LABELS = { upcoming: "Upcoming", past: "Past", canceled: "Canceled", all: "All" };
+
+function AppointmentsTab({ token }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("upcoming");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const backendStatus = filter === "upcoming" || filter === "past" ? "scheduled" : filter;
+      const r = await fetch(`/portal-api/${token}/appointments?status=${backendStatus}`);
+      setRows(await r.json());
+    } catch {
+      setRows([]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token, filter]);
+
+  const displayRows = filter === "upcoming"
+    ? rows.filter((r) => new Date(r.appointment_at).getTime() + APPT_PAST_GRACE_MS > Date.now())
+    : filter === "past"
+    ? rows.filter((r) => new Date(r.appointment_at).getTime() + APPT_PAST_GRACE_MS <= Date.now())
+    : rows;
+
+  const handleUpdated = (updated) => {
+    setRows((rs) => rs.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <SectionHeading>{APPT_FILTER_LABELS[filter]} Appointments</SectionHeading>
+        <select className="dg-input" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", width: "auto" }}>
+          <option value="upcoming">Upcoming</option>
+          <option value="past">Past</option>
+          <option value="canceled">Canceled</option>
+          <option value="all">All</option>
+        </select>
+      </div>
+
+      <div className="glass-card" style={{ padding: 0, overflow: "hidden", overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid rgba(58,123,213,0.15)" }}>
+              {["Prospect", "Business", "Appointment", "Outcome"].map((h) => (
+                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {!loading && displayRows.length === 0 && (
+              <tr><td colSpan={4} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No appointments in this view.</td></tr>
+            )}
+            {displayRows.map((row) => (
+              <tr key={row.id} style={{ borderBottom: "1px solid rgba(58,123,213,0.08)" }}>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{row.prospect_name || row.owner || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.business || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</td>
+                <td style={{ padding: "10px 14px" }}>
+                  {row.status !== "canceled" && <AppointmentOutcome token={token} appointment={row} onUpdated={handleUpdated} />}
+                  {row.status === "canceled" && <span style={{ fontSize: 11, color: "#3a5a80" }}>canceled</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const LEAD_CSV_ALIASES = {
+  phone:    ["phone", "phone number", "mobile", "cell", "telephone"],
+  business: ["business", "company", "business name", "company name"],
+  owner:    ["owner", "name", "contact", "contact name", "full name", "first name"],
+  email:    ["email", "email address"],
+  website:  ["website", "url", "site", "web"],
+  city:     ["city", "town"],
+  state:    ["state", "province", "region"],
+  notes:    ["notes", "note", "comments", "comment"],
+};
+
+function parseCsvLine(line) {
+  const cols = []; let cur = ""; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+    else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ""; }
+    else cur += ch;
+  }
+  cols.push(cur.trim()); return cols;
+}
+
+function parseLeadCSV(text) {
+  const lines = text.replace(/\r/g, "").split("\n").filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/['"]/g, "").trim());
+  const colMap = {};
+  for (const [field, aliases] of Object.entries(LEAD_CSV_ALIASES)) {
+    const idx = headers.findIndex((h) => aliases.includes(h));
+    if (idx >= 0) colMap[field] = idx;
+  }
+  return lines.slice(1).map((line) => {
+    const cols = parseCsvLine(line);
+    const row = {};
+    for (const [field, idx] of Object.entries(colMap)) row[field] = (cols[idx] || "").replace(/^"|"$/g, "").trim();
+    return row;
+  });
+}
+
+function LeadsTab({ token }) {
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [form, setForm] = useState({ business: "", owner: "", phone: "", email: "", website: "", city: "", state: "", notes: "" });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [parsed, setParsed] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  const [importing, setImporting] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const r = await fetch(`/portal-api/${token}/leads`);
+    if (r.ok) setLeads(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token]);
+
+  const addLead = async () => {
+    if (!form.phone.trim()) { setErr("Phone is required."); return; }
+    setSaving(true); setErr("");
+    const r = await fetch(`/portal-api/${token}/leads`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    if (r.ok) {
+      setForm({ business: "", owner: "", phone: "", email: "", website: "", city: "", state: "", notes: "" });
+      setShowAdd(false);
+      load();
+    } else {
+      const d = await r.json().catch(() => ({}));
+      setErr(d.detail || "Save failed.");
+    }
+    setSaving(false);
+  };
+
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { setParsed(parseLeadCSV(ev.target.result)); setImportResult(null); };
+    reader.readAsText(file);
+  };
+
+  const doImport = async () => {
+    if (!parsed?.length) return;
+    setImporting(true);
+    const r = await fetch(`/portal-api/${token}/leads/import`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contacts: parsed }),
+    });
+    if (r.ok) { setImportResult(await r.json()); load(); }
+    setImporting(false);
+  };
+
+  const withPhone = parsed ? parsed.filter((r) => r.phone) : [];
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <SectionHeading>Leads ({leads.length})</SectionHeading>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => { setShowImport((s) => !s); setShowAdd(false); }}>
+            {showImport ? "CANCEL" : "IMPORT CSV"}
+          </button>
+          <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={() => { setShowAdd((s) => !s); setShowImport(false); }}>
+            {showAdd ? "CANCEL" : "+ ADD LEAD"}
+          </button>
+        </div>
+      </div>
+
+      {showAdd && (
+        <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input className="dg-input" placeholder="Business name" value={form.business} onChange={(e) => setForm((f) => ({ ...f, business: e.target.value }))} style={{ flex: 1 }} />
+            <input className="dg-input" placeholder="Owner / contact" value={form.owner} onChange={(e) => setForm((f) => ({ ...f, owner: e.target.value }))} style={{ flex: 1 }} />
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input className="dg-input" placeholder="Phone *" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={{ flex: 1 }} />
+            <input className="dg-input" placeholder="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={{ flex: 1 }} />
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input className="dg-input" placeholder="City" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} style={{ flex: 1 }} />
+            <input className="dg-input" placeholder="State" value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} style={{ flex: 1 }} />
+          </div>
+          <input className="dg-input" placeholder="Website" value={form.website} onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))} />
+          <textarea className="dg-input" rows={2} placeholder="Notes" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} style={{ resize: "vertical" }} />
+          {err && <div style={{ fontSize: 12, color: "#e05555" }}>{err}</div>}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn btn-primary" onClick={addLead} disabled={saving} style={{ fontSize: 11 }}>{saving ? "SAVING…" : "SAVE LEAD"}</button>
+          </div>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ fontSize: 12, color: "#8aaad0", lineHeight: 1.6 }}>
+            CSV with a <strong>phone</strong> column required. Recognized headers: business, owner, phone, email, website, city, state, notes.
+          </div>
+          <input type="file" accept=".csv,text/csv" onChange={handleFile} />
+          {parsed && !importResult && (
+            <>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#6ab0ff" }}>
+                {withPhone.length} leads ready · {parsed.length - withPhone.length} skipped (no phone)
+              </div>
+              <button className="btn btn-primary" onClick={doImport} disabled={importing} style={{ fontSize: 11, width: "fit-content" }}>
+                {importing ? "IMPORTING…" : `IMPORT ${withPhone.length} LEADS`}
+              </button>
+            </>
+          )}
+          {importResult && (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#14c882" }}>
+              {importResult.inserted} added · {importResult.updated} updated · {importResult.skipped} skipped
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="glass-card" style={{ padding: 0, overflow: "hidden", overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid rgba(58,123,213,0.15)" }}>
+              {["Business", "Owner", "Phone", "Email", "City", "State"].map((h) => (
+                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {!loading && leads.length === 0 && (
+              <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No leads yet.</td></tr>
+            )}
+            {leads.map((l) => (
+              <tr key={l.id} style={{ borderBottom: "1px solid rgba(58,123,213,0.08)" }}>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{l.business || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.owner || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.phone || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.email || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.city || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.state || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -257,7 +620,7 @@ export default function ClientPortal() {
   const { token } = useParams();
   const [client, setClient] = useState(null);
   const [notFound, setNotFound] = useState(false);
-  const [tab, setTab] = useState("onboarding");
+  const [tab, setTab] = useState("overview");
 
   useEffect(() => {
     fetch(`/portal-api/${token}`)
@@ -299,7 +662,7 @@ export default function ClientPortal() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "36px 24px" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 28, borderBottom: "1px solid rgba(58,123,213,0.1)" }}>
           {Object.entries(TAB_LABELS).map(([id, label]) => (
             <button
@@ -317,9 +680,11 @@ export default function ClientPortal() {
           ))}
         </div>
 
+        {tab === "overview" && <OverviewTab token={token} />}
+        {tab === "appointments" && <AppointmentsTab token={token} />}
+        {tab === "leads" && <LeadsTab token={token} />}
         {tab === "onboarding" && <OnboardingTab token={token} />}
         {tab === "videos" && <VideosTab token={token} />}
-        {tab === "stats" && <StatsTab token={token} />}
       </div>
     </div>
   );
