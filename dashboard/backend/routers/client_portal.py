@@ -17,16 +17,25 @@ purpose-built for the portal's basic infrastructure pass.
 """
 import json
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
-from models import OnboardingSectionSave, ONBOARDING_SECTIONS, ActionItemComplete
+from models import OnboardingSectionSave, ONBOARDING_SECTIONS, ActionItemComplete, TagAssign
 import cancel_sequence
 import no_show_sequence
 import onboarding_sequence
 
 router = APIRouter(prefix="/portal-api")
+
+# Shared "All Time / Month / Week / Today" bucket vocabulary — same string
+# values across the period selector (portal_stats) and the inbox time
+# filter (portal_inbox_list), mirroring the internal OS's two closest
+# equivalents (AnalyticsPanel's numeric-days PeriodToggle and InboxPanel's
+# string-bucket `since` filter) but unified into one scheme here since the
+# client portal only needs one. "all" means no filter — not a key below.
+_PERIOD_INTERVAL = {"today": "1 day", "week": "7 days", "month": "30 days"}
 
 
 def _decode_response_row(r) -> dict:
@@ -160,7 +169,19 @@ async def portal_set_action_item_complete(token: str, item_id: int, body: Action
 
 
 @router.get("/{token}/stats")
-async def portal_stats(token: str):
+async def portal_stats(token: str, period: str = "all"):
+    """period: "all" (default) | "today" | "week" | "month" — same bucket
+    vocabulary as portal_inbox_list's `since` param. Scopes sms/email
+    sent+replies to messages sent in that window, and leads to contacts
+    created in that window; appointments stay zeroed regardless (see
+    portal_appointments() below)."""
+    if period != "all" and period not in _PERIOD_INTERVAL:
+        raise HTTPException(status_code=400, detail="period must be 'all', 'today', 'week', or 'month'")
+    interval = _PERIOD_INTERVAL.get(period)
+    sms_since_clause   = f"AND sm.sent_at >= now() - interval '{interval}'" if interval else ""
+    email_since_clause = f"AND em.sent_at >= now() - interval '{interval}'" if interval else ""
+    leads_since_clause = f"AND created_at >= now() - interval '{interval}'" if interval else ""
+
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -186,27 +207,27 @@ async def portal_stats(token: str):
         # business had done). See clients.py's _linked_contact_summary for
         # the same anchor-vs-lead distinction on the admin side.
         sms_row = await conn.fetchrow(
-            """
+            f"""
             SELECT
                 COUNT(DISTINCT sc.id) AS conversations,
                 COALESCE(SUM((sm.direction = 'outbound')::int), 0) AS sent,
                 COALESCE(SUM((sm.direction = 'inbound')::int), 0) AS replies
             FROM sms_conversations sc
             JOIN contacts c ON c.id = sc.contact_id
-            LEFT JOIN sms_messages sm ON sm.contact_id = sc.contact_id
+            LEFT JOIN sms_messages sm ON sm.contact_id = sc.contact_id {sms_since_clause}
             WHERE c.client_id = $1 AND NOT c.is_client_anchor
             """,
             client["id"],
         )
         email_row = await conn.fetchrow(
-            """
+            f"""
             SELECT
                 COUNT(DISTINCT ec.id) AS conversations,
                 COALESCE(SUM((em.direction = 'outbound')::int), 0) AS sent,
                 COALESCE(SUM((em.direction = 'inbound')::int), 0) AS replies
             FROM email_conversations ec
             JOIN contacts c ON c.id = ec.contact_id
-            LEFT JOIN email_messages em ON em.contact_id = ec.contact_id
+            LEFT JOIN email_messages em ON em.contact_id = ec.contact_id {email_since_clause}
             WHERE c.client_id = $1 AND NOT c.is_client_anchor
             """,
             client["id"],
@@ -217,7 +238,8 @@ async def portal_stats(token: str):
             client["id"],
         )
         leads_total = await conn.fetchval(
-            "SELECT count(*) FROM contacts WHERE client_id = $1 AND NOT is_client_anchor", client["id"]
+            f"SELECT count(*) FROM contacts WHERE client_id = $1 AND NOT is_client_anchor {leads_since_clause}",
+            client["id"],
         )
         # No appointment_reminders query here — see portal_appointments()'s
         # docstring below for why every row in that table is a DigiGrowth-
@@ -346,20 +368,81 @@ _LEAD_FIELDS = ("business", "owner", "phone", "email", "website", "city", "state
 
 
 @router.get("/{token}/leads")
-async def portal_list_leads(token: str):
+async def portal_list_leads(token: str, tag: Optional[str] = None):
     """Excludes the anchor contact (is_client_anchor) — that's Dylan's own
     internal sales-pipeline contact for this business (see portal_stats()'s
     comment), not a lead the client's own business generated. Without this
     exclusion a client's own business showed up as "1 lead" in their own
-    Leads tab."""
+    Leads tab. `tag` mirrors the internal CRM's GET /contacts?tag= filter
+    (see routers/crm.py) — same ANY(tags) match."""
     client = await get_client_from_token(token)
+    conditions = ["client_id = $1", "NOT is_client_anchor"]
+    params = [client["id"]]
+    if tag:
+        params.append(tag)
+        conditions.append(f"${len(params)} = ANY(tags)")
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM contacts WHERE client_id = $1 AND NOT is_client_anchor ORDER BY created_at DESC",
-            client["id"],
+            f"SELECT * FROM contacts WHERE {' AND '.join(conditions)} ORDER BY created_at DESC",
+            *params,
         )
     return [dict(r) for r in rows]
+
+
+@router.get("/{token}/tags")
+async def portal_list_tags(token: str):
+    """Read-only view of the shared global tag catalog (same `tags` table
+    the internal CRM uses — see routers/tags.py) so a client's tag picker
+    offers the same names/colors Dylan already uses internally. Tags
+    themselves aren't client-scoped (there's no per-client tag catalog),
+    only which contacts a given tag is applied to is."""
+    await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM tags ORDER BY name")
+    return [dict(r) for r in rows]
+
+
+@router.post("/{token}/leads/{contact_id}/tags")
+async def portal_add_lead_tag(token: str, contact_id: str, body: TagAssign):
+    """Mirrors POST /contacts/{id}/tags (routers/crm.py) but scoped to this
+    client's own leads — never the anchor contact, never another client's."""
+    tag = body.tag.strip()
+    if not tag:
+        raise HTTPException(status_code=400, detail="tag required")
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE contacts SET tags = array_append(tags, $3), updated_at = now() "
+            "WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor AND NOT ($3 = ANY(tags)) "
+            "RETURNING *",
+            contact_id, client["id"], tag,
+        )
+        if not row:
+            row = await conn.fetchrow(
+                "SELECT * FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
+                contact_id, client["id"],
+            )
+    if not row:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return dict(row)
+
+
+@router.delete("/{token}/leads/{contact_id}/tags/{tag}")
+async def portal_remove_lead_tag(token: str, contact_id: str, tag: str):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE contacts SET tags = array_remove(tags, $3), updated_at = now() "
+            "WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor RETURNING *",
+            contact_id, client["id"], tag,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return dict(row)
 
 
 @router.post("/{token}/leads")
@@ -483,55 +566,90 @@ async def portal_import_leads(token: str, body: dict):
 # real per-client credentials, build the rest now" shape).
 
 @router.get("/{token}/inbox")
-async def portal_inbox_list(token: str):
+async def portal_inbox_list(
+    token: str,
+    channel: str = "all",
+    since: str = "all",
+    tag: Optional[str] = None,
+    status: Optional[str] = None,
+):
     """Excludes the anchor contact (is_client_anchor) — same reasoning as
     portal_stats()'s SMS/email totals: that thread is Dylan's own cold-
     outreach conversation with this business, not something that belongs in
-    their own portal inbox."""
+    their own portal inbox.
+
+    Filters mirror the internal InboxPanel/email_inbox.py's GET
+    /inbox/conversations shape: `channel` ("all"|"sms"|"email"), `since`
+    ("all"|"today"|"week"|"month" — this portal's own bucket vocabulary,
+    see _PERIOD_INTERVAL), `tag` (ANY(c.tags)), `status` (c.status, the
+    contact's CRM pipeline status). `since` is applied post-merge in Python
+    against each conversation's last_message_at rather than in SQL, since
+    "still active in this window" is naturally a property of the merged
+    per-contact thread, not either channel's query alone."""
+    if since != "all" and since not in _PERIOD_INTERVAL:
+        raise HTTPException(status_code=400, detail="since must be 'all', 'today', 'week', or 'month'")
+    if channel not in ("all", "sms", "email"):
+        raise HTTPException(status_code=400, detail="channel must be 'all', 'sms', or 'email'")
+
     client = await get_client_from_token(token)
+
+    conditions = ["c.client_id = $1", "NOT c.is_client_anchor"]
+    params = [client["id"]]
+    if tag:
+        params.append(tag)
+        conditions.append(f"${len(params)} = ANY(c.tags)")
+    if status:
+        params.append(status)
+        conditions.append(f"c.status = ${len(params)}")
+    where = " AND ".join(conditions)
+
     pool = await get_pool()
     async with pool.acquire() as conn:
-        sms_rows = await conn.fetch(
-            """
-            SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
-                   sc.updated_at,
-                   (SELECT sm.body FROM sms_messages sm WHERE sm.contact_id = c.id
-                        ORDER BY sm.sent_at DESC LIMIT 1) AS last_message,
-                   (SELECT sm.sent_at FROM sms_messages sm WHERE sm.contact_id = c.id
-                        ORDER BY sm.sent_at DESC LIMIT 1) AS last_message_at,
-                   EXISTS(
-                       SELECT 1 FROM sms_messages sm WHERE sm.contact_id = c.id
-                       AND sm.direction = 'inbound'
-                       AND sm.sent_at > COALESCE(sc.last_read_at, '-infinity'::timestamptz)
-                   ) AS unread
-            FROM sms_conversations sc
-            JOIN contacts c ON c.id = sc.contact_id
-            WHERE c.client_id = $1 AND NOT c.is_client_anchor
-            """,
-            client["id"],
-        )
-        email_rows = await conn.fetch(
-            """
-            SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
-                   ec.updated_at,
-                   (SELECT em.body FROM email_messages em WHERE em.contact_id = c.id
-                        ORDER BY em.sent_at DESC LIMIT 1) AS last_message,
-                   (SELECT em.sent_at FROM email_messages em WHERE em.contact_id = c.id
-                        ORDER BY em.sent_at DESC LIMIT 1) AS last_message_at,
-                   EXISTS(
-                       SELECT 1 FROM email_messages em WHERE em.contact_id = c.id
-                       AND em.direction = 'inbound'
-                       AND em.sent_at > COALESCE(ec.last_read_at, '-infinity'::timestamptz)
-                   ) AS unread
-            FROM email_conversations ec
-            JOIN contacts c ON c.id = ec.contact_id
-            WHERE c.client_id = $1 AND NOT c.is_client_anchor
-            """,
-            client["id"],
-        )
+        sms_rows = []
+        if channel in ("all", "sms"):
+            sms_rows = await conn.fetch(
+                f"""
+                SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
+                       sc.updated_at,
+                       (SELECT sm.body FROM sms_messages sm WHERE sm.contact_id = c.id
+                            ORDER BY sm.sent_at DESC LIMIT 1) AS last_message,
+                       (SELECT sm.sent_at FROM sms_messages sm WHERE sm.contact_id = c.id
+                            ORDER BY sm.sent_at DESC LIMIT 1) AS last_message_at,
+                       EXISTS(
+                           SELECT 1 FROM sms_messages sm WHERE sm.contact_id = c.id
+                           AND sm.direction = 'inbound'
+                           AND sm.sent_at > COALESCE(sc.last_read_at, '-infinity'::timestamptz)
+                       ) AS unread
+                FROM sms_conversations sc
+                JOIN contacts c ON c.id = sc.contact_id
+                WHERE {where}
+                """,
+                *params,
+            )
+        email_rows = []
+        if channel in ("all", "email"):
+            email_rows = await conn.fetch(
+                f"""
+                SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
+                       ec.updated_at,
+                       (SELECT em.body FROM email_messages em WHERE em.contact_id = c.id
+                            ORDER BY em.sent_at DESC LIMIT 1) AS last_message,
+                       (SELECT em.sent_at FROM email_messages em WHERE em.contact_id = c.id
+                            ORDER BY em.sent_at DESC LIMIT 1) AS last_message_at,
+                       EXISTS(
+                           SELECT 1 FROM email_messages em WHERE em.contact_id = c.id
+                           AND em.direction = 'inbound'
+                           AND em.sent_at > COALESCE(ec.last_read_at, '-infinity'::timestamptz)
+                       ) AS unread
+                FROM email_conversations ec
+                JOIN contacts c ON c.id = ec.contact_id
+                WHERE {where}
+                """,
+                *params,
+            )
 
     by_contact: dict = {}
-    for rows, channel in ((sms_rows, "sms"), (email_rows, "email")):
+    for rows, ch in ((sms_rows, "sms"), (email_rows, "email")):
         for r in rows:
             d = dict(r)
             cid = d["contact_id"]
@@ -540,7 +658,7 @@ async def portal_inbox_list(token: str):
                 "phone": d["phone"], "email": d["email"],
                 "channels": [], "last_message": None, "last_message_at": None, "unread": False,
             })
-            entry["channels"].append(channel)
+            entry["channels"].append(ch)
             entry["unread"] = entry["unread"] or d["unread"]
             if d["last_message_at"] and (
                 entry["last_message_at"] is None or d["last_message_at"] > entry["last_message_at"]
@@ -548,7 +666,14 @@ async def portal_inbox_list(token: str):
                 entry["last_message"] = d["last_message"]
                 entry["last_message_at"] = d["last_message_at"]
 
-    return sorted(by_contact.values(), key=lambda e: e["last_message_at"] or "", reverse=True)
+    results = list(by_contact.values())
+    if since != "all":
+        from datetime import datetime, timedelta, timezone as dt_timezone
+        cutoff_days = {"today": 1, "week": 7, "month": 30}[since]
+        cutoff = datetime.now(dt_timezone.utc) - timedelta(days=cutoff_days)
+        results = [e for e in results if e["last_message_at"] and e["last_message_at"] >= cutoff]
+
+    return sorted(results, key=lambda e: e["last_message_at"] or "", reverse=True)
 
 
 @router.get("/{token}/inbox/{contact_id}")

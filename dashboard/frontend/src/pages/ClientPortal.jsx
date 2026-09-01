@@ -7,6 +7,14 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { SECTIONS } from "../onboardingSections.js";
+import PeriodToggle from "../components/PeriodToggle.jsx";
+
+// Shared "All Time / Month / Week / Today" bucket vocabulary — matches
+// dashboard/backend/routers/client_portal.py's _PERIOD_INTERVAL exactly
+// (string keys, not the internal Analytics tab's numeric-days convention),
+// used by both the Dashboard tab's period selector and the Inbox tab's
+// time filter below.
+const PORTAL_PERIOD_OPTIONS = [["today", "Today"], ["week", "Week"], ["month", "Month"], ["all", "All Time"]];
 
 // An appointment counts as "still upcoming" until an hour past its actual
 // time — a bit of grace for a call running long — rather than the instant
@@ -465,15 +473,17 @@ function RecentLeadsWidget({ token }) {
 function DashboardTab({ token }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState("all");
 
   useEffect(() => {
-    fetch(`/portal-api/${token}/stats`)
+    setLoading(true);
+    fetch(`/portal-api/${token}/stats?period=${period}`)
       .then((r) => r.json())
       .then((data) => { setStats(data); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [token]);
+  }, [token, period]);
 
-  if (loading) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading && !stats) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (!stats) return null;
 
   const appt = stats.appointments;
@@ -494,6 +504,12 @@ function DashboardTab({ token }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* Period selector — same All Time/Month/Week/Today bucket vocabulary
+          as the internal OS's Analytics tab, scoping every stat below. */}
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <PeriodToggle days={period} setDays={setPeriod} options={PORTAL_PERIOD_OPTIONS} />
+      </div>
 
       {/* Row 1: top stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
@@ -765,6 +781,26 @@ function parseLeadCSV(text) {
   });
 }
 
+// Small colored pill matching the internal CRM's tag chip look — same
+// palette convention (tag.color as the border/text, a translucent fill of
+// the same hue) as CRMPanel.jsx's TagChip.
+function TagChip({ tag, onRemove }) {
+  const color = tag.color || "#3a7bd5";
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "2px 8px", borderRadius: 999, fontSize: 10,
+      fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+      color, background: `${color}22`, border: `1px solid ${color}55`,
+    }}>
+      {tag.name}
+      {onRemove && (
+        <span onClick={onRemove} style={{ cursor: "pointer", opacity: 0.7, fontWeight: 700 }}>×</span>
+      )}
+    </span>
+  );
+}
+
 function LeadsTab({ token }) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -777,14 +813,51 @@ function LeadsTab({ token }) {
   const [importResult, setImportResult] = useState(null);
   const [importing, setImporting] = useState(false);
 
+  // Tagging — mirrors the internal CRM's tag system (routers/tags.py +
+  // routers/crm.py's per-contact tag endpoints), scoped to this client's
+  // own leads via the portal_add_lead_tag/portal_remove_lead_tag endpoints.
+  const [allTags, setAllTags] = useState([]);
+  const [activeTag, setActiveTag] = useState("");
+  const [tagPickFor, setTagPickFor] = useState(null); // lead id currently showing the "add tag" picker
+
+  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#3a7bd5" };
+
+  const loadTags = async () => {
+    const r = await fetch(`/portal-api/${token}/tags`);
+    if (r.ok) setAllTags(await r.json());
+  };
+
   const load = async () => {
     setLoading(true);
-    const r = await fetch(`/portal-api/${token}/leads`);
+    const qs = activeTag ? `?tag=${encodeURIComponent(activeTag)}` : "";
+    const r = await fetch(`/portal-api/${token}/leads${qs}`);
     if (r.ok) setLeads(await r.json());
     setLoading(false);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token]);
+  useEffect(() => { loadTags(); /* eslint-disable-next-line */ }, [token]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token, activeTag]);
+
+  const addTagToLead = async (leadId, tagName) => {
+    if (!tagName.trim()) return;
+    const r = await fetch(`/portal-api/${token}/leads/${leadId}/tags`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tag: tagName.trim() }),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? updated : l)));
+    }
+    setTagPickFor(null);
+  };
+
+  const removeTagFromLead = async (leadId, tagName) => {
+    const r = await fetch(`/portal-api/${token}/leads/${leadId}/tags/${encodeURIComponent(tagName)}`, { method: "DELETE" });
+    if (r.ok) {
+      const updated = await r.json();
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? updated : l)));
+    }
+  };
 
   const addLead = async () => {
     if (!form.phone.trim()) { setErr("Phone is required."); return; }
@@ -829,7 +902,16 @@ function LeadsTab({ token }) {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <SectionHeading>Leads ({leads.length})</SectionHeading>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select
+            className="dg-input"
+            value={activeTag}
+            onChange={(e) => setActiveTag(e.target.value)}
+            style={{ fontSize: 11, padding: "6px 10px", width: 150 }}
+          >
+            <option value="">All tags</option>
+            {allTags.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+          </select>
           <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => { setShowImport((s) => !s); setShowAdd(false); }}>
             {showImport ? "CANCEL" : "IMPORT CSV"}
           </button>
@@ -890,14 +972,14 @@ function LeadsTab({ token }) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(58,123,213,0.15)" }}>
-              {["Business", "Owner", "Phone", "Email", "City", "State"].map((h) => (
+              {["Business", "Owner", "Phone", "Email", "City", "State", "Tags"].map((h) => (
                 <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && leads.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No leads yet.</td></tr>
+              <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No leads yet.</td></tr>
             )}
             {leads.map((l) => (
               <tr key={l.id} style={{ borderBottom: "1px solid rgba(58,123,213,0.08)" }}>
@@ -907,6 +989,33 @@ function LeadsTab({ token }) {
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.email || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.city || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.state || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                    {(l.tags || []).map((tagName) => (
+                      <TagChip key={tagName} tag={tagByName(tagName)} onRemove={() => removeTagFromLead(l.id, tagName)} />
+                    ))}
+                    {tagPickFor === l.id ? (
+                      <select
+                        autoFocus
+                        className="dg-input"
+                        style={{ fontSize: 10, padding: "2px 6px", width: 110 }}
+                        onChange={(e) => addTagToLead(l.id, e.target.value)}
+                        onBlur={() => setTagPickFor(null)}
+                        defaultValue=""
+                      >
+                        <option value="" disabled>Pick tag…</option>
+                        {allTags.filter((t) => !(l.tags || []).includes(t.name)).map((t) => (
+                          <option key={t.id} value={t.name}>{t.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span
+                        onClick={() => setTagPickFor(l.id)}
+                        style={{ cursor: "pointer", fontSize: 10, color: "#3a7bd5", fontFamily: "'Share Tech Mono', monospace" }}
+                      >+ tag</span>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1021,18 +1130,39 @@ function InboxThread({ token, contactId, onSent }) {
   );
 }
 
+// Filter bar mirrors the internal InboxPanel's shape (channel/since/tag
+// query params against email_inbox.py) — see client_portal.py's
+// portal_inbox_list for the matching backend params. `status` (contact
+// pipeline status — "dialer-lead", "gatekeeper-blocked", etc.) is
+// deliberately left out of the client-facing UI even though the backend
+// accepts it: those are DigiGrowth's own internal sales-pipeline labels,
+// not something meaningful to show a client about their own leads — same
+// reasoning as excluding the anchor contact elsewhere in this file.
+const INBOX_CHANNEL_OPTIONS = [["all", "All Channels"], ["sms", "SMS"], ["email", "Email"]];
+
 function InboxTab({ token }) {
   const [convos, setConvos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [channelFilter, setChannelFilter] = useState("all");
+  const [sinceFilter, setSinceFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("");
+  const [allTags, setAllTags] = useState([]);
 
   const load = async () => {
-    const r = await fetch(`/portal-api/${token}/inbox`);
+    setLoading(true);
+    const params = new URLSearchParams({ channel: channelFilter, since: sinceFilter });
+    if (tagFilter) params.set("tag", tagFilter);
+    const r = await fetch(`/portal-api/${token}/inbox?${params.toString()}`);
     if (r.ok) setConvos(await r.json());
     setLoading(false);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token]);
+  useEffect(() => {
+    fetch(`/portal-api/${token}/tags`).then((r) => r.ok && r.json()).then((d) => d && setAllTags(d));
+    /* eslint-disable-next-line */
+  }, [token]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token, channelFilter, sinceFilter, tagFilter]);
 
   const openConvo = (contactId) => {
     setSelected(contactId);
@@ -1041,7 +1171,19 @@ function InboxTab({ token }) {
 
   return (
     <div>
-      <SectionHeading>Inbox</SectionHeading>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <SectionHeading>Inbox</SectionHeading>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select className="dg-input" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 130 }}>
+            {INBOX_CHANNEL_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+          </select>
+          <select className="dg-input" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 130 }}>
+            <option value="">All tags</option>
+            {allTags.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+          </select>
+          <PeriodToggle days={sinceFilter} setDays={setSinceFilter} options={PORTAL_PERIOD_OPTIONS} />
+        </div>
+      </div>
       <div className="glass-card" style={{ padding: 0, overflow: "hidden", display: "grid", gridTemplateColumns: "300px 1fr", height: 560 }}>
         <div style={{ borderRight: "1px solid rgba(58,123,213,0.12)", overflowY: "auto" }}>
           {loading && <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
