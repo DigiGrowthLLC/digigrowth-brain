@@ -209,8 +209,11 @@ async def portal_stats(token: str, period: str = "all"):
     """period: "all" (default) | "today" | "week" | "month" — same bucket
     vocabulary as portal_inbox_list's `since` param. Scopes sms/email
     sent+replies to messages sent in that window, and leads to contacts
-    created in that window; appointments stay zeroed regardless (see
-    portal_appointments() below)."""
+    created in that window. Appointments are real (all-time, not scoped to
+    `period`) only for the is_test client, computed live from
+    appointment_reminders.outcome_show/outcome_close — every other real
+    client still gets the zeroed placeholder (see portal_appointments()
+    below for why)."""
     if period != "all" and period not in _PERIOD_INTERVAL:
         raise HTTPException(status_code=400, detail="period must be 'all', 'today', 'week', or 'month'")
     interval = _PERIOD_INTERVAL.get(period)
@@ -277,10 +280,46 @@ async def portal_stats(token: str, period: str = "all"):
             f"SELECT count(*) FROM contacts WHERE client_id = $1 AND NOT is_client_anchor {leads_since_clause}",
             client["id"],
         )
-        # No appointment_reminders query here — see portal_appointments()'s
-        # docstring below for why every row in that table is a DigiGrowth-
-        # internal sales/onboarding meeting, not the client's own patient
-        # appointments, and doesn't belong in front of a client at all.
+        # appointment_reminders holds DigiGrowth's own sales-pipeline
+        # meetings (see portal_appointments()'s docstring below) — real
+        # numbers here only for the is_test client, same gate as
+        # portal_appointments()/portal_update_appointment_outcome(). Every
+        # other real client keeps the zeroed placeholder below, unchanged.
+        appt_row = None
+        if client.get("is_test"):
+            appt_row = await conn.fetchrow(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    COALESCE(SUM((ar.status = 'scheduled' AND ar.appointment_at > now())::int), 0) AS upcoming,
+                    COALESCE(SUM((ar.outcome_show = 'show')::int), 0) AS shows,
+                    COALESCE(SUM((ar.outcome_show = 'no_show')::int), 0) AS no_shows,
+                    COALESCE(SUM((ar.outcome_close = 'closed')::int), 0) AS closed,
+                    COALESCE(SUM((ar.outcome_close = 'not_closed')::int), 0) AS not_closed
+                FROM appointment_reminders ar
+                JOIN contacts c ON c.id = ar.contact_id
+                WHERE c.client_id = $1
+                """,
+                client["id"],
+            )
+    if appt_row:
+        shows, no_shows = appt_row["shows"], appt_row["no_shows"]
+        closed, not_closed = appt_row["closed"], appt_row["not_closed"]
+        appointments_out = {
+            "total": appt_row["total"], "upcoming": appt_row["upcoming"],
+            "shows": shows, "no_shows": no_shows,
+            "show_rate": _pct(shows, shows + no_shows),
+            "closed": closed, "not_closed": not_closed,
+            # Divides by shows, not total appointments — matches
+            # analytics.py's /analytics/sales close_rate convention (a deal
+            # can only close among people who actually showed up).
+            "close_rate": _pct(closed, shows),
+        }
+    else:
+        appointments_out = {
+            "total": 0, "upcoming": 0, "shows": 0, "no_shows": 0,
+            "show_rate": 0.0, "closed": 0, "not_closed": 0, "close_rate": 0.0,
+        }
     return {
         "sms": dict(sms_row),
         "email": dict(email_row),
@@ -290,10 +329,7 @@ async def portal_stats(token: str, period: str = "all"):
             "days": [dict(r) for r in ad_rows],
         },
         "leads": {"total": leads_total},
-        "appointments": {
-            "total": 0, "upcoming": 0, "shows": 0, "no_shows": 0,
-            "show_rate": 0.0, "closed": 0, "not_closed": 0, "close_rate": 0.0,
-        },
+        "appointments": appointments_out,
     }
 
 
