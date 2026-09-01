@@ -38,5 +38,13 @@
     "root_dir": "../../copy-agent",
     "color": "#22b8cf",
     "badge_class": "badge-cyan"
+  },
+  {
+    "id": "onboarding-agent",
+    "name": "Onboarding Agent",
+    "description": "Kicks off new-client onboarding — welcome email + booking link, and (future) client dashboard, contracts, kickoff docs",
+    "root_dir": "../../onboarding-agent",
+    "color": "#f07028",
+    "badge_class": "badge-orange"
   }
 ]

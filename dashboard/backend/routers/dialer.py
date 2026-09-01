@@ -23,6 +23,8 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   PUT  /api/dialer/dm-followup-template — save "DM Follow-Up" SMS-only templates
   GET  /api/dialer/reminder-template — appointment reminder SMS/email templates
   PUT  /api/dialer/reminder-template — save appointment reminder templates
+  GET  /api/dialer/onboarding-template — "Onboarding Kickoff" welcome email template
+  PUT  /api/dialer/onboarding-template — save "Onboarding Kickoff" welcome email template
 
 SMS outreach sequences moved to their own table/router — see
 routers/sms_sequences.py (GET/POST/PATCH/DELETE /api/sms-sequences).
@@ -44,6 +46,7 @@ import dialer_engine as engine
 import dm_followup_sequence
 import integrations
 import no_show_sequence
+import onboarding_sequence
 import reminder_engine
 from db import get_pool
 from models import DISPOSITION_TO_STATUS
@@ -271,6 +274,56 @@ async def save_cancel_template(body: dict):
             await conn.execute(
                 """
                 INSERT INTO dialer_settings (key, value, updated_at) VALUES ('cancel_category', $1, now())
+                ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
+                """,
+                body["category"],
+            )
+    return {"ok": True}
+
+
+# ── "Onboarding Kickoff" welcome email template (Business Resources → ───────
+# Outreach Templates). Same key/value store as the editors above;
+# onboarding_sequence.py's send_kickoff() reads these same keys fresh at send
+# time via onboarding_sequence._get_templates(). Fired automatically the
+# moment a rep marks an appointment's outcome "Closed" (won) in the
+# Appointments tab — see routers/appointments.py's PATCH handler. Single
+# email template, no per-touch loop (contrast with No Show/Cancel above).
+
+@router.get("/dialer/onboarding-template")
+async def get_onboarding_template():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
+            list(onboarding_sequence.TEMPLATE_DEFAULTS.keys()) + ["onboarding_category"],
+        )
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    result = {
+        key: values.get(key, default)
+        for key, default in onboarding_sequence.TEMPLATE_DEFAULTS.items()
+    }
+    result["category"] = values.get("onboarding_category") or "General"
+    return result
+
+
+@router.put("/dialer/onboarding-template")
+async def save_onboarding_template(body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for key in onboarding_sequence.TEMPLATE_DEFAULTS:
+            if key not in body:
+                continue
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+                """,
+                key, body[key],
+            )
+        if "category" in body:
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ('onboarding_category', $1, now())
                 ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
                 """,
                 body["category"],

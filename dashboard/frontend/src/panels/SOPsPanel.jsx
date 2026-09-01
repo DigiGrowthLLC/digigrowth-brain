@@ -346,6 +346,14 @@ const CANCEL_ITEM = { id: CANCEL_PSEUDO_ID, title: "Cancellation (SMS + Email)",
 const DM_FOLLOWUP_PSEUDO_ID = "__dm_followup__";
 const DM_FOLLOWUP_ITEM = { id: DM_FOLLOWUP_PSEUDO_ID, title: "DM Follow-Up (SMS)", dmFollowupTemplate: true };
 
+// Same pattern again, for the onboarding kickoff welcome email — backed by
+// GET/PUT /api/dialer/onboarding-template. Email-only (no SMS), single
+// template (not a multi-touch drip). Fires automatically the moment a rep
+// marks an appointment's outcome "Closed" (won) in the Appointments tab —
+// onboarding_sequence.py.
+const ONBOARDING_PSEUDO_ID = "__onboarding__";
+const ONBOARDING_ITEM = { id: ONBOARDING_PSEUDO_ID, title: "Onboarding Kickoff (Email)", onboardingTemplate: true };
+
 // Unlike SEND_INFO_ITEM/REMINDER_TEMPLATE_ITEM above, SMS Sequences are no
 // longer a single pinned pseudo-doc — there can be many, named and switchable
 // (see the `sequences` state / GET /api/sms-sequences below). Each fetched
@@ -560,6 +568,155 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
             style={fieldStyle}
           />
           <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the contact's first name.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Onboarding Kickoff editor ───────────────────────────────────────────────
+// Email-only welcome message sent the moment a rep marks an appointment's
+// outcome "Closed" (won) — dashboard/backend/onboarding_sequence.py reads
+// this from the dialer_settings table at send time via GET
+// /api/dialer/onboarding-template; this is the editor for that same store.
+function OnboardingKickoffEditor({ categories, onCategoryChange }) {
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [category, setCategory] = useState("General");
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [saved, setSaved] = useState({ emailSubject: "", emailBody: "", category: "General" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/dialer/onboarding-template");
+      if (r.ok) {
+        const data = await r.json();
+        setEmailSubject(data.onboarding_welcome_email_subject || "");
+        setEmailBody(data.onboarding_welcome_email_body || "");
+        setCategory(data.category || "General");
+        setSaved({
+          emailSubject: data.onboarding_welcome_email_subject || "",
+          emailBody: data.onboarding_welcome_email_body || "",
+          category: data.category || "General",
+        });
+        onCategoryChange?.(data.category || "General");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const dirty = emailSubject !== saved.emailSubject || emailBody !== saved.emailBody || category !== saved.category;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/onboarding-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          onboarding_welcome_email_subject: emailSubject,
+          onboarding_welcome_email_body: emailBody,
+          category,
+        }),
+      });
+      if (r.ok) {
+        setSaved({ emailSubject, emailBody, category });
+        onCategoryChange?.(category);
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = {
+    width: "100%", background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+    padding: "10px 12px", color: "#e8f0ff",
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    outline: "none", resize: "vertical", boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block", marginBottom: 6,
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+    color: "#3a5a80", letterSpacing: "0.12em",
+  };
+  const hintStyle = {
+    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 11, color: "#4a6a8a",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+          Sent automatically the moment a rep marks an appointment's outcome <strong style={{ color: "#a080f0" }}>Closed</strong> (won) in the Appointments tab. Edits apply to the very next send.
+        </span>
+        <CategoryPicker
+          categories={categories}
+          category={category}
+          setCategory={setCategory}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={save}
+          disabled={saving || !dirty}
+          style={{
+            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <div>
+          <label style={labelStyle}>EMAIL SUBJECT</label>
+          <input
+            value={emailSubject}
+            onChange={e => setEmailSubject(e.target.value)}
+            placeholder="Welcome to DigiGrowth, {first_name}!"
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the client's first name.</div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>EMAIL BODY</label>
+          <textarea
+            value={emailBody}
+            onChange={e => setEmailBody(e.target.value)}
+            rows={12}
+            placeholder={"Hey {first_name},\n\nWelcome aboard...\n\nGrab a time for your Onboarding Call: {link}"}
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>
+            Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the client's first name and{" "}
+            <code style={{ color: "#6ab0ff" }}>{"{link}"}</code> for the Onboarding Call booking link.
+          </div>
         </div>
       </div>
     </div>
@@ -1864,6 +2021,7 @@ export default function SOPsPanel() {
   const [noShowCategory, setNoShowCategory] = useState("General");
   const [cancelCategory, setCancelCategory] = useState("General");
   const [dmFollowupCategory, setDmFollowupCategory] = useState("General");
+  const [onboardingCategory, setOnboardingCategory] = useState("General");
   const [remCategory, setRemCategory] = useState("General");
   const [sequences, setSequences] = useState([]);
   const [selectedSequenceId, setSelectedSequenceId] = useState(null);
@@ -1938,17 +2096,19 @@ export default function SOPsPanel() {
     fetchSequences();
     fetchCallScripts();
     (async () => {
-      const [infoR, noShowR, cancelR, dmFollowupR, remR] = await Promise.all([
+      const [infoR, noShowR, cancelR, dmFollowupR, onboardingR, remR] = await Promise.all([
         fetch("/api/dialer/info-template"),
         fetch("/api/dialer/no-show-template"),
         fetch("/api/dialer/cancel-template"),
         fetch("/api/dialer/dm-followup-template"),
+        fetch("/api/dialer/onboarding-template"),
         fetch("/api/dialer/reminder-template"),
       ]);
       if (infoR.ok) setSendInfoCategory((await infoR.json()).category || "General");
       if (noShowR.ok) setNoShowCategory((await noShowR.json()).category || "General");
       if (cancelR.ok) setCancelCategory((await cancelR.json()).category || "General");
       if (dmFollowupR.ok) setDmFollowupCategory((await dmFollowupR.json()).category || "General");
+      if (onboardingR.ok) setOnboardingCategory((await onboardingR.json()).category || "General");
       if (remR.ok) setRemCategory((await remR.json()).category || "General");
     })();
   }, [activeSection, fetchSequences, fetchCallScripts]);
@@ -1978,7 +2138,7 @@ export default function SOPsPanel() {
     ...sops.map(s => s.category || "General"),
     ...(activeSection === "outreach_templates"
       ? [
-          sendInfoCategory, noShowCategory, cancelCategory, dmFollowupCategory, remCategory,
+          sendInfoCategory, noShowCategory, cancelCategory, dmFollowupCategory, onboardingCategory, remCategory,
           ...sequences.map(s => s.category || "General"),
           ...callScripts.map(s => s.category || "General"),
         ]
@@ -2120,6 +2280,7 @@ export default function SOPsPanel() {
     { ...NO_SHOW_ITEM,          category: noShowCategory,   icon: "🚫" },
     { ...CANCEL_ITEM,           category: cancelCategory,   icon: "✕" },
     { ...DM_FOLLOWUP_ITEM,      category: dmFollowupCategory, icon: "💭" },
+    { ...ONBOARDING_ITEM,       category: onboardingCategory, icon: "🎉" },
     ...sequences.map(seq => ({
       id: `seq-${seq.id}`,
       title: seq.name,
@@ -2167,10 +2328,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -2187,7 +2348,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -2347,6 +2508,8 @@ export default function SOPsPanel() {
             <CancelSequenceEditor categories={categories} onCategoryChange={setCancelCategory} />
           ) : selectedItem?.dmFollowupTemplate ? (
             <DmFollowupSequenceEditor categories={categories} onCategoryChange={setDmFollowupCategory} />
+          ) : selectedItem?.onboardingTemplate ? (
+            <OnboardingKickoffEditor categories={categories} onCategoryChange={setOnboardingCategory} />
           ) : selectedItem?.smsSequence ? (
             <SmsSequenceEditor
               sequence={sequences.find(s => s.id === selectedSequenceId)}

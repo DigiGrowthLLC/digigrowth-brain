@@ -12,6 +12,11 @@ their normal schedule from there.
 The /cancel endpoint below drives the same shape of sequence for
 cancellations — cancel_sequence.py, see that module's docstring.
 
+Marking an appointment's outcome_close = 'closed' (won) stamps
+outcome_close_at and fires the onboarding welcome email immediately —
+onboarding_sequence.py. Single touch, no drip/poller (contrast with the
+No Show/Cancel sequences above).
+
 GET  /appointment-reminders/sequence/{sequence} and the /add, /remove
 sub-routes below (sequence in "no_show"/"cancel"/"reminder") back the
 Outreach Templates tab's "View Active Prospects" queue for each of the three
@@ -31,6 +36,7 @@ from db import get_pool
 from timezone_lookup import guess_timezone, US_TIMEZONES
 import cancel_sequence
 import no_show_sequence
+import onboarding_sequence
 import reminder_engine
 
 router = APIRouter()
@@ -315,6 +321,15 @@ async def update_appointment(appointment_id: int, payload: dict):
         ]
     elif "outcome_show" in updates:
         set_clauses += ["outcome_show_at = NULL"]
+    # Onboarding kickoff bookkeeping: entering 'closed' (won) stamps
+    # outcome_close_at and clears onboarding_kickoff_sent_at so re-closing a
+    # previously-cleared appointment fires the welcome email again. Leaving
+    # 'closed' clears outcome_close_at. Same shape as the outcome_show block
+    # above — see onboarding_sequence.py.
+    if updates.get("outcome_close") == "closed":
+        set_clauses += ["outcome_close_at = now()", "onboarding_kickoff_sent_at = NULL"]
+    elif "outcome_close" in updates:
+        set_clauses += ["outcome_close_at = NULL"]
     params.append(appointment_id)
 
     pool = await get_pool()
@@ -335,6 +350,12 @@ async def update_appointment(appointment_id: int, payload: dict):
             await no_show_sequence.send_first_touch(dict(updated))
         except Exception as e:
             print(f"[appointments] no-show touch 1 failed for {appointment_id}: {e}")
+
+    if updates.get("outcome_close") == "closed":
+        try:
+            await onboarding_sequence.send_kickoff(dict(updated))
+        except Exception as e:
+            print(f"[appointments] onboarding kickoff failed for {appointment_id}: {e}")
 
     return {"ok": True, "id": appointment_id}
 

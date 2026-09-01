@@ -884,6 +884,12 @@ def calendar_events_structured(days_ahead: int = 7, calendar_id: str = "primary"
 # constant is frontend-only today).
 CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min"
 
+# Placeholder — Dylan hasn't created the 1-hour "Onboarding Call" Calendly
+# event type yet. Fill in once it exists. Used by onboarding_sequence.py's
+# welcome email, sent the moment a rep marks an appointment "Closed" (won).
+# Same static-URL pattern as CALENDLY_URL above — no Calendly API involved.
+ONBOARDING_CALENDLY_URL = ""
+
 
 def _extract_meeting_link(event: dict) -> str | None:
     """Pull whatever video/join link a Calendar event actually carries, in
