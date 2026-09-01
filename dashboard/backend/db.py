@@ -335,6 +335,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 title       TEXT NOT NULL,
                 description TEXT,
                 link_tab    TEXT,
+                link_url    TEXT,
                 sort_order  INTEGER NOT NULL DEFAULT 0,
                 active      BOOLEAN NOT NULL DEFAULT true,
                 created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -440,6 +441,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
             ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_tab TEXT;
+            ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_url TEXT;
         """)
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;

@@ -315,6 +315,11 @@ function ActionItemRow({ item, onDelete }) {
             LINKS TO {(ACTION_ITEM_LINK_LABELS[item.link_tab] || item.link_tab).toUpperCase()}
           </div>
         )}
+        {item.link_url && (
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", marginTop: 4, letterSpacing: "0.06em", wordBreak: "break-all" }}>
+            LINKS TO {item.link_url}
+          </div>
+        )}
       </div>
       <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(item.id)}>DELETE</button>
     </div>
@@ -325,7 +330,7 @@ function ActionItemsSection() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", link_tab: "" });
+  const [form, setForm] = useState({ title: "", description: "", link_tab: "", link_url: "" });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -345,10 +350,11 @@ function ActionItemsSection() {
         title: form.title.trim(),
         description: form.description.trim() || undefined,
         link_tab: form.link_tab || undefined,
+        link_url: form.link_url.trim() || undefined,
         sort_order: items.length,
       }),
     });
-    setForm({ title: "", description: "", link_tab: "" });
+    setForm({ title: "", description: "", link_tab: "", link_url: "" });
     setShowForm(false);
     setSaving(false);
     load();
@@ -383,10 +389,15 @@ function ActionItemsSection() {
           <textarea className="dg-input" rows={2} placeholder="Description — what they need to do (optional)" value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} style={{ resize: "vertical" }} />
           <div>
-            <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Links to (optional) — shows a "Go to…" button on this step</div>
+            <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Links to a portal tab (optional) — shows a "Go to…" button</div>
             <select className="dg-input" value={form.link_tab} onChange={(e) => setForm((f) => ({ ...f, link_tab: e.target.value }))}>
               {ACTION_ITEM_LINK_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Or an external link (optional) — e.g. a Calendly booking link</div>
+            <input className="dg-input" placeholder="https://calendly.com/…" value={form.link_url}
+              onChange={(e) => setForm((f) => ({ ...f, link_url: e.target.value }))} />
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button className="btn btn-primary" onClick={save} disabled={saving || !form.title.trim()} style={{ fontSize: 11 }}>

@@ -109,7 +109,7 @@ async def portal_action_items(token: str):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT ai.id, ai.title, ai.description, ai.link_tab, ai.sort_order, c.completed_at
+            SELECT ai.id, ai.title, ai.description, ai.link_tab, ai.link_url, ai.sort_order, c.completed_at
             FROM onboarding_action_items ai
             LEFT JOIN client_action_item_completions c
                 ON c.action_item_id = ai.id AND c.client_id = $1

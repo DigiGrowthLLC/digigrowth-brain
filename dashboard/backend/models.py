@@ -157,6 +157,7 @@ class ActionItemCreate(BaseModel):
     title: str
     description: Optional[str] = None
     link_tab: Optional[str] = None
+    link_url: Optional[str] = None
     sort_order: int = 0
 
 
@@ -164,6 +165,7 @@ class ActionItemUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     link_tab: Optional[str] = None
+    link_url: Optional[str] = None
     sort_order: Optional[int] = None
     active: Optional[bool] = None
 

@@ -76,6 +76,11 @@ function ActionItemRow({ token, item, onUpdated, onGoToTab }) {
             ▶ Go to {TAB_LABELS[item.link_tab]}
           </button>
         )}
+        {item.link_url && (
+          <a href={item.link_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#3a7bd5", fontSize: 11.5, textDecoration: "underline" }}>
+            ▶ Open Link
+          </a>
+        )}
       </div>
     </div>
   );
