@@ -850,6 +850,37 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
   const deviceRef = useRef(null);
   const activeCallRef = useRef(null);
   const pollRef = useRef(null);
+  const [showBook, setShowBook] = useState(false);
+  const [timezones, setTimezones] = useState([]);
+  const [bookDate, setBookDate] = useState("");
+  const [bookTime, setBookTime] = useState("");
+  const [bookTz, setBookTz] = useState("America/New_York");
+  const [booking, setBooking] = useState(false);
+  const [bookMsg, setBookMsg] = useState("");
+
+  useEffect(() => {
+    if (!showBook || timezones.length) return;
+    fetch(`/portal-api/${token}/appointments/timezones`).then((r) => r.json()).then(setTimezones).catch(() => {});
+  }, [showBook, token, timezones.length]);
+
+  const bookAppointment = async () => {
+    if (!bookDate || !bookTime) { setBookMsg("Enter the appointment date and time."); return; }
+    setBooking(true);
+    setBookMsg("");
+    try {
+      const r = await fetch(`/portal-api/${token}/leads/${lead.id}/book`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: bookDate, time: bookTime, timezone: bookTz }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setBookMsg(d.detail || "Couldn't book appointment."); setBooking(false); return; }
+      setBookMsg("✅ Appointment booked — reminders scheduled.");
+      setBookDate(""); setBookTime("");
+    } catch (e) {
+      setBookMsg("Couldn't book appointment: " + e.message);
+    }
+    setBooking(false);
+  };
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -1071,6 +1102,42 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
               {callMsg}
             </div>
           )}
+
+          <div>
+            <button
+              onClick={() => setShowBook((s) => !s)}
+              style={{
+                width: "100%", padding: "9px 12px", borderRadius: 8,
+                background: "rgba(240,160,40,0.12)", border: "1px solid rgba(240,160,40,0.35)",
+                color: "#f0a028", fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              📅 {showBook ? "Cancel Booking" : "Book Appointment"}
+            </button>
+            {showBook && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10, padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid #1a2540" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 10, color: "#5a6f8f" }}>Date</label>
+                  <input type="date" className="dg-input" value={bookDate} onChange={(e) => setBookDate(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <label style={{ fontSize: 10, color: "#5a6f8f" }}>Time</label>
+                  <input type="time" className="dg-input" value={bookTime} onChange={(e) => setBookTime(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 140 }}>
+                  <label style={{ fontSize: 10, color: "#5a6f8f" }}>Timezone</label>
+                  <select className="dg-input" value={bookTz} onChange={(e) => setBookTz(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }}>
+                    {timezones.map((t) => <option key={t.iana} value={t.iana}>{t.label}</option>)}
+                  </select>
+                </div>
+                <button onClick={bookAppointment} disabled={booking} className="btn btn-primary" style={{ fontSize: 12, padding: "7px 14px" }}>
+                  {booking ? "Booking…" : "Confirm"}
+                </button>
+                {bookMsg && <div style={{ fontSize: 11, color: bookMsg.startsWith("✅") ? "#14c882" : "#f06060", width: "100%" }}>{bookMsg}</div>}
+              </div>
+            )}
+          </div>
 
           <div>
             <div style={{ ...labelStyle, marginBottom: 10 }}>TAGS</div>

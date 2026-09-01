@@ -32,6 +32,8 @@ import integrations
 import no_show_sequence
 import onboarding_sequence
 from routers import dialer as dialer_router
+from routers import appointments as appointments_router
+from timezone_lookup import US_TIMEZONES
 
 router = APIRouter(prefix="/portal-api")
 
@@ -280,9 +282,12 @@ async def portal_stats(token: str, period: str = "all"):
             f"SELECT count(*) FROM contacts WHERE client_id = $1 AND NOT is_client_anchor {leads_since_clause}",
             client["id"],
         )
-        # appointment_reminders holds DigiGrowth's own sales-pipeline
-        # meetings (see portal_appointments()'s docstring below) — real
-        # numbers here only for the is_test client, same gate as
+        # appointment_reminders rows for this client's OWN LEADS (never the
+        # anchor contact — see portal_appointments()'s docstring below for
+        # why that's not a lead in their portal at all), excluding canceled
+        # appointments from every count below — a canceled appointment never
+        # happened, so it shouldn't count toward "total" or any outcome.
+        # Real numbers here only for the is_test client, same gate as
         # portal_appointments()/portal_update_appointment_outcome(). Every
         # other real client keeps the zeroed placeholder below, unchanged.
         appt_row = None
@@ -298,7 +303,7 @@ async def portal_stats(token: str, period: str = "all"):
                     COALESCE(SUM((ar.outcome_close = 'not_closed')::int), 0) AS not_closed
                 FROM appointment_reminders ar
                 JOIN contacts c ON c.id = ar.contact_id
-                WHERE c.client_id = $1 AND c.is_client_anchor
+                WHERE c.client_id = $1 AND NOT c.is_client_anchor AND ar.status != 'canceled'
                 """,
                 client["id"],
             )
@@ -335,31 +340,28 @@ async def portal_stats(token: str, period: str = "all"):
 
 # ---------------- Appointments ----------------
 #
-# appointment_reminders holds ONLY DigiGrowth's own sales-pipeline meetings
-# with a business (the discovery call before they signed, the Onboarding
-# Call after) — every row in it is a meeting between Dylan and the client,
-# not a new-patient appointment the client's own campaign generated for
-# them. Surfacing that table to a REAL client read as "Dylan's own
-# appointment with himself" on their portal (their own name/business shown
-# as if it were their patient activity) — confirmed live on Brandon
-# Crosdale's portal. There's no separate "appointments this client's
-# campaign booked for their patients" data source anywhere in this
-# codebase yet.
+# appointment_reminders originally held ONLY DigiGrowth's own sales-pipeline
+# meetings (the discovery call before a business signed) — every row was a
+# meeting between Dylan and the anchor contact, not a new-patient
+# appointment the client's own campaign generated for them. Surfacing that
+# table to a REAL client read as "Dylan's own appointment with himself" on
+# their portal — confirmed live on Brandon Crosdale's portal.
+#
+# Since portal_book_appointment() below now lets a client book an
+# appointment for one of their OWN LEADS (never the anchor contact — that's
+# not a lead in their portal at all, it's DigiGrowth's own sales contact),
+# appointment_reminders can hold real client-facing data now, scoped by
+# `AND NOT c.is_client_anchor` everywhere below. contacts.client_id is also
+# set in bulk by clients.py's link-all-unassigned admin action (built to
+# give the test client's portal sample data), which is exactly why the
+# anchor still has to be excluded — that action swept the anchor's own old
+# test bookings in under this client's id too.
 #
 # Per Dylan's explicit call (2026-09-01): only the is_test client's portal
-# should show real appointment data — every other real client keeps
-# getting an empty list, same as before, until a real per-client-patient
-# data source exists. Gated the same way as the Twilio/Gmail endpoints
-# above (_require_test_client), not just left stubbed by omission.
-#
-# `AND c.is_client_anchor` (added same day, after the numbers looked wrong
-# live): contacts.client_id is also set in bulk by clients.py's
-# link-all-unassigned admin action (built to give the test client's portal
-# real data to look at) — that swept in unrelated leads like "Austin
-# Treadwell" whose OWN appointments then counted toward this client's
-# totals. Scoping to just the anchor contact (the one actual contact this
-# client record represents) keeps the numbers meaning what they look like
-# they mean.
+# can see/create real appointment data — every other real client keeps
+# getting an empty list, same as before, until this is deliberately opened
+# up. Gated the same way as the Twilio/Gmail endpoints above
+# (_require_test_client), not just left stubbed by omission.
 
 @router.get("/{token}/appointments")
 async def portal_appointments(token: str, status: str = "scheduled"):
@@ -372,12 +374,51 @@ async def portal_appointments(token: str, status: str = "scheduled"):
             """
             SELECT ar.* FROM appointment_reminders ar
             JOIN contacts c ON c.id = ar.contact_id
-            WHERE c.client_id = $1 AND c.is_client_anchor AND ar.status = $2
+            WHERE c.client_id = $1 AND NOT c.is_client_anchor AND ar.status = $2
             ORDER BY ar.appointment_at ASC
             """,
             client["id"], status,
         )
     return [dict(r) for r in rows]
+
+
+@router.get("/{token}/appointments/timezones")
+async def portal_appointment_timezones(token: str):
+    """Static list for the portal booking form's timezone dropdown — same
+    US_TIMEZONES the internal OS's BookingForm.jsx uses. Not sensitive data,
+    so no is_test gate; harmless for any client's portal to fetch."""
+    await get_client_from_token(token)
+    return US_TIMEZONES
+
+
+@router.post("/{token}/leads/{contact_id}/book")
+async def portal_book_appointment(token: str, contact_id: str, body: dict):
+    """Client-facing appointment booking for one of the client's OWN LEADS
+    (never the anchor contact — see module note above). Reuses
+    routers/appointments.py's create_appointment() so the reminder
+    pipeline (24h/6h/1h sends) picks this up exactly like an internally
+    booked appointment. is_test-gated like every other real-data-writing
+    portal endpoint."""
+    client = await get_client_from_token(token)
+    _require_test_client(client)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow(
+            "SELECT id, business, owner, phone, email FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
+            contact_id, client["id"],
+        )
+    if not contact:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    return await appointments_router.create_appointment({
+        "contact_id": contact_id,
+        "prospect_name": contact["owner"] or contact["business"],
+        "prospect_phone": contact["phone"],
+        "prospect_email": contact["email"],
+        "date": body.get("date"),
+        "time": body.get("time"),
+        "timezone": body.get("timezone"),
+    })
 
 
 @router.patch("/{token}/appointments/{appointment_id}")
@@ -399,7 +440,7 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
             """
             SELECT ar.* FROM appointment_reminders ar
             JOIN contacts c ON c.id = ar.contact_id
-            WHERE ar.id = $1 AND c.client_id = $2 AND c.is_client_anchor
+            WHERE ar.id = $1 AND c.client_id = $2 AND NOT c.is_client_anchor
             """,
             appointment_id, client["id"],
         )
