@@ -895,7 +895,7 @@ ONBOARDING_CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/onboarding
 # exists or is planned), same pattern as CALENDLY_URL/ONBOARDING_CALENDLY_URL
 # above. Fill in once the form exists. Used by onboarding_sequence.py's
 # next-morning follow-up email/SMS.
-ONBOARDING_FORM_URL = ""
+ONBOARDING_FORM_URL = "https://docs.google.com/forms/d/1Xdy_9n5Rzc3cKXME4AG_aXhoq6cLXOjSqG7TrWR5t2g/viewform"
 
 
 def _extract_meeting_link(event: dict) -> str | None:
