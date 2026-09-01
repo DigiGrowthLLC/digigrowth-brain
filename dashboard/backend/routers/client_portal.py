@@ -778,13 +778,24 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
     if not text:
         raise HTTPException(status_code=400, detail="body required")
 
+    # Both branches below are wrapped in asyncio.wait_for — a hung Gmail/
+    # Twilio API call (bad/expired OAuth token needing a slow refresh
+    # attempt, a network stall, etc.) previously held this request open
+    # indefinitely, which the frontend has no timeout of its own for either
+    # — reported live as the whole portal "freezing" on email send. This
+    # turns a hang into a clean, fast error instead of an infinite wait on
+    # both ends.
+    _SEND_TIMEOUT_S = 20
+
     if channel == "sms":
         phone = (contact["phone"] or "").strip()
         if not phone:
             raise HTTPException(status_code=400, detail="This contact has no phone number on file")
         from routers import sms as sms_router
         try:
-            sms_router._send_twilio(phone, text)
+            await asyncio.wait_for(asyncio.to_thread(sms_router._send_twilio, phone, text), timeout=_SEND_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=504, detail="SMS send timed out — check Twilio credentials/status and try again.")
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"SMS send failed: {e}")
         async with pool.acquire() as conn:
@@ -807,7 +818,13 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
             contact_id,
         )
     subject = last_subject or f"Message from {client['name']}"
-    result = await asyncio.to_thread(integrations.gmail_send, email, subject, text, False, False)
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(integrations.gmail_send, email, subject, text, False, False),
+            timeout=_SEND_TIMEOUT_S,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Email send timed out — check Gmail credentials/status and try again.")
     if not result.startswith("Sent email"):
         raise HTTPException(status_code=502, detail=result)
     return {"ok": True}

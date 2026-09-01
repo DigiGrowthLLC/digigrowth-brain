@@ -1351,20 +1351,35 @@ function InboxThread({ token, contactId, onSent }) {
   const send = async () => {
     if (!draft.trim()) return;
     setSending(true);
-    const r = await fetch(`/portal-api/${token}/inbox/${contactId}/send`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel, body: draft.trim() }),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (r.ok && data.ok) {
-      setNotice(null);
-      setDraft("");
-      await load();
-      onSent?.();
-    } else {
-      setNotice(data.detail || "Couldn't send — try again.");
+    // Backend now times out a hung Gmail/Twilio call after 20s (see
+    // client_portal.py's portal_send_message), but this client-side
+    // AbortController is the actual fix for the reported "freeze" — the
+    // fetch itself had no timeout at all before, so if the request somehow
+    // never got a response (network drop, etc.) the SEND button would stay
+    // disabled forever with no way out short of reloading the page.
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 25000);
+    try {
+      const r = await fetch(`/portal-api/${token}/inbox/${contactId}/send`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel, body: draft.trim() }),
+        signal: controller.signal,
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.ok) {
+        setNotice(null);
+        setDraft("");
+        await load();
+        onSent?.();
+      } else {
+        setNotice(data.detail || "Couldn't send — try again.");
+      }
+    } catch (e) {
+      setNotice(e.name === "AbortError" ? "Send timed out — try again." : "Couldn't send — try again.");
+    } finally {
+      clearTimeout(abortTimer);
+      setSending(false);
     }
-    setSending(false);
   };
 
   if (loading) return <div style={{ padding: 40, color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>LOADING...</div>;
