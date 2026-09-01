@@ -30,7 +30,7 @@ from merge_fields import first_name_from_owner
 _WELCOME_SUBJECT_DEFAULT = "Welcome to DigiGrowth, {first_name}!"
 _WELCOME_BODY_DEFAULT = (
     "Hey {first_name},\n\n"
-    "Welcome aboard — excited to get started! Here's what happens next:\n\n"
+    "Welcome aboard - excited to get started! Here's what happens next:\n\n"
     "1. We'll get on a call to map out your onboarding, set up your campaigns, "
     "and make sure everything's dialed in for your practice.\n"
     "2. From there, we handle the setup end-to-end and keep you posted as things go live.\n\n"
