@@ -1082,6 +1082,18 @@ async def export_sms_stats_now():
     return {"ok": True}
 
 
+@router.post("/agents/run-onboarding-followup-now")
+async def run_onboarding_followup_now():
+    """On-demand trigger for the onboarding follow-up poll (see
+    onboarding_sequence.send_followup_touches, scheduled daily 8am ET) —
+    lets Dylan verify a closed-yesterday-or-earlier appointment's form/
+    booking-link email+SMS goes out right now instead of waiting for
+    tomorrow's 8am poll."""
+    import onboarding_sequence
+    await onboarding_sequence.send_followup_touches()
+    return {"ok": True}
+
+
 @router.post("/agents/post-report-now")
 async def post_report_now(filename_prefix: str, date: str | None = None):
     """On-demand trigger mirroring main.py's _post_report_from_github cron
