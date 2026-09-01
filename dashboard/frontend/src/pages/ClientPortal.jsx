@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   LineChart, Line,
@@ -831,17 +831,83 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
   const [saveErr, setSaveErr] = useState("");
   const [tagPick, setTagPick] = useState("");
   const [callMsg, setCallMsg] = useState("");
-  const [calling, setCalling] = useState(false);
+  // idle | connecting | ringing | connected | ended
+  const [callPhase, setCallPhase] = useState("idle");
+  const deviceRef = useRef(null);
+  const activeCallRef = useRef(null);
+  const pollRef = useRef(null);
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  const stopPolling = () => { clearInterval(pollRef.current); pollRef.current = null; };
+
+  const teardownCall = async () => {
+    stopPolling();
+    try { activeCallRef.current?.disconnect(); } catch {}
+    try { deviceRef.current?.destroy(); } catch {}
+    deviceRef.current = null;
+    activeCallRef.current = null;
+    await fetch(`/portal-api/${token}/dialer/end-session`, { method: "POST" }).catch(() => {});
+  };
+
+  useEffect(() => () => { teardownCall(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pollSession = () => {
+    stopPolling();
+    pollRef.current = setInterval(async () => {
+      const r = await fetch(`/portal-api/${token}/dialer/session`).catch(() => null);
+      if (!r || !r.ok) return;
+      const d = await r.json();
+      if (d.status === "connected") setCallPhase("connected");
+      else if (d.status === "classify" || (!d.active && callPhase !== "connecting")) {
+        setCallPhase("ended");
+        setCallMsg("Call ended.");
+        stopPolling();
+      } else if (d.status === "waiting") setCallPhase("ringing");
+    }, 1500);
+  };
+
   const handleCall = async () => {
-    setCalling(true);
+    if (!window.Twilio?.Device) {
+      setCallMsg("Calling isn't ready yet — try refreshing the page.");
+      return;
+    }
+    setCallPhase("connecting");
     setCallMsg("");
-    const r = await fetch(`/portal-api/${token}/leads/${lead.id}/call`, { method: "POST" });
-    const d = await r.json().catch(() => ({}));
-    setCallMsg(d.detail || "Calling isn't available yet.");
-    setCalling(false);
+    try {
+      const cr = await fetch(`/portal-api/${token}/leads/${lead.id}/call`, { method: "POST" });
+      const cd = await cr.json().catch(() => ({}));
+      if (!cr.ok) { setCallPhase("idle"); setCallMsg(cd.detail || "Couldn't start the call."); return; }
+
+      const tr = await fetch(`/portal-api/${token}/dialer/token`);
+      const td = await tr.json().catch(() => ({}));
+      if (!tr.ok) { setCallPhase("idle"); setCallMsg(td.detail || "Couldn't connect to the calling line."); return; }
+
+      const device = new window.Twilio.Device(td.token, { logLevel: "warn" });
+      deviceRef.current = device;
+      device.on("error", (e) => { setCallPhase("idle"); setCallMsg("Call error: " + (e.message || "unknown")); stopPolling(); });
+
+      await device.register();
+      const call = await device.connect({ params: { session_id: cd.session_id } });
+      activeCallRef.current = call;
+
+      call.on("accept", async () => {
+        setCallMsg("Connected — dialing " + (display.owner || display.business || "the lead") + "…");
+        await fetch(`/portal-api/${token}/dialer/dial-batch`, { method: "POST" }).catch(() => {});
+        pollSession();
+      });
+      call.on("disconnect", () => { setCallPhase("ended"); stopPolling(); });
+      call.on("cancel", () => { setCallPhase("idle"); setCallMsg("Call was canceled."); stopPolling(); });
+    } catch (e) {
+      setCallPhase("idle");
+      setCallMsg("Could not place call: " + e.message);
+    }
+  };
+
+  const handleHangup = async () => {
+    await fetch(`/portal-api/${token}/dialer/end-call`, { method: "POST" }).catch(() => {});
+    await teardownCall();
+    setCallPhase("ended");
   };
 
   const handleSave = async () => {
@@ -950,22 +1016,37 @@ function LeadDrawer({ token, lead, allTags, onClose, onUpdated, onMessage }) {
             >
               ✉ Message
             </button>
-            {/* Stub — no client has their own Twilio calling line connected
-                yet, so this just reports the not-connected state from the
-                backend rather than placing a real call. */}
-            <button
-              onClick={handleCall}
-              disabled={calling}
-              style={{
-                flex: 1, padding: "9px 12px", borderRadius: 8,
-                background: "rgba(90,200,140,0.12)", border: "1px solid rgba(90,200,140,0.35)",
-                color: "#5ac88c", fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 12, fontWeight: 600, cursor: calling ? "default" : "pointer",
-                opacity: calling ? 0.7 : 1,
-              }}
-            >
-              📞 {calling ? "Calling…" : "Call"}
-            </button>
+            {/* Places a real call through DigiGrowth's existing shared
+                Twilio line — same dialer engine as the internal OS,
+                connecting this browser as the agent leg (see handleCall). */}
+            {callPhase === "connected" ? (
+              <button
+                onClick={handleHangup}
+                style={{
+                  flex: 1, padding: "9px 12px", borderRadius: 8,
+                  background: "rgba(220,60,60,0.14)", border: "1px solid rgba(220,60,60,0.4)",
+                  color: "#e05c5c", fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                ☎ Hang Up
+              </button>
+            ) : (
+              <button
+                onClick={handleCall}
+                disabled={callPhase === "connecting" || callPhase === "ringing"}
+                style={{
+                  flex: 1, padding: "9px 12px", borderRadius: 8,
+                  background: "rgba(90,200,140,0.12)", border: "1px solid rgba(90,200,140,0.35)",
+                  color: "#5ac88c", fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 12, fontWeight: 600,
+                  cursor: (callPhase === "connecting" || callPhase === "ringing") ? "default" : "pointer",
+                  opacity: (callPhase === "connecting" || callPhase === "ringing") ? 0.7 : 1,
+                }}
+              >
+                📞 {callPhase === "connecting" ? "Connecting…" : callPhase === "ringing" ? "Ringing…" : "Call"}
+              </button>
+            )}
           </div>
           {callMsg && (
             <div style={{ fontSize: 11, color: "#8aaad0", fontFamily: "'Share Tech Mono', monospace", lineHeight: 1.5 }}>
@@ -1451,33 +1532,50 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
               {q || readFilter !== "all" ? "NO MATCHES" : "NO CONVERSATIONS YET — this fills in once your SMS/email account is connected."}
             </div>
           )}
-          {visibleConvos.map((c) => (
-            <button
-              key={c.contact_id}
-              onClick={() => openConvo(c.contact_id)}
-              style={{
-                display: "block", width: "100%", textAlign: "left", background: selected === c.contact_id ? "rgba(58,123,213,0.1)" : "none",
-                border: "none", borderBottom: "1px solid rgba(58,123,213,0.08)", cursor: "pointer", padding: "12px 16px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {c.unread && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#3a7bd5", flexShrink: 0 }} />}
-                <span style={{ fontSize: 13, fontWeight: c.unread ? 700 : 600, color: "#d0e8ff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {c.owner || c.business || c.phone || c.email}
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                {c.channels.map((ch) => (
-                  <span key={ch} className="mono" style={{ fontSize: 8, color: "#3a7bd5", letterSpacing: "0.06em" }}>{ch.toUpperCase()}</span>
-                ))}
-              </div>
-              {c.last_message && (
-                <div style={{ fontSize: 11, color: "#5a7096", marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {c.last_message}
+          {visibleConvos.map((c) => {
+            const isSel = selected === c.contact_id;
+            // Unread highlight mirrors the internal InboxPanel's own
+            // treatment exactly (tinted background + accent left border +
+            // glowing dot + bold name) — selection always wins visually
+            // over unread once a thread's open, same as internal.
+            const isUnread = c.unread && !isSel;
+            return (
+              <button
+                key={c.contact_id}
+                onClick={() => openConvo(c.contact_id)}
+                style={{
+                  display: "block", width: "100%", textAlign: "left", cursor: "pointer",
+                  padding: "12px 16px", border: "none", borderTop: "none", borderRight: "none",
+                  borderBottom: "1px solid rgba(58,123,213,0.08)",
+                  borderLeft: isSel ? "2px solid #3a7bd5" : (isUnread ? "2px solid rgba(58,123,213,0.5)" : "2px solid transparent"),
+                  background: isSel ? "rgba(58,123,213,0.1)" : (isUnread ? "rgba(58,123,213,0.06)" : "none"),
+                  transition: "background 0.1s",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {isUnread && (
+                    <span title="Unread message" style={{
+                      width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+                      background: "#3a7bd5", boxShadow: "0 0 6px 1px rgba(58,123,213,0.7)",
+                    }} />
+                  )}
+                  <span style={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: isUnread ? "#f0f4ff" : "#d0e8ff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.owner || c.business || c.phone || c.email}
+                  </span>
                 </div>
-              )}
-            </button>
-          ))}
+                <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                  {c.channels.map((ch) => (
+                    <span key={ch} className="mono" style={{ fontSize: 8, color: "#3a7bd5", letterSpacing: "0.06em" }}>{ch.toUpperCase()}</span>
+                  ))}
+                </div>
+                {c.last_message && (
+                  <div style={{ fontSize: 11, color: isUnread ? "#8aaad0" : "#5a7096", fontWeight: isUnread ? 600 : 400, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {c.last_message}
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
         <div>
           {selected ? (

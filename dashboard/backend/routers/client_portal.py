@@ -29,6 +29,7 @@ import cancel_sequence
 import integrations
 import no_show_sequence
 import onboarding_sequence
+from routers import dialer as dialer_router
 
 router = APIRouter(prefix="/portal-api")
 
@@ -814,11 +815,22 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
 
 @router.post("/{token}/leads/{contact_id}/call")
 async def portal_call_lead(token: str, contact_id: str):
-    """Same stub shape as portal_send_message above — no client has their own
-    Twilio calling line connected yet, so a real call here would place it
-    through DigiGrowth's own shared Twilio number "as" the client. Validates
-    the lead belongs to this client via the token, then responds without
-    placing any call."""
+    """Places a real single-dial call through DigiGrowth's existing shared
+    Twilio setup (same dialer_engine/TwiML app as the internal OS dialer) —
+    no per-client Twilio credentials exist yet, so this is deliberately the
+    same shared line the internal team uses, not a per-client integration.
+    Validates the lead belongs to this client via the token, then reuses
+    dialer.call_single() (the same one-lead session entrypoint the internal
+    CRM's "Call Now" button uses) to seed the dialer engine's single global
+    session. The portal frontend then drives it exactly like DialerPanel
+    does: fetch a Twilio token, connect the browser as the agent leg, and
+    POST dial-batch once connected — see the /dialer/* proxy endpoints below.
+
+    NOTE: dialer_engine's session is a single process-global session, not
+    per-caller — a client placing a call here will conflict with the admin
+    running the internal Dialer panel at the same time. Acceptable for now
+    (early/test-client use); would need real session isolation to support
+    concurrent internal + portal dialing."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -829,8 +841,37 @@ async def portal_call_lead(token: str, contact_id: str):
     if not contact:
         raise HTTPException(status_code=404, detail="Lead not found")
 
-    return {
-        "ok": False,
-        "status": "not_connected",
-        "detail": "Calling isn't connected for your account yet — DigiGrowth is setting this up and will notify you once you can call leads directly from here.",
-    }
+    return await dialer_router.call_single({"contact_id": contact_id})
+
+
+@router.get("/{token}/dialer/token")
+async def portal_dialer_token(token: str):
+    """Twilio Voice JS SDK access token for the portal's browser Device —
+    same shared TwiML app/credentials as the internal OS dialer (see
+    dialer.get_token()); the portal user becomes the agent leg on the call."""
+    await get_client_from_token(token)
+    return await dialer_router.get_token()
+
+
+@router.post("/{token}/dialer/dial-batch")
+async def portal_dialer_dial_batch(token: str):
+    await get_client_from_token(token)
+    return await dialer_router.dial_batch()
+
+
+@router.get("/{token}/dialer/session")
+async def portal_dialer_session(token: str):
+    await get_client_from_token(token)
+    return await dialer_router.get_session()
+
+
+@router.post("/{token}/dialer/end-call")
+async def portal_dialer_end_call(token: str):
+    await get_client_from_token(token)
+    return await dialer_router.end_call()
+
+
+@router.post("/{token}/dialer/end-session")
+async def portal_dialer_end_session(token: str):
+    await get_client_from_token(token)
+    return await dialer_router.end_session()
