@@ -723,11 +723,14 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
 
         <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
           <label style={headingStyle}>2. Onboarding Email + SMS (sent next morning)</label>
+          <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>
+            Sends the client's <strong style={{ color: "#a080f0" }}>client portal</strong> link — their one hub for the intake form, Onboarding Call booking, and campaign stats. Requires a <code style={{ color: "#6ab0ff" }}>clients</code> record already linked to this contact (Clients tab) by the time this fires, or the send is skipped.
+          </div>
           <label style={{ ...labelStyle, marginTop: 4 }}>EMAIL SUBJECT</label>
           <input
             value={values.onboarding_followup_email_subject || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_followup_email_subject: e.target.value }))}
-            placeholder="Your onboarding form + call link, {first_name}"
+            placeholder="Your DigiGrowth client portal, {first_name}"
             style={fieldStyle}
           />
           <div style={{ ...hintStyle, marginBottom: 14 }}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the client's first name.</div>
@@ -737,7 +740,7 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
             value={values.onboarding_followup_email_body || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_followup_email_body: e.target.value }))}
             rows={10}
-            placeholder={"Hey {first_name},\n\nFill out this form: {form_link}\n\nGrab a time for your Onboarding Call: {link}"}
+            placeholder={"Hey {first_name},\n\nHere's your client portal: {portal_link}"}
             style={{ ...fieldStyle, marginBottom: 14 }}
           />
 
@@ -746,12 +749,12 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
             value={values.onboarding_followup_sms || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_followup_sms: e.target.value }))}
             rows={4}
-            placeholder="Hey {first_name}, fill out this form {form_link} and grab your call time {link}"
+            placeholder="Hey {first_name}, here's your client portal: {portal_link}"
             style={fieldStyle}
           />
           <div style={hintStyle}>
-            Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the client's first name, <code style={{ color: "#6ab0ff" }}>{"{form_link}"}</code> for the intake form, and{" "}
-            <code style={{ color: "#6ab0ff" }}>{"{link}"}</code> for the Onboarding Call booking link.
+            Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the client's first name and{" "}
+            <code style={{ color: "#6ab0ff" }}>{"{portal_link}"}</code> for their client portal link.
           </div>
         </div>
       </div>

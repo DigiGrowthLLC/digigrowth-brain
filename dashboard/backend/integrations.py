@@ -884,18 +884,12 @@ def calendar_events_structured(days_ahead: int = 7, calendar_id: str = "primary"
 # constant is frontend-only today).
 CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min"
 
-# Placeholder — Dylan hasn't created the 1-hour "Onboarding Call" Calendly
-# event type yet. Fill in once it exists. Used by onboarding_sequence.py's
-# welcome email, sent the moment a rep marks an appointment "Closed" (won).
-# Same static-URL pattern as CALENDLY_URL above — no Calendly API involved.
-ONBOARDING_CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/onboarding-call"
-
-# Placeholder — Dylan hasn't created the client-intake Google Form yet. This
-# is a static, hand-created form URL (no Google Forms API integration
-# exists or is planned), same pattern as CALENDLY_URL/ONBOARDING_CALENDLY_URL
-# above. Fill in once the form exists. Used by onboarding_sequence.py's
-# next-morning follow-up email/SMS.
-ONBOARDING_FORM_URL = "https://docs.google.com/forms/d/1Xdy_9n5Rzc3cKXME4AG_aXhoq6cLXOjSqG7TrWR5t2g/viewform"
+# ONBOARDING_CALENDLY_URL / ONBOARDING_FORM_URL used to live here as separate
+# static links sent directly in the onboarding follow-up email/SMS. Replaced
+# by the client portal link (onboarding_sequence.py's
+# _portal_link_for_appointment) — the portal itself now hosts the intake
+# form and Onboarding Call booking as one hub, so a single {portal_link}
+# covers both instead of two raw URLs.
 
 
 def _extract_meeting_link(event: dict) -> str | None:
