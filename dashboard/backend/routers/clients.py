@@ -166,6 +166,31 @@ async def link_contact(client_id: int, body: ClientLinkContact):
     return {"ok": True, "linked_contact": linked_contact}
 
 
+@router.post("/clients/{client_id}/link-all-unassigned")
+async def link_all_unassigned(client_id: int):
+    """Bulk-assigns every contact with no client_id at all (client_id IS
+    NULL — never touches a contact already linked to a different client, so
+    Brandon Crosdale's client_id stays exactly as-is) to this client.
+
+    Built for the "DigiGrowth Test" self-client case: linking every one of
+    Dylan's own real, unclaimed leads/SMS/email history to a client he owns
+    himself, so the portal has real end-to-end data to verify against
+    instead of a synthetic empty shell. Only ever touches unclaimed rows —
+    running it twice, or against a client that already has real leads
+    assigned some other way, is safe and idempotent."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        rows = await conn.fetch(
+            "UPDATE contacts SET client_id = $1, updated_at = now() "
+            "WHERE client_id IS NULL RETURNING id",
+            client_id,
+        )
+    return {"ok": True, "linked_count": len(rows)}
+
+
 @router.patch("/clients/{client_id}")
 async def update_client(client_id: int, body: ClientUpdate):
     fields = body.model_dump(exclude_unset=True)
