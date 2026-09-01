@@ -357,6 +357,16 @@ async def _create_schema(pool: asyncpg.Pool):
                 completed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE(client_id, action_item_id)
             );
+
+            CREATE TABLE IF NOT EXISTS watch_videos (
+                id           SERIAL PRIMARY KEY,
+                slug         TEXT UNIQUE NOT NULL,
+                title        TEXT,
+                github_path  TEXT NOT NULL,
+                file_type    TEXT NOT NULL DEFAULT 'video/mp4',
+                file_size    BIGINT,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""
