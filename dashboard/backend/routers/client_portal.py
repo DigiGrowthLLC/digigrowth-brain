@@ -164,6 +164,15 @@ async def portal_stats(token: str):
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Scoped via contacts.client_id (joined through contact_id), not
+        # sms_conversations.client_id/email_conversations.client_id directly
+        # — those two columns exist but nothing actually stamps them today;
+        # the real, populated link is contacts.client_id, set by the admin
+        # "link contact to client" action. Same fix applied to the inbox
+        # list/thread endpoints below after this was caught live: a real
+        # linked contact's SMS/email history was invisible in stats/inbox
+        # list despite being reachable directly via the thread endpoint,
+        # which already scoped correctly through contacts.
         sms_row = await conn.fetchrow(
             """
             SELECT
@@ -171,8 +180,9 @@ async def portal_stats(token: str):
                 COALESCE(SUM((sm.direction = 'outbound')::int), 0) AS sent,
                 COALESCE(SUM((sm.direction = 'inbound')::int), 0) AS replies
             FROM sms_conversations sc
+            JOIN contacts c ON c.id = sc.contact_id
             LEFT JOIN sms_messages sm ON sm.contact_id = sc.contact_id
-            WHERE sc.client_id = $1
+            WHERE c.client_id = $1
             """,
             client["id"],
         )
@@ -183,8 +193,9 @@ async def portal_stats(token: str):
                 COALESCE(SUM((em.direction = 'outbound')::int), 0) AS sent,
                 COALESCE(SUM((em.direction = 'inbound')::int), 0) AS replies
             FROM email_conversations ec
+            JOIN contacts c ON c.id = ec.contact_id
             LEFT JOIN email_messages em ON em.contact_id = ec.contact_id
-            WHERE ec.client_id = $1
+            WHERE c.client_id = $1
             """,
             client["id"],
         )
@@ -491,7 +502,7 @@ async def portal_inbox_list(token: str):
                    ) AS unread
             FROM sms_conversations sc
             JOIN contacts c ON c.id = sc.contact_id
-            WHERE sc.client_id = $1
+            WHERE c.client_id = $1
             """,
             client["id"],
         )
@@ -510,7 +521,7 @@ async def portal_inbox_list(token: str):
                    ) AS unread
             FROM email_conversations ec
             JOIN contacts c ON c.id = ec.contact_id
-            WHERE ec.client_id = $1
+            WHERE c.client_id = $1
             """,
             client["id"],
         )
