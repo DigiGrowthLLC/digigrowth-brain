@@ -4,7 +4,7 @@ import BookingModal from "./BookingModal.jsx";
 import AppointmentsSection from "./AppointmentsSection.jsx";
 
 const GRADES   = ["A", "B", "C", "D"];
-const STATUSES = ["new", "dialer-lead", "sms-handoff", "appointment-booked", "not-interested", "send-info", "voicemail", "manual-followup"];
+const STATUSES = ["new", "dialer-lead", "sms-handoff", "email-handoff", "appointment-booked", "not-interested", "send-info", "voicemail", "manual-followup"];
 
 // Fetches/edits a contact by id. `variant="modal"` (default) renders as a
 // fixed-overlay dialog (dismissible via backdrop click or Cancel) — used by

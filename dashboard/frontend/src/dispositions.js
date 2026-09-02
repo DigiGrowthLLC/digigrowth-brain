@@ -11,6 +11,7 @@ export const DISPO_COLORS = {
   "No Answer":          { text: "#3a4f6f", bg: "transparent",           border: "#1a2540"               },
   "Voicemail":          { text: "#f0a028", bg: "rgba(240,160,40,0.08)", border: "rgba(240,160,40,0.2)" },
   "SMS Handoff":        { text: "#a080f0", bg: "rgba(120,80,210,0.08)", border: "rgba(120,80,210,0.2)" },
+  "Email Handoff":      { text: "#5ac8e8", bg: "rgba(90,200,232,0.08)", border: "rgba(90,200,232,0.2)" },
   "Gatekeeper":         { text: "#f07028", bg: "rgba(240,112,40,0.08)", border: "rgba(240,112,40,0.2)" },
   "Not Qualified":      { text: "#8a5cf0", bg: "rgba(138,92,240,0.08)", border: "rgba(138,92,240,0.2)" },
   "Follow Up (Manual)": { text: "#f0a028", bg: "rgba(240,160,40,0.08)", border: "rgba(240,160,40,0.2)" },
@@ -28,6 +29,7 @@ export const DISPO_BUTTONS = [
   { label: "No Answer",         emoji: "—",  style: { background: "rgba(30,47,80,0.4)",     border: "1px solid #1a2540",               color: "#3a5a80" } },
   { label: "Voicemail",         emoji: "📬", style: { background: "rgba(240,160,40,0.12)",  border: "1px solid rgba(240,160,40,0.3)",  color: "#f0a028" } },
   { label: "SMS Handoff",       emoji: "💬", style: { background: "rgba(120,80,210,0.12)",  border: "1px solid rgba(120,80,210,0.3)",  color: "#a080f0" } },
+  { label: "Email Handoff",     emoji: "📧", style: { background: "rgba(90,200,232,0.12)",  border: "1px solid rgba(90,200,232,0.3)",  color: "#5ac8e8" } },
   { label: "Follow Up (Manual)", emoji: "📌", style: { background: "rgba(240,160,40,0.12)", border: "1px solid rgba(240,160,40,0.3)",  color: "#f0a028" } },
 ];
 

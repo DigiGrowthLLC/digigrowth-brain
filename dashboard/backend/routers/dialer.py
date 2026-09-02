@@ -345,8 +345,9 @@ async def save_onboarding_template(body: dict):
 # the SMS "Free Offer V.1.3" sequence's steps, kept in its own dialer_settings
 # keys so editing it here never touches sms_sequences. Only the
 # curiosity_opener step is auto-sent — see email_handoff_sequence.py's
-# send_handoff_email(), fired from routers/crm.py the moment a contact is
-# tagged "email-handoff". The other steps are kept for reference/future
+# send_handoff_email(), fired from routers/crm.py the moment a contact's
+# status is set to "email-handoff" (same status-transition sites as
+# HANDOFF_STATUS/sms-handoff). The other steps are kept for reference/future
 # manual sends, same shape as the SMS sequence.
 
 @router.get("/dialer/email-handoff-template")

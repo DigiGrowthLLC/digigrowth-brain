@@ -359,10 +359,13 @@ const ONBOARDING_ITEM = { id: ONBOARDING_PSEUDO_ID, title: "Onboarding Sequence 
 // "Free Offer V.1.3" sequence's steps kept in its own store (dialer_settings
 // email_handoff_* keys, not sms_sequences) so editing it here never touches
 // the SMS sequence. Only the "Initial Message" step is auto-sent — fires the
-// moment a rep tags a contact "email-handoff" in the CRM (crm.py's
-// _fire_email_handoff, called from POST /contacts/{id}/tags and the bulk
-// add_tag action) — e.g. after a gatekeeper redirects outreach to an email
-// address instead of a phone number.
+// moment a contact's status is set to "email-handoff" (crm.py's
+// _fire_email_handoff, called from the same status-transition sites as the
+// SMS handoff: PATCH /contacts/{id}, the disposition endpoint, bulk
+// set_status, and contact create/import) — e.g. after a gatekeeper redirects
+// outreach to an email address instead of a phone number. Same status
+// dropdown as SMS Handoff in the CRM/Inbox, plus its own "Email Handoff"
+// disposition button in the dialer's post-call grid (dispositions.js).
 const EMAIL_HANDOFF_PSEUDO_ID = "__email_handoff__";
 const EMAIL_HANDOFF_ITEM = { id: EMAIL_HANDOFF_PSEUDO_ID, title: "Email Handoff (Email)", emailHandoffTemplate: true };
 
@@ -779,11 +782,11 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
 // GET/PUT /api/dialer/email-handoff-template — its own dialer_settings keys,
 // completely independent of sms_sequences, so edits here never affect the
 // SMS sequence it started from. Only "1. Initial Message" is auto-sent (the
-// moment a contact is tagged "email-handoff" in the CRM); the rest are kept
+// moment a contact's status is set to "email-handoff"); the rest are kept
 // for reference/future manual sends, same shape as the SMS sequence's steps.
 const EMAIL_HANDOFF_STEP_FIELDS = [
   { key: "email_handoff_gatekeeper", label: "0. Gatekeeper Message" },
-  { key: "email_handoff_curiosity_opener", label: "1. Initial Message  —  auto-sent on the \"email-handoff\" tag" },
+  { key: "email_handoff_curiosity_opener", label: "1. Initial Message  —  auto-sent when status is set to \"email-handoff\"" },
   { key: "email_handoff_relevance", label: "2. Primed Message" },
   { key: "email_handoff_guarantee", label: "3. Engaged Message" },
   { key: "email_handoff_ask", label: "4. Call To Action" },
@@ -851,7 +854,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
         <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Started as a copy of the SMS <strong style={{ color: "#a080f0" }}>Free Offer V.1.3</strong> sequence — fully independent from here on, edits never sync either direction. Only step 1 sends automatically, the moment a contact is tagged <code style={{ color: "#6ab0ff" }}>email-handoff</code>.
+          Started as a copy of the SMS <strong style={{ color: "#a080f0" }}>Free Offer V.1.3</strong> sequence — fully independent from here on, edits never sync either direction. Only step 1 sends automatically, the moment a contact's status is set to <code style={{ color: "#6ab0ff" }}>email-handoff</code> (CRM/Inbox status dropdown, or the dialer's "Email Handoff" disposition button).
         </span>
         <CategoryPicker
           categories={categories}

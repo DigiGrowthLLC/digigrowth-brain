@@ -1,10 +1,15 @@
-"""Email handoff — fires once, immediately, the moment a rep tags a contact
-"email-handoff" (e.g. a gatekeeper redirects outreach to a specific inbox
-instead of a phone number). Sends a single opening email built from this
-module's own template store — copied once from the SMS "Free Offer V.1.3"
-sequence's steps (2026-09-01) as a starting point, but stored completely
-separately (dialer_settings keys below, not sms_sequences), so editing it
-here never touches — and is never overwritten by — the SMS sequence.
+"""Email handoff — fires once, immediately, the moment a contact's status is
+set to "email-handoff" (e.g. a gatekeeper redirects outreach to a specific
+inbox instead of a phone number). Mirrors HANDOFF_STATUS/_fire_handoff for
+the SMS channel exactly — same status-transition sites in routers/crm.py
+(PATCH /contacts/{id}, POST /contacts/{id}/disposition via the "Email
+Handoff" DISPOSITION_TO_STATUS entry, bulk set_status, and contact
+create/import), just calling _fire_email_handoff instead of _fire_handoff.
+Sends a single opening email built from this module's own template store —
+copied once from the SMS "Free Offer V.1.3" sequence's steps (2026-09-01) as
+a starting point, but stored completely separately (dialer_settings keys
+below, not sms_sequences), so editing it here never touches — and is never
+overwritten by — the SMS sequence.
 
 Mirrors onboarding_sequence.py's single-touch send_kickoff() pattern and
 routers/sms.py's send_opening_message(), but for the email channel. Uses

@@ -14,7 +14,7 @@ from routers import sms as sms_router
 router = APIRouter()
 
 HANDOFF_STATUS = "sms-handoff"
-EMAIL_HANDOFF_TAG = "email-handoff"
+EMAIL_HANDOFF_STATUS = "email-handoff"
 NEWSLETTER_TAG = "Newsletter"
 NEWSLETTER_TAG_DISPOSITIONS = {"Follow Up 30 Day", "Follow Up 90 Day"}
 
@@ -64,7 +64,7 @@ async def _fire_handoff(contact: dict):
 
 
 async def _fire_email_handoff(contact: dict):
-    """Fire the one-time email-handoff opener (tag == EMAIL_HANDOFF_TAG);
+    """Fire the one-time email-handoff opener (status == EMAIL_HANDOFF_STATUS);
     swallow errors so a Gmail hiccup never breaks the caller's request."""
     try:
         await email_handoff_sequence.send_handoff_email(contact)
@@ -170,6 +170,8 @@ async def update_contact(contact_id: str, body: ContactUpdate):
 
     if updates.get("status") == HANDOFF_STATUS and (not prev or prev["status"] != HANDOFF_STATUS):
         await _fire_handoff(dict(row))
+    if updates.get("status") == EMAIL_HANDOFF_STATUS and (not prev or prev["status"] != EMAIL_HANDOFF_STATUS):
+        await _fire_email_handoff(dict(row))
 
     return dict(row)
 
@@ -213,16 +215,12 @@ async def bulk_action(body: BulkAction):
         elif body.action == "add_tag":
             if not body.value:
                 raise HTTPException(status_code=400, detail="value required for add_tag")
-            rows = await conn.fetch(
+            result = await conn.execute(
                 "UPDATE contacts SET tags = array_append(tags, $1), updated_at = now() "
-                "WHERE id = ANY($2::text[]) AND NOT ($1 = ANY(tags)) "
-                "RETURNING id, email, owner, business",
+                "WHERE id = ANY($2::text[]) AND NOT ($1 = ANY(tags))",
                 body.value, ids,
             )
-            affected = len(rows)
-            if body.value == EMAIL_HANDOFF_TAG:
-                for r in rows:
-                    await _fire_email_handoff(dict(r))
+            affected = int(result.split()[-1])
 
         elif body.action == "remove_tag":
             if not body.value:
@@ -241,7 +239,7 @@ async def bulk_action(body: BulkAction):
                 """
                 UPDATE contacts SET status = $1, updated_at = now()
                 WHERE id = ANY($2::text[]) AND status IS DISTINCT FROM $1
-                RETURNING id, phone, owner
+                RETURNING id, phone, owner, email, business
                 """,
                 body.value, ids,
             )
@@ -249,6 +247,9 @@ async def bulk_action(body: BulkAction):
             if body.value == HANDOFF_STATUS:
                 for r in rows:
                     await _fire_handoff(dict(r))
+            if body.value == EMAIL_HANDOFF_STATUS:
+                for r in rows:
+                    await _fire_email_handoff(dict(r))
 
         else:
             raise HTTPException(status_code=400, detail=f"Unknown action: {body.action}")
@@ -287,13 +288,10 @@ async def add_contact_tag(contact_id: str, body: TagAssign):
             "WHERE id = $1 AND NOT ($2 = ANY(tags)) RETURNING *",
             contact_id, tag,
         )
-        newly_added = row is not None
         if not row:
             row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
     if not row:
         raise HTTPException(status_code=404, detail="Contact not found")
-    if newly_added and tag == EMAIL_HANDOFF_TAG:
-        await _fire_email_handoff(dict(row))
     return dict(row)
 
 
@@ -317,7 +315,7 @@ async def log_disposition(contact_id: str, body: DispositionUpdate):
     new_status = DISPOSITION_TO_STATUS.get(body.disposition, "dialer-lead")
     async with pool.acquire() as conn:
         async with conn.transaction():
-            contact = await conn.fetchrow("SELECT id, phone, owner FROM contacts WHERE id = $1", contact_id)
+            contact = await conn.fetchrow("SELECT id, phone, owner, email, business FROM contacts WHERE id = $1", contact_id)
             if not contact:
                 raise HTTPException(status_code=404, detail="Contact not found")
             await conn.execute(
@@ -356,6 +354,8 @@ async def log_disposition(contact_id: str, body: DispositionUpdate):
 
     if new_status == HANDOFF_STATUS:
         await _fire_handoff(dict(contact))
+    if new_status == EMAIL_HANDOFF_STATUS:
+        await _fire_email_handoff(dict(contact))
 
     return {"ok": True, "new_status": new_status}
 
@@ -420,9 +420,12 @@ async def create_contact(body: Contact):
     result = dict(row)
     was_inserted = result.pop("was_inserted")
     # Status is only ever set on insert here (conflict path doesn't touch status),
-    # so a fresh sms-handoff row always means a lead that just needs its opener.
+    # so a fresh sms-handoff/email-handoff row always means a lead that just
+    # needs its opener.
     if was_inserted and result.get("status") == HANDOFF_STATUS:
         await _fire_handoff(result)
+    if was_inserted and result.get("status") == EMAIL_HANDOFF_STATUS:
+        await _fire_email_handoff(result)
 
     return result
 
@@ -496,6 +499,12 @@ async def import_contacts(body: dict):
                 inserted += 1
                 if row_status == HANDOFF_STATUS:
                     await _fire_handoff({"phone": phone, "owner": (c.get("owner") or "").strip()})
+                if row_status == EMAIL_HANDOFF_STATUS:
+                    await _fire_email_handoff({
+                        "email": (c.get("email") or "").strip(),
+                        "owner": (c.get("owner") or "").strip(),
+                        "business": incoming_business,
+                    })
             else:
                 updated += 1
 

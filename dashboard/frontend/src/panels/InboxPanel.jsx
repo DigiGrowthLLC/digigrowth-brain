@@ -41,6 +41,7 @@ const CONTACT_STATUSES = [
   { value: "new",                label: "NEW" },
   { value: "dialer-lead",        label: "DIALER" },
   { value: "sms-handoff",        label: "SMS HANDOFF" },
+  { value: "email-handoff",      label: "EMAIL HANDOFF" },
   { value: "appointment-booked", label: "BOOKED" },
   { value: "not-interested",     label: "NOT INT." },
   { value: "send-info",          label: "SEND INFO" },
