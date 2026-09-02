@@ -42,7 +42,7 @@ Skills live in `.claude/skills/`. Load the relevant skill for the task:
 - `transcribe` — transcribe video/audio files and optionally extract insights into a reference file
 - `video-creation` — full video template: intake questions, pre-production, script (with all hook/storytelling/retention frameworks), inline visual direction, B-roll list
 - `video-overlay` — HyperFrames branded talking-head overlay agent: brand glass cards, bulleted graphics, hook centred below chin, audio mux, DigiGrowth visual system
-- `outreach-video` — personalized cold-outreach video generator: fixed headcam pitch clip composited as a circle bubble (framed centered, room mirror cropped out) over a static top-of-page capture of the prospect's own website, looked up from the OS's contacts
+- `outreach-video` — personalized cold-outreach video generator: fixed headcam pitch clip composited as a circle bubble (framed centered, room mirror cropped out) over a static top-of-page capture of the prospect's own website, looked up from the OS's contacts, then auto-published to a watch link and texted to the prospect via the active sequence's primed-message step
 - `ad-copy` — Facebook/Instagram lead gen ad copy (hook → problem → solution → proof → CTA)
 - `email-sequence` — cold outreach and nurture email sequences
 - `social-post` — platform-specific social posts (LinkedIn, Instagram, X)

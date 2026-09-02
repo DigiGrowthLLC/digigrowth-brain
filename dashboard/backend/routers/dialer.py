@@ -25,6 +25,8 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   PUT  /api/dialer/reminder-template — save appointment reminder templates
   GET  /api/dialer/onboarding-template — "Onboarding Kickoff" welcome email template
   PUT  /api/dialer/onboarding-template — save "Onboarding Kickoff" welcome email template
+  GET  /api/dialer/email-handoff-template — "Email Handoff" opener template
+  PUT  /api/dialer/email-handoff-template — save "Email Handoff" opener template
 
 SMS outreach sequences moved to their own table/router — see
 routers/sms_sequences.py (GET/POST/PATCH/DELETE /api/sms-sequences).
@@ -44,6 +46,7 @@ from fastapi import APIRouter, HTTPException
 import cancel_sequence
 import dialer_engine as engine
 import dm_followup_sequence
+import email_handoff_sequence
 import integrations
 import no_show_sequence
 import onboarding_sequence
@@ -330,6 +333,57 @@ async def save_onboarding_template(body: dict):
             await conn.execute(
                 """
                 INSERT INTO dialer_settings (key, value, updated_at) VALUES ('onboarding_category', $1, now())
+                ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
+                """,
+                body["category"],
+            )
+    return {"ok": True}
+
+
+# ── "Email Handoff" opener template (Business Resources → Outreach ──────────
+# Templates). Same key/value store as the editors above; a one-time copy of
+# the SMS "Free Offer V.1.3" sequence's steps, kept in its own dialer_settings
+# keys so editing it here never touches sms_sequences. Only the
+# curiosity_opener step is auto-sent — see email_handoff_sequence.py's
+# send_handoff_email(), fired from routers/crm.py the moment a contact is
+# tagged "email-handoff". The other steps are kept for reference/future
+# manual sends, same shape as the SMS sequence.
+
+@router.get("/dialer/email-handoff-template")
+async def get_email_handoff_template():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
+            list(email_handoff_sequence.TEMPLATE_DEFAULTS.keys()) + ["email_handoff_category"],
+        )
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    result = {
+        key: values.get(key, default)
+        for key, default in email_handoff_sequence.TEMPLATE_DEFAULTS.items()
+    }
+    result["category"] = values.get("email_handoff_category") or "General"
+    return result
+
+
+@router.put("/dialer/email-handoff-template")
+async def save_email_handoff_template(body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for key in email_handoff_sequence.TEMPLATE_DEFAULTS:
+            if key not in body:
+                continue
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+                """,
+                key, body[key],
+            )
+        if "category" in body:
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ('email_handoff_category', $1, now())
                 ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
                 """,
                 body["category"],

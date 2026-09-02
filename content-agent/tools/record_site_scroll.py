@@ -2,6 +2,7 @@ import sys
 import subprocess
 import pathlib
 import asyncio
+import time
 
 try:
     from playwright.async_api import async_playwright
@@ -28,12 +29,24 @@ async def record(url, duration_seconds, out_dir):
             record_video_size={"width": WIDTH, "height": HEIGHT},
         )
         page = await context.new_page()
+        # Video recording starts the instant this page is created, before
+        # goto() even begins — so the raw capture always opens on a blank
+        # white frame while the page loads. Rather than fight Playwright to
+        # not record that, measure how long it actually took and trim it off
+        # in post (see main()) so the delivered clip opens on the loaded page.
+        start = time.monotonic()
         await page.goto(url, wait_until="load", timeout=30000)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=8000)
+        except Exception:
+            pass  # some sites never go idle (chat widgets, polling) — settle buffer below covers it
+        await page.wait_for_timeout(400)
+        skip_seconds = time.monotonic() - start
         await page.wait_for_timeout(duration_ms)
         video = page.video
         await context.close()
         await browser.close()
-        return await video.path()
+        return await video.path(), skip_seconds
 
 
 def main():
@@ -49,10 +62,13 @@ def main():
     tmp_dir = out_path.parent / f".{out_path.stem}-raw"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    webm_path = asyncio.run(record(url, duration, tmp_dir))
+    webm_path, skip_seconds = asyncio.run(record(url, duration, tmp_dir))
 
+    # -ss after -i for accurate (not keyframe-snapped) seeking, since we need
+    # the trim point exact — this is what cuts the blank loading frame(s) out.
     subprocess.check_call([
         "ffmpeg", "-y", "-i", webm_path,
+        "-ss", f"{skip_seconds:.3f}", "-t", str(duration),
         "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
         "-an", str(out_path),
     ])

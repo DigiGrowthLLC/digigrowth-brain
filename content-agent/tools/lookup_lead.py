@@ -38,11 +38,13 @@ def main():
 
     contact = rows[0]
     website = contact.get("website")
-    if not website:
-        print(f"FOUND: {contact.get('business')} — but no website on file")
-        sys.exit(3)
 
     print(f"FOUND: {contact.get('business')}")
+    print(f"PHONE: {contact.get('phone')}")
+    if not website:
+        print("WEBSITE: none on file")
+        sys.exit(3)
+
     print(f"WEBSITE: {website}")
 
 

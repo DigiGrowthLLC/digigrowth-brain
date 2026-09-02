@@ -3,6 +3,7 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
+import email_handoff_sequence
 from db import get_pool
 from models import (
     Contact, ContactUpdate, NoteAdd, DispositionUpdate, BulkAction, TagAssign,
@@ -13,6 +14,7 @@ from routers import sms as sms_router
 router = APIRouter()
 
 HANDOFF_STATUS = "sms-handoff"
+EMAIL_HANDOFF_TAG = "email-handoff"
 NEWSLETTER_TAG = "Newsletter"
 NEWSLETTER_TAG_DISPOSITIONS = {"Follow Up 30 Day", "Follow Up 90 Day"}
 
@@ -59,6 +61,15 @@ async def _fire_handoff(contact: dict):
         await sms_router.send_opening_message(contact)
     except Exception as e:
         print(f"sms-handoff opener failed for {contact.get('phone')}: {e}")
+
+
+async def _fire_email_handoff(contact: dict):
+    """Fire the one-time email-handoff opener (tag == EMAIL_HANDOFF_TAG);
+    swallow errors so a Gmail hiccup never breaks the caller's request."""
+    try:
+        await email_handoff_sequence.send_handoff_email(contact)
+    except Exception as e:
+        print(f"email-handoff opener failed for {contact.get('email')}: {e}")
 
 
 @router.get("/contacts")
@@ -202,12 +213,16 @@ async def bulk_action(body: BulkAction):
         elif body.action == "add_tag":
             if not body.value:
                 raise HTTPException(status_code=400, detail="value required for add_tag")
-            result = await conn.execute(
+            rows = await conn.fetch(
                 "UPDATE contacts SET tags = array_append(tags, $1), updated_at = now() "
-                "WHERE id = ANY($2::text[]) AND NOT ($1 = ANY(tags))",
+                "WHERE id = ANY($2::text[]) AND NOT ($1 = ANY(tags)) "
+                "RETURNING id, email, owner, business",
                 body.value, ids,
             )
-            affected = int(result.split()[-1])
+            affected = len(rows)
+            if body.value == EMAIL_HANDOFF_TAG:
+                for r in rows:
+                    await _fire_email_handoff(dict(r))
 
         elif body.action == "remove_tag":
             if not body.value:
@@ -272,10 +287,13 @@ async def add_contact_tag(contact_id: str, body: TagAssign):
             "WHERE id = $1 AND NOT ($2 = ANY(tags)) RETURNING *",
             contact_id, tag,
         )
+        newly_added = row is not None
         if not row:
             row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
     if not row:
         raise HTTPException(status_code=404, detail="Contact not found")
+    if newly_added and tag == EMAIL_HANDOFF_TAG:
+        await _fire_email_handoff(dict(row))
     return dict(row)
 
 
