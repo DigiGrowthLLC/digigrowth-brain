@@ -100,7 +100,14 @@ async def send_handoff_email(contact: dict) -> bool:
     body = apply_merge_fields(body_template, contact)
 
     try:
-        result = await asyncio.to_thread(integrations.gmail_send, email, subject, body, track=True, is_automated=True)
+        # is_automated is deliberately NOT set here (default False) — this is
+        # real cold-outreach volume, the email-channel equivalent of
+        # routers/sms.py's send_opening_message() (which likewise never
+        # passes is_automated). analytics.py's _email_metrics explicitly
+        # excludes is_automated=True sends from outreach stats — that flag is
+        # for lifecycle/back-office mail (onboarding welcome, reminders),
+        # not this.
+        result = await asyncio.to_thread(integrations.gmail_send, email, subject, body, track=True)
     except Exception as e:
         print(f"[email_handoff_sequence] send failed for {email}: {e}")
         return False
