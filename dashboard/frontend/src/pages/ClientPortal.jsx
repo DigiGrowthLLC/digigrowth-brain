@@ -203,18 +203,31 @@ function LaunchChecklistTab({ token }) {
   const prelaunch = items.filter((i) => (i.phase || "prelaunch") === "prelaunch");
   const postLaunch = items.filter((i) => i.phase === "post_launch");
   const doneCount = items.filter((i) => i.completed_at).length;
+  const pct = items.length ? Math.round((doneCount / items.length) * 100) : 0;
 
   return (
     <div>
-      <div className="glass-card" style={{ padding: "18px 22px", marginBottom: 24 }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
+      <div className="glass-card" style={{ padding: "20px 24px", marginBottom: 24 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
           Watch as we get you ready to launch
         </div>
-        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
-          This is DigiGrowth's own checklist — we're handling every item below on our end.
-          You don't need to do anything here; just check back to see our progress as we build
-          out your campaign and get you ready to go live.
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, marginBottom: !loading && items.length > 0 ? 16 : 0 }}>
+          This is our own checklist, not yours — we're handling every item below.
+          Check back anytime to see our progress as we build out your campaign.
         </div>
+        {!loading && items.length > 0 && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.1em" }}>
+                {doneCount} OF {items.length} COMPLETE
+              </span>
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#6ab0ff" }}>{pct}%</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 999, background: "rgba(58,123,213,0.1)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: "linear-gradient(90deg, #3a7bd5, #14c882)", transition: "width 0.3s ease" }} />
+            </div>
+          </div>
+        )}
       </div>
 
       {loading && <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>}
@@ -225,7 +238,6 @@ function LaunchChecklistTab({ token }) {
       )}
       {!loading && items.length > 0 && (
         <>
-          <SectionHeading>Launch Checklist ({doneCount}/{items.length})</SectionHeading>
           <ChecklistPhaseGroup label={CHECKLIST_PHASE_LABELS.prelaunch} items={prelaunch} />
           <ChecklistPhaseGroup label={CHECKLIST_PHASE_LABELS.post_launch} items={postLaunch} />
         </>
