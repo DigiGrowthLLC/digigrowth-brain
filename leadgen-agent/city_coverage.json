@@ -158,10 +158,10 @@
       "last_scraped_date": "2026-09-03"
     },
     "Los Angeles, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 175,
-      "qualified_count": 17,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 201,
+      "qualified_count": 21,
       "last_scraped_date": "2026-09-03"
     },
     "Chicago, IL": {
