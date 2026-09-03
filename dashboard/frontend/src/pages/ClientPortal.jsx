@@ -578,7 +578,7 @@ function RecentLeadsWidget({ token }) {
   );
 }
 
-function DashboardTab({ token }) {
+function DashboardTab({ token, clientName }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("all");
@@ -613,9 +613,17 @@ function DashboardTab({ token }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-      {/* Period selector — same All Time/Month/Week/Today bucket vocabulary
-          as the internal OS's Analytics tab, scoping every stat below. */}
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
+            Welcome back{clientName ? `, ${clientName}` : ""}
+          </div>
+          <div style={{ fontSize: 12.5, color: "#5a7aa0", marginTop: 4 }}>
+            Here's how your campaign is performing.
+          </div>
+        </div>
+        {/* Period selector — same All Time/Month/Week/Today bucket vocabulary
+            as the internal OS's Analytics tab, scoping every stat below. */}
         <PeriodToggle days={period} setDays={setPeriod} options={PORTAL_PERIOD_OPTIONS} />
       </div>
 
@@ -1883,38 +1891,104 @@ export default function ClientPortal() {
   }
 
   return (
-    <div style={{
+    <div className="dg-portal" style={{
       minHeight: "100vh",
       background: "#090f26",
       backgroundImage: "radial-gradient(ellipse at 20% 50%, rgba(40,87,160,0.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(58,123,213,0.05) 0%, transparent 50%)",
       fontFamily: "'Space Grotesk', sans-serif",
     }}>
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+      {/* Scoped under .dg-portal so this never touches the internal admin
+          dashboard, which shares the same glass-card/stat-card/btn class
+          names — this only adds motion/hover polish to the client-facing
+          portal page. */}
+      <style>{`
+        .dg-portal .glass-card, .dg-portal .glass-card-sm {
+          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .dg-portal .glass-card:hover, .dg-portal .glass-card-sm:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 10px 28px rgba(10,20,50,0.35);
+        }
+        .dg-portal .stat-card {
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .dg-portal .stat-card:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 12px 30px rgba(58,123,213,0.18);
+        }
+        .dg-portal button, .dg-portal a.btn {
+          transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .dg-portal .btn-primary:hover, .dg-portal .btn-secondary:hover {
+          transform: translateY(-1px);
+        }
+        .dg-portal .dg-tab:hover { color: #9cc4f5 !important; }
+        .dg-portal .dg-tab-active {
+          position: relative;
+        }
+        .dg-portal .dg-tab-active::after {
+          content: "";
+          position: absolute; left: 16px; right: 16px; bottom: -1px; height: 2px;
+          background: linear-gradient(90deg, #3a7bd5, #6ab0ff);
+          box-shadow: 0 0 8px rgba(106,176,255,0.6);
+          border-radius: 2px;
+        }
+        @keyframes dgFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .dg-fade-in { animation: dgFadeIn 0.25s ease; }
+        @keyframes dgGlowPulse {
+          0%, 100% { opacity: 0.55; }
+          50% { opacity: 1; }
+        }
+        .dg-logo-glow { animation: dgGlowPulse 3.5s ease-in-out infinite; }
+      `}</style>
 
-      <div style={{ borderBottom: "1px solid rgba(58,123,213,0.15)", padding: "20px 40px", display: "flex", alignItems: "center", gap: 16 }}>
-        <div style={{ width: 32, height: 32, background: "linear-gradient(135deg, #1a3a6b 0%, #2857a0 100%)", borderRadius: 8, border: "1px solid rgba(58,123,213,0.3)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <svg viewBox="0 0 16 16" fill="none" width={13} height={13}>
+      <div style={{
+        borderBottom: "1px solid rgba(58,123,213,0.15)",
+        padding: "22px 40px",
+        display: "flex", alignItems: "center", gap: 16,
+        background: "linear-gradient(180deg, rgba(58,123,213,0.05) 0%, transparent 100%)",
+      }}>
+        <div className="dg-logo-glow" style={{
+          width: 38, height: 38, background: "linear-gradient(135deg, #1a3a6b 0%, #2857a0 100%)",
+          borderRadius: 10, border: "1px solid rgba(58,123,213,0.35)",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          boxShadow: "0 0 18px rgba(58,123,213,0.35)",
+        }}>
+          <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
             <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#6ab0ff" strokeWidth="1.4" />
             <path d="M5 5h6M5 8h6M5 11h4" stroke="#6ab0ff" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
         </div>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "#e8f0ff" }}>{client ? client.name : "DigiGrowth"}</div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>CLIENT PORTAL</div>
+          <div style={{
+            fontWeight: 700, fontSize: 17, letterSpacing: "-0.01em",
+            background: "linear-gradient(90deg, #f0f4ff, #9cc4f5)",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+          }}>
+            {client ? client.name : "DigiGrowth"}
+          </div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.16em", marginTop: 2 }}>
+            CLIENT PORTAL · POWERED BY DIGIGROWTH
+          </div>
         </div>
       </div>
 
       <div style={{ maxWidth: 1240, margin: "0 auto", padding: "36px 24px" }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 28, borderBottom: "1px solid rgba(58,123,213,0.1)" }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "1px solid rgba(58,123,213,0.1)" }}>
           {Object.entries(TAB_LABELS).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
+              className={tab === id ? "dg-tab dg-tab-active" : "dg-tab"}
               style={{
                 background: "none", border: "none", cursor: "pointer",
                 padding: "10px 16px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
                 color: tab === id ? "#6ab0ff" : "#5a7aa0",
-                borderBottom: tab === id ? "2px solid #3a7bd5" : "2px solid transparent",
+                borderRadius: "6px 6px 0 0",
               }}
             >
               {label}
@@ -1922,7 +1996,8 @@ export default function ClientPortal() {
           ))}
         </div>
 
-        {tab === "dashboard" && <DashboardTab token={token} />}
+        <div key={tab} className="dg-fade-in">
+        {tab === "dashboard" && <DashboardTab token={token} clientName={client?.name} />}
         {tab === "appointments" && <AppointmentsTab token={token} />}
         {tab === "leads" && (
           <LeadsTab
@@ -1941,6 +2016,7 @@ export default function ClientPortal() {
         {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
         {tab === "videos" && <VideosTab token={token} />}
         {tab === "todo" && <LaunchChecklistTab token={token} />}
+        </div>
       </div>
     </div>
   );
