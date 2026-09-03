@@ -29,12 +29,12 @@ const APPT_PAST_GRACE_MS = 60 * 60 * 1000;
 
 const TAB_LABELS = {
   dashboard: "Dashboard",
-  todo: "To Do",
   appointments: "Appointments",
   leads: "Leads",
   inbox: "Inbox",
   onboarding: "Onboarding",
   videos: "Get Started Videos",
+  todo: "To Do",
 };
 
 function Field({ q, value, onChange }) {
@@ -107,31 +107,6 @@ function ActionItemRow({ token, item, onUpdated, onGoToTab }) {
   );
 }
 
-const TODO_PHASE_LABELS = { prelaunch: "Prelaunch", post_launch: "Post Launch" };
-
-function TodoPhaseGroup({ label, items, token, onUpdated, onGoToTab }) {
-  if (items.length === 0) return null;
-  const doneCount = items.filter((i) => i.completed_at).length;
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginBottom: 8 }}>
-        {label.toUpperCase()} ({doneCount}/{items.length})
-      </div>
-      <div className="glass-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-        {items.map((item) => (
-          <ActionItemRow
-            key={item.id}
-            token={token}
-            item={item}
-            onUpdated={onUpdated}
-            onGoToTab={onGoToTab}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function NextStepsSection({ token, onGoToTab }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -146,15 +121,115 @@ function NextStepsSection({ token, onGoToTab }) {
   if (loading || items.length === 0) return null;
 
   const doneCount = items.filter((i) => i.completed_at).length;
-  const update = (updated) => setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
-  const prelaunch = items.filter((i) => (i.phase || "prelaunch") === "prelaunch");
-  const postLaunch = items.filter((i) => i.phase === "post_launch");
 
   return (
     <div style={{ marginBottom: 28 }}>
-      <SectionHeading>To Do ({doneCount}/{items.length})</SectionHeading>
-      <TodoPhaseGroup label={TODO_PHASE_LABELS.prelaunch} items={prelaunch} token={token} onUpdated={update} onGoToTab={onGoToTab} />
-      <TodoPhaseGroup label={TODO_PHASE_LABELS.post_launch} items={postLaunch} token={token} onUpdated={update} onGoToTab={onGoToTab} />
+      <SectionHeading>Next Steps ({doneCount}/{items.length})</SectionHeading>
+      <div className="glass-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((item) => (
+          <ActionItemRow
+            key={item.id}
+            token={token}
+            item={item}
+            onUpdated={(updated) => setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))}
+            onGoToTab={onGoToTab}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Read-only counterpart to NextStepsSection: DigiGrowth's own launch-
+// readiness checklist. Unlike Next Steps (client checks these off
+// themselves), the agency completes these on the client's behalf from the
+// admin Clients panel — the client just watches progress here, no checkbox
+// to click. Grouped Prelaunch / Post Launch to mirror the admin catalog.
+const CHECKLIST_PHASE_LABELS = { prelaunch: "Prelaunch", post_launch: "Post Launch" };
+
+function ChecklistRow({ item }) {
+  const done = !!item.completed_at;
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 16px", borderRadius: 10,
+      background: done ? "rgba(20,200,130,0.05)" : "rgba(255,255,255,0.02)",
+      border: done ? "1px solid rgba(20,200,130,0.2)" : "1px solid transparent",
+    }}>
+      <div style={{
+        flexShrink: 0, width: 20, height: 20, marginTop: 2, borderRadius: 5,
+        border: done ? "1px solid #14c882" : "1px solid rgba(58,123,213,0.35)",
+        background: done ? "#14c882" : "transparent",
+        color: "#06110c", fontSize: 12, fontWeight: 700,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>{done ? "✓" : ""}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: done ? "#8fd9bd" : "#d0e8ff", textDecoration: done ? "line-through" : "none" }}>
+          {item.title}
+        </div>
+        {item.description && (
+          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5 }}>{item.description}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChecklistPhaseGroup({ label, items }) {
+  if (items.length === 0) return null;
+  const doneCount = items.filter((i) => i.completed_at).length;
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginBottom: 8 }}>
+        {label.toUpperCase()} ({doneCount}/{items.length})
+      </div>
+      <div className="glass-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((item) => <ChecklistRow key={item.id} item={item} />)}
+      </div>
+    </div>
+  );
+}
+
+function LaunchChecklistTab({ token }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/portal-api/${token}/todo`)
+      .then((r) => r.json())
+      .then((data) => { setItems(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [token]);
+
+  const prelaunch = items.filter((i) => (i.phase || "prelaunch") === "prelaunch");
+  const postLaunch = items.filter((i) => i.phase === "post_launch");
+  const doneCount = items.filter((i) => i.completed_at).length;
+
+  return (
+    <div>
+      <div className="glass-card" style={{ padding: "18px 22px", marginBottom: 24 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
+          Watch as we get you ready to launch
+        </div>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
+          This is DigiGrowth's own checklist — we're handling every item below on our end.
+          You don't need to do anything here; just check back to see our progress as we build
+          out your campaign and get you ready to go live.
+        </div>
+      </div>
+
+      {loading && <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>}
+      {!loading && items.length === 0 && (
+        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#2a4a6a", letterSpacing: "0.12em" }}>
+          NOTHING ON THE CHECKLIST YET
+        </div>
+      )}
+      {!loading && items.length > 0 && (
+        <>
+          <SectionHeading>Launch Checklist ({doneCount}/{items.length})</SectionHeading>
+          <ChecklistPhaseGroup label={CHECKLIST_PHASE_LABELS.prelaunch} items={prelaunch} />
+          <ChecklistPhaseGroup label={CHECKLIST_PHASE_LABELS.post_launch} items={postLaunch} />
+        </>
+      )}
     </div>
   );
 }
@@ -255,18 +330,11 @@ function OnboardingFormSection({ token }) {
   );
 }
 
-function OnboardingTab({ token }) {
-  return (
-    <div>
-      <OnboardingFormSection token={token} />
-    </div>
-  );
-}
-
-function TodoTab({ token, onGoToTab }) {
+function OnboardingTab({ token, onGoToTab }) {
   return (
     <div>
       <NextStepsSection token={token} onGoToTab={onGoToTab} />
+      <OnboardingFormSection token={token} />
     </div>
   );
 }
@@ -1884,9 +1952,9 @@ export default function ClientPortal() {
             onInitialContactConsumed={() => setInboxTargetContactId(null)}
           />
         )}
-        {tab === "todo" && <TodoTab token={token} onGoToTab={setTab} />}
-        {tab === "onboarding" && <OnboardingTab token={token} />}
+        {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
         {tab === "videos" && <VideosTab token={token} />}
+        {tab === "todo" && <LaunchChecklistTab token={token} />}
       </div>
     </div>
   );

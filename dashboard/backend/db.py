@@ -347,8 +347,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 link_url    TEXT,
                 sort_order  INTEGER NOT NULL DEFAULT 0,
                 active      BOOLEAN NOT NULL DEFAULT true,
-                created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-                phase       TEXT NOT NULL DEFAULT 'prelaunch'
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
             CREATE TABLE IF NOT EXISTS client_action_item_completions (
@@ -357,6 +356,31 @@ async def _create_schema(pool: asyncpg.Pool):
                 action_item_id INTEGER NOT NULL REFERENCES onboarding_action_items(id) ON DELETE CASCADE,
                 completed_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE(client_id, action_item_id)
+            );
+
+            -- The agency's own launch-readiness checklist, shown read-only on
+            -- the client portal's "To Do" tab (separate from the onboarding
+            -- "Next Steps" checklist above, which the CLIENT completes).
+            -- Completion here is set by DigiGrowth staff on a per-client
+            -- basis (client_launch_checklist_status below), since these are
+            -- tasks the agency does for the client, not tasks the client
+            -- does themselves.
+            CREATE TABLE IF NOT EXISTS launch_checklist_items (
+                id          SERIAL PRIMARY KEY,
+                title       TEXT NOT NULL,
+                description TEXT,
+                phase       TEXT NOT NULL DEFAULT 'prelaunch',
+                sort_order  INTEGER NOT NULL DEFAULT 0,
+                active      BOOLEAN NOT NULL DEFAULT true,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE IF NOT EXISTS client_launch_checklist_status (
+                id           SERIAL PRIMARY KEY,
+                client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                item_id      INTEGER NOT NULL REFERENCES launch_checklist_items(id) ON DELETE CASCADE,
+                completed_at TIMESTAMPTZ,
+                UNIQUE(client_id, item_id)
             );
 
             CREATE TABLE IF NOT EXISTS watch_videos (
@@ -466,14 +490,26 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_url TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS calendly_url TEXT;
-            ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS phase TEXT NOT NULL DEFAULT 'prelaunch';
         """)
-        # Seed the default Prelaunch to-do checklist once, on a fresh table
-        # only — never re-runs once any action item exists, so it won't
-        # clobber items an admin has since edited/deleted/reordered.
+        # One-time cleanup: an earlier deploy briefly seeded these 6 rows
+        # into onboarding_action_items (the client-completed "Next Steps"
+        # checklist) by mistake — they belong in launch_checklist_items (the
+        # agency-completed "To Do" checklist) below instead. Matched by exact
+        # title; harmless no-op once removed / if never present.
         await conn.execute(
             """
-            INSERT INTO onboarding_action_items (title, phase, sort_order)
+            DELETE FROM onboarding_action_items WHERE title IN (
+                'Set up client portal', 'Set up email marketing', 'Set up SMS marketing',
+                'Set up response AI', 'Create landing page', 'Create paid ad creatives'
+            )
+            """
+        )
+        # Seed the default Prelaunch launch checklist once, on a fresh table
+        # only — never re-runs once any item exists, so it won't clobber
+        # items an admin has since edited/deleted/reordered.
+        await conn.execute(
+            """
+            INSERT INTO launch_checklist_items (title, phase, sort_order)
             SELECT title, 'prelaunch', ord FROM (VALUES
                 ('Set up client portal', 0),
                 ('Set up email marketing', 1),
@@ -482,7 +518,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 ('Create landing page', 4),
                 ('Create paid ad creatives', 5)
             ) AS seed(title, ord)
-            WHERE NOT EXISTS (SELECT 1 FROM onboarding_action_items)
+            WHERE NOT EXISTS (SELECT 1 FROM launch_checklist_items)
             """
         )
         # Real clients' portals must never touch DigiGrowth's own shared

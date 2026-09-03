@@ -183,7 +183,6 @@ class ActionItemCreate(BaseModel):
     link_tab: Optional[str] = None
     link_url: Optional[str] = None
     sort_order: int = 0
-    phase: str = "prelaunch"
 
 
 class ActionItemUpdate(BaseModel):
@@ -193,10 +192,28 @@ class ActionItemUpdate(BaseModel):
     link_url: Optional[str] = None
     sort_order: Optional[int] = None
     active: Optional[bool] = None
-    phase: Optional[str] = None
 
 
 class ActionItemComplete(BaseModel):
+    completed: bool
+
+
+class LaunchChecklistItemCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    phase: str = "prelaunch"
+    sort_order: int = 0
+
+
+class LaunchChecklistItemUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    phase: Optional[str] = None
+    sort_order: Optional[int] = None
+    active: Optional[bool] = None
+
+
+class LaunchChecklistStatusUpdate(BaseModel):
     completed: bool
 
 

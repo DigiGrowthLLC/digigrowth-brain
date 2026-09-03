@@ -172,12 +172,12 @@ async def portal_action_items(token: str):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT ai.id, ai.title, ai.description, ai.link_tab, ai.link_url, ai.sort_order, ai.phase, c.completed_at
+            SELECT ai.id, ai.title, ai.description, ai.link_tab, ai.link_url, ai.sort_order, c.completed_at
             FROM onboarding_action_items ai
             LEFT JOIN client_action_item_completions c
                 ON c.action_item_id = ai.id AND c.client_id = $1
             WHERE ai.active
-            ORDER BY ai.phase, ai.sort_order, ai.id
+            ORDER BY ai.sort_order, ai.id
             """,
             client["id"],
         )
@@ -210,6 +210,30 @@ async def portal_set_action_item_complete(token: str, item_id: int, body: Action
             )
             completed_at = None
     return {"id": item_id, "completed_at": completed_at}
+
+
+@router.get("/{token}/todo")
+async def portal_todo(token: str):
+    """The agency's own launch-readiness checklist (separate from
+    /action-items above, which is the onboarding steps the CLIENT completes)
+    — read-only here since DigiGrowth staff check these off from the admin
+    Clients panel, not the client. The client's portal just watches
+    progress toward launch."""
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT li.id, li.title, li.description, li.phase, li.sort_order, s.completed_at
+            FROM launch_checklist_items li
+            LEFT JOIN client_launch_checklist_status s
+                ON s.item_id = li.id AND s.client_id = $1
+            WHERE li.active
+            ORDER BY li.phase, li.sort_order, li.id
+            """,
+            client["id"],
+        )
+    return [dict(r) for r in rows]
 
 
 @router.get("/{token}/stats")

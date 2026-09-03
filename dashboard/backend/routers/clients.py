@@ -14,6 +14,7 @@ from db import get_pool
 from models import (
     ClientCreate, ClientUpdate, ClientLinkContact, OnboardingVideoCreate, OnboardingVideoUpdate,
     ActionItemCreate, ActionItemUpdate, ONBOARDING_SECTIONS,
+    LaunchChecklistItemCreate, LaunchChecklistItemUpdate, LaunchChecklistStatusUpdate,
 )
 
 router = APIRouter()
@@ -335,7 +336,7 @@ async def delete_onboarding_video(video_id: int):
 async def list_action_items():
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT * FROM onboarding_action_items ORDER BY phase, sort_order, id")
+        rows = await conn.fetch("SELECT * FROM onboarding_action_items ORDER BY sort_order, id")
     return [dict(r) for r in rows]
 
 
@@ -344,14 +345,12 @@ async def create_action_item(body: ActionItemCreate):
     title = body.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="title required")
-    if body.phase not in ("prelaunch", "post_launch"):
-        raise HTTPException(status_code=400, detail="phase must be 'prelaunch' or 'post_launch'")
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "INSERT INTO onboarding_action_items (title, description, link_tab, link_url, sort_order, phase) "
-            "VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-            title, body.description, body.link_tab, body.link_url, body.sort_order, body.phase,
+            "INSERT INTO onboarding_action_items (title, description, link_tab, link_url, sort_order) "
+            "VALUES ($1, $2, $3, $4, $5) RETURNING *",
+            title, body.description, body.link_tab, body.link_url, body.sort_order,
         )
     return dict(row)
 
@@ -361,8 +360,6 @@ async def update_action_item(item_id: int, body: ActionItemUpdate):
     fields = body.model_dump(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="no fields to update")
-    if fields.get("phase") not in (None, "prelaunch", "post_launch"):
-        raise HTTPException(status_code=400, detail="phase must be 'prelaunch' or 'post_launch'")
     pool = await get_pool()
     async with pool.acquire() as conn:
         set_clauses = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(fields))
@@ -383,3 +380,113 @@ async def delete_action_item(item_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="Action item not found")
     return {"ok": True}
+
+
+# ---------------- Launch checklist (agency-run "To Do" — shared catalog + per-client status) ----------------
+#
+# Separate from the "Next Steps" action items above: those are onboarding
+# steps the CLIENT completes themselves. This checklist is DigiGrowth's own
+# launch-readiness tasks (set up the portal, email/SMS marketing, response
+# AI, landing page, ad creatives, etc.) — the client just watches progress
+# on their portal's "To Do" tab while the agency checks items off here,
+# per-client, as the work actually gets done.
+
+@router.get("/launch-checklist-items")
+async def list_launch_checklist_items():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM launch_checklist_items ORDER BY phase, sort_order, id")
+    return [dict(r) for r in rows]
+
+
+@router.post("/launch-checklist-items")
+async def create_launch_checklist_item(body: LaunchChecklistItemCreate):
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title required")
+    if body.phase not in ("prelaunch", "post_launch"):
+        raise HTTPException(status_code=400, detail="phase must be 'prelaunch' or 'post_launch'")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO launch_checklist_items (title, description, phase, sort_order) "
+            "VALUES ($1, $2, $3, $4) RETURNING *",
+            title, body.description, body.phase, body.sort_order,
+        )
+    return dict(row)
+
+
+@router.patch("/launch-checklist-items/{item_id}")
+async def update_launch_checklist_item(item_id: int, body: LaunchChecklistItemUpdate):
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    if fields.get("phase") not in (None, "prelaunch", "post_launch"):
+        raise HTTPException(status_code=400, detail="phase must be 'prelaunch' or 'post_launch'")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        set_clauses = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(fields))
+        row = await conn.fetchrow(
+            f"UPDATE launch_checklist_items SET {set_clauses} WHERE id = $1 RETURNING *",
+            item_id, *fields.values(),
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Checklist item not found")
+    return dict(row)
+
+
+@router.delete("/launch-checklist-items/{item_id}")
+async def delete_launch_checklist_item(item_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("DELETE FROM launch_checklist_items WHERE id = $1 RETURNING id", item_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Checklist item not found")
+    return {"ok": True}
+
+
+@router.get("/clients/{client_id}/launch-checklist")
+async def get_client_launch_checklist(client_id: int):
+    """Full catalog + this client's per-item completion status — what the
+    ClientRow's launch-checklist toggle panel renders."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT li.id, li.title, li.description, li.phase, li.sort_order, s.completed_at
+            FROM launch_checklist_items li
+            LEFT JOIN client_launch_checklist_status s
+                ON s.item_id = li.id AND s.client_id = $1
+            WHERE li.active
+            ORDER BY li.phase, li.sort_order, li.id
+            """,
+            client_id,
+        )
+    return [dict(r) for r in rows]
+
+
+@router.put("/clients/{client_id}/launch-checklist/{item_id}")
+async def set_client_launch_checklist_status(client_id: int, item_id: int, body: LaunchChecklistStatusUpdate):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        item = await conn.fetchrow("SELECT id FROM launch_checklist_items WHERE id = $1", item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Checklist item not found")
+        if body.completed:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO client_launch_checklist_status (client_id, item_id, completed_at)
+                VALUES ($1, $2, now())
+                ON CONFLICT (client_id, item_id) DO UPDATE SET completed_at = now()
+                RETURNING completed_at
+                """,
+                client_id, item_id,
+            )
+            completed_at = row["completed_at"]
+        else:
+            await conn.execute(
+                "DELETE FROM client_launch_checklist_status WHERE client_id = $1 AND item_id = $2",
+                client_id, item_id,
+            )
+            completed_at = None
+    return {"id": item_id, "completed_at": completed_at}

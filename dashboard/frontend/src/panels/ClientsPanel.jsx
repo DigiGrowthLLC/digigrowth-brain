@@ -65,6 +65,7 @@ function OnboardingAnswers({ clientId }) {
 function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact }) {
   const [copied, setCopied] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
   const [linking, setLinking] = useState(false);
   const [pendingContact, setPendingContact] = useState(null);
   const [savingLink, setSavingLink] = useState(false);
@@ -121,6 +122,9 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
         <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowOnboarding((s) => !s)}>
           {showOnboarding ? "HIDE ONBOARDING" : "VIEW ONBOARDING"}
         </button>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowChecklist((s) => !s)}>
+          {showChecklist ? "HIDE LAUNCH CHECKLIST" : "LAUNCH CHECKLIST"}
+        </button>
         <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={copyLink}>
           {copied ? "COPIED" : "COPY LINK"}
         </button>
@@ -157,6 +161,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
         </div>
       )}
       {showOnboarding && <OnboardingAnswers clientId={client.id} />}
+      {showChecklist && <ClientLaunchChecklist clientId={client.id} />}
     </div>
   );
 }
@@ -429,11 +434,6 @@ const ACTION_ITEM_LINK_OPTIONS = [
 ];
 const ACTION_ITEM_LINK_LABELS = Object.fromEntries(ACTION_ITEM_LINK_OPTIONS.map((o) => [o.value, o.label]));
 
-const ACTION_ITEM_PHASE_OPTIONS = [
-  { value: "prelaunch", label: "Prelaunch" },
-  { value: "post_launch", label: "Post Launch" },
-];
-
 function ActionItemRow({ item, onDelete }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
@@ -462,7 +462,7 @@ function ActionItemsSection() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", link_tab: "", link_url: "", phase: "prelaunch" });
+  const [form, setForm] = useState({ title: "", description: "", link_tab: "", link_url: "" });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -483,38 +483,34 @@ function ActionItemsSection() {
         description: form.description.trim() || undefined,
         link_tab: form.link_tab || undefined,
         link_url: form.link_url.trim() || undefined,
-        sort_order: items.filter((i) => i.phase === form.phase).length,
-        phase: form.phase,
+        sort_order: items.length,
       }),
     });
-    setForm({ title: "", description: "", link_tab: "", link_url: "", phase: form.phase });
+    setForm({ title: "", description: "", link_tab: "", link_url: "" });
     setShowForm(false);
     setSaving(false);
     load();
   };
 
   const remove = async (id) => {
-    if (!window.confirm("Delete this To Do item from every client's portal checklist?")) return;
+    if (!window.confirm("Delete this Next Step from every client's onboarding checklist?")) return;
     await fetch(API(`/action-items/${id}`), { method: "DELETE" });
     load();
   };
-
-  const prelaunch = items.filter((i) => (i.phase || "prelaunch") === "prelaunch");
-  const postLaunch = items.filter((i) => i.phase === "post_launch");
 
   return (
     <div style={{ marginTop: 32 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
-            Client Portal To Do
+            Onboarding Next Steps
           </div>
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.14em", marginTop: 3 }}>
-            SHARED CHECKLIST ON EVERY CLIENT'S PORTAL
+            SHARED CHECKLIST ON EVERY CLIENT'S ONBOARDING TAB — THE CLIENT CHECKS THESE OFF
           </div>
         </div>
         <button className="btn btn-primary" style={{ fontSize: 11, padding: "8px 18px" }} onClick={() => setShowForm((s) => !s)}>
-          {showForm ? "CANCEL" : "+ ADD ITEM"}
+          {showForm ? "CANCEL" : "+ ADD STEP"}
         </button>
       </div>
 
@@ -524,12 +520,6 @@ function ActionItemsSection() {
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
           <textarea className="dg-input" rows={2} placeholder="Description — what they need to do (optional)" value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} style={{ resize: "vertical" }} />
-          <div>
-            <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Phase</div>
-            <select className="dg-input" value={form.phase} onChange={(e) => setForm((f) => ({ ...f, phase: e.target.value }))}>
-              {ACTION_ITEM_PHASE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
           <div>
             <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Links to a portal tab (optional) — shows a "Go to…" button</div>
             <select className="dg-input" value={form.link_tab} onChange={(e) => setForm((f) => ({ ...f, link_tab: e.target.value }))}>
@@ -543,13 +533,130 @@ function ActionItemsSection() {
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button className="btn btn-primary" onClick={save} disabled={saving || !form.title.trim()} style={{ fontSize: 11 }}>
+              {saving ? "SAVING…" : "SAVE STEP"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="glass-card" style={{ padding: "10px 8px" }}>
+        {loading && <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
+        {!loading && items.length === 0 && (
+          <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO STEPS YET</div>
+        )}
+        {items.map((item) => <ActionItemRow key={item.id} item={item} onDelete={remove} />)}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- Launch checklist (agency-run "To Do" tab) ----------------
+//
+// Separate catalog from ActionItemsSection above: those are onboarding
+// steps the CLIENT completes. This is DigiGrowth's own launch-readiness
+// checklist — the client's portal shows it read-only (LaunchChecklistTab in
+// ClientPortal.jsx); completion is set here, per-client, by whoever on the
+// team actually does the work (see the per-client toggle panel added to
+// ClientRow below).
+
+const CHECKLIST_PHASE_OPTIONS = [
+  { value: "prelaunch", label: "Prelaunch" },
+  { value: "post_launch", label: "Post Launch" },
+];
+
+function ChecklistItemRow({ item, onDelete }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff" }}>{item.title}</div>
+        {item.description && (
+          <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{item.description}</div>
+        )}
+      </div>
+      <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(item.id)}>DELETE</button>
+    </div>
+  );
+}
+
+function LaunchChecklistSection() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", phase: "prelaunch" });
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    const r = await fetch(API("/launch-checklist-items"));
+    if (r.ok) setItems(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    if (!form.title.trim()) return;
+    setSaving(true);
+    await fetch(API("/launch-checklist-items"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        phase: form.phase,
+        sort_order: items.filter((i) => i.phase === form.phase).length,
+      }),
+    });
+    setForm({ title: "", description: "", phase: form.phase });
+    setShowForm(false);
+    setSaving(false);
+    load();
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this item from the launch checklist? It'll disappear from every client's To Do tab.")) return;
+    await fetch(API(`/launch-checklist-items/${id}`), { method: "DELETE" });
+    load();
+  };
+
+  const prelaunch = items.filter((i) => (i.phase || "prelaunch") === "prelaunch");
+  const postLaunch = items.filter((i) => i.phase === "post_launch");
+
+  return (
+    <div style={{ marginTop: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
+            Launch Checklist (To Do tab)
+          </div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.14em", marginTop: 3 }}>
+            AGENCY-COMPLETED — CLIENT SEES READ-ONLY PROGRESS. TOGGLE PER CLIENT ON ITS ROW BELOW.
+          </div>
+        </div>
+        <button className="btn btn-primary" style={{ fontSize: 11, padding: "8px 18px" }} onClick={() => setShowForm((s) => !s)}>
+          {showForm ? "CANCEL" : "+ ADD ITEM"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <input className="dg-input" placeholder="Title, e.g. Set up email marketing" value={form.title}
+            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
+          <textarea className="dg-input" rows={2} placeholder="Description (optional)" value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} style={{ resize: "vertical" }} />
+          <div>
+            <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Phase</div>
+            <select className="dg-input" value={form.phase} onChange={(e) => setForm((f) => ({ ...f, phase: e.target.value }))}>
+              {CHECKLIST_PHASE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn btn-primary" onClick={save} disabled={saving || !form.title.trim()} style={{ fontSize: 11 }}>
               {saving ? "SAVING…" : "SAVE ITEM"}
             </button>
           </div>
         </div>
       )}
 
-      {ACTION_ITEM_PHASE_OPTIONS.map((phaseOpt) => {
+      {CHECKLIST_PHASE_OPTIONS.map((phaseOpt) => {
         const phaseItems = phaseOpt.value === "prelaunch" ? prelaunch : postLaunch;
         return (
           <div key={phaseOpt.value} style={{ marginBottom: 18 }}>
@@ -561,8 +668,77 @@ function ActionItemsSection() {
               {!loading && phaseItems.length === 0 && (
                 <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO ITEMS YET</div>
               )}
-              {phaseItems.map((item) => <ActionItemRow key={item.id} item={item} onDelete={remove} />)}
+              {phaseItems.map((item) => <ChecklistItemRow key={item.id} item={item} onDelete={remove} />)}
             </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Per-client toggle panel — expandable from ClientRow, lets whoever's doing
+// the setup work mark this specific client's launch-checklist items done as
+// they actually get completed. Read-only catalog (titles/phases come from
+// LaunchChecklistSection above); only completion status is per-client here.
+function ClientLaunchChecklist({ clientId }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/launch-checklist`));
+    if (r.ok) setItems(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const toggle = async (item) => {
+    const completed = !item.completed_at;
+    const r = await fetch(API(`/clients/${clientId}/launch-checklist/${item.id}`), {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ completed }),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, completed_at: updated.completed_at } : i)));
+    }
+  };
+
+  if (loading) {
+    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  }
+  if (items.length === 0) {
+    return (
+      <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
+        NO LAUNCH CHECKLIST ITEMS YET — ADD SOME BELOW UNDER "LAUNCH CHECKLIST (TO DO TAB)"
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 8 }}>
+      {items.map((item) => {
+        const done = !!item.completed_at;
+        return (
+          <div
+            key={item.id}
+            onClick={() => toggle(item)}
+            style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, cursor: "pointer",
+              background: done ? "rgba(20,200,130,0.06)" : "rgba(255,255,255,0.02)",
+            }}
+          >
+            <span style={{
+              flexShrink: 0, width: 16, height: 16, borderRadius: 4,
+              border: done ? "1px solid #14c882" : "1px solid rgba(58,123,213,0.35)",
+              background: done ? "#14c882" : "transparent",
+              color: "#06110c", fontSize: 10, fontWeight: 700,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>{done ? "✓" : ""}</span>
+            <span style={{ fontSize: 12.5, color: done ? "#8fd9bd" : "#d0e8ff", textDecoration: done ? "line-through" : "none" }}>
+              {item.title}
+            </span>
           </div>
         );
       })}
@@ -698,6 +874,7 @@ export default function ClientsPanel() {
 
       <VideosSection />
       <ActionItemsSection />
+      <LaunchChecklistSection />
     </div>
   );
 }
