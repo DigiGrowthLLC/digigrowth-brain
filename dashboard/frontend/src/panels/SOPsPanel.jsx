@@ -354,6 +354,15 @@ const DM_FOLLOWUP_ITEM = { id: DM_FOLLOWUP_PSEUDO_ID, title: "DM Follow-Up (SMS)
 const ONBOARDING_PSEUDO_ID = "__onboarding__";
 const ONBOARDING_ITEM = { id: ONBOARDING_PSEUDO_ID, title: "Onboarding Sequence (Email + SMS)", onboardingTemplate: true };
 
+// Same pattern again, for the client booking-alert SMS — backed by GET/PUT
+// /api/dialer/client-booking-template. SMS-only, single template, addressed
+// to the CLIENT (business owner) rather than a prospect/lead — the only
+// template on this page that is. Fires automatically the instant a new
+// appointment is booked for one of the client's leads (CRM or client
+// portal self-booking) — see client_booking_notification.py.
+const CLIENT_BOOKING_PSEUDO_ID = "__client_booking__";
+const CLIENT_BOOKING_ITEM = { id: CLIENT_BOOKING_PSEUDO_ID, title: "Client Booking Alert (SMS)", clientBookingTemplate: true };
+
 // Same pattern again, for the email-handoff opener — backed by GET/PUT
 // /api/dialer/email-handoff-template. Email-only, a one-time copy of the SMS
 // "Free Offer V.1.3" sequence's steps kept in its own store (dialer_settings
@@ -770,6 +779,137 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
           <div style={hintStyle}>
             Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the client's first name and{" "}
             <code style={{ color: "#6ab0ff" }}>{"{portal_link}"}</code> for their client portal link.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Client Booking Alert editor ─────────────────────────────────────────────
+// One SMS field, backed by GET/PUT /api/dialer/client-booking-template.
+// Fires immediately, synchronously, the instant a new appointment is
+// booked for one of a client's leads — see
+// dashboard/backend/client_booking_notification.py.
+const CLIENT_BOOKING_FIELD_KEYS = ["client_booking_notification_sms"];
+
+function ClientBookingAlertEditor({ categories, onCategoryChange }) {
+  const [values, setValues] = useState({});
+  const [category, setCategory] = useState("General");
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [saved, setSaved] = useState({ category: "General" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/dialer/client-booking-template");
+      if (r.ok) {
+        const data = await r.json();
+        setValues(data);
+        setCategory(data.category || "General");
+        setSaved({ ...data, category: data.category || "General" });
+        onCategoryChange?.(data.category || "General");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const dirty = CLIENT_BOOKING_FIELD_KEYS.some(k => (values[k] || "") !== (saved[k] || "")) || category !== saved.category;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/client-booking-template", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...values, category }),
+      });
+      if (r.ok) {
+        setSaved({ ...values, category });
+        onCategoryChange?.(category);
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldStyle = {
+    width: "100%", background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
+    padding: "10px 12px", color: "#e8f0ff",
+    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    outline: "none", resize: "vertical", boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block", marginBottom: 6,
+    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+    color: "#3a5a80", letterSpacing: "0.12em",
+  };
+  const hintStyle = {
+    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
+    fontSize: 11, color: "#4a6a8a",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
+        display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
+      }}>
+        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+          Fires immediately, to the <strong style={{ color: "#a080f0" }}>client</strong>, the instant a new appointment is booked for one of their leads (CRM or their own portal). Editable per-client on/off toggle lives on the Clients tab.
+        </span>
+        <CategoryPicker
+          categories={categories}
+          category={category}
+          setCategory={setCategory}
+          customCatMode={customCatMode}
+          setCustomCatMode={setCustomCatMode}
+        />
+        {savedFlash && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+        )}
+        <button
+          onClick={save}
+          disabled={saving || !dirty}
+          style={{
+            background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
+            border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
+            borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontSize: 12, padding: "6px 16px", flexShrink: 0,
+            cursor: saving || !dirty ? "not-allowed" : "pointer",
+            opacity: saving ? 0.6 : 1,
+          }}
+        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <div>
+          <label style={labelStyle}>SMS MESSAGE</label>
+          <textarea
+            value={values.client_booking_notification_sms || ""}
+            onChange={e => setValues(v => ({ ...v, client_booking_notification_sms: e.target.value }))}
+            rows={4}
+            placeholder="Hey {client_first_name}, we just booked you an appointment with {lead_name} for {when}."
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>
+            Use <code style={{ color: "#6ab0ff" }}>{"{client_first_name}"}</code> for the client's first name,{" "}
+            <code style={{ color: "#6ab0ff" }}>{"{lead_name}"}</code> for the new lead's name, and{" "}
+            <code style={{ color: "#6ab0ff" }}>{"{when}"}</code> for the formatted appointment time, e.g. "2:00 PM on Thursday, September 4th".
           </div>
         </div>
       </div>
@@ -2214,6 +2354,7 @@ export default function SOPsPanel() {
   const [cancelCategory, setCancelCategory] = useState("General");
   const [dmFollowupCategory, setDmFollowupCategory] = useState("General");
   const [onboardingCategory, setOnboardingCategory] = useState("General");
+  const [clientBookingCategory, setClientBookingCategory] = useState("General");
   const [emailHandoffCategory, setEmailHandoffCategory] = useState("General");
   const [remCategory, setRemCategory] = useState("General");
   const [sequences, setSequences] = useState([]);
@@ -2333,7 +2474,7 @@ export default function SOPsPanel() {
     ...sops.map(s => s.category || "General"),
     ...(activeSection === "outreach_templates"
       ? [
-          sendInfoCategory, noShowCategory, cancelCategory, dmFollowupCategory, onboardingCategory, emailHandoffCategory, remCategory,
+          sendInfoCategory, noShowCategory, cancelCategory, dmFollowupCategory, onboardingCategory, clientBookingCategory, emailHandoffCategory, remCategory,
           ...sequences.map(s => s.category || "General"),
           ...callScripts.map(s => s.category || "General"),
         ]
@@ -2476,6 +2617,7 @@ export default function SOPsPanel() {
     { ...CANCEL_ITEM,           category: cancelCategory,   icon: "✕" },
     { ...DM_FOLLOWUP_ITEM,      category: dmFollowupCategory, icon: "💭" },
     { ...ONBOARDING_ITEM,       category: onboardingCategory, icon: "🎉" },
+    { ...CLIENT_BOOKING_ITEM,   category: clientBookingCategory, icon: "📣" },
     { ...EMAIL_HANDOFF_ITEM,    category: emailHandoffCategory, icon: "📧" },
     ...sequences.map(seq => ({
       id: `seq-${seq.id}`,
@@ -2524,10 +2666,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.emailHandoffTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.emailHandoffTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.emailHandoffTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.emailHandoffTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -2544,7 +2686,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.emailHandoffTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.emailHandoffTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -2706,6 +2848,8 @@ export default function SOPsPanel() {
             <DmFollowupSequenceEditor categories={categories} onCategoryChange={setDmFollowupCategory} />
           ) : selectedItem?.onboardingTemplate ? (
             <OnboardingKickoffEditor categories={categories} onCategoryChange={setOnboardingCategory} />
+          ) : selectedItem?.clientBookingTemplate ? (
+            <ClientBookingAlertEditor categories={categories} onCategoryChange={setClientBookingCategory} />
           ) : selectedItem?.emailHandoffTemplate ? (
             <EmailHandoffEditor categories={categories} onCategoryChange={setEmailHandoffCategory} />
           ) : selectedItem?.smsSequence ? (

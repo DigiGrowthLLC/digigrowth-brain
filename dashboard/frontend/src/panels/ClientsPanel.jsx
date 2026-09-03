@@ -104,6 +104,11 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
               </span>
             )}
             {revoked && <span className="badge badge-red">TOKEN REVOKED</span>}
+            {!client.booking_notification_enabled && (
+              <span className="badge badge-gray" title="This client will not receive an SMS when a new appointment is booked for their lead">
+                BOOKING SMS OFF
+              </span>
+            )}
             {client.linked_contact ? (
               <span className="badge badge-blue" title="Onboarding follow-up will send this client's portal link">
                 LINKED: {client.linked_contact.owner || client.linked_contact.business || "contact"}
@@ -255,6 +260,7 @@ function ClientForm({ initial, onSave, onCancel, saving }) {
     email: initial?.email || "",
     phone: initial?.phone || "",
     notes: initial?.notes || "",
+    booking_notification_enabled: initial?.booking_notification_enabled ?? true,
   });
   const [linkedContact, setLinkedContact] = useState(initial?.linked_contact || null);
 
@@ -303,6 +309,14 @@ function ClientForm({ initial, onSave, onCancel, saving }) {
         onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
         style={{ resize: "vertical" }}
       />
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#8aaad0", cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={form.booking_notification_enabled}
+          onChange={(e) => setForm((f) => ({ ...f, booking_notification_enabled: e.target.checked }))}
+        />
+        Text this client when a new appointment is booked for their lead
+      </label>
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <button className="btn btn-secondary" onClick={onCancel} style={{ fontSize: 11 }}>CANCEL</button>
         <button

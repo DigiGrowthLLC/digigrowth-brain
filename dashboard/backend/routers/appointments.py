@@ -35,6 +35,7 @@ from fastapi import APIRouter, HTTPException, Query
 from db import get_pool
 from timezone_lookup import guess_timezone, US_TIMEZONES
 import cancel_sequence
+import client_booking_notification
 import no_show_sequence
 import onboarding_sequence
 import reminder_engine
@@ -159,6 +160,16 @@ async def create_appointment(payload: dict):
             local_dt,
             tz_name,
         )
+
+    # Notify the CLIENT (business owner) that a new appointment just landed
+    # for one of their leads — a one-shot SMS, unrelated to the LEAD-facing
+    # 24h/6h/1h reminder sequence below/elsewhere. See
+    # client_booking_notification.py's docstring. Never allowed to block
+    # the booking itself.
+    try:
+        await client_booking_notification.send_booking_notification(dict(row))
+    except Exception as e:
+        print(f"[appointments] client booking notification failed for appointment {row['id']}: {e}")
 
     # Mark the win: flip contacts.status to 'appointment-booked' and, if the
     # booking was made from a specific channel's thread (the Inbox passes

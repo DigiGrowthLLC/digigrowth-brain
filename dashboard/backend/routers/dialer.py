@@ -44,6 +44,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 import cancel_sequence
+import client_booking_notification
 import dialer_engine as engine
 import dm_followup_sequence
 import email_handoff_sequence
@@ -333,6 +334,54 @@ async def save_onboarding_template(body: dict):
             await conn.execute(
                 """
                 INSERT INTO dialer_settings (key, value, updated_at) VALUES ('onboarding_category', $1, now())
+                ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
+                """,
+                body["category"],
+            )
+    return {"ok": True}
+
+
+# "Client Booking Alert" — the one-shot SMS sent to a CLIENT (business
+# owner) the instant a new appointment is booked for one of their leads.
+# See client_booking_notification.py's docstring. Distinct from every
+# other template on this page: it's the only one addressed to the CLIENT
+# rather than a prospect/lead.
+
+@router.get("/dialer/client-booking-template")
+async def get_client_booking_template():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key = ANY($1)",
+            list(client_booking_notification.TEMPLATE_DEFAULTS.keys()) + ["client_booking_category"],
+        )
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    result = {
+        key: values.get(key, default)
+        for key, default in client_booking_notification.TEMPLATE_DEFAULTS.items()
+    }
+    result["category"] = values.get("client_booking_category") or "General"
+    return result
+
+
+@router.put("/dialer/client-booking-template")
+async def save_client_booking_template(body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for key in client_booking_notification.TEMPLATE_DEFAULTS:
+            if key not in body:
+                continue
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+                """,
+                key, body[key],
+            )
+        if "category" in body:
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ('client_booking_category', $1, now())
                 ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
                 """,
                 body["category"],
