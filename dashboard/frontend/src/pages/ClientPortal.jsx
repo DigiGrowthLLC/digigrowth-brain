@@ -1961,20 +1961,12 @@ export default function ClientPortal() {
           background: "linear-gradient(90deg, transparent, rgba(106,176,255,0.5) 20%, rgba(106,176,255,0.5) 80%, transparent)",
         }} />
 
-        <div style={{
-          display: "flex", alignItems: "center", gap: 14,
-          padding: "8px 18px 8px 8px", borderRadius: 999,
-          background: "rgba(255,255,255,0.03)", border: "1px solid rgba(58,123,213,0.18)",
-        }}>
-          <div className="dg-logo-glow" style={{
-            flexShrink: 0, display: "flex", alignItems: "center", padding: "6px 10px",
-            borderRadius: 999, background: "rgba(58,123,213,0.12)",
-          }}>
-            <img src={logoWordmark} alt="DigiGrowth" style={{ height: 24, display: "block" }} />
-          </div>
-          {client && (
-            <>
-              <div style={{ width: 1, height: 22, background: "rgba(106,176,255,0.25)", flexShrink: 0 }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="dg-logo-glow" style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+              <img src={logoWordmark} alt="DigiGrowth" style={{ height: 24, display: "block" }} />
+            </div>
+            {client && (
               <div style={{
                 fontWeight: 700, fontSize: 16, letterSpacing: "-0.01em",
                 background: "linear-gradient(90deg, #f0f4ff, #9cc4f5)",
@@ -1982,8 +1974,9 @@ export default function ClientPortal() {
               }}>
                 {client.name}
               </div>
-            </>
-          )}
+            )}
+          </div>
+          <div style={{ height: 2, borderRadius: 2, background: "linear-gradient(90deg, #3a7bd5, #6ab0ff, transparent)" }} />
         </div>
 
         <div style={{
