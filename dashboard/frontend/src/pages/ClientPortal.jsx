@@ -106,6 +106,31 @@ function ActionItemRow({ token, item, onUpdated, onGoToTab }) {
   );
 }
 
+const TODO_PHASE_LABELS = { prelaunch: "Prelaunch", post_launch: "Post Launch" };
+
+function TodoPhaseGroup({ label, items, token, onUpdated, onGoToTab }) {
+  if (items.length === 0) return null;
+  const doneCount = items.filter((i) => i.completed_at).length;
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginBottom: 8 }}>
+        {label.toUpperCase()} ({doneCount}/{items.length})
+      </div>
+      <div className="glass-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((item) => (
+          <ActionItemRow
+            key={item.id}
+            token={token}
+            item={item}
+            onUpdated={onUpdated}
+            onGoToTab={onGoToTab}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function NextStepsSection({ token, onGoToTab }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -120,21 +145,15 @@ function NextStepsSection({ token, onGoToTab }) {
   if (loading || items.length === 0) return null;
 
   const doneCount = items.filter((i) => i.completed_at).length;
+  const update = (updated) => setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+  const prelaunch = items.filter((i) => (i.phase || "prelaunch") === "prelaunch");
+  const postLaunch = items.filter((i) => i.phase === "post_launch");
 
   return (
     <div style={{ marginBottom: 28 }}>
-      <SectionHeading>Next Steps ({doneCount}/{items.length})</SectionHeading>
-      <div className="glass-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-        {items.map((item) => (
-          <ActionItemRow
-            key={item.id}
-            token={token}
-            item={item}
-            onUpdated={(updated) => setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))}
-            onGoToTab={onGoToTab}
-          />
-        ))}
-      </div>
+      <SectionHeading>To Do ({doneCount}/{items.length})</SectionHeading>
+      <TodoPhaseGroup label={TODO_PHASE_LABELS.prelaunch} items={prelaunch} token={token} onUpdated={update} onGoToTab={onGoToTab} />
+      <TodoPhaseGroup label={TODO_PHASE_LABELS.post_launch} items={postLaunch} token={token} onUpdated={update} onGoToTab={onGoToTab} />
     </div>
   );
 }

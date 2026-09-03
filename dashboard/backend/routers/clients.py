@@ -335,7 +335,7 @@ async def delete_onboarding_video(video_id: int):
 async def list_action_items():
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT * FROM onboarding_action_items ORDER BY sort_order, id")
+        rows = await conn.fetch("SELECT * FROM onboarding_action_items ORDER BY phase, sort_order, id")
     return [dict(r) for r in rows]
 
 
@@ -344,12 +344,14 @@ async def create_action_item(body: ActionItemCreate):
     title = body.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="title required")
+    if body.phase not in ("prelaunch", "post_launch"):
+        raise HTTPException(status_code=400, detail="phase must be 'prelaunch' or 'post_launch'")
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "INSERT INTO onboarding_action_items (title, description, link_tab, link_url, sort_order) "
-            "VALUES ($1, $2, $3, $4, $5) RETURNING *",
-            title, body.description, body.link_tab, body.link_url, body.sort_order,
+            "INSERT INTO onboarding_action_items (title, description, link_tab, link_url, sort_order, phase) "
+            "VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+            title, body.description, body.link_tab, body.link_url, body.sort_order, body.phase,
         )
     return dict(row)
 
@@ -359,6 +361,8 @@ async def update_action_item(item_id: int, body: ActionItemUpdate):
     fields = body.model_dump(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="no fields to update")
+    if fields.get("phase") not in (None, "prelaunch", "post_launch"):
+        raise HTTPException(status_code=400, detail="phase must be 'prelaunch' or 'post_launch'")
     pool = await get_pool()
     async with pool.acquire() as conn:
         set_clauses = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(fields))

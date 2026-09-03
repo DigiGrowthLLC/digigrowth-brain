@@ -429,6 +429,11 @@ const ACTION_ITEM_LINK_OPTIONS = [
 ];
 const ACTION_ITEM_LINK_LABELS = Object.fromEntries(ACTION_ITEM_LINK_OPTIONS.map((o) => [o.value, o.label]));
 
+const ACTION_ITEM_PHASE_OPTIONS = [
+  { value: "prelaunch", label: "Prelaunch" },
+  { value: "post_launch", label: "Post Launch" },
+];
+
 function ActionItemRow({ item, onDelete }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
@@ -457,7 +462,7 @@ function ActionItemsSection() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", link_tab: "", link_url: "" });
+  const [form, setForm] = useState({ title: "", description: "", link_tab: "", link_url: "", phase: "prelaunch" });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -478,34 +483,38 @@ function ActionItemsSection() {
         description: form.description.trim() || undefined,
         link_tab: form.link_tab || undefined,
         link_url: form.link_url.trim() || undefined,
-        sort_order: items.length,
+        sort_order: items.filter((i) => i.phase === form.phase).length,
+        phase: form.phase,
       }),
     });
-    setForm({ title: "", description: "", link_tab: "", link_url: "" });
+    setForm({ title: "", description: "", link_tab: "", link_url: "", phase: form.phase });
     setShowForm(false);
     setSaving(false);
     load();
   };
 
   const remove = async (id) => {
-    if (!window.confirm("Delete this Next Step from every client's onboarding checklist?")) return;
+    if (!window.confirm("Delete this To Do item from every client's portal checklist?")) return;
     await fetch(API(`/action-items/${id}`), { method: "DELETE" });
     load();
   };
+
+  const prelaunch = items.filter((i) => (i.phase || "prelaunch") === "prelaunch");
+  const postLaunch = items.filter((i) => i.phase === "post_launch");
 
   return (
     <div style={{ marginTop: 32 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
-            Onboarding Next Steps
+            Client Portal To Do
           </div>
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.14em", marginTop: 3 }}>
-            SHARED CHECKLIST ON EVERY CLIENT'S ONBOARDING TAB
+            SHARED CHECKLIST ON EVERY CLIENT'S PORTAL
           </div>
         </div>
         <button className="btn btn-primary" style={{ fontSize: 11, padding: "8px 18px" }} onClick={() => setShowForm((s) => !s)}>
-          {showForm ? "CANCEL" : "+ ADD STEP"}
+          {showForm ? "CANCEL" : "+ ADD ITEM"}
         </button>
       </div>
 
@@ -515,6 +524,12 @@ function ActionItemsSection() {
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
           <textarea className="dg-input" rows={2} placeholder="Description — what they need to do (optional)" value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} style={{ resize: "vertical" }} />
+          <div>
+            <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Phase</div>
+            <select className="dg-input" value={form.phase} onChange={(e) => setForm((f) => ({ ...f, phase: e.target.value }))}>
+              {ACTION_ITEM_PHASE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
           <div>
             <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 4 }}>Links to a portal tab (optional) — shows a "Go to…" button</div>
             <select className="dg-input" value={form.link_tab} onChange={(e) => setForm((f) => ({ ...f, link_tab: e.target.value }))}>
@@ -528,19 +543,29 @@ function ActionItemsSection() {
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button className="btn btn-primary" onClick={save} disabled={saving || !form.title.trim()} style={{ fontSize: 11 }}>
-              {saving ? "SAVING…" : "SAVE STEP"}
+              {saving ? "SAVING…" : "SAVE ITEM"}
             </button>
           </div>
         </div>
       )}
 
-      <div className="glass-card" style={{ padding: "10px 8px" }}>
-        {loading && <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
-        {!loading && items.length === 0 && (
-          <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO STEPS YET</div>
-        )}
-        {items.map((item) => <ActionItemRow key={item.id} item={item} onDelete={remove} />)}
-      </div>
+      {ACTION_ITEM_PHASE_OPTIONS.map((phaseOpt) => {
+        const phaseItems = phaseOpt.value === "prelaunch" ? prelaunch : postLaunch;
+        return (
+          <div key={phaseOpt.value} style={{ marginBottom: 18 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginBottom: 8 }}>
+              {phaseOpt.label.toUpperCase()}
+            </div>
+            <div className="glass-card" style={{ padding: "10px 8px" }}>
+              {loading && <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
+              {!loading && phaseItems.length === 0 && (
+                <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO ITEMS YET</div>
+              )}
+              {phaseItems.map((item) => <ActionItemRow key={item.id} item={item} onDelete={remove} />)}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

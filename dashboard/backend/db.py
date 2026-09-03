@@ -347,7 +347,8 @@ async def _create_schema(pool: asyncpg.Pool):
                 link_url    TEXT,
                 sort_order  INTEGER NOT NULL DEFAULT 0,
                 active      BOOLEAN NOT NULL DEFAULT true,
-                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                phase       TEXT NOT NULL DEFAULT 'prelaunch'
             );
 
             CREATE TABLE IF NOT EXISTS client_action_item_completions (
@@ -465,7 +466,25 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_url TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS calendly_url TEXT;
+            ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS phase TEXT NOT NULL DEFAULT 'prelaunch';
         """)
+        # Seed the default Prelaunch to-do checklist once, on a fresh table
+        # only — never re-runs once any action item exists, so it won't
+        # clobber items an admin has since edited/deleted/reordered.
+        await conn.execute(
+            """
+            INSERT INTO onboarding_action_items (title, phase, sort_order)
+            SELECT title, 'prelaunch', ord FROM (VALUES
+                ('Set up client portal', 0),
+                ('Set up email marketing', 1),
+                ('Set up SMS marketing', 2),
+                ('Set up response AI', 3),
+                ('Create landing page', 4),
+                ('Create paid ad creatives', 5)
+            ) AS seed(title, ord)
+            WHERE NOT EXISTS (SELECT 1 FROM onboarding_action_items)
+            """
+        )
         # Real clients' portals must never touch DigiGrowth's own shared
         # Twilio/Gmail credentials (real calling, real SMS/email send) — only
         # a client explicitly flagged is_test can. Backfill the one
