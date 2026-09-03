@@ -28,18 +28,37 @@ const PORTAL_PERIOD_OPTIONS = [["today", "Today"], ["week", "Week"], ["month", "
 // client-side time check it would show up as "upcoming" indefinitely.
 const APPT_PAST_GRACE_MS = 60 * 60 * 1000;
 
-const TAB_LABELS = {
-  dashboard: "Dashboard",
-  analytics: "Analytics",
-  appointments: "Appointments",
-  leads: "Leads",
-  inbox: "Inbox",
-  onboarding: "Onboarding",
-  sequences: "Sequences",
-  videos: "Get Started Videos",
-  todo: "To Do",
-  upload: "Upload",
-};
+// Two-tier nav — groups the 10 underlying views into 5 primary tabs so the
+// bar doesn't overwhelm the client. Leaf ids below are unchanged from the
+// old flat TAB_LABELS (still what `tab` state holds and what every
+// {tab === "x" && ...} content branch further down matches on), so nothing
+// that navigates by leaf id (onGoToTab/setTab callers, action-item
+// link_tab values already stored in the DB) needed to change — only how
+// they're grouped/labeled in the nav bar did.
+const NAV = [
+  { id: "dashboard-group", label: "Dashboard", children: [
+    { id: "dashboard", label: "Overview" },
+    { id: "analytics", label: "Analytics" },
+  ] },
+  { id: "crm-group", label: "Leads & Appointments", children: [
+    { id: "leads", label: "Leads" },
+    { id: "appointments", label: "Appointments" },
+    { id: "inbox", label: "Inbox" },
+  ] },
+  { id: "getstarted-group", label: "Get Started", children: [
+    { id: "onboarding", label: "Onboarding" },
+    { id: "sequences", label: "Your Messaging" },
+    { id: "videos", label: "Videos" },
+  ] },
+  { id: "todo", label: "To Do" },
+  { id: "upload", label: "Upload" },
+];
+
+// Flat leaf-id -> label lookup derived from NAV — ActionItemRow's "Go to
+// {label}" link (item.link_tab references a leaf id directly) reads this.
+const TAB_LABELS = Object.fromEntries(
+  NAV.flatMap((g) => (g.children ? g.children.map((c) => [c.id, c.label]) : [[g.id, g.label]]))
+);
 
 function Field({ q, value, onChange }) {
   return (
@@ -2493,25 +2512,52 @@ export default function ClientPortal() {
       </div>
 
       <div style={{ maxWidth: 1240, margin: "0 auto", padding: "36px 24px" }}>
-        <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "1px solid rgba(58,123,213,0.1)" }}>
-          {Object.entries(TAB_LABELS).map(([id, label]) => (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={tab === id ? "dg-tab dg-tab-active" : "dg-tab"}
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                padding: "10px 16px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
-                color: tab === id ? "#6ab0ff" : "#5a7aa0",
-                borderRadius: "6px 6px 0 0",
-              }}
-            >
-              {label}
-            </button>
-          ))}
+        <div style={{ display: "flex", gap: 4, marginBottom: 4, borderBottom: "1px solid rgba(58,123,213,0.1)" }}>
+          {NAV.map((g) => {
+            const active = g.children ? g.children.some((c) => c.id === tab) : g.id === tab;
+            return (
+              <button
+                key={g.id}
+                onClick={() => setTab(g.children ? g.children[0].id : g.id)}
+                className={active ? "dg-tab dg-tab-active" : "dg-tab"}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  padding: "10px 16px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
+                  color: active ? "#6ab0ff" : "#5a7aa0",
+                  borderRadius: "6px 6px 0 0",
+                }}
+              >
+                {g.label}
+              </button>
+            );
+          })}
         </div>
 
-        <div key={tab} className="dg-fade-in">
+        {(() => {
+          const activeGroup = NAV.find((g) => (g.children ? g.children.some((c) => c.id === tab) : g.id === tab));
+          if (!activeGroup?.children) return null;
+          return (
+            <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+              {activeGroup.children.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setTab(c.id)}
+                  style={{
+                    background: tab === c.id ? "rgba(58,123,213,0.14)" : "transparent",
+                    border: tab === c.id ? "1px solid rgba(58,123,213,0.3)" : "1px solid transparent",
+                    borderRadius: 999, cursor: "pointer", padding: "5px 14px",
+                    fontFamily: "'Space Grotesk', sans-serif", fontSize: 11.5, fontWeight: 600,
+                    color: tab === c.id ? "#9cc4f5" : "#5a7aa0",
+                  }}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
+        <div key={tab} className="dg-fade-in" style={{ marginTop: 20 }}>
         {tab === "dashboard" && <DashboardTab token={token} contactName={client?.contact_name} />}
         {tab === "analytics" && <AnalyticsTab token={token} />}
         {tab === "appointments" && <AppointmentsTab token={token} />}

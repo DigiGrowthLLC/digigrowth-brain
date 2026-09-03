@@ -62,13 +62,23 @@ function OnboardingAnswers({ clientId }) {
   );
 }
 
+// The Details panel's sub-tabs — replaces what used to be 5 separate
+// toggle buttons (Onboarding/Checklist/Sequences/Requests/Uploads), each
+// with its own always-mounted-when-open panel. One toggle, one panel,
+// pick which sub-view with a small pill row inside it.
+const DETAILS_TABS = [
+  { id: "onboarding", label: "Onboarding" },
+  { id: "checklist", label: "Launch Checklist" },
+  { id: "sequences", label: "Sequences" },
+  { id: "requests", label: "Requests" },
+  { id: "uploads", label: "Uploads" },
+];
+
 function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact }) {
   const [copied, setCopied] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showChecklist, setShowChecklist] = useState(false);
-  const [showSequences, setShowSequences] = useState(false);
-  const [showRequests, setShowRequests] = useState(false);
-  const [showUploads, setShowUploads] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [detailsTab, setDetailsTab] = useState("onboarding");
+  const [showMenu, setShowMenu] = useState(false);
   const [linking, setLinking] = useState(false);
   const [pendingContact, setPendingContact] = useState(null);
   const [savingLink, setSavingLink] = useState(false);
@@ -94,7 +104,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
     <div style={{ borderRadius: 10, background: "rgba(255,255,255,0.02)", marginBottom: 8, overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
               {client.name}
             </span>
@@ -127,45 +137,61 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
           </div>
         </div>
 
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowOnboarding((s) => !s)}>
-          {showOnboarding ? "HIDE ONBOARDING" : "VIEW ONBOARDING"}
-        </button>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowChecklist((s) => !s)}>
-          {showChecklist ? "HIDE LAUNCH CHECKLIST" : "LAUNCH CHECKLIST"}
-        </button>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowSequences((s) => !s)}>
-          {showSequences ? "HIDE SEQUENCES" : "SEQUENCES"}
-        </button>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowRequests((s) => !s)}>
-          {showRequests ? "HIDE REQUESTS" : "REQUESTS"}
-        </button>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowUploads((s) => !s)}>
-          {showUploads ? "HIDE UPLOADS" : "UPLOADS"}
-        </button>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={copyLink}>
-          {copied ? "COPIED" : "COPY LINK"}
-        </button>
         <a href={client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10, textDecoration: "none" }}>
           VIEW PORTAL ↗
         </a>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setPendingContact(client.linked_contact || null); setLinking((s) => !s); }}>
-          {linking ? "CANCEL" : "LINK CONTACT"}
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={copyLink}>
+          {copied ? "COPIED" : "COPY LINK"}
+        </button>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowDetails((s) => !s)}>
+          {showDetails ? "HIDE DETAILS" : "DETAILS"}
         </button>
         <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onEdit(client)}>
           EDIT
         </button>
-        {revoked ? (
-          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onRegenerate(client.id)}>
-            REGENERATE
+
+        <div style={{ position: "relative" }}>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: 10, padding: "6px 10px" }}
+            onClick={() => setShowMenu((s) => !s)}
+            title="More actions"
+          >
+            ⋯
           </button>
-        ) : (
-          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onRevoke(client.id)}>
-            REVOKE
-          </button>
-        )}
-        <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(client.id)}>
-          DELETE
-        </button>
+          {showMenu && (
+            <>
+              <div style={{ position: "fixed", inset: 0, zIndex: 10 }} onClick={() => setShowMenu(false)} />
+              <div style={{
+                position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 11,
+                background: "#0d1a3a", border: "1px solid rgba(58,123,213,0.25)", borderRadius: 8,
+                minWidth: 160, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+              }}>
+                <button
+                  onClick={() => { setPendingContact(client.linked_contact || null); setLinking((s) => !s); setShowMenu(false); }}
+                  style={menuItemStyle}
+                >
+                  {linking ? "Cancel Linking" : "Link Contact"}
+                </button>
+                {revoked ? (
+                  <button onClick={() => { onRegenerate(client.id); setShowMenu(false); }} style={menuItemStyle}>
+                    Regenerate Token
+                  </button>
+                ) : (
+                  <button onClick={() => { onRevoke(client.id); setShowMenu(false); }} style={menuItemStyle}>
+                    Revoke Token
+                  </button>
+                )}
+                <button
+                  onClick={() => { onDelete(client.id); setShowMenu(false); }}
+                  style={{ ...menuItemStyle, color: "#e05c5c" }}
+                >
+                  Delete Client
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
       {linking && (
         <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -177,14 +203,41 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
           </div>
         </div>
       )}
-      {showOnboarding && <OnboardingAnswers clientId={client.id} />}
-      {showChecklist && <ClientLaunchChecklist clientId={client.id} />}
-      {showSequences && <ClientSequences clientId={client.id} />}
-      {showRequests && <ClientRequests clientId={client.id} />}
-      {showUploads && <ClientUploads clientId={client.id} />}
+      {showDetails && (
+        <div>
+          <div style={{ display: "flex", gap: 6, padding: "10px 16px 0", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+            {DETAILS_TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setDetailsTab(t.id)}
+                style={{
+                  background: detailsTab === t.id ? "rgba(58,123,213,0.14)" : "transparent",
+                  border: detailsTab === t.id ? "1px solid rgba(58,123,213,0.3)" : "1px solid transparent",
+                  borderRadius: 999, cursor: "pointer", padding: "5px 12px",
+                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
+                  color: detailsTab === t.id ? "#9cc4f5" : "#5a7aa0",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {detailsTab === "onboarding" && <OnboardingAnswers clientId={client.id} />}
+          {detailsTab === "checklist" && <ClientLaunchChecklist clientId={client.id} />}
+          {detailsTab === "sequences" && <ClientSequences clientId={client.id} />}
+          {detailsTab === "requests" && <ClientRequests clientId={client.id} />}
+          {detailsTab === "uploads" && <ClientUploads clientId={client.id} />}
+        </div>
+      )}
     </div>
   );
 }
+
+const menuItemStyle = {
+  display: "block", width: "100%", textAlign: "left", padding: "9px 14px",
+  background: "none", border: "none", cursor: "pointer",
+  fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#c4d0e8",
+};
 
 // Search-and-pick widget for linking the CRM contact/prospect this client's
 // deal actually came from. Points contacts.client_id at the client once
