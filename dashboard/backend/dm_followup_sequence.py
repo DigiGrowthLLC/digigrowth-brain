@@ -60,9 +60,10 @@ naturally re-derivable every time from the message log itself:
      still each wait their full interval from there — so it can never
      produce a burst.
 
-Dialer escalation: the moment Touch 2 sends, the prospect's contacts.status
-flips to 'dialer-lead' so they land in the internal dialer queue for a phone
-follow-up — this is purely additive, not a stop condition. The SMS sequence
+Dialer escalation: 24h after Touch 2 sends with still no reply, the
+prospect's contacts.status flips to 'dialer-lead' so they land in the
+internal dialer queue for a phone follow-up — this is purely additive, not
+a stop condition. The SMS sequence
 keeps running as normal alongside it: Touch 3 still sends on schedule unless
 they reply (step 2 above), get marked Not Interested (sets disposition,
 which excludes the row from step 1's WHERE clause), or a rep manually
@@ -218,6 +219,31 @@ async def send_due_touches():
                 row["dm_followup_touch2_sent_at"] = None
                 row["dm_followup_touch3_sent_at"] = None
 
+            # Dialer escalation: 24h after Touch 2 sends with still no reply,
+            # hand this prospect to the dialer for a phone follow-up — don't
+            # wait for the sequence to finish. The SMS sequence keeps running
+            # as normal alongside this (Touch 3 still sends on its own
+            # schedule unless they reply, get marked Not Interested, or get
+            # manually un-enrolled) — this is purely an additive "also queue
+            # them for a call" side effect, not a stop condition. No extra
+            # "still silent" check needed here: a reply already clears
+            # dm_followup_touch2_sent_at back to NULL via the "ball in
+            # Dylan's court" branch above, so if this column is still set
+            # 24h later, they haven't replied. Idempotent (skips if already
+            # dialer-lead) so a fresh silence cycle after a reply-then-quiet-
+            # again doesn't clobber a rep's own more specific disposition of
+            # that contact in between.
+            touch2_at = row["dm_followup_touch2_sent_at"]
+            if touch2_at is not None and now >= touch2_at + timedelta(hours=24) and row["contact_id"]:
+                current_status = await conn.fetchval(
+                    "SELECT status FROM contacts WHERE id = $1", row["contact_id"],
+                )
+                if current_status != "dialer-lead":
+                    await conn.execute(
+                        "UPDATE contacts SET status = 'dialer-lead', updated_at = now() WHERE id = $1",
+                        row["contact_id"],
+                    )
+
             anchor = row["dm_followup_anchor_at"]
             for touch_num, sent_col, ref_col, delay in _TOUCHES:
                 if row[sent_col] is not None:
@@ -230,24 +256,4 @@ async def send_due_touches():
                     await conn.execute(
                         f"UPDATE sms_conversations SET {sent_col} = now() WHERE id = $1", row["id"],
                     )
-                    # Dialer escalation: the moment Touch 2 goes out, hand
-                    # this prospect to the dialer for a phone follow-up —
-                    # don't wait for the sequence to finish. The SMS sequence
-                    # keeps running as normal alongside this (Touch 3 still
-                    # sends on its own schedule unless they reply, get marked
-                    # Not Interested, or get manually un-enrolled) — this is
-                    # purely an additive "also queue them for a call" side
-                    # effect, not a stop condition. Idempotent (skips if
-                    # already dialer-lead) so a fresh silence cycle after a
-                    # reply-then-go-quiet-again doesn't clobber a rep's own
-                    # more specific disposition of that contact in between.
-                    if touch_num == 2 and row["contact_id"]:
-                        current_status = await conn.fetchval(
-                            "SELECT status FROM contacts WHERE id = $1", row["contact_id"],
-                        )
-                        if current_status != "dialer-lead":
-                            await conn.execute(
-                                "UPDATE contacts SET status = 'dialer-lead', updated_at = now() WHERE id = $1",
-                                row["contact_id"],
-                            )
                 break
