@@ -30,6 +30,7 @@ const APPT_PAST_GRACE_MS = 60 * 60 * 1000;
 
 const TAB_LABELS = {
   dashboard: "Dashboard",
+  analytics: "Analytics",
   appointments: "Appointments",
   leads: "Leads",
   inbox: "Inbox",
@@ -715,6 +716,138 @@ function DashboardTab({ token, contactName }) {
         <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
           Facebook Ads reporting — coming soon
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Analytics tab — deeper, optimization-oriented rollup on top of the same
+// /stats payload the Dashboard tab uses. Every number here is derived
+// straight from real DB-backed counts (leads/appointments/sms/email/ad
+// spend) — nothing is invented. Revenue/avg-deal-size are deliberately left
+// out: DigiGrowth doesn't track a per-client dollar value for a closed deal
+// anywhere in this DB (the agency's own revenue numbers come from a separate
+// Google Sheet, not per-client), so showing a number here would be a guess.
+// CAC uses ad spend / closed appointments instead, which needs no revenue
+// figure and stays honest until Meta Ads (meta_ads.py — currently a stub)
+// is wired up and appointments go live for a given client.
+function AnalyticsStat({ label, value, sublabel, iconKey }) {
+  return (
+    <div className="stat-card">
+      <div>
+        <div className="stat-card-label">{label}</div>
+        <div className="stat-card-value">{value ?? "—"}</div>
+        {sublabel && <div className="stat-card-delta" style={{ color: "#6ab0ff" }}>{sublabel}</div>}
+      </div>
+      <div className="stat-card-icon">{DASH_ICONS[iconKey]}</div>
+    </div>
+  );
+}
+
+function AnalyticsTab({ token }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState("all");
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/portal-api/${token}/stats?period=${period}`)
+      .then((r) => r.json())
+      .then((data) => { setStats(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [token, period]);
+
+  if (loading && !stats) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (!stats) return null;
+
+  const appt = stats.appointments;
+  const leadsTotal = stats.leads.total;
+  const bookingRate = leadsTotal > 0 ? Math.round((appt.total / leadsTotal) * 1000) / 10 : null;
+
+  const smsSent = stats.sms.sent, smsReplies = stats.sms.replies;
+  const emailSent = stats.email.sent, emailReplies = stats.email.replies;
+  const smsReplyRate = smsSent > 0 ? Math.round((smsReplies / smsSent) * 1000) / 10 : null;
+  const emailReplyRate = emailSent > 0 ? Math.round((emailReplies / emailSent) * 1000) / 10 : null;
+  const totalSent = smsSent + emailSent;
+  const totalReplies = smsReplies + emailReplies;
+  const overallReplyRate = totalSent > 0 ? Math.round((totalReplies / totalSent) * 1000) / 10 : null;
+  const activeConvos = (stats.sms.conversations || 0) + (stats.email.conversations || 0);
+
+  // ad_campaign_stats rows — real once meta_ads.py is wired up per client,
+  // empty array (not fake zeros) until then, so the section below shows the
+  // same honest "coming soon" empty state as the Dashboard tab's ads row.
+  const adDays = stats.ads.days || [];
+  const adConnected = adDays.length > 0;
+  const spend = adDays.reduce((s, d) => s + (Number(d.spend) || 0), 0);
+  const impressions = adDays.reduce((s, d) => s + (Number(d.impressions) || 0), 0);
+  const clicks = adDays.reduce((s, d) => s + (Number(d.clicks) || 0), 0);
+  const adLeads = adDays.reduce((s, d) => s + (Number(d.leads) || 0), 0);
+  const ctr = impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : null;
+  const cpc = clicks > 0 ? Math.round((spend / clicks) * 100) / 100 : null;
+  const costPerLead = adLeads > 0 ? Math.round((spend / adLeads) * 100) / 100 : null;
+  const cac = adConnected && appt.closed > 0 ? Math.round((spend / appt.closed) * 100) / 100 : null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
+            Analytics
+          </div>
+          <div style={{ fontSize: 12.5, color: "#5a7aa0", marginTop: 4 }}>
+            Everything that matters for optimizing your campaign.
+          </div>
+        </div>
+        <PeriodToggle days={period} setDays={setPeriod} options={PORTAL_PERIOD_OPTIONS} />
+      </div>
+
+      {/* Row 1: funnel top line */}
+      <div>
+        <SectionHeading>Lead-to-Close Funnel</SectionHeading>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
+          <AnalyticsStat label="Total Leads" value={leadsTotal} iconKey="leads" />
+          <AnalyticsStat label="Appointments Booked" value={appt.total} iconKey="appointments" />
+          <AnalyticsStat label="Booking Rate" value={bookingRate != null ? `${bookingRate}%` : "—"} sublabel="LEADS → BOOKED" iconKey="rate" />
+          <AnalyticsStat label="Show Rate" value={appt.shows + appt.no_shows > 0 ? `${appt.show_rate}%` : "—"} sublabel="BOOKED → SHOWED" iconKey="rate" />
+          <AnalyticsStat label="Close Rate" value={appt.closed + appt.not_closed > 0 ? `${appt.close_rate}%` : "—"} sublabel="SHOWED → CLOSED" iconKey="rate" />
+        </div>
+      </div>
+
+      {/* Row 2: outreach volume + reply rates */}
+      <div>
+        <SectionHeading>Outreach Performance</SectionHeading>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+          <AnalyticsStat label="Total Outreach Sent" value={totalSent} sublabel="SMS + EMAIL" iconKey="upcoming" />
+          <AnalyticsStat label="Total Replies" value={totalReplies} iconKey="upcoming" />
+          <AnalyticsStat label="Overall Reply Rate" value={overallReplyRate != null ? `${overallReplyRate}%` : "—"} iconKey="rate" />
+          <AnalyticsStat label="Active Conversations" value={activeConvos} sublabel="SMS + EMAIL THREADS" iconKey="upcoming" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginTop: 16 }}>
+          <AnalyticsStat label="SMS Sent" value={smsSent} iconKey="upcoming" />
+          <AnalyticsStat label="SMS Reply Rate" value={smsReplyRate != null ? `${smsReplyRate}%` : "—"} sublabel={`${smsReplies} replies`} iconKey="rate" />
+          <AnalyticsStat label="Email Sent" value={emailSent} iconKey="upcoming" />
+          <AnalyticsStat label="Email Reply Rate" value={emailReplyRate != null ? `${emailReplyRate}%` : "—"} sublabel={`${emailReplies} replies`} iconKey="rate" />
+        </div>
+      </div>
+
+      {/* Row 3: paid acquisition (Meta Ads) + CAC */}
+      <div>
+        <SectionHeading>Paid Acquisition (Meta Ads)</SectionHeading>
+        {adConnected ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+            <AnalyticsStat label="Ad Spend" value={`$${spend.toLocaleString()}`} iconKey="upcoming" />
+            <AnalyticsStat label="Impressions" value={impressions.toLocaleString()} iconKey="upcoming" />
+            <AnalyticsStat label="Clicks" value={clicks.toLocaleString()} iconKey="upcoming" />
+            <AnalyticsStat label="CTR" value={ctr != null ? `${ctr}%` : "—"} iconKey="rate" />
+            <AnalyticsStat label="Cost per Click" value={cpc != null ? `$${cpc}` : "—"} iconKey="rate" />
+            <AnalyticsStat label="Cost per Lead" value={costPerLead != null ? `$${costPerLead}` : "—"} iconKey="rate" />
+            <AnalyticsStat label="Customer Acquisition Cost" value={cac != null ? `$${cac}` : "—"} sublabel="SPEND / CLOSED DEALS" iconKey="rate" />
+          </div>
+        ) : (
+          <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
+            Meta Ads reporting isn't connected yet — once it is, spend, CTR, cost per lead, and CAC will show here automatically.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2018,6 +2151,7 @@ export default function ClientPortal() {
 
         <div key={tab} className="dg-fade-in">
         {tab === "dashboard" && <DashboardTab token={token} contactName={client?.contact_name} />}
+        {tab === "analytics" && <AnalyticsTab token={token} />}
         {tab === "appointments" && <AppointmentsTab token={token} />}
         {tab === "leads" && (
           <LeadsTab
