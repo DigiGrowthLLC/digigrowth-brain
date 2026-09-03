@@ -256,9 +256,9 @@
       "last_scraped_date": "2026-09-03"
     },
     "Indianapolis, IN": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 169,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 202,
       "qualified_count": 9,
       "last_scraped_date": "2026-09-03"
     },
