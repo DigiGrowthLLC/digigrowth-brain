@@ -26,11 +26,15 @@ import asyncpg
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
-from models import OnboardingSectionSave, ONBOARDING_SECTIONS, ActionItemComplete, TagAssign
+from models import (
+    OnboardingSectionSave, ONBOARDING_SECTIONS, ActionItemComplete, TagAssign,
+    ClientRequestCreate, UploadPresignRequest, UploadRecordCreate,
+)
 import cancel_sequence
 import integrations
 import no_show_sequence
 import onboarding_sequence
+import r2_storage
 from routers import dialer as dialer_router
 from routers import appointments as appointments_router
 from timezone_lookup import US_TIMEZONES
@@ -239,6 +243,118 @@ async def portal_todo(token: str):
             client["id"],
         )
     return [dict(r) for r in rows]
+
+
+@router.get("/{token}/sequences")
+async def portal_sequences(token: str):
+    """Read-only preview of this client's Appointment Reminder / No Show /
+    Cancellation copy — edited by DigiGrowth staff from the Clients admin
+    panel (routers/clients.py's /clients/{id}/sequences). Not wired to any
+    real SMS/email send yet; this is content prep the client can see ahead
+    of time, same "watch, don't edit" shape as the To Do tab's launch
+    checklist."""
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, sequence_key, step_order, label, channel, subject, body "
+            "FROM client_sequence_steps WHERE client_id = $1 ORDER BY sequence_key, step_order, id",
+            client["id"],
+        )
+    return [dict(r) for r in rows]
+
+
+# ---------------- Client requests ("something I want fixed/done") ----------------
+
+@router.get("/{token}/requests")
+async def portal_list_requests(token: str):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM client_requests WHERE client_id = $1 ORDER BY created_at DESC",
+            client["id"],
+        )
+    return [dict(r) for r in rows]
+
+
+@router.post("/{token}/requests")
+async def portal_create_request(token: str, body: ClientRequestCreate):
+    message = body.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message required")
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO client_requests (client_id, message) VALUES ($1, $2) RETURNING *",
+            client["id"], message,
+        )
+    return dict(row)
+
+
+# ---------------- Client uploads (files -> Cloudflare R2, metadata only here) ----------------
+#
+# The browser uploads the file bytes directly to R2 using a presigned URL
+# from /uploads/presign below — this backend never sees the file content,
+# only the metadata recorded by the follow-up POST /uploads call once the
+# direct-to-R2 upload succeeds. Keeps client-uploaded photos/documents
+# completely off Railway's own storage, however much volume there is.
+
+@router.get("/{token}/uploads")
+async def portal_list_uploads(token: str):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, file_name, file_type, file_size, notes, uploaded_at "
+            "FROM client_uploads WHERE client_id = $1 ORDER BY uploaded_at DESC",
+            client["id"],
+        )
+    return [dict(r) for r in rows]
+
+
+@router.get("/{token}/uploads/status")
+async def portal_upload_storage_status(token: str):
+    """Lets the Upload tab show a friendly "not connected yet" state
+    instead of a broken upload button when Cloudflare R2 hasn't been set
+    up yet (see r2_storage.py's module docstring)."""
+    await get_client_from_token(token)
+    return {"configured": r2_storage.is_configured()}
+
+
+@router.post("/{token}/uploads/presign")
+async def portal_presign_upload(token: str, body: UploadPresignRequest):
+    client = await get_client_from_token(token)
+    if not r2_storage.is_configured():
+        raise HTTPException(status_code=503, detail="File storage isn't connected yet — check back soon.")
+    file_name = body.file_name.strip()
+    if not file_name:
+        raise HTTPException(status_code=400, detail="file_name required")
+    key = r2_storage.make_key(client["id"], file_name)
+    url = r2_storage.presign_put(key, body.file_type or "application/octet-stream")
+    return {"upload_url": url, "r2_key": key}
+
+
+@router.post("/{token}/uploads")
+async def portal_record_upload(token: str, body: UploadRecordCreate):
+    """Called once the browser's direct-to-R2 PUT (using the presigned URL
+    from /uploads/presign above) has succeeded, to record the file's
+    metadata. r2_key must be one this token's own presign call issued —
+    scoped by prefix (clients/{client_id}/...) so one client can never
+    record metadata pointing at another client's key."""
+    client = await get_client_from_token(token)
+    if not body.r2_key.startswith(f"clients/{client['id']}/"):
+        raise HTTPException(status_code=403, detail="Invalid upload key")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO client_uploads (client_id, file_name, file_type, file_size, r2_key, notes) "
+            "VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, file_name, file_type, file_size, notes, uploaded_at",
+            client["id"], body.file_name.strip(), body.file_type, body.file_size, body.r2_key,
+            (body.notes or "").strip() or None,
+        )
+    return dict(row)
 
 
 @router.get("/{token}/stats")

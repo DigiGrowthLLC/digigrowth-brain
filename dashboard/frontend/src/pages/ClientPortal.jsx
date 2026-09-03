@@ -35,8 +35,10 @@ const TAB_LABELS = {
   leads: "Leads",
   inbox: "Inbox",
   onboarding: "Onboarding",
+  sequences: "Sequences",
   videos: "Get Started Videos",
   todo: "To Do",
+  upload: "Upload",
 };
 
 function Field({ q, value, onChange }) {
@@ -244,6 +246,243 @@ function LaunchChecklistTab({ token }) {
           <ChecklistPhaseGroup label={CHECKLIST_PHASE_LABELS.post_launch} items={postLaunch} />
         </>
       )}
+
+      <RequestSection token={token} />
+    </div>
+  );
+}
+
+const REQUEST_STATUS_LABELS = { open: "Open", done: "Done" };
+
+function RequestSection({ token }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const load = () => {
+    fetch(`/portal-api/${token}/requests`)
+      .then((r) => r.json())
+      .then((data) => { setRequests(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
+
+  useEffect(load, [token]);
+
+  const submit = async () => {
+    const trimmed = message.trim();
+    if (!trimmed) return;
+    setSubmitting(true);
+    const r = await fetch(`/portal-api/${token}/requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: trimmed }),
+    });
+    if (r.ok) {
+      setMessage("");
+      load();
+    }
+    setSubmitting(false);
+  };
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <SectionHeading>Have Something You Need Done?</SectionHeading>
+      <div className="glass-card" style={{ padding: 18, marginBottom: 16 }}>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", marginBottom: 10, lineHeight: 1.5 }}>
+          Noticed something that needs fixing, or want us to add/change something? Let us know here.
+        </div>
+        <textarea
+          className="dg-input"
+          rows={3}
+          placeholder="e.g. Can you update the phone number on my landing page?"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          style={{ width: "100%", resize: "vertical", boxSizing: "border-box", marginBottom: 10 }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button className="btn btn-primary" onClick={submit} disabled={submitting || !message.trim()} style={{ fontSize: 12 }}>
+            {submitting ? "Sending…" : "Send Request"}
+          </button>
+        </div>
+      </div>
+
+      {!loading && requests.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {requests.map((r) => (
+            <div key={r.id} className="glass-card" style={{ padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <span style={{
+                flexShrink: 0, marginTop: 2, fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
+                padding: "3px 8px", borderRadius: 999, letterSpacing: "0.06em",
+                color: r.status === "done" ? "#8fd9bd" : "#f0c078",
+                background: r.status === "done" ? "rgba(20,200,130,0.1)" : "rgba(240,160,40,0.1)",
+                border: r.status === "done" ? "1px solid rgba(20,200,130,0.25)" : "1px solid rgba(240,160,40,0.25)",
+              }}>
+                {REQUEST_STATUS_LABELS[r.status].toUpperCase()}
+              </span>
+              <div style={{ flex: 1, fontSize: 13, color: "#d0e8ff", lineHeight: 1.5, textDecoration: r.status === "done" ? "line-through" : "none", opacity: r.status === "done" ? 0.7 : 1 }}>
+                {r.message}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function fmtBytes(n) {
+  if (n == null) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function UploadTab({ token }) {
+  const [configured, setConfigured] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState([]); // [{name, status: 'uploading'|'error'}]
+  const [notes, setNotes] = useState("");
+  const fileInputRef = useRef(null);
+
+  const load = () => {
+    fetch(`/portal-api/${token}/uploads`)
+      .then((r) => r.json())
+      .then((data) => { setFiles(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetch(`/portal-api/${token}/uploads/status`)
+      .then((r) => r.json())
+      .then((data) => setConfigured(data.configured))
+      .catch(() => setConfigured(false));
+    load();
+  }, [token]);
+
+  const uploadOne = async (file) => {
+    setUploading((u) => [...u, { name: file.name, status: "uploading" }]);
+    try {
+      const presignRes = await fetch(`/portal-api/${token}/uploads/presign`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_name: file.name, file_type: file.type, file_size: file.size }),
+      });
+      if (!presignRes.ok) throw new Error("presign failed");
+      const { upload_url, r2_key } = await presignRes.json();
+
+      const putRes = await fetch(upload_url, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error("upload failed");
+
+      await fetch(`/portal-api/${token}/uploads`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_name: file.name, file_type: file.type, file_size: file.size,
+          r2_key, notes: notes.trim() || undefined,
+        }),
+      });
+      setUploading((u) => u.filter((f) => f.name !== file.name));
+      load();
+    } catch {
+      setUploading((u) => u.map((f) => (f.name === file.name ? { ...f, status: "error" } : f)));
+    }
+  };
+
+  const handleFiles = (fileList) => {
+    Array.from(fileList).forEach(uploadOne);
+    setNotes("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  return (
+    <div>
+      <div className="glass-card" style={{ padding: "20px 24px", marginBottom: 24 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
+          Send Us Files
+        </div>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
+          Got photos, videos, testimonials, logos, or documents we can use in your marketing? Upload
+          them here and we'll take it from there.
+        </div>
+      </div>
+
+      {configured === false && (
+        <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13, marginBottom: 20 }}>
+          File uploads aren't connected yet — check back soon.
+        </div>
+      )}
+
+      {configured && (
+        <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.12em", marginBottom: 6 }}>
+              NOTES (OPTIONAL)
+            </div>
+            <input
+              className="dg-input"
+              placeholder="e.g. Photos for the new landing page"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              style={{ width: "100%", boxSizing: "border-box" }}
+            />
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            onChange={(e) => e.target.files.length && handleFiles(e.target.files)}
+            style={{ display: "none" }}
+            id="portal-upload-input"
+          />
+          <label
+            htmlFor="portal-upload-input"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              gap: 8, padding: "36px 20px", borderRadius: 10, cursor: "pointer",
+              border: "1.5px dashed rgba(58,123,213,0.35)", background: "rgba(58,123,213,0.04)",
+            }}
+          >
+            <span style={{ fontSize: 26 }}>📁</span>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#8aaad0" }}>
+              Click to choose files, or drag them here
+            </span>
+          </label>
+
+          {uploading.length > 0 && (
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+              {uploading.map((f) => (
+                <div key={f.name} style={{ fontSize: 12, color: f.status === "error" ? "#e05c5c" : "#6ab0ff", fontFamily: "'Share Tech Mono', monospace" }}>
+                  {f.status === "error" ? `✕ ${f.name} — upload failed` : `⏳ ${f.name} — uploading…`}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {!loading && files.length > 0 && (
+        <div>
+          <SectionHeading>Uploaded ({files.length})</SectionHeading>
+          <div className="glass-card" style={{ padding: 8 }}>
+            {files.map((f) => (
+              <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 8 }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>📄</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: "#d0e8ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
+                  {f.notes && <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{f.notes}</div>}
+                </div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", flexShrink: 0 }}>
+                  {fmtBytes(f.file_size)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -349,6 +588,89 @@ function OnboardingTab({ token, onGoToTab }) {
     <div>
       <NextStepsSection token={token} onGoToTab={onGoToTab} />
       <OnboardingFormSection token={token} />
+    </div>
+  );
+}
+
+// Read-only preview of this client's outreach copy — DigiGrowth staff edit
+// this from the Clients admin panel. Not wired to any real send yet (see
+// client_sequence_steps in db.py); the client just sees a preview of what
+// their messaging will look like once it's live.
+const SEQUENCE_LABELS = {
+  appointment_reminder: "Appointment Reminders",
+  no_show: "No Show Follow-Up",
+  cancellation: "Cancellation Follow-Up",
+};
+const SEQUENCE_ORDER = ["appointment_reminder", "no_show", "cancellation"];
+
+function SequenceStepCard({ step }) {
+  return (
+    <div className="glass-card-sm" style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff", flex: 1 }}>
+          {step.label}
+        </span>
+        <span style={{
+          fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
+          padding: "3px 8px", borderRadius: 999, color: "#6ab0ff",
+          background: "rgba(58,123,213,0.1)", border: "1px solid rgba(58,123,213,0.25)",
+        }}>
+          {step.channel.toUpperCase()}
+        </span>
+      </div>
+      {step.subject && (
+        <div style={{ fontSize: 11.5, color: "#5a7096", marginBottom: 6 }}>
+          Subject: <span style={{ color: "#8aaad0" }}>{step.subject}</span>
+        </div>
+      )}
+      <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{step.body}</div>
+    </div>
+  );
+}
+
+function SequencesTab({ token }) {
+  const [steps, setSteps] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/portal-api/${token}/sequences`)
+      .then((r) => r.json())
+      .then((data) => { setSteps(data); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+
+  return (
+    <div>
+      <div className="glass-card" style={{ padding: "20px 24px", marginBottom: 24 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
+          Your Patient Messaging, Previewed
+        </div>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
+          This is the copy we've drafted for your appointment reminders and follow-ups. It's not
+          sending yet — this is a preview while we finish setting up your messaging.
+        </div>
+      </div>
+
+      {SEQUENCE_ORDER.map((key) => {
+        const group = steps.filter((s) => s.sequence_key === key);
+        if (group.length === 0) return null;
+        return (
+          <div key={key} style={{ marginBottom: 24 }}>
+            <SectionHeading>{SEQUENCE_LABELS[key] || key}</SectionHeading>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+              {group.map((step) => <SequenceStepCard key={step.id} step={step} />)}
+            </div>
+          </div>
+        );
+      })}
+
+      {!loading && steps.length === 0 && (
+        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#2a4a6a", letterSpacing: "0.12em" }}>
+          NOTHING DRAFTED YET — CHECK BACK SOON
+        </div>
+      )}
     </div>
   );
 }
@@ -2208,8 +2530,10 @@ export default function ClientPortal() {
           />
         )}
         {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
+        {tab === "sequences" && <SequencesTab token={token} />}
         {tab === "videos" && <VideosTab token={token} />}
         {tab === "todo" && <LaunchChecklistTab token={token} />}
+        {tab === "upload" && <UploadTab token={token} />}
         </div>
       </div>
     </div>

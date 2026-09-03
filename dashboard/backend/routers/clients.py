@@ -10,14 +10,44 @@ import secrets
 
 from fastapi import APIRouter, HTTPException
 
+import r2_storage
 from db import get_pool
 from models import (
     ClientCreate, ClientUpdate, ClientLinkContact, OnboardingVideoCreate, OnboardingVideoUpdate,
     ActionItemCreate, ActionItemUpdate, ONBOARDING_SECTIONS,
     LaunchChecklistItemCreate, LaunchChecklistItemUpdate, LaunchChecklistStatusUpdate,
+    SequenceStepUpdate, ClientRequestUpdate,
 )
 
 router = APIRouter()
+
+# Default PT-oriented sequence copy — same values as db.py's one-time
+# backfill migration, duplicated here (not imported from db.py) so a
+# brand-new client gets seeded immediately at creation instead of waiting
+# for the next app restart's migration pass.
+_DEFAULT_SEQUENCE_STEPS = [
+    ("appointment_reminder", 0, "24 Hour Reminder", "sms", None,
+     "Hi {first_name}, this is a friendly reminder about your physical therapy appointment tomorrow, {date} at {time}, with {business}. Reply CONFIRM to confirm or call us if you need to reschedule."),
+    ("appointment_reminder", 1, "Day-Of Reminder", "sms", None,
+     "Hi {first_name}, just a reminder — your appointment at {business} is today at {time}. We look forward to seeing you!"),
+    ("no_show", 0, "Touch 1 (SMS)", "sms", None,
+     "Hi {first_name}, we missed you at your appointment today at {business}. No worries — these things happen! Reply here or give us a call to get you rescheduled so we can keep your recovery on track."),
+    ("no_show", 1, "Touch 1 (Email)", "email", "We missed you today",
+     "Hi {first_name},\n\nWe noticed you weren't able to make your physical therapy appointment today. Consistency is a big part of recovery, so we'd love to get you back on the schedule as soon as possible.\n\nReply to this email or give us a call whenever works for you.\n\nTalk soon,\n{business}"),
+    ("cancellation", 0, "Touch 1 (SMS)", "sms", None,
+     "Hi {first_name}, we've canceled your appointment as requested. Whenever you're ready to get back to feeling better, just reply here or give us a call to grab a new time."),
+    ("cancellation", 1, "Touch 1 (Email)", "email", "Your appointment has been canceled",
+     "Hi {first_name},\n\nThis confirms your upcoming appointment with {business} has been canceled.\n\nIf you'd like to reschedule, just reply to this email or call us — we're happy to find a time that works for you.\n\nTake care,\n{business}"),
+]
+
+
+async def _seed_default_sequences(conn, client_id: int) -> None:
+    for sequence_key, step_order, label, channel, subject, body in _DEFAULT_SEQUENCE_STEPS:
+        await conn.execute(
+            "INSERT INTO client_sequence_steps (client_id, sequence_key, step_order, label, channel, subject, body) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            client_id, sequence_key, step_order, label, channel, subject, body,
+        )
 
 _DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/")
 
@@ -96,6 +126,7 @@ async def create_client(body: ClientCreate):
                 "UPDATE contacts SET client_id = $1, is_client_anchor = true, updated_at = now() WHERE id = $2",
                 row["id"], body.contact_id,
             )
+        await _seed_default_sequences(conn, row["id"])
         d = dict(row)
         d["linked_contact"] = await _linked_contact_summary(conn, d["id"])
     d["portal_url"] = _portal_url(d["portal_token"])
@@ -490,4 +521,123 @@ async def set_client_launch_checklist_status(client_id: int, item_id: int, body:
                 client_id, item_id,
             )
             completed_at = None
+    return {"id": item_id, "completed_at": completed_at}
+
+
+# ---------------- Sequences (admin-editable per-client outreach copy) ----------------
+#
+# Appointment Reminder / No Show / Cancellation copy, shown read-only on the
+# client portal's Sequences tab (routers/client_portal.py). Not wired to any
+# real SMS/email send yet — this is content prep for when per-client
+# messaging/emailing gets built. Seeded with PT-oriented defaults at client
+# creation (create_client() above) and, for clients that pre-date this
+# feature, by a one-time backfill in db.py.
+
+@router.get("/clients/{client_id}/sequences")
+async def list_client_sequences(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM client_sequence_steps WHERE client_id = $1 ORDER BY sequence_key, step_order, id",
+            client_id,
+        )
+    return [dict(r) for r in rows]
+
+
+@router.patch("/clients/{client_id}/sequences/{step_id}")
+async def update_client_sequence_step(client_id: int, step_id: int, body: SequenceStepUpdate):
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    if fields.get("channel") not in (None, "sms", "email"):
+        raise HTTPException(status_code=400, detail="channel must be 'sms' or 'email'")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        set_clauses = ", ".join(f"{k} = ${i+3}" for i, k in enumerate(fields))
+        row = await conn.fetchrow(
+            f"UPDATE client_sequence_steps SET {set_clauses}, updated_at = now() "
+            f"WHERE id = $1 AND client_id = $2 RETURNING *",
+            step_id, client_id, *fields.values(),
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Sequence step not found")
+    return dict(row)
+
+
+# ---------------- Client requests ("something I want fixed/done") ----------------
+
+@router.get("/clients/{client_id}/requests")
+async def list_client_requests(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM client_requests WHERE client_id = $1 ORDER BY created_at DESC",
+            client_id,
+        )
+    return [dict(r) for r in rows]
+
+
+@router.patch("/clients/{client_id}/requests/{request_id}")
+async def update_client_request(client_id: int, request_id: int, body: ClientRequestUpdate):
+    if body.status not in ("open", "done"):
+        raise HTTPException(status_code=400, detail="status must be 'open' or 'done'")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE client_requests SET status = $3, resolved_at = CASE WHEN $3 = 'done' THEN now() ELSE NULL END "
+            "WHERE id = $1 AND client_id = $2 RETURNING *",
+            request_id, client_id, body.status,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Request not found")
+    return dict(row)
+
+
+# ---------------- Client uploads (files -> Cloudflare R2, metadata only here) ----------------
+
+@router.get("/clients/{client_id}/uploads")
+async def list_client_uploads(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM client_uploads WHERE client_id = $1 ORDER BY uploaded_at DESC",
+            client_id,
+        )
+    return [dict(r) for r in rows]
+
+
+@router.get("/clients/{client_id}/uploads/{upload_id}/download")
+async def get_client_upload_download_url(client_id: int, upload_id: int):
+    """Returns a short-lived presigned R2 URL rather than proxying the file
+    through this backend — same "Railway never touches the bytes" principle
+    as the upload side."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT r2_key, file_name FROM client_uploads WHERE id = $1 AND client_id = $2",
+            upload_id, client_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    if not r2_storage.is_configured():
+        raise HTTPException(status_code=503, detail="File storage isn't connected yet")
+    return {"url": r2_storage.presign_get(row["r2_key"], row["file_name"])}
+
+
+@router.delete("/clients/{client_id}/uploads/{upload_id}")
+async def delete_client_upload(client_id: int, upload_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM client_uploads WHERE id = $1 AND client_id = $2 RETURNING r2_key",
+            upload_id, client_id,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    if r2_storage.is_configured():
+        try:
+            r2_storage.delete_object(row["r2_key"])
+        except Exception as e:
+            print(f"[clients] failed to delete R2 object {row['r2_key']}: {e}")
+    return {"ok": True}
     return {"id": item_id, "completed_at": completed_at}

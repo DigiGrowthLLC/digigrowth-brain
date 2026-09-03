@@ -66,6 +66,9 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
   const [copied, setCopied] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showChecklist, setShowChecklist] = useState(false);
+  const [showSequences, setShowSequences] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
+  const [showUploads, setShowUploads] = useState(false);
   const [linking, setLinking] = useState(false);
   const [pendingContact, setPendingContact] = useState(null);
   const [savingLink, setSavingLink] = useState(false);
@@ -130,6 +133,15 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
         <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowChecklist((s) => !s)}>
           {showChecklist ? "HIDE LAUNCH CHECKLIST" : "LAUNCH CHECKLIST"}
         </button>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowSequences((s) => !s)}>
+          {showSequences ? "HIDE SEQUENCES" : "SEQUENCES"}
+        </button>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowRequests((s) => !s)}>
+          {showRequests ? "HIDE REQUESTS" : "REQUESTS"}
+        </button>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowUploads((s) => !s)}>
+          {showUploads ? "HIDE UPLOADS" : "UPLOADS"}
+        </button>
         <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={copyLink}>
           {copied ? "COPIED" : "COPY LINK"}
         </button>
@@ -167,6 +179,9 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
       )}
       {showOnboarding && <OnboardingAnswers clientId={client.id} />}
       {showChecklist && <ClientLaunchChecklist clientId={client.id} />}
+      {showSequences && <ClientSequences clientId={client.id} />}
+      {showRequests && <ClientRequests clientId={client.id} />}
+      {showUploads && <ClientUploads clientId={client.id} />}
     </div>
   );
 }
@@ -756,6 +771,211 @@ function ClientLaunchChecklist({ clientId }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Per-client editable outreach copy — Appointment Reminder / No Show /
+// Cancellation, previewed read-only in the client's own portal (Sequences
+// tab). Not wired to any real send yet; this is just content editing.
+const SEQUENCE_GROUP_LABELS = {
+  appointment_reminder: "Appointment Reminders",
+  no_show: "No Show Follow-Up",
+  cancellation: "Cancellation Follow-Up",
+};
+const SEQUENCE_GROUP_ORDER = ["appointment_reminder", "no_show", "cancellation"];
+
+function SequenceStepEditor({ step, onSaved }) {
+  const [subject, setSubject] = useState(step.subject || "");
+  const [body, setBody] = useState(step.body || "");
+  const [saving, setSaving] = useState(false);
+  const dirty = subject !== (step.subject || "") || body !== (step.body || "");
+
+  const save = async () => {
+    setSaving(true);
+    const r = await fetch(API(`/clients/${step.client_id}/sequences/${step.id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject: subject || null, body }),
+    });
+    if (r.ok) onSaved(await r.json());
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: "#d0e8ff", flex: 1 }}>{step.label}</span>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5" }}>{step.channel.toUpperCase()}</span>
+      </div>
+      {step.channel === "email" && (
+        <input
+          className="dg-input" placeholder="Subject" value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          style={{ width: "100%", boxSizing: "border-box", fontSize: 12, marginBottom: 6 }}
+        />
+      )}
+      <textarea
+        className="dg-input" rows={3} value={body}
+        onChange={(e) => setBody(e.target.value)}
+        style={{ width: "100%", boxSizing: "border-box", fontSize: 12, resize: "vertical", marginBottom: 6 }}
+      />
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={save} disabled={saving || !dirty}>
+          {saving ? "SAVING…" : "SAVE"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ClientSequences({ clientId }) {
+  const [steps, setSteps] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/sequences`));
+    if (r.ok) setSteps((await r.json()).map((s) => ({ ...s, client_id: clientId })));
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  if (loading) return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  if (steps.length === 0) {
+    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>NO SEQUENCE STEPS FOR THIS CLIENT</div>;
+  }
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+      {SEQUENCE_GROUP_ORDER.map((key) => {
+        const group = steps.filter((s) => s.sequence_key === key);
+        if (group.length === 0) return null;
+        return (
+          <div key={key} style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.1em", marginBottom: 6 }}>
+              {(SEQUENCE_GROUP_LABELS[key] || key).toUpperCase()}
+            </div>
+            {group.map((step) => (
+              <SequenceStepEditor
+                key={step.id}
+                step={step}
+                onSaved={(updated) => setSteps((prev) => prev.map((s) => (s.id === updated.id ? { ...updated, client_id: clientId } : s)))}
+              />
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Client "please fix/do this" requests, submitted from the portal's To Do
+// tab. Mark done here as they get handled.
+function ClientRequests({ clientId }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/requests`));
+    if (r.ok) setRequests(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const setStatus = async (request, status) => {
+    const r = await fetch(API(`/clients/${clientId}/requests/${request.id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      setRequests((prev) => prev.map((req) => (req.id === request.id ? updated : req)));
+    }
+  };
+
+  if (loading) return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  if (requests.length === 0) {
+    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>NO REQUESTS FROM THIS CLIENT YET</div>;
+  }
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 8 }}>
+      {requests.map((r) => {
+        const done = r.status === "done";
+        return (
+          <div key={r.id} style={{
+            display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius: 8,
+            background: done ? "rgba(20,200,130,0.05)" : "rgba(240,160,40,0.06)",
+          }}>
+            <input
+              type="checkbox" checked={done}
+              onChange={() => setStatus(r, done ? "open" : "done")}
+              style={{ marginTop: 3, flexShrink: 0, cursor: "pointer" }}
+            />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12.5, color: done ? "#8fd9bd" : "#d0e8ff", textDecoration: done ? "line-through" : "none", lineHeight: 1.5 }}>
+                {r.message}
+              </div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 4 }}>
+                {new Date(r.created_at).toLocaleString()}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Files a client uploaded via the portal's Upload tab. Bytes live in
+// Cloudflare R2 (r2_storage.py) — this just lists metadata and gets a
+// presigned download link on demand.
+function ClientUploads({ clientId }) {
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/uploads`));
+    if (r.ok) setFiles(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const download = async (file) => {
+    const r = await fetch(API(`/clients/${clientId}/uploads/${file.id}/download`));
+    if (r.ok) {
+      const { url } = await r.json();
+      window.open(url, "_blank", "noreferrer");
+    } else {
+      window.alert("Couldn't get a download link — file storage may not be connected yet.");
+    }
+  };
+
+  const remove = async (file) => {
+    if (!window.confirm(`Delete "${file.file_name}"? This can't be undone.`)) return;
+    await fetch(API(`/clients/${clientId}/uploads/${file.id}`), { method: "DELETE" });
+    load();
+  };
+
+  if (loading) return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  if (files.length === 0) {
+    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>NO FILES UPLOADED YET</div>;
+  }
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 8 }}>
+      {files.map((f) => (
+        <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, color: "#d0e8ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
+            {f.notes && <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{f.notes}</div>}
+          </div>
+          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => download(f)}>DOWNLOAD</button>
+          <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => remove(f)}>DELETE</button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -159,6 +159,35 @@ class ClientLinkContact(BaseModel):
     contact_id: Optional[str] = None
 
 
+class SequenceStepUpdate(BaseModel):
+    label: Optional[str] = None
+    channel: Optional[str] = None
+    subject: Optional[str] = None
+    body: Optional[str] = None
+
+
+class ClientRequestCreate(BaseModel):
+    message: str
+
+
+class ClientRequestUpdate(BaseModel):
+    status: str  # 'open' | 'done'
+
+
+class UploadPresignRequest(BaseModel):
+    file_name: str
+    file_type: Optional[str] = None
+    file_size: Optional[int] = None
+
+
+class UploadRecordCreate(BaseModel):
+    file_name: str
+    file_type: Optional[str] = None
+    file_size: Optional[int] = None
+    r2_key: str
+    notes: Optional[str] = None
+
+
 class OnboardingVideoCreate(BaseModel):
     title: str
     description: Optional[str] = None

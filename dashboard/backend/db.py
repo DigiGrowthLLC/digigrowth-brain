@@ -404,6 +404,51 @@ async def _create_schema(pool: asyncpg.Pool):
                 event_type  TEXT NOT NULL,
                 occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
+
+            -- Per-client outreach copy (Appointment Reminder / No Show /
+            -- Cancellation sequences) shown read-only on the client portal's
+            -- Sequences tab, edited by DigiGrowth staff from the Clients
+            -- admin panel. Not wired to any real SMS/email send yet — see
+            -- routers/client_portal.py's Sequences endpoints.
+            CREATE TABLE IF NOT EXISTS client_sequence_steps (
+                id          SERIAL PRIMARY KEY,
+                client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                sequence_key TEXT NOT NULL,
+                step_order  INTEGER NOT NULL DEFAULT 0,
+                label       TEXT NOT NULL,
+                channel     TEXT NOT NULL,
+                subject     TEXT,
+                body        TEXT NOT NULL,
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            -- Free-text "please fix/do this" requests a client submits from
+            -- their portal's To Do tab, surfaced to DigiGrowth staff in the
+            -- Clients admin panel.
+            CREATE TABLE IF NOT EXISTS client_requests (
+                id           SERIAL PRIMARY KEY,
+                client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                message      TEXT NOT NULL,
+                status       TEXT NOT NULL DEFAULT 'open',
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                resolved_at  TIMESTAMPTZ
+            );
+
+            -- Metadata for files a client uploads via the portal's Upload
+            -- tab. The bytes themselves never touch Railway — they go
+            -- straight from the client's browser to Cloudflare R2 via a
+            -- presigned URL (see r2_storage.py); this table only tracks
+            -- what's there and where.
+            CREATE TABLE IF NOT EXISTS client_uploads (
+                id           SERIAL PRIMARY KEY,
+                client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                file_name    TEXT NOT NULL,
+                file_type    TEXT,
+                file_size    BIGINT,
+                r2_key       TEXT NOT NULL UNIQUE,
+                notes        TEXT,
+                uploaded_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""
@@ -535,6 +580,34 @@ async def _create_schema(pool: asyncpg.Pool):
                 ('Create paid ad creatives', 5)
             ) AS seed(title, ord)
             WHERE NOT EXISTS (SELECT 1 FROM launch_checklist_items)
+            """
+        )
+        # Seed default PT-oriented sequence copy for any client that has
+        # none yet — covers both existing clients (first run after this
+        # table shipped) and, going forward, routers/clients.py's
+        # create_client() calls the same seed inline for brand-new ones.
+        # Never touches a client that already has rows here, so admin edits
+        # are never clobbered.
+        await conn.execute(
+            """
+            INSERT INTO client_sequence_steps (client_id, sequence_key, step_order, label, channel, subject, body)
+            SELECT c.id, s.sequence_key, s.step_order, s.label, s.channel, s.subject, s.body
+            FROM clients c
+            CROSS JOIN (VALUES
+                ('appointment_reminder', 0, '24 Hour Reminder', 'sms', NULL,
+                 'Hi {first_name}, this is a friendly reminder about your physical therapy appointment tomorrow, {date} at {time}, with {business}. Reply CONFIRM to confirm or call us if you need to reschedule.'),
+                ('appointment_reminder', 1, 'Day-Of Reminder', 'sms', NULL,
+                 'Hi {first_name}, just a reminder — your appointment at {business} is today at {time}. We look forward to seeing you!'),
+                ('no_show', 0, 'Touch 1 (SMS)', 'sms', NULL,
+                 'Hi {first_name}, we missed you at your appointment today at {business}. No worries — these things happen! Reply here or give us a call to get you rescheduled so we can keep your recovery on track.'),
+                ('no_show', 1, 'Touch 1 (Email)', 'email', 'We missed you today',
+                 E'Hi {first_name},\n\nWe noticed you weren''t able to make your physical therapy appointment today. Consistency is a big part of recovery, so we''d love to get you back on the schedule as soon as possible.\n\nReply to this email or give us a call whenever works for you.\n\nTalk soon,\n{business}'),
+                ('cancellation', 0, 'Touch 1 (SMS)', 'sms', NULL,
+                 'Hi {first_name}, we''ve canceled your appointment as requested. Whenever you''re ready to get back to feeling better, just reply here or give us a call to grab a new time.'),
+                ('cancellation', 1, 'Touch 1 (Email)', 'email', 'Your appointment has been canceled',
+                 E'Hi {first_name},\n\nThis confirms your upcoming appointment with {business} has been canceled.\n\nIf you''d like to reschedule, just reply to this email or call us — we''re happy to find a time that works for you.\n\nTake care,\n{business}')
+            ) AS s(sequence_key, step_order, label, channel, subject, body)
+            WHERE NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id)
             """
         )
         # Real clients' portals must never touch DigiGrowth's own shared
