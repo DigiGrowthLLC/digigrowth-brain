@@ -30,6 +30,7 @@ from typing import Optional
 from fastapi import APIRouter, Request, Response
 from twilio.rest import Client as TwilioClient
 
+import integrations
 from db import get_pool
 from merge_fields import apply_merge_fields, first_name_from_owner, greeting_name_from_owner
 from routers import campaigns as campaigns_router
@@ -55,7 +56,7 @@ SEQUENCE_STEPS = [
 ]
 
 INFO_MESSAGE = (
-    "Hey {first_name}, here's that info — https://digigrowthllc.com. "
+    "Hey {first_name}, here's that info — {vsl_link}. "
     "Take a look and let me know what stands out. If it makes sense to chat more, "
     "I'll follow up in a couple days."
 )
@@ -340,7 +341,10 @@ async def send_info_message(contact: dict) -> bool:
     async with pool.acquire() as conn:
         template_row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = 'info_sms'")
         template = template_row["value"] if template_row and template_row["value"] else INFO_MESSAGE
-        body = template.replace("{first_name}", first_name)
+        body = (
+            template.replace("{first_name}", first_name)
+            .replace("{vsl_link}", integrations.vsl_link(contact.get("id")))
+        )
 
         conv = await _get_or_create_conversation(conn, phone)
         if conv["status"] == "closed":

@@ -85,7 +85,14 @@ async def upload_watch_video(
     file: UploadFile = File(...),
     slug: str = Form(...),
     title: str = Form(""),
+    contact_id: str = Form(None),
 ):
+    """`contact_id` is optional (some slugs — old ones, or future generic
+    uses — may not have a known recipient) but is what lets the Loom
+    Outreach analytics funnel (see content_tracking.py) know this video
+    was sent to a specific prospect at all. content-agent's
+    publish_to_watch.py passes it through, already resolved via
+    lookup_lead.py's CRM search earlier in the outreach-video skill."""
     data = await file.read()
     if len(data) > _MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File exceeds 95 MB limit")
@@ -99,15 +106,16 @@ async def upload_watch_video(
     github_path = f"dashboard/backend/watch_uploads/{safe_slug}.mp4"
     _gh_push(github_path, data, f"Outreach video: {safe_slug}")
 
+    contact_id = (contact_id or "").strip() or None
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """INSERT INTO watch_videos (slug, title, github_path, file_type, file_size)
-               VALUES ($1, $2, $3, $4, $5)
+            """INSERT INTO watch_videos (slug, title, github_path, file_type, file_size, contact_id)
+               VALUES ($1, $2, $3, $4, $5, $6)
                ON CONFLICT (slug) DO UPDATE
-                 SET title = $2, github_path = $3, file_type = $4, file_size = $5
-               RETURNING slug, title, github_path, file_type, file_size, created_at""",
-            safe_slug, title.strip() or safe_slug, github_path, file_type, file_size,
+                 SET title = $2, github_path = $3, file_type = $4, file_size = $5, contact_id = $6
+               RETURNING slug, title, github_path, file_type, file_size, contact_id, created_at""",
+            safe_slug, title.strip() or safe_slug, github_path, file_type, file_size, contact_id,
         )
     _video_cache.pop(safe_slug, None)
     return {
@@ -117,13 +125,32 @@ async def upload_watch_video(
     }
 
 
+async def _log_view_event(source: str, content_key: str, contact_id: str | None, event_type: str):
+    """Direct insert (not an HTTP round-trip to /track/view-event) since
+    this runs server-side, in the same request that already knows
+    contact_id — see content_tracking.py's content_view_events table.
+    Never raises; a tracking bug must never break serving the video."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO content_view_events (source, content_key, contact_id, event_type) "
+                "VALUES ($1, $2, $3, $4)",
+                source, content_key, contact_id, event_type,
+            )
+    except Exception as e:
+        print(f"[watch] failed to log view event for {content_key}: {e}")
+
+
 @router.get("/watch/{slug}", response_class=HTMLResponse, include_in_schema=False)
 async def watch_page(slug: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT title FROM watch_videos WHERE slug = $1", slug)
+        row = await conn.fetchrow("SELECT title, contact_id FROM watch_videos WHERE slug = $1", slug)
     if not row:
         raise HTTPException(status_code=404, detail="Video not found")
+
+    await _log_view_event("outreach_video", slug, row["contact_id"], "view")
 
     title = html.escape(row["title"] or "A video for you")
     video_url = f"{_DASHBOARD_URL}/watch/{slug}/file"
@@ -152,7 +179,33 @@ async def watch_page(slug: str):
 </style>
 </head>
 <body>
-<video src="{video_url}" controls playsinline></video>
+<video id="v" src="{video_url}" controls playsinline></video>
+<script>
+(function() {{
+  // Beacons play/25%/50%/75%/complete for this outreach video — same
+  // event set and endpoint the website VSL reports into. Won't fire for
+  // an SMS/iMessage inline preview that plays straight from the og:video
+  // URL without ever loading this page — that's caught server-side
+  // instead, see watch_file()'s own view log.
+  var video = document.getElementById('v');
+  var fired = {{}};
+  function track(eventType) {{
+    if (fired[eventType]) return;
+    fired[eventType] = true;
+    var payload = JSON.stringify({{source: 'outreach_video', content_key: '{slug}', event_type: eventType}});
+    navigator.sendBeacon('/track/view-event', payload);
+  }}
+  video.addEventListener('play', function() {{ track('play'); }});
+  video.addEventListener('timeupdate', function() {{
+    if (!video.duration) return;
+    var pct = video.currentTime / video.duration;
+    if (pct >= 0.75) track('progress_75');
+    else if (pct >= 0.5) track('progress_50');
+    else if (pct >= 0.25) track('progress_25');
+  }});
+  video.addEventListener('ended', function() {{ track('complete'); }});
+}})();
+</script>
 </body>
 </html>""")
 
@@ -175,6 +228,20 @@ async def watch_file(slug: str, request: Request):
 
     file_size = len(content)
     range_header = request.headers.get("range")
+
+    # Catches the case where an SMS/iMessage rich preview plays straight
+    # from the og:video URL without ever loading watch_page()'s HTML (so
+    # that route's own view log never fires) — logged here instead, but
+    # only on the initial fetch (no Range, or Range starting at byte 0),
+    # not on every mid-playback seek chunk. Harmless if watch_page() ALSO
+    # logged a view for this same visit — the funnel query counts DISTINCT
+    # contacts, so a duplicate row here doesn't inflate anything.
+    is_initial_request = not range_header or range_header.strip().split("=", 1)[-1].startswith("0-")
+    if is_initial_request:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            crow = await conn.fetchrow("SELECT contact_id FROM watch_videos WHERE slug = $1", slug)
+        await _log_view_event("outreach_video", slug, crow["contact_id"] if crow else None, "view")
 
     if range_header:
         try:

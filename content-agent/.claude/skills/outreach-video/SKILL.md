@@ -70,6 +70,10 @@ notes). Do not proceed without it.
   This queries the OS's own contacts via `GET {DASHBOARD_URL}/api/contacts?search=<name>&limit=1`
   (Doppler-sourced creds, mirrors how `leadgen-agent` already talks to the OS).
   - `NOT FOUND` or "no website on file" → ask Dylan to paste the URL directly. Do not guess a URL.
+  - Note the `ID:` line in the output — that's the contact's CRM id. Carry it through to Step 7 so
+    the video is linked to this specific prospect in the dashboard's Loom Outreach analytics (view/
+    engaged/interested/booked tracking). If given a URL directly instead of a business name, there's
+    no contact id to pass — that's fine, Step 7 just runs without it.
 - If given a URL directly, skip lookup.
 
 ### STEP 3 — Get the headcam clip's duration
@@ -110,12 +114,14 @@ these clips run 15–30MB) and will strip, recompress, or drop them entirely. In
 OS's own public watch page:
 ```bash
 python content-agent/tools/publish_to_watch.py \
-  "content-agent/exports/outreach-videos/<file>.mp4" "<business-slug>" "<Business Name>"
+  "content-agent/exports/outreach-videos/<file>.mp4" "<business-slug>" "<Business Name>" "<contact ID from Step 2, if any>"
 ```
 This uploads the video to the OS (stored via GitHub, served through a public, unauthenticated
 `/watch/<slug>` route with Open Graph video tags so iMessage/RCS render an inline preview card) and
 prints back a `WATCH_URL`. Report that URL to Dylan — that's the link that goes in the SMS, not the
-local file path.
+local file path. Passing the contact ID (when Step 2 found one) is what lets the dashboard know this
+video was sent to this specific prospect — omit the argument entirely if Step 2 was given a raw URL
+with no CRM contact behind it.
 
 ### STEP 8 — Send it to the prospect automatically
 This runs unless Dylan explicitly says just to generate the video without sending it. Send using

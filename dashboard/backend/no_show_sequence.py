@@ -129,7 +129,11 @@ async def _get_templates() -> dict:
 
 def _fill(template: str, row: dict) -> str:
     first_name = first_name_from_owner(row.get("prospect_name"))
-    return template.replace("{first_name}", first_name).replace("{link}", integrations.CALENDLY_URL)
+    return (
+        template.replace("{first_name}", first_name)
+        .replace("{link}", integrations.CALENDLY_URL)
+        .replace("{vsl_link}", integrations.vsl_link(row.get("contact_id")))
+    )
 
 
 async def _send_touch(row: dict, instance: str, templates: dict, stage: str):

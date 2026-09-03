@@ -884,6 +884,22 @@ def calendar_events_structured(days_ahead: int = 7, calendar_id: str = "primary"
 # constant is frontend-only today).
 CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min"
 
+# The marketing site's VSL, on /contact (digigrowth-website, `master`
+# branch). Every outbound template that wants to send a prospect there
+# should use vsl_link(contact_id) below, not this bare constant directly —
+# the ?lead= param is what lets content_tracking.py attribute a VSL view
+# back to a specific contact.
+_VSL_URL = "https://digigrowthllc.com/contact"
+
+
+def vsl_link(contact_id: str | None) -> str:
+    """{vsl_link} merge-field resolver. Falls back to the bare URL (no
+    attribution) when no contact_id is available — better than omitting
+    the link entirely."""
+    if not contact_id:
+        return _VSL_URL
+    return f"{_VSL_URL}?lead={contact_id}"
+
 # ONBOARDING_CALENDLY_URL / ONBOARDING_FORM_URL used to live here as separate
 # static links sent directly in the onboarding follow-up email/SMS. Replaced
 # by the client portal link (onboarding_sequence.py's

@@ -40,6 +40,7 @@ def main():
     website = contact.get("website")
 
     print(f"FOUND: {contact.get('business')}")
+    print(f"ID: {contact.get('id')}")
     print(f"PHONE: {contact.get('phone')}")
     if not website:
         print("WEBSITE: none on file")

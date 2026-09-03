@@ -392,6 +392,18 @@ async def _create_schema(pool: asyncpg.Pool):
                 file_size    BIGINT,
                 created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             );
+
+            -- Unified view-tracking log for both the website VSL (Vimeo) and
+            -- self-hosted outreach ("loom") videos — see content_tracking.py.
+            CREATE TABLE IF NOT EXISTS content_view_events (
+                id          SERIAL PRIMARY KEY,
+                source      TEXT NOT NULL,
+                content_key TEXT NOT NULL,
+                contact_id  TEXT REFERENCES contacts(id) ON DELETE SET NULL,
+                session_id  TEXT,
+                event_type  TEXT NOT NULL,
+                occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
         """)
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""
@@ -492,6 +504,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS calendly_url TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS booking_notification_enabled BOOLEAN NOT NULL DEFAULT true;
+            ALTER TABLE watch_videos ADD COLUMN IF NOT EXISTS contact_id TEXT REFERENCES contacts(id) ON DELETE SET NULL;
+            CREATE INDEX IF NOT EXISTS idx_content_view_events_lookup ON content_view_events (source, content_key, contact_id);
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"
