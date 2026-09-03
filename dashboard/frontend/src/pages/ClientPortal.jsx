@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   LineChart, Line,
@@ -751,15 +751,6 @@ function OutcomeSummary({ appointment, onClick }) {
   );
 }
 
-function ApptStatChip({ label, value, color }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "8px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.15)", minWidth: 84 }}>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a6f8f", letterSpacing: "0.1em" }}>{label}</div>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: color || "#f0f4ff" }}>{value}</div>
-    </div>
-  );
-}
-
 const APPT_FILTER_LABELS = { upcoming: "Upcoming", past: "Past", canceled: "Canceled", all: "All" };
 
 function AppointmentsTab({ token }) {
@@ -788,17 +779,6 @@ function AppointmentsTab({ token }) {
     ? rows.filter((r) => new Date(r.appointment_at).getTime() + APPT_PAST_GRACE_MS <= Date.now())
     : rows;
 
-  // Same DB-derived-only stat strip as the internal OS's AppointmentsPanel —
-  // computed from whatever's on screen, not wired into portal_stats()'s
-  // sheet-adjacent numbers.
-  const stats = useMemo(() => {
-    const shows     = displayRows.filter((r) => r.outcome_show === "show").length;
-    const noShows   = displayRows.filter((r) => r.outcome_show === "no_show").length;
-    const closed    = displayRows.filter((r) => r.outcome_close === "closed").length;
-    const notClosed = displayRows.filter((r) => r.outcome_close === "not_closed").length;
-    return { shows, noShows, closed, notClosed };
-  }, [displayRows]);
-
   const handleOutcomeSaved = (updated) => {
     setRows((rs) => rs.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
     setOutcomeTarget(null);
@@ -816,12 +796,6 @@ function AppointmentsTab({ token }) {
         </select>
       </div>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-        <ApptStatChip label="SHOWS" value={stats.shows} color="#14c882" />
-        <ApptStatChip label="NO SHOWS" value={stats.noShows} color="#dc3c3c" />
-        <ApptStatChip label="CLOSED" value={stats.closed} color="#14c882" />
-        <ApptStatChip label="NOT CLOSED" value={stats.notClosed} color="#dc3c3c" />
-      </div>
 
       <div className="glass-card" style={{ padding: 0, overflow: "hidden", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
