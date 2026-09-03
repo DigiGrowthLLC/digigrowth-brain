@@ -250,12 +250,11 @@ function FunnelBlock({ label, value, convRate, color, isFirst }) {
   );
 }
 
-// VSL funnel: cohort = all leads created in the period. Viewed/Watched 50%+/
-// Completed come from content_view_events (routers/content_tracking.py),
-// populated by the website's Vimeo Player SDK instrumentation.
+// VSL funnel: every viewer of the /contact page's video, identified or
+// anonymous (see content_tracking.py's vsl_funnel — no "total leads"
+// denominator anymore, just Viewed -> Watched 50%+ -> Completed -> Booked).
 function VslFunnelCard({ data }) {
   if (!data) return <div className="glass-card" style={{ padding: "20px 22px" }}><SecLabel>VSL (Contact Page Video)</SecLabel><LoadingRow /></div>;
-  const viewedRate = _pct(data.viewed, data.total_leads);
   const halfRate = _pct(data.watched_half, data.viewed);
   const completedRate = _pct(data.completed, data.watched_half);
 
@@ -263,13 +262,12 @@ function VslFunnelCard({ data }) {
     <div className="glass-card" style={{ padding: "20px 22px" }}>
       <SecLabel>VSL (Contact Page Video)</SecLabel>
       <div style={{ display: "flex", alignItems: "stretch", gap: 0, marginTop: 4 }}>
-        <FunnelBlock isFirst label="Total Leads" value={data.total_leads} convRate={null} color="90,155,240" />
-        <FunnelBlock label="Viewed" value={data.viewed} convRate={viewedRate} color="90,155,240" />
+        <FunnelBlock isFirst label="Viewed" value={data.viewed} convRate={null} color="90,155,240" />
         <FunnelBlock label="Watched 50%+" value={data.watched_half} convRate={halfRate} color="20,200,130" />
         <FunnelBlock label="Completed" value={data.completed} convRate={completedRate} color="20,200,130" />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, marginTop: 12 }}>
-        <MiniStat label="Booked (of Viewers)" value={num(data.booked)} color="#14c882" />
+        <MiniStat label="Booked" value={num(data.booked)} color="#14c882" />
         <MiniStat label="Booking Rate" value={pct(data.booking_rate)} color="#14c882" />
       </div>
     </div>
@@ -279,12 +277,14 @@ function VslFunnelCard({ data }) {
 // Loom Outreach funnel: cohort = ONLY contacts who were actually sent a
 // self-hosted outreach video (watch_videos.contact_id set) — a contact
 // never sent one never appears here, by design (routers/content_tracking.py).
+// Sent -> Viewed -> Completed -> Engaged -> Interested -> Booked.
 // Engaged/Interested reuse the existing manual CRM stage checkboxes
 // (sms_conversations.stage_engaged/stage_interested), not a new concept.
 function LoomOutreachFunnelCard({ data }) {
   if (!data) return <div className="glass-card" style={{ padding: "20px 22px" }}><SecLabel>Loom Outreach</SecLabel><LoadingRow /></div>;
   const viewedRate = _pct(data.viewed, data.sent);
-  const engagedRate = _pct(data.engaged, data.viewed);
+  const completedRate = _pct(data.completed, data.viewed);
+  const engagedRate = _pct(data.engaged, data.completed);
   const interestedRate = _pct(data.interested, data.engaged);
   const bookedRate = _pct(data.booked, data.interested);
 
@@ -297,6 +297,7 @@ function LoomOutreachFunnelCard({ data }) {
       <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
         <FunnelBlock isFirst label="Sent" value={data.sent} convRate={null} color="160,110,240" />
         <FunnelBlock label="Viewed" value={data.viewed} convRate={viewedRate} color="160,110,240" />
+        <FunnelBlock label="Completed" value={data.completed} convRate={completedRate} color="90,155,240" />
         <FunnelBlock label="Engaged" value={data.engaged} convRate={engagedRate} color="90,155,240" />
         <FunnelBlock label="Interested" value={data.interested} convRate={interestedRate} color="20,200,130" />
         <FunnelBlock label="Booked" value={data.booked} convRate={bookedRate} color="20,200,130" />

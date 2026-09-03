@@ -66,42 +66,45 @@ async def track_view_event(body: dict):
 
 @admin_router.get("/content-analytics/vsl")
 async def vsl_funnel(days: int = 0):
-    """VSL funnel, cohort = leads (contacts) created in the period —
-    NOT scoped to a specific client's own leads, this is DigiGrowth's own
-    top-of-funnel view across every prospect. Excludes anchor contacts
-    (is_client_anchor), same convention as the rest of the CRM/analytics.
-    `days=0` means all-time, matching analytics.py's existing convention."""
-    leads_since = "AND created_at >= $1" if days else ""
+    """VSL funnel — deliberately NOT scoped to "who's a known lead" (that
+    turned out to be more attribution than needed): counts every viewer,
+    identified or anonymous, keyed by contact_id when a ?lead= link
+    resolved one, else the anonymous session_id (see digigrowth-website's
+    src/lib/tracking.js). Viewed -> Watched 50%+ -> Completed -> Booked,
+    where Booked can only ever count identified viewers (an anonymous
+    session has no contacts row to check appointment status against) —
+    so booking_rate is a floor, not exact, by nature of anonymous traffic
+    existing at all. `days=0` means all-time."""
+    since = "AND occurred_at >= $1" if days else ""
+    since_e = "AND e.occurred_at >= $1" if days else ""
     params = [_since(days)] if days else []
 
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             f"""
-            WITH cohort AS (
-                SELECT id FROM contacts WHERE NOT is_client_anchor {leads_since}
-            ),
-            viewed AS (
-                SELECT DISTINCT contact_id FROM content_view_events
-                WHERE source = 'vsl' AND event_type = 'view'
-                AND contact_id IN (SELECT id FROM cohort)
+            WITH viewed AS (
+                SELECT DISTINCT COALESCE(contact_id::text, session_id) AS viewer
+                FROM content_view_events
+                WHERE source = 'vsl' AND event_type = 'view' {since}
             ),
             half AS (
-                SELECT DISTINCT contact_id FROM content_view_events
-                WHERE source = 'vsl' AND event_type IN ('progress_50', 'progress_75', 'complete')
-                AND contact_id IN (SELECT id FROM cohort)
+                SELECT DISTINCT COALESCE(contact_id::text, session_id) AS viewer
+                FROM content_view_events
+                WHERE source = 'vsl' AND event_type IN ('progress_50', 'progress_75', 'complete') {since}
             ),
             done AS (
-                SELECT DISTINCT contact_id FROM content_view_events
-                WHERE source = 'vsl' AND event_type = 'complete'
-                AND contact_id IN (SELECT id FROM cohort)
+                SELECT DISTINCT COALESCE(contact_id::text, session_id) AS viewer
+                FROM content_view_events
+                WHERE source = 'vsl' AND event_type = 'complete' {since}
             ),
             booked AS (
-                SELECT id FROM contacts
-                WHERE id IN (SELECT contact_id FROM viewed) AND status = 'appointment-booked'
+                SELECT DISTINCT c.id FROM contacts c
+                JOIN content_view_events e ON e.contact_id = c.id
+                WHERE e.source = 'vsl' AND e.event_type = 'view' {since_e}
+                AND c.status = 'appointment-booked'
             )
             SELECT
-                (SELECT count(*) FROM cohort) AS total_leads,
                 (SELECT count(*) FROM viewed) AS viewed,
                 (SELECT count(*) FROM half) AS watched_half,
                 (SELECT count(*) FROM done) AS completed,
@@ -114,8 +117,6 @@ async def vsl_funnel(days: int = 0):
         return round(num / denom * 100, 1) if denom else 0.0
 
     d = dict(row)
-    d["watch_rate"] = _pct(d["viewed"], d["total_leads"])
-    d["completion_rate"] = _pct(d["completed"], d["viewed"])
     d["booking_rate"] = _pct(d["booked"], d["viewed"])
     return d
 
@@ -126,10 +127,14 @@ async def loom_outreach_funnel(days: int = 0):
     an outreach video (watch_videos.contact_id IS NOT NULL) — this card is
     deliberately hinged on that; a contact never sent a video never
     appears here at all, regardless of anything else they've done.
-    Sent -> Viewed -> Engaged -> Interested -> Booked, reusing the
-    existing manual stage_engaged/stage_interested checkboxes already
-    tracked on sms_conversations (routers/sms.py) rather than inventing a
-    new stage concept."""
+    Sent -> Viewed -> Completed -> Engaged -> Interested -> Booked.
+    Completed reuses the same 'complete' event the video's own inline
+    player script already fires (routers/watch.py's watch_page()) — no
+    new tracking needed, just a new stage reading an event type that was
+    already being logged. Engaged/Interested reuse the existing manual
+    stage_engaged/stage_interested checkboxes already tracked on
+    sms_conversations (routers/sms.py) rather than inventing a new stage
+    concept."""
     sent_since = "AND wv.created_at >= $1" if days else ""
     params = [_since(days)] if days else []
 
@@ -144,6 +149,11 @@ async def loom_outreach_funnel(days: int = 0):
             viewed AS (
                 SELECT DISTINCT contact_id FROM content_view_events
                 WHERE source = 'outreach_video' AND event_type = 'view'
+                AND contact_id IN (SELECT contact_id FROM cohort)
+            ),
+            completed AS (
+                SELECT DISTINCT contact_id FROM content_view_events
+                WHERE source = 'outreach_video' AND event_type = 'complete'
                 AND contact_id IN (SELECT contact_id FROM cohort)
             ),
             engaged AS (
@@ -161,6 +171,7 @@ async def loom_outreach_funnel(days: int = 0):
             SELECT
                 (SELECT count(*) FROM cohort) AS sent,
                 (SELECT count(*) FROM viewed) AS viewed,
+                (SELECT count(*) FROM completed) AS completed,
                 (SELECT count(*) FROM engaged) AS engaged,
                 (SELECT count(*) FROM interested) AS interested,
                 (SELECT count(*) FROM booked) AS booked
