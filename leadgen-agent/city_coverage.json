@@ -270,11 +270,11 @@
       "last_scraped_date": "2026-09-03"
     },
     "Seattle, WA": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 124,
+      "qualified_count": 7,
+      "last_scraped_date": "2026-09-03"
     },
     "Denver, CO": {
       "status": "not_started",
