@@ -29,6 +29,7 @@ const APPT_PAST_GRACE_MS = 60 * 60 * 1000;
 
 const TAB_LABELS = {
   dashboard: "Dashboard",
+  todo: "To Do",
   appointments: "Appointments",
   leads: "Leads",
   inbox: "Inbox",
@@ -254,11 +255,18 @@ function OnboardingFormSection({ token }) {
   );
 }
 
-function OnboardingTab({ token, onGoToTab }) {
+function OnboardingTab({ token }) {
+  return (
+    <div>
+      <OnboardingFormSection token={token} />
+    </div>
+  );
+}
+
+function TodoTab({ token, onGoToTab }) {
   return (
     <div>
       <NextStepsSection token={token} onGoToTab={onGoToTab} />
-      <OnboardingFormSection token={token} />
     </div>
   );
 }
@@ -1876,7 +1884,8 @@ export default function ClientPortal() {
             onInitialContactConsumed={() => setInboxTargetContactId(null)}
           />
         )}
-        {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
+        {tab === "todo" && <TodoTab token={token} onGoToTab={setTab} />}
+        {tab === "onboarding" && <OnboardingTab token={token} />}
         {tab === "videos" && <VideosTab token={token} />}
       </div>
     </div>
