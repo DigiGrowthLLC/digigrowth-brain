@@ -926,6 +926,23 @@ function AppointmentsTab({ token }) {
     setOutcomeTarget(null);
   };
 
+  const [canceling, setCanceling] = useState(null);
+  const cancelAppointment = async (id) => {
+    if (!window.confirm("Cancel this appointment? This can't be undone, and it won't count toward your analytics anymore.")) return;
+    setCanceling(id);
+    try {
+      const r = await fetch(`/portal-api/${token}/appointments/${id}/cancel`, { method: "POST" });
+      if (r.ok) {
+        setRows((rs) => rs.map((row) => (row.id === id ? { ...row, status: "canceled" } : row)));
+      } else {
+        const d = await r.json().catch(() => ({}));
+        window.alert(d.detail || "Couldn't cancel this appointment.");
+      }
+    } finally {
+      setCanceling(null);
+    }
+  };
+
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -943,14 +960,14 @@ function AppointmentsTab({ token }) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(58,123,213,0.15)" }}>
-              {["Prospect", "Business", "Appointment", "Outcome"].map((h) => (
+              {["Prospect", "Business", "Appointment", "Outcome", "Action"].map((h) => (
                 <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && displayRows.length === 0 && (
-              <tr><td colSpan={4} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No appointments in this view.</td></tr>
+              <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No appointments in this view.</td></tr>
             )}
             {displayRows.map((row) => (
               <tr key={row.id} style={{ borderBottom: "1px solid rgba(58,123,213,0.08)" }}>
@@ -960,6 +977,23 @@ function AppointmentsTab({ token }) {
                 <td style={{ padding: "10px 14px" }}>
                   {row.status !== "canceled" && <OutcomeSummary appointment={row} onClick={() => setOutcomeTarget(row)} />}
                   {row.status === "canceled" && <span style={{ fontSize: 11, color: "#3a5a80" }}>canceled</span>}
+                </td>
+                <td style={{ padding: "10px 14px" }}>
+                  {row.status !== "canceled" && (
+                    <button
+                      onClick={() => cancelAppointment(row.id)}
+                      disabled={canceling === row.id}
+                      style={{
+                        background: "rgba(220,60,60,0.1)", border: "1px solid rgba(220,60,60,0.3)",
+                        borderRadius: 6, color: "#e05c5c", fontFamily: "'Space Grotesk', sans-serif",
+                        fontSize: 11, fontWeight: 600, padding: "5px 10px",
+                        cursor: canceling === row.id ? "default" : "pointer",
+                        opacity: canceling === row.id ? 0.6 : 1,
+                      }}
+                    >
+                      {canceling === row.id ? "Canceling…" : "Cancel"}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -539,6 +539,32 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
     return dict(updated)
 
 
+@router.post("/{token}/appointments/{appointment_id}/cancel")
+async def portal_cancel_appointment(token: str, appointment_id: int):
+    """Client-facing cancellation — reuses routers/appointments.py's
+    cancel_appointment() so the cancellation-recovery drip
+    (cancel_sequence.py) fires for the lead exactly like an internally
+    canceled appointment, and the appointment is immediately excluded
+    from portal_stats()'s analytics (every count there already filters
+    ar.status != 'canceled'). is_test-gated like portal_book_appointment()/
+    portal_update_appointment_outcome() above — see _require_test_client."""
+    client = await get_client_from_token(token)
+    _require_test_client(client)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT ar.id FROM appointment_reminders ar
+            JOIN contacts c ON c.id = ar.contact_id
+            WHERE ar.id = $1 AND c.client_id = $2 AND NOT c.is_client_anchor
+            """,
+            appointment_id, client["id"],
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return await appointments_router.cancel_appointment(appointment_id)
+
+
 # ---------------- Leads / CRM (scoped via contacts.client_id) ----------------
 
 _LEAD_FIELDS = ("business", "owner", "phone", "email", "website", "city", "state", "notes")
