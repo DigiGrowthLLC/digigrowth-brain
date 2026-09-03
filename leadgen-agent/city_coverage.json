@@ -270,9 +270,9 @@
       "last_scraped_date": "2026-09-03"
     },
     "Seattle, WA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 170,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 193,
       "qualified_count": 13,
       "last_scraped_date": "2026-09-03"
     },
