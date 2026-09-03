@@ -200,10 +200,10 @@
       "last_scraped_date": "2026-09-03"
     },
     "San Diego, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 81,
-      "qualified_count": 15,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 126,
+      "qualified_count": 16,
       "last_scraped_date": "2026-09-03"
     },
     "Dallas, TX": {
