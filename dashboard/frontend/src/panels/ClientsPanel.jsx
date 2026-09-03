@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { API } from "../api.js";
 import { SECTIONS } from "../onboardingSections.js";
 
@@ -79,6 +80,8 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
   const [showDetails, setShowDetails] = useState(false);
   const [detailsTab, setDetailsTab] = useState("onboarding");
   const [showMenu, setShowMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const menuButtonRef = useRef(null);
   const [linking, setLinking] = useState(false);
   const [pendingContact, setPendingContact] = useState(null);
   const [savingLink, setSavingLink] = useState(false);
@@ -101,7 +104,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
   const revoked = !!client.token_revoked_at;
 
   return (
-    <div style={{ borderRadius: 10, background: "rgba(255,255,255,0.02)", marginBottom: 8, overflow: "hidden" }}>
+    <div style={{ borderRadius: 10, background: "rgba(255,255,255,0.02)", marginBottom: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -150,48 +153,54 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
           EDIT
         </button>
 
-        <div style={{ position: "relative" }}>
-          <button
-            className="btn btn-secondary"
-            style={{ fontSize: 10, padding: "6px 10px" }}
-            onClick={() => setShowMenu((s) => !s)}
-            title="More actions"
-          >
-            ⋯
-          </button>
-          {showMenu && (
-            <>
-              <div style={{ position: "fixed", inset: 0, zIndex: 10 }} onClick={() => setShowMenu(false)} />
-              <div style={{
-                position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 11,
-                background: "#0d1a3a", border: "1px solid rgba(58,123,213,0.25)", borderRadius: 8,
-                minWidth: 160, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-              }}>
-                <button
-                  onClick={() => { setPendingContact(client.linked_contact || null); setLinking((s) => !s); setShowMenu(false); }}
-                  style={menuItemStyle}
-                >
-                  {linking ? "Cancel Linking" : "Link Contact"}
+        <button
+          ref={menuButtonRef}
+          className="btn btn-secondary"
+          style={{ fontSize: 10, padding: "6px 10px" }}
+          onClick={() => {
+            if (!showMenu && menuButtonRef.current) {
+              const r = menuButtonRef.current.getBoundingClientRect();
+              setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
+            }
+            setShowMenu((s) => !s);
+          }}
+          title="More actions"
+        >
+          ⋯
+        </button>
+        {showMenu && createPortal(
+          <>
+            <div style={{ position: "fixed", inset: 0, zIndex: 1000 }} onClick={() => setShowMenu(false)} />
+            <div style={{
+              position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 1001,
+              background: "#0d1a3a", border: "1px solid rgba(58,123,213,0.25)", borderRadius: 8,
+              minWidth: 160, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            }}>
+              <button
+                onClick={() => { setPendingContact(client.linked_contact || null); setLinking((s) => !s); setShowMenu(false); }}
+                style={menuItemStyle}
+              >
+                {linking ? "Cancel Linking" : "Link Contact"}
+              </button>
+              {revoked ? (
+                <button onClick={() => { onRegenerate(client.id); setShowMenu(false); }} style={menuItemStyle}>
+                  Regenerate Token
                 </button>
-                {revoked ? (
-                  <button onClick={() => { onRegenerate(client.id); setShowMenu(false); }} style={menuItemStyle}>
-                    Regenerate Token
-                  </button>
-                ) : (
-                  <button onClick={() => { onRevoke(client.id); setShowMenu(false); }} style={menuItemStyle}>
-                    Revoke Token
-                  </button>
-                )}
-                <button
-                  onClick={() => { onDelete(client.id); setShowMenu(false); }}
-                  style={{ ...menuItemStyle, color: "#e05c5c" }}
-                >
-                  Delete Client
+              ) : (
+                <button onClick={() => { onRevoke(client.id); setShowMenu(false); }} style={menuItemStyle}>
+                  Revoke Token
                 </button>
-              </div>
-            </>
-          )}
-        </div>
+              )}
+              <button
+                onClick={() => { onDelete(client.id); setShowMenu(false); }}
+                style={{ ...menuItemStyle, color: "#e05c5c" }}
+              >
+                Delete Client
+              </button>
+            </div>
+          </>,
+          document.body
+        )}
       </div>
       {linking && (
         <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
