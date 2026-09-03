@@ -1948,30 +1948,56 @@ export default function ClientPortal() {
       `}</style>
 
       <div style={{
-        borderBottom: "1px solid rgba(58,123,213,0.15)",
-        padding: "20px 40px",
+        position: "relative",
+        padding: "18px 40px",
         display: "flex", alignItems: "center", gap: 16,
-        background: "linear-gradient(180deg, rgba(58,123,213,0.05) 0%, transparent 100%)",
+        background: "linear-gradient(180deg, rgba(58,123,213,0.07) 0%, rgba(58,123,213,0.01) 100%)",
+        boxShadow: "0 1px 0 rgba(58,123,213,0.15), 0 12px 30px -12px rgba(0,0,0,0.4)",
       }}>
-        <div className="dg-logo-glow" style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
-          <img src={logoWordmark} alt="DigiGrowth" style={{ height: 30, display: "block" }} />
-        </div>
-        {client && (
-          <>
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 300, color: "#3a5a80" }}>×</span>
-            <div style={{
-              fontWeight: 700, fontSize: 17, letterSpacing: "-0.01em",
-              background: "linear-gradient(90deg, #f0f4ff, #9cc4f5)",
-              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            }}>
-              {client.name}
-            </div>
-          </>
-        )}
-        <div style={{ marginLeft: "auto", textAlign: "right" }}>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.16em" }}>
-            CLIENT PORTAL
+        {/* Glowing gradient hairline instead of a flat border — reads as a
+            deliberate brand edge rather than a plain divider. */}
+        <div style={{
+          position: "absolute", left: 0, right: 0, bottom: 0, height: 1,
+          background: "linear-gradient(90deg, transparent, rgba(106,176,255,0.5) 20%, rgba(106,176,255,0.5) 80%, transparent)",
+        }} />
+
+        <div style={{
+          display: "flex", alignItems: "center", gap: 14,
+          padding: "8px 18px 8px 8px", borderRadius: 999,
+          background: "rgba(255,255,255,0.03)", border: "1px solid rgba(58,123,213,0.18)",
+        }}>
+          <div className="dg-logo-glow" style={{
+            flexShrink: 0, display: "flex", alignItems: "center", padding: "6px 10px",
+            borderRadius: 999, background: "rgba(58,123,213,0.12)",
+          }}>
+            <img src={logoWordmark} alt="DigiGrowth" style={{ height: 24, display: "block" }} />
           </div>
+          {client && (
+            <>
+              <div style={{ width: 1, height: 22, background: "rgba(106,176,255,0.25)", flexShrink: 0 }} />
+              <div style={{
+                fontWeight: 700, fontSize: 16, letterSpacing: "-0.01em",
+                background: "linear-gradient(90deg, #f0f4ff, #9cc4f5)",
+                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+              }}>
+                {client.name}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{
+          marginLeft: "auto", display: "flex", alignItems: "center", gap: 8,
+          padding: "6px 14px", borderRadius: 999,
+          background: "rgba(20,200,130,0.08)", border: "1px solid rgba(20,200,130,0.22)",
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: "50%", background: "#14c882", flexShrink: 0,
+            boxShadow: "0 0 6px 1px rgba(20,200,130,0.7)", animation: "dgGlowPulse 2s ease-in-out infinite",
+          }} />
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#8fd9bd", letterSpacing: "0.14em" }}>
+            LIVE PORTAL
+          </span>
         </div>
       </div>
 
