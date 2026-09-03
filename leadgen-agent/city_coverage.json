@@ -152,9 +152,9 @@
   "cities": {
     "New York, NY": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 91,
-      "qualified_count": 10,
+      "term_index": 2,
+      "reviewed_count": 118,
+      "qualified_count": 18,
       "last_scraped_date": "2026-09-03"
     },
     "Los Angeles, CA": {
