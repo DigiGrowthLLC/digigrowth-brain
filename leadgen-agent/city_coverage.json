@@ -1,0 +1,1183 @@
+{
+  "cooldown_days": 90,
+  "order": [
+    "New York, NY",
+    "Los Angeles, CA",
+    "Chicago, IL",
+    "Houston, TX",
+    "Phoenix, AZ",
+    "Philadelphia, PA",
+    "San Antonio, TX",
+    "San Diego, CA",
+    "Dallas, TX",
+    "Fort Worth, TX",
+    "Jacksonville, FL",
+    "Austin, TX",
+    "San Jose, CA",
+    "Charlotte, NC",
+    "Columbus, OH",
+    "Indianapolis, IN",
+    "San Francisco, CA",
+    "Seattle, WA",
+    "Denver, CO",
+    "Nashville, TN",
+    "Oklahoma City, OK",
+    "Washington, DC",
+    "El Paso, TX",
+    "Las Vegas, NV",
+    "Boston, MA",
+    "Detroit, MI",
+    "Louisville, KY",
+    "Portland, OR",
+    "Memphis, TN",
+    "Baltimore, MD",
+    "Milwaukee, WI",
+    "Albuquerque, NM",
+    "Fresno, CA",
+    "Tucson, AZ",
+    "Sacramento, CA",
+    "Atlanta, GA",
+    "Kansas City, MO",
+    "Mesa, AZ",
+    "Raleigh, NC",
+    "Colorado Springs, CO",
+    "Miami, FL",
+    "Omaha, NE",
+    "Virginia Beach, VA",
+    "Long Beach, CA",
+    "Oakland, CA",
+    "Minneapolis, MN",
+    "Bakersfield, CA",
+    "Tulsa, OK",
+    "Tampa, FL",
+    "Aurora, CO",
+    "Arlington, TX",
+    "Wichita, KS",
+    "Cleveland, OH",
+    "New Orleans, LA",
+    "Henderson, NV",
+    "Honolulu, HI",
+    "Anaheim, CA",
+    "Orlando, FL",
+    "Lexington, KY",
+    "Stockton, CA",
+    "Newark, NJ",
+    "Riverside, CA",
+    "Irvine, CA",
+    "Corpus Christi, TX",
+    "Santa Ana, CA",
+    "Cincinnati, OH",
+    "Greensboro, NC",
+    "Pittsburgh, PA",
+    "St. Paul, MN",
+    "Durham, NC",
+    "Jersey City, NJ",
+    "Lincoln, NE",
+    "North Las Vegas, NV",
+    "Plano, TX",
+    "Gilbert, AZ",
+    "Anchorage, AK",
+    "Madison, WI",
+    "Reno, NV",
+    "Chandler, AZ",
+    "St. Louis, MO",
+    "Chula Vista, CA",
+    "Fort Wayne, IN",
+    "Buffalo, NY",
+    "Lubbock, TX",
+    "Laredo, TX",
+    "Port St. Lucie, FL",
+    "St. Petersburg, FL",
+    "Toledo, OH",
+    "Glendale, AZ",
+    "Winston-Salem, NC",
+    "Irving, TX",
+    "Chesapeake, VA",
+    "Garland, TX",
+    "Scottsdale, AZ",
+    "Boise, ID",
+    "Richmond, VA",
+    "Frisco, TX",
+    "Cape Coral, FL",
+    "McKinney, TX",
+    "Huntsville, AL",
+    "Norfolk, VA",
+    "Hialeah, FL",
+    "Spokane, WA",
+    "Tacoma, WA",
+    "Santa Clarita, CA",
+    "Fremont, CA",
+    "Baton Rouge, LA",
+    "San Bernardino, CA",
+    "Fontana, CA",
+    "Modesto, CA",
+    "Salt Lake City, UT",
+    "Moreno Valley, CA",
+    "Worcester, MA",
+    "Sioux Falls, SD",
+    "Yonkers, NY",
+    "Des Moines, IA",
+    "Grand Prairie, TX",
+    "Fayetteville, NC",
+    "Little Rock, AR",
+    "Rochester, NY",
+    "Amarillo, TX",
+    "Tallahassee, FL",
+    "Overland Park, KS",
+    "Columbus, GA",
+    "Knoxville, TN",
+    "Augusta, GA",
+    "Grand Rapids, MI",
+    "Peoria, AZ",
+    "Mobile, AL",
+    "Vancouver, WA",
+    "Oxnard, CA",
+    "Birmingham, AL",
+    "Providence, RI",
+    "Montgomery, AL",
+    "Chattanooga, TN",
+    "Brownsville, TX",
+    "Huntington Beach, CA",
+    "Tempe, AZ",
+    "Akron, OH",
+    "Clarksville, TN",
+    "Fort Lauderdale, FL",
+    "Glendale, CA",
+    "Charleston, SC",
+    "Macon, GA",
+    "Savannah, GA",
+    "Columbia, SC",
+    "North Charleston, SC"
+  ],
+  "cities": {
+    "New York, NY": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Los Angeles, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Chicago, IL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Houston, TX": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 228,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Phoenix, AZ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Philadelphia, PA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "San Antonio, TX": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 147,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "San Diego, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Dallas, TX": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 227,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Fort Worth, TX": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 198,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Jacksonville, FL": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 162,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Austin, TX": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 176,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "San Jose, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Charlotte, NC": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 200,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Columbus, OH": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Indianapolis, IN": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "San Francisco, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Seattle, WA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Denver, CO": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Nashville, TN": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Oklahoma City, OK": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Washington, DC": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "El Paso, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Las Vegas, NV": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Boston, MA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Detroit, MI": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Louisville, KY": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Portland, OR": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Memphis, TN": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Baltimore, MD": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Milwaukee, WI": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Albuquerque, NM": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Fresno, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Tucson, AZ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Sacramento, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Atlanta, GA": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 166,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Kansas City, MO": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Mesa, AZ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Raleigh, NC": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 221,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Colorado Springs, CO": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Miami, FL": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 207,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Omaha, NE": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Virginia Beach, VA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Long Beach, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Oakland, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Minneapolis, MN": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Bakersfield, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Tulsa, OK": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Tampa, FL": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 211,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Aurora, CO": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Arlington, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Wichita, KS": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Cleveland, OH": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "New Orleans, LA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Henderson, NV": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Honolulu, HI": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Anaheim, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Orlando, FL": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 155,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Lexington, KY": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Stockton, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Newark, NJ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Riverside, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Irvine, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Corpus Christi, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Santa Ana, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Cincinnati, OH": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Greensboro, NC": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 207,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Pittsburgh, PA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "St. Paul, MN": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Durham, NC": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 224,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Jersey City, NJ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Lincoln, NE": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "North Las Vegas, NV": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Plano, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Gilbert, AZ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Anchorage, AK": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Madison, WI": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Reno, NV": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Chandler, AZ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "St. Louis, MO": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Chula Vista, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Fort Wayne, IN": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Buffalo, NY": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Lubbock, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Laredo, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Port St. Lucie, FL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "St. Petersburg, FL": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 165,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Toledo, OH": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Glendale, AZ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Winston-Salem, NC": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Irving, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Chesapeake, VA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Garland, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Scottsdale, AZ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Boise, ID": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Richmond, VA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Frisco, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Cape Coral, FL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "McKinney, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Huntsville, AL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Norfolk, VA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Hialeah, FL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Spokane, WA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Tacoma, WA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Santa Clarita, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Fremont, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Baton Rouge, LA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "San Bernardino, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Fontana, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Modesto, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Salt Lake City, UT": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Moreno Valley, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Worcester, MA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Sioux Falls, SD": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Yonkers, NY": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Des Moines, IA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Grand Prairie, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Fayetteville, NC": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Little Rock, AR": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Rochester, NY": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Amarillo, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Tallahassee, FL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Overland Park, KS": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Columbus, GA": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 37,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Knoxville, TN": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Augusta, GA": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 177,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Grand Rapids, MI": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Peoria, AZ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Mobile, AL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Vancouver, WA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Oxnard, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Birmingham, AL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Providence, RI": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Montgomery, AL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Chattanooga, TN": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Brownsville, TX": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Huntington Beach, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Tempe, AZ": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Akron, OH": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Clarksville, TN": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Fort Lauderdale, FL": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Glendale, CA": {
+      "status": "not_started",
+      "term_index": 0,
+      "reviewed_count": 0,
+      "qualified_count": 0,
+      "last_scraped_date": null
+    },
+    "Charleston, SC": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 35,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Macon, GA": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 30,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Savannah, GA": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 30,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "Columbia, SC": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 27,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    },
+    "North Charleston, SC": {
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 23,
+      "qualified_count": 0,
+      "last_scraped_date": "2026-09-03"
+    }
+  }
+}
