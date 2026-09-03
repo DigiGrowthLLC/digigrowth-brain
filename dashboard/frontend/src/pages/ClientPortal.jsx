@@ -39,15 +39,15 @@ const NAV = [
   { id: "dashboard-group", label: "Dashboard", children: [
     { id: "dashboard", label: "Overview" },
     { id: "analytics", label: "Analytics" },
+    { id: "inbox", label: "Inbox" },
   ] },
   { id: "crm-group", label: "Leads & Appointments", children: [
     { id: "leads", label: "Leads" },
     { id: "appointments", label: "Appointments" },
-    { id: "inbox", label: "Inbox" },
+    { id: "sequences", label: "Your Messaging" },
   ] },
   { id: "getstarted-group", label: "Get Started", children: [
     { id: "onboarding", label: "Onboarding" },
-    { id: "sequences", label: "Your Messaging" },
     { id: "videos", label: "Videos" },
   ] },
   { id: "todo", label: "To Do" },
