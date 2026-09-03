@@ -108,6 +108,11 @@ async def portal_home(token: str):
     client = await get_client_from_token(token)
     return {
         "id": client["id"], "name": client["name"], "status": client["status"],
+        # The actual person's name at this business (set on the client
+        # record — see ClientCreate.contact_name), distinct from `name` (the
+        # business/practice name) — used for the portal's "Welcome back,
+        # {contact_name}" greeting so it reads as a person, not a company.
+        "contact_name": client.get("contact_name"),
         # NULL for every real client until they connect their own Calendly
         # (see db.py's calendly_url migration note) — the portal's booking
         # UI shows "not connected" in place of the iframe when this is null.

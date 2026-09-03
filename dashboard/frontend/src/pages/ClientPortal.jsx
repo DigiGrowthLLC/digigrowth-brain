@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
+import logoWordmark from "../assets/logo-wordmark.png";
 import {
   LineChart, Line,
   BarChart, Bar,
@@ -578,7 +579,7 @@ function RecentLeadsWidget({ token }) {
   );
 }
 
-function DashboardTab({ token, clientName }) {
+function DashboardTab({ token, contactName }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("all");
@@ -616,7 +617,7 @@ function DashboardTab({ token, clientName }) {
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
-            Welcome back{clientName ? `, ${clientName}` : ""}
+            Welcome back{contactName ? `, ${contactName}` : ""}
           </div>
           <div style={{ fontSize: 12.5, color: "#5a7aa0", marginTop: 4 }}>
             Here's how your campaign is performing.
@@ -1948,31 +1949,28 @@ export default function ClientPortal() {
 
       <div style={{
         borderBottom: "1px solid rgba(58,123,213,0.15)",
-        padding: "22px 40px",
+        padding: "20px 40px",
         display: "flex", alignItems: "center", gap: 16,
         background: "linear-gradient(180deg, rgba(58,123,213,0.05) 0%, transparent 100%)",
       }}>
-        <div className="dg-logo-glow" style={{
-          width: 38, height: 38, background: "linear-gradient(135deg, #1a3a6b 0%, #2857a0 100%)",
-          borderRadius: 10, border: "1px solid rgba(58,123,213,0.35)",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          boxShadow: "0 0 18px rgba(58,123,213,0.35)",
-        }}>
-          <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
-            <rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#6ab0ff" strokeWidth="1.4" />
-            <path d="M5 5h6M5 8h6M5 11h4" stroke="#6ab0ff" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
+        <div className="dg-logo-glow" style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+          <img src={logoWordmark} alt="DigiGrowth" style={{ height: 30, display: "block" }} />
         </div>
-        <div>
-          <div style={{
-            fontWeight: 700, fontSize: 17, letterSpacing: "-0.01em",
-            background: "linear-gradient(90deg, #f0f4ff, #9cc4f5)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-          }}>
-            {client ? client.name : "DigiGrowth"}
-          </div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.16em", marginTop: 2 }}>
-            CLIENT PORTAL · POWERED BY DIGIGROWTH
+        {client && (
+          <>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 300, color: "#3a5a80" }}>×</span>
+            <div style={{
+              fontWeight: 700, fontSize: 17, letterSpacing: "-0.01em",
+              background: "linear-gradient(90deg, #f0f4ff, #9cc4f5)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+            }}>
+              {client.name}
+            </div>
+          </>
+        )}
+        <div style={{ marginLeft: "auto", textAlign: "right" }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.16em" }}>
+            CLIENT PORTAL
           </div>
         </div>
       </div>
@@ -1997,7 +1995,7 @@ export default function ClientPortal() {
         </div>
 
         <div key={tab} className="dg-fade-in">
-        {tab === "dashboard" && <DashboardTab token={token} clientName={client?.name} />}
+        {tab === "dashboard" && <DashboardTab token={token} contactName={client?.contact_name} />}
         {tab === "appointments" && <AppointmentsTab token={token} />}
         {tab === "leads" && (
           <LeadsTab
