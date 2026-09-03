@@ -55,3 +55,8 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   `content-agent/pending_approvals/blog-2026-08-26.json` on branch `claude/sweet-einstein-gx1hbi`,
   not `main` — this run's session policy blocked pushing to `main`; needs merge before Railway's
   relay job will see it)
+- "How to Build an AI Client Acquisition System for Under $500 a Month" (slug:
+  ai-client-acquisition-system-under-500-month) — pillar: Client Acquisition Systems — topic:
+  rotation #19 (AI client acquisition system under $500/month), own web search (research cache
+  stale, dated 2026-08-31) — 2026-09-02 — pending approval (draft pushed to
+  `content-agent/pending_approvals/blog-2026-09-02.json` on `main`)

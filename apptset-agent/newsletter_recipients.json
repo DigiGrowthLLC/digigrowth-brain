@@ -1,16 +1,5 @@
 {
-  "count": 2,
-  "recipients": [
-    {
-      "owner": "Dylan",
-      "business": "DigiGrowth",
-      "email": "dylangroenendijk@gmail.com"
-    },
-    {
-      "owner": "Dr. Dallas Tew",
-      "business": "Movement Mentors Physical Therapy & Performance",
-      "email": null
-    }
-  ],
-  "exported_at": "2026-09-01T09:45:00.012313+00:00"
+  "count": 0,
+  "recipients": [],
+  "exported_at": "2026-09-03T09:45:00.007549+00:00"
 }
