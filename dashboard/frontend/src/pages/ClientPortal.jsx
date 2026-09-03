@@ -1967,13 +1967,16 @@ export default function ClientPortal() {
               <img src={logoWordmark} alt="DigiGrowth" style={{ height: 24, display: "block" }} />
             </div>
             {client && (
-              <div style={{
-                fontWeight: 700, fontSize: 16, letterSpacing: "-0.01em",
-                background: "linear-gradient(90deg, #f0f4ff, #9cc4f5)",
-                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-              }}>
-                {client.name}
-              </div>
+              <>
+                <div style={{ width: 1, height: 20, background: "rgba(106,176,255,0.3)", flexShrink: 0 }} />
+                <div style={{
+                  fontWeight: 700, fontSize: 16, letterSpacing: "-0.01em",
+                  background: "linear-gradient(90deg, #f0f4ff, #9cc4f5)",
+                  WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+                }}>
+                  {client.name}
+                </div>
+              </>
             )}
           </div>
           <div style={{ height: 2, borderRadius: 2, background: "linear-gradient(90deg, #3a7bd5, #6ab0ff, transparent)" }} />
