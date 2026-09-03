@@ -2046,11 +2046,17 @@ export default function ClientPortal() {
         }
         .dg-portal .stat-card {
           transition: transform 0.2s ease, box-shadow 0.2s ease;
+          padding: 22px 26px;
         }
         .dg-portal .stat-card:hover {
           transform: translateY(-3px);
           box-shadow: 0 12px 30px rgba(58,123,213,0.18);
         }
+        .dg-portal .stat-card-value { font-size: 32px; }
+        .dg-portal .stat-card-label { font-size: 13px; }
+        .dg-portal .stat-card-delta { font-size: 12px; }
+        .dg-portal .stat-card-icon { width: 58px; height: 58px; border-radius: 14px; }
+        .dg-portal .stat-card-icon svg { width: 24px; height: 24px; }
         .dg-portal button, .dg-portal a.btn {
           transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
         }
