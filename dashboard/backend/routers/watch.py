@@ -5,18 +5,26 @@ inline video player with Open Graph video tags for SMS/iMessage rich previews.
 Upload is authenticated (mounted under /api with require_auth in main.py);
 serving is public, scoped only by an unguessable slug — same pattern as
 routers/client_portal.py.
+
+Storage is Cloudflare R2 (see r2_storage.py) via a presigned-PUT flow: the
+uploader (content-agent/tools/publish_to_watch.py) asks this backend for a
+presigned URL, PUTs the video straight to R2 itself, then tells this backend
+the upload is done. The video's bytes never pass through this FastAPI
+process. This replaced an earlier GitHub-Contents-API approach (base64-
+encoding the whole file into one in-memory JSON PUT) that OOM-crashed the
+Railway container on anything much above ~30MB — see the railway deployment
+history around 2026-09-04 for the crash-restart pattern this caused.
+github_path/_gh_fetch below is legacy-read-only support for the handful of
+videos published before this migration; every new upload uses r2_key.
 """
-import base64
 import html
-import json
 import os
-import time
-import urllib.error
-import urllib.request
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, Response
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from pydantic import BaseModel
 
+import r2_storage
 from db import get_pool
 
 router = APIRouter()          # public: /watch/{slug}, /watch/{slug}/file
@@ -24,44 +32,32 @@ admin_router = APIRouter()    # authenticated: /watch-videos (upload)
 
 _GITHUB_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
 _DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/")
-_MAX_UPLOAD_BYTES = 95 * 1024 * 1024  # under GitHub's 100 MB Contents API limit
 
-# In-memory cache of fetched video bytes, keyed by slug — video players issue
-# many Range requests while seeking; without this every seek would re-hit the
-# GitHub API for the full file. Process-lifetime only, not persistence.
+# In-memory cache of fetched video bytes, keyed by slug — only ever populated
+# for legacy GitHub-backed rows (see _gh_fetch below); video players issue
+# many Range requests while seeking and without this every seek would re-hit
+# the GitHub API for the full file. R2-backed rows never touch this cache —
+# they're served via a redirect straight to R2, which handles Range itself.
+# Process-lifetime only, not persistence.
 _video_cache: dict[str, bytes] = {}
 
 
-def _gh_push(path: str, data: bytes, message: str) -> None:
-    token = os.environ.get("GIT_TOKEN", "")
-    if not token:
-        raise HTTPException(status_code=500, detail="GIT_TOKEN not configured")
-    url = f"https://api.github.com/repos/{_GITHUB_REPO}/contents/{path}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json",
-        "Content-Type": "application/json",
-    }
-    sha = None
-    try:
-        req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            sha = json.loads(resp.read()).get("sha")
-    except urllib.error.HTTPError as e:
-        if e.code != 404:
-            raise HTTPException(status_code=502, detail=f"GitHub error: {e}")
-    payload: dict = {"message": message, "content": base64.b64encode(data).decode()}
-    if sha:
-        payload["sha"] = sha
-    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers, method="PUT")
-    try:
-        with urllib.request.urlopen(req, timeout=60):
-            pass
-    except urllib.error.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"GitHub push failed: {e}")
+def _safe_slug(slug: str) -> str:
+    safe = "".join(c if c.isalnum() or c in "-_" else "-" for c in slug.strip().lower())
+    if not safe:
+        raise HTTPException(status_code=400, detail="Invalid slug")
+    return safe
 
 
 def _gh_fetch(path: str) -> bytes:
+    """Legacy read path for the handful of videos uploaded before the R2
+    migration (2026-09-04) — see this module's docstring. Nothing writes
+    through this path anymore; new uploads always go to R2."""
+    import base64
+    import json
+    import urllib.error
+    import urllib.request
+
     token = os.environ.get("GIT_TOKEN", "")
     url = f"https://api.github.com/repos/{_GITHUB_REPO}/contents/{path}"
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
@@ -80,42 +76,52 @@ def _gh_fetch(path: str) -> bytes:
         raise HTTPException(status_code=404 if e.code == 404 else 502, detail=f"GitHub error: {e}")
 
 
-@admin_router.post("/watch-videos")
-async def upload_watch_video(
-    file: UploadFile = File(...),
-    slug: str = Form(...),
-    title: str = Form(""),
-    contact_id: str = Form(None),
-):
-    """`contact_id` is optional (some slugs — old ones, or future generic
-    uses — may not have a known recipient) but is what lets the Loom
-    Outreach analytics funnel (see content_tracking.py) know this video
-    was sent to a specific prospect at all. content-agent's
-    publish_to_watch.py passes it through, already resolved via
-    lookup_lead.py's CRM search earlier in the outreach-video skill."""
-    data = await file.read()
-    if len(data) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="File exceeds 95 MB limit")
+class PresignRequest(BaseModel):
+    slug: str
+    content_type: str = "video/mp4"
 
-    safe_slug = "".join(c if c.isalnum() or c in "-_" else "-" for c in slug.strip().lower())
-    if not safe_slug:
-        raise HTTPException(status_code=400, detail="Invalid slug")
 
-    file_type = file.content_type or "video/mp4"
-    file_size = len(data)
-    github_path = f"dashboard/backend/watch_uploads/{safe_slug}.mp4"
-    _gh_push(github_path, data, f"Outreach video: {safe_slug}")
+class CompleteRequest(BaseModel):
+    slug: str
+    title: str = ""
+    contact_id: str | None = None
+    r2_key: str
+    file_size: int
+    content_type: str = "video/mp4"
 
-    contact_id = (contact_id or "").strip() or None
+
+@admin_router.post("/watch-videos/presign")
+async def presign_watch_video(body: PresignRequest):
+    """Step 1 of publishing: hand back a presigned R2 PUT URL for this slug.
+    The uploader (content-agent/tools/publish_to_watch.py) PUTs the video
+    bytes straight to R2 with this URL — they never pass through this
+    backend's memory, which is what used to OOM-crash the Railway container
+    on anything much above ~30MB when this went through GitHub's Contents
+    API instead (see module docstring)."""
+    safe_slug = _safe_slug(body.slug)
+    r2_key = f"watch/{safe_slug}.mp4"
+    upload_url = r2_storage.presign_put(r2_key, body.content_type)
+    return {"upload_url": upload_url, "r2_key": r2_key}
+
+
+@admin_router.post("/watch-videos/complete")
+async def complete_watch_video(body: CompleteRequest):
+    """Step 2: called once the direct-to-R2 PUT above succeeds, to record
+    the watch_videos row. `contact_id` is optional (some slugs — old ones,
+    or future generic uses — may not have a known recipient) but is what
+    lets the Loom Outreach analytics funnel (see content_tracking.py) know
+    this video was sent to a specific prospect at all."""
+    safe_slug = _safe_slug(body.slug)
+    contact_id = (body.contact_id or "").strip() or None
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """INSERT INTO watch_videos (slug, title, github_path, file_type, file_size, contact_id)
-               VALUES ($1, $2, $3, $4, $5, $6)
+            """INSERT INTO watch_videos (slug, title, github_path, r2_key, file_type, file_size, contact_id)
+               VALUES ($1, $2, NULL, $3, $4, $5, $6)
                ON CONFLICT (slug) DO UPDATE
-                 SET title = $2, github_path = $3, file_type = $4, file_size = $5, contact_id = $6
-               RETURNING slug, title, github_path, file_type, file_size, contact_id, created_at""",
-            safe_slug, title.strip() or safe_slug, github_path, file_type, file_size, contact_id,
+                 SET title = $2, github_path = NULL, r2_key = $3, file_type = $4, file_size = $5, contact_id = $6
+               RETURNING slug, title, r2_key, file_type, file_size, contact_id, created_at""",
+            safe_slug, body.title.strip() or safe_slug, body.r2_key, body.content_type, body.file_size, contact_id,
         )
     _video_cache.pop(safe_slug, None)
     return {
@@ -212,21 +218,14 @@ async def watch_page(slug: str):
 
 @router.get("/watch/{slug}/file", include_in_schema=False)
 async def watch_file(slug: str, request: Request):
-    content = _video_cache.get(slug)
-    file_type = "video/mp4"
-    if content is None:
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT github_path, file_type FROM watch_videos WHERE slug = $1", slug
-            )
-        if not row:
-            raise HTTPException(status_code=404, detail="Video not found")
-        file_type = row["file_type"] or "video/mp4"
-        content = _gh_fetch(row["github_path"])
-        _video_cache[slug] = content
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT github_path, r2_key, file_type, contact_id FROM watch_videos WHERE slug = $1", slug
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Video not found")
 
-    file_size = len(content)
     range_header = request.headers.get("range")
 
     # Catches the case where an SMS/iMessage rich preview plays straight
@@ -238,10 +237,27 @@ async def watch_file(slug: str, request: Request):
     # contacts, so a duplicate row here doesn't inflate anything.
     is_initial_request = not range_header or range_header.strip().split("=", 1)[-1].startswith("0-")
     if is_initial_request:
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            crow = await conn.fetchrow("SELECT contact_id FROM watch_videos WHERE slug = $1", slug)
-        await _log_view_event("outreach_video", slug, crow["contact_id"] if crow else None, "view")
+        await _log_view_event("outreach_video", slug, row["contact_id"], "view")
+
+    if row["r2_key"]:
+        # R2-backed (every upload since the 2026-09-04 migration — see this
+        # module's docstring): redirect straight to a freshly presigned GET
+        # URL and let R2 handle Range requests itself. This backend never
+        # buffers the video bytes at all, which is the whole point — no more
+        # OOM risk from large files. Presigned fresh on every request, so
+        # its short expiry (r2_storage._PRESIGN_EXPIRES_SECONDS) never
+        # matters — this /file URL itself is the permanent, stable link
+        # that goes out in texts and og:video tags.
+        get_url = r2_storage.presign_get(row["r2_key"])
+        return RedirectResponse(get_url, status_code=302)
+
+    # Legacy GitHub-backed row (published before the R2 migration).
+    content = _video_cache.get(slug)
+    file_type = row["file_type"] or "video/mp4"
+    if content is None:
+        content = _gh_fetch(row["github_path"])
+        _video_cache[slug] = content
+    file_size = len(content)
 
     if range_header:
         try:

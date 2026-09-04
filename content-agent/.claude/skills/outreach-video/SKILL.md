@@ -116,28 +116,31 @@ OS's own public watch page:
 python content-agent/tools/publish_to_watch.py \
   "content-agent/exports/outreach-videos/<file>.mp4" "<business-slug>" "<Business Name>" "<contact ID from Step 2, if any>"
 ```
-This uploads the video to the OS (stored via GitHub, served through a public, unauthenticated
-`/watch/<slug>` route with Open Graph video tags so iMessage/RCS render an inline preview card) and
-prints back a `WATCH_URL`. Report that URL to Dylan — that's the link that goes in the SMS, not the
-local file path. Passing the contact ID (when Step 2 found one) is what lets the dashboard know this
+This uploads the video straight to Cloudflare R2 (presigned PUT — the file never passes through the
+OS backend's own memory, see `dashboard/backend/routers/watch.py`'s module docstring for why that
+matters), then registers it so it's served through a public, unauthenticated `/watch/<slug>` route
+with Open Graph video tags so iMessage/RCS render an inline preview card. Prints back a `WATCH_URL`.
+Report that URL to Dylan — that's the link that goes in the SMS, not the local file path. Passing the
+contact ID (when Step 2 found one) is what lets the dashboard know this
 video was sent to this specific prospect — omit the argument entirely if Step 2 was given a raw URL
 with no CRM contact behind it.
 
 ### STEP 8 — Send it to the prospect automatically
-This runs unless Dylan explicitly says just to generate the video without sending it. Send using
-the **active SMS sequence's "2. Primed Message" step** (the `relevance` key in
-`dashboard/backend/routers/sms.py`'s `SEQUENCE_STEPS` — currently sequence "Free Offer V.1.3",
-template `[Loom link] Shoot me a 👍 once you've watched it`), with the placeholder swapped for the
-real watch URL:
+This runs unless Dylan explicitly says just to generate the video without sending it. Send the
+**permanent, hardcoded primed-message text** — `[Loom link] Shoot me a 👍 once you've watched it`
+— tagged as the "2. Primed Message" step (`stage="relevance"` in
+`dashboard/backend/routers/sms.py`'s `SEQUENCE_STEPS`), with the placeholder swapped for the real
+watch URL:
 ```bash
 python content-agent/tools/send_outreach_sms.py "<prospect phone from Step 2>" "<WATCH_URL>"
 ```
-This looks up whichever `sms_sequences` row currently has `is_active = true` (don't hardcode a
-sequence name/id — it can change), substitutes the watch URL into its primed-message template, and
-sends via `POST /api/sms/send` tagged `stage="relevance"` so it shows correctly in the SMS
-inbox/sequence dropdown. If no sequence is active, or the active sequence's primed-message step has
-no Loom-link placeholder, it exits with a clear error instead of guessing — surface that to Dylan
-rather than sending something wrong.
+Per Dylan's instruction (2026-09-04), this message text is locked into
+`send_outreach_sms.py` (`_LOOM_MESSAGE_TEMPLATE`) and is sent as-is **regardless of whatever
+template the currently-active `sms_sequences` row's primed-message step contains** — a sequence
+swap (e.g. to "Free Offer V.1.4") no longer breaks or alters Loom sends. The active sequence is
+still looked up only to label which sequence context the send is reported under; it's never
+required and never supplies the message body. Sends via `POST /api/sms/send` tagged
+`stage="relevance"` so it shows correctly in the SMS inbox/sequence dropdown.
 
 ### STEP 9 — Report
 Tell Dylan: the watch URL, the local file path (reference/archival), and that the primed-message

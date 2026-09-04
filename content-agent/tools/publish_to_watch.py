@@ -34,21 +34,52 @@ def main():
 
     dashboard_url = doppler_secret("DASHBOARD_URL").rstrip("/")
     password = doppler_secret("DASHBOARD_PASSWORD")
+    auth = ("admin", password)
 
-    data = {"slug": slug, "title": title}
-    if contact_id:
-        data["contact_id"] = contact_id
+    # Two-step publish: get a presigned R2 URL, PUT the video straight to R2
+    # (bytes never pass through the dashboard backend's own memory — the
+    # old GitHub-Contents-API upload used to OOM-crash the Railway container
+    # on anything much above ~30MB, see dashboard/backend/routers/watch.py),
+    # then tell the backend the upload finished so it can record the row.
+    presign_resp = requests.post(
+        f"{dashboard_url}/api/watch-videos/presign",
+        json={"slug": slug, "content_type": "video/mp4"},
+        auth=auth,
+        timeout=30,
+    )
+    presign_resp.raise_for_status()
+    presign_body = presign_resp.json()
+    upload_url = presign_body["upload_url"]
+    r2_key = presign_body["r2_key"]
 
+    file_size = video_path.stat().st_size
     with open(video_path, "rb") as f:
-        resp = requests.post(
-            f"{dashboard_url}/api/watch-videos",
-            files={"file": (video_path.name, f, "video/mp4")},
-            data=data,
-            auth=("admin", password),
-            timeout=120,
+        put_resp = requests.put(
+            upload_url,
+            data=f,
+            headers={"Content-Type": "video/mp4"},
+            timeout=300,
         )
-    resp.raise_for_status()
-    body = resp.json()
+    put_resp.raise_for_status()
+
+    complete_data = {
+        "slug": slug,
+        "title": title,
+        "r2_key": r2_key,
+        "file_size": file_size,
+        "content_type": "video/mp4",
+    }
+    if contact_id:
+        complete_data["contact_id"] = contact_id
+
+    complete_resp = requests.post(
+        f"{dashboard_url}/api/watch-videos/complete",
+        json=complete_data,
+        auth=auth,
+        timeout=30,
+    )
+    complete_resp.raise_for_status()
+    body = complete_resp.json()
 
     print(f"WATCH_URL: {body['watch_url']}")
 
