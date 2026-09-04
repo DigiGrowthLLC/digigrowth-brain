@@ -1354,16 +1354,25 @@ function AppointmentsTab({ token }) {
   );
 }
 
-const LEAD_CSV_ALIASES = {
-  phone:    ["phone", "phone number", "mobile", "cell", "telephone"],
-  business: ["business", "company", "business name", "company name"],
-  owner:    ["owner", "name", "contact", "contact name", "full name", "first name"],
-  email:    ["email", "email address"],
-  website:  ["website", "url", "site", "web"],
-  city:     ["city", "town"],
-  state:    ["state", "province", "region"],
-  notes:    ["notes", "note", "comments", "comment"],
-};
+// Keyword substring match, not exact-header match — so "Business Name",
+// "Owner Name", "Phone #", "Contact Phone Number" etc. all still map
+// correctly instead of silently going unrecognized (whole-CSV imports were
+// coming back "0 added, 0 updated, N skipped" whenever a client's export
+// used slightly different column names than the old exact alias list).
+// Order matters: earlier fields claim a header first, so a more specific
+// keyword (e.g. business's "business") grabs "Business Name" before
+// owner's generic "name" keyword gets a chance at it. Owner is deliberately
+// last since "name"/"contact" are the most generic, collision-prone terms.
+const LEAD_CSV_FIELD_KEYWORDS = [
+  ["phone", ["phone", "mobile", "cell", "telephone"]],
+  ["business", ["business", "company"]],
+  ["email", ["email"]],
+  ["website", ["website", "url", "site", "web"]],
+  ["city", ["city", "town"]],
+  ["state", ["state", "province", "region"]],
+  ["notes", ["notes", "note", "comment"]],
+  ["owner", ["owner", "contact", "name"]],
+];
 
 function parseCsvLine(line) {
   const cols = []; let cur = ""; let inQ = false;
@@ -1381,9 +1390,10 @@ function parseLeadCSV(text) {
   if (lines.length < 2) return [];
   const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/['"]/g, "").trim());
   const colMap = {};
-  for (const [field, aliases] of Object.entries(LEAD_CSV_ALIASES)) {
-    const idx = headers.findIndex((h) => aliases.includes(h));
-    if (idx >= 0) colMap[field] = idx;
+  const claimed = new Set();
+  for (const [field, keywords] of LEAD_CSV_FIELD_KEYWORDS) {
+    const idx = headers.findIndex((h, i) => !claimed.has(i) && keywords.some((kw) => h.includes(kw)));
+    if (idx >= 0) { colMap[field] = idx; claimed.add(idx); }
   }
   return lines.slice(1).map((line) => {
     const cols = parseCsvLine(line);
