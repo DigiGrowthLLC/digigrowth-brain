@@ -803,14 +803,18 @@ async def portal_create_lead(token: str, body: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
         # contacts.phone is globally unique — never silently claim a lead
-        # that already belongs to someone else (another client, or an
-        # unattributed internal DigiGrowth lead) just because it shares a
-        # phone number. Only update if it's already this client's own row —
-        # and never the anchor contact even if it is this client's own row
-        # (that's Dylan's internal sales contact for this business, not a
-        # lead the portal should ever create/overwrite).
+        # that already belongs to someone else (another client) just because
+        # it shares a phone number, and never the anchor contact (that's
+        # Dylan's internal sales contact for this business, not a lead the
+        # portal should ever create/overwrite). An UNOWNED contact
+        # (client_id NULL, not anchor — e.g. a business sitting in
+        # leadgen-agent's raw prospecting pool that never became a client)
+        # is fair game: this client's own CSV/lead entry claims it rather
+        # than being blocked, since nobody else has a claim on it yet.
         existing = await conn.fetchrow("SELECT client_id, is_client_anchor FROM contacts WHERE phone = $1", phone)
-        if existing and (existing["client_id"] != client["id"] or existing["is_client_anchor"]):
+        if existing and existing["is_client_anchor"]:
+            raise HTTPException(status_code=409, detail="A lead with this phone number already exists")
+        if existing and existing["client_id"] is not None and existing["client_id"] != client["id"]:
             raise HTTPException(status_code=409, detail="A lead with this phone number already exists")
 
         row = await conn.fetchrow(
@@ -818,13 +822,14 @@ async def portal_create_lead(token: str, body: dict):
             INSERT INTO contacts (id, business, owner, phone, email, website, city, state, notes, status, client_id)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10)
             ON CONFLICT (phone) DO UPDATE SET
-                business = COALESCE(EXCLUDED.business, contacts.business),
-                owner    = COALESCE(EXCLUDED.owner, contacts.owner),
-                email    = COALESCE(EXCLUDED.email, contacts.email),
-                website  = COALESCE(EXCLUDED.website, contacts.website),
-                city     = COALESCE(EXCLUDED.city, contacts.city),
-                state    = COALESCE(EXCLUDED.state, contacts.state),
-                notes    = COALESCE(EXCLUDED.notes, contacts.notes),
+                business  = COALESCE(EXCLUDED.business, contacts.business),
+                owner     = COALESCE(EXCLUDED.owner, contacts.owner),
+                email     = COALESCE(EXCLUDED.email, contacts.email),
+                website   = COALESCE(EXCLUDED.website, contacts.website),
+                city      = COALESCE(EXCLUDED.city, contacts.city),
+                state     = COALESCE(EXCLUDED.state, contacts.state),
+                notes     = COALESCE(EXCLUDED.notes, contacts.notes),
+                client_id = COALESCE(contacts.client_id, EXCLUDED.client_id),
                 updated_at = now()
             RETURNING *
             """,
@@ -847,7 +852,9 @@ async def portal_import_leads(token: str, body: dict):
     """Bulk import — mirrors POST /api/contacts/import's contract (a JSON
     array the frontend produces by parsing a CSV client-side), scoped to
     this client and guarded against claiming another client's/DigiGrowth's
-    existing lead on a phone collision (see portal_create_lead above)."""
+    existing lead on a phone collision (see portal_create_lead above). An
+    unowned contact (client_id NULL, not anchor) is claimable — it counts
+    as inserted/updated, not skipped."""
     client = await get_client_from_token(token)
     rows = body.get("contacts", [])
     if not rows:
@@ -862,7 +869,10 @@ async def portal_import_leads(token: str, body: dict):
                 skipped += 1
                 continue
             existing = await conn.fetchrow("SELECT client_id, is_client_anchor FROM contacts WHERE phone = $1", phone)
-            if existing and (existing["client_id"] != client["id"] or existing["is_client_anchor"]):
+            if existing and existing["is_client_anchor"]:
+                skipped += 1
+                continue
+            if existing and existing["client_id"] is not None and existing["client_id"] != client["id"]:
                 skipped += 1
                 continue
 
@@ -871,13 +881,14 @@ async def portal_import_leads(token: str, body: dict):
                 INSERT INTO contacts (id, business, owner, phone, email, website, city, state, notes, status, client_id)
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10)
                 ON CONFLICT (phone) DO UPDATE SET
-                    business = COALESCE(EXCLUDED.business, contacts.business),
-                    owner    = COALESCE(EXCLUDED.owner, contacts.owner),
-                    email    = COALESCE(EXCLUDED.email, contacts.email),
-                    website  = COALESCE(EXCLUDED.website, contacts.website),
-                    city     = COALESCE(EXCLUDED.city, contacts.city),
-                    state    = COALESCE(EXCLUDED.state, contacts.state),
-                    notes    = COALESCE(EXCLUDED.notes, contacts.notes),
+                    business  = COALESCE(EXCLUDED.business, contacts.business),
+                    owner     = COALESCE(EXCLUDED.owner, contacts.owner),
+                    email     = COALESCE(EXCLUDED.email, contacts.email),
+                    website   = COALESCE(EXCLUDED.website, contacts.website),
+                    city      = COALESCE(EXCLUDED.city, contacts.city),
+                    state     = COALESCE(EXCLUDED.state, contacts.state),
+                    notes     = COALESCE(EXCLUDED.notes, contacts.notes),
+                    client_id = COALESCE(contacts.client_id, EXCLUDED.client_id),
                     updated_at = now()
                 RETURNING (xmax = 0) AS was_inserted
                 """,
