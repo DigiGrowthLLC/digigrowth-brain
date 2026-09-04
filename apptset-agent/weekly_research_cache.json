@@ -1,6 +1,7 @@
 {
-  "date": "2026-08-31",
-  "topic": "Why the service-based businesses winning right now all have one thing in common: AI automation",
+  "date": "2026-09-04",
+  "topic": "How to build an AI client acquisition system for under $500/month",
   "findings": [],
-  "sources": []
+  "sources": [],
+  "note": "WebSearch returned candidate stats (small-business AI spend ranges, adoption rates, ROI multiples) but WebFetch is fully egress-blocked in this cloud sandbox this run (confirmed against multiple unrelated domains, including en.wikipedia.org) -- could not verify any claim against its source page per the skill's verification requirement, so none were cached. Draft falls back to general knowledge this week."
 }
