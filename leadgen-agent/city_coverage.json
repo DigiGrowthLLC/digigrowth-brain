@@ -277,10 +277,10 @@
       "last_scraped_date": "2026-09-03"
     },
     "Denver, CO": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 360,
-      "qualified_count": 29,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 483,
+      "qualified_count": 31,
       "last_scraped_date": "2026-09-04"
     },
     "Nashville, TN": {
