@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 import email_handoff_sequence
+import integrations
 from db import get_pool
 from models import (
     Contact, ContactUpdate, NoteAdd, DispositionUpdate, BulkAction, TagAssign,
@@ -70,6 +71,26 @@ async def _fire_email_handoff(contact: dict):
         await email_handoff_sequence.send_handoff_email(contact)
     except Exception as e:
         print(f"email-handoff opener failed for {contact.get('email')}: {e}")
+
+
+async def _fire_send_info(contact: dict):
+    """Send Info disposition: text and email the prospect DigiGrowth's
+    website + a short company blurb — same templates as the live-dialer
+    disposition path (routers/dialer.py). Independent sends; one failing
+    shouldn't block the other or the caller's request."""
+    try:
+        await sms_router.send_info_message(contact)
+    except Exception as e:
+        print(f"send-info SMS failed for {contact.get('phone')}: {e}")
+    if contact.get("email"):
+        try:
+            result = await integrations.send_info_email(
+                contact["email"], contact.get("owner"), contact.get("business"),
+            )
+            if not result.startswith("Sent email"):
+                print(f"send-info email to {contact['email']} did not send: {result}")
+        except Exception as e:
+            print(f"send-info email failed for {contact.get('email')}: {e}")
 
 
 @router.get("/contacts")
@@ -356,6 +377,8 @@ async def log_disposition(contact_id: str, body: DispositionUpdate):
         await _fire_handoff(dict(contact))
     if new_status == EMAIL_HANDOFF_STATUS:
         await _fire_email_handoff(dict(contact))
+    if body.disposition == "Send Info":
+        await _fire_send_info(dict(contact))
 
     return {"ok": True, "new_status": new_status}
 
