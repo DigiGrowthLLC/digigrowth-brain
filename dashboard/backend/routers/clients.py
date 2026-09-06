@@ -17,6 +17,7 @@ from models import (
     ActionItemCreate, ActionItemUpdate, ONBOARDING_SECTIONS,
     LaunchChecklistItemCreate, LaunchChecklistItemUpdate, LaunchChecklistStatusUpdate,
     SequenceStepUpdate, ClientRequestUpdate,
+    ClientResourceCreate, ClientResourceUpdate,
 )
 
 router = APIRouter()
@@ -265,6 +266,71 @@ async def update_client(client_id: int, body: ClientUpdate):
     d = dict(row)
     d["portal_url"] = _portal_url(d["portal_token"])
     return d
+
+
+# ---------------- Per-client resources (admin-only reference, not shown in the client portal) ----------------
+#
+# Ads Manager / Registrar / Hosting are single free-text fields on the client
+# row itself (Dylan pastes a link, login note, or ID for each) since every
+# client has at most one of each. Everything else — Drive folders, brand
+# assets, marketing material links, etc. — is an open-ended list instead,
+# since a client can have any number of those.
+
+@router.get("/clients/{client_id}/resources")
+async def list_client_resources(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM client_resources WHERE client_id = $1 ORDER BY sort_order, id", client_id
+        )
+    return [dict(r) for r in rows]
+
+
+@router.post("/clients/{client_id}/resources")
+async def create_client_resource(client_id: int, body: ClientResourceCreate):
+    label = body.label.strip()
+    value = body.value.strip()
+    if not label or not value:
+        raise HTTPException(status_code=400, detail="label and value required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        row = await conn.fetchrow(
+            "INSERT INTO client_resources (client_id, label, value, sort_order) VALUES ($1, $2, $3, $4) RETURNING *",
+            client_id, label, value, body.sort_order,
+        )
+    return dict(row)
+
+
+@router.patch("/clients/{client_id}/resources/{resource_id}")
+async def update_client_resource(client_id: int, resource_id: int, body: ClientResourceUpdate):
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        set_clauses = ", ".join(f"{k} = ${i+3}" for i, k in enumerate(fields))
+        row = await conn.fetchrow(
+            f"UPDATE client_resources SET {set_clauses} WHERE id = $1 AND client_id = $2 RETURNING *",
+            resource_id, client_id, *fields.values(),
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return dict(row)
+
+
+@router.delete("/clients/{client_id}/resources/{resource_id}")
+async def delete_client_resource(client_id: int, resource_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM client_resources WHERE id = $1 AND client_id = $2 RETURNING id", resource_id, client_id
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    return {"ok": True}
 
 
 @router.post("/clients/{client_id}/regenerate-token")

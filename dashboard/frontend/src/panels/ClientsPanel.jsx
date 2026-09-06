@@ -73,6 +73,7 @@ const DETAILS_TABS = [
   { id: "sequences", label: "Sequences" },
   { id: "requests", label: "Requests" },
   { id: "uploads", label: "Uploads" },
+  { id: "resources", label: "Resources" },
 ];
 
 function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact }) {
@@ -236,6 +237,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
           {detailsTab === "sequences" && <ClientSequences clientId={client.id} />}
           {detailsTab === "requests" && <ClientRequests clientId={client.id} />}
           {detailsTab === "uploads" && <ClientUploads clientId={client.id} />}
+          {detailsTab === "resources" && <ClientResources clientId={client.id} />}
         </div>
       )}
     </div>
@@ -1038,6 +1040,161 @@ function ClientUploads({ clientId }) {
           <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => remove(f)}>DELETE</button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// One of the three single-value resource fields living directly on the
+// client row (ads_manager_resource / registrar_resource / hosting_resource).
+// Free text — a link, a login note, an account ID, whatever's easiest to
+// paste for that platform.
+function ResourceField({ clientId, field, label, placeholder, value, onSaved }) {
+  const [text, setText] = useState(value || "");
+  const [saving, setSaving] = useState(false);
+  const dirty = text !== (value || "");
+
+  useEffect(() => { setText(value || ""); }, [value]);
+
+  const save = async () => {
+    setSaving(true);
+    const r = await fetch(API(`/clients/${clientId}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: text }),
+    });
+    if (r.ok) onSaved(await r.json());
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8 }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.08em", marginBottom: 6 }}>
+        {label.toUpperCase()}
+      </div>
+      <textarea
+        className="dg-input" rows={2} placeholder={placeholder} value={text}
+        onChange={(e) => setText(e.target.value)}
+        style={{ width: "100%", boxSizing: "border-box", fontSize: 12, resize: "vertical", marginBottom: 6 }}
+      />
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={save} disabled={saving || !dirty}>
+          {saving ? "SAVING…" : "SAVE"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MiscResourceRow({ resource, onDelete }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff" }}>{resource.label}</div>
+        <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 2, wordBreak: "break-all", whiteSpace: "pre-wrap" }}>{resource.value}</div>
+      </div>
+      <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(resource.id)}>DELETE</button>
+    </div>
+  );
+}
+
+// Per-client resource hub: three single-value platform fields (Ads Manager,
+// Registrar, Hosting) stored on the client row, plus an open-ended list for
+// everything else (Drive links, brand assets, marketing material, etc.).
+// Admin-only reference — nothing here is shown in the client's own portal.
+function ClientResources({ clientId }) {
+  const [client, setClient] = useState(null);
+  const [resources, setResources] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ label: "", value: "" });
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    const [cr, rr] = await Promise.all([
+      fetch(API(`/clients/${clientId}`)),
+      fetch(API(`/clients/${clientId}/resources`)),
+    ]);
+    if (cr.ok) setClient(await cr.json());
+    if (rr.ok) setResources(await rr.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const addResource = async () => {
+    if (!form.label.trim() || !form.value.trim()) return;
+    setSaving(true);
+    await fetch(API(`/clients/${clientId}/resources`), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: form.label.trim(), value: form.value.trim(), sort_order: resources.length }),
+    });
+    setForm({ label: "", value: "" });
+    setShowForm(false);
+    setSaving(false);
+    load();
+  };
+
+  const removeResource = async (id) => {
+    if (!window.confirm("Delete this resource?")) return;
+    await fetch(API(`/clients/${clientId}/resources/${id}`), { method: "DELETE" });
+    load();
+  };
+
+  if (loading) {
+    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  }
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+      <ResourceField
+        clientId={clientId} field="ads_manager_resource" label="Ads Manager"
+        placeholder="e.g. Business Manager link, ID, or login notes…"
+        value={client?.ads_manager_resource} onSaved={setClient}
+      />
+      <ResourceField
+        clientId={clientId} field="registrar_resource" label="Registrar Platform"
+        placeholder="e.g. GoDaddy / Namecheap link or login notes…"
+        value={client?.registrar_resource} onSaved={setClient}
+      />
+      <ResourceField
+        clientId={clientId} field="hosting_resource" label="Hosting Platform"
+        placeholder="e.g. Vercel / hosting link or login notes…"
+        value={client?.hosting_resource} onSaved={setClient}
+      />
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "18px 0 8px" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.08em" }}>
+          OTHER RESOURCES
+        </div>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowForm((s) => !s)}>
+          {showForm ? "CANCEL" : "+ ADD"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+          <input
+            className="dg-input" placeholder="Label, e.g. Photos / Testimonials / Brand Files" value={form.label}
+            onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} autoFocus
+          />
+          <textarea
+            className="dg-input" rows={2} placeholder="Link or notes…" value={form.value}
+            onChange={(e) => setForm((f) => ({ ...f, value: e.target.value }))}
+            style={{ resize: "vertical" }}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={addResource} disabled={saving || !form.label.trim() || !form.value.trim()}>
+              {saving ? "SAVING…" : "SAVE RESOURCE"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {resources.length === 0 && !showForm && (
+        <div style={{ padding: "16px 0", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
+          NO OTHER RESOURCES YET
+        </div>
+      )}
+      {resources.map((r) => <MiscResourceRow key={r.id} resource={r} onDelete={removeResource} />)}
     </div>
   );
 }
