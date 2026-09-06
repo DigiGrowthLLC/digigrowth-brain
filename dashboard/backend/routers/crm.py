@@ -16,6 +16,7 @@ router = APIRouter()
 
 HANDOFF_STATUS = "sms-handoff"
 EMAIL_HANDOFF_STATUS = "email-handoff"
+SEND_INFO_STATUS = "send-info"
 NEWSLETTER_TAG = "Newsletter"
 NEWSLETTER_TAG_DISPOSITIONS = {"Follow Up 30 Day", "Follow Up 90 Day"}
 
@@ -193,6 +194,8 @@ async def update_contact(contact_id: str, body: ContactUpdate):
         await _fire_handoff(dict(row))
     if updates.get("status") == EMAIL_HANDOFF_STATUS and (not prev or prev["status"] != EMAIL_HANDOFF_STATUS):
         await _fire_email_handoff(dict(row))
+    if updates.get("status") == SEND_INFO_STATUS and (not prev or prev["status"] != SEND_INFO_STATUS):
+        await _fire_send_info(dict(row))
 
     return dict(row)
 
