@@ -1,7 +1,6 @@
 {
-  "date": "2026-09-04",
-  "topic": "How to build an AI client acquisition system for under $500/month",
+  "date": "2026-09-07",
+  "topic": "The AI-powered onboarding flow that reduces no-shows by 30%",
   "findings": [],
-  "sources": [],
-  "note": "WebSearch returned candidate stats (small-business AI spend ranges, adoption rates, ROI multiples) but WebFetch is fully egress-blocked in this cloud sandbox this run (confirmed against multiple unrelated domains, including en.wikipedia.org) -- could not verify any claim against its source page per the skill's verification requirement, so none were cached. Draft falls back to general knowledge this week."
+  "sources": []
 }
