@@ -298,11 +298,11 @@
       "last_scraped_date": "2026-09-07"
     },
     "Washington, DC": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 106,
+      "qualified_count": 17,
+      "last_scraped_date": "2026-09-07"
     },
     "El Paso, TX": {
       "status": "not_started",
