@@ -305,9 +305,9 @@
       "last_scraped_date": "2026-09-07"
     },
     "El Paso, TX": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 130,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 177,
       "qualified_count": 9,
       "last_scraped_date": "2026-09-07"
     },
