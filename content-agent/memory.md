@@ -60,3 +60,9 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   rotation #19 (AI client acquisition system under $500/month), own web search (research cache
   stale, dated 2026-08-31) — 2026-09-02 — pending approval (draft pushed to
   `content-agent/pending_approvals/blog-2026-09-02.json` on `main`)
+- "Why the Business That Calls Back First Wins the Client" (slug:
+  speed-to-lead-biggest-revenue-unlock) — pillar: Lead Follow-Up & Automation — topic: rotation #04
+  (speed to lead as the biggest revenue unlock), research cache stale (dated 2026-09-07, from
+  Monday's newsletter), own web search (source pages blocked by sandbox egress proxy, used
+  search-snippet stats from outsales.ai/leadresponse.co) — 2026-09-09 — pending approval (draft
+  pushed to `content-agent/pending_approvals/blog-2026-09-09.json` on `main`)
