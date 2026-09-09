@@ -312,9 +312,9 @@
       "last_scraped_date": "2026-09-07"
     },
     "Las Vegas, NV": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 263,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 353,
       "qualified_count": 15,
       "last_scraped_date": "2026-09-08"
     },
