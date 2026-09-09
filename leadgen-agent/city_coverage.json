@@ -313,9 +313,9 @@
     },
     "Las Vegas, NV": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 83,
-      "qualified_count": 14,
+      "term_index": 2,
+      "reviewed_count": 164,
+      "qualified_count": 15,
       "last_scraped_date": "2026-09-08"
     },
     "Boston, MA": {
