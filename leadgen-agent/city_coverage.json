@@ -327,9 +327,9 @@
     },
     "Detroit, MI": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 110,
-      "qualified_count": 5,
+      "term_index": 2,
+      "reviewed_count": 221,
+      "qualified_count": 9,
       "last_scraped_date": "2026-09-08"
     },
     "Louisville, KY": {
