@@ -333,9 +333,9 @@
       "last_scraped_date": "2026-09-08"
     },
     "Louisville, KY": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 333,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 445,
       "qualified_count": 7,
       "last_scraped_date": "2026-09-08"
     },
