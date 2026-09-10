@@ -1104,6 +1104,70 @@ function MiscResourceRow({ resource, onDelete }) {
   );
 }
 
+// Numbered, linked how-to for each marketing-setup step — the "click Set Up,
+// get a doc with numbered steps and the exact links to go to" the user asked
+// for. Automatable sub-steps (Buy Number, Test) point at the button right
+// below instead of an external link. Anything genuinely automatable end-to-
+// end is flagged separately below (see AUTOMATION_CANDIDATES).
+const MARKETING_GUIDES = {
+  sms: {
+    title: "Set Up SMS Marketing",
+    steps: [
+      { text: "Click \"Buy Number\" on this tab — provisions a dedicated Twilio subaccount + local number for this client. (Automated — no external step.)" },
+      { text: "Register an A2P 10DLC Brand + Campaign for this client's Twilio subaccount using their real business name/EIN — required before real volume will deliver reliably.", link: "https://console.twilio.com/us1/develop/sms/regulatory-compliance/brand-registrations", linkLabel: "Twilio Console → Regulatory Compliance" },
+      { text: "Confirm the inbound webhook is set (this happens automatically on purchase) — nothing to do here, just verify." },
+      { text: "Send yourself a test text to/from the new number and confirm it lands in the message log." },
+      { text: "Once Response AI is connected below, confirm it's using this same number, not one of its own." },
+    ],
+  },
+  email: {
+    title: "Set Up Email Marketing",
+    steps: [
+      { text: "Buy or confirm Google Workspace on the client's own domain — this is the real sending mailbox, not DigiGrowth's Gmail.", link: "https://workspace.google.com/", linkLabel: "Google Workspace" },
+      { text: "Locally run reauth_google.py (in the repo root) logged into that mailbox to generate a refresh token. (Local script — no link.)" },
+      { text: "Paste the refresh token and sender email into the fields on this tab." },
+      { text: "Click TEST below and confirm the test email lands (check spam too)." },
+      { text: "Confirm SPF/DKIM/DMARC are set at the client's registrar per Workspace's own setup wizard (Admin console → Domains) — required for real deliverability.", link: "https://admin.google.com/", linkLabel: "Google Admin Console" },
+    ],
+  },
+  response_ai: {
+    title: "Set Up Response AI (Appointwise)",
+    steps: [
+      { text: "Confirm SMS marketing is provisioned first — Appointwise plugs into the client's own Twilio number, it doesn't bring one." },
+      { text: "Set the client up in your Appointwise account and note the agent ID it gives you." },
+      { text: "Paste the agent ID and Appointwise's webhook URL into the fields on this tab." },
+      { text: "Test by texting the client's number and confirming Appointwise receives it, replies, and any resulting booking shows up correctly." },
+    ],
+  },
+  landing_page: {
+    title: "Create Landing Page",
+    steps: [
+      { text: "Not yet automated — see the automation note below this guide. For now: build the page manually from the DigiGrowth landing-page template, matching the offer/guarantee/CTA from onboarding." },
+      { text: "Push it live as its own Vercel project (not a route on the corporate site).", link: "https://vercel.com/new", linkLabel: "Vercel → New Project" },
+      { text: "Point the client's domain/subdomain at it via their registrar's DNS settings." },
+      { text: "Paste the live URL into the field on this tab." },
+    ],
+  },
+  ad_creatives: {
+    title: "Create Paid Ad Creatives",
+    steps: [
+      { text: "Use the ad-copy skill (content-agent) to write the ad copy/hook/CTA." },
+      { text: "Not yet automated for visuals — see the automation note below this guide. For now: produce the image/video manually using the copy above." },
+      { text: "Upload the finished creative directly into the client's ad account.", link: "https://business.facebook.com/adsmanager", linkLabel: "Meta Ads Manager" },
+    ],
+  },
+};
+
+// What's realistically automatable end-to-end vs. what always needs a human
+// in the loop (an account login, a legal/compliance review, a DNS change at
+// a registrar we don't control). Shown once at the top of the Marketing
+// Setup tab so it's obvious which steps are worth building automation for.
+const AUTOMATION_CANDIDATES = [
+  { step: "Landing Page", note: "Automatable: a content-agent skill could take the client's onboarding answers (offer, guarantee, CTA, brand) and generate the page's copy + layout automatically, matching the existing digigrowth-website design system. Still needs a human to review before it goes live and to push the Vercel deploy." },
+  { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automatable without picking an image-gen provider and building the Meta Ads API integration (currently a stub)." },
+  { step: "SMS / Email / Response AI", note: "Not automatable end-to-end: each requires a one-time human action outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent, an Appointwise account setup) that no API lets us do on someone's behalf. What IS already automated: the number purchase itself, and every send/receive once connected." },
+];
+
 // Per-client resource hub: three single-value platform fields (Ads Manager,
 // Registrar, Hosting) stored on the client row, plus an open-ended list for
 // everything else (Drive links, brand assets, marketing material, etc.).
@@ -1143,6 +1207,60 @@ const MARKETING_STEPS = [
   },
 ];
 
+// The "click a step, get a doc with numbered instructions + the exact links
+// to go to" surface — one guide at a time, rendered via portal like the
+// existing dropdown menus in this file.
+function GuideModal({ guide, onClose }) {
+  if (!guide) return null;
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
+        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#0d1830", border: "1px solid #1a2540", borderRadius: 12,
+          width: "100%", maxWidth: 560, maxHeight: "80vh", overflow: "auto",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.6)", padding: 22,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#e8f0ff" }}>
+            {guide.title}
+          </div>
+          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={onClose}>CLOSE</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {guide.steps.map((s, i) => (
+            <div key={i} style={{ display: "flex", gap: 10 }}>
+              <div style={{
+                flexShrink: 0, width: 20, height: 20, borderRadius: "50%",
+                background: "rgba(58,123,213,0.18)", color: "#9cc4f5",
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 10, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>{i + 1}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12.5, color: "#d0e8ff", lineHeight: 1.5 }}>{s.text}</div>
+                {s.link && (
+                  <a href={s.link} target="_blank" rel="noreferrer"
+                    style={{ display: "inline-block", marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5" }}>
+                    → {s.linkLabel || s.link}
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ClientMarketingSetup({ clientId }) {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1154,6 +1272,8 @@ function ClientMarketingSetup({ clientId }) {
   const [saving, setSaving] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState("");
   const [testingEmail, setTestingEmail] = useState(false);
+  const [guideKey, setGuideKey] = useState(null); // which step's guide modal is open
+  const [showAutomation, setShowAutomation] = useState(false);
 
   const load = async () => {
     const r = await fetch(API(`/clients/${clientId}/marketing-config`));
@@ -1236,10 +1356,27 @@ function ClientMarketingSetup({ clientId }) {
       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 12, lineHeight: 1.5 }}>
         This client's OWN marketing infrastructure — their Twilio number, their email-sending
         domain, their Appointwise agent, their landing page, their ad creatives. Separate from
-        DigiGrowth's own outreach system.
+        DigiGrowth's own outreach system. Numbered steps below (1-5) are meant to be done in order.
       </div>
 
-      {MARKETING_STEPS.map((step) => (
+      <button
+        className="btn btn-secondary" style={{ fontSize: 10, marginBottom: 12 }}
+        onClick={() => setShowAutomation((s) => !s)}
+      >
+        {showAutomation ? "HIDE AUTOMATION NOTES" : "WHAT CAN BE AUTOMATED?"}
+      </button>
+      {showAutomation && (
+        <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(58,123,213,0.06)", marginBottom: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {AUTOMATION_CANDIDATES.map((a) => (
+            <div key={a.step}>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 700, color: "#9cc4f5" }}>{a.step}</div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", marginTop: 2, lineHeight: 1.5 }}>{a.note}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {MARKETING_STEPS.map((step, idx) => (
         <div key={step.key} style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8,
@@ -1247,11 +1384,17 @@ function ClientMarketingSetup({ clientId }) {
           <div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600, color: "#c8d8f0", display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ color: step.done(config) ? "#4ade80" : "#5a7aa0" }}>{step.done(config) ? "✓" : "○"}</span>
-              {step.label}
+              {idx + 1}. {step.label}
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", marginTop: 2 }}>
               {step.status(config)}
             </div>
+            <button
+              className="btn btn-secondary" style={{ fontSize: 9, marginTop: 6, padding: "3px 8px" }}
+              onClick={() => setGuideKey(step.key)}
+            >
+              SET UP GUIDE
+            </button>
           </div>
           {step.key === "sms" && !config?.twilio_number && (
             <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={provisionNumber} disabled={provisioning}>
@@ -1328,6 +1471,8 @@ function ClientMarketingSetup({ clientId }) {
           {error}
         </div>
       )}
+
+      <GuideModal guide={guideKey ? MARKETING_GUIDES[guideKey] : null} onClose={() => setGuideKey(null)} />
     </div>
   );
 }
