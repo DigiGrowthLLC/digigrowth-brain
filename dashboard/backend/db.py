@@ -818,11 +818,29 @@ async def _create_schema(pool: asyncpg.Pool):
                 twilio_number          TEXT,
                 email_subdomain        TEXT,
                 email_dns_status       TEXT NOT NULL DEFAULT 'pending',
+                gmail_refresh_token    TEXT,
+                gmail_sender_email     TEXT,
                 appointwise_agent_id   TEXT,
+                appointwise_webhook_url TEXT,
                 landing_page_url       TEXT,
                 ad_creative_status     JSONB NOT NULL DEFAULT '{}',
                 updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
             );
+
+            -- Outbound/inbound email sent through the CLIENT's own Google
+            -- Workspace mailbox (client_marketing_config.gmail_refresh_token),
+            -- mirroring email_messages but for the client's own mailbox, never
+            -- DigiGrowth's shared one.
+            CREATE TABLE IF NOT EXISTS client_email_messages (
+                id           SERIAL PRIMARY KEY,
+                client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                to_email     TEXT NOT NULL,
+                subject      TEXT NOT NULL,
+                body         TEXT NOT NULL,
+                gmail_message_id TEXT,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_email_messages_client ON client_email_messages(client_id, created_at DESC);
 
             -- The client's own outbound SMS sequence template, shaped like
             -- sms_sequences.py's stage model but intentionally a separate
@@ -856,3 +874,63 @@ async def _create_schema(pool: asyncpg.Pool):
             );
             CREATE INDEX IF NOT EXISTS idx_client_sms_messages_client ON client_sms_messages(client_id, created_at DESC);
         """)
+        # Templatize the launch checklist itself: fill in the real,
+        # step-by-step setup SOP for SMS/Response AI/Email as each item's
+        # description, so "Set up SMS marketing" etc. isn't just a bare
+        # checkbox — it's the repeatable playbook. Only fills a NULL/blank
+        # description so an admin's later edit via the ClientsPanel editor
+        # is never clobbered on a later deploy.
+        await conn.execute(
+            """
+            UPDATE launch_checklist_items SET description = $2
+            WHERE title = $1 AND (description IS NULL OR description = '')
+            """,
+            "Set up SMS marketing",
+            "1) Marketing Setup tab -> Buy Number (provisions a dedicated Twilio "
+            "subaccount + local number for this client). "
+            "2) Register an A2P 10DLC Brand + Campaign for the client's "
+            "subaccount in the Twilio console using their real business "
+            "name/EIN -- unregistered numbers get filtered/blocked at volume. "
+            "3) Confirm the inbound webhook (set automatically on purchase) "
+            "points at /webhooks/client-sms/{client_id}. "
+            "4) Send yourself a test text to/from the new number; confirm it "
+            "shows up via GET /clients/{id}/sms-messages. "
+            "5) Once Response AI is connected, confirm it's using this same "
+            "number, not one of its own.",
+        )
+        await conn.execute(
+            """
+            UPDATE launch_checklist_items SET description = $2
+            WHERE title = $1 AND (description IS NULL OR description = '')
+            """,
+            "Set up response AI",
+            "1) Confirm SMS marketing is provisioned first -- Appointwise "
+            "plugs into the client's own Twilio number, it doesn't bring one. "
+            "2) Set the client up in Appointwise's own dashboard; note the "
+            "agent ID. "
+            "3) Paste the agent ID into this client's Marketing Setup tab. "
+            "4) Once Appointwise's inbound-forwarding webhook contract is "
+            "confirmed, paste their webhook URL into the same tab -- until "
+            "then inbound texts just log for manual reply. "
+            "5) Test: text the client's number, confirm Appointwise receives "
+            "it, replies, and any resulting booking shows up correctly.",
+        )
+        await conn.execute(
+            """
+            UPDATE launch_checklist_items SET description = $2
+            WHERE title = $1 AND (description IS NULL OR description = '')
+            """,
+            "Set up email marketing",
+            "1) Confirm the client has (or buy them) Google Workspace on "
+            "their own domain -- this is the real sending mailbox, not "
+            "DigiGrowth's Gmail. "
+            "2) Locally run reauth_google.py logged into that mailbox to "
+            "generate a refresh token. "
+            "3) Paste the refresh token and sender email into this client's "
+            "Marketing Setup tab. "
+            "4) Send a test email from the tab and confirm it lands (check "
+            "spam too). "
+            "5) Confirm SPF/DKIM/DMARC are set at the client's registrar per "
+            "Workspace's setup wizard -- required for real deliverability, "
+            "not just for sends to succeed.",
+        )

@@ -818,22 +818,28 @@ function ClientLaunchChecklist({ clientId }) {
         return (
           <div
             key={item.id}
-            onClick={() => toggle(item)}
             style={{
-              display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, cursor: "pointer",
+              padding: "8px 12px", borderRadius: 8,
               background: done ? "rgba(20,200,130,0.06)" : "rgba(255,255,255,0.02)",
             }}
           >
-            <span style={{
-              flexShrink: 0, width: 16, height: 16, borderRadius: 4,
-              border: done ? "1px solid #14c882" : "1px solid rgba(58,123,213,0.35)",
-              background: done ? "#14c882" : "transparent",
-              color: "#06110c", fontSize: 10, fontWeight: 700,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>{done ? "✓" : ""}</span>
-            <span style={{ fontSize: 12.5, color: done ? "#8fd9bd" : "#d0e8ff", textDecoration: done ? "line-through" : "none" }}>
-              {item.title}
-            </span>
+            <div onClick={() => toggle(item)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <span style={{
+                flexShrink: 0, width: 16, height: 16, borderRadius: 4,
+                border: done ? "1px solid #14c882" : "1px solid rgba(58,123,213,0.35)",
+                background: done ? "#14c882" : "transparent",
+                color: "#06110c", fontSize: 10, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>{done ? "✓" : ""}</span>
+              <span style={{ fontSize: 12.5, color: done ? "#8fd9bd" : "#d0e8ff", textDecoration: done ? "line-through" : "none" }}>
+                {item.title}
+              </span>
+            </div>
+            {item.description && (
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", marginTop: 6, marginLeft: 26, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                {item.description}
+              </div>
+            )}
           </div>
         );
       })}
@@ -1110,15 +1116,17 @@ const MARKETING_STEPS = [
   },
   {
     key: "email", label: "Email Marketing",
-    status: (cfg) => (cfg?.email_subdomain
-      ? `${cfg.email_subdomain} — ${cfg.email_dns_status}`
-      : "Not provisioned"),
-    done: (cfg) => cfg?.email_dns_status === "verified",
+    status: (cfg) => (cfg?.gmail_refresh_token
+      ? `Connected — ${cfg.gmail_sender_email || "mailbox linked"}`
+      : "Not connected"),
+    done: (cfg) => Boolean(cfg?.gmail_refresh_token),
   },
   {
     key: "response_ai", label: "Response AI (Appointwise)",
-    status: (cfg) => (cfg?.appointwise_agent_id ? `Connected — ${cfg.appointwise_agent_id}` : "Not connected"),
-    done: (cfg) => Boolean(cfg?.appointwise_agent_id),
+    status: (cfg) => (cfg?.appointwise_agent_id
+      ? `Connected — ${cfg.appointwise_agent_id}${cfg.appointwise_webhook_url ? "" : " (webhook not set)"}`
+      : "Not connected"),
+    done: (cfg) => Boolean(cfg?.appointwise_agent_id && cfg?.appointwise_webhook_url),
   },
   {
     key: "landing_page", label: "Landing Page",
@@ -1142,7 +1150,10 @@ function ClientMarketingSetup({ clientId }) {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null); // field name currently being edited
   const [draft, setDraft] = useState("");
+  const [draft2, setDraft2] = useState(""); // second field, for multi-field editors (email)
   const [saving, setSaving] = useState(false);
+  const [testEmailTo, setTestEmailTo] = useState("");
+  const [testingEmail, setTestingEmail] = useState(false);
 
   const load = async () => {
     const r = await fetch(API(`/clients/${clientId}/marketing-config`));
@@ -1185,6 +1196,37 @@ function ClientMarketingSetup({ clientId }) {
     load();
   };
 
+  const saveFields = async (fields) => {
+    setSaving(true);
+    await fetch(API(`/clients/${clientId}/marketing-config`), {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    });
+    setEditing(null);
+    setSaving(false);
+    load();
+  };
+
+  const sendTestEmail = async () => {
+    if (!testEmailTo.trim()) return;
+    setTestingEmail(true);
+    setError("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/test-email`), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: testEmailTo.trim() }),
+      });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        throw new Error(detail?.detail || "Failed to send test email");
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setTestingEmail(false);
+    }
+  };
+
   if (loading) {
     return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
   }
@@ -1217,27 +1259,50 @@ function ClientMarketingSetup({ clientId }) {
             </button>
           )}
           {step.key === "email" && (
-            editing === "email_subdomain" ? (
-              <div style={{ display: "flex", gap: 6 }}>
-                <input className="dg-input" style={{ fontSize: 11 }} value={draft} placeholder="mail.clientdomain.com"
-                  onChange={(e) => setDraft(e.target.value)} autoFocus />
-                <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={() => saveField("email_subdomain")} disabled={saving}>SAVE</button>
+            editing === "gmail" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft2} placeholder="hello@clientdomain.com"
+                  onChange={(e) => setDraft2(e.target.value)} autoFocus />
+                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft} placeholder="Gmail refresh token (from reauth_google.py)"
+                  onChange={(e) => setDraft(e.target.value)} />
+                <button className="btn btn-primary" style={{ fontSize: 10 }}
+                  onClick={() => saveFields({ gmail_sender_email: draft2.trim() || null, gmail_refresh_token: draft.trim() || null })}
+                  disabled={saving}>
+                  SAVE
+                </button>
               </div>
             ) : (
-              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => startEdit("email_subdomain", config?.email_subdomain)}>
-                {config?.email_subdomain ? "EDIT" : "SET SUBDOMAIN"}
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setEditing("gmail"); setDraft(config?.gmail_refresh_token || ""); setDraft2(config?.gmail_sender_email || ""); }}>
+                  {config?.gmail_refresh_token ? "EDIT" : "CONNECT MAILBOX"}
+                </button>
+                {config?.gmail_refresh_token && (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input className="dg-input" style={{ fontSize: 11, width: 150 }} value={testEmailTo} placeholder="test@…"
+                      onChange={(e) => setTestEmailTo(e.target.value)} />
+                    <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={sendTestEmail} disabled={testingEmail || !testEmailTo.trim()}>
+                      {testingEmail ? "SENDING…" : "TEST"}
+                    </button>
+                  </div>
+                )}
+              </div>
             )
           )}
           {step.key === "response_ai" && (
-            editing === "appointwise_agent_id" ? (
-              <div style={{ display: "flex", gap: 6 }}>
-                <input className="dg-input" style={{ fontSize: 11 }} value={draft} placeholder="Appointwise agent ID"
+            editing === "appointwise" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft} placeholder="Appointwise agent ID"
                   onChange={(e) => setDraft(e.target.value)} autoFocus />
-                <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={() => saveField("appointwise_agent_id")} disabled={saving}>SAVE</button>
+                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft2} placeholder="Appointwise webhook URL"
+                  onChange={(e) => setDraft2(e.target.value)} />
+                <button className="btn btn-primary" style={{ fontSize: 10 }}
+                  onClick={() => saveFields({ appointwise_agent_id: draft.trim() || null, appointwise_webhook_url: draft2.trim() || null })}
+                  disabled={saving}>
+                  SAVE
+                </button>
               </div>
             ) : (
-              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => startEdit("appointwise_agent_id", config?.appointwise_agent_id)}>
+              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setEditing("appointwise"); setDraft(config?.appointwise_agent_id || ""); setDraft2(config?.appointwise_webhook_url || ""); }}>
                 {config?.appointwise_agent_id ? "EDIT" : "CONNECT"}
               </button>
             )

@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 import integrations
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
-from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, content_tracking, client_marketing, client_sms_webhooks
+from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, content_tracking, client_marketing, client_sms_webhooks, appointwise_webhooks
 import call_reminders
 import cancel_sequence
 import dm_followup_sequence
@@ -438,6 +438,7 @@ app.include_router(email_tracking.router, prefix="/api")  # no auth — pixel + 
 app.include_router(client_portal.router)  # no auth — client-facing, scoped by unguessable token
 app.include_router(client_marketing.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(client_sms_webhooks.router)  # no auth — Twilio webhooks for each client's own number
+app.include_router(appointwise_webhooks.router)  # no auth — stub pending Appointwise's real API docs
 
 # Serve built frontend (populated by Railway build step). Hashed JS/CSS/image
 # assets are served directly from /assets; everything else falls back to

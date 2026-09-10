@@ -8,6 +8,7 @@ in client_sms_messages — never sms_messages, which is DigiGrowth's own.
 from fastapi import APIRouter, Request, Response
 
 from db import get_pool
+from routers.appointwise_webhooks import forward_inbound_to_appointwise
 
 router = APIRouter()  # public — no auth, mounted with no prefix in main.py
 
@@ -37,7 +38,8 @@ async def client_sms_inbound(client_id: int, request: Request):
             client_id, from_phone, to_phone, body, twilio_sid,
         )
 
-    # No AI auto-reply here — Phase 3 (Appointwise) is the intended response
-    # layer once wired; until then inbound messages just land for manual
-    # review, same as routers/sms.py's own "no AI auto-reply" behavior.
+    # No AI auto-reply here directly — forwarded to Appointwise (Phase 3) if
+    # that client has a webhook URL configured; otherwise the message just
+    # lands for manual review, same as routers/sms.py's own behavior.
+    await forward_inbound_to_appointwise(client_id, from_phone, body)
     return Response(content="", media_type="text/plain")

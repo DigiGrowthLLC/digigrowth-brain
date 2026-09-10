@@ -179,9 +179,16 @@ class ClientMarketingConfigUpdate(BaseModel):
     twilio_number: Optional[str] = None
     email_subdomain: Optional[str] = None
     email_dns_status: Optional[str] = None
+    gmail_refresh_token: Optional[str] = None
+    gmail_sender_email: Optional[str] = None
     appointwise_agent_id: Optional[str] = None
+    appointwise_webhook_url: Optional[str] = None
     landing_page_url: Optional[str] = None
     ad_creative_status: Optional[dict] = None
+
+
+class ClientTestEmail(BaseModel):
+    to: str
 
 
 class ClientSmsSequenceUpdate(BaseModel):

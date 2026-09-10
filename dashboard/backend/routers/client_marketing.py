@@ -11,9 +11,10 @@ tooling (Dylan provisioning a client's stack), not the client-facing portal.
 """
 from fastapi import APIRouter, HTTPException
 
+import client_email
 import client_sms
 from db import get_pool
-from models import ClientMarketingConfigUpdate, ClientSmsSequenceUpdate
+from models import ClientMarketingConfigUpdate, ClientSmsSequenceUpdate, ClientTestEmail
 
 router = APIRouter()
 
@@ -78,6 +79,23 @@ async def provision_sms_number(client_id: int, area_code: str | None = None):
     try:
         return await client_sms.provision_client_number(client_id, area_code=area_code)
     except (ValueError, RuntimeError) as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/clients/{client_id}/marketing-config/test-email")
+async def send_test_email(client_id: int, body: ClientTestEmail):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(404, "Client not found")
+    try:
+        result = await client_email.send_client_email(
+            client_id, body.to, "Test email from your DigiGrowth setup",
+            "This is a test send confirming your connected mailbox is working.",
+        )
+        return {"detail": result}
+    except RuntimeError as e:
         raise HTTPException(400, str(e))
 
 
