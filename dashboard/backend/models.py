@@ -174,6 +174,24 @@ class ClientLinkContact(BaseModel):
     contact_id: Optional[str] = None
 
 
+class ClientMarketingConfigUpdate(BaseModel):
+    twilio_subaccount_sid: Optional[str] = None
+    twilio_number: Optional[str] = None
+    email_subdomain: Optional[str] = None
+    email_dns_status: Optional[str] = None
+    appointwise_agent_id: Optional[str] = None
+    landing_page_url: Optional[str] = None
+    ad_creative_status: Optional[dict] = None
+
+
+class ClientSmsSequenceUpdate(BaseModel):
+    curiosity_opener: Optional[str] = None
+    relevance: Optional[str] = None
+    guarantee: Optional[str] = None
+    ask: Optional[str] = None
+    cta: Optional[str] = None
+
+
 class SequenceStepUpdate(BaseModel):
     label: Optional[str] = None
     channel: Optional[str] = None

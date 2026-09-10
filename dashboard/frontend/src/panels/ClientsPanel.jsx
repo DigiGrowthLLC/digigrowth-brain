@@ -71,6 +71,7 @@ const DETAILS_TABS = [
   { id: "onboarding", label: "Onboarding" },
   { id: "checklist", label: "Launch Checklist" },
   { id: "sequences", label: "Sequences" },
+  { id: "marketing", label: "Marketing Setup" },
   { id: "requests", label: "Requests" },
   { id: "uploads", label: "Uploads" },
   { id: "resources", label: "Resources" },
@@ -235,6 +236,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
           {detailsTab === "onboarding" && <OnboardingAnswers clientId={client.id} />}
           {detailsTab === "checklist" && <ClientLaunchChecklist clientId={client.id} />}
           {detailsTab === "sequences" && <ClientSequences clientId={client.id} />}
+          {detailsTab === "marketing" && <ClientMarketingSetup clientId={client.id} />}
           {detailsTab === "requests" && <ClientRequests clientId={client.id} />}
           {detailsTab === "uploads" && <ClientUploads clientId={client.id} />}
           {detailsTab === "resources" && <ClientResources clientId={client.id} />}
@@ -1100,6 +1102,171 @@ function MiscResourceRow({ resource, onDelete }) {
 // Registrar, Hosting) stored on the client row, plus an open-ended list for
 // everything else (Drive links, brand assets, marketing material, etc.).
 // Admin-only reference — nothing here is shown in the client's own portal.
+const MARKETING_STEPS = [
+  {
+    key: "sms", label: "SMS Marketing",
+    status: (cfg) => (cfg?.twilio_number ? `Provisioned — ${cfg.twilio_number}` : "Not provisioned"),
+    done: (cfg) => Boolean(cfg?.twilio_number),
+  },
+  {
+    key: "email", label: "Email Marketing",
+    status: (cfg) => (cfg?.email_subdomain
+      ? `${cfg.email_subdomain} — ${cfg.email_dns_status}`
+      : "Not provisioned"),
+    done: (cfg) => cfg?.email_dns_status === "verified",
+  },
+  {
+    key: "response_ai", label: "Response AI (Appointwise)",
+    status: (cfg) => (cfg?.appointwise_agent_id ? `Connected — ${cfg.appointwise_agent_id}` : "Not connected"),
+    done: (cfg) => Boolean(cfg?.appointwise_agent_id),
+  },
+  {
+    key: "landing_page", label: "Landing Page",
+    status: (cfg) => (cfg?.landing_page_url ? cfg.landing_page_url : "Not created"),
+    done: (cfg) => Boolean(cfg?.landing_page_url),
+  },
+  {
+    key: "ad_creatives", label: "Paid Ad Creatives",
+    status: (cfg) => {
+      const n = cfg?.ad_creative_status ? Object.keys(cfg.ad_creative_status).length : 0;
+      return n > 0 ? `${n} asset${n === 1 ? "" : "s"} tracked` : "None yet";
+    },
+    done: (cfg) => Boolean(cfg?.ad_creative_status && Object.keys(cfg.ad_creative_status).length > 0),
+  },
+];
+
+function ClientMarketingSetup({ clientId }) {
+  const [config, setConfig] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [provisioning, setProvisioning] = useState(false);
+  const [error, setError] = useState("");
+  const [editing, setEditing] = useState(null); // field name currently being edited
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/marketing-config`));
+    if (r.ok) setConfig(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const provisionNumber = async () => {
+    setProvisioning(true);
+    setError("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/provision-sms`), { method: "POST" });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        throw new Error(detail?.detail || "Failed to provision a number");
+      }
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setProvisioning(false);
+    }
+  };
+
+  const startEdit = (field, current) => {
+    setEditing(field);
+    setDraft(current || "");
+  };
+
+  const saveField = async (field) => {
+    setSaving(true);
+    await fetch(API(`/clients/${clientId}/marketing-config`), {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: draft.trim() || null }),
+    });
+    setEditing(null);
+    setSaving(false);
+    load();
+  };
+
+  if (loading) {
+    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  }
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 12, lineHeight: 1.5 }}>
+        This client's OWN marketing infrastructure — their Twilio number, their email-sending
+        domain, their Appointwise agent, their landing page, their ad creatives. Separate from
+        DigiGrowth's own outreach system.
+      </div>
+
+      {MARKETING_STEPS.map((step) => (
+        <div key={step.key} style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8,
+        }}>
+          <div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600, color: "#c8d8f0", display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ color: step.done(config) ? "#4ade80" : "#5a7aa0" }}>{step.done(config) ? "✓" : "○"}</span>
+              {step.label}
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", marginTop: 2 }}>
+              {step.status(config)}
+            </div>
+          </div>
+          {step.key === "sms" && !config?.twilio_number && (
+            <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={provisionNumber} disabled={provisioning}>
+              {provisioning ? "PROVISIONING…" : "BUY NUMBER"}
+            </button>
+          )}
+          {step.key === "email" && (
+            editing === "email_subdomain" ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <input className="dg-input" style={{ fontSize: 11 }} value={draft} placeholder="mail.clientdomain.com"
+                  onChange={(e) => setDraft(e.target.value)} autoFocus />
+                <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={() => saveField("email_subdomain")} disabled={saving}>SAVE</button>
+              </div>
+            ) : (
+              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => startEdit("email_subdomain", config?.email_subdomain)}>
+                {config?.email_subdomain ? "EDIT" : "SET SUBDOMAIN"}
+              </button>
+            )
+          )}
+          {step.key === "response_ai" && (
+            editing === "appointwise_agent_id" ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <input className="dg-input" style={{ fontSize: 11 }} value={draft} placeholder="Appointwise agent ID"
+                  onChange={(e) => setDraft(e.target.value)} autoFocus />
+                <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={() => saveField("appointwise_agent_id")} disabled={saving}>SAVE</button>
+              </div>
+            ) : (
+              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => startEdit("appointwise_agent_id", config?.appointwise_agent_id)}>
+                {config?.appointwise_agent_id ? "EDIT" : "CONNECT"}
+              </button>
+            )
+          )}
+          {step.key === "landing_page" && (
+            editing === "landing_page_url" ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <input className="dg-input" style={{ fontSize: 11 }} value={draft} placeholder="https://…"
+                  onChange={(e) => setDraft(e.target.value)} autoFocus />
+                <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={() => saveField("landing_page_url")} disabled={saving}>SAVE</button>
+              </div>
+            ) : (
+              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => startEdit("landing_page_url", config?.landing_page_url)}>
+                {config?.landing_page_url ? "EDIT" : "SET URL"}
+              </button>
+            )
+          )}
+        </div>
+      ))}
+
+      {error && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c", marginTop: 4 }}>
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClientResources({ clientId }) {
   const [client, setClient] = useState(null);
   const [resources, setResources] = useState([]);

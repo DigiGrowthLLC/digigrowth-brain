@@ -801,3 +801,58 @@ async def _create_schema(pool: asyncpg.Pool):
             VALUES ('email_stats_reset_at', to_char(date_trunc('day', now() - interval '1 day'), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), now())
             ON CONFLICT (key) DO NOTHING
         """)
+        # Client marketing infrastructure — deliberately separate from
+        # everything above. Everything above (contacts.client_id,
+        # sms_conversations, email_messages, campaigns, etc.) is DigiGrowth's
+        # own outreach machinery, gated so only an is_test client can touch
+        # DigiGrowth's shared Twilio/Gmail credentials. This block is the
+        # opposite: it provisions each real client's OWN Twilio number, own
+        # email-sending domain, own AI response agent (Appointwise), own
+        # landing page, and own ad creatives — infrastructure that belongs to
+        # the client, not to DigiGrowth, and must never share a table or a
+        # send credential with the internal outreach system above.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS client_marketing_config (
+                client_id              INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+                twilio_subaccount_sid  TEXT,
+                twilio_number          TEXT,
+                email_subdomain        TEXT,
+                email_dns_status       TEXT NOT NULL DEFAULT 'pending',
+                appointwise_agent_id   TEXT,
+                landing_page_url       TEXT,
+                ad_creative_status     JSONB NOT NULL DEFAULT '{}',
+                updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            -- The client's own outbound SMS sequence template, shaped like
+            -- sms_sequences.py's stage model but intentionally a separate
+            -- table — this is the client's message to their own prospects,
+            -- never DigiGrowth's.
+            CREATE TABLE IF NOT EXISTS client_sms_sequences (
+                id                SERIAL PRIMARY KEY,
+                client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                curiosity_opener  TEXT NOT NULL DEFAULT '',
+                relevance         TEXT NOT NULL DEFAULT '',
+                guarantee         TEXT NOT NULL DEFAULT '',
+                ask               TEXT NOT NULL DEFAULT '',
+                cta               TEXT NOT NULL DEFAULT '',
+                updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(client_id)
+            );
+
+            -- Inbound/outbound SMS sent through the CLIENT's own provisioned
+            -- Twilio number (client_marketing_config.twilio_number) — kept
+            -- separate from sms_messages, which is DigiGrowth's own number.
+            CREATE TABLE IF NOT EXISTS client_sms_messages (
+                id           SERIAL PRIMARY KEY,
+                client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                from_number  TEXT NOT NULL,
+                to_number    TEXT NOT NULL,
+                direction    TEXT NOT NULL,
+                body         TEXT NOT NULL,
+                twilio_sid   TEXT,
+                stage        TEXT,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_sms_messages_client ON client_sms_messages(client_id, created_at DESC);
+        """)
