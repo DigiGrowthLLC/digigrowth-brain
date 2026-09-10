@@ -1124,11 +1124,13 @@ const MARKETING_GUIDES = {
   email: {
     title: "Set Up Email Marketing",
     steps: [
-      { text: "Buy or confirm Google Workspace on the client's own domain — this is the real sending mailbox, not DigiGrowth's Gmail.", link: "https://workspace.google.com/", linkLabel: "Google Workspace" },
-      { text: "Locally run reauth_google.py (in the repo root) logged into that mailbox to generate a refresh token. (Local script — no link.)" },
-      { text: "Paste the refresh token and sender email into the fields on this tab." },
+      { text: "Confirm Google Workspace exists on the client's root domain (most established businesses already have it). If it does, DON'T send outreach from that root domain directly — see next step. If it doesn't, buy it.", link: "https://workspace.google.com/", linkLabel: "Google Workspace" },
+      { text: "Add a dedicated outreach SUBDOMAIN (e.g. go.clientdomain.com) as a Secondary Domain in the client's Workspace Admin console (Account → Domains → Add a domain). This keeps bulk outreach's reputation isolated from the client's real business mailbox — if the subdomain gets flagged, the root domain is protected.", link: "https://admin.google.com/", linkLabel: "Google Admin Console → Domains" },
+      { text: "Verify the subdomain (TXT record) and add its MX records at the registrar — you already have registrar access for this client." },
+      { text: "Add SPF/DKIM/DMARC records for that specific subdomain (Workspace's Admin console generates the DKIM key per domain) — same registrar access." },
+      { text: "Create the sending mailbox on the subdomain (e.g. contact@go.clientdomain.com), then locally run reauth_google.py logged into it to generate a refresh token. (Local script — no link.)" },
+      { text: "Paste the refresh token, sender email, and the subdomain into the fields on this tab." },
       { text: "Click TEST below and confirm the test email lands (check spam too)." },
-      { text: "Confirm SPF/DKIM/DMARC are set at the client's registrar per Workspace's own setup wizard (Admin console → Domains) — required for real deliverability.", link: "https://admin.google.com/", linkLabel: "Google Admin Console" },
       { text: "Automated — nothing to do here: every email sent through this mailbox is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test email." },
     ],
   },
@@ -1183,7 +1185,7 @@ const MARKETING_STEPS = [
   {
     key: "email", label: "Email Marketing",
     status: (cfg) => (cfg?.gmail_refresh_token
-      ? `Connected — ${cfg.gmail_sender_email || "mailbox linked"}`
+      ? `Connected — ${cfg.gmail_sender_email || "mailbox linked"}${cfg.email_subdomain ? ` (${cfg.email_subdomain})` : ""}`
       : "Not connected"),
     done: (cfg) => Boolean(cfg?.gmail_refresh_token),
   },
@@ -1271,6 +1273,7 @@ function ClientMarketingSetup({ clientId }) {
   const [editing, setEditing] = useState(null); // field name currently being edited
   const [draft, setDraft] = useState("");
   const [draft2, setDraft2] = useState(""); // second field, for multi-field editors (email)
+  const [draft3, setDraft3] = useState(""); // third field (email subdomain)
   const [saving, setSaving] = useState(false);
   const [testEmailTo, setTestEmailTo] = useState("");
   const [testingEmail, setTestingEmail] = useState(false);
@@ -1406,19 +1409,21 @@ function ClientMarketingSetup({ clientId }) {
           {step.key === "email" && (
             editing === "gmail" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft2} placeholder="hello@clientdomain.com"
-                  onChange={(e) => setDraft2(e.target.value)} autoFocus />
+                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft3} placeholder="go.clientdomain.com (outreach subdomain)"
+                  onChange={(e) => setDraft3(e.target.value)} autoFocus />
+                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft2} placeholder="contact@go.clientdomain.com"
+                  onChange={(e) => setDraft2(e.target.value)} />
                 <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft} placeholder="Gmail refresh token (from reauth_google.py)"
                   onChange={(e) => setDraft(e.target.value)} />
                 <button className="btn btn-primary" style={{ fontSize: 10 }}
-                  onClick={() => saveFields({ gmail_sender_email: draft2.trim() || null, gmail_refresh_token: draft.trim() || null })}
+                  onClick={() => saveFields({ email_subdomain: draft3.trim() || null, gmail_sender_email: draft2.trim() || null, gmail_refresh_token: draft.trim() || null })}
                   disabled={saving}>
                   SAVE
                 </button>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setEditing("gmail"); setDraft(config?.gmail_refresh_token || ""); setDraft2(config?.gmail_sender_email || ""); }}>
+                <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setEditing("gmail"); setDraft(config?.gmail_refresh_token || ""); setDraft2(config?.gmail_sender_email || ""); setDraft3(config?.email_subdomain || ""); }}>
                   {config?.gmail_refresh_token ? "EDIT" : "CONNECT MAILBOX"}
                 </button>
                 {config?.gmail_refresh_token && (
