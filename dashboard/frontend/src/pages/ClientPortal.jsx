@@ -951,6 +951,12 @@ function DashboardTab({ token, contactName }) {
     { name: "SMS Replies", value: stats.sms.replies, fill: "#14c882" },
     { name: "Email Sent", value: stats.email.sent, fill: "#f0a028" },
     { name: "Email Replies", value: stats.email.replies, fill: "#a080f0" },
+    // Sent/received through the client's OWN provisioned Twilio number and
+    // Gmail mailbox (client_sms.py/client_email.py) — a separate rollup
+    // from the four above, which come from DigiGrowth's own outreach system.
+    { name: "Your Number — Sent", value: stats.campaign_sms?.sent || 0, fill: "#5ad1c8" },
+    { name: "Your Number — Received", value: stats.campaign_sms?.received || 0, fill: "#5ad1c8" },
+    { name: "Your Mailbox — Sent", value: stats.campaign_email?.sent || 0, fill: "#d15a9c" },
   ];
 
   return (
@@ -2226,6 +2232,87 @@ function InboxThread({ token, contactId, onSent }) {
 // reasoning as excluding the anchor contact elsewhere in this file.
 const INBOX_CHANNEL_OPTIONS = [["all", "All Channels"], ["sms", "SMS"], ["email", "Email"]];
 
+// Read-only feed of messages sent/received through the client's OWN
+// provisioned Twilio number and Gmail mailbox (client_sms.py/client_email.py)
+// — deliberately separate from the connected-threads panel below, which
+// reads DigiGrowth's own outreach tables. Collapsed by default since most
+// visits will be to the main inbox; expands to a flat, most-recent-first
+// list, no reply-from-portal (this flat log has no contact-matching yet).
+function CampaignActivityPanel({ token }) {
+  const [open, setOpen] = useState(false);
+  const [sms, setSms] = useState([]);
+  const [emails, setEmails] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!open || loaded) return;
+    Promise.all([
+      fetch(`/portal-api/${token}/campaign-sms`).then((r) => (r.ok ? r.json() : [])),
+      fetch(`/portal-api/${token}/campaign-email`).then((r) => (r.ok ? r.json() : [])),
+    ]).then(([s, e]) => { setSms(s); setEmails(e); setLoaded(true); });
+  }, [open, loaded, token]);
+
+  return (
+    <div className="glass-card" style={{ padding: "14px 18px", marginBottom: 16 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 8, width: "100%" }}
+      >
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: "#d0e8ff" }}>
+          Your Number & Mailbox Activity
+        </span>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
+          {open ? "▾ HIDE" : "▸ SHOW"}
+        </span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.06em", marginBottom: 8 }}>
+              SMS (YOUR NUMBER)
+            </div>
+            {sms.length === 0 && (
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
+                {loaded ? "NO MESSAGES YET" : "LOADING…"}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+              {sms.map((m) => (
+                <div key={m.id} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)" }}>
+                  <div style={{ fontSize: 11, color: "#d0e8ff" }}>{m.body}</div>
+                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 3 }}>
+                    {m.direction === "outbound" ? `→ ${m.to_number}` : `← ${m.from_number}`} · {new Date(m.created_at).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.06em", marginBottom: 8 }}>
+              EMAIL (YOUR MAILBOX)
+            </div>
+            {emails.length === 0 && (
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
+                {loaded ? "NO EMAILS YET" : "LOADING…"}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+              {emails.map((m) => (
+                <div key={m.id} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)" }}>
+                  <div style={{ fontSize: 11, color: "#d0e8ff", fontWeight: 600 }}>{m.subject}</div>
+                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 3 }}>
+                    → {m.to_email} · {new Date(m.created_at).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
   const [convos, setConvos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2307,6 +2394,7 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
           <PeriodToggle days={sinceFilter} setDays={setSinceFilter} options={PORTAL_PERIOD_OPTIONS} />
         </div>
       </div>
+      <CampaignActivityPanel token={token} />
       <div className="glass-card" style={{ padding: 0, overflow: "hidden", display: "grid", gridTemplateColumns: "300px 1fr", height: 560 }}>
         <div style={{ borderRight: "1px solid rgba(58,123,213,0.12)", overflowY: "auto" }}>
           {loading && <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}

@@ -429,6 +429,30 @@ async def portal_stats(token: str, period: str = "all"):
             "ORDER BY stat_date DESC LIMIT 30",
             client["id"],
         )
+        # This client's OWN provisioned Twilio number / Gmail mailbox
+        # (client_marketing.py/client_sms.py/client_email.py) — deliberately
+        # a separate rollup from sms_row/email_row above, which are
+        # DigiGrowth's own outreach system's tables. Never merged into the
+        # same counters so "sent" here can never be confused with DigiGrowth
+        # cold-outreach volume.
+        campaign_sms_row = await conn.fetchrow(
+            f"""
+            SELECT
+                COALESCE(SUM((direction = 'outbound')::int), 0) AS sent,
+                COALESCE(SUM((direction = 'inbound')::int), 0) AS received
+            FROM client_sms_messages
+            WHERE client_id = $1 {sms_since_clause.replace('sm.sent_at', 'created_at')}
+            """,
+            client["id"],
+        )
+        campaign_email_row = await conn.fetchrow(
+            f"""
+            SELECT COUNT(*) AS sent
+            FROM client_email_messages
+            WHERE client_id = $1 {email_since_clause.replace('em.sent_at', 'created_at')}
+            """,
+            client["id"],
+        )
         leads_total = await conn.fetchval(
             f"SELECT count(*) FROM contacts WHERE client_id = $1 AND NOT is_client_anchor {leads_since_clause}",
             client["id"],
@@ -479,6 +503,8 @@ async def portal_stats(token: str, period: str = "all"):
     return {
         "sms": dict(sms_row),
         "email": dict(email_row),
+        "campaign_sms": dict(campaign_sms_row),
+        "campaign_email": dict(campaign_email_row),
         "ads": {
             "platform": "meta",
             "status": "coming_soon",
@@ -487,6 +513,48 @@ async def portal_stats(token: str, period: str = "all"):
         "leads": {"total": leads_total},
         "appointments": appointments_out,
     }
+
+
+# ---------------- Campaign SMS / Email (the client's OWN Twilio number and ----
+# Gmail mailbox — client_sms.py/client_email.py — deliberately separate from
+# the sms_conversations/email_conversations-based Inbox above, which is
+# DigiGrowth's own outreach system. Read-only here: no reply-from-portal,
+# since that would need real contact-matching/threading work this simple
+# flat message log doesn't have yet. Grouped by the other party's
+# number/email so the portal can show "who's texted/emailed in" at a glance.
+
+@router.get("/{token}/campaign-sms")
+async def portal_campaign_sms(token: str):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT * FROM client_sms_messages
+            WHERE client_id = $1
+            ORDER BY created_at DESC
+            LIMIT 200
+            """,
+            client["id"],
+        )
+    return [dict(r) for r in rows]
+
+
+@router.get("/{token}/campaign-email")
+async def portal_campaign_email(token: str):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT * FROM client_email_messages
+            WHERE client_id = $1
+            ORDER BY created_at DESC
+            LIMIT 200
+            """,
+            client["id"],
+        )
+    return [dict(r) for r in rows]
 
 
 # ---------------- Appointments ----------------

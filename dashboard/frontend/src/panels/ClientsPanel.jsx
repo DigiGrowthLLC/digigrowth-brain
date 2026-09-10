@@ -1118,6 +1118,7 @@ const MARKETING_GUIDES = {
       { text: "Confirm the inbound webhook is set (this happens automatically on purchase) — nothing to do here, just verify." },
       { text: "Send yourself a test text to/from the new number and confirm it lands in the message log." },
       { text: "Once Response AI is connected below, confirm it's using this same number, not one of its own." },
+      { text: "Automated — nothing to do here: every message sent/received through this number is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test text." },
     ],
   },
   email: {
@@ -1128,6 +1129,7 @@ const MARKETING_GUIDES = {
       { text: "Paste the refresh token and sender email into the fields on this tab." },
       { text: "Click TEST below and confirm the test email lands (check spam too)." },
       { text: "Confirm SPF/DKIM/DMARC are set at the client's registrar per Workspace's own setup wizard (Admin console → Domains) — required for real deliverability.", link: "https://admin.google.com/", linkLabel: "Google Admin Console" },
+      { text: "Automated — nothing to do here: every email sent through this mailbox is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test email." },
     ],
   },
   response_ai: {
@@ -1165,7 +1167,7 @@ const MARKETING_GUIDES = {
 const AUTOMATION_CANDIDATES = [
   { step: "Landing Page", note: "Automatable: a content-agent skill could take the client's onboarding answers (offer, guarantee, CTA, brand) and generate the page's copy + layout automatically, matching the existing digigrowth-website design system. Still needs a human to review before it goes live and to push the Vercel deploy." },
   { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automatable without picking an image-gen provider and building the Meta Ads API integration (currently a stub)." },
-  { step: "SMS / Email / Response AI", note: "Not automatable end-to-end: each requires a one-time human action outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent, an Appointwise account setup) that no API lets us do on someone's behalf. What IS already automated: the number purchase itself, and every send/receive once connected." },
+  { step: "SMS / Email / Response AI", note: "Not automatable end-to-end: each requires a one-time human action outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent, an Appointwise account setup) that no API lets us do on someone's behalf. What IS already automated: the number/mailbox setup itself, every send/receive once connected, and — as of 2026-09-10 — the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats) happens automatically, no manual connection step needed." },
 ];
 
 // Per-client resource hub: three single-value platform fields (Ads Manager,
