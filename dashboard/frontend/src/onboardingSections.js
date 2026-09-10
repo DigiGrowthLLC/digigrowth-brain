@@ -10,11 +10,18 @@ export const SECTIONS = [
       { key: "service_area", label: "City/metro you serve, and do you treat multiple locations?" },
       { key: "top_conditions", label: "Top 3–5 conditions or complaints you treat most" },
       { key: "insurance", label: "Do you accept insurance, cash-pay, or both? If insurance, which panels?" },
+    ],
+  },
+  {
+    key: "legal",
+    title: "Legal & Business Registration",
+    questions: [
       { key: "legal_business_name", label: "Legal business name — exactly as registered with the IRS (check your CP 575 EIN confirmation letter). Needed to set up your text messaging." },
       { key: "business_type", label: "Business type — e.g. LLC, Corporation, Sole Proprietorship, Partnership, Non-Profit" },
       { key: "business_ein", label: "EIN / Business Registration Number (format 12-3456789). If you're a sole proprietor with no EIN, just say so." },
       { key: "business_industry", label: "Business industry (e.g. Healthcare, Professional Services)" },
       { key: "business_website_url", label: "Business website URL — must be live and reflect this business" },
+      { key: "business_address", label: "Business address (street, city, state, ZIP) — must match your registered business address" },
     ],
   },
   {

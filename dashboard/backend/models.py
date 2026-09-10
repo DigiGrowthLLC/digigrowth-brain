@@ -290,6 +290,7 @@ class LaunchChecklistStatusUpdate(BaseModel):
 
 ONBOARDING_SECTIONS = [
     "practice_snapshot",
+    "legal",
     "ideal_patient",
     "offer_economics",
     "differentiation_voice",
