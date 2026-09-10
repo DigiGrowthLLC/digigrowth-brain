@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 import { useParams } from "react-router-dom";
 import logoWordmark from "../assets/logo-wordmark.png";
 import {
@@ -78,49 +77,7 @@ function Field({ q, value, onChange }) {
   );
 }
 
-// The "click the step, get a document with the full instructions" surface
-// for a client-facing Next Steps item — keeps the list row itself short
-// (title only) instead of dumping every numbered step inline.
-function ActionItemDocModal({ item, onClose }) {
-  if (!item) return null;
-  return createPortal(
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
-        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#0d1830", border: "1px solid #1a2540", borderRadius: 12,
-          width: "100%", maxWidth: 560, maxHeight: "80vh", overflow: "auto",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.6)", padding: 22,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#e8f0ff" }}>
-            {item.title}
-          </div>
-          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={onClose}>CLOSE</button>
-        </div>
-        {item.description && (
-          <div style={{ fontSize: 13, color: "#d0e8ff", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{item.description}</div>
-        )}
-        {item.link_url && (
-          <a href={item.link_url} target="_blank" rel="noreferrer"
-            style={{ display: "inline-block", marginTop: 14, color: "#3a7bd5", fontSize: 12.5, textDecoration: "underline" }}>
-            → {item.link_url}
-          </a>
-        )}
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-function ActionItemRow({ token, item, onUpdated, onGoToTab, onOpenDoc }) {
+function ActionItemRow({ token, item, onUpdated, onGoToTab }) {
   const [saving, setSaving] = useState(false);
   const done = !!item.completed_at;
 
@@ -156,16 +113,14 @@ function ActionItemRow({ token, item, onUpdated, onGoToTab, onOpenDoc }) {
           {item.title}
         </div>
         {item.description && (
-          <button onClick={() => onOpenDoc(item)} style={{ marginTop: 6, background: "none", border: "none", color: "#3a7bd5", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
-            ▶ View Instructions
-          </button>
+          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
         )}
         {item.link_tab && TAB_LABELS[item.link_tab] && (
-          <button onClick={() => onGoToTab(item.link_tab)} style={{ marginTop: 6, marginLeft: item.description ? 14 : 0, background: "none", border: "none", color: "#3a7bd5", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+          <button onClick={() => onGoToTab(item.link_tab)} style={{ marginTop: 6, background: "none", border: "none", color: "#3a7bd5", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
             ▶ Go to {TAB_LABELS[item.link_tab]}
           </button>
         )}
-        {item.link_url && !item.description && (
+        {item.link_url && (
           <a href={item.link_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#3a7bd5", fontSize: 11.5, textDecoration: "underline" }}>
             ▶ Open Link
           </a>
@@ -178,7 +133,6 @@ function ActionItemRow({ token, item, onUpdated, onGoToTab, onOpenDoc }) {
 function NextStepsSection({ token, onGoToTab }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [openDocItem, setOpenDocItem] = useState(null);
 
   useEffect(() => {
     fetch(`/portal-api/${token}/action-items`)
@@ -202,11 +156,9 @@ function NextStepsSection({ token, onGoToTab }) {
             item={item}
             onUpdated={(updated) => setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))}
             onGoToTab={onGoToTab}
-            onOpenDoc={setOpenDocItem}
           />
         ))}
       </div>
-      <ActionItemDocModal item={openDocItem} onClose={() => setOpenDocItem(null)} />
     </div>
   );
 }
