@@ -340,11 +340,11 @@
       "last_scraped_date": "2026-09-08"
     },
     "Portland, OR": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 107,
+      "qualified_count": 18,
+      "last_scraped_date": "2026-09-09"
     },
     "Memphis, TN": {
       "status": "not_started",
