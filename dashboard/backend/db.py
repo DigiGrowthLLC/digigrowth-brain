@@ -934,3 +934,48 @@ async def _create_schema(pool: asyncpg.Pool):
             "Workspace's setup wizard -- required for real deliverability, "
             "not just for sends to succeed.",
         )
+        # Replaces the old "give us calendar access" client Next Steps item
+        # (asking the client to just hand over calendar access, no
+        # instructions) with a clearer, self-service version: add DigiGrowth
+        # as a Calendly ADMIN specifically (not a viewer), with numbered
+        # steps + links, including the create-an-account path for a client
+        # who doesn't have Calendly yet, and a disclaimer for clients on a
+        # different scheduling tool. Matched by the old title so this only
+        # ever fires once per environment; once renamed, the old title no
+        # longer matches and this becomes a permanent no-op. If no such item
+        # exists yet (fresh install, or already renamed to the new title),
+        # falls through to inserting it fresh instead.
+        _calendly_admin_title = "Add DigiGrowth as a Calendly Admin"
+        _calendly_admin_description = (
+            "1) If you don't already have a Calendly account, create one "
+            "first at https://calendly.com/signup (a free plan works to "
+            "start, though inviting an outside Admin may require a paid "
+            "team plan).\n"
+            "2) Once you have an account, log in at https://calendly.com/app, "
+            "go to your organization/team settings, and invite "
+            "dylanrg@digigrowthllc.com as an ADMIN (not just a Member/"
+            "viewer) so we can manage your booking pages and availability "
+            "directly.\n"
+            "3) Let us know once you've sent the invite so we can accept it.\n\n"
+            "If you use a different scheduling tool instead of Calendly, "
+            "just let us know which one and we'll walk you through "
+            "connecting that instead."
+        )
+        _old_calendar_item = await conn.fetchval(
+            "SELECT id FROM onboarding_action_items WHERE title ILIKE '%calendar access%' LIMIT 1"
+        )
+        if _old_calendar_item:
+            await conn.execute(
+                "UPDATE onboarding_action_items SET title = $2, description = $3, link_url = $4 WHERE id = $1",
+                _old_calendar_item, _calendly_admin_title, _calendly_admin_description, "https://calendly.com/app",
+            )
+        else:
+            _already_added = await conn.fetchval(
+                "SELECT id FROM onboarding_action_items WHERE title = $1", _calendly_admin_title
+            )
+            if not _already_added:
+                await conn.execute(
+                    "INSERT INTO onboarding_action_items (title, description, link_url, sort_order) "
+                    "VALUES ($1, $2, $3, 0)",
+                    _calendly_admin_title, _calendly_admin_description, "https://calendly.com/app",
+                )

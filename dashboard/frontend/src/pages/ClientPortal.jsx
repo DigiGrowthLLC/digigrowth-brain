@@ -113,7 +113,7 @@ function ActionItemRow({ token, item, onUpdated, onGoToTab }) {
           {item.title}
         </div>
         {item.description && (
-          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5 }}>{item.description}</div>
+          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
         )}
         {item.link_tab && TAB_LABELS[item.link_tab] && (
           <button onClick={() => onGoToTab(item.link_tab)} style={{ marginTop: 6, background: "none", border: "none", color: "#3a7bd5", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
@@ -190,7 +190,7 @@ function ChecklistRow({ item }) {
           {item.title}
         </div>
         {item.description && (
-          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5 }}>{item.description}</div>
+          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
         )}
       </div>
     </div>
