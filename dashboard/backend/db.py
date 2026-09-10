@@ -549,6 +549,17 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS calendly_url TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS booking_notification_enabled BOOLEAN NOT NULL DEFAULT true;
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS ads_manager_resource TEXT;
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS registrar_resource TEXT;
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS hosting_resource TEXT;
+            CREATE TABLE IF NOT EXISTS client_resources (
+                id         SERIAL PRIMARY KEY,
+                client_id  INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                label      TEXT NOT NULL,
+                value      TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
             ALTER TABLE watch_videos ADD COLUMN IF NOT EXISTS contact_id TEXT REFERENCES contacts(id) ON DELETE SET NULL;
             ALTER TABLE watch_videos ALTER COLUMN github_path DROP NOT NULL;
             ALTER TABLE watch_videos ADD COLUMN IF NOT EXISTS r2_key TEXT;

@@ -1,7 +1,6 @@
 import sys
 import subprocess
 import requests
-from urllib.parse import quote
 
 
 def doppler_secret(name):

@@ -153,6 +153,21 @@ class ClientUpdate(BaseModel):
     is_test: Optional[bool] = None
     calendly_url: Optional[str] = None
     booking_notification_enabled: Optional[bool] = None
+    ads_manager_resource: Optional[str] = None
+    registrar_resource: Optional[str] = None
+    hosting_resource: Optional[str] = None
+
+
+class ClientResourceCreate(BaseModel):
+    label: str
+    value: str
+    sort_order: int = 0
+
+
+class ClientResourceUpdate(BaseModel):
+    label: Optional[str] = None
+    value: Optional[str] = None
+    sort_order: Optional[int] = None
 
 
 class ClientLinkContact(BaseModel):
