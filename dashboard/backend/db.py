@@ -937,37 +937,28 @@ async def _create_schema(pool: asyncpg.Pool):
         # Replaces the old "give us calendar access" client Next Steps item
         # (asking the client to just hand over calendar access, no
         # instructions) with a clearer, self-service version: add DigiGrowth
-        # as a Calendly ADMIN specifically (not a viewer), with numbered
-        # steps + links, including the create-an-account path for a client
-        # who doesn't have Calendly yet, and a disclaimer for clients on a
-        # different scheduling tool. Matched by the old title so this only
+        # as a Calendly ADMIN specifically (not a viewer). Matches the same
+        # short-row + linked-guide-document pattern as the existing Meta Ads
+        # Access item (link_url points at a published guide, not raw steps
+        # crammed into description). Matched by the old title so this only
         # ever fires once per environment; once renamed, the old title no
         # longer matches and this becomes a permanent no-op. If no such item
         # exists yet (fresh install, or already renamed to the new title),
         # falls through to inserting it fresh instead.
         _calendly_admin_title = "Add DigiGrowth as a Calendly Admin"
         _calendly_admin_description = (
-            "1) If you don't already have a Calendly account, create one "
-            "first at https://calendly.com/signup (a free plan works to "
-            "start, though inviting an outside Admin may require a paid "
-            "team plan).\n"
-            "2) Once you have an account, log in at https://calendly.com/app, "
-            "go to your organization/team settings, and invite "
-            "dylanrg@digigrowthllc.com as an ADMIN (not just a Member/"
-            "viewer) so we can manage your booking pages and availability "
-            "directly.\n"
-            "3) Let us know once you've sent the invite so we can accept it.\n\n"
-            "If you use a different scheduling tool instead of Calendly, "
-            "just let us know which one and we'll walk you through "
-            "connecting that instead."
+            "Add us as an Admin on your Calendly account so we can manage your "
+            "booking pages and availability directly. Full steps and the exact "
+            "link to invite are in the guide below."
         )
+        _calendly_admin_guide_url = "https://claude.ai/code/artifact/80eef5cb-766b-4e3b-b539-f4ddfaf09e7b"
         _old_calendar_item = await conn.fetchval(
             "SELECT id FROM onboarding_action_items WHERE title ILIKE '%calendar access%' LIMIT 1"
         )
         if _old_calendar_item:
             await conn.execute(
                 "UPDATE onboarding_action_items SET title = $2, description = $3, link_url = $4 WHERE id = $1",
-                _old_calendar_item, _calendly_admin_title, _calendly_admin_description, "https://calendly.com/app",
+                _old_calendar_item, _calendly_admin_title, _calendly_admin_description, _calendly_admin_guide_url,
             )
         else:
             _already_added = await conn.fetchval(
@@ -977,5 +968,20 @@ async def _create_schema(pool: asyncpg.Pool):
                 await conn.execute(
                     "INSERT INTO onboarding_action_items (title, description, link_url, sort_order) "
                     "VALUES ($1, $2, $3, 0)",
-                    _calendly_admin_title, _calendly_admin_description, "https://calendly.com/app",
+                    _calendly_admin_title, _calendly_admin_description, _calendly_admin_guide_url,
                 )
+        # Corrective follow-up: the migration above initially shipped with a
+        # long numbered description and a raw calendly.com/app link instead
+        # of the short-row + linked-guide pattern above. Matched by that old
+        # placeholder link so this is a genuine one-time fix for an
+        # environment that already ran the pre-fix version; once corrected,
+        # link_url no longer equals the old value and this is a permanent
+        # no-op.
+        await conn.execute(
+            """
+            UPDATE onboarding_action_items
+            SET description = $2, link_url = $3
+            WHERE title = $1 AND link_url = 'https://calendly.com/app'
+            """,
+            _calendly_admin_title, _calendly_admin_description, _calendly_admin_guide_url,
+        )
