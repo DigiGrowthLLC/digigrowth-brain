@@ -354,10 +354,10 @@
       "last_scraped_date": "2026-09-09"
     },
     "Baltimore, MD": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 180,
-      "qualified_count": 11,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 209,
+      "qualified_count": 13,
       "last_scraped_date": "2026-09-09"
     },
     "Milwaukee, WI": {
