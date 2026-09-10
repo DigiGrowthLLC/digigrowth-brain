@@ -341,9 +341,9 @@
     },
     "Portland, OR": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 107,
-      "qualified_count": 18,
+      "term_index": 2,
+      "reviewed_count": 221,
+      "qualified_count": 20,
       "last_scraped_date": "2026-09-09"
     },
     "Memphis, TN": {
