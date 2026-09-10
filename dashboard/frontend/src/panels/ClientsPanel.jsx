@@ -1124,11 +1124,11 @@ const MARKETING_GUIDES = {
   email: {
     title: "Set Up Email Marketing",
     steps: [
-      { text: "Confirm Google Workspace exists on the client's root domain (most established businesses already have it). If it does, DON'T send outreach from that root domain directly — see next step. If it doesn't, buy it.", link: "https://workspace.google.com/", linkLabel: "Google Workspace" },
-      { text: "Add a dedicated outreach SUBDOMAIN (e.g. go.clientdomain.com) as a Secondary Domain in the client's Workspace Admin console (Account → Domains → Add a domain). This keeps bulk outreach's reputation isolated from the client's real business mailbox — if the subdomain gets flagged, the root domain is protected.", link: "https://admin.google.com/", linkLabel: "Google Admin Console → Domains" },
-      { text: "Verify the subdomain (TXT record) and add its MX records at the registrar — you already have registrar access for this client." },
-      { text: "Add SPF/DKIM/DMARC records for that specific subdomain (Workspace's Admin console generates the DKIM key per domain) — same registrar access." },
-      { text: "Create the sending mailbox on the subdomain (e.g. contact@go.clientdomain.com), then locally run reauth_google.py logged into it to generate a refresh token. (Local script — no link.)" },
+      { text: "Never send outreach from the client's own root domain, even a mailbox they don't use daily (e.g. contact@) — it shares reputation with their real business mailbox. Instead, verify a dedicated outreach SUBDOMAIN for this client (e.g. go.clientdomain.com) under DigiGrowth's OWN Workspace account, not the client's — you only need registrar access (TXT record) to do this, no client cooperation required.", link: "https://admin.google.com/", linkLabel: "Google Admin Console (digigrowthllc.com) → Domains" },
+      { text: "Check DigiGrowth's Workspace plan's domain limit before adding a lot of these as the client roster grows — each client needs one secondary domain." },
+      { text: "Add the subdomain's MX records at the client's registrar (you already have registrar access for this client)." },
+      { text: "Add SPF/DKIM/DMARC records for that specific subdomain (the Admin console generates the DKIM key per domain) — same registrar access." },
+      { text: "Create the sending mailbox on the subdomain under DigiGrowth's Workspace (e.g. contact@go.clientdomain.com), then locally run reauth_google.py logged into it to generate a refresh token. (Local script — no link.)" },
       { text: "Paste the refresh token, sender email, and the subdomain into the fields on this tab." },
       { text: "Click TEST below and confirm the test email lands (check spam too)." },
       { text: "Automated — nothing to do here: every email sent through this mailbox is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test email." },
