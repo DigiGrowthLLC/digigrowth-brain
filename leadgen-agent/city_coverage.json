@@ -439,8 +439,8 @@
     },
     "Omaha, NE": {
       "status": "in_progress",
-      "term_index": 2,
-      "reviewed_count": 212,
+      "term_index": 3,
+      "reviewed_count": 316,
       "qualified_count": 7,
       "last_scraped_date": "2026-09-10"
     },
