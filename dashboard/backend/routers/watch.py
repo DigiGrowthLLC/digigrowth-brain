@@ -199,7 +199,10 @@ async def watch_page(slug: str):
     if (fired[eventType]) return;
     fired[eventType] = true;
     var payload = JSON.stringify({{source: 'outreach_video', content_key: '{slug}', event_type: eventType}});
-    navigator.sendBeacon('/track/view-event', payload);
+    // A plain-string sendBeacon body defaults to Content-Type: text/plain,
+    // which the backend's dict-body parsing rejected with a 422 — wrap it
+    // in a Blob so the browser sends application/json instead.
+    navigator.sendBeacon('/track/view-event', new Blob([payload], {{type: 'application/json'}}));
   }}
   video.addEventListener('play', function() {{ track('play'); }});
   video.addEventListener('timeupdate', function() {{

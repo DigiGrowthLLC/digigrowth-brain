@@ -15,9 +15,10 @@ navigator.sendBeacon() from a fully public marketing site with no
 DigiGrowth auth of its own, and from the public /watch/{slug} pages.
 """
 
+import json
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from db import get_pool
 
 router = APIRouter()          # public — mounted with no auth
@@ -32,10 +33,30 @@ def _since(days: int) -> datetime:
 
 
 @router.post("/track/view-event")
-async def track_view_event(body: dict):
+async def track_view_event(request: Request):
     """Fire-and-forget — always returns quickly, never raises. Malformed
     payloads are silently dropped rather than erroring, since the caller
-    (sendBeacon) never reads the response anyway."""
+    (sendBeacon) never reads the response anyway.
+
+    Parses the raw body manually instead of declaring a `dict` parameter:
+    FastAPI's automatic body-to-dict validation requires a
+    `Content-Type: application/json` header, but `navigator.sendBeacon(url,
+    aJsonString)` — as originally called from both digigrowth-website's
+    tracking.js and watch.py's inline script — sends `text/plain` by
+    default, which made every one of those calls fail with a 422 and
+    silently drop the event server-side (confirmed live 2026-09-11: real
+    beacons from the production contact page were 422ing). Both call sites
+    were fixed to wrap the payload in a `Blob({type: 'application/json'})`,
+    but parsing content-type-agnostically here is the actual fix — it holds
+    even if a future call site (or a stale cached bundle) gets this wrong
+    again."""
+    try:
+        body = json.loads(await request.body())
+    except Exception:
+        return {"ok": True}
+    if not isinstance(body, dict):
+        return {"ok": True}
+
     source = (body.get("source") or "").strip()
     event_type = (body.get("event_type") or "").strip()
     content_key = (body.get("content_key") or "").strip()
