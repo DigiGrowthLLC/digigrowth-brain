@@ -410,9 +410,9 @@
       "last_scraped_date": "2026-09-10"
     },
     "Mesa, AZ": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 360,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 480,
       "qualified_count": 7,
       "last_scraped_date": "2026-09-10"
     },
