@@ -98,9 +98,19 @@ def _fill(template: str, row: dict, meeting_link: str) -> str:
     )
 
 
-async def _send_instance(row: dict, instance: str, templates: dict, stage: str):
+async def _send_instance(row: dict, instance: str, templates: dict, stage: str) -> bool:
     """Send one template instance (24h/6h/1h/reschedule) — SMS uses
-    its own text, email uses its own subject + body, independently editable."""
+    its own text, email uses its own subject + body, independently editable.
+
+    Returns True only if every channel that was actually attempted (phone
+    present -> SMS, email present -> email) genuinely went out. Returns
+    False if any attempted channel failed to send, so the caller knows NOT
+    to mark this window as sent — a real send failure (e.g. Twilio
+    rejecting the request) must stay retryable on the next poll, not get
+    silently treated the same as success. A failure logging the message
+    into sms_conversations AFTER Twilio already accepted it is reported
+    separately and does not, by itself, count as a send failure — the text
+    still reached the recipient, it just won't show up in the inbox UI."""
     # Blocking Google API call, hence to_thread — same pattern as gmail_send
     # below. Looked up once per send rather than once per template field.
     meeting_link = await asyncio.to_thread(
@@ -111,25 +121,38 @@ async def _send_instance(row: dict, instance: str, templates: dict, stage: str):
     subject     = _fill(templates[f"reminder_{instance}_email_subject"], row, meeting_link)
     email_body  = _fill(templates[f"reminder_{instance}_email_body"], row, meeting_link)
 
+    ok = True
+
     phone = (row.get("prospect_phone") or "").strip()
     if phone:
         try:
             sms_router._send_twilio(phone, sms_text)
-            pool = await get_pool()
-            async with pool.acquire() as conn:
-                await sms_router._get_or_create_conversation(conn, phone)
-                await sms_router._store_message(conn, phone, "assistant", sms_text, stage=stage, is_automated=True)
         except Exception as e:
-            print(f"[reminder_engine] SMS failed for {phone}: {e}")
+            print(f"[reminder_engine] SMS SEND FAILED for {phone} (window will retry next poll): {e}")
+            ok = False
+        else:
+            try:
+                pool = await get_pool()
+                async with pool.acquire() as conn:
+                    await sms_router._get_or_create_conversation(conn, phone)
+                    await sms_router._store_message(conn, phone, "assistant", sms_text, stage=stage, is_automated=True)
+            except Exception as e:
+                # The text already went out — this is a logging/inbox-visibility
+                # failure only, not a reason to resend it on the next poll.
+                print(f"[reminder_engine] SMS to {phone} sent but failed to log to inbox: {e}")
 
     email = (row.get("prospect_email") or "").strip()
     if email:
         try:
             result = await asyncio.to_thread(integrations.gmail_send, email, subject, email_body, is_automated=True)
             if not result.startswith("Sent email"):
-                print(f"[reminder_engine] email to {email} did not send: {result}")
+                print(f"[reminder_engine] email SEND FAILED for {email} (window will retry next poll): {result}")
+                ok = False
         except Exception as e:
-            print(f"[reminder_engine] email failed for {email}: {e}")
+            print(f"[reminder_engine] email SEND FAILED for {email} (window will retry next poll): {e}")
+            ok = False
+
+    return ok
 
 
 async def send_reschedule_confirmation(row: dict):
@@ -173,7 +196,9 @@ async def send_due_reminders():
             if lead_time < timedelta(hours=hours_before):
                 continue
             if now >= row["appointment_at"] - timedelta(hours=hours_before):
-                await _send_instance(row, instance, templates, f"reminder_{window_label}")
+                sent_ok = await _send_instance(row, instance, templates, f"reminder_{window_label}")
+                if not sent_ok:
+                    continue  # leave {sent_col} NULL so this window retries on the next poll
                 pool = await get_pool()
                 async with pool.acquire() as conn:
                     await conn.execute(
