@@ -361,10 +361,10 @@
       "last_scraped_date": "2026-09-09"
     },
     "Milwaukee, WI": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 360,
-      "qualified_count": 3,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 480,
+      "qualified_count": 6,
       "last_scraped_date": "2026-09-10"
     },
     "Albuquerque, NM": {
