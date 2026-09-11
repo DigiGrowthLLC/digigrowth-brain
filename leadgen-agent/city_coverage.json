@@ -403,10 +403,10 @@
       "last_scraped_date": "2026-09-03"
     },
     "Kansas City, MO": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 360,
-      "qualified_count": 6,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 480,
+      "qualified_count": 8,
       "last_scraped_date": "2026-09-10"
     },
     "Mesa, AZ": {
