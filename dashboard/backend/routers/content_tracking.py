@@ -85,6 +85,21 @@ async def track_view_event(request: Request):
     return {"ok": True}
 
 
+@admin_router.delete("/content-analytics/vsl")
+async def reset_vsl_stats():
+    """Wipe VSL view history (source='vsl' rows only — never touches
+    outreach_video rows, which are a separate real campaign history).
+    Added 2026-09-11 to clear out test-generated events from verifying the
+    /track/view-event content-type fix before real traffic starts counting
+    against the newly-swapped contact-page VSL."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        deleted = await conn.fetchval(
+            "WITH d AS (DELETE FROM content_view_events WHERE source = 'vsl' RETURNING 1) SELECT count(*) FROM d"
+        )
+    return {"deleted": deleted}
+
+
 @admin_router.get("/content-analytics/vsl")
 async def vsl_funnel(days: int = 0):
     """VSL funnel — deliberately NOT scoped to "who's a known lead" (that
