@@ -375,9 +375,9 @@
       "last_scraped_date": "2026-09-10"
     },
     "Fresno, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 280,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 358,
       "qualified_count": 4,
       "last_scraped_date": "2026-09-10"
     },
