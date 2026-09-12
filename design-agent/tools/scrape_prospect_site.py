@@ -82,7 +82,23 @@ _CAPTURE_JS = """
   ]);
   const header = firstMatch(['header', 'nav', '[class*="header"]', '[class*="nav"]']);
   const h1 = document.querySelector('h1');
-  const logoImg = firstMatch(['header img', 'nav img', '[class*="logo"] img', 'img[alt*="logo" i]']);
+
+  // A real logo is small (typically well under 100px tall) -- some
+  // one-page marketing sites wrap the whole hero, background photo
+  // included, in a semantic <header>, so "first img inside header" can
+  // wrongly match a full-bleed hero photo instead of the actual wordmark.
+  // Require logo-like dimensions; fall back to the unconstrained match
+  // only if nothing reasonably-sized was found.
+  function firstLogoMatch(selectors) {
+    for (const sel of selectors) {
+      for (const el of document.querySelectorAll(sel)) {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && r.height < 100 && r.width < 400) return el;
+      }
+    }
+    return firstMatch(selectors);
+  }
+  const logoImg = firstLogoMatch(['header img', 'nav img', '[class*="logo"] img', 'img[alt*="logo" i]']);
   const logoSrc = logoImg ? logoImg.src : null;
 
   // Real content photos: rendered reasonably large, visible, not the logo,
@@ -158,7 +174,12 @@ async def capture(url: str, screenshot_path: pathlib.Path) -> dict:
     return data
 
 
-def _fetch_as_data_uri(url: str) -> str | None:
+_MAX_PHOTO_WIDTH = 1100  # resize down to this before embedding — real site photography
+_JPEG_QUALITY = 78       # is frequently several MB at full resolution, way too heavy
+                         # for a page that needs to load fast off a cold-SMS tap.
+
+
+def _fetch_as_data_uri(url: str, compress: bool = False) -> str | None:
     if not url:
         return None
     try:
@@ -169,7 +190,24 @@ def _fetch_as_data_uri(url: str) -> str | None:
     content_type = res.headers.get("content-type", "").split(";")[0].strip()
     if not content_type or not content_type.startswith("image/"):
         content_type = mimetypes.guess_type(url)[0] or "image/png"
-    b64 = base64.b64encode(res.content).decode("ascii")
+
+    content = res.content
+    if compress:
+        try:
+            from PIL import Image
+            import io as _io
+            im = Image.open(_io.BytesIO(content)).convert("RGB")
+            if im.width > _MAX_PHOTO_WIDTH:
+                ratio = _MAX_PHOTO_WIDTH / im.width
+                im = im.resize((_MAX_PHOTO_WIDTH, int(im.height * ratio)), Image.LANCZOS)
+            buf = _io.BytesIO()
+            im.save(buf, format="JPEG", quality=_JPEG_QUALITY, optimize=True)
+            content = buf.getvalue()
+            content_type = "image/jpeg"
+        except Exception as e:
+            print(f"WARNING: photo compression failed, embedding original ({e})")
+
+    b64 = base64.b64encode(content).decode("ascii")
     return f"data:{content_type};base64,{b64}"
 
 
@@ -201,8 +239,8 @@ def main():
     palette_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     print("Downloading and embedding real images as data URIs...")
-    logo_data_uri = _fetch_as_data_uri(data.get("logo_src"))
-    photo_data_uris = [d for d in (_fetch_as_data_uri(u) for u in data.get("photo_srcs", [])) if d]
+    logo_data_uri = _fetch_as_data_uri(data.get("logo_src"))  # logos: keep crisp, usually small already
+    photo_data_uris = [d for d in (_fetch_as_data_uri(u, compress=True) for u in data.get("photo_srcs", [])) if d]
 
     assets = {"logo": logo_data_uri, "photos": photo_data_uris}
     assets_path = out_dir / "assets.json"
