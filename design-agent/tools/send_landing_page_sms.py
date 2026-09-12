@@ -37,8 +37,12 @@ def main():
     # Safety check — never fire off a link that doesn't actually resolve.
     # Real risk while the branded subdomain's DNS/SSL cert is still
     # propagating (see the "Setup note" in landing-page-mockup's SKILL.md).
+    # Uses GET, not HEAD — the /lp/{slug} route is GET-only (FastAPI doesn't
+    # auto-support HEAD on a route declared with only "GET"), so a HEAD
+    # check here would falsely 405 on a page that works fine.
     try:
-        check = requests.head(url, timeout=10, allow_redirects=True)
+        check = requests.get(url, timeout=10, allow_redirects=True, stream=True)
+        check.close()
         if check.status_code >= 400:
             print(f"REFUSING TO SEND: {url} returned HTTP {check.status_code}. "
                   f"Check `railway domain status pages.digigrowthllc.com` before retrying.")
