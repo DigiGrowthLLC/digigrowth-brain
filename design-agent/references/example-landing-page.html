@@ -75,7 +75,7 @@
     padding: 16px 32px; background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(36,155,176,0.12);
   }
-  header .brand { display: flex; align-items: center; gap: 10px; }
+  header .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; cursor: pointer; }
   header .brand img { height: 48px; }
   .hdr-cta {
     background: var(--teal); color: #fff; font-weight: 700; font-size: 13px;
@@ -347,15 +347,15 @@
 </head>
 <body>
 
-  <div class="disclaimer-bar">
+  <div id="top" class="disclaimer-bar">
     <span class="dot"></span>
     Preview &mdash; this is a quick mockup of what DigiGrowth's AI Growth Engine could build for Foundation Physical Therapy. Scroll down to see how it works.
   </div>
 
   <header>
-    <div class="brand">
+    <a class="brand" href="#top" aria-label="Back to top">
       <img src="__LOGO__" alt="Foundation Physical Therapy">
-    </div>
+    </a>
     <a class="hdr-cta" href="https://calendly.com/dylanrg-digigrowthllc/30min">Schedule a Free Consultation</a>
   </header>
 
