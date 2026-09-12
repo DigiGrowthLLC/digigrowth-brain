@@ -313,17 +313,35 @@
   .final-cta h2 { font-size: 26px; font-weight: 800; margin: 16px 0 26px; }
   .final-cta .cta-primary { background: #5fd4de; color: #0e1614; box-shadow: 0 10px 30px -6px rgba(95,212,222,0.4); }
   .scarcity {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
     margin-top: 18px; font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.6);
+    text-align: center;
   }
   .scarcity .pulse {
-    width: 7px; height: 7px; border-radius: 50%; background: #5fd4de; flex-shrink: 0;
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #5fd4de;
+    margin-right: 8px; vertical-align: middle;
     box-shadow: 0 0 0 0 rgba(95,212,222,0.6); animation: pulse 1.8s ease-out infinite;
   }
   @keyframes pulse {
     0% { box-shadow: 0 0 0 0 rgba(95,212,222,0.55); }
     70% { box-shadow: 0 0 0 7px rgba(95,212,222,0); }
     100% { box-shadow: 0 0 0 0 rgba(95,212,222,0); }
+  }
+
+  /* ── Phone-width headline/subhead sizing — every section header past the
+     hero was still using its tablet-width size on a narrow phone, taking up
+     too much of the screen relative to how much someone actually reads there. ── */
+  @media (max-width: 480px) {
+    .headline { font-size: 26px; line-height: 1.2; letter-spacing: -0.3px; }
+    .sub { font-size: 15px; }
+    .eyebrow { font-size: 10px; padding: 6px 13px; }
+    .section-head h2 { font-size: 22px; }
+    .funnel h2 { font-size: 19px; }
+    .funnel-sub { font-size: 13px; }
+    .gc-headline { font-size: 20px; }
+    .gc-sub { font-size: 13px; }
+    .partnership .section-head p { font-size: 13.5px; }
+    .final-cta h2 { font-size: 21px; margin: 14px 0 22px; }
+    .kicker { font-size: 9px; }
   }
 </style>
 </head>
