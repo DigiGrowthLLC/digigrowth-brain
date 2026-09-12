@@ -203,7 +203,13 @@ async def landing_page(slug: str, request: Request):
     # is meant to be served from a branded subdomain the app itself doesn't
     # need to know about (DNS/Railway-level routing, see module docstring).
     # OG tags need an absolute URL, not a relative one, for link previews.
-    base_url = f"{request.url.scheme}://{request.url.netloc}"
+    # Railway terminates TLS at its edge and forwards to this app as plain
+    # HTTP, so request.url.scheme reports "http" even over a real HTTPS
+    # connection — trust X-Forwarded-Proto (set by Railway's proxy) instead,
+    # falling back to https since every real deployment of this app sits
+    # behind TLS-only custom domains.
+    scheme = request.headers.get("x-forwarded-proto", "https")
+    base_url = f"{scheme}://{request.url.netloc}"
 
     business = html.escape(row["business"] or "your practice")
     og_title = f"A quick mockup for {business}"
