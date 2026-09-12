@@ -5,9 +5,9 @@ content-agent/tools/send_outreach_sms.py's Loom send: a hardcoded template,
 not read from the sms_sequences table, so a sequence edit can never silently
 break this flow.
 
-For prospects run through the landing-page-mockup skill, this message
+For prospects run through the landing-page-lead-magnet skill, this message
 REPLACES the sequence's long curiosity_opener pitch — it isn't appended to
-it (see design-agent's landing-page-mockup SKILL.md for why: the campaign
+it (see design-agent's landing-page-lead-magnet SKILL.md for why: the campaign
 report found that long pitch causing most of the funnel's drop-off).
 
 Usage: python send_landing_page_sms.py <phone> <name> <business> <url> <slug>
@@ -36,7 +36,7 @@ def main():
 
     # Safety check — never fire off a link that doesn't actually resolve.
     # Real risk while the branded subdomain's DNS/SSL cert is still
-    # propagating (see the "Setup note" in landing-page-mockup's SKILL.md).
+    # propagating (see the "Setup note" in landing-page-lead-magnet's SKILL.md).
     # Uses GET, not HEAD — the /lp/{slug} route is GET-only (FastAPI doesn't
     # auto-support HEAD on a route declared with only "GET"), so a HEAD
     # check here would falsely 405 on a page that works fine.
@@ -62,7 +62,7 @@ def main():
     # elsewhere for cold outreach).
     # Says "pilot program" deliberately — the landing page's Section 2
     # ("what this is") refers back to that exact phrase, so the two need
-    # to match; see design-agent's landing-page-mockup SKILL.md.
+    # to match; see design-agent's landing-page-lead-magnet SKILL.md.
     body = f"Hey {name} - mocked up what the pilot program could look like for {business}: {url}"
 
     resp = requests.post(

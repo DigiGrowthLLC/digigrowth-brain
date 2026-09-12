@@ -1,5 +1,5 @@
 """
-Fresh scrape of a prospect's real website for the landing-page-mockup skill.
+Fresh scrape of a prospect's real website for the landing-page-lead-magnet skill.
 
 Deliberately separate from leadgen-agent/lib.py's scrape_website_full: that
 scrape exists only to produce one throwaway opener sentence and discards

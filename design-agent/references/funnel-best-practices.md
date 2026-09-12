@@ -66,7 +66,7 @@ per run. Update this file when a real campaign result confirms or contradicts so
   mockup page lightweight (no heavy JS frameworks, inline critical CSS) — this is
   also just good practice for a page that needs to render fast from a cold SMS tap.
 
-## Applying This to the `landing-page-mockup` Skill
+## Applying This to the `landing-page-lead-magnet` Skill
 
 - Top-of-page mockup section: benefit-led framing of *their* booking flow, personalized,
   low-friction (no form at all needed at this stage — the ask is "look," not "convert"

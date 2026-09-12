@@ -406,7 +406,7 @@ async def _create_schema(pool: asyncpg.Pool):
             );
 
             -- Personalized cold-outreach landing-page mockups (design-agent's
-            -- landing-page-mockup skill). HTML is stored directly (a rendered
+            -- landing-page-lead-magnet skill). HTML is stored directly (a rendered
             -- page is a few KB — unlike watch_videos, no R2 needed for it);
             -- the hero screenshot/mockup image still goes through R2 since it
             -- needs a real og:image URL for the rich link-preview card.

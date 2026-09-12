@@ -88,7 +88,7 @@ def main():
         print(f"URL: {landing_pages_url}/lp/{slug}")
     except subprocess.CalledProcessError:
         # LANDING_PAGES_URL not set in Doppler yet — the branded subdomain
-        # hasn't been configured (see design-agent's landing-page-mockup
+        # hasn't been configured (see design-agent's landing-page-lead-magnet
         # skill, "branded subdomain" setup note). Print the path only.
         print(f"LP_PATH: /lp/{slug}")
         print("LANDING_PAGES_URL isn't set in Doppler yet — prepend the branded "

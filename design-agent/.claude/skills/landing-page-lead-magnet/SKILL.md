@@ -1,5 +1,5 @@
 ---
-name: landing-page-mockup
+name: landing-page-lead-magnet
 description: Given one cold-outreach prospect's name/business, scrape their real website, build a personalized landing-page mockup (their own booking flow + a funnel/guarantee explainer), show it for approval, then publish and send the link. Use when Dylan says "run the landing page skill for X" or asks to build a personalized outreach page for a specific prospect.
 ---
 

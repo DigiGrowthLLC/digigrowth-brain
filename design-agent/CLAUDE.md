@@ -25,7 +25,7 @@ Read this before writing any page copy — it encodes the structure and psycholo
 ## Skills
 
 Skills live in `.claude/skills/`. Load the relevant skill for the task:
-- `landing-page-mockup` — scrape a named prospect's website, generate a personalized landing-page mockup + funnel section, show it for approval, then publish and send the link.
+- `landing-page-lead-magnet` — scrape a named prospect's website, generate a personalized landing-page mockup + funnel section, show it for approval, then publish and send the link.
 
 ## Secrets
 

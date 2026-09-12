@@ -3,7 +3,7 @@ Public personalized landing-page mockups — no auth required.
 A prospect taps a texted link (https://<landing-pages-domain>/lp/<slug>) and
 gets a hosted, personalized page (a mockup of their own booking flow + a
 funnel/guarantee explainer) with Open Graph tags for a rich SMS/iMessage link
-preview. Built by design-agent's landing-page-mockup skill.
+preview. Built by design-agent's landing-page-lead-magnet skill.
 
 Same shape as routers/watch.py: creation/upload is authenticated (mounted
 under /api with require_auth in main.py); serving is public, scoped only by
