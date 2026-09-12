@@ -405,6 +405,23 @@ async def _create_schema(pool: asyncpg.Pool):
                 occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            -- Personalized cold-outreach landing-page mockups (design-agent's
+            -- landing-page-mockup skill). HTML is stored directly (a rendered
+            -- page is a few KB — unlike watch_videos, no R2 needed for it);
+            -- the hero screenshot/mockup image still goes through R2 since it
+            -- needs a real og:image URL for the rich link-preview card.
+            CREATE TABLE IF NOT EXISTS landing_pages (
+                slug         TEXT PRIMARY KEY,
+                contact_id   TEXT REFERENCES contacts(id) ON DELETE SET NULL,
+                business     TEXT,
+                html         TEXT NOT NULL,
+                hero_r2_key  TEXT,
+                status       TEXT NOT NULL DEFAULT 'draft',
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                approved_at  TIMESTAMPTZ,
+                sent_at      TIMESTAMPTZ
+            );
+
             -- Per-client outreach copy (Appointment Reminder / No Show /
             -- Cancellation sequences) shown read-only on the client portal's
             -- Sequences tab, edited by DigiGrowth staff from the Clients

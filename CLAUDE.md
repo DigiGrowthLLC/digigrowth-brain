@@ -17,6 +17,7 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 - `leadgen-agent/` — Google Maps scraper + lead qualifier
 - `apptset-agent/` — SMS appointment setter + newsletter (legacy)
 - `shared/github_sync.py` — shared utility: push file changes to GitHub (git CLI → GitHub REST API fallback)
+- `design-agent/` — DigiGrowth's web-page/website builder: scrapes a named cold-outreach prospect's real site and builds a hosted, personalized landing-page mockup (`landing-page-mockup` skill), served via `dashboard/backend/routers/landing_pages.py` + a `landing_pages` Postgres table (HTML stored directly) + Cloudflare R2 for the hero image
 
 ## External Repos
 

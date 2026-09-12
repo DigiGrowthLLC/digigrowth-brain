@@ -1,0 +1,539 @@
+<!--
+  APPROVED REFERENCE BUILD — landing-page-mockup skill
+
+  This is the real, Dylan-approved page for Foundation Physical Therapy
+  (Matthew MacLeod), kept through every round of feedback in the session that
+  built the landing-page-mockup skill (2026-09-12). It is not an abstract
+  template to fill in blanks on — it's a worked example of every structural
+  and copy rule in SKILL.md actually applied, including all the corrections
+  that came out of real feedback:
+    - Section 1 is pure patient-facing voice (no DigiGrowth/pilot/mockup
+      language leaks into it) — see the services/reviews section headers for
+      what that voice actually sounds like.
+    - Real extracted palette (rgb(36,155,176) teal, from palette.json) used
+      throughout, not an approximation.
+    - __LOGO__, __PHOTO0__, __PHOTO2__ are placeholders where this specific
+      build spliced in base64 data: URIs from assets.json (see
+      tools/scrape_prospect_site.py and tools/publish_landing_page.py) — a
+      new run splices its own prospect's real assets into the same
+      <img src="..."> spots, it doesn't reuse these.
+    - The funnel graphic uses the "impressions -> engagement -> qualified
+      leads -> consultations booked" vocabulary and count-up animation.
+    - The seam banner, guarantee callout, and partnership section text are
+      close to verbatim what should be said for a similar practice — reuse
+      the STRUCTURE and TONE, but re-derive the specific numbers/services/
+      reviews from each new prospect's own scrape. Never reuse Foundation
+      PT's specific services or reviews for a different business.
+    - No footer, no nav links in the header, no small gray footnote lines
+      anywhere — all removed in review for being unnecessary noise.
+
+  When writing a new page, read this file for structure/CSS-pattern
+  reference (the section order, the visual seam, the card-grid patterns,
+  the scroll-reveal + count-up script), then write fresh, business-specific
+  copy per SKILL.md step 4 — don't copy-paste Foundation PT's sentences into
+  someone else's page.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A quick mockup for Foundation Physical Therapy</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #16211d; }
+  a { color: inherit; }
+  img { display: block; max-width: 100%; }
+
+  :root {
+    --teal: rgb(36,155,176);
+    --teal-deep: rgb(24,120,138);
+    --ink: #16211d;
+    --mist: #f4f8f8;
+  }
+
+  .reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.7s ease, transform 0.7s ease; }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+
+  /* ── DISCLAIMER BAR — the very first thing anyone sees, before the mockup ── */
+  .disclaimer-bar {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    background: var(--ink); color: rgba(255,255,255,0.75); font-size: 12.5px; font-weight: 500;
+    text-align: center; padding: 11px 20px; line-height: 1.5;
+  }
+  .disclaimer-bar .dot {
+    flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: #5fd4de;
+    box-shadow: 0 0 8px rgba(95,212,222,0.7);
+  }
+  @media (max-width: 560px) { .disclaimer-bar { font-size: 11.5px; padding: 10px 14px; } }
+
+  /* ── HEADER ── */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px; background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(36,155,176,0.12);
+  }
+  header .brand { display: flex; align-items: center; gap: 10px; }
+  header .brand img { height: 48px; }
+  .hdr-cta {
+    background: var(--teal); color: #fff; font-weight: 700; font-size: 13px;
+    padding: 10px 20px; border-radius: 7px; text-decoration: none; white-space: nowrap;
+  }
+
+  /* ── SECTION 1 — HERO (asymmetric) ── */
+  .hero {
+    position: relative; overflow: hidden;
+    display: grid; grid-template-columns: 1.1fr 1fr; align-items: center; gap: 40px;
+    padding: 64px 48px 76px; min-height: 88svh;
+  }
+  .hero::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(560px 420px at 12% 8%, rgba(36,155,176,0.14) 0%, transparent 70%),
+      radial-gradient(480px 360px at 100% 90%, rgba(36,155,176,0.09) 0%, transparent 70%),
+      linear-gradient(rgba(36,155,176,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(36,155,176,0.05) 1px, transparent 1px);
+    background-size: auto, auto, 42px 42px, 42px 42px;
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 20%, #000 40%, transparent 90%);
+  }
+  .headline .gradient-text {
+    background: linear-gradient(90deg, var(--teal), var(--teal-deep));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .orb {
+    position: absolute; border-radius: 50%; filter: blur(50px); opacity: 0.35; z-index: 0; pointer-events: none;
+    background: radial-gradient(circle, rgba(36,155,176,0.55), transparent 70%);
+    animation: float 9s ease-in-out infinite;
+  }
+  .orb.o1 { width: 260px; height: 260px; top: -60px; left: 30%; animation-delay: 0s; }
+  .orb.o2 { width: 180px; height: 180px; bottom: 10%; right: 6%; animation-delay: 2.5s; }
+  @keyframes float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-24px); } }
+
+  .hero-copy { position: relative; z-index: 1; }
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--teal); background: rgba(36,155,176,0.08); border: 1px solid rgba(36,155,176,0.22);
+    border-radius: 20px; padding: 7px 16px; margin-bottom: 24px; display: inline-block;
+  }
+  .headline { font-size: 44px; font-weight: 800; line-height: 1.14; letter-spacing: -1px; color: var(--ink); }
+  .headline .accent { color: var(--teal); }
+  .sub { font-size: 17px; color: #5a6b65; max-width: 460px; margin: 20px 0 32px; line-height: 1.6; }
+  .cta-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .cta-primary {
+    display: inline-block; background: var(--teal); color: #fff; font-weight: 700; font-size: 15px;
+    padding: 16px 32px; border-radius: 8px; text-decoration: none;
+    box-shadow: 0 10px 30px -6px rgba(36,155,176,0.55), 0 2px 8px rgba(36,155,176,0.25);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .cta-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 34px -6px rgba(36,155,176,0.6); }
+  .cta-secondary {
+    display: inline-block; background: transparent; color: var(--ink); font-weight: 700; font-size: 15px;
+    padding: 16px 26px; border-radius: 8px; text-decoration: none; border: 1.5px solid rgba(22,33,29,0.16);
+  }
+  .proof-row { display: flex; gap: 30px; margin-top: 46px; flex-wrap: wrap; }
+  .proof .n { font-size: 20px; font-weight: 800; color: var(--teal); }
+  .proof .l { font-size: 11px; color: #8a978f; letter-spacing: 0.4px; text-transform: uppercase; margin-top: 3px; }
+
+  .hero-photo { position: relative; z-index: 1; border-radius: 18px; overflow: hidden; box-shadow: 0 30px 60px -20px rgba(16,33,29,0.35); }
+  .hero-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .hero-photo-badge {
+    position: absolute; bottom: 18px; left: 18px; background: rgba(255,255,255,0.92); backdrop-filter: blur(6px);
+    border-radius: 10px; padding: 10px 16px; font-size: 12px; font-weight: 700; color: var(--ink);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+  }
+  @media (max-width: 880px) { .hero { grid-template-columns: 1fr; padding: 48px 24px 56px; } .headline { font-size: 34px; } }
+
+  /* ── SEAM — explicit, unmissable break between "their mockup page" and "our pitch" ── */
+  .seam-banner {
+    position: relative; text-align: center; padding: 22px 24px;
+    background: repeating-linear-gradient(135deg, #16211d, #16211d 10px, #1c2a26 10px, #1c2a26 20px);
+    color: #fff; overflow: hidden;
+  }
+  .seam-banner .tag {
+    font-size: 12px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase;
+    color: #5fd4de;
+  }
+
+  /* ── SERVICES GRID ── */
+  .services { padding: 68px 48px; background: #fff; }
+  .wrap-wide { max-width: 1080px; margin: 0 auto; }
+  .section-head { text-align: center; max-width: 560px; margin: 0 auto 44px; }
+  .section-head h2 { font-size: 28px; font-weight: 800; color: var(--ink); line-height: 1.3; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .feat-card {
+    background: var(--mist); border-radius: 14px; padding: 26px 22px; border: 1px solid rgba(36,155,176,0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .feat-card:hover { transform: translateY(-4px); box-shadow: 0 16px 30px -12px rgba(36,155,176,0.25); }
+  .feat-card .ico { width: 40px; height: 40px; border-radius: 10px; background: var(--teal); margin-bottom: 16px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+  .feat-card h3 { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+  .feat-card p { font-size: 13.5px; color: #5a6b65; line-height: 1.55; }
+  @media (max-width: 880px) { .grid3 { grid-template-columns: 1fr; } .services { padding: 56px 24px; } }
+
+  /* ── REVIEWS ── */
+  .reviews { padding: 68px 48px; background: var(--ink); color: #fff; }
+  .grid3-rev { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .rev-card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 24px 22px; }
+  .rev-card .stars { color: #5fd4de; font-size: 14px; margin-bottom: 12px; letter-spacing: 2px; }
+  .rev-card p { font-size: 13.5px; line-height: 1.6; color: rgba(255,255,255,0.78); margin-bottom: 16px; }
+  .rev-card .who { font-size: 12px; font-weight: 700; color: #fff; }
+  @media (max-width: 880px) { .grid3-rev { grid-template-columns: 1fr; } .reviews { padding: 56px 24px; } }
+
+  /* ── FUNNEL / GUARANTEE — real narrowing graphic, patient's-eye view ── */
+  .funnel { padding: 76px 48px; background: #fff; }
+  .funnel-inner { max-width: 640px; margin: 0 auto; }
+  .kicker {
+    font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--teal); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .kicker::before { content: ""; width: 16px; height: 2px; background: var(--teal); display: inline-block; }
+  .funnel h2 { font-size: 24px; font-weight: 800; line-height: 1.35; margin-bottom: 8px; color: var(--ink); }
+  .funnel-sub { font-size: 14px; color: #5a6b65; margin-bottom: 36px; }
+
+  .funnel-graphic { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
+  .fbar {
+    width: 100%; border-radius: 12px; padding: 18px 24px; margin-bottom: 6px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    color: #fff; position: relative; box-shadow: 0 10px 24px -14px rgba(16,33,29,0.35);
+  }
+  .fbar .fnum { font-size: 26px; font-weight: 800; line-height: 1; white-space: nowrap; }
+  .fbar .flabel { font-size: 13.5px; font-weight: 600; opacity: 0.92; text-align: right; }
+  .fchevron { color: rgba(36,155,176,0.35); font-size: 14px; margin-bottom: 6px; }
+  .fbar.s1 { width: 100%; background: linear-gradient(90deg, rgba(36,155,176,0.55), rgba(36,155,176,0.75)); }
+  .fbar.s2 { width: 78%; background: linear-gradient(90deg, rgba(36,155,176,0.72), rgba(24,120,138,0.88)); }
+  .fbar.s3 { width: 56%; background: linear-gradient(90deg, rgba(24,120,138,0.9), rgba(18,95,110,0.95)); }
+  .fbar.s4 { width: 36%; background: var(--ink); }
+  .fbar.s4 .fnum { color: #5fd4de; }
+
+  .trust-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .trust-badge {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: var(--mist); border: 1px solid rgba(36,155,176,0.14); border-radius: 12px;
+    padding: 14px 20px; min-width: 120px;
+  }
+  .trust-badge .tn { font-size: 18px; font-weight: 800; color: var(--teal); }
+  .trust-badge .tl { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #8a978f; }
+
+  @media (max-width: 880px) {
+    .funnel { padding: 56px 24px; }
+    .fbar { padding: 14px 16px; }
+    .fbar .fnum { font-size: 20px; }
+    .fbar .flabel { font-size: 12px; }
+    .fbar.s1 { width: 100%; } .fbar.s2 { width: 88%; } .fbar.s3 { width: 72%; } .fbar.s4 { width: 56%; }
+  }
+
+  /* ── GUARANTEE CALLOUT — the hard promise, stated as plainly and boldly as possible ── */
+  .guarantee-callout {
+    background: var(--ink); color: #fff; padding: 60px 32px; text-align: center; position: relative; overflow: hidden;
+  }
+  .guarantee-callout::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(700px 400px at 50% 0%, rgba(95,212,222,0.16), transparent 70%);
+  }
+  .gc-inner { position: relative; max-width: 640px; margin: 0 auto; }
+  .gc-badge {
+    display: inline-flex; align-items: center; gap: 8px; background: rgba(95,212,222,0.12);
+    border: 1px solid rgba(95,212,222,0.3); color: #5fd4de; font-size: 11px; font-weight: 800;
+    letter-spacing: 2px; text-transform: uppercase; padding: 8px 18px; border-radius: 20px; margin-bottom: 22px;
+  }
+  .gc-headline { font-size: 30px; font-weight: 800; line-height: 1.3; margin-bottom: 8px; }
+  .gc-headline .num { color: #5fd4de; }
+  .gc-sub { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 34px; }
+  .gc-lines { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; max-width: 780px; margin: 0 auto; }
+  .gc-line {
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 24px 18px;
+  }
+  .gc-line .check {
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: #5fd4de; color: #0e1614;
+    display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px;
+  }
+  .gc-line p { font-size: 13.5px; line-height: 1.55; color: rgba(255,255,255,0.8); }
+  .gc-line strong { color: #fff; display: block; margin-bottom: 4px; }
+  @media (max-width: 720px) {
+    .guarantee-callout { padding: 48px 22px; } .gc-headline { font-size: 24px; }
+    .gc-lines { grid-template-columns: 1fr; }
+  }
+
+  /* ── THE PARTNERSHIP — full-funnel scope, vague on mechanism ── */
+  .partnership { padding: 76px 48px; background: linear-gradient(180deg, #fff 0%, var(--mist) 100%); position: relative; overflow: hidden; }
+  .partnership::before {
+    content: ""; position: absolute; top: -120px; right: -120px; width: 340px; height: 340px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(36,155,176,0.10), transparent 70%); pointer-events: none;
+  }
+  .partnership .wrap-wide { position: relative; }
+  .partnership .section-head { max-width: 640px; }
+  .partnership .section-head p { font-size: 15px; color: #5a6b65; line-height: 1.65; margin-top: 14px; }
+  .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; max-width: 1020px; margin: 44px auto 0; }
+  .pcard {
+    background: #fff; border: 1px solid #e7eeed; border-radius: 16px; padding: 30px 26px; text-align: left;
+    box-shadow: 0 4px 16px -10px rgba(16,33,29,0.12);
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  }
+  .pcard:hover { transform: translateY(-5px); box-shadow: 0 20px 34px -16px rgba(36,155,176,0.3); border-color: rgba(36,155,176,0.3); }
+  .pcard .pnum {
+    display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(140deg, var(--teal), var(--teal-deep)); color: #fff; font-size: 13px; font-weight: 800;
+    margin-bottom: 16px; box-shadow: 0 6px 14px -6px rgba(36,155,176,0.5);
+  }
+  .pcard h3 { font-size: 16.5px; font-weight: 700; color: var(--ink); margin-bottom: 9px; line-height: 1.35; }
+  .pcard p { font-size: 13.5px; color: #5a6b65; line-height: 1.65; }
+  @media (max-width: 880px) { .partnership { padding: 56px 24px; } .pgrid { grid-template-columns: 1fr; } }
+
+  /* ── WHY FREE / CURIOSITY (side-by-side) ── */
+  .split-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--mist); }
+  .split-panel { padding: 52px 48px; }
+  .split-panel.dashed { border-left: 1px dashed rgba(36,155,176,0.25); }
+  .split-panel p { font-size: 14px; line-height: 1.65; color: #3a4a45; }
+  .split-panel.italic p { font-style: italic; color: #5a6b65; }
+  @media (max-width: 880px) { .split-two { grid-template-columns: 1fr; } .split-panel { padding: 40px 24px; } .split-panel.dashed { border-left: none; border-top: 1px dashed rgba(36,155,176,0.25); } }
+
+  /* ── FINAL CTA ── */
+  .final-cta {
+    position: relative; overflow: hidden; text-align: center; padding: 76px 24px 84px;
+    background: var(--ink); color: #fff;
+  }
+  .final-cta .photo-bg { position: absolute; inset: 0; opacity: 0.18; }
+  .final-cta .photo-bg img { width: 100%; height: 100%; object-fit: cover; }
+  .final-cta .overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(22,33,29,0.55), var(--ink) 85%); }
+  .final-cta .content { position: relative; z-index: 1; max-width: 520px; margin: 0 auto; }
+  .final-cta .kicker { justify-content: center; color: #5fd4de; }
+  .final-cta .kicker::before { background: #5fd4de; }
+  .final-cta h2 { font-size: 26px; font-weight: 800; margin: 16px 0 26px; }
+  .final-cta .cta-primary { background: #5fd4de; color: #0e1614; box-shadow: 0 10px 30px -6px rgba(95,212,222,0.4); }
+  .scarcity {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-top: 18px; font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.6);
+  }
+  .scarcity .pulse {
+    width: 7px; height: 7px; border-radius: 50%; background: #5fd4de; flex-shrink: 0;
+    box-shadow: 0 0 0 0 rgba(95,212,222,0.6); animation: pulse 1.8s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(95,212,222,0.55); }
+    70% { box-shadow: 0 0 0 7px rgba(95,212,222,0); }
+    100% { box-shadow: 0 0 0 0 rgba(95,212,222,0); }
+  }
+</style>
+</head>
+<body>
+
+  <div class="disclaimer-bar">
+    <span class="dot"></span>
+    Preview &mdash; this is a quick mockup of what DigiGrowth's AI Growth Engine could build for Foundation Physical Therapy. Scroll down to see how it works.
+  </div>
+
+  <header>
+    <div class="brand">
+      <img src="__LOGO__" alt="Foundation Physical Therapy">
+    </div>
+    <a class="hdr-cta" href="https://calendly.com/dylanrg-digigrowthllc/30min">Schedule a Free Consultation</a>
+  </header>
+
+  <!-- SECTION 1 — THE MOCKUP -->
+  <section class="hero">
+    <div class="orb o1"></div>
+    <div class="orb o2"></div>
+    <div class="hero-copy reveal">
+      <span class="eyebrow">Build a Better You</span>
+      <h1 class="headline">Holistic, personalized physical therapy &mdash; for patients who want <span class="gradient-text">out-of-network, one-on-one</span> care.</h1>
+      <p class="sub">Empowering you to understand your body, take control of your health, and live above your injury.</p>
+      <div class="cta-row">
+        <a class="cta-primary" href="https://calendly.com/dylanrg-digigrowthllc/30min">Schedule a Free Consultation</a>
+        <a class="cta-secondary" href="#services">See Services</a>
+      </div>
+      <div class="proof-row">
+        <div class="proof"><div class="n">1-on-1</div><div class="l">Same Therapist</div></div>
+        <div class="proof"><div class="n">Root Cause</div><div class="l">Not Just Symptoms</div></div>
+        <div class="proof"><div class="n">Out-of-Network</div><div class="l">By Design</div></div>
+      </div>
+    </div>
+    <div class="hero-photo reveal">
+      <img src="__PHOTO0__" alt="Dr. Matthew MacLeod working with a patient at Foundation Physical Therapy">
+      <div class="hero-photo-badge">Dr. Matthew MacLeod, PT, DPT, OCS, ATC, CSCS</div>
+    </div>
+  </section>
+
+  <!-- Real services, written entirely in Foundation PT's own patient-facing voice -->
+  <section class="services" id="services">
+    <div class="wrap-wide">
+      <div class="section-head reveal">
+        <div class="kicker" style="justify-content:center;">How We Help You Heal</div>
+        <h2>Treatment built around the root cause &mdash; not just the pain.</h2>
+      </div>
+      <div class="grid3">
+        <div class="feat-card reveal"><div class="ico">DN</div><h3>Dry Needling</h3><p>Targets trigger points to decrease pain and speed soft-tissue recovery.</p></div>
+        <div class="feat-card reveal"><div class="ico">RC</div><h3>Running Conditioning</h3><p>Technique optimization for runners of all levels &mdash; keeping Running City, USA on its feet.</p></div>
+        <div class="feat-card reveal"><div class="ico">PS</div><h3>Post-Surgical Rehab</h3><p>Regain strength and mobility, minimizing complications, building back stronger.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Real reviews, written entirely in Foundation PT's own patient-facing voice -->
+  <section class="reviews" id="reviews">
+    <div class="wrap-wide">
+      <div class="section-head reveal">
+        <div class="kicker" style="justify-content:center; color:#5fd4de;">What Patients Say</div>
+        <h2 style="color:#fff;">You don't have to take our word for it.</h2>
+      </div>
+      <div class="grid3-rev">
+        <div class="rev-card reveal">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"I spent years going to various PTs for chronic shoulder pain. They would assign me the same routine week after week and nothing ever seriously helped. Foundation Physical Therapy helped me understand what my problem actually was and then guided me to fix it."</p>
+          <div class="who">&mdash; Ryan</div>
+        </div>
+        <div class="rev-card reveal">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"Dr. Matthew gives you his full, undivided attention through each session... Being a patient here is like talking to an expert mechanic, a therapist, and a personal trainer all at once."</p>
+          <div class="who">&mdash; Emily</div>
+        </div>
+        <div class="rev-card reveal">
+          <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+          <p>"I've tried everything: yoga, acupuncture, chiropractic, Alexander Technique, and massage therapy. But the treatment I received at Foundation Physical Therapy was the ONLY thing that has brought long-term and complete healing!"</p>
+          <div class="who">&mdash; Chelsea</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEAM — explicit end of the mockup, start of DigiGrowth's own pitch -->
+  <div class="seam-banner">
+    <div class="tag">&#9660; Preview Ends Here &#9660;</div>
+  </div>
+
+  <!-- SECTION 2 — what this is, naming the system -->
+  <div style="background:var(--mist); padding: 40px 24px; text-align:center;">
+    <div class="reveal" style="display:inline-flex; align-items:center; gap:8px; background:rgba(36,155,176,0.1); border:1px solid rgba(36,155,176,0.25); color:var(--teal); font-size:11px; font-weight:800; letter-spacing:2px; text-transform:uppercase; padding:7px 16px; border-radius:20px; margin-bottom:14px;">&#9881; The AI Growth Engine</div>
+    <p class="reveal" style="font-size:15px; color:#3a4a45; max-width:480px; margin:0 auto; line-height:1.6;">
+      This is a preview of what our AI Growth Engine &mdash; the pilot program we texted you about &mdash; would build for <strong style="color:var(--ink);">Foundation Physical Therapy</strong>.
+    </p>
+  </div>
+
+  <!-- SECTION 3 — funnel breakdown, patient's-eye view, real graphic + count-up -->
+  <section class="funnel" id="funnel">
+    <div class="funnel-inner">
+      <div class="kicker reveal" style="justify-content:center;">The AI Growth Engine &mdash; Your Patient Funnel</div>
+      <h2 class="reveal" style="text-align:center;">Here's what the AI Growth Engine typically delivers &mdash; not how we found you, how your patients find you.</h2>
+      <p class="funnel-sub reveal" style="text-align:center;">Typical/expected impressions, engagement, and qualified leads for an independent PT practice &mdash; not Foundation PT's actual numbers yet, and not a documented industry statistic. Watch it narrow:</p>
+
+      <div class="funnel-graphic reveal" id="funnelGraphic">
+        <div class="fbar s1"><span class="fnum" data-count="3400">0</span><span class="flabel">impressions<br>across your area</span></div>
+        <div class="fchevron">&#9660;</div>
+        <div class="fbar s2"><span class="fnum" data-count="180">0</span><span class="flabel">engagement<br>calls, messages, clicks</span></div>
+        <div class="fchevron">&#9660;</div>
+        <div class="fbar s3"><span class="fnum" data-count="45">0</span><span class="flabel">qualified leads<br>real fit for your practice</span></div>
+        <div class="fchevron">&#9660;</div>
+        <div class="fbar s4"><span class="fnum">10&ndash;20</span><span class="flabel">consultations booked</span></div>
+      </div>
+
+      <div class="trust-row reveal">
+        <div class="trust-badge"><div class="tn">24/7</div><div class="tl">Automated Follow-Up</div></div>
+        <div class="trust-badge"><div class="tn">&lt;60s</div><div class="tl">Lead Response</div></div>
+        <div class="trust-badge"><div class="tn">100%</div><div class="tl">Done For You</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GUARANTEE CALLOUT — pushed hard, on purpose, branded to the named system -->
+  <div class="guarantee-callout reveal">
+    <div class="gc-inner">
+      <div class="gc-badge">&#9881; The AI Growth Engine Guarantee</div>
+      <div class="gc-headline">The AI Growth Engine guarantees <span class="num">10&ndash;20</span> booked consultations.</div>
+      <div class="gc-sub">Here's what that promise actually means:</div>
+      <div class="gc-lines">
+        <div class="gc-line">
+          <span class="check">&#10003;</span>
+          <p><strong>Free until it's hit.</strong> If the Engine doesn't hit 10&ndash;20, we keep running it at no cost until it does. No renegotiation, no fine print.</p>
+        </div>
+        <div class="gc-line">
+          <span class="check">&#10003;</span>
+          <p><strong>Service fee is waived on our end.</strong> You don't pay us anything &mdash; we work for free until your results are hit.</p>
+        </div>
+        <div class="gc-line">
+          <span class="check">&#10003;</span>
+          <p><strong>We stand behind it.</strong> There's no version of this where Foundation PT doesn't come out ahead of where it started.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE PARTNERSHIP — full-funnel scope, stays vague on mechanism -->
+  <section class="partnership reveal">
+    <div class="wrap-wide">
+      <div class="section-head" style="margin-left:auto; margin-right:auto;">
+        <div class="kicker" style="justify-content:center;">&#9881; Beyond The Pilot</div>
+        <h2>We're not a lead vendor. We're a partner in the whole pipeline.</h2>
+        <p>The AI Growth Engine doesn't stop at handing you names. We run the full path &mdash; generating demand, qualifying it, and getting it booked &mdash; then keep working alongside you to improve lead quality, tighten close rates, and grow lifetime value per patient. The goal isn't one good month. It's capturing as much of your local market digitally as the practice can actually handle.</p>
+      </div>
+      <div class="pgrid">
+        <div class="pcard"><div class="pnum">01</div><h3>Full-funnel control</h3><p>From first impression to booked consultation, one system runs the whole path &mdash; not a lead list handed off and forgotten.</p></div>
+        <div class="pcard"><div class="pnum">02</div><h3>Partnership, not a handoff</h3><p>We stay in the loop after booking &mdash; refining what's working, cutting what isn't, together.</p></div>
+        <div class="pcard"><div class="pnum">03</div><h3>Compounding results</h3><p>Lead quality, close rate, and lifetime value all improve the longer the Engine runs &mdash; it's built to get better, not just repeat.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 4 & 5 — why free / curiosity gap -->
+  <div class="split-two">
+    <div class="split-panel reveal">
+      <div class="kicker">Why It's Free</div>
+      <p>We're running a small pilot cohort this cycle to build documented case studies in the PT space before raising our rates &mdash; free in exchange for a testimonial once results land.</p>
+    </div>
+    <div class="split-panel dashed italic reveal">
+      <div class="kicker">The Mechanism</div>
+      <p>The outreach sequence and scripts that drive these numbers are built per-practice &mdash; that's the part we walk through on the call, not something laid out here.</p>
+    </div>
+  </div>
+
+  <!-- SECTION 6 — single CTA -->
+  <section class="final-cta">
+    <div class="photo-bg"><img src="__PHOTO2__" alt=""></div>
+    <div class="overlay"></div>
+    <div class="content reveal">
+      <div class="kicker">Next Step</div>
+      <h2>Book 20 minutes to see what these numbers would actually look like for Foundation PT.</h2>
+      <a class="cta-primary" href="https://calendly.com/dylanrg-digigrowthllc/30min">Book Your 20-Minute Call</a>
+      <div class="scarcity"><span class="pulse"></span>We're only taking on 3 practices for this program this month</div>
+    </div>
+  </section>
+
+
+<script>
+  var els = document.querySelectorAll('.reveal');
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12 });
+  els.forEach(function(el) { io.observe(el); });
+
+  // Count-up for the funnel graphic's numbers, triggered once when it scrolls into view.
+  var funnelGraphic = document.getElementById('funnelGraphic');
+  if (funnelGraphic) {
+    var countIo = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (!entry.isIntersecting) return;
+        countIo.unobserve(entry.target);
+        entry.target.querySelectorAll('[data-count]').forEach(function(el) {
+          var target = parseInt(el.getAttribute('data-count'), 10);
+          var start = null;
+          var duration = 1100;
+          function step(ts) {
+            if (!start) start = ts;
+            var progress = Math.min((ts - start) / duration, 1);
+            var eased = 1 - Math.pow(1 - progress, 3);
+            el.textContent = Math.round(eased * target).toLocaleString();
+            if (progress < 1) requestAnimationFrame(step);
+          }
+          requestAnimationFrame(step);
+        });
+      });
+    }, { threshold: 0.3 });
+    countIo.observe(funnelGraphic);
+  }
+</script>
+
+</body>
+</html>

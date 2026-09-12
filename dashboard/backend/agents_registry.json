@@ -46,5 +46,13 @@
     "root_dir": "../../onboarding-agent",
     "color": "#f07028",
     "badge_class": "badge-orange"
+  },
+  {
+    "id": "design-agent",
+    "name": "Design Agent",
+    "description": "Scrapes prospect sites and builds personalized landing-page mockups for cold outreach",
+    "root_dir": "../../design-agent",
+    "color": "#e84393",
+    "badge_class": "badge-pink"
   }
 ]

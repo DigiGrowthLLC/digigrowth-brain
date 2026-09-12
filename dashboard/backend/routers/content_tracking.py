@@ -24,7 +24,7 @@ from db import get_pool
 router = APIRouter()          # public — mounted with no auth
 admin_router = APIRouter()    # authenticated — mounted under /api
 
-_VALID_SOURCES = {"vsl", "outreach_video"}
+_VALID_SOURCES = {"vsl", "outreach_video", "landing_page"}
 _VALID_EVENTS = {"view", "play", "progress_25", "progress_50", "progress_75", "complete"}
 
 
