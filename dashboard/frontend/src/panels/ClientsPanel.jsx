@@ -1133,14 +1133,24 @@ function UploadLightbox({ clientId, file, url, onClose, onDelete }) {
   );
 }
 
+const UPLOADS_PAGE_SIZE = 24;
+
 function ClientUploads({ clientId }) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState(null); // { file, url }
+  // Caps how many thumbnails actually mount at once — the previous version
+  // rendered (and lazy-loaded) every file in one grid the instant the tab
+  // opened; with a big batch that's still dozens of thumbnails mounting,
+  // observing, and fetching simultaneously even with per-item lazy-loading.
+  // Paging the render itself, not just the network fetch, is what actually
+  // keeps opening the tab fast regardless of how many files a client has.
+  const [visibleCount, setVisibleCount] = useState(UPLOADS_PAGE_SIZE);
 
   const load = async () => {
     const r = await fetch(API(`/clients/${clientId}/uploads`));
     if (r.ok) setFiles(await r.json());
+    setVisibleCount(UPLOADS_PAGE_SIZE);
     setLoading(false);
   };
 
@@ -1168,14 +1178,16 @@ function ClientUploads({ clientId }) {
     return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>NO FILES UPLOADED YET</div>;
   }
 
-  const media = files.filter((f) => f.file_type?.startsWith("image/") || f.file_type?.startsWith("video/"));
-  const other = files.filter((f) => !f.file_type?.startsWith("image/") && !f.file_type?.startsWith("video/"));
+  const visibleFiles = files.slice(0, visibleCount);
+  const media = visibleFiles.filter((f) => f.file_type?.startsWith("image/") || f.file_type?.startsWith("video/"));
+  const other = visibleFiles.filter((f) => !f.file_type?.startsWith("image/") && !f.file_type?.startsWith("video/"));
+  const hasMore = files.length > visibleCount;
 
   return (
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>
-          {files.length} FILE{files.length === 1 ? "" : "S"}
+          SHOWING {visibleFiles.length} OF {files.length} FILE{files.length === 1 ? "" : "S"}
         </div>
         <button
           className="btn btn-secondary" style={{ fontSize: 10 }}
@@ -1205,6 +1217,16 @@ function ClientUploads({ clientId }) {
               <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => remove(f)}>DELETE</button>
             </div>
           ))}
+        </div>
+      )}
+      {hasMore && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
+          <button
+            className="btn btn-secondary" style={{ fontSize: 10 }}
+            onClick={() => setVisibleCount((n) => n + UPLOADS_PAGE_SIZE)}
+          >
+            LOAD {Math.min(UPLOADS_PAGE_SIZE, files.length - visibleCount)} MORE
+          </button>
         </div>
       )}
       {lightbox && (
