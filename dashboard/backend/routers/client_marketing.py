@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException
 
 import client_email
 import client_sms
+import email_warmup
 from db import get_pool
 from models import ClientMarketingConfigUpdate, ClientSmsSequenceUpdate, ClientTestEmail
 
@@ -138,6 +139,29 @@ async def sync_client_email_now(client_id: int):
                 client_id, newest_ts,
             )
     return {"ok": True}
+
+
+@router.post("/clients/{client_id}/marketing-config/start-warmup")
+async def start_email_warmup(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(404, "Client not found")
+    try:
+        return await email_warmup.start_warmup(client_id)
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/clients/{client_id}/marketing-config/warmup-status")
+async def get_email_warmup_status(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(404, "Client not found")
+    return await email_warmup.get_status(client_id)
 
 
 @router.get("/clients/{client_id}/sms-sequence")

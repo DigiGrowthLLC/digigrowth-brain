@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse
 
 import integrations
 import client_email
+import email_warmup
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
 from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_sms_webhooks, appointwise_webhooks
@@ -353,6 +354,12 @@ async def lifespan(app: FastAPI):
         client_email.sync_client_email_job,
         IntervalTrigger(seconds=120),
         id="client-email-sync",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        email_warmup.send_due_touches,
+        IntervalTrigger(minutes=20),
+        id="email-warmup",
         replace_existing=True,
     )
     scheduler.add_job(

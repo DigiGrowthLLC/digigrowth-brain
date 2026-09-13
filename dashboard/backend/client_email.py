@@ -79,7 +79,15 @@ async def send_client_email(client_id: int, to: str, subject: str, body: str) ->
             """,
             client_id, to, subject, body, sent["id"],
         )
-        return f"Sent email to {to}: {subject}"
+
+    # Local import avoids a circular import (email_warmup imports this
+    # module to reuse _client_gmail_service). Best-effort — never raises,
+    # counts this real send toward the client's warm-up ramp target if one
+    # is running, but must never block or affect a real send either way.
+    import email_warmup
+    await email_warmup.record_real_send(client_id)
+
+    return f"Sent email to {to}: {subject}"
 
 
 # ── Inbound sync (a prospect replying to the client's mailbox) ──────────────

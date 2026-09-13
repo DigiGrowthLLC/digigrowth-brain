@@ -513,6 +513,16 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_touch1_sent_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_touch2_sent_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_touch3_sent_at TIMESTAMPTZ;
+            -- Permanent, never-cleared record of whether each touch has EVER
+            -- been sent to this conversation -- unlike the *_sent_at columns
+            -- above (which dm_followup_sequence.py resets to NULL every time
+            -- a new silence cycle starts, so the cycle-relative send timing
+            -- can restart), these three never get cleared. Lets a prospect
+            -- re-enter the sequence (go quiet again after replying) without
+            -- ever receiving the same touch twice. See dm_followup_sequence.py.
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_touch1_ever_sent_at TIMESTAMPTZ;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_touch2_ever_sent_at TIMESTAMPTZ;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_touch3_ever_sent_at TIMESTAMPTZ;
             ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
             ALTER TABLE sms_messages ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
             -- Excludes automated sequence sends (no_show/cancel/dm_followup/
@@ -699,6 +709,21 @@ async def _create_schema(pool: asyncpg.Pool):
                 dm_followup_touch2_sent_at = NULL, dm_followup_touch3_sent_at = NULL
             WHERE dm_followup_enrolled_at IS NULL AND dm_followup_anchor_at IS NOT NULL
         """)
+        # One-time backfill for the new "only ever send each touch once"
+        # lifetime cap: the *_ever_sent_at columns didn't exist until now, so
+        # any touch a prospect already received under the old (resettable)
+        # behavior needs to be backfilled as "ever sent" -- otherwise the
+        # very first new silence cycle after this ships would treat their
+        # already-delivered touches as never-sent and send them again.
+        # Idempotent -- only fills rows still NULL.
+        await conn.execute("""
+            UPDATE sms_conversations
+            SET dm_followup_touch1_ever_sent_at = COALESCE(dm_followup_touch1_ever_sent_at, dm_followup_touch1_sent_at),
+                dm_followup_touch2_ever_sent_at = COALESCE(dm_followup_touch2_ever_sent_at, dm_followup_touch2_sent_at),
+                dm_followup_touch3_ever_sent_at = COALESCE(dm_followup_touch3_ever_sent_at, dm_followup_touch3_sent_at)
+            WHERE dm_followup_touch1_sent_at IS NOT NULL OR dm_followup_touch2_sent_at IS NOT NULL
+               OR dm_followup_touch3_sent_at IS NOT NULL
+        """)
         # One-time backfill: is_automated didn't exist until every automated
         # sequence module already had weeks of send history, so every one of
         # those historical rows defaulted to is_automated=false and kept
@@ -870,6 +895,40 @@ async def _create_schema(pool: asyncpg.Pool):
                 created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             CREATE INDEX IF NOT EXISTS idx_client_email_messages_client ON client_email_messages(client_id, created_at DESC);
+
+            -- Email warm-up ramp state for a client's own mailbox (one row
+            -- per client, created on first "Start Warm-Up" click). Sends
+            -- made here go to a fixed internal seed list, not real
+            -- prospects, so they're logged separately in
+            -- client_email_warmup_log rather than client_email_messages —
+            -- that table feeds the client portal's Inbox Activity panel and
+            -- dashboard/analytics stats, which warm-up noise has no business
+            -- appearing in. sent_today/last_sent_date also get bumped by a
+            -- REAL send through the same mailbox (see client_email.py's
+            -- send_client_email), so real outreach that starts mid-warmup
+            -- counts toward that day's ramp target instead of stacking
+            -- redundant seed volume on top.
+            CREATE TABLE IF NOT EXISTS client_email_warmup (
+                client_id      INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+                status         TEXT NOT NULL DEFAULT 'not_started',
+                started_at     TIMESTAMPTZ,
+                completed_at   TIMESTAMPTZ,
+                current_day    INTEGER NOT NULL DEFAULT 0,
+                sent_today     INTEGER NOT NULL DEFAULT 0,
+                last_sent_date DATE,
+                last_sent_at   TIMESTAMPTZ,
+                seed_cursor    INTEGER NOT NULL DEFAULT 0,
+                updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE TABLE IF NOT EXISTS client_email_warmup_log (
+                id               SERIAL PRIMARY KEY,
+                client_id        INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                day_number       INTEGER NOT NULL,
+                to_email         TEXT NOT NULL,
+                gmail_message_id TEXT,
+                sent_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_email_warmup_log_client ON client_email_warmup_log(client_id, sent_at DESC);
 
             -- The client's own outbound SMS sequence template, shaped like
             -- sms_sequences.py's stage model but intentionally a separate

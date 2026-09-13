@@ -1142,6 +1142,7 @@ const MARKETING_GUIDES = {
         ] },
       { text: "Send a test email and confirm it lands (check spam too).", testAction: "email" },
       { text: "Automated — nothing to do here: every email sent through this mailbox is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test email." },
+      { text: "Before starting real outreach, run this mailbox through an automated warm-up to build sending reputation. Real outreach can still start any time even if warm-up isn't finished — it just tops up around whatever real volume already goes out.", warmupAction: true },
     ],
   },
   response_ai: {
@@ -1283,8 +1284,14 @@ function GuideStepFields({ fields, config, onSaveFields, onSaved }) {
 function GuideModal({
   guide, progress, onToggleStep, config, client, onSaveFields,
   testEmailTo, setTestEmailTo, sendTestEmail, testingEmail, testError,
-  syncEmailNow, syncingEmail, onClose,
+  syncEmailNow, syncingEmail,
+  warmupStatus, warmupLoading, warmupError, startWarmup, refreshWarmupStatus,
+  onClose,
 }) {
+  useEffect(() => {
+    if (guide?.steps?.some((s) => s.warmupAction)) refreshWarmupStatus?.();
+  }, [guide]);
+
   if (!guide) return null;
   const total = guide.steps.length;
   const doneCount = guide.steps.filter((_, i) => progress?.[i]).length;
@@ -1402,6 +1409,49 @@ function GuideModal({
                       </div>
                       {testError && (
                         <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{testError}</div>
+                      )}
+                    </div>
+                  )}
+                  {s.warmupAction && (
+                    <div style={{ marginTop: 8 }}>
+                      {!warmupStatus || warmupStatus.status === "not_started" ? (
+                        <button
+                          className="btn btn-primary" style={{ fontSize: 10 }}
+                          onClick={startWarmup} disabled={warmupLoading}
+                        >
+                          {warmupLoading ? "STARTING…" : "START WARM-UP"}
+                        </button>
+                      ) : (
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ flex: 1, height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                              <div style={{
+                                height: "100%",
+                                width: `${warmupStatus.total_days ? (Math.min(warmupStatus.current_day, warmupStatus.total_days) / warmupStatus.total_days) * 100 : 0}%`,
+                                background: warmupStatus.status === "complete" ? "#4ade80" : "#3a7bd5", transition: "width 0.2s",
+                              }} />
+                            </div>
+                            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", whiteSpace: "nowrap" }}>
+                              {warmupStatus.status === "complete"
+                                ? "WARM-UP COMPLETE ✓"
+                                : `DAY ${warmupStatus.current_day}/${warmupStatus.total_days}`}
+                            </div>
+                          </div>
+                          {warmupStatus.status === "running" && (
+                            <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
+                              {warmupStatus.sent_today}/{warmupStatus.day_target} sent today (real outreach sends count toward this too)
+                            </div>
+                          )}
+                          <button
+                            className="btn btn-secondary" style={{ fontSize: 9, padding: "3px 8px", marginTop: 6 }}
+                            onClick={refreshWarmupStatus} disabled={warmupLoading}
+                          >
+                            {warmupLoading ? "CHECKING…" : "REFRESH"}
+                          </button>
+                        </div>
+                      )}
+                      {warmupError && (
+                        <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{warmupError}</div>
                       )}
                     </div>
                   )}
@@ -1554,6 +1604,39 @@ function ClientMarketingSetup({ clientId }) {
     }
   };
 
+  const [warmupStatus, setWarmupStatus] = useState(null);
+  const [warmupLoading, setWarmupLoading] = useState(false);
+  const [warmupError, setWarmupError] = useState("");
+  const fetchWarmupStatus = async () => {
+    setWarmupLoading(true);
+    setWarmupError("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/warmup-status`));
+      if (!r.ok) throw new Error("Failed to load warm-up status");
+      setWarmupStatus(await r.json());
+    } catch (e) {
+      setWarmupError(e.message);
+    } finally {
+      setWarmupLoading(false);
+    }
+  };
+  const startWarmup = async () => {
+    setWarmupLoading(true);
+    setWarmupError("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/start-warmup`), { method: "POST" });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        throw new Error(detail?.detail || "Failed to start warm-up");
+      }
+      await fetchWarmupStatus();
+    } catch (e) {
+      setWarmupError(e.message);
+    } finally {
+      setWarmupLoading(false);
+    }
+  };
+
   if (loading) {
     return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
   }
@@ -1695,6 +1778,11 @@ function ClientMarketingSetup({ clientId }) {
         testError={error}
         syncEmailNow={syncEmailNow}
         syncingEmail={syncingEmail}
+        warmupStatus={warmupStatus}
+        warmupLoading={warmupLoading}
+        warmupError={warmupError}
+        startWarmup={startWarmup}
+        refreshWarmupStatus={fetchWarmupStatus}
         onClose={() => setGuideKey(null)}
       />
     </div>
