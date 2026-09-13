@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrosaCore | Pain Confidence Consultation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  Worked example for the funnel-building skill, Dylan-approved and shipped
+  live for CrosaCore (funnel.crosacore.com) — went through several rounds
+  of real feedback (trust-bar content/position, review-wall placement,
+  mobile hero reorder, sticky-CTA styling) before landing here. Reuse the
+  STRUCTURE and ENGINEERING PATTERNS below for a new client's funnel —
+  the CSS token system (:root custom properties, swap every value for the
+  new client's own scraped palette), the font-loading approach (a real
+  Google Fonts pairing, never Georgia/system defaults), the hero's 4-area
+  CSS Grid layout (see below), the review-wall masonry, the trust bar, the
+  sticky mobile CTA. NEVER reuse this file's specific copy, testimonials,
+  Fraunces/Work Sans font choice, or forest-green/cream palette for a
+  different client — all of that is CrosaCore's own brand and voice,
+  re-derived fresh every run from that client's own scrape + onboarding
+  answers per this skill's step 4.
+-->
+<style>
+  :root {
+    --cream: #F6F6F2;
+    --cream-2: #EFEFE8;
+    --ink: #16201D;
+    --forest: #1E3B33;
+    --forest-2: #294F45;
+    --sage: #DCE5DD;
+    --sage-line: #C7D3C8;
+    --gold: #B08D57;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+    font-optical-sizing: auto;
+    background: var(--cream);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-weight: 500; text-wrap: balance; }
+  .kicker, button, .cta, nav, .stat-num, .btn, .method-card h3, .price-card h3, .faq-item h3, .who {
+    font-family: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* header */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(246,246,242,0.94);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--sage-line);
+  }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; padding-bottom: 14px; gap: 12px; }
+  header img.logo { height: 40px; width: auto; }
+  header a.logo-link { text-decoration: none; color: inherit; display: flex; align-items: center; flex-shrink: 1; min-width: 0; }
+  header .btn-small { flex-shrink: 0; white-space: nowrap; }
+  @media (max-width: 420px) {
+    header img.logo { height: 26px; }
+    header .btn-small { padding: 8px 14px; font-size: 11.5px; }
+  }
+  .btn {
+    display: inline-block; text-decoration: none; text-align: center;
+    font-weight: 600; letter-spacing: 0.01em; border-radius: 999px;
+    padding: 14px 30px; font-size: 15px; cursor: pointer; border: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn-primary { background: var(--forest); color: #fff; box-shadow: 0 8px 22px rgba(30,59,51,0.28); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(30,59,51,0.36); }
+  .btn-small { padding: 10px 20px; font-size: 13px; }
+  .btn-ghost { background: transparent; border: 1.5px solid var(--forest); color: var(--forest); }
+
+  /* sticky mobile cta — a floating frosted pill, not a flat bar, so it pops
+     off the page instead of blending into the bottom edge.
+     BUG ALREADY FOUND ONCE, DON'T REINTRODUCE IT: the element in the body
+     below is `<a class="sticky-cta">` — the anchor IS .sticky-cta, there is
+     no nested `<a>` inside it. An earlier draft styled `.sticky-cta a`
+     (a descendant selector), which silently matched nothing — the text
+     rendered dark, underlined, and barely legible against the dark
+     background for a while before anyone caught it. Style the color/
+     text-decoration/font-weight directly on `.sticky-cta` itself, as done
+     here — never re-add a `.sticky-cta a` rule. */
+  .sticky-cta {
+    position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 60;
+    background: rgba(20,40,34,0.86);
+    backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 999px; padding: 16px 22px;
+    display: none; text-align: center;
+    box-shadow: 0 16px 40px rgba(10,20,17,0.45), 0 2px 8px rgba(10,20,17,0.3);
+    color: #fff !important; text-decoration: none !important; font-weight: 800; font-size: 15.5px;
+    letter-spacing: 0.01em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  @media (max-width: 720px) { .sticky-cta { display: block; } body { padding-bottom: 84px; } }
+
+  /* hero */
+  .hero { position: relative; overflow: hidden; padding: 64px 0 56px; }
+  .hero::before {
+    content: ""; position: absolute; top: -140px; right: -120px; width: 480px; height: 480px;
+    background: radial-gradient(circle, rgba(30,59,51,0.14), transparent 70%);
+    border-radius: 50%; animation: drift 14s ease-in-out infinite alternate;
+  }
+  @keyframes drift { from { transform: translate(0,0); } to { transform: translate(-30px, 40px); } }
+  /* The hero is split into 4 named CSS Grid areas (rating/title/lead/cta)
+     plus the photo, rather than one text column + one photo column. This
+     is deliberate: it's the only way to give mobile a DIFFERENT visual
+     order than desktop without touching desktop at all or reordering the
+     actual DOM. Desktop keeps its own grid-template-areas (text areas
+     stacked in one column, photo spanning all rows on the other); the
+     mobile media query below just redeclares grid-template-areas with a
+     different order — no `order:` property gymnastics, no duplicated
+     markup. If a future client's requested mobile order changes again,
+     change the media query's grid-template-areas line, nothing else. */
+  .hero .grid {
+    display: grid; grid-template-columns: 1.05fr 0.95fr; column-gap: 48px; row-gap: 0; align-items: center;
+    position: relative; z-index: 1;
+    grid-template-areas: "rating photo" "title photo" "lead photo" "cta photo";
+  }
+  .hero-rating { grid-area: rating; }
+  .hero-title { grid-area: title; }
+  .hero-lead { grid-area: lead; }
+  .hero-cta { grid-area: cta; }
+  .rating-pill {
+    display: inline-flex; align-items: center; gap: 12px; background: #fff;
+    border: 1px solid var(--sage-line); border-radius: 999px; padding: 8px 20px 8px 8px;
+    margin-bottom: 20px; box-shadow: 0 8px 22px rgba(22,32,29,0.08);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  .avatar-stack { display: flex; }
+  .avatar-stack span {
+    width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #fff; margin-left: -10px;
+  }
+  .avatar-stack span:first-child { margin-left: 0; }
+  .avatar-stack .more { background: var(--forest); font-size: 10px; }
+  .rating-pill .pill-text { display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
+  .rating-pill .stars { color: var(--gold); font-size: 13px; letter-spacing: 1px; }
+  .rating-pill .pill-label { font-size: 11.5px; font-weight: 600; color: var(--forest-2); }
+  .eyebrow {
+    display: inline-block; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--forest); font-weight: 700; margin-bottom: 18px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  .hero h1 { font-size: 44px; line-height: 1.12; margin: 0 0 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .hero p.lead { font-size: 18px; line-height: 1.6; color: #3A453F; margin: 0 0 28px; max-width: 46ch; }
+  .hero-photo { border-radius: 18px; overflow: hidden; box-shadow: 0 30px 60px rgba(22,32,29,0.18); aspect-ratio: 4/5; }
+  .hero-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .hero-badges { display: flex; gap: 18px; margin-top: 26px; flex-wrap: wrap; }
+  .hero-badge { font-size: 13px; color: #3A453F; display: flex; align-items: center; gap: 7px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--forest); display: inline-block; }
+
+  @media (max-width: 860px) {
+    .hero .grid {
+      grid-template-columns: 1fr; column-gap: 0; row-gap: 20px;
+      grid-template-areas: "title" "rating" "photo" "lead" "cta";
+    }
+    .hero h1 { font-size: 30px; }
+    .hero-photo { aspect-ratio: 16/10; }
+    .hero-rating { margin-bottom: 0; }
+    .hero p.lead { margin-bottom: 0; }
+  }
+
+  /* trust bar */
+  .trustbar { background: var(--forest); color: #fff; padding: 22px 0; }
+  .trustbar .wrap { display: flex; flex-wrap: wrap; justify-content: center; gap: 34px; text-align: center; }
+  .trustbar .item { font-size: 13px; letter-spacing: 0.02em; opacity: 0.94; max-width: 220px; }
+  .trustbar .item strong { display: block; font-size: 15px; margin-bottom: 2px; }
+
+  /* section shell */
+  section { padding: 76px 0; }
+  section.alt { background: var(--cream-2); }
+  .section-head { text-align: center; max-width: 640px; margin: 0 auto 44px; }
+  .kicker { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--forest); font-weight: 700; margin-bottom: 12px; }
+  h2 { font-size: 30px; line-height: 1.25; margin: 0 0 14px; font-weight: 700; letter-spacing: -0.01em; }
+  section p.intro { font-size: 16.5px; line-height: 1.65; color: #3A453F; margin: 0; }
+
+  @media (max-width: 480px) {
+    .hero h1 { font-size: 26px; }
+    h2 { font-size: 21px; }
+    section { padding: 52px 0; }
+  }
+
+  /* reveal */
+  .reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.7s ease, transform 0.7s ease; }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+
+  /* problem list */
+  .problem-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 8px; }
+  .problem-card {
+    background: #fff; border: 1px solid var(--sage-line); border-radius: 14px; padding: 22px 24px;
+    font-size: 15px; line-height: 1.55; color: #2B342F;
+  }
+  @media (max-width: 720px) { .problem-grid { grid-template-columns: 1fr; } }
+
+  /* method steps */
+  .method-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 10px; }
+  .method-card {
+    background: #fff; border-radius: 16px; padding: 30px 26px; text-align: center;
+    box-shadow: 0 10px 30px rgba(22,32,29,0.06); position: relative;
+  }
+  .method-num {
+    width: 40px; height: 40px; border-radius: 50%; background: var(--sage); color: var(--forest);
+    display: flex; align-items: center; justify-content: center; font-weight: 800; margin: 0 auto 16px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  .method-card h3 { font-size: 17px; margin: 0 0 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+  .method-card p { font-size: 14px; color: #3A453F; line-height: 1.6; margin: 0; }
+  @media (max-width: 720px) { .method-row { grid-template-columns: 1fr; } }
+
+  /* pricing */
+  .price-row { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 8px; }
+  .price-card { background: #fff; border-radius: 16px; padding: 30px; border: 1px solid var(--sage-line); }
+  .price-card.highlight { border: 2px solid var(--forest); }
+  .price-card h3 { font-size: 16px; margin: 0 0 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;}
+  .price-num { font-size: 30px; font-weight: 800; color: var(--forest); margin: 6px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+  .price-card p { font-size: 14px; color: #3A453F; line-height: 1.6; }
+  @media (max-width: 720px) { .price-row { grid-template-columns: 1fr; } }
+
+  /* photo band */
+  .photo-band { border-radius: 18px; overflow: hidden; margin-top: 44px; aspect-ratio: 21/9; }
+  .photo-band img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* testimonials */
+  .proof-layout { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 32px; align-items: stretch; margin-top: 8px; }
+  .proof-photo { border-radius: 16px; overflow: hidden; aspect-ratio: 4/5; box-shadow: 0 20px 44px rgba(22,32,29,0.14); }
+  .proof-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .test-grid { display: flex; flex-direction: column; gap: 14px; }
+  .test-card {
+    background: #fff; border-radius: 16px; padding: 22px 24px; border: 1px solid var(--sage-line);
+    font-size: 14.5px; line-height: 1.6; color: #2B342F; display: flex; flex-direction: column; gap: 10px; flex: 1;
+  }
+  .test-card .who { font-size: 13px; color: var(--forest); font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+  @media (max-width: 860px) { .proof-layout { grid-template-columns: 1fr; } .proof-photo { aspect-ratio: 16/9; } }
+
+  /* review wall: dense masonry, "wall of love" style, no carousel */
+  .review-wall { columns: 3 280px; column-gap: 16px; margin-top: 8px; }
+  .review-card {
+    break-inside: avoid; margin-bottom: 16px; background: #fff; border-radius: 14px;
+    padding: 20px 22px; border: 1px solid var(--sage-line); font-size: 13.5px; line-height: 1.55; color: #2B342F;
+  }
+  .review-card .stars-row { color: var(--gold); font-size: 12px; letter-spacing: 1px; margin-bottom: 8px; }
+  .review-card .who {
+    font-size: 12.5px; color: var(--forest); font-weight: 700; margin-top: 10px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  @media (max-width: 720px) { .review-wall { columns: 1 100%; } }
+
+  /* faq */
+  .faq-item { border-bottom: 1px solid var(--sage-line); padding: 22px 0; }
+  .faq-item h3 { font-size: 16.5px; margin: 0 0 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+  .faq-item p { font-size: 14.5px; color: #3A453F; line-height: 1.65; margin: 0; }
+
+  /* final cta */
+  .final-cta { background: var(--forest); color: #fff; text-align: center; padding: 80px 0; }
+  .final-cta h2 { color: #fff; }
+  .final-cta p.intro { color: rgba(255,255,255,0.82); max-width: 520px; margin: 0 auto 30px; }
+  .final-cta .btn-primary { background: #fff; color: var(--forest); box-shadow: 0 10px 26px rgba(0,0,0,0.25); }
+  .final-cta .btn-primary:hover { box-shadow: 0 14px 32px rgba(0,0,0,0.32); }
+  .final-cta .small-note { margin-top: 16px; font-size: 12.5px; color: rgba(255,255,255,0.65); }
+
+  footer { padding: 30px 0 90px; text-align: center; }
+  footer p { font-size: 12px; color: #6B776F; line-height: 1.7; max-width: 640px; margin: 0 auto; }
+
+  @media (max-width: 720px) { footer { padding-bottom: 30px; } }
+</style>
+</head>
+<body id="top">
+
+<header>
+  <div class="wrap">
+    <a class="logo-link" href="#top">
+      <img class="logo" src="{{LOGO}}" alt="CrosaCore">
+    </a>
+    <a class="btn btn-primary btn-small" href="{{CALENDLY_URL}}" target="_blank" rel="noopener">Schedule Consultation</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap grid">
+    <div class="hero-rating reveal in">
+      <div class="rating-pill">
+        <div class="avatar-stack">
+          <span style="background:var(--forest);">L</span>
+          <span style="background:var(--gold);">D</span>
+          <span style="background:var(--forest-2);">C</span>
+          <span style="background:#8a6a4f;">R</span>
+          <span class="more">+60</span>
+        </div>
+        <div class="pill-text">
+          <span class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+          <span class="pill-label">60+ real patient reviews on Google</span>
+        </div>
+      </div>
+    </div>
+    <div class="hero-photo reveal in">
+      <img src="{{PHOTO_1}}" alt="Coached strength training session at CrosaCore">
+    </div>
+    <div class="hero-title reveal in">
+      <span class="eyebrow">Modern Physical Therapy &middot; Austin, TX</span>
+      <h1>Understand your pain. Rebuild your body. Trust yourself again.</h1>
+    </div>
+    <p class="lead hero-lead reveal in">One individualized plan, not a generic program: for busy professionals with chronic, recurring, or hard-to-explain pain who are ready to stop guessing and start training with confidence again.</p>
+    <div class="hero-cta reveal in">
+      <a class="btn btn-primary" href="{{CALENDLY_URL}}" target="_blank" rel="noopener">Schedule Your Pain Confidence Consultation</a>
+      <div class="hero-badges">
+        <span class="hero-badge"><span class="dot"></span>15 minutes, by phone, no cost</span>
+        <span class="hero-badge"><span class="dot"></span>No obligation to book anything after</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="trustbar">
+  <div class="wrap">
+    <div class="item"><strong>&#9733; 60+ Real Google Reviews</strong>From real patients</div>
+    <div class="item"><strong>Trusted by professionals</strong>Patients from Apple and beyond</div>
+    <div class="item"><strong>DPT, OCS, Certified Pain Specialist &amp; more</strong></div>
+    <div class="item"><strong>In-clinic &amp; in-home</strong>Serving Austin, TX</div>
+  </div>
+</div>
+
+<section class="alt" style="padding-top:48px;padding-bottom:56px;">
+  <div class="wrap">
+    <div class="section-head reveal" style="margin-bottom:28px;">
+      <div class="kicker">Real Patients, Real Google Reviews</div>
+      <h2>What it's actually like to work with Brandon</h2>
+    </div>
+    <div class="review-wall reveal">
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;I&rsquo;ve had a real reduction in both muscular and skeletal pain, and pain reprocessing therapy has made a genuine difference. I&rsquo;ve learned how to work through flare-ups without catastrophizing.&rdquo;</p>
+        <div class="who">Lauren W. &middot; Recruiter at Apple</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;I&rsquo;ve definitely had more energy throughout the day. I can feel myself getting stronger week over week. My body has less aches and pains.&rdquo;</p>
+        <div class="who">Dawn M. &middot; Analyst at Apple</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;Brandon performed a thorough assessment and discovered the root cause was actually coming from my lower back. Knowledgeable, thorough, and took the time to uncover the real problem.&rdquo;</p>
+        <div class="who">Camille W. &middot; Attorney</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;Brandon does an exceptional job with a detailed intake process where he genuinely listens to you so that he can really understand what you&rsquo;ve got going on. 10/10 would recommend.&rdquo;</p>
+        <div class="who">Rachael M. &middot; Google review</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;What truly set Brandon apart was his unwavering support and attention to detail. He was there for me every step of the way.&rdquo;</p>
+        <div class="who">Kedar K. &middot; Software Engineer</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;Brandon takes the time to meet you where you are at, explain and teach you what your body is doing and why it feels pain. The personal care and human connection stood out.&rdquo;</p>
+        <div class="who">Michael M. &middot; Google review</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;He took the time to ask thoughtful questions, and more importantly, he truly listened. I always felt I was in knowledgeable, attentive, and trustworthy hands.&rdquo;</p>
+        <div class="who">Jason K. &middot; Google review</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;Brandon is very knowledgeable, patient, and caring. He adapts as goals change, which is great for anyone with a busy schedule.&rdquo;</p>
+        <div class="who">Beth L. &middot; Google review</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;I had pain in my shoulder from bench press and he gave me a set of exercises that helped. Now I don&rsquo;t have any issues and I&rsquo;m back to lifting the prior weights.&rdquo;</p>
+        <div class="who">Neel P. &middot; Google review</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;Clear instructions, thought out planning, and positive coaching. He brought me from barely able to balance on one leg after knee surgery to running a half marathon.&rdquo;</p>
+        <div class="who">James H. &middot; Google review</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;He took the time no one else had to explain the why behind the things we were doing. The personal attention he is able to provide is uncommon in physical therapy.&rdquo;</p>
+        <div class="who">Sharon A. &middot; Google review</div>
+      </div>
+      <div class="review-card">
+        <div class="stars-row">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+        <p>&ldquo;Brandon helped me build strength, improve my posture, and develop confidence in my movements. Quick to identify weak areas and adapted accordingly.&rdquo;</p>
+        <div class="who">Akhil M. &middot; Hardware Design Engineer</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="kicker">Sound Familiar?</div>
+      <h2>You're still functioning. But pain is still making the decisions.</h2>
+      <p class="intro">Persistent pain rarely announces itself all at once. It shows up quietly, in the things you stop doing.</p>
+    </div>
+    <div class="problem-grid reveal">
+      <div class="problem-card">The pain keeps coming back, sometimes for reasons you can't identify.</div>
+      <div class="problem-card">Previous care helped for a while, then the improvement faded.</div>
+      <div class="problem-card">Your imaging doesn't fully explain what you're feeling.</div>
+      <div class="problem-card">You avoid lifting or demanding exercise because you're not sure what your body can handle.</div>
+      <div class="problem-card">You keep working, and pay for it afterward.</div>
+      <div class="problem-card">Somewhere along the way, you stopped trusting your body.</div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="kicker">The Rebuild Method</div>
+      <h2>A structured path back to independence, not just symptom relief</h2>
+      <p class="intro">Persistent problems rarely have a single cause, so care shouldn't have a single lens. The Rebuild Method combines orthopedic reasoning, pain science, and progressive strength work into one individualized plan.</p>
+    </div>
+    <div class="method-row reveal">
+      <div class="method-card">
+        <div class="method-num">01</div>
+        <h3>Restore Trust</h3>
+        <p>Understand the experience, clarify safety, reduce fear, and begin moving with confidence.</p>
+      </div>
+      <div class="method-card">
+        <div class="method-num">02</div>
+        <h3>Rebuild Capacity</h3>
+        <p>Develop strength, endurance, movement options, conditioning, and tolerance for meaningful demands.</p>
+      </div>
+      <div class="method-card">
+        <div class="method-num">03</div>
+        <h3>Regain Sovereignty</h3>
+        <p>Train independently, manage flare-ups, progress appropriately, and know when support is still useful.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="proof-layout reveal">
+      <div class="proof-photo">
+        <img src="{{PHOTO_2}}" alt="Individualized planning session at CrosaCore">
+      </div>
+      <div>
+        <div class="kicker">Start Here</div>
+        <h2>One no-cost call. That's the only next step.</h2>
+        <p class="intro" style="margin-bottom:22px;">A focused, 15-minute Pain Confidence Consultation by phone: clarify what's going on, ask practical questions, and find out honestly whether CrosaCore is the right fit for you. Nothing to buy, nothing to sign, no pressure to decide anything that day.</p>
+        <a class="btn btn-primary" href="{{CALENDLY_URL}}" target="_blank" rel="noopener">Schedule Your Pain Confidence Consultation</a>
+        <div class="hero-badges" style="margin-top:20px;">
+          <span class="hero-badge"><span class="dot"></span>No cost, no obligation</span>
+          <span class="hero-badge"><span class="dot"></span>Cash-pay, superbills available</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="kicker">Common Questions</div>
+      <h2>Before you schedule</h2>
+    </div>
+    <div class="reveal" style="max-width:720px;margin:0 auto;">
+      <div class="faq-item">
+        <h3>Is this covered by insurance?</h3>
+        <p>CrosaCore is cash-pay and does not bill insurance directly. Superbills are available so you can seek out-of-network reimbursement on your own. The consultation itself is free either way, so there's no cost to find out if this makes sense for you.</p>
+      </div>
+      <div class="faq-item">
+        <h3>I've already tried physical therapy. Why would this be different?</h3>
+        <p>Previous care may have genuinely helped, while another part of the job remained unfinished. A diagnosis may not explain the entire experience, and symptom relief doesn't always rebuild capacity. The Rebuild Method is built specifically to close that gap, not to repeat what you've already tried.</p>
+      </div>
+      <div class="faq-item">
+        <h3>What actually happens on the call?</h3>
+        <p>A focused, 15-minute phone conversation to understand your main concern, clarify whether CrosaCore is a fit, and identify the right next step, including a referral elsewhere if that's the honest answer.</p>
+      </div>
+      <div class="faq-item">
+        <h3>Is there any pressure to commit to anything on the call?</h3>
+        <p>No. The consultation is a conversation, not a sales pitch, and no same-day decision is ever required. If CrosaCore isn't the right fit, that will be said honestly.</p>
+      </div>
+      <div class="faq-item">
+        <h3>What if my pain is severe or new?</h3>
+        <p>If your symptoms are new, severe, progressive, or meaningfully different from what you've known, a medical evaluation may be the right first step, and that will be said honestly during the call.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <div class="wrap">
+    <div class="reveal">
+      <h2>Ready to understand what's actually going on?</h2>
+      <p class="intro">Start with a free, no-pressure Pain Confidence Consultation. Fifteen minutes to find out if CrosaCore is the right next step.</p>
+      <a class="btn btn-primary" href="{{CALENDLY_URL}}" target="_blank" rel="noopener">Schedule Your Pain Confidence Consultation</a>
+      <div class="hero-badges" style="justify-content:center;">
+        <span class="hero-badge" style="color:rgba(255,255,255,0.82);"><span class="dot" style="background:#fff;"></span>No cost, no obligation</span>
+        <span class="hero-badge" style="color:rgba(255,255,255,0.82);"><span class="dot" style="background:#fff;"></span>Cash-pay, superbills available</span>
+      </div>
+      <div class="small-note">Brandon Crosdale, PT, DPT, OCS &middot; Austin, TX &middot; (737) 383-9566</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Patient employers referenced are self-reported in their own public Google reviews and do not imply endorsement by those companies. This page is general education and not a medical diagnosis. Pain elimination cannot be guaranteed; care is focused on helping you understand and trust your own body again.</p>
+</footer>
+
+<a class="sticky-cta" href="{{CALENDLY_URL}}" target="_blank" rel="noopener">Schedule Your Free Consultation &rarr;</a>
+
+<script>
+  (function() {
+    var els = document.querySelectorAll('.reveal');
+    var obs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); }
+      });
+    }, { threshold: 0.15 });
+    els.forEach(function(el) { obs.observe(el); });
+  })();
+</script>
+
+<script>
+(function(){
+  var WEBSITE_ID = "1";
+  function send(type){
+    try {
+      navigator.sendBeacon(
+        "https://digigrowth-brain-production.up.railway.app/track/view-event",
+        new Blob([JSON.stringify({source:"client_website", event_type:type, content_key:WEBSITE_ID})], {type:"application/json"})
+      );
+    } catch(e) {}
+  }
+  send("view");
+  document.querySelectorAll('a[href*="calendly.com"]').forEach(function(el){
+    el.addEventListener("click", function(){ send("conversion"); });
+  });
+})();
+</script>
+
+</body>
+</html>

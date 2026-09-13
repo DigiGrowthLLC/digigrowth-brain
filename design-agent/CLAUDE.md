@@ -22,6 +22,8 @@ Read this before writing cold-outreach mockup copy — it encodes the structure 
 
 Read this before writing a client ad funnel instead — a different rulebook for a different job (message-match to the ad, single CTA repeated, no nav/exit, objection-handling FAQ). Same update discipline: refine it once real client ad-campaign data comes back.
 
+`references/example-client-funnel.html` is the `funnel-building` skill's own worked example (a real, Dylan-approved client funnel, shipped live) — reuse its CSS/structure patterns (token system, font pairing, the 4-area hero grid that lets mobile reorder independently of desktop, the review-wall, the sticky mobile CTA), never its specific copy/colors/testimonials.
+
 ## Output Files
 
 - Cold-outreach mockup pages are stored in Postgres (`landing_pages` table) and served live — nothing to save locally for the page itself. Completion note: `outputs/landing-page-<slug>-YYYY-MM-DD.md`.
