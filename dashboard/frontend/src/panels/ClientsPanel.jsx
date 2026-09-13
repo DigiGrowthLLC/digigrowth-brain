@@ -1059,6 +1059,7 @@ function UploadThumb({ clientId, file, onOpen, onDownload, onDelete }) {
   return (
     <div
       ref={elRef}
+      title={file.file_name}
       onClick={() => { if (isImage && inlineUrl) onOpen(file, inlineUrl); else if (isVideo) openVideo(); }}
       style={{
         position: "relative", aspectRatio: "1 / 1", borderRadius: 10, overflow: "hidden",
@@ -1103,13 +1104,6 @@ function UploadThumb({ clientId, file, onOpen, onDownload, onDelete }) {
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >✕</button>
-      </div>
-      <div style={{
-        position: "absolute", left: 0, right: 0, bottom: 0, padding: "4px 6px",
-        background: "linear-gradient(transparent, rgba(0,0,0,0.75))",
-        fontSize: 9, color: "#e8f0ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>
-        {file.file_name}
       </div>
     </div>
   );
