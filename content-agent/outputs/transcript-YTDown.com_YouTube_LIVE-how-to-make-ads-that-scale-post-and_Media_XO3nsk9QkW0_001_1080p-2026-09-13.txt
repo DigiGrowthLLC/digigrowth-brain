@@ -1,0 +1,564 @@
+Oh
+Yeah
+Who did you get naked with the goal?
+Got me reminiscing about my whole day three six such a nigga dick no four-play all day women out the trap through the hallway
+Tell me what you niggas know about I'm just saying turn it down. Oh, she finna call her cops leaving potten on the ice sheet
+And one who got the drive just a free quick fix to the eight and it's okay. They're gonna take me back to my old ways
+I was trying to chill my skills. I but since I got a deal kicking with my model chicks it Chris fuck
+Bitches win the dish now. I got to let them know what's really true. Blow a pretty flack of Jordy
+I
+Never looking for no hand out broke cash niggas never helping with a hands-out find out where the fuck niggas live that we can't
+Fuck the world never catch me with my pants down. Oh, he's been a stand-up guy. I read the stand-up. What is up?
+Legends
+It's mark here and we live baby. What's going on? What is up legends?
+What's up?
+man
+Not gonna lie
+I just wanted that intro to keep going for the entire duration of this live
+But you know I had to cut it cuz today we are talking about how to make ads at scale post and drama to
+Let me tell you something
+This last weekend we had our elite mastermind some of the top entrepreneurs
+quite literally in the world in the e-commerce space we're at this event and
+And this was a very
+Very common theme of a lot of entrepreneurs that are struggling with their ads posts in drama
+Especially within the past few months if you've noticed a little dip in your ad performance
+Totally normal totally normal
+But doesn't mean that we got to accept it right in this video. We're gonna talk about how to make ads at scale posts and drama
+Because you do things a little bit differently
+Right the game quite literally has changed
+But before we get into it, let me know where you all are listening in from in the chat. Let's get it popin
+Let's have some fun. Let's have some value
+Drop today. I got about 45 minutes with you all. Let's have a good time. All right. Let's fucking run more ads, bro. Fuck
+What's up? What's up? We got Tyler?
+Christian. What's up, bro?
+To why Alexander was good
+Christian
+Adrian chase chase the money on the chat everyone say was up to chase my man. We got
+Adrian bro was gonna hit one little month got banned by Shopify payments any advice
+The only advice there is you got to you got to rotate into other mids brother never be dependent
+Never never never be dependent on one of anything. They have one payment processor
+It's only a matter of time until you get fucked if you have one ad account
+It's only a matter of time until you get fucked if you have one page
+It's only a matter of time if you get fucked one pixel like it goes for everything one of anything is an incredible risk to your business
+So you just you're gonna have to start opening up other merchant processing accounts man
+I don't know whatever what other solution there is aside from appealing the
+The ban from Shopify payments aside from that bro. You got to move on to the next one on to the next
+Do you think listening to yeat raises row S
+Listen man, I don't think
+It raises row S. I know it raises row S
+It's quite it's quite a phenomenon. I think they call it the ninth wonder of the world you literally just put on
+You put on money to work while you're running your ads
+The row S will go up. I promise you that's a guarantee
+All right, who else we got meditation doctor. What's up? Marko from Serbia? We got Germany Denmark. We got the Louisiana, Thailand
+Wisconsin, France, England, Malaysia, California
+All right
+Mito what's up, bro?
+Dude, Mashamine was fucking amazing fucking amazing best one we've ever had
+Best elite Mashamine in the books got Romania in the building. What's up India Egypt?
+Netherlands Brazil
+God damn we're all over the world man. This is beautiful. This is amazing. I actually there's there's a few people that have been in my
+Lives, I mentioned the elite elite Mashamine they showed up and I met him in person. It's fucking awesome
+Because basically I'm just a dude with no shirt on
+Talking behind the camera. I don't know who I'm talking to
+But to actually meet these people in person. It's very cool. Anyways, let's get into it chat
+Legends how do you make ads at scale posts and drama to update so number one before you
+Take everything that I'm about to say
+go to my YouTube channel and look at my most recent video on
+How to scale post in drama because I actually break down how the and drama update really works
+I'll do like a spark notes for everybody here, but that video does go into substantially more depth
+So if you haven't already make sure you watch that video
+so
+The the first question is of course like why why did Facebook come along and drop this massive update on everybody?
+Why did they do it?
+We're rescaling too hard
+Well, they just trying to fuck shit up. No, there was there was a reason that they had to to do this
+And they actually say this in their own documentation why in drama was was built in the first place
+And the reason that it was built is because over the last let's just say the last 12 months
+What has happened has been there has been a massive increase in the supply of
+creatives that is entering the auction and
+The reason why that's a problem is
+Is basically the system that was built pre and drama it's not built to sustain an
+Increased supply of ad creatives be injected into the algorithm. So is this a fault of the run more ads movement
+Where I'm collectively increasing everybody CPMs? No comments. All right, no comment
+But I will tell you this because of AI and generative AI that allows you to make creatives especially static but videos as well
+So much faster so much easier volume
+Became a non-issue previously you had to have copywriters graphic designers
+You had to have you know experience managing a team you had to have all these variables
+To be able to substantially increase the quantity of creatives that you're injecting into your ad account
+But after AI it's hard to get very very big again my bad
+Downs on me
+The old system of sorting through such a of insane increase in ad creatives
+The old system just not able to sustain this and so they've launched the drama update
+Which is using more powerful super computer chips from Nvidia specifically in the ad retrieval process
+So if you break down the Facebook ads, you know algorithm
+It's actually a four-step process because every single day there are literally tens of millions of ads that are being launched
+And that Facebook Instagram meta has to sort through to identify which ad to serve to which customer and because of the increase
+That's why this new
+In drama update was launched in the first place
+So every single day 10 million ads, right? And as soon as you open your phone within 200 milliseconds
+Facebook has to know exactly what ads it is going to show to its consumers that are on the app, right?
+It's users and so it's a four-step process of
+Number one being retrieval which you turn
+10 million plus ads into a few thousand
+This is the ad retrieval process. So if you hear anybody say ad retrieval
+This is the first step of the process. There's ad retrieval. There is heavy sorting
+There is light sorting and then there is ranking the other three steps
+I just mentioned are not relevant to this particular video because
+Nothing has changed there. What has really changed is the most data intensive step which is
+Simply finding that the generally relevant ads that is going to serve a specific user
+Again, this is called ad retrieval
+So with this update
+The indrometer update is specifically focused on the retrieval process, right?
+So I'm going to do my best to visualize this. I haven't I did not prepare for
+Visualizing this, but I think if I can visualize you'll be able to understand it significantly better
+Previously the algorithm was individually looking at every single creative
+Which sounds great because then every single creative whether that's an iteration or completely new concept it gets the same amount of weight
+Which is the reason why when I would say you know when you're launching creatives or when you're
+Working on a new creative batch of scale up your ad spend there should be roughly an 80-20 ratio
+between new concepts fuck new concepts and
+iterations where the 80% would actually be the iterations
+iterations variations same thing and the 20% would be new concepts now
+Let me let me explain the difference here because if you don't understand the difference between new concepts and iterations
+None of the rest of this video is going to make sense
+iterations is taking something that is clearly working and making variations of it pretty simple
+So let's take two examples number one a video ad
+Previously to indrometer the way that I would launch VSL would basically be like this I would have one script I
+Launched it with three different basically hooks and by hooks. I only mean the text that is going to be appearing on screen in that in that first frame
+And then also three variations two to three variations of
+Skirlstoppers, which is of course the video that is appearing behind the hook text
+This resulted in nine
+Variations of one new concept so the one new concept in this case is
+Descript but I was able to launch nine individual variations of every single ad
+When it came to like launching VSLs, right? So this is kind of the old way of doing things
+Because previously the retrieval model was looking at every single one of these nine
+Variations individually and if you had one variation of a specific hook and a specific
+Skirlstopper relating to the script
+You're basically going with like the shotgun approach and you're able to increase your potential win rate by testing these small
+Little variations specifically in the first few seconds because that is where the biggest impact is going to be had right the biggest impact
+It's going to be the hook in the Skirlstopper. We all know that the first portion of the ad is the most important if you fuck it up
+It doesn't matter what's after that right now
+What do I do now because this this generally?
+Not to say that it doesn't work, but it is to say it's probably going to be a solid waste of your money
+So remember how I mentioned 80 20 ratio where it's 80% iterations and 20% new concepts
+The new way like basically post and drama what I recommend doing is basically
+Flipping that ratio on its head
+Which means you want to substantially increase the number of new concept that you're testing so that that is actually the 80% and the 20% is the
+Variations, right? So 80% would be the
+NC for new concepts 20% here would be the
+Variations iterations I'll just put VAR okay this is how
+Generally when I'm launching a new batch of creatives. This is much closer to the proportion
+Compared to what we're doing previously now. Why is this the case like what it what it in drama?
+But I really do well like I said because of the influx of ad creatives largely due to AI
+Indromeda is a new new mechanism of retrieving the ad so remember I was talking about the ad retrieval process up here
+Which is taking the 10 millions of ads and basically narrowing them down to the thousands of ads that are generally relevant to your target audience
+The new model with and drama is using AI to group creatives basically into containers. So if you had like
+Let's see here if you had a bunch of ads and each one of these little circles is like a new ad that you're launching but they're all variations like it's all the same
+VSL script
+Basically like a new concept, but you still launch a bunch of different variations of them the way that
+Andromeda is viewing this now when it's going through the retrieval process is this is basically one ad
+It's grouping all of the iterations all the variation together in a container and it's in its overall
+Kind of grading that that container as a whole instead of sorting through every single creative individually
+Does that make sense like this is very very important if you guys understand this you're ahead of like 95% of people if that makes sense
+Just give me like a give me a yes in the chat. Just type yes in the chat. So I know we're good
+This is how it's viewing things now. So it's it's not looking at individual creatives one by one, especially if
+They are incredibly similar to each other
+So like the statement that you should have kind of like ingrained in your head is you want to win to win on paid ads on Facebook
+You need a high volume of
+Diverse creatives
+High volume of diverse creatives. So you have the
+Quantity piece which is high volume and then you have the quality piece which is measured in terms of diversity
+So if I was to go and launch a brand new ad account and I had this ingrained in my head. I need a high volume of diverse
+creatives
+How am I launching ads now like if I was to launch a new brand today? What would what would the
+Creative structure actually look like well, I would take instead of you know only like three to five
+ads I would actually increase this instead of like three to five ads that are all
+Relatively unique to each other. I would not do this instead. I would do around 10 to 15
+Individual creatives. I'm saying ads, but creative same thing, but they are literally all
+New concepts
+Every single one
+Now I'm going to get into like what actually constitutes a new concept. I think you guys understand it conceptually
+pun intended
+But I'll get into actually like what a new concept really looks like
+But the most important thing when like when you think of the word new concept, it should be
+Completely different from any other ad that you're launching
+So this is how I would do it
+I wouldn't be launching three to five ads. I would launch around 10 to 15 and they would all be completely new concepts
+Okay, so let me dive into the new concepts portion and then I'm going to show you how I'll act I would actually structure the ad account because that is also changed slightly as well
+So new concepts
+What actually constitutes a new concept versus guys writing is rough dude
+What constitutes a new concept versus a variation?
+New concept number one could be a new format
+By format, I mean are you running a long-form VSL?
+Are you running a mini VSL?
+Are you running kind of a traditional short-form
+Dropshipping style kind of ad? Are you running a UGC ad? Are you running a
+You know a static ad are you running like a static ad with like you know kind of the native style where it's super high-curiosity
+You're kind of baiting the click a little bit and then you do more of the selling post
+Post-click, you know on your landing page on your funnel with
+Advatorials and listicles and in like the Chad funnel that would be another format another format could be
+Interview format another format could be podcast format notice you could have like a very very similar script
+But you're introducing a new format and what this is telling Facebook is that this is a new concept because this is highly diverse
+This is completely different from the other ads are comparing it to like if I had if I was selling a product that was related to
+Foot pain as an example
+I could have a podcast format between like an authority figure like a doctor and
+You know that doctor is kind of the main person that's actually on the app could be like fake podcast format because a lot of people
+If I can do that you could have that same authority figure as a doctor being represented in a static ad with long-form copy
+You can have that same doctor
+But in like kind of TikTok short-form
+Format these are all different formats each one of these is a new concept, okay?
+What is another example of a new concept another example is the
+archetype
+Which is really just a fancy way of saying
+What customer are you actually speaking to because like I said not every
+Customer or like I say in other videos not every customer buys for the same reason
+So you have specific archetypes of customers that you are attracting so changing the entire messaging
+Of your creative is another way to have a new concept so let's go back to the foot pain example if you have a
+Doctor that is speaking to about your foot issues in a podcast format like that's one cool format
+But let's say another archetype doesn't really resonate with that particular authority figure maybe they went to the doctor and
+The doctor actually dismissed their foot pain. They're like, oh yeah, just like get some insoles and like you'll be fine
+You've got the insoles and you still have the fucking foot pain go back to the doctor like oh, I can prescribe you some pain medication and
+You know, they give you the prescription and you're on your way. You still have the foot pain
+This is a different kind of person. It's gonna be buying for you because they they feel like disenfranchised by their doctors
+They don't feel like a doctor's like a position of authority
+They feel like a doctor's a person that is just trying to like shove these
+prescriptions and these pharmaceuticals down their throat to fix the problem when really it doesn't fix anything
+It's just it's just fixing the symptoms of the problem so
+Speaking to different archetypes is another perfect example
+Maybe you still have the same format like a podcast format, but instead of a doctor, it would be you know
+Somebody that would that would be like one of your customers be like I went to the doctor and I'm never gonna go back again
+Because I fixed my foot pain on my own boom completely new archetype new messaging
+Even though it's the same format that is still classified as a new concept, okay?
+Another way to think about archetypes is the angle because this is they're actually very very similar
+The the archetype is basically just the audience's representation of an angle because like I said everybody buys for a different reason
+And angle is also an example of a new concept
+So I'm gonna pause right here. I can go deeper and I definitely want to get into like the media buying stuff
+But let me make sure you guys understand this and like answer some some questions real quick
+So
+Somebody asked but it can be the same angle you could have something be the same angle
+It's still be a new concept because you change something more drastic such as the format so
+Like I said angle as well can be a completely different so you can have a different angle be a new concept if you if it's like
+Completely different from anything they've done, but you can also have the same angle in a new format
+That is generally a new concept that you're testing
+So if you guys haven't seen I post this on Twitter and also on my on my email list with if you want to join the link is in the description here
+But the way that I think about new concepts is essentially
+synonymous with what I call quantum leaps
+So
+So I posted this like I said a few different places, but the concept of quantum leaps is that everybody at some point they're gonna reach this
+The ceiling when it comes to scaling their brand maybe it's 1k day maybe it's 10k day maybe it's 100k day
+Everybody's gonna reset ceiling like you launch a new creative some new funnels
+You scale up your double trip your budgets, and then you can't scale beyond that point
+This happens everybody
+If you want to break through that barrier
+Are you gonna break through that barrier by testing these tiny
+Micro variations of your ad or of your funnel?
+No, you're not you need to test things that are more drastic you need to test at the extremes
+So this is my general philosophy around split testing
+I think that I'm a huge fan of split testing
+But specifically split testing things more drastic especially when you reach this barrier to scale
+Like the the tiny small increments and improvements with testing variations
+It will have an impact, but it's going to be small
+It's not gonna be what gets you from you know 10k day to 50k day or from 50k day to 100k day
+The big quantum leaps are gonna be the things that completely
+Change everything for you and actually help you break through and explode through that ceiling to the next level
+This is the same concept like this this quantum leaps concept is very tied into the andromeda update because you should be focusing on the
+Levers that have more leverage that are going to provide a bigger impact to your brand
+And that's not gonna be like split testing 30 different hooks for one of your ads for you to maybe squeak out one winner
+That's not gonna scale you to the next level
+You need you need like 10 winners you need like 20 or 30 new winners to get to the next level
+And that's not gonna come just from these micro split test. It's gonna be from new concepts
+Dalton, but what happens when you find a winner within the new concept test? Do you isolate variables?
+How do you isolate variables and tell what's working?
+Great question
+You can't so it's not like a controlled split test because you're testing usually with new concepts
+You're testing a bunch of different things you could be testing a new script with a new angle and a new format
+But that's kind of the point the point is like there's there's less kind of
+There's less ability for you to use the scientific method when it comes to split testing with your independent and your
+Dependent variables because you're changing a bunch of things at the same time, which personally
+Like my OCD ask fucking logical brain. I don't like that
+But I don't it doesn't matter what I like
+Ideally like you can split test everything like one by one and eventually find this perfect combination of a nav
+You split tested a hundred hooks a hundred bodies a hundred CTAs a hundred thumbnails a hundred ad copies
+And you finally found like this person this perfect version. That's not what's working anymore
+If you want to try that like totally be my guest, but just based off the way logically that this algorithm works
+It's gonna it's gonna bundle all of those variations of the ad into the same
+Bucket into the same container and you're not going to make any meaningful changes doing that
+So once you do find that new concept that is a winner
+That's when you can go to the 80 20 and begin split testing some other things
+But initially it should be like all on these new concepts, right? Take bigger swings
+Take bigger swings
+I asked myself a question
+Earlier this month that has you know after and drama has made me kind of reevaluate how I'm doing my creative testing and that question is
+If I only had
+15 at bats, right? If I only had 15 chances
+To make a winning creative. How would that change my creative strategy?
+What I have to like one VSL with 15 different variations of like the first read five seconds or when I have 15
+completely unique
+Ideas and concepts all within the same campaign and of course it would be the latter because you're taking bigger swings
+After you find that one
+Format the one new concept that works then you can go and split test some minor things
+Then that'll maybe provide a little bit more life. You'll create a few other variations of your winners
+But initially my recommendation is completely against that and you just take bigger swings
+Question from Hayden does 10 to 15 app creatives also work for brands with lower daily ad spend for example
+60 dollars a day. If you're only spending $60 a day, I would I would bring that down to probably about five
+Generally, I want to have absolutely these dude
+I want to have like 10 dollars of spend per ad so if you set your budget at the you know at the ad set level like this is your
+This is your campaign here and then you have like, you know
+Let's just say two ad sets for simplicity purposes
+You'd have like add one at two at three at four at five
+Five individual ads inside of here if you set this at $50 a day
+Then if you're to divide equally, which of course it's not gonna happen because Facebook controls where your ads are you know
+Which ads it's going to spend on
+But if you were to divide it equally it would be roughly $10
+$10 an ad I would never recommend
+$10 per ad per day by the way
+I would never recommend going below that even like honestly that number is still low
+But if you're at that low of a daily budget then
+That's what I recommend I would never say to go lower than that
+Andrew so if I run image ads only in the native format
+But I change to angles only and that constitutes it being a new concept or how should I test a new mass desire of new audience within
+The same images all right, so you're combining a few things here like it should be generally the same mass desire
+Mass desire is like a massive massive lever. That's like what's powering your entire business is one mass desire
+Like in the foot pain example the mass desire would be people struggling with foot pain
+It's it's pretty simple than that if you went outside of that
+That's basically like adding a new almost like a new product line to your business where instead of foot pain
+You grab your like back pain. That's not even an angle. That's like you're gonna be selling an entirely new product with that
+so same same mass desire
+But yes, I would change to it doesn't have to be only angles like I recommend
+Experimenting with all these types of new concepts. It's not only the angle
+Formats are an incredible way for you to test new concepts
+So this is why like the people that have been like spamming these
+These native images
+It can work but like take that same kind of messaging and translate it to another format
+I've been doing that for months and literally like it'll it'll turn a winning you take the script from like one of the static or from the
+Aditorial and turn that into a VSL and that can be a new winner for you because that's it
+That's a new concept. That's a completely new format, but it's using a proven script
+So instead of like only spamming natives try different format of static so not only the native ones
+But also these you know, maybe some product aware ones you have the product in the actual native it sorry in the actual creative
+In addition to a short form video in addition to a long form video
+It's like accumulating a bunch of diverse creatives right back to this back to the sentence here high volume of diverse creatives
+If you're only running these static natives
+Even if you test like a billion of them you're still pretty one dimensional even if you you test new angles like that's better
+But it's still not that diverse. You know what I mean
+You
+Question from Sina how do you do a b test?
+Do you use aptor's or way to set up your media bank?
+So I generally if I'm sending traffic to a URL on Facebook
+I never want to set up a split test to that first landing page
+So like let's say I'm running all my traffic to an advertorial
+I don't like running split tests using like an ab tool or even using the features within funnel ish or checkout champ
+If that's the direct page I'm running traffic to if it's anything after that page like the the sales page your order page
+I will run the split test natively inside of my my software whatever I'm using funnel ish, you know
+Shopify
+Check out champ etc and you can use you can use ab converter
+You can use also intelligence is you know kind of the industry standard. I'll say for that
+but generally
+Generally like I want to do it at the campaign level either either the campaign level or the ad set level
+For doing these split tests. So if I want to split test a new advertorial again
+I'm taking a big swing. I'm not just like changing the headline if I was only changing the headline
+I would do it in the you know in the in the in funnel ish for example
+But if I'm taking a bigger swing entirely new advertorial different headline different story different images different everything
+That's an entirely new funnel. I want to test that at least in a new ad set ideally and an entirely new campaign
+All right next question. Can I make five unique ads and five hooks for each ad?
+This is almost the example that I just fucking said dude
+So I would I you can do it right that's but that's it's basically post in drama what the
+Algorithm is going to view that as it's just five unique ads. So the other 20
+Is going to be my waste of your spend
+Now if you want to do the variation testing which is what a hook is a hook absolutely
+Classifies as variation testing you do that after you identify your winning concepts because not every new concept you test
+It's going to be a winner obviously
+But if you do find that new winning concept concept then you can you can take that out and start split testing the smaller things
+That would be the 20 in the 80-20 but initially right off the rip. I would not recommend that
+I really wouldn't I would go
+directly to new concepts and basically new concepts only
+Can these strategies work for an insurance agent trying to get leads? Yes, same
+This philosophy applies if you're doing e-commerce sass info if you're doing lead gen doesn't matter
+It's the algorithm. It's it is
+Agnostic to what niche you're running in generally
+Ben even with the bad CBCs and bad CTR for profitable let it run for the seven-day window of roast keeps dropping
+Yeah, yeah, I would if something is still profitable
+A lot of times you have ads that have terrible soft metrics like CTRs low CBC may be a little bit high
+But you're qualifying people so heavily that that can be one of your most profitable ads
+As long as profitable you're going to want to keep it on like golden golden rule of mediavine grows
+If you have something that's working if you have something that's profitable don't touch it and don't turn it off
+There's some people that say especially people that are like
+You know the medicaggers that I talk about
+Generally that kind of thing is
+And they're the ones to say like oh, yeah, you can like turn off your profitable ads and
+You know just move them into a scaling campaign, but like why would you turn off anything that's not profitable
+You
+All right any other questions guys, let's see what we got
+You
+Start up for at four row ass in one day one point five and break even as a one point two
+I'm guessing your spend is relatively low in that case and you you want to look at your creatives on longer than like a one day time frame
+If I only looked at one day time frames
+I would be the most emotional media buyer of all time
+But as the quote goes when in doubt zoom out
+When in doubt zoom out
+So look at larger time frames and you'll see what the real data is actually saying about your creative
+You're gonna have days that are good and you're gonna have days that are bad if you only look at good days
+And try to compare them to like with the bad days
+You're probably not feeding enough data into the machine to really make a good decision
+Facebook doesn't necessarily need time it needs data and that's mostly done through
+Spend so the more you spend the better day you're gonna have
+You
+Question from uh, let's see here
+Oh, yeah guys I I only have um fuck I only have ten more minutes. So let me let me quickly explain to you
+The media buying structure that out that I'll go with moving forward because we've known this for a while
+What I'm about to tell you but it's just been so solidified post-andromeda which is
+Creative is the targeting
+So generally if I am going to be testing new creatives I will keep it
+100% prop
+Like this I said this before I'll say it again. I got no no shame and no problem saying this the structure of my account is
+Super basic like generally my media buying is pretty straightforward. We do do some some cool
+Ninja shit that I've talked about before
+um, but generally
+I can tell you because I've looked at some some add accounts that are like 10 times the size of my once-belling spending like well over
+You know 300k per day profitably
+And what you'll notice is the same trend the ones that are able to sustain the most amount of spend
+They have super duper broad targeting and phenomenal creatives beyond that. It's incredibly consolidated
+so
+Once you understand creative is a targeting
+You realize that you don't have to test with interest you don't have to test with
+Anything else other than
+Advantage plus audiences
+Whatever your demographics are so if you're only selling to women obviously you don't only have women if you're only selling to
+Men over the age of like 40 then only select that everything else should be totally broad
+So set sets your demo set your demographics turn on advantage plus leave everything else broad
+This is
+This is absolutely true pro post-and-dromeda so what does this actually look like in terms of the campaign structure?
+Let me show you
+So let's take
+There's a lot of people that are totally ripping with
+CBOs on creative testing to this day bro even post-and-dromeda. I don't do my creative testing in CBOs if I am scaling
+I will use CBOs, but if I am not scaling
+Typically, I still find better results with ABO
+So you're going to have an ABO in here
+And if you want to still split test your broad ad sets against interest you can so I'll show that as an example
+Do I do that? No
+So this is going to be super broad a plus and this will be like your
+You know your top interest basically
+And if you want to stack your top interest you can do that as well
+Generally though, I would just say keep it super simple and just have one advantage plus ad set and that's it
+So basically look like this. I'm telling you guys. It's so fucking simple. It's like
+insanely simple
+And then once you're inside you're going to have your 10 to 15 creative so 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+Let's say 12 creatives in this case
+Now for me, you know, I'm going to be testing with higher budgets for my ABO and I want to make sure I have at least for me
+I want to have a lot more than then 10 dollars per day per ad
+In the ad set budget. So in this case, this would be technically $120 a day
+But you know, I'll run our creative tests at like 500 to $1,000 a day because I want to acquire data faster
+So that's the entire structure
+It's very simple if you want it to be even more of like a medicager and you want to
+To test this out yourself the alternative structure would be almost identical to this
+But instead of here, let me let me map this out
+But instead of ABO, it would be a CBO. Again, you can test this for yourself
+Not work for me
+But it would be a CBO specifically ASC
+Inside you still have advantage plus when you have the same ads. That's it
+Like that's the only really change and at this point
+It's the same fucking thing because a CBO with one asset is identical to an ABO with one asset
+The only difference is in the future we're going to launch additional assets in here
+I guess I should say additional ad sets into the ABO
+And I don't want the CBO budget like the campaign budget to throttle the other
+Ad sets that I'm going to be adding in here
+So if I do another creative test in the CBO
+Then it's going to be getting the minority of the budget very quickly and I don't really want that
+I want to be able to control the budget that I'm putting towards my creative test
+So that's why I go with ABO
+But again, if you want to be a super duper chat
+CBO
+You run an ASC campaign, same exact structure, that's how you would do it
+All right, there's question
+And look at this, look at this wholesome comment man
+From Cleo, thank you so much your live stream makes my day less loneliness
+You're welcome bro
+These lives make my day less lonely as well
+I'm just, you know, the dark room talking to myself
+And basically, it gets frenic, you know
+What the hell is ABO, CBO and ASC?
+Brother, you got to do some education
+ABO is asset budget optimization, that means you set the budget at the asset level
+CBO is, which means like basically you set the budget here
+CBO campaign budget optimization, you set it at the campaign level
+And then if you have multiple different assets inside the campaign,
+Facebook is going to decide where to spend
+Instead of you controlling the spend of the particular assets
+How can you quickly produce new concepts with creatives?
+When testing, how do you source creatives, image slash video
+Colby, that's a lengthy question dude
+Oh, actually, that brings up a fantastic point
+There is one other element to this testing structure, guys
+And granted, this is for creative testing
+I still like to segment my campaigns by statics and videos
+So in both of these examples, let's change this to, let's say this is two ABOs
+Whoops
+Fuck
+Let's say these are both identical ABOs in terms of like their structure
+But this one is going to be for images
+And this one is going to be for videos
+I haven't had a lot of success pairing, image, and video creatives together
+In the same campaign because you actually will have them be completely cannibalized
+Like a lot of times, Facebook is choosing which creatives to spend on
+Based off the soft metrics first, which would be like your CPC, CTR, CPMs
+And historically, you will see significantly lower CPMs on your image ads
+And compares them to videos
+So what that means is you should segment them
+Into different campaigns
+Or if you run the ABO model, you can absolutely do it at the ad set level too
+So like, this would be one ad set, this would be another advantage plus ad set
+And you just have all the videos here, and then all the images here
+That works as well
+So
+Sino, why don't you set spending limits on ad set and run CBO?
+Dude, I've tried it, I promise
+I've tried all the settings that you can have inside of the ad set while running CBO
+It still doesn't get the same results as ABO for me
+But again, I know people, I've spoke to people this last weekend
+That are spending a lot more than me, and literally have like two campaigns
+Spending like 300k a day, one is just for static, so one is for videos
+That is our entire campaign structure
+Both ASC, CBO
+And it's all broad, it's like super duper straightforward
+And it is scalable
+Jared, thoughts on Sora for video ad creation, well brother
+I got a video coming out for you
+I actually do have a Sora 2 video that is going to be coming out in the next day or two, so
+Get excited because that's actually just crazy
+All right, a few more questions guys, and then I got to bounce like literally in like a minute or two
+Ben, what are cost caps and bid caps?
+Cost caps is just you, they're forms of manual bidding
+So when you set up campaigns like this, typically you set up what's called auto bidding
+And auto bidding is Facebook decides what to bid on your audience
+When there is an auction going on between you and your competition to see which ad is going to be shown to which customer
+So when you go into manual bidding, that is basically you taking over manual control of the bidding
+And focusing it in one of two ways, if you have a cost cap, that means you're only willing to spend
+X amount to acquire a customer, and so when you set that a lot of times they literally won't spend
+Because Facebook is not able to find a customer for that cheap in which case you have to increase your cost caps
+That the the ad creative actually starts to spend
+And bid caps is similar except instead of the cost the ad spend it's done at the bid level
+So you just send, you just tell Facebook, hey, I'm willing to bid you know
+2X my target CPA to acquire a customer
+That's it
+Have you tried different models like nano banana or Higgs field soul? Yes, I have
+I use both of those
+Frequently
+And by frequently, I mean every single fucking day
+And the final thing, I've seen a few people ask this guys, and this is why I got to run
+Or I got to run after this fuck what was it? Ah, yes, the geographical targeting so I still
+Keep it very broad. I do not segment my geographical locations unless I'm running like a geophonal and an entirely different language
+So if you're running in the same language to the same kind of funnel
+I'll stack the countries in this same asset here
+So if I am running big five I'll have all the big five countries here
+All the big five countries here and all the big five countries here
+right
+Yeah anyways
+All right
+All right brothers and sisters and legends that is all the time I have for today
+I hope you enjoyed this live and um for people that are struggling with in jambada
+I think the next few months I'll be honest with you guys. I think the next few months are going to be
+Really difficult for a lot of you and even the more established entrepreneurs
+So it's survival of the fittest
+Only the ones that are most adaptable to change are the ones that will win
+So reduce your ego
+Have an open mind test new things
+And keep fucking moving all right y'all I'll see y'all in the next one
