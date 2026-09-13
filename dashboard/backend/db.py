@@ -581,6 +581,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE watch_videos ALTER COLUMN github_path DROP NOT NULL;
             ALTER TABLE watch_videos ADD COLUMN IF NOT EXISTS r2_key TEXT;
             CREATE INDEX IF NOT EXISTS idx_content_view_events_lookup ON content_view_events (source, content_key, contact_id);
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS guide_progress JSONB NOT NULL DEFAULT '{}';
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

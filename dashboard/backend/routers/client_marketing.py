@@ -9,6 +9,8 @@ internal sms_messages/email_messages/campaigns tables.
 Mounted with require_auth like clients.py — this is agency-internal admin
 tooling (Dylan provisioning a client's stack), not the client-facing portal.
 """
+import json
+
 from fastapi import APIRouter, HTTPException
 
 import client_email
@@ -18,18 +20,30 @@ from models import ClientMarketingConfigUpdate, ClientSmsSequenceUpdate, ClientT
 
 router = APIRouter()
 
+# asyncpg has no JSONB codec registered on this pool (matches client_portal.py's
+# _decode_response_row) — a JSONB column comes back as a raw JSON string.
+_JSONB_FIELDS = ("ad_creative_status", "guide_progress")
+
+
+def _decode_config(row) -> dict:
+    d = dict(row)
+    for key in _JSONB_FIELDS:
+        if isinstance(d.get(key), str):
+            d[key] = json.loads(d[key])
+    return d
+
 
 async def _get_or_create_config(conn, client_id: int) -> dict:
     row = await conn.fetchrow(
         "SELECT * FROM client_marketing_config WHERE client_id = $1", client_id
     )
     if row:
-        return dict(row)
+        return _decode_config(row)
     row = await conn.fetchrow(
         "INSERT INTO client_marketing_config (client_id) VALUES ($1) RETURNING *",
         client_id,
     )
-    return dict(row)
+    return _decode_config(row)
 
 
 @router.get("/clients/{client_id}/marketing-config")
@@ -59,14 +73,14 @@ async def update_marketing_config(client_id: int, body: ClientMarketingConfigUpd
         values = []
         for i, (key, value) in enumerate(fields.items(), start=1):
             set_clauses.append(f"{key} = ${i}")
-            values.append(value)
+            values.append(json.dumps(value) if isinstance(value, (dict, list)) else value)
         values.append(client_id)
         query = (
             f"UPDATE client_marketing_config SET {', '.join(set_clauses)}, updated_at = now() "
             f"WHERE client_id = ${len(values)} RETURNING *"
         )
         row = await conn.fetchrow(query, *values)
-        return dict(row)
+        return _decode_config(row)
 
 
 @router.post("/clients/{client_id}/marketing-config/provision-sms")

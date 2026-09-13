@@ -185,6 +185,7 @@ class ClientMarketingConfigUpdate(BaseModel):
     appointwise_webhook_url: Optional[str] = None
     landing_page_url: Optional[str] = None
     ad_creative_status: Optional[dict] = None
+    guide_progress: Optional[dict] = None
 
 
 class ClientTestEmail(BaseModel):

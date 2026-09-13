@@ -1124,18 +1124,23 @@ const MARKETING_GUIDES = {
   email: {
     title: "Set Up Email Marketing",
     steps: [
-      { text: "Never send outreach from the client's own root domain, even a mailbox they don't use daily (e.g. contact@) — it shares reputation with their real business mailbox. Instead, pick a dedicated outreach SUBDOMAIN for this client (e.g. mail.clientdomain.com or go.clientdomain.com)." },
-      { text: "In DigiGrowth's own Workspace Admin (NOT the client's) — Account → Domains → Add a domain — add that subdomain as a Secondary Domain. Check the domain-count limit on DigiGrowth's Workspace plan first if you've added several of these already.", link: "https://admin.google.com/", linkLabel: "Google Admin Console (digigrowthllc.com) → Domains" },
-      { text: "Verify ownership: Google gives you a TXT record (Name matches your subdomain, e.g. \"mail\") — add it at the CLIENT's registrar. This is the only step that needs the client's registrar access, not their Workspace login." },
-      { text: "Once verified, Google shows an MX activation code. Add it at the client's registrar as a new record — Type MX, Name = your subdomain label (e.g. \"mail\"), Priority 1, Data smtp.google.com, TTL lowest available. Do NOT touch or delete the client's existing root-domain (\"@\") MX record — that's their real business email." },
-      { text: "Add an SPF TXT record for the subdomain — Name = same subdomain label, value exactly \"v=spf1 include:_spf.google.com ~all\" (the v=spf1 prefix is required, easy to accidentally omit)." },
+      { text: "Never send outreach from the client's own root domain, even a mailbox they don't use daily (e.g. contact@) — it shares reputation with their real business mailbox. Instead, pick a dedicated outreach SUBDOMAIN for this client (e.g. mail.clientdomain.com or go.clientdomain.com).",
+        fields: [{ key: "email_subdomain", label: "Outreach subdomain", placeholder: "mail.clientdomain.com" }] },
+      { text: "In DigiGrowth's own Workspace Admin (NOT the client's) — Account → Domains → Add a domain — add that subdomain as a Secondary Domain. Check the domain-count limit on DigiGrowth's Workspace plan first if you've added several of these already.", link: "https://admin.google.com/ac/domains", linkLabel: "Google Admin Console (digigrowthllc.com) → Domains" },
+      { text: "Verify ownership: Google gives you a TXT record (Name matches your subdomain, e.g. \"mail\") — add it at the CLIENT's registrar. This is the only step that needs the client's registrar access, not their Workspace login.", registrar: true },
+      { text: "Once verified, Google shows an MX activation code. Add it at the client's registrar as a new record — Type MX, Name = your subdomain label (e.g. \"mail\"), Priority 1, Data smtp.google.com, TTL lowest available. Do NOT touch or delete the client's existing root-domain (\"@\") MX record — that's their real business email.", registrar: true },
+      { text: "Add an SPF TXT record for the subdomain — Name = same subdomain label, value exactly \"v=spf1 include:_spf.google.com ~all\" (the v=spf1 prefix is required, easy to accidentally omit).", registrar: true },
       { text: "Wait 24-72 hours after the MX record goes live before generating DKIM — Google enforces this wait; generating earlier can produce an invalid key you'd have to redo." },
-      { text: "After the wait, go to Apps → Google Workspace → Gmail → Authenticate email, select the subdomain specifically (not the root domain), and Generate a new DKIM record (2048-bit, \"google\" prefix are fine defaults).", link: "https://admin.google.com/", linkLabel: "Google Admin Console → Gmail → Authenticate email" },
-      { text: "Add the generated DKIM TXT record at the client's registrar, wait for it to propagate, then click Start Authentication in the Admin console." },
-      { text: "Create the sending mailbox on the subdomain under DigiGrowth's Workspace (e.g. contact@mail.clientdomain.com)." },
-      { text: "Locally run reauth_google.py (repo root) logged into that mailbox to generate a refresh token. (Local script — no link.)" },
-      { text: "Paste the refresh token, sender email, and the subdomain into the fields on this tab." },
-      { text: "Click TEST below and confirm the test email lands (check spam too)." },
+      { text: "After the wait, go to Apps → Google Workspace → Gmail → Authenticate email, select the subdomain specifically (not the root domain), and Generate a new DKIM record (2048-bit, \"google\" prefix are fine defaults).", link: "https://admin.google.com/ac/apps/gmail/authenticateemail", linkLabel: "Google Admin Console → Gmail → Authenticate email" },
+      { text: "Add the generated DKIM TXT record at the client's registrar, wait for it to propagate, then click Start Authentication in the Admin console.", registrar: true },
+      { text: "Create the sending mailbox on the subdomain under DigiGrowth's Workspace (e.g. contact@mail.clientdomain.com).", link: "https://admin.google.com/ac/users", linkLabel: "Google Admin Console → Users → Add new user" },
+      { text: "Locally run reauth_google.py (repo root), logged into GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (Railway variables on the digigrowth-brain service), signed in as the new mailbox, to generate a refresh token. (Local script — no link.)" },
+      { text: "Paste the refresh token and sender email below — the subdomain field above is reused automatically.",
+        fields: [
+          { key: "gmail_refresh_token", label: "Gmail refresh token", placeholder: "1//0…" },
+          { key: "gmail_sender_email", label: "Sender email", placeholder: "contact@mail.clientdomain.com" },
+        ] },
+      { text: "Send a test email and confirm it lands (check spam too).", testAction: "email" },
       { text: "Automated — nothing to do here: every email sent through this mailbox is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test email." },
     ],
   },
@@ -1144,7 +1149,11 @@ const MARKETING_GUIDES = {
     steps: [
       { text: "Confirm SMS marketing is provisioned first — Appointwise plugs into the client's own Twilio number, it doesn't bring one." },
       { text: "Set the client up in your Appointwise account and note the agent ID it gives you." },
-      { text: "Paste the agent ID and Appointwise's webhook URL into the fields on this tab." },
+      { text: "Paste the agent ID and Appointwise's webhook URL below.",
+        fields: [
+          { key: "appointwise_agent_id", label: "Appointwise agent ID", placeholder: "agent id" },
+          { key: "appointwise_webhook_url", label: "Appointwise webhook URL", placeholder: "https://…" },
+        ] },
       { text: "Test by texting the client's number and confirming Appointwise receives it, replies, and any resulting booking shows up correctly." },
     ],
   },
@@ -1153,8 +1162,9 @@ const MARKETING_GUIDES = {
     steps: [
       { text: "Not yet automated — see the automation note below this guide. For now: build the page manually from the DigiGrowth landing-page template, matching the offer/guarantee/CTA from onboarding." },
       { text: "Push it live as its own Vercel project (not a route on the corporate site).", link: "https://vercel.com/new", linkLabel: "Vercel → New Project" },
-      { text: "Point the client's domain/subdomain at it via their registrar's DNS settings." },
-      { text: "Paste the live URL into the field on this tab." },
+      { text: "Point the client's domain/subdomain at it via their registrar's DNS settings.", registrar: true },
+      { text: "Paste the live URL below.",
+        fields: [{ key: "landing_page_url", label: "Live URL", placeholder: "https://…" }] },
     ],
   },
   ad_creatives: {
@@ -1216,11 +1226,60 @@ const MARKETING_STEPS = [
   },
 ];
 
+// Inline "paste the info this step needs, right here" mini-form — saves via
+// the same saveFields() the tab's own field editors use, so filling it in
+// from inside the guide and from the tab below stay in sync.
+function GuideStepFields({ fields, config, onSaveFields }) {
+  const [drafts, setDrafts] = useState(() =>
+    Object.fromEntries(fields.map((f) => [f.key, config?.[f.key] || ""]))
+  );
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    setSaved(false);
+    const payload = {};
+    for (const f of fields) payload[f.key] = (drafts[f.key] || "").trim() || null;
+    await onSaveFields(payload);
+    setSaving(false);
+    setSaved(true);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+      {fields.map((f) => (
+        <div key={f.key}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>{f.label}</div>
+          <input
+            className="dg-input" style={{ fontSize: 11, width: "100%" }}
+            value={drafts[f.key]} placeholder={f.placeholder}
+            onChange={(e) => { setDrafts((d) => ({ ...d, [f.key]: e.target.value })); setSaved(false); }}
+          />
+        </div>
+      ))}
+      <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
+        {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
+      </button>
+    </div>
+  );
+}
+
 // The "click a step, get a doc with numbered instructions + the exact links
 // to go to" surface — one guide at a time, rendered via portal like the
-// existing dropdown menus in this file.
-function GuideModal({ guide, onClose }) {
+// existing dropdown menus in this file. Each step can be checked off
+// (persisted per-client), can carry an inline field to paste the info that
+// step produces, or (email's test step) a live action button.
+function GuideModal({
+  guide, progress, onToggleStep, config, client, onSaveFields,
+  testEmailTo, setTestEmailTo, sendTestEmail, testingEmail, onClose,
+}) {
   if (!guide) return null;
+  const total = guide.steps.length;
+  const doneCount = guide.steps.filter((_, i) => progress?.[i]).length;
+  const registrar = client?.registrar_resource;
+  const registrarIsUrl = registrar && /^https?:\/\//i.test(registrar);
+
   return createPortal(
     <div
       onClick={onClose}
@@ -1237,32 +1296,74 @@ function GuideModal({ guide, onClose }) {
           boxShadow: "0 24px 64px rgba(0,0,0,0.6)", padding: 22,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#e8f0ff" }}>
             {guide.title}
           </div>
           <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={onClose}>CLOSE</button>
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <div style={{ flex: 1, height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${total ? (doneCount / total) * 100 : 0}%`, background: "#4ade80", transition: "width 0.2s" }} />
+          </div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", whiteSpace: "nowrap" }}>
+            {doneCount}/{total} DONE
+          </div>
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {guide.steps.map((s, i) => (
-            <div key={i} style={{ display: "flex", gap: 10 }}>
-              <div style={{
-                flexShrink: 0, width: 20, height: 20, borderRadius: "50%",
-                background: "rgba(58,123,213,0.18)", color: "#9cc4f5",
-                fontFamily: "'Share Tech Mono', monospace", fontSize: 10, fontWeight: 700,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>{i + 1}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12.5, color: "#d0e8ff", lineHeight: 1.5 }}>{s.text}</div>
-                {s.link && (
-                  <a href={s.link} target="_blank" rel="noreferrer"
-                    style={{ display: "inline-block", marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5" }}>
-                    → {s.linkLabel || s.link}
-                  </a>
-                )}
+          {guide.steps.map((s, i) => {
+            const checked = Boolean(progress?.[i]);
+            return (
+              <div key={i} style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={() => onToggleStep(i)}
+                  title={checked ? "Mark not done" : "Mark done"}
+                  style={{
+                    flexShrink: 0, width: 20, height: 20, borderRadius: "50%", cursor: "pointer",
+                    border: "none", padding: 0,
+                    background: checked ? "rgba(74,222,128,0.22)" : "rgba(58,123,213,0.18)",
+                    color: checked ? "#4ade80" : "#9cc4f5",
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 10, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>{checked ? "✓" : i + 1}</button>
+                <div style={{ flex: 1, opacity: checked ? 0.6 : 1 }}>
+                  <div style={{ fontSize: 12.5, color: "#d0e8ff", lineHeight: 1.5, textDecoration: checked ? "line-through" : "none" }}>{s.text}</div>
+                  {s.link && (
+                    <a href={s.link} target="_blank" rel="noreferrer"
+                      style={{ display: "inline-block", marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5" }}>
+                      → {s.linkLabel || s.link}
+                    </a>
+                  )}
+                  {s.registrar && (
+                    registrarIsUrl ? (
+                      <a href={registrar} target="_blank" rel="noreferrer"
+                        style={{ display: "inline-block", marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5" }}>
+                        → Open this client's registrar
+                      </a>
+                    ) : registrar ? (
+                      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#9cc4f5" }}>
+                        Registrar note: {registrar}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>
+                        No registrar link saved for this client yet — add one on the Resources tab.
+                      </div>
+                    )
+                  )}
+                  {s.fields && <GuideStepFields fields={s.fields} config={config} onSaveFields={onSaveFields} />}
+                  {s.testAction === "email" && (
+                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                      <input className="dg-input" style={{ fontSize: 11, flex: 1 }} value={testEmailTo} placeholder="test@…"
+                        onChange={(e) => setTestEmailTo(e.target.value)} />
+                      <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={sendTestEmail} disabled={testingEmail || !testEmailTo.trim()}>
+                        {testingEmail ? "SENDING…" : "SEND TEST"}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>,
@@ -1272,6 +1373,7 @@ function GuideModal({ guide, onClose }) {
 
 function ClientMarketingSetup({ clientId }) {
   const [config, setConfig] = useState(null);
+  const [client, setClient] = useState(null);
   const [loading, setLoading] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   const [error, setError] = useState("");
@@ -1286,8 +1388,12 @@ function ClientMarketingSetup({ clientId }) {
   const [showAutomation, setShowAutomation] = useState(false);
 
   const load = async () => {
-    const r = await fetch(API(`/clients/${clientId}/marketing-config`));
-    if (r.ok) setConfig(await r.json());
+    const [cr, mr] = await Promise.all([
+      fetch(API(`/clients/${clientId}`)),
+      fetch(API(`/clients/${clientId}/marketing-config`)),
+    ]);
+    if (cr.ok) setClient(await cr.json());
+    if (mr.ok) setConfig(await mr.json());
     setLoading(false);
   };
 
@@ -1335,6 +1441,12 @@ function ClientMarketingSetup({ clientId }) {
     setEditing(null);
     setSaving(false);
     load();
+  };
+
+  const toggleGuideStep = (key, idx) => {
+    const cur = config?.guide_progress || {};
+    const guideProg = { ...(cur[key] || {}), [idx]: !cur[key]?.[idx] };
+    saveFields({ guide_progress: { ...cur, [key]: guideProg } });
   };
 
   const sendTestEmail = async () => {
@@ -1484,7 +1596,19 @@ function ClientMarketingSetup({ clientId }) {
         </div>
       )}
 
-      <GuideModal guide={guideKey ? MARKETING_GUIDES[guideKey] : null} onClose={() => setGuideKey(null)} />
+      <GuideModal
+        guide={guideKey ? MARKETING_GUIDES[guideKey] : null}
+        progress={guideKey ? config?.guide_progress?.[guideKey] : null}
+        onToggleStep={(idx) => toggleGuideStep(guideKey, idx)}
+        config={config}
+        client={client}
+        onSaveFields={saveFields}
+        testEmailTo={testEmailTo}
+        setTestEmailTo={setTestEmailTo}
+        sendTestEmail={sendTestEmail}
+        testingEmail={testingEmail}
+        onClose={() => setGuideKey(null)}
+      />
     </div>
   );
 }
