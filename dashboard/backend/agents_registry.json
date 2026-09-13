@@ -54,5 +54,13 @@
     "root_dir": "../../design-agent",
     "color": "#e84393",
     "badge_class": "badge-pink"
+  },
+  {
+    "id": "media-buying-agent",
+    "name": "Media Buying Agent",
+    "description": "Ad creative specialist — knows what makes Meta ads work and generates finished ad copy + AI images",
+    "root_dir": "../../media-buying-agent",
+    "color": "#f2b705",
+    "badge_class": "badge-amber"
   }
 ]
