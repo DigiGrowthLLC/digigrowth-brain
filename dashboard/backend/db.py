@@ -1040,92 +1040,16 @@ async def _create_schema(pool: asyncpg.Pool):
             "Workspace's setup wizard -- required for real deliverability, "
             "not just for sends to succeed.",
         )
-        # One-time: add the two launch-checklist items covering client-side
-        # SMS/email automations and analytics verification -- inserted after
-        # the original 6-item seed above shipped, so it's a separate guarded
-        # insert (matched by title, not the WHERE NOT EXISTS(SELECT 1 ...)
-        # used for the original seed, which only ever fires on a genuinely
-        # empty table). Never re-inserts once present, so an admin can freely
-        # edit/reorder/delete these from the ClientsPanel editor afterward.
+        # One-time cleanup: a since-reverted change briefly seeded "Set up
+        # SMS/email automations" / "Verify & hook up analytics" into this
+        # (DigiGrowth-agency-run) launch checklist -- they belong as
+        # MARKETING_STEPS/MARKETING_GUIDES entries on the client-scoped
+        # Marketing Setup tab instead (ClientsPanel.jsx), not here. Removes
+        # them if a deploy already ran the old seed; harmless no-op
+        # otherwise/afterward.
         await conn.execute(
-            """
-            INSERT INTO launch_checklist_items (title, phase, sort_order)
-            SELECT title, 'prelaunch', ord FROM (VALUES
-                ('Set up SMS/email automations', 6),
-                ('Verify & hook up analytics', 7)
-            ) AS seed(title, ord)
-            WHERE NOT EXISTS (SELECT 1 FROM launch_checklist_items WHERE title = seed.title)
-            """
-        )
-        await conn.execute(
-            """
-            UPDATE launch_checklist_items SET description = $2
-            WHERE title = $1 AND (description IS NULL OR description = '')
-            """,
-            "Set up SMS/email automations",
-            "Covers the client's own No Show / Cancellation follow-up to "
-            "THEIR patients -- separate from our own sales-pipeline "
-            "sequences, and separate from reminders (already live once "
-            "Calendly's connected, see reminder_engine.py). "
-            "1) Confirm SMS marketing and Email marketing (items above) are "
-            "both done first -- this reuses the client's own Twilio number "
-            "and Gmail mailbox, it doesn't bring its own. "
-            "2) In this client's admin panel, open Sequences and fill in "
-            "the No Show and Cancellation SMS + email copy (defaults to PT-"
-            "oriented language on client creation -- rewrite for their "
-            "industry). "
-            "3) That's it to actually go live: the moment a lead tied to "
-            "this client goes No Show or gets Canceled (marked from the "
-            "internal Appointments tab, or by the client themselves once "
-            "self-service is enabled for them), the matching SMS/email "
-            "fires automatically from the client's own number/mailbox -- "
-            "no scheduler or extra wiring needed, see "
-            "client_appointment_sequence.py. "
-            "4) Test: mark a test appointment No Show (or Cancel it) and "
-            "confirm the message lands from the client's own number/inbox, "
-            "not ours. "
-            "5) Real limitation, not automatable from here: this only "
-            "covers leads DigiGrowth booked for the client through this "
-            "OS. A client's EXISTING patient base lives in their own "
-            "booking software/EHR, which this system has no connection to "
-            "-- if they want the same automation for their whole existing "
-            "patient list, that requires integrating that specific system "
-            "(a real per-client dev task, not a checklist step) or the "
-            "client running it themselves through their own tool.",
-        )
-        await conn.execute(
-            """
-            UPDATE launch_checklist_items SET description = $2
-            WHERE title = $1 AND (description IS NULL OR description = '')
-            """,
-            "Verify & hook up analytics",
-            "1) Link the client's leads: Clients admin panel -> \"link "
-            "contact to client\" (or \"link all unassigned\") for every "
-            "contact that's actually theirs -- Leads/SMS/Email/Appointment "
-            "stats all key off contacts.client_id, so an unlinked contact "
-            "is invisible everywhere in their portal. "
-            "2) Open their portal's Analytics tab yourself (use their "
-            "portal link) and sanity-check Total Leads and SMS/Email Sent+"
-            "Replies against what you already know is true. "
-            "3) Appointments Booked / Show Rate / Close Rate are computed "
-            "live from the internal Appointments tab's outcome marking "
-            "(outcome_show/outcome_close) for this client's leads -- "
-            "nothing to connect, just make sure reps are actually marking "
-            "outcomes for this client's appointments, not leaving them "
-            "blank. "
-            "4) \"Your Number\"/\"Your Mailbox\" SMS + email counts only "
-            "populate once real sends go through the client's own Twilio "
-            "number / Gmail mailbox (portal replies, the automations item "
-            "above, or Appointwise once that's connected) -- if those read "
-            "zero, that's accurate, not broken, until one of those is live. "
-            "5) Ad Spend / Impressions / Clicks / CTR / CPC / Cost per Lead "
-            "are NOT wired up yet -- there's no Meta or Google Ads API "
-            "integration in this codebase at all (meta_ads.py is a stub), "
-            "so the portal correctly shows \"Coming Soon\" for every "
-            "client. Building that requires a real Meta Marketing API / "
-            "Google Ads API integration plus each client's own ad-account "
-            "access -- flag to Dylan as a separate build, don't expect it "
-            "from this checklist item.",
+            "DELETE FROM launch_checklist_items WHERE title IN "
+            "('Set up SMS/email automations', 'Verify & hook up analytics')"
         )
         # Replaces the old "give us calendar access" client Next Steps item
         # (asking the client to just hand over calendar access, no

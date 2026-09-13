@@ -1341,6 +1341,26 @@ const MARKETING_GUIDES = {
       { text: "Upload the finished creative directly into the client's ad account.", link: "https://business.facebook.com/adsmanager", linkLabel: "Meta Ads Manager" },
     ],
   },
+  automations: {
+    title: "Set Up SMS/Email Automations",
+    steps: [
+      { text: "Confirm SMS Marketing and Email Marketing above are both done first — this reuses the client's own Twilio number and Gmail mailbox, it doesn't bring its own." },
+      { text: "Open this client's Sequences tab and fill in the No Show and Cancellation SMS + email copy (seeded with PT-oriented language on client creation — rewrite it for their actual industry)." },
+      { text: "That's it to go live — automated, nothing else to click: the moment a lead tied to this client goes No Show or gets Canceled (marked from the internal Appointments tab, or by the client themselves once self-service booking is turned on for them), the matching SMS/email fires automatically from the client's own number/mailbox. No scheduler or extra wiring needed (client_appointment_sequence.py)." },
+      { text: "Test: mark a test appointment No Show (or Cancel it) from the Appointments tab and confirm the message lands from the client's own number/inbox, not DigiGrowth's." },
+      { text: "Real limitation, not automatable from here: this only covers leads DigiGrowth booked for this client through this OS. A client's EXISTING patient base lives in their own booking software/EHR, which this system has no connection to — the same automation for their whole existing patient list needs that specific system integrated (a real per-client dev task) or the client running it through their own tool." },
+    ],
+  },
+  analytics: {
+    title: "Verify & Hook Up Analytics",
+    steps: [
+      { text: "Link this client's leads: Clients list → \"Link contact to client\" (or \"Link all unassigned\") for every contact that's actually theirs — Leads/SMS/Email/Appointment stats all key off contacts.client_id, so an unlinked contact is invisible everywhere in their portal." },
+      { text: "Open this client's portal Analytics tab (use their portal link) and sanity-check Total Leads and SMS/Email Sent+Replies against what you already know is true." },
+      { text: "Appointments Booked / Show Rate / Close Rate compute live from the internal Appointments tab's outcome marking (outcome_show/outcome_close) for this client's leads — nothing to connect, just make sure reps are actually marking outcomes for this client's appointments instead of leaving them blank." },
+      { text: "\"Your Number\"/\"Your Mailbox\" SMS + email counts only populate once real sends go through the client's own Twilio number / Gmail mailbox (portal replies, the automations above, or Appointwise once connected) — if those read zero, that's accurate, not broken, until one of those is live." },
+      { text: "Ad Spend / Impressions / Clicks / CTR / CPC / Cost per Lead are NOT wired up yet — there's no Meta or Google Ads API integration in this codebase (meta_ads.py is a stub), so the portal correctly shows \"Coming Soon\" for every client. Building that needs a real Meta Marketing API / Google Ads API integration plus each client's own ad-account access — flag to Dylan as a separate build, don't expect it from this step." },
+    ],
+  },
 };
 
 // What's realistically automatable end-to-end vs. what always needs a human
@@ -1351,6 +1371,8 @@ const AUTOMATION_CANDIDATES = [
   { step: "Landing Page", note: "Automatable: a content-agent skill could take the client's onboarding answers (offer, guarantee, CTA, brand) and generate the page's copy + layout automatically, matching the existing digigrowth-website design system. Still needs a human to review before it goes live and to push the Vercel deploy." },
   { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automatable without picking an image-gen provider and building the Meta Ads API integration (currently a stub)." },
   { step: "SMS / Email / Response AI", note: "Not automatable end-to-end: each requires a one-time human action outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent, an Appointwise account setup) that no API lets us do on someone's behalf. What IS already automated: the number/mailbox setup itself, every send/receive once connected, and — as of 2026-09-10 — the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats) happens automatically, no manual connection step needed." },
+  { step: "SMS/Email Automations", note: "As of 2026-09-13, fully automated once the copy's filled in: writing the No Show/Cancellation SMS+email copy on the Sequences tab is the only manual step — the actual send (client_appointment_sequence.py) fires on its own the moment a lead's appointment is marked No Show/Canceled, no scheduler or extra connection needed. Not automatable: onboarding a client's EXISTING patient base, which lives in their own booking/EHR system outside this app." },
+  { step: "Analytics", note: "Mostly already automatic: Leads/SMS/Email/Appointment stats compute live once contacts are linked to the client — no integration needed, just a data-hygiene check. Ad spend/CTR/CPC/etc. are the one real gap: no Meta or Google Ads API integration exists in this codebase yet, so those stay \"Coming Soon\" until that's built as its own project." },
 ];
 
 // Per-client resource hub: three single-value platform fields (Ads Manager,
@@ -1390,7 +1412,29 @@ const MARKETING_STEPS = [
     },
     done: (cfg) => Boolean(cfg?.ad_creative_status && Object.keys(cfg.ad_creative_status).length > 0),
   },
+  {
+    key: "automations", label: "SMS/Email Automations",
+    status: (cfg) => (cfg?.twilio_number && cfg?.gmail_refresh_token
+      ? "Channels ready — add No Show/Cancellation copy on the Sequences tab"
+      : "SMS + Email Marketing must be set up first"),
+    done: (cfg) => _guideStepsAllDone(cfg, "automations"),
+  },
+  {
+    key: "analytics", label: "Analytics",
+    status: () => "Manual verification — see guide",
+    done: (cfg) => _guideStepsAllDone(cfg, "analytics"),
+  },
 ];
+
+// For steps with no single dedicated config field to key off of (automations/
+// analytics above) — "done" instead means every numbered guide step has been
+// checked off in that step's own guide_progress.
+function _guideStepsAllDone(cfg, guideKey) {
+  const total = MARKETING_GUIDES[guideKey]?.steps?.length || 0;
+  if (!total) return false;
+  const progress = cfg?.guide_progress?.[guideKey] || {};
+  return Object.keys(progress).filter((k) => progress[k]).length >= total;
+}
 
 // Inline "paste the info this step needs, right here" mini-form — saves via
 // the same saveFields() the tab's own field editors use, so filling it in
@@ -1810,8 +1854,9 @@ function ClientMarketingSetup({ clientId }) {
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 12, lineHeight: 1.5 }}>
         This client's OWN marketing infrastructure — their Twilio number, their email-sending
-        domain, their Appointwise agent, their landing page, their ad creatives. Separate from
-        DigiGrowth's own outreach system. Numbered steps below (1-5) are meant to be done in order.
+        domain, their Appointwise agent, their landing page, their ad creatives, their No Show/
+        Cancellation automations, and their portal analytics. Separate from DigiGrowth's own
+        outreach system. Numbered steps below (1-7) are meant to be done in order.
       </div>
 
       <button
