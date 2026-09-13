@@ -170,6 +170,18 @@ class ClientResourceUpdate(BaseModel):
     sort_order: Optional[int] = None
 
 
+class ClientWebsiteCreate(BaseModel):
+    label: str
+    url: str
+    sort_order: int = 0
+
+
+class ClientWebsiteUpdate(BaseModel):
+    label: Optional[str] = None
+    url: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
 class ClientLinkContact(BaseModel):
     contact_id: Optional[str] = None
 
