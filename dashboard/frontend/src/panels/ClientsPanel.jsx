@@ -1186,20 +1186,25 @@ function ClientUploads({ clientId }) {
   };
 
   if (loading) return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
-  if (files.length === 0) {
-    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>NO FILES UPLOADED YET</div>;
+
+  // Non-media files (PDFs, docx, etc.) aren't shown in this gallery at all
+  // — this tab is for reviewing photos/videos, not managing every document
+  // type a client might upload. They're still included in DOWNLOAD ALL
+  // (ZIP) and still exist in storage; just not listed here.
+  const mediaFiles = files.filter((f) => f.file_type?.startsWith("image/") || f.file_type?.startsWith("video/"));
+
+  if (mediaFiles.length === 0) {
+    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>NO PHOTOS OR VIDEOS UPLOADED YET</div>;
   }
 
-  const visibleFiles = files.slice(0, visibleCount);
-  const media = visibleFiles.filter((f) => f.file_type?.startsWith("image/") || f.file_type?.startsWith("video/"));
-  const other = visibleFiles.filter((f) => !f.file_type?.startsWith("image/") && !f.file_type?.startsWith("video/"));
-  const hasMore = files.length > visibleCount;
+  const visibleFiles = mediaFiles.slice(0, visibleCount);
+  const hasMore = mediaFiles.length > visibleCount;
 
   return (
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>
-          SHOWING {visibleFiles.length} OF {files.length} FILE{files.length === 1 ? "" : "S"}
+          SHOWING {visibleFiles.length} OF {mediaFiles.length} FILE{mediaFiles.length === 1 ? "" : "S"}
         </div>
         <button
           className="btn btn-secondary" style={{ fontSize: 10 }}
@@ -1208,40 +1213,22 @@ function ClientUploads({ clientId }) {
           DOWNLOAD ALL (ZIP)
         </button>
       </div>
-      {media.length > 0 && (
-        <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, marginBottom: other.length ? 16 : 0,
-        }}>
-          {media.map((f) => (
-            <UploadThumb
-              key={f.id} clientId={clientId} file={f}
-              onOpen={(file, url) => setLightbox({ file, url })}
-              onDownload={download} onDelete={remove}
-            />
-          ))}
-        </div>
-      )}
-      {other.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {other.map((f) => (
-            <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)" }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, color: "#d0e8ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
-                {f.notes && <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{f.notes}</div>}
-              </div>
-              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => download(f)}>DOWNLOAD</button>
-              <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => remove(f)}>DELETE</button>
-            </div>
-          ))}
-        </div>
-      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10 }}>
+        {visibleFiles.map((f) => (
+          <UploadThumb
+            key={f.id} clientId={clientId} file={f}
+            onOpen={(file, url) => setLightbox({ file, url })}
+            onDownload={download} onDelete={remove}
+          />
+        ))}
+      </div>
       {hasMore && (
         <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
           <button
             className="btn btn-secondary" style={{ fontSize: 10 }}
             onClick={() => setVisibleCount((n) => n + UPLOADS_PAGE_SIZE)}
           >
-            LOAD {Math.min(UPLOADS_PAGE_SIZE, files.length - visibleCount)} MORE
+            LOAD {Math.min(UPLOADS_PAGE_SIZE, mediaFiles.length - visibleCount)} MORE
           </button>
         </div>
       )}
