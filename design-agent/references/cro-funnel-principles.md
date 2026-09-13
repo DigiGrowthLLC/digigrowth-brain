@@ -36,6 +36,54 @@ that scent trail and the visitor bounces before reading anything else.
   than a generic value prop — a specific pain point still reads as "this is for me"
   even without the exact ad text to match.
 
+## Above-the-Fold Gets Most of the Effort
+
+The section visible without scrolling is the only part of the page every single
+visitor sees, and a large share of visitors never scroll past it at all. Treat the
+headline, subheadline, CTA button, and hero image as the highest-leverage real
+estate on the entire page, worth disproportionately more design/copy attention
+than everything below it combined. If choices have to be made about where to
+spend the most care, spend it here first.
+
+## The Value Equation (the copy framework behind the headline/subheadline)
+
+A useful way to pressure-test hero and offer copy: does it address all four of
+these, and does the headline alone (not the paragraph under it) carry as much of
+this as possible?
+
+1. **Dream outcome.** State the actual end result the visitor wants, not a
+   description of the service. A "we offer [service]" headline answers the wrong
+   question — reframe it as "[service], so that [benefit], so that [bigger
+   benefit]" and keep chaining until it lands on the thing the visitor actually
+   cares about. For a client funnel, the dream outcome comes from
+   `ideal_patient.best_patient`/`why_you`, not a generic "get better" phrase.
+2. **Perceived likelihood of success.** The two levers that raise this: real
+   proof (see the Proof section's visual hierarchy below) and risk reversal (see
+   the CTA section below) — a promise alone is the weakest form of this, proof
+   and reduced risk both outperform it.
+3. **Time delay.** Naming a concrete, honest timeframe in the headline or
+   subheadline closes the gap between "I take action" and "I get the result" in
+   the visitor's head — e.g. a specific number of sessions or weeks, when the
+   client's own onboarding answers support a real number. Never invent a
+   timeframe the client didn't give.
+4. **Effort and sacrifice.** The subheadline's job is making the path to the
+   dream outcome feel easy, not additionally selling the outcome again. If the
+   page includes a "how it works"/process explainer, cap it at 3-4 steps — more
+   than that measurably reads as more effort, regardless of how simple the real
+   process actually is.
+
+The hero image should visually carry the dream outcome or proof of it, not be a
+generic stand-in — a photo of the actual thing the visitor wants to experience
+(or the real practice/provider, per this skill's real-photo rule) outperforms
+an unrelated "lifestyle" stock image every time.
+
+Headlines carry a wildly disproportionate share of a page's total impact, since a
+large share of visitors read only headlines and skim past body copy entirely.
+Apply this to every headline on the page, not just the hero — a section that says
+"What Makes Us Different" or "How It Works" as its own heading wastes the
+highest-attention text on the page restating a label; put the actual answer in
+the heading itself instead of the generic prompt for it.
+
 ## Section Order That Converts (fixed structure, not a suggestion)
 
 1. **Hero — message-matched promise + single CTA, above the fold.** Headline
@@ -64,6 +112,16 @@ that scent trail and the visitor bounces before reading anything else.
    credentials/experience section instead of a fabricated quote. A "why patients
    choose us" section built from `differentiation_voice.why_you` works well here
    too, alongside or in place of testimonials.
+   - **Visual proof outperforms text-only proof.** A plain text quote is the
+     weakest form this can take — a real photo alongside it is stronger, a real
+     before/after or in-session photo stronger still. Use whatever real visual
+     material the scrape/client assets actually provide; never fabricate a
+     before/after or a result that isn't real.
+   - **Show proof up front, never hide it behind a carousel.** A rotating
+     carousel gets a small fraction of the engagement a static, always-visible
+     row of proof gets — anything hidden behind a click or a swipe effectively
+     goes unseen. If there's enough real proof to show, lay it out as a visible
+     grid rather than paging through it.
 6. **Objection-handling FAQ.** 3-5 questions, written to defuse the actual reasons
    people don't book — lead with whatever `ideal_patient.drop_off_reason` says if
    it's usable, then round out with the universal objections for this vertical:
@@ -94,6 +152,13 @@ matters more on a page with no nav to scroll back up through.
   scheduler over an outbound link for the final CTA specifically — one fewer
   click/tab-switch between "decided" and "booked" measurably helps completion.
   A plain link is a fine fallback if embedding isn't practical.
+- **Put real risk-reversal right at the point of decision, not buried lower.**
+  A short row of real reassurances directly under the CTA button (e.g. "no
+  cost," "no obligation," "cash-pay, superbills available") measurably reduces
+  hesitation right where it matters most — the moment someone is deciding
+  whether to click. Only ever state reassurances that are actually true for
+  this specific client; never invent a guarantee, warranty, or policy they
+  don't actually offer.
 
 ## What NOT To Do On This Page
 
@@ -126,6 +191,27 @@ matters more on a page with no nav to scroll back up through.
   majority of Meta/Instagram ad clicks are mobile sessions. Design and test the
   mobile layout as the primary experience, not a shrink-to-fit afterthought.
 
+## Ongoing Optimization Once the Page Is Live
+
+Formal A/B testing needs real volume to mean anything — without enough monthly
+visitors, a "winning" variant can't be told apart from random noise. Most of
+DigiGrowth's individual client funnels won't reach that volume on their own. Two
+practical implications:
+
+- **Don't run a formal split test on a single client's low-traffic funnel** —
+  there usually isn't enough volume for the result to be trustworthy. Instead,
+  build the page from already-validated principles (this file) rather than
+  testing variants of it in isolation.
+- **If/when DigiGrowth accumulates enough funnels and real conversion data across
+  clients to see a pattern, that's the point to update this file** — a lesson
+  that shows up consistently across several client funnels is worth promoting
+  into a standing rule here, the same "get smarter from real data" discipline
+  this file already commits to.
+- **If a single client's traffic ever does get large enough for real testing**,
+  the highest-leverage things to test first are the headline and the hero image
+  — changes to the above-the-fold section consistently produce the largest
+  swings in conversion rate, far more than changes further down the page.
+
 ## Update Log
 
 Add a dated entry here whenever a real client ad-campaign result confirms,
@@ -136,3 +222,13 @@ Seeded from general CRO/landing-page research and this codebase's existing
 `funnel-best-practices.md` — no DigiGrowth client ad-funnel campaign data exists
 yet to confirm or refine any of this. Treat everything above as a reasoned
 starting point, not a validated result, until real campaign data comes back.
+
+### 2026-09-13 (added: Value Equation framework, proof/CTA specifics, testing discipline)
+Added the Value Equation section, the above-the-fold effort note, the visual-proof-
+hierarchy and no-carousel guidance, the risk-reversal-under-the-CTA note, and the
+Ongoing Optimization section — synthesized from a CRO/landing-page strategy video
+(https://www.youtube.com/watch?v=zA0B-VwOPn4, transcript saved to
+content-agent/outputs/), cross-checked against this file's existing principles
+before adding (all consistent, nothing contradicted). Still general
+best-practice knowledge, not yet confirmed by a DigiGrowth client's own campaign
+data.
