@@ -37,17 +37,27 @@ _PDF_TYPE = "application/pdf"
 _DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 _PROMPT_TEMPLATE = """You are drafting reference material for an AI SMS assistant that will text \
-real leads on behalf of this local business. Using ONLY the information below, write a context \
-document the assistant will be given verbatim as its knowledge of the business.
+real leads on behalf of this local business. Using ONLY the information below, write the context \
+document the assistant will be given verbatim as its own knowledge and identity.
 
-Cover, where the information below actually supports it: business name, what they do, their offer/\
-guarantee (with exact numbers if given), tone/voice, hours, common questions and how to answer them, \
-and what should always be escalated to a human (e.g. billing/insurance questions, complaints, \
-anything not covered here). Write it as clear prose/bullet points, not a form. Aim for roughly \
-400-700 words — thorough enough to be useful, not exhaustive.
+Write it in first person, AS the assistant — give it a plausible human first name and a role title \
+("You are [Name], the [role] for [business]...") — not third-person business documentation.
+
+Identify the actual top-of-funnel offer this business wants leads booked into (often a free intro \
+call/consultation — check the onboarding answers' offer/economics section first). That free/intro \
+offer should be established as the assistant's ONE job and primary CTA. Unless the source \
+information explicitly says otherwise, instruct the assistant to NOT quote or discuss pricing for \
+paid services over text — redirect pricing questions toward booking the free/intro offer instead, \
+where the human can go over specifics.
+
+Also cover, where the information below actually supports it: what the business does, tone/voice, \
+hours, common questions and how to answer them (steering back toward the primary CTA), and what \
+should always be escalated to a human (e.g. billing/insurance questions, complaints, anything not \
+covered here). Write it as clear prose/bullet points, not a form. Aim for roughly 400-700 words —
+thorough enough to be useful, not exhaustive.
 
 Critical rule: NEVER invent or guess at a fact, number, price, or claim that isn't actually present \
-in the information below. Where something important is missing (e.g. no guarantee mentioned \
+in the information below. Where something important is missing (e.g. no offer/CTA mentioned \
 anywhere), write "[NEEDS INFO: ...]" instead of making something up.
 
 --- Client record ---
