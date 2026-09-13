@@ -1018,7 +1018,7 @@ function ClientRequests({ clientId }) {
 // view (IntersectionObserver), and videos never load or decode anything
 // for their thumbnail at all — just a static icon — until the user
 // explicitly clicks to open one in the lightbox.
-function UploadThumb({ clientId, file, onOpen }) {
+function UploadThumb({ clientId, file, onOpen, onDownload, onDelete }) {
   const [inlineUrl, setInlineUrl] = useState(null);
   const [loadingVideo, setLoadingVideo] = useState(false);
   const elRef = useRef(null);
@@ -1086,6 +1086,24 @@ function UploadThumb({ clientId, file, onOpen }) {
           FILE
         </div>
       )}
+      <div style={{ position: "absolute", top: 4, right: 4, display: "flex", gap: 4 }}>
+        <button
+          title="Download" onClick={(e) => { e.stopPropagation(); onDownload(file); }}
+          style={{
+            width: 22, height: 22, borderRadius: 6, border: "none", cursor: "pointer",
+            background: "rgba(0,0,0,0.55)", color: "#e8f0ff", fontSize: 11, lineHeight: 1,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >⬇</button>
+        <button
+          title="Delete" onClick={(e) => { e.stopPropagation(); onDelete(file); }}
+          style={{
+            width: 22, height: 22, borderRadius: 6, border: "none", cursor: "pointer",
+            background: "rgba(0,0,0,0.55)", color: "#e05c5c", fontSize: 11, lineHeight: 1,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >✕</button>
+      </div>
       <div style={{
         position: "absolute", left: 0, right: 0, bottom: 0, padding: "4px 6px",
         background: "linear-gradient(transparent, rgba(0,0,0,0.75))",
@@ -1201,7 +1219,11 @@ function ClientUploads({ clientId }) {
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, marginBottom: other.length ? 16 : 0,
         }}>
           {media.map((f) => (
-            <UploadThumb key={f.id} clientId={clientId} file={f} onOpen={(file, url) => setLightbox({ file, url })} />
+            <UploadThumb
+              key={f.id} clientId={clientId} file={f}
+              onOpen={(file, url) => setLightbox({ file, url })}
+              onDownload={download} onDelete={remove}
+            />
           ))}
         </div>
       )}
