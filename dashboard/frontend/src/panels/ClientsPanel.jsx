@@ -1001,11 +1001,109 @@ function ClientRequests({ clientId }) {
 }
 
 // Files a client uploaded via the portal's Upload tab. Bytes live in
-// Cloudflare R2 (r2_storage.py) — this just lists metadata and gets a
-// presigned download link on demand.
+// Cloudflare R2 (r2_storage.py) — this just lists metadata and gets
+// presigned URLs on demand: an `inline=true` one (no Content-Disposition:
+// attachment header) to render image/video thumbnails and a lightbox
+// directly in the browser, and a plain one for the DOWNLOAD button. Lets
+// Dylan flip through what a client uploaded and judge what's usable without
+// downloading each file first.
+function UploadThumb({ clientId, file, onOpen }) {
+  const [inlineUrl, setInlineUrl] = useState(null);
+  const isImage = file.file_type?.startsWith("image/");
+  const isVideo = file.file_type?.startsWith("video/");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (isImage || isVideo) {
+      fetch(API(`/clients/${clientId}/uploads/${file.id}/download?inline=true`))
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => { if (!cancelled && data) setInlineUrl(data.url); })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [clientId, file.id, isImage, isVideo]);
+
+  return (
+    <div
+      onClick={() => (isImage || isVideo) && inlineUrl && onOpen(file, inlineUrl)}
+      style={{
+        position: "relative", aspectRatio: "1 / 1", borderRadius: 10, overflow: "hidden",
+        background: "rgba(255,255,255,0.03)", border: "1px solid rgba(58,123,213,0.12)",
+        cursor: (isImage || isVideo) && inlineUrl ? "pointer" : "default",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      {isImage && inlineUrl && (
+        <img src={inlineUrl} alt={file.file_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      )}
+      {isVideo && inlineUrl && (
+        <>
+          <video src={inlineUrl} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <div style={{
+            position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.25)", fontSize: 28, color: "#fff", pointerEvents: "none",
+          }}>▶</div>
+        </>
+      )}
+      {(isImage || isVideo) && !inlineUrl && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a8a" }}>LOADING…</div>
+      )}
+      {!isImage && !isVideo && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", textAlign: "center", padding: 8 }}>
+          FILE
+        </div>
+      )}
+      <div style={{
+        position: "absolute", left: 0, right: 0, bottom: 0, padding: "4px 6px",
+        background: "linear-gradient(transparent, rgba(0,0,0,0.75))",
+        fontSize: 9, color: "#e8f0ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {file.file_name}
+      </div>
+    </div>
+  );
+}
+
+function UploadLightbox({ clientId, file, url, onClose, onDelete }) {
+  const isImage = file.file_type?.startsWith("image/");
+  const download = async () => {
+    const r = await fetch(API(`/clients/${clientId}/uploads/${file.id}/download`));
+    if (r.ok) {
+      const { url: dlUrl } = await r.json();
+      window.open(dlUrl, "_blank", "noreferrer");
+    }
+  };
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000,
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24,
+      }}
+    >
+      <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: "90vw", maxHeight: "80vh", display: "flex" }}>
+        {isImage ? (
+          <img src={url} alt={file.file_name} style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8 }} />
+        ) : (
+          <video src={url} controls autoPlay style={{ maxWidth: "90vw", maxHeight: "80vh", borderRadius: 8 }} />
+        )}
+      </div>
+      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#d0e8ff" }}>{file.file_name}</div>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={download}>DOWNLOAD</button>
+        <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(file)}>DELETE</button>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={onClose}>CLOSE</button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ClientUploads({ clientId }) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lightbox, setLightbox] = useState(null); // { file, url }
 
   const load = async () => {
     const r = await fetch(API(`/clients/${clientId}/uploads`));
@@ -1028,6 +1126,7 @@ function ClientUploads({ clientId }) {
   const remove = async (file) => {
     if (!window.confirm(`Delete "${file.file_name}"? This can't be undone.`)) return;
     await fetch(API(`/clients/${clientId}/uploads/${file.id}`), { method: "DELETE" });
+    setLightbox(null);
     load();
   };
 
@@ -1036,18 +1135,40 @@ function ClientUploads({ clientId }) {
     return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>NO FILES UPLOADED YET</div>;
   }
 
+  const media = files.filter((f) => f.file_type?.startsWith("image/") || f.file_type?.startsWith("video/"));
+  const other = files.filter((f) => !f.file_type?.startsWith("image/") && !f.file_type?.startsWith("video/"));
+
   return (
-    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 8 }}>
-      {files.map((f) => (
-        <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, color: "#d0e8ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
-            {f.notes && <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{f.notes}</div>}
-          </div>
-          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => download(f)}>DOWNLOAD</button>
-          <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => remove(f)}>DELETE</button>
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+      {media.length > 0 && (
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, marginBottom: other.length ? 16 : 0,
+        }}>
+          {media.map((f) => (
+            <UploadThumb key={f.id} clientId={clientId} file={f} onOpen={(file, url) => setLightbox({ file, url })} />
+          ))}
         </div>
-      ))}
+      )}
+      {other.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {other.map((f) => (
+            <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, color: "#d0e8ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
+                {f.notes && <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{f.notes}</div>}
+              </div>
+              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => download(f)}>DOWNLOAD</button>
+              <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => remove(f)}>DELETE</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {lightbox && (
+        <UploadLightbox
+          clientId={clientId} file={lightbox.file} url={lightbox.url}
+          onClose={() => setLightbox(null)} onDelete={remove}
+        />
+      )}
     </div>
   );
 }

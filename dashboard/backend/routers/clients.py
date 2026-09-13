@@ -8,7 +8,7 @@ import json
 import os
 import secrets
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 import r2_storage
 from db import get_pool
@@ -673,10 +673,13 @@ async def list_client_uploads(client_id: int):
 
 
 @router.get("/clients/{client_id}/uploads/{upload_id}/download")
-async def get_client_upload_download_url(client_id: int, upload_id: int):
+async def get_client_upload_download_url(client_id: int, upload_id: int, inline: bool = Query(False)):
     """Returns a short-lived presigned R2 URL rather than proxying the file
     through this backend — same "Railway never touches the bytes" principle
-    as the upload side."""
+    as the upload side. `inline=true` (used by the admin gallery view to
+    render <img>/<video> thumbnails directly) omits the download filename so
+    R2 doesn't set a Content-Disposition: attachment header, which would
+    otherwise force a download instead of letting the browser render it."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -687,7 +690,8 @@ async def get_client_upload_download_url(client_id: int, upload_id: int):
         raise HTTPException(status_code=404, detail="Upload not found")
     if not r2_storage.is_configured():
         raise HTTPException(status_code=503, detail="File storage isn't connected yet")
-    return {"url": r2_storage.presign_get(row["r2_key"], row["file_name"])}
+    filename = None if inline else row["file_name"]
+    return {"url": r2_storage.presign_get(row["r2_key"], filename)}
 
 
 @router.delete("/clients/{client_id}/uploads/{upload_id}")
