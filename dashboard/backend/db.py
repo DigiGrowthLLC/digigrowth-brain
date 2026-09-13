@@ -614,6 +614,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_sender_email TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS appointwise_webhook_url TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS email_sync_last_ts BIGINT NOT NULL DEFAULT 0;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_enabled BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_context TEXT;
             ALTER TABLE client_email_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_channel_last_read_at TIMESTAMPTZ;
         """)
@@ -979,6 +981,25 @@ async def _create_schema(pool: asyncpg.Pool):
                 created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             CREATE INDEX IF NOT EXISTS idx_client_sms_messages_client ON client_sms_messages(client_id, created_at DESC);
+
+            -- Self-built replacement for Appointwise (response_ai.py) —
+            -- per-(client, lead phone) conversation state. client_sms_messages
+            -- above is just a flat message log; this is what tracks whether
+            -- the AI is still actively handling a thread ('ai_active'), has
+            -- handed it to a human ('escalated', e.g. the lead asked for one
+            -- or the model wasn't confident), or already booked the lead
+            -- ('booked'). response_ai_enabled on client_marketing_config is
+            -- the per-client kill switch that gates whether this whole path
+            -- runs at all vs. the old Appointwise-forwarding path.
+            CREATE TABLE IF NOT EXISTS client_lead_conversations (
+                id              SERIAL PRIMARY KEY,
+                client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                phone           TEXT NOT NULL,
+                status          TEXT NOT NULL DEFAULT 'ai_active',
+                last_message_at TIMESTAMPTZ,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(client_id, phone)
+            );
         """)
         # Templatize the launch checklist itself: fill in the real,
         # step-by-step setup SOP for SMS/Response AI/Email as each item's

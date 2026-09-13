@@ -127,28 +127,31 @@ async def guess_timezone_for_phone(phone: str = Query(...)):
     return {"timezone": guess_timezone(phone)}
 
 
-@router.post("/appointment-reminders")
-async def create_appointment(payload: dict):
-    """Create a booking from the manual-entry form.
-    Expects: contact_id (optional), prospect_name, prospect_phone, prospect_email,
-    date ("YYYY-MM-DD"), time ("HH:MM", 24h), timezone (IANA name).
-    """
+async def create_appointment_row(payload: dict) -> dict:
+    """Create a booking — the single insert point for appointment_reminders,
+    shared by the manual-entry form's route below AND response_ai.py's
+    propose_appointment tool (an AI-driven booking is just another caller of
+    this same function, not a separate code path). Raises ValueError on bad
+    input rather than HTTPException so it's usable outside a request
+    context. Expects: contact_id (optional), prospect_name, prospect_phone,
+    prospect_email, date ("YYYY-MM-DD"), time ("HH:MM", 24h), timezone
+    (IANA name). Returns the full inserted row."""
     date_str = (payload.get("date") or "").strip()
     time_str = (payload.get("time") or "").strip()
     tz_name  = (payload.get("timezone") or "").strip()
 
     if not date_str or not time_str or not tz_name:
-        raise HTTPException(400, "date, time, and timezone are required")
+        raise ValueError("date, time, and timezone are required")
 
     try:
         tz = ZoneInfo(tz_name)
     except ZoneInfoNotFoundError:
-        raise HTTPException(400, f"Unknown timezone: {tz_name}")
+        raise ValueError(f"Unknown timezone: {tz_name}")
 
     try:
         local_dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
     except ValueError:
-        raise HTTPException(400, "date must be YYYY-MM-DD and time must be HH:MM")
+        raise ValueError("date must be YYYY-MM-DD and time must be HH:MM")
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -222,6 +225,16 @@ async def create_appointment(payload: dict):
         except Exception as e:
             print(f"[appointments] booked-disposition update failed for appointment {row['id']}: {e}")
 
+    return dict(row)
+
+
+@router.post("/appointment-reminders")
+async def create_appointment(payload: dict):
+    """Thin HTTP wrapper — see create_appointment_row() for the actual logic."""
+    try:
+        row = await create_appointment_row(payload)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"ok": True, "id": row["id"]}
 
 

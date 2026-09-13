@@ -195,6 +195,8 @@ class ClientMarketingConfigUpdate(BaseModel):
     gmail_sender_email: Optional[str] = None
     appointwise_agent_id: Optional[str] = None
     appointwise_webhook_url: Optional[str] = None
+    response_ai_enabled: Optional[bool] = None
+    response_ai_context: Optional[str] = None
     landing_page_url: Optional[str] = None
     ad_creative_status: Optional[dict] = None
     guide_progress: Optional[dict] = None

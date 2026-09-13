@@ -1336,16 +1336,11 @@ const MARKETING_GUIDES = {
     ],
   },
   response_ai: {
-    title: "Set Up Response AI (Appointwise)",
+    title: "Set Up Response AI (Self-Built)",
     steps: [
-      { text: "Confirm SMS marketing is provisioned first — Appointwise plugs into the client's own Twilio number, it doesn't bring one." },
-      { text: "Set the client up in your Appointwise account and note the agent ID it gives you." },
-      { text: "Paste the agent ID and Appointwise's webhook URL below.",
-        fields: [
-          { key: "appointwise_agent_id", label: "Appointwise agent ID", placeholder: "agent id" },
-          { key: "appointwise_webhook_url", label: "Appointwise webhook URL", placeholder: "https://…" },
-        ] },
-      { text: "Test by texting the client's number and confirming Appointwise receives it, replies, and any resulting booking shows up correctly." },
+      { text: "Confirm SMS marketing is provisioned first — this reuses the client's own Twilio number, it doesn't bring its own." },
+      { text: "Enable the agent and write this client's context: business name, offer/guarantee, tone, hours, FAQs, and what it should always hand off to a human for. The more specific this is, the better the AI's replies will be — it never invents facts you didn't give it here.", responseAiAction: true },
+      { text: "Text the client's number from your own phone and have a real back-and-forth. Confirm: replies sound on-brand, agreeing to a time actually creates an appointment (check the Appointments tab), and asking for a human stops the AI from replying further to that thread." },
     ],
   },
   landing_page: {
@@ -1395,7 +1390,7 @@ const MARKETING_GUIDES = {
 const AUTOMATION_CANDIDATES = [
   { step: "Landing Page", note: "Automatable: a content-agent skill could take the client's onboarding answers (offer, guarantee, CTA, brand) and generate the page's copy + layout automatically, matching the existing digigrowth-website design system. Still needs a human to review before it goes live and to push the Vercel deploy." },
   { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automatable without picking an image-gen provider and building the Meta Ads API integration (currently a stub)." },
-  { step: "SMS / Email / Response AI", note: "Not automatable end-to-end: each requires a one-time human action outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent, an Appointwise account setup) that no API lets us do on someone's behalf. What IS already automated: the number/mailbox setup itself, every send/receive once connected, and — as of 2026-09-10 — the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats) happens automatically, no manual connection step needed." },
+  { step: "SMS / Email / Response AI", note: "SMS and Email still need a one-time human setup step outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent) that no API lets us do on someone's behalf. Response AI, as of 2026-09-13, is fully self-built and automated once enabled — response_ai.py replies to inbound SMS itself (no external Appointwise account/webhook needed anymore), only the per-client context needs writing. What's already automated across all three: the number/mailbox setup itself, every send/receive once connected, and the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats)." },
   { step: "SMS/Email Automations", note: "As of 2026-09-13, fully automated once the copy's filled in: writing the No Show/Cancellation SMS+email copy on the Sequences tab is the only manual step — the actual send (client_appointment_sequence.py) fires on its own the moment a lead's appointment is marked No Show/Canceled, no scheduler or extra connection needed. Not automatable: onboarding a client's EXISTING patient base, which lives in their own booking/EHR system outside this app." },
   { step: "Analytics", note: "Mostly already automatic: Leads/SMS/Email/Appointment stats compute live once contacts are linked to the client — no integration needed, just a data-hygiene check. Ad spend/CTR/CPC/etc. are the one real gap: no Meta or Google Ads API integration exists in this codebase yet, so those stay \"Coming Soon\" until that's built as its own project." },
 ];
@@ -1418,11 +1413,11 @@ const MARKETING_STEPS = [
     done: (cfg) => Boolean(cfg?.gmail_refresh_token),
   },
   {
-    key: "response_ai", label: "Response AI (Appointwise)",
-    status: (cfg) => (cfg?.appointwise_agent_id
-      ? `Connected — ${cfg.appointwise_agent_id}${cfg.appointwise_webhook_url ? "" : " (webhook not set)"}`
-      : "Not connected"),
-    done: (cfg) => Boolean(cfg?.appointwise_agent_id && cfg?.appointwise_webhook_url),
+    key: "response_ai", label: "Response AI",
+    status: (cfg) => (cfg?.response_ai_enabled
+      ? (cfg?.response_ai_context ? "Enabled — context set" : "Enabled — no context written yet")
+      : "Not enabled"),
+    done: (cfg) => Boolean(cfg?.response_ai_enabled && cfg?.response_ai_context),
   },
   {
     key: "landing_page", label: "Landing Page",
@@ -1500,6 +1495,62 @@ function GuideStepFields({ fields, config, onSaveFields, onSaved }) {
           />
         </div>
       ))}
+      <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
+        {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
+      </button>
+      {saveError && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{saveError}</div>
+      )}
+    </div>
+  );
+}
+
+// Enable toggle + freeform per-client context editor for the self-built
+// response_ai.py agent — same onSaveFields plumbing as GuideStepFields
+// above, just a checkbox + textarea instead of single-line inputs (the
+// context is meant to be a real paragraph: business info, tone, offer,
+// hours, what to escalate).
+function ResponseAiSetup({ config, onSaveFields, onSaved }) {
+  const [enabled, setEnabled] = useState(Boolean(config?.response_ai_enabled));
+  const [context, setContext] = useState(config?.response_ai_context || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setSaved(false);
+    setSaveError("");
+    const result = await onSaveFields({ response_ai_enabled: enabled, response_ai_context: context.trim() || null });
+    setSaving(false);
+    if (result?.ok) {
+      setSaved(true);
+      onSaved?.();
+    } else {
+      setSaveError(result?.error || "Save failed");
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#d0e8ff", cursor: "pointer" }}>
+        <input
+          type="checkbox" checked={enabled}
+          onChange={(e) => { setEnabled(e.target.checked); setSaved(false); setSaveError(""); }}
+        />
+        Enable the AI response agent for this client
+      </label>
+      <div>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>
+          CLIENT CONTEXT (business info, tone, offer, hours, FAQs, what to escalate)
+        </div>
+        <textarea
+          className="dg-input" rows={8} style={{ fontSize: 12, width: "100%", boxSizing: "border-box", resize: "vertical" }}
+          value={context}
+          onChange={(e) => { setContext(e.target.value); setSaved(false); setSaveError(""); }}
+          placeholder={"e.g. Bright Path Physical Therapy. Guarantee: 10-20 new patient consultations in 6 weeks or we keep working for free. Hours: Mon-Fri 8am-6pm. Escalate anything about insurance/billing or a lead who sounds upset."}
+        />
+      </div>
       <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
         {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
       </button>
@@ -1614,6 +1665,12 @@ function GuideModal({
                   {s.fields && (
                     <GuideStepFields
                       fields={s.fields} config={config} onSaveFields={onSaveFields}
+                      onSaved={() => onToggleStep(i, true)}
+                    />
+                  )}
+                  {s.responseAiAction && (
+                    <ResponseAiSetup
+                      config={config} onSaveFields={onSaveFields}
                       onSaved={() => onToggleStep(i, true)}
                     />
                   )}
