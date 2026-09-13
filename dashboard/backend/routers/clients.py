@@ -343,12 +343,32 @@ async def delete_client_resource(client_id: int, resource_id: int):
 # side from content_view_events, not stored here.
 @router.get("/clients/{client_id}/websites")
 async def list_client_websites(client_id: int):
+    """Same view/conversion stats shape as client_portal.py's
+    portal_websites() — admin and client see the same numbers, just
+    admin-authenticated here instead of token-scoped."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT * FROM client_websites WHERE client_id = $1 ORDER BY sort_order, id", client_id
         )
-    return [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            d = dict(r)
+            stats = await conn.fetchrow(
+                """
+                SELECT
+                    COALESCE(SUM((event_type = 'view')::int), 0) AS views,
+                    COALESCE(SUM((event_type = 'conversion')::int), 0) AS conversions
+                FROM content_view_events
+                WHERE source = 'client_website' AND content_key = $1
+                """,
+                str(d["id"]),
+            )
+            d["views"] = stats["views"]
+            d["conversions"] = stats["conversions"]
+            d["conversion_rate"] = round(stats["conversions"] / stats["views"] * 100, 1) if stats["views"] else 0.0
+            out.append(d)
+    return out
 
 
 @router.post("/clients/{client_id}/websites")
