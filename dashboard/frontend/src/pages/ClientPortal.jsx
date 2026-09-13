@@ -2233,12 +2233,14 @@ function InboxThread({ token, contactId, onSent }) {
 // reasoning as excluding the anchor contact elsewhere in this file.
 const INBOX_CHANNEL_OPTIONS = [["all", "All Channels"], ["sms", "SMS"], ["email", "Email"]];
 
-// Read-only feed of messages sent/received through the client's OWN
-// provisioned Twilio number and Gmail mailbox (client_sms.py/client_email.py)
-// — deliberately separate from the connected-threads panel below, which
-// reads DigiGrowth's own outreach tables. Collapsed by default since most
-// visits will be to the main inbox; expands to a flat, most-recent-first
-// list, no reply-from-portal (this flat log has no contact-matching yet).
+// Read-only RAW feed of every message sent/received through the client's
+// OWN provisioned Twilio number and Gmail mailbox (client_sms.py/
+// client_email.py), unfiltered by lead — a flat, most-recent-first log
+// (anything that hit the number/mailbox, matched to a lead or not).
+// InboxTab/InboxThread above it is the real per-lead inbox (same
+// underlying client_sms_messages/client_email_messages tables, but
+// matched to a contact and reply-capable) — this panel stays as a raw
+// "did anything come through at all" sanity check, collapsed by default.
 function CampaignActivityPanel({ token }) {
   const [open, setOpen] = useState(false);
   const [sms, setSms] = useState([]);

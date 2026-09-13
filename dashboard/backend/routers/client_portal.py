@@ -31,12 +31,15 @@ from models import (
     ClientRequestCreate, UploadPresignRequest, UploadRecordCreate,
 )
 import cancel_sequence
+import client_email
+import client_sms
 import integrations
 import no_show_sequence
 import onboarding_sequence
 import r2_storage
 from routers import dialer as dialer_router
 from routers import appointments as appointments_router
+from routers import sms as sms_router
 from timezone_lookup import US_TIMEZONES
 
 router = APIRouter(prefix="/portal-api")
@@ -981,18 +984,33 @@ async def portal_import_leads(token: str, body: dict):
     return {"inserted": inserted, "updated": updated, "skipped": skipped}
 
 
-# ---------------- Inbox (scoped via contacts/sms_conversations/email_conversations.client_id) ----------------
+# ---------------- Inbox (scoped via contacts + the client's OWN channel tables) ----------------
 #
-# Read side (list + thread + mark-read) is fully real, scoped the same way as
-# every other portal endpoint. Sending is intentionally a stub for now — no
-# client has their own Twilio number or email inbox connected yet, so a real
-# send here would go out through DigiGrowth's own shared Twilio/Gmail
-# credentials "as" the client, which is wrong the moment a second client
-# exists and unsafe even for the first. portal_send_message below validates
-# and responds, but never actually calls integrations.gmail_send_reply or a
-# Twilio send — that wiring is future work, once per-client channel
-# credentials exist (see meta_ads.py for the same "stub the parts that need
-# real per-client credentials, build the rest now" shape).
+# Threaded per-lead, mirroring the internal InboxPanel's UX, but reading/
+# writing exclusively through THIS client's own connected Twilio number
+# (client_sms_messages) and Gmail mailbox (client_email_messages) —
+# never DigiGrowth's shared credentials or the internal sms_messages/
+# email_messages tables (those are Dylan's own outreach system and belong
+# to a different client entirely: himself). client_sms_messages/
+# client_email_messages have no contact_id column (they're a flat per-
+# client log — see client_sms_webhooks.py/client_email.py), so a lead's
+# thread is resolved by matching phone/email against contacts, the same
+# normalized-last-10-digits approach routers/sms.py already uses for the
+# internal system (sms_router._phone_match) — CRM numbers and Twilio's
+# E.164 webhook payloads are never guaranteed to share one exact format.
+# Read state lives on contacts.client_channel_last_read_at (one combined
+# timestamp for both channels — a lead only ever belongs to one client,
+# so there's no multi-viewer ambiguity to split it further).
+
+def _client_sms_counterparty_sql(client_id_param: str) -> str:
+    """CTE fragment: this client's own SMS log with the OTHER party's
+    number normalized into one column, since which column (from_number vs
+    to_number) holds the lead's number depends on direction."""
+    return f"""
+        SELECT *, CASE WHEN direction = 'outbound' THEN to_number ELSE from_number END AS counterparty
+        FROM client_sms_messages WHERE client_id = {client_id_param}
+    """
+
 
 @router.get("/{token}/inbox")
 async def portal_inbox_list(
@@ -1038,20 +1056,19 @@ async def portal_inbox_list(
         if channel in ("all", "sms"):
             sms_rows = await conn.fetch(
                 f"""
+                WITH csm AS ({_client_sms_counterparty_sql('$1')})
                 SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
-                       sc.updated_at,
-                       (SELECT sm.body FROM sms_messages sm WHERE sm.contact_id = c.id
-                            ORDER BY sm.sent_at DESC LIMIT 1) AS last_message,
-                       (SELECT sm.sent_at FROM sms_messages sm WHERE sm.contact_id = c.id
-                            ORDER BY sm.sent_at DESC LIMIT 1) AS last_message_at,
+                       (SELECT csm.body FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
+                            ORDER BY csm.created_at DESC LIMIT 1) AS last_message,
+                       (SELECT csm.created_at FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
+                            ORDER BY csm.created_at DESC LIMIT 1) AS last_message_at,
                        EXISTS(
-                           SELECT 1 FROM sms_messages sm WHERE sm.contact_id = c.id
-                           AND sm.direction = 'inbound'
-                           AND sm.sent_at > COALESCE(sc.last_read_at, '-infinity'::timestamptz)
+                           SELECT 1 FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
+                           AND csm.direction = 'inbound'
+                           AND csm.created_at > COALESCE(c.client_channel_last_read_at, '-infinity'::timestamptz)
                        ) AS unread
-                FROM sms_conversations sc
-                JOIN contacts c ON c.id = sc.contact_id
-                WHERE {where}
+                FROM contacts c
+                WHERE {where} AND c.phone IS NOT NULL AND trim(c.phone) != ''
                 """,
                 *params,
             )
@@ -1059,20 +1076,19 @@ async def portal_inbox_list(
         if channel in ("all", "email"):
             email_rows = await conn.fetch(
                 f"""
+                WITH cem AS (SELECT * FROM client_email_messages WHERE client_id = $1)
                 SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
-                       ec.updated_at,
-                       (SELECT em.body FROM email_messages em WHERE em.contact_id = c.id
-                            ORDER BY em.sent_at DESC LIMIT 1) AS last_message,
-                       (SELECT em.sent_at FROM email_messages em WHERE em.contact_id = c.id
-                            ORDER BY em.sent_at DESC LIMIT 1) AS last_message_at,
+                       (SELECT cem.body FROM cem WHERE lower(cem.to_email) = lower(c.email)
+                            ORDER BY cem.created_at DESC LIMIT 1) AS last_message,
+                       (SELECT cem.created_at FROM cem WHERE lower(cem.to_email) = lower(c.email)
+                            ORDER BY cem.created_at DESC LIMIT 1) AS last_message_at,
                        EXISTS(
-                           SELECT 1 FROM email_messages em WHERE em.contact_id = c.id
-                           AND em.direction = 'inbound'
-                           AND em.sent_at > COALESCE(ec.last_read_at, '-infinity'::timestamptz)
+                           SELECT 1 FROM cem WHERE lower(cem.to_email) = lower(c.email)
+                           AND cem.direction = 'inbound'
+                           AND cem.created_at > COALESCE(c.client_channel_last_read_at, '-infinity'::timestamptz)
                        ) AS unread
-                FROM email_conversations ec
-                JOIN contacts c ON c.id = ec.contact_id
-                WHERE {where}
+                FROM contacts c
+                WHERE {where} AND c.email IS NOT NULL AND trim(c.email) != ''
                 """,
                 *params,
             )
@@ -1082,22 +1098,17 @@ async def portal_inbox_list(
         for r in rows:
             d = dict(r)
             cid = d["contact_id"]
+            if d["last_message_at"] is None:
+                continue  # no activity on this channel yet — don't list it as a thread
             entry = by_contact.setdefault(cid, {
                 "contact_id": cid, "business": d["business"], "owner": d["owner"],
                 "phone": d["phone"], "email": d["email"],
                 "channels": [], "last_message": None, "last_message_at": None, "unread": False,
             })
-            # A contact can have more than one row in sms_conversations/
-            # email_conversations over time (email_conversations especially
-            # — one row per distinct Gmail thread_id, not per contact), so
-            # without this dedup check the list showed "EMAIL" repeated
-            # once per underlying thread row instead of once per contact.
             if ch not in entry["channels"]:
                 entry["channels"].append(ch)
             entry["unread"] = entry["unread"] or d["unread"]
-            if d["last_message_at"] and (
-                entry["last_message_at"] is None or d["last_message_at"] > entry["last_message_at"]
-            ):
+            if entry["last_message_at"] is None or d["last_message_at"] > entry["last_message_at"]:
                 entry["last_message"] = _strip_html(d["last_message"])
                 entry["last_message_at"] = d["last_message_at"]
 
@@ -1126,21 +1137,32 @@ async def portal_inbox_thread(token: str, contact_id: str):
         if not contact:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
-        sms_msgs = await conn.fetch(
-            "SELECT direction, body, sent_at FROM sms_messages WHERE contact_id = $1 ORDER BY sent_at",
-            contact_id,
-        )
-        email_msgs = await conn.fetch(
-            "SELECT direction, body, subject, sent_at FROM email_messages WHERE contact_id = $1 ORDER BY sent_at",
-            contact_id,
-        )
+        sms_msgs = []
+        if contact["phone"]:
+            sms_msgs = await conn.fetch(
+                f"""
+                SELECT direction, body, created_at AS sent_at
+                FROM client_sms_messages
+                WHERE client_id = $1
+                  AND {sms_router._phone_match("(CASE WHEN direction = 'outbound' THEN to_number ELSE from_number END)", '$2')}
+                ORDER BY created_at
+                """,
+                client["id"], contact["phone"],
+            )
+        email_msgs = []
+        if contact["email"]:
+            email_msgs = await conn.fetch(
+                """
+                SELECT direction, body, subject, created_at AS sent_at
+                FROM client_email_messages
+                WHERE client_id = $1 AND lower(to_email) = lower($2)
+                ORDER BY created_at
+                """,
+                client["id"], contact["email"],
+            )
         await conn.execute(
-            "UPDATE sms_conversations SET last_read_at = now() WHERE contact_id = $1 AND client_id = $2",
-            contact_id, client["id"],
-        )
-        await conn.execute(
-            "UPDATE email_conversations SET last_read_at = now() WHERE contact_id = $1 AND client_id = $2",
-            contact_id, client["id"],
+            "UPDATE contacts SET client_channel_last_read_at = now() WHERE id = $1",
+            contact_id,
         )
 
     messages = (
@@ -1154,14 +1176,13 @@ async def portal_inbox_thread(token: str, contact_id: str):
 
 @router.post("/{token}/inbox/{contact_id}/send")
 async def portal_send_message(token: str, contact_id: str, body: dict):
-    """Sends for real, through the same shared Twilio/Gmail credentials every
-    other automated send in this codebase already uses — but ONLY for the
-    is_test client (see _require_test_client). No per-client Twilio number
-    or Gmail inbox exists yet, so a real client's portal must never be able
-    to trigger a real send through DigiGrowth's own shared credentials
-    (wrong sender identity, real cost/liability, and a genuine cross-tenant
-    data/access leak). Every other real client gets the same friendly
-    "not connected yet" stub this endpoint always returned before."""
+    """Sends for real, through THIS client's own connected Twilio number/
+    Gmail mailbox (client_sms.py/client_email.py) — never DigiGrowth's
+    shared credentials. If the client hasn't connected that channel yet
+    (client_marketing_config has no twilio_number / gmail_refresh_token),
+    send_client_sms/send_client_email raise RuntimeError, which becomes
+    the same friendly "not connected yet" response this endpoint always
+    returned before per-client channels existed."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -1171,13 +1192,6 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
         )
     if not contact:
         raise HTTPException(status_code=404, detail="Conversation not found")
-
-    if not client.get("is_test"):
-        return {
-            "ok": False,
-            "status": "not_connected",
-            "detail": "Your SMS/email account isn't connected yet — DigiGrowth is setting this up and will notify you once replies can be sent from here.",
-        }
 
     channel = body.get("channel")
     if channel not in ("sms", "email"):
@@ -1194,47 +1208,48 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
     # turns a hang into a clean, fast error instead of an infinite wait on
     # both ends.
     _SEND_TIMEOUT_S = 20
+    _NOT_CONNECTED = {
+        "ok": False,
+        "status": "not_connected",
+        "detail": "Your SMS/email account isn't connected yet — DigiGrowth is setting this up and will notify you once replies can be sent from here.",
+    }
 
     if channel == "sms":
         phone = (contact["phone"] or "").strip()
         if not phone:
             raise HTTPException(status_code=400, detail="This contact has no phone number on file")
-        from routers import sms as sms_router
         try:
-            await asyncio.wait_for(asyncio.to_thread(sms_router._send_twilio, phone, text), timeout=_SEND_TIMEOUT_S)
+            await asyncio.wait_for(client_sms.send_client_sms(client["id"], phone, text), timeout=_SEND_TIMEOUT_S)
         except asyncio.TimeoutError:
             raise HTTPException(status_code=504, detail="SMS send timed out — check Twilio credentials/status and try again.")
+        except RuntimeError:
+            return _NOT_CONNECTED
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"SMS send failed: {e}")
-        async with pool.acquire() as conn:
-            await sms_router._get_or_create_conversation(conn, phone)
-            await sms_router._store_message(conn, phone, "assistant", text, is_automated=False)
         return {"ok": True}
 
-    # email — reuses the same subject as this contact's most recent email
-    # (if any) so it reads as a continuation, not a random new thread;
-    # gmail_send() below handles all the email_conversations/email_messages
-    # bookkeeping itself (matched by contact.email), same as every other
-    # direct gmail_send call in this codebase (see integrations.py's
-    # _record_outbound_email) — no manual DB write needed here.
+    # email — reuses the same subject as this contact's most recent
+    # client-mailbox email (if any) so it reads as a continuation, not a
+    # random new thread. send_client_email() handles the
+    # client_email_messages bookkeeping itself — no manual DB write here.
     email = (contact["email"] or "").strip()
     if not email:
         raise HTTPException(status_code=400, detail="This contact has no email on file")
     async with pool.acquire() as conn:
         last_subject = await conn.fetchval(
-            "SELECT subject FROM email_messages WHERE contact_id = $1 ORDER BY sent_at DESC LIMIT 1",
-            contact_id,
+            "SELECT subject FROM client_email_messages WHERE client_id = $1 AND lower(to_email) = lower($2) "
+            "ORDER BY created_at DESC LIMIT 1",
+            client["id"], email,
         )
     subject = last_subject or f"Message from {client['name']}"
     try:
-        result = await asyncio.wait_for(
-            asyncio.to_thread(integrations.gmail_send, email, subject, text, False, False),
-            timeout=_SEND_TIMEOUT_S,
-        )
+        await asyncio.wait_for(client_email.send_client_email(client["id"], email, subject, text), timeout=_SEND_TIMEOUT_S)
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Email send timed out — check Gmail credentials/status and try again.")
-    if not result.startswith("Sent email"):
-        raise HTTPException(status_code=502, detail=result)
+    except RuntimeError:
+        return _NOT_CONNECTED
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Email send failed: {e}")
     return {"ok": True}
 
 
