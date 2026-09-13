@@ -582,6 +582,9 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE watch_videos ADD COLUMN IF NOT EXISTS r2_key TEXT;
             CREATE INDEX IF NOT EXISTS idx_content_view_events_lookup ON content_view_events (source, content_key, contact_id);
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS guide_progress JSONB NOT NULL DEFAULT '{}';
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_refresh_token TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_sender_email TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS appointwise_webhook_url TEXT;
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

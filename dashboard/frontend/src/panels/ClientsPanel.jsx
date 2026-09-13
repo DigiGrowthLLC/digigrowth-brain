@@ -1229,21 +1229,28 @@ const MARKETING_STEPS = [
 // Inline "paste the info this step needs, right here" mini-form — saves via
 // the same saveFields() the tab's own field editors use, so filling it in
 // from inside the guide and from the tab below stay in sync.
-function GuideStepFields({ fields, config, onSaveFields }) {
+function GuideStepFields({ fields, config, onSaveFields, onSaved }) {
   const [drafts, setDrafts] = useState(() =>
     Object.fromEntries(fields.map((f) => [f.key, config?.[f.key] || ""]))
   );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const save = async () => {
     setSaving(true);
     setSaved(false);
+    setSaveError("");
     const payload = {};
     for (const f of fields) payload[f.key] = (drafts[f.key] || "").trim() || null;
-    await onSaveFields(payload);
+    const result = await onSaveFields(payload);
     setSaving(false);
-    setSaved(true);
+    if (result?.ok) {
+      setSaved(true);
+      onSaved?.();
+    } else {
+      setSaveError(result?.error || "Save failed");
+    }
   };
 
   return (
@@ -1254,13 +1261,16 @@ function GuideStepFields({ fields, config, onSaveFields }) {
           <input
             className="dg-input" style={{ fontSize: 11, width: "100%" }}
             value={drafts[f.key]} placeholder={f.placeholder}
-            onChange={(e) => { setDrafts((d) => ({ ...d, [f.key]: e.target.value })); setSaved(false); }}
+            onChange={(e) => { setDrafts((d) => ({ ...d, [f.key]: e.target.value })); setSaved(false); setSaveError(""); }}
           />
         </div>
       ))}
       <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
         {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
       </button>
+      {saveError && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{saveError}</div>
+      )}
     </div>
   );
 }
@@ -1272,7 +1282,7 @@ function GuideStepFields({ fields, config, onSaveFields }) {
 // step produces, or (email's test step) a live action button.
 function GuideModal({
   guide, progress, onToggleStep, config, client, onSaveFields,
-  testEmailTo, setTestEmailTo, sendTestEmail, testingEmail, onClose,
+  testEmailTo, setTestEmailTo, sendTestEmail, testingEmail, testError, onClose,
 }) {
   if (!guide) return null;
   const total = guide.steps.length;
@@ -1319,15 +1329,24 @@ function GuideModal({
                   onClick={() => onToggleStep(i)}
                   title={checked ? "Mark not done" : "Mark done"}
                   style={{
-                    flexShrink: 0, width: 20, height: 20, borderRadius: "50%", cursor: "pointer",
-                    border: "none", padding: 0,
-                    background: checked ? "rgba(74,222,128,0.22)" : "rgba(58,123,213,0.18)",
+                    flexShrink: 0, width: 22, height: 22, borderRadius: 6, cursor: "pointer",
+                    border: checked ? "1px solid #4ade80" : "1px solid #3a5a8a", padding: 0,
+                    background: checked ? "rgba(74,222,128,0.22)" : "rgba(58,123,213,0.1)",
                     color: checked ? "#4ade80" : "#9cc4f5",
-                    fontFamily: "'Share Tech Mono', monospace", fontSize: 10, fontWeight: 700,
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 11, fontWeight: 700,
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}>{checked ? "✓" : i + 1}</button>
                 <div style={{ flex: 1, opacity: checked ? 0.6 : 1 }}>
-                  <div style={{ fontSize: 12.5, color: "#d0e8ff", lineHeight: 1.5, textDecoration: checked ? "line-through" : "none" }}>{s.text}</div>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ fontSize: 12.5, color: "#d0e8ff", lineHeight: 1.5, textDecoration: checked ? "line-through" : "none" }}>{s.text}</div>
+                    <button
+                      onClick={() => onToggleStep(i)}
+                      className="btn btn-secondary"
+                      style={{ fontSize: 9, padding: "2px 7px", flexShrink: 0, whiteSpace: "nowrap" }}
+                    >
+                      {checked ? "UNDO" : "MARK DONE"}
+                    </button>
+                  </div>
                   {s.link && (
                     <a href={s.link} target="_blank" rel="noreferrer"
                       style={{ display: "inline-block", marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5" }}>
@@ -1350,14 +1369,28 @@ function GuideModal({
                       </div>
                     )
                   )}
-                  {s.fields && <GuideStepFields fields={s.fields} config={config} onSaveFields={onSaveFields} />}
+                  {s.fields && (
+                    <GuideStepFields
+                      fields={s.fields} config={config} onSaveFields={onSaveFields}
+                      onSaved={() => onToggleStep(i, true)}
+                    />
+                  )}
                   {s.testAction === "email" && (
-                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                      <input className="dg-input" style={{ fontSize: 11, flex: 1 }} value={testEmailTo} placeholder="test@…"
-                        onChange={(e) => setTestEmailTo(e.target.value)} />
-                      <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={sendTestEmail} disabled={testingEmail || !testEmailTo.trim()}>
-                        {testingEmail ? "SENDING…" : "SEND TEST"}
-                      </button>
+                    <div>
+                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                        <input className="dg-input" style={{ fontSize: 11, flex: 1 }} value={testEmailTo} placeholder="test@…"
+                          onChange={(e) => setTestEmailTo(e.target.value)} />
+                        <button
+                          className="btn btn-secondary" style={{ fontSize: 10 }}
+                          onClick={async () => { if (await sendTestEmail()) onToggleStep(i, true); }}
+                          disabled={testingEmail || !testEmailTo.trim()}
+                        >
+                          {testingEmail ? "SENDING…" : "SEND TEST"}
+                        </button>
+                      </div>
+                      {testError && (
+                        <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{testError}</div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1432,25 +1465,43 @@ function ClientMarketingSetup({ clientId }) {
     load();
   };
 
+  // Returns { ok, error } instead of throwing, so callers (including the
+  // guide modal's inline field forms) can tell a save actually took and
+  // only then treat the step as done — a write that 500s (e.g. a column
+  // that doesn't exist yet) must never report success.
   const saveFields = async (fields) => {
     setSaving(true);
-    await fetch(API(`/clients/${clientId}/marketing-config`), {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(fields),
-    });
+    setError("");
+    let result = { ok: true, error: null };
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config`), {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        result = { ok: false, error: detail?.detail || "Failed to save" };
+        setError(result.error);
+      }
+    } catch (e) {
+      result = { ok: false, error: e.message };
+      setError(e.message);
+    }
     setEditing(null);
     setSaving(false);
-    load();
+    await load();
+    return result;
   };
 
-  const toggleGuideStep = (key, idx) => {
+  const toggleGuideStep = (key, idx, value) => {
     const cur = config?.guide_progress || {};
-    const guideProg = { ...(cur[key] || {}), [idx]: !cur[key]?.[idx] };
+    const nextValue = value === undefined ? !cur[key]?.[idx] : value;
+    const guideProg = { ...(cur[key] || {}), [idx]: nextValue };
     saveFields({ guide_progress: { ...cur, [key]: guideProg } });
   };
 
   const sendTestEmail = async () => {
-    if (!testEmailTo.trim()) return;
+    if (!testEmailTo.trim()) return false;
     setTestingEmail(true);
     setError("");
     try {
@@ -1462,8 +1513,10 @@ function ClientMarketingSetup({ clientId }) {
         const detail = await r.json().catch(() => null);
         throw new Error(detail?.detail || "Failed to send test email");
       }
+      return true;
     } catch (e) {
       setError(e.message);
+      return false;
     } finally {
       setTestingEmail(false);
     }
@@ -1599,7 +1652,7 @@ function ClientMarketingSetup({ clientId }) {
       <GuideModal
         guide={guideKey ? MARKETING_GUIDES[guideKey] : null}
         progress={guideKey ? config?.guide_progress?.[guideKey] : null}
-        onToggleStep={(idx) => toggleGuideStep(guideKey, idx)}
+        onToggleStep={(idx, value) => toggleGuideStep(guideKey, idx, value)}
         config={config}
         client={client}
         onSaveFields={saveFields}
@@ -1607,6 +1660,7 @@ function ClientMarketingSetup({ clientId }) {
         setTestEmailTo={setTestEmailTo}
         sendTestEmail={sendTestEmail}
         testingEmail={testingEmail}
+        testError={error}
         onClose={() => setGuideKey(null)}
       />
     </div>
