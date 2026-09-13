@@ -1510,12 +1510,36 @@ function GuideStepFields({ fields, config, onSaveFields, onSaved }) {
 // above, just a checkbox + textarea instead of single-line inputs (the
 // context is meant to be a real paragraph: business info, tone, offer,
 // hours, what to escalate).
-function ResponseAiSetup({ config, onSaveFields, onSaved }) {
+function ResponseAiSetup({ clientId, config, onSaveFields, onSaved }) {
   const [enabled, setEnabled] = useState(Boolean(config?.response_ai_enabled));
   const [context, setContext] = useState(config?.response_ai_context || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
+
+  const generateContext = async () => {
+    if (context.trim() && !window.confirm("This will replace the context text below with an AI-drafted version. Continue?")) {
+      return;
+    }
+    setGenerating(true);
+    setGenerateError("");
+    setSaved(false);
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/generate-response-ai-context`), { method: "POST" });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        throw new Error(detail?.detail || "Failed to generate context");
+      }
+      const { context: drafted } = await r.json();
+      setContext(drafted || "");
+    } catch (e) {
+      setGenerateError(e.message);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -1541,8 +1565,16 @@ function ResponseAiSetup({ config, onSaveFields, onSaved }) {
         Enable the AI response agent for this client
       </label>
       <div>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>
-          CLIENT CONTEXT (business info, tone, offer, hours, FAQs, what to escalate)
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
+            CLIENT CONTEXT (business info, tone, offer, hours, FAQs, what to escalate)
+          </div>
+          <button
+            className="btn btn-secondary" style={{ fontSize: 9, padding: "3px 8px" }}
+            onClick={generateContext} disabled={generating || !clientId}
+          >
+            {generating ? "GENERATING…" : "GENERATE CONTEXT"}
+          </button>
         </div>
         <textarea
           className="dg-input" rows={8} style={{ fontSize: 12, width: "100%", boxSizing: "border-box", resize: "vertical" }}
@@ -1550,6 +1582,12 @@ function ResponseAiSetup({ config, onSaveFields, onSaved }) {
           onChange={(e) => { setContext(e.target.value); setSaved(false); setSaveError(""); }}
           placeholder={"e.g. Bright Path Physical Therapy. Guarantee: 10-20 new patient consultations in 6 weeks or we keep working for free. Hours: Mon-Fri 8am-6pm. Escalate anything about insurance/billing or a lead who sounds upset."}
         />
+        <div style={{ marginTop: 3, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
+          Drafts from this client's onboarding answers, linked contact info, and any uploaded PDFs/docx — review and edit before saving, it won't always get everything right.
+        </div>
+        {generateError && (
+          <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{generateError}</div>
+        )}
       </div>
       <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
         {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
@@ -1670,7 +1708,7 @@ function GuideModal({
                   )}
                   {s.responseAiAction && (
                     <ResponseAiSetup
-                      config={config} onSaveFields={onSaveFields}
+                      clientId={client?.id} config={config} onSaveFields={onSaveFields}
                       onSaved={() => onToggleStep(i, true)}
                     />
                   )}

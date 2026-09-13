@@ -97,6 +97,17 @@ def delete_object(key: str) -> None:
     _client().delete_object(Bucket=bucket, Key=key)
 
 
+def get_object_bytes(key: str) -> bytes:
+    """Reads one object fully into memory — used by context_gen.py to
+    transiently extract text from a client's uploaded PDFs/docx (business
+    info, resource libraries, etc.) when drafting a response_ai_context
+    suggestion. Nothing is written to disk; the bytes are discarded after
+    text extraction. Only sensible for the modest-sized documents this is
+    used for, not video — see iter_object_chunks for large-file streaming."""
+    bucket = os.environ["R2_BUCKET_NAME"]
+    return _client().get_object(Bucket=bucket, Key=key)["Body"].read()
+
+
 def iter_object_chunks(key: str, chunk_size: int = 1024 * 1024):
     """Streams one object's bytes in chunks — used by the admin "download all
     as a zip" endpoint (routers/clients.py) to build a zip archive on the fly

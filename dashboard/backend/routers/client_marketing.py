@@ -20,6 +20,7 @@ from fastapi import APIRouter, HTTPException
 
 import client_email
 import client_sms
+import context_gen
 import email_warmup
 from db import get_pool
 from models import ClientMarketingConfigUpdate, ClientSmsSequenceUpdate, ClientTestEmail
@@ -167,6 +168,25 @@ async def get_email_warmup_status(client_id: int):
         if not client:
             raise HTTPException(404, "Client not found")
     return await email_warmup.get_status(client_id)
+
+
+@router.post("/clients/{client_id}/marketing-config/generate-response-ai-context")
+async def generate_response_ai_context(client_id: int):
+    """Drafts a response_ai_context suggestion from everything already on
+    file for this client (onboarding answers, linked contact info, uploaded
+    PDFs/docx) — see context_gen.py. Returns the draft only; nothing is
+    saved here, the admin reviews/edits it in the UI before saving via the
+    existing PUT /marketing-config."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(404, "Client not found")
+    try:
+        context = await context_gen.generate_context(client_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"context": context}
 
 
 @router.get("/marketing-config/email-warmup-settings")
