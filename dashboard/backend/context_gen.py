@@ -162,4 +162,7 @@ async def generate_context(client_id: int) -> str:
         api_client.messages.create,
         model=model, max_tokens=1500, messages=[{"role": "user", "content": prompt}],
     )
-    return "".join(b.text for b in response.content if b.type == "text").strip()
+    text = "".join(b.text for b in response.content if b.type == "text").strip()
+    print(f"[context_gen] client={client_id} stop_reason={response.stop_reason} "
+          f"content_types={[b.type for b in response.content]} prompt_len={len(prompt)} text_len={len(text)}", flush=True)
+    return text
