@@ -585,6 +585,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_refresh_token TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_sender_email TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS appointwise_webhook_url TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS email_sync_last_ts BIGINT NOT NULL DEFAULT 0;
+            ALTER TABLE client_email_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"
@@ -851,7 +853,11 @@ async def _create_schema(pool: asyncpg.Pool):
             -- Outbound/inbound email sent through the CLIENT's own Google
             -- Workspace mailbox (client_marketing_config.gmail_refresh_token),
             -- mirroring email_messages but for the client's own mailbox, never
-            -- DigiGrowth's shared one.
+            -- DigiGrowth's shared one. Inbound rows come from
+            -- client_email.py's polling sync (mirrors email_inbox.py's
+            -- internal Gmail sync) — to_email holds the other party's
+            -- address either way (the send target when outbound, the
+            -- sender when inbound), matching client_sms_messages' shape.
             CREATE TABLE IF NOT EXISTS client_email_messages (
                 id           SERIAL PRIMARY KEY,
                 client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -859,6 +865,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 subject      TEXT NOT NULL,
                 body         TEXT NOT NULL,
                 gmail_message_id TEXT,
+                direction    TEXT NOT NULL DEFAULT 'outbound',
                 created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             CREATE INDEX IF NOT EXISTS idx_client_email_messages_client ON client_email_messages(client_id, created_at DESC);

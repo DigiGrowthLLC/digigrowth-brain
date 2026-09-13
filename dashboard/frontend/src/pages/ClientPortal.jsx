@@ -957,6 +957,7 @@ function DashboardTab({ token, contactName }) {
     { name: "Your Number — Sent", value: stats.campaign_sms?.sent || 0, fill: "#5ad1c8" },
     { name: "Your Number — Received", value: stats.campaign_sms?.received || 0, fill: "#5ad1c8" },
     { name: "Your Mailbox — Sent", value: stats.campaign_email?.sent || 0, fill: "#d15a9c" },
+    { name: "Your Mailbox — Received", value: stats.campaign_email?.received || 0, fill: "#d15a9c" },
   ];
 
   return (
@@ -2301,7 +2302,7 @@ function CampaignActivityPanel({ token }) {
                 <div key={m.id} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)" }}>
                   <div style={{ fontSize: 11, color: "#d0e8ff", fontWeight: 600 }}>{m.subject}</div>
                   <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 3 }}>
-                    → {m.to_email} · {new Date(m.created_at).toLocaleString()}
+                    {m.direction === "inbound" ? `← ${m.to_email}` : `→ ${m.to_email}`} · {new Date(m.created_at).toLocaleString()}
                   </div>
                 </div>
               ))}

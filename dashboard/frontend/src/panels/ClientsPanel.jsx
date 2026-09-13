@@ -1282,7 +1282,8 @@ function GuideStepFields({ fields, config, onSaveFields, onSaved }) {
 // step produces, or (email's test step) a live action button.
 function GuideModal({
   guide, progress, onToggleStep, config, client, onSaveFields,
-  testEmailTo, setTestEmailTo, sendTestEmail, testingEmail, testError, onClose,
+  testEmailTo, setTestEmailTo, sendTestEmail, testingEmail, testError,
+  syncEmailNow, syncingEmail, onClose,
 }) {
   if (!guide) return null;
   const total = guide.steps.length;
@@ -1387,6 +1388,17 @@ function GuideModal({
                         >
                           {testingEmail ? "SENDING…" : "SEND TEST"}
                         </button>
+                      </div>
+                      <div style={{ marginTop: 6 }}>
+                        <button
+                          className="btn btn-secondary" style={{ fontSize: 9, padding: "3px 8px" }}
+                          onClick={syncEmailNow} disabled={syncingEmail}
+                        >
+                          {syncingEmail ? "CHECKING…" : "CHECK FOR REPLIES NOW"}
+                        </button>
+                        <div style={{ marginTop: 3, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
+                          Reply to your own test email from the address you sent it to, then click this to pull it in immediately (it also syncs automatically every ~2 min).
+                        </div>
                       </div>
                       {testError && (
                         <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{testError}</div>
@@ -1519,6 +1531,26 @@ function ClientMarketingSetup({ clientId }) {
       return false;
     } finally {
       setTestingEmail(false);
+    }
+  };
+
+  const [syncingEmail, setSyncingEmail] = useState(false);
+  const syncEmailNow = async () => {
+    setSyncingEmail(true);
+    setError("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/sync-email`), { method: "POST" });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        throw new Error(detail?.detail || "Failed to check for replies");
+      }
+      await load();
+      return true;
+    } catch (e) {
+      setError(e.message);
+      return false;
+    } finally {
+      setSyncingEmail(false);
     }
   };
 
@@ -1661,6 +1693,8 @@ function ClientMarketingSetup({ clientId }) {
         sendTestEmail={sendTestEmail}
         testingEmail={testingEmail}
         testError={error}
+        syncEmailNow={syncEmailNow}
+        syncingEmail={syncingEmail}
         onClose={() => setGuideKey(null)}
       />
     </div>

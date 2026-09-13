@@ -113,6 +113,33 @@ async def send_test_email(client_id: int, body: ClientTestEmail):
         raise HTTPException(400, str(e))
 
 
+@router.post("/clients/{client_id}/marketing-config/sync-email")
+async def sync_client_email_now(client_id: int):
+    """Manual trigger for testing/verification — same code path as the
+    scheduled client-mailbox poll (client_email.sync_client_email_job),
+    just scoped to one client so a reply shows up immediately instead of
+    waiting for the next scheduled tick."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        config = await conn.fetchrow(
+            "SELECT gmail_refresh_token, email_sync_last_ts FROM client_marketing_config WHERE client_id = $1",
+            client_id,
+        )
+        if not config or not config["gmail_refresh_token"]:
+            raise HTTPException(400, f"Client {client_id} has no connected Gmail mailbox yet")
+        last_ts = config["email_sync_last_ts"] or 0
+        try:
+            newest_ts = await client_email._sync_one_mailbox(conn, client_id, config["gmail_refresh_token"], last_ts)
+        except Exception as e:
+            raise HTTPException(400, str(e))
+        if newest_ts > last_ts:
+            await conn.execute(
+                "UPDATE client_marketing_config SET email_sync_last_ts = $2 WHERE client_id = $1",
+                client_id, newest_ts,
+            )
+    return {"ok": True}
+
+
 @router.get("/clients/{client_id}/sms-sequence")
 async def get_client_sms_sequence(client_id: int):
     pool = await get_pool()

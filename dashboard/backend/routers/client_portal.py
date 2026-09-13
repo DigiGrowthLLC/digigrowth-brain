@@ -447,7 +447,9 @@ async def portal_stats(token: str, period: str = "all"):
         )
         campaign_email_row = await conn.fetchrow(
             f"""
-            SELECT COUNT(*) AS sent
+            SELECT
+                COALESCE(SUM((direction = 'outbound')::int), 0) AS sent,
+                COALESCE(SUM((direction = 'inbound')::int), 0) AS received
             FROM client_email_messages
             WHERE client_id = $1 {email_since_clause.replace('em.sent_at', 'created_at')}
             """,
