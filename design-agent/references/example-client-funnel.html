@@ -11,12 +11,15 @@
   Worked example for the funnel-building skill, Dylan-approved and shipped
   live for CrosaCore (funnel.crosacore.com) — went through several rounds
   of real feedback (trust-bar content/position, review-wall placement,
-  mobile hero reorder, sticky-CTA styling) before landing here. Reuse the
-  STRUCTURE and ENGINEERING PATTERNS below for a new client's funnel —
-  the CSS token system (:root custom properties, swap every value for the
-  new client's own scraped palette), the font-loading approach (a real
-  Google Fonts pairing, never Georgia/system defaults), the hero's 4-area
-  CSS Grid layout (see below), the review-wall masonry, the trust bar, the
+  mobile hero reorder, sticky-CTA styling, a desktop-breaking grid bug)
+  before landing here. Reuse the STRUCTURE and ENGINEERING PATTERNS below
+  for a new client's funnel — the CSS token system (:root custom
+  properties, swap every value for the new client's own scraped palette),
+  the font-loading approach (a real Google Fonts pairing, never Georgia/
+  system defaults), the hero's `.hero-text` wrapper + `display: contents`
+  technique for mobile-only reordering (see the long comment above
+  `.hero .grid` — read it before touching hero layout, it documents a
+  real bug already hit once), the review-wall masonry, the trust bar, the
   sticky mobile CTA. NEVER reuse this file's specific copy, testimonials,
   Fraunces/Work Sans font choice, or forest-green/cream palette for a
   different client — all of that is CrosaCore's own brand and voice,
@@ -109,25 +112,30 @@
     border-radius: 50%; animation: drift 14s ease-in-out infinite alternate;
   }
   @keyframes drift { from { transform: translate(0,0); } to { transform: translate(-30px, 40px); } }
-  /* The hero is split into 4 named CSS Grid areas (rating/title/lead/cta)
-     plus the photo, rather than one text column + one photo column. This
-     is deliberate: it's the only way to give mobile a DIFFERENT visual
-     order than desktop without touching desktop at all or reordering the
-     actual DOM. Desktop keeps its own grid-template-areas (text areas
-     stacked in one column, photo spanning all rows on the other); the
-     mobile media query below just redeclares grid-template-areas with a
-     different order — no `order:` property gymnastics, no duplicated
-     markup. If a future client's requested mobile order changes again,
-     change the media query's grid-template-areas line, nothing else. */
+  /* Mobile needs a DIFFERENT visual order than desktop (title -> rating ->
+     photo -> lead -> cta on mobile, vs. rating -> title -> lead -> cta
+     stacked beside the photo on desktop). A named-grid-area approach with
+     the photo spanning multiple rows was tried here first and broke
+     desktop badly: when one spanned item (a tall photo) shares rows with
+     several much-shorter auto-sized items (rating/title/lead/cta), CSS
+     Grid's row-sizing algorithm does not distribute the photo's required
+     height evenly across those rows — it can dump nearly all of it into
+     a single row, producing a huge phantom gap between two text blocks.
+     Never reintroduce grid-template-areas with a multi-row spanning item
+     here. The safe fix: `.hero-text` is a PLAIN block wrapper around
+     rating/title/lead/cta on desktop (normal document flow, no grid math
+     for those 4 pieces at all), sitting as one grid item next to
+     `.hero-photo`. On mobile, `.hero-text` switches to `display:
+     contents` — it disappears from the box tree so its 4 children become
+     direct items of the single-column mobile grid, alongside
+     `.hero-photo` as plain siblings with no spanning — and plain
+     `order:` on each sibling reorders them like a simple flex-column
+     would. Nothing spans multiple rows on mobile either, so there's no
+     row-height reconciliation left to go wrong. */
   .hero .grid {
-    display: grid; grid-template-columns: 1.05fr 0.95fr; column-gap: 48px; row-gap: 0; align-items: center;
+    display: grid; grid-template-columns: 1.05fr 0.95fr; column-gap: 48px; align-items: center;
     position: relative; z-index: 1;
-    grid-template-areas: "rating photo" "title photo" "lead photo" "cta photo";
   }
-  .hero-rating { grid-area: rating; }
-  .hero-title { grid-area: title; }
-  .hero-lead { grid-area: lead; }
-  .hero-cta { grid-area: cta; }
   .rating-pill {
     display: inline-flex; align-items: center; gap: 12px; background: #fff;
     border: 1px solid var(--sage-line); border-radius: 999px; padding: 8px 20px 8px 8px;
@@ -159,14 +167,14 @@
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--forest); display: inline-block; }
 
   @media (max-width: 860px) {
-    .hero .grid {
-      grid-template-columns: 1fr; column-gap: 0; row-gap: 20px;
-      grid-template-areas: "title" "rating" "photo" "lead" "cta";
-    }
+    .hero .grid { grid-template-columns: 1fr; row-gap: 20px; }
+    .hero-text { display: contents; }
+    .hero-title { order: 1; }
+    .hero-rating { order: 2; margin-bottom: 0; }
+    .hero-photo { order: 3; aspect-ratio: 16/10; }
+    .hero-lead { order: 4; margin-bottom: 0; }
+    .hero-cta { order: 5; }
     .hero h1 { font-size: 30px; }
-    .hero-photo { aspect-ratio: 16/10; }
-    .hero-rating { margin-bottom: 0; }
-    .hero p.lead { margin-bottom: 0; }
   }
 
   /* trust bar */
@@ -286,35 +294,37 @@
 
 <section class="hero">
   <div class="wrap grid">
-    <div class="hero-rating reveal in">
-      <div class="rating-pill">
-        <div class="avatar-stack">
-          <span style="background:var(--forest);">L</span>
-          <span style="background:var(--gold);">D</span>
-          <span style="background:var(--forest-2);">C</span>
-          <span style="background:#8a6a4f;">R</span>
-          <span class="more">+60</span>
+    <div class="hero-text">
+      <div class="hero-rating reveal in">
+        <div class="rating-pill">
+          <div class="avatar-stack">
+            <span style="background:var(--forest);">L</span>
+            <span style="background:var(--gold);">D</span>
+            <span style="background:var(--forest-2);">C</span>
+            <span style="background:#8a6a4f;">R</span>
+            <span class="more">+60</span>
+          </div>
+          <div class="pill-text">
+            <span class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+            <span class="pill-label">60+ real patient reviews on Google</span>
+          </div>
         </div>
-        <div class="pill-text">
-          <span class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
-          <span class="pill-label">60+ real patient reviews on Google</span>
+      </div>
+      <div class="hero-title reveal in">
+        <span class="eyebrow">Modern Physical Therapy &middot; Austin, TX</span>
+        <h1>Understand your pain. Rebuild your body. Trust yourself again.</h1>
+      </div>
+      <p class="lead hero-lead reveal in">One individualized plan, not a generic program: for busy professionals with chronic, recurring, or hard-to-explain pain who are ready to stop guessing and start training with confidence again.</p>
+      <div class="hero-cta reveal in">
+        <a class="btn btn-primary" href="{{CALENDLY_URL}}" target="_blank" rel="noopener">Schedule Your Pain Confidence Consultation</a>
+        <div class="hero-badges">
+          <span class="hero-badge"><span class="dot"></span>15 minutes, by phone, no cost</span>
+          <span class="hero-badge"><span class="dot"></span>No obligation to book anything after</span>
         </div>
       </div>
     </div>
     <div class="hero-photo reveal in">
       <img src="{{PHOTO_1}}" alt="Coached strength training session at CrosaCore">
-    </div>
-    <div class="hero-title reveal in">
-      <span class="eyebrow">Modern Physical Therapy &middot; Austin, TX</span>
-      <h1>Understand your pain. Rebuild your body. Trust yourself again.</h1>
-    </div>
-    <p class="lead hero-lead reveal in">One individualized plan, not a generic program: for busy professionals with chronic, recurring, or hard-to-explain pain who are ready to stop guessing and start training with confidence again.</p>
-    <div class="hero-cta reveal in">
-      <a class="btn btn-primary" href="{{CALENDLY_URL}}" target="_blank" rel="noopener">Schedule Your Pain Confidence Consultation</a>
-      <div class="hero-badges">
-        <span class="hero-badge"><span class="dot"></span>15 minutes, by phone, no cost</span>
-        <span class="hero-badge"><span class="dot"></span>No obligation to book anything after</span>
-      </div>
     </div>
   </div>
 </section>
