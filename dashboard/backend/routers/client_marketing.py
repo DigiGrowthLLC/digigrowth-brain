@@ -8,6 +8,11 @@ internal sms_messages/email_messages/campaigns tables.
 
 Mounted with require_auth like clients.py — this is agency-internal admin
 tooling (Dylan provisioning a client's stack), not the client-facing portal.
+
+Also owns the email warm-up ramp's global settings (GET/PUT
+/marketing-config/email-warmup-settings — the seed address list + optional
+custom schedule shared by every client's warm-up, see email_warmup.py) and
+the per-client start/status endpoints (start-warmup, warmup-status) below.
 """
 import json
 
@@ -162,6 +167,44 @@ async def get_email_warmup_status(client_id: int):
         if not client:
             raise HTTPException(404, "Client not found")
     return await email_warmup.get_status(client_id)
+
+
+@router.get("/marketing-config/email-warmup-settings")
+async def get_email_warmup_settings():
+    """Global (not per-client) config for email_warmup.py's ramp — the seed
+    address list every client's warm-up sends to, and the optional custom
+    day-by-day volume schedule. Same dialer_settings key/value store used by
+    every other outreach template editor in routers/dialer.py."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key IN ('warmup_seed_emails', 'warmup_schedule')"
+        )
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    return {
+        "seed_emails": values.get("warmup_seed_emails", ""),
+        "schedule": values.get("warmup_schedule", json.dumps(email_warmup._DEFAULT_SCHEDULE)),
+    }
+
+
+@router.put("/marketing-config/email-warmup-settings")
+async def save_email_warmup_settings(body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for key, value in (
+            ("warmup_seed_emails", body.get("seed_emails")),
+            ("warmup_schedule", body.get("schedule")),
+        ):
+            if value is None:
+                continue
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+                """,
+                key, value,
+            )
+    return {"ok": True}
 
 
 @router.get("/clients/{client_id}/sms-sequence")
