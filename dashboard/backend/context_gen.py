@@ -43,7 +43,8 @@ document the assistant will be given verbatim as its knowledge of the business.
 Cover, where the information below actually supports it: business name, what they do, their offer/\
 guarantee (with exact numbers if given), tone/voice, hours, common questions and how to answer them, \
 and what should always be escalated to a human (e.g. billing/insurance questions, complaints, \
-anything not covered here). Write it as clear prose/bullet points, not a form.
+anything not covered here). Write it as clear prose/bullet points, not a form. Aim for roughly \
+400-700 words — thorough enough to be useful, not exhaustive.
 
 Critical rule: NEVER invent or guess at a fact, number, price, or claim that isn't actually present \
 in the information below. Where something important is missing (e.g. no guarantee mentioned \
@@ -160,9 +161,6 @@ async def generate_context(client_id: int) -> str:
     model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-5")
     response = await asyncio.to_thread(
         api_client.messages.create,
-        model=model, max_tokens=1500, messages=[{"role": "user", "content": prompt}],
+        model=model, max_tokens=2500, messages=[{"role": "user", "content": prompt}],
     )
-    text = "".join(b.text for b in response.content if b.type == "text").strip()
-    print(f"[context_gen] client={client_id} stop_reason={response.stop_reason} "
-          f"content_types={[b.type for b in response.content]} prompt_len={len(prompt)} text_len={len(text)}", flush=True)
-    return text
+    return "".join(b.text for b in response.content if b.type == "text").strip()
