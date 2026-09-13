@@ -1,6 +1,6 @@
 """Cancellation recovery sequence — scheduled from main.py's APScheduler job.
 
-Fires a 4-touch SMS/email drip at a prospect after a rep clicks Cancel on an
+Fires a 3-touch SMS/email drip at a prospect after a rep clicks Cancel on an
 appointment in the Appointments tab (routers/appointments.py's
 cancel_appointment() stamps canceled_at = now() the moment status flips to
 'canceled'). There's no automatic cancellation detection — Calendly's on the
@@ -23,12 +23,17 @@ Touch schedule (all offsets measured from canceled_at):
                       in _TOUCHES below as a zero-delay entry so the poller
                       picks it up as a fallback if that synchronous send
                       never ran (e.g. a mid-request crash).
-  Touch 2 —   3h:    SMS only (one channel per touch keeps this from feeling
-                      like a barrage; email fields are blank by default and
-                      any touch's email send is skipped if either its subject
-                      or body template is blank).
   Touch 3 —  24h:    SMS + email, "still worth 15 minutes" framing.
   Touch 4 —  72h:    SMS + email, the "breakup" touch — closes the loop.
+
+  Touch 2 (the 3h, SMS-only "same-day follow-up") was removed by request —
+  it's gone from _TOUCHES/TEMPLATE_INSTANCES entirely, not just skipped, so
+  it no longer sends, no longer appears in Business Resources → Outreach
+  Templates → Cancellation, and no longer counts in the "Active Prospects"
+  touch-progress display. The numbering gap (1, then 3, then 4) is
+  deliberate — kept so historical cancel_touch3/cancel_touch4 stage tags in
+  sms_messages and any dialer_settings keys a rep already customized stay
+  correctly attributed instead of silently shifting meaning.
 
 Stops permanently the moment the prospect replies on either channel:
 routers/sms.py's inbound Twilio webhook and routers/email_inbox.py's Gmail
@@ -50,10 +55,10 @@ import integrations
 from db import get_pool
 from merge_fields import first_name_from_owner
 
-# (touch number, sent-at column, delay after canceled_at)
+# (touch number, sent-at column, delay after canceled_at) — no entry 2, see
+# module docstring for why the numbering gap is intentional.
 _TOUCHES = [
     (1, "cancel_touch1_sent_at", timedelta(hours=0)),
-    (2, "cancel_touch2_sent_at", timedelta(hours=3)),
     (3, "cancel_touch3_sent_at", timedelta(hours=24)),
     (4, "cancel_touch4_sent_at", timedelta(hours=72)),
 ]
@@ -69,14 +74,6 @@ _TOUCH1_BODY_DEFAULT = (
     "the timing's better, here's a new link: {link}\n\n"
     "Talk soon,\nDylan"
 )
-
-_TOUCH2_SMS_DEFAULT = (
-    "{first_name} — still happy to show you how studios like yours are "
-    "adding 15-20 sessions/month whenever you're free. 15 min: {link}"
-)
-# Touch 2 is SMS-only by design — leave email fields blank to keep it that way.
-_TOUCH2_SUBJECT_DEFAULT = ""
-_TOUCH2_BODY_DEFAULT = ""
 
 _TOUCH3_SMS_DEFAULT = (
     "{first_name}, if timing's just been off, still worth 15 minutes to "
@@ -102,13 +99,12 @@ _TOUCH4_BODY_DEFAULT = (
     "here whenever it opens up.\n\nDylan"
 )
 
-# Each of the 4 touches gets its own sms/email_subject/email_body — key prefix
-# -> (sms default, email subject default, email body default). dialer.py's
-# GET/PUT /dialer/cancel-template iterates this dict generically, so
-# adding/renaming a touch here is the only backend change needed.
+# Each of the 3 remaining touches gets its own sms/email_subject/email_body —
+# key prefix -> (sms default, email subject default, email body default).
+# dialer.py's GET/PUT /dialer/cancel-template iterates this dict generically,
+# so adding/renaming a touch here is the only backend change needed.
 TEMPLATE_INSTANCES = {
     "touch1": (_TOUCH1_SMS_DEFAULT, _TOUCH1_SUBJECT_DEFAULT, _TOUCH1_BODY_DEFAULT),
-    "touch2": (_TOUCH2_SMS_DEFAULT, _TOUCH2_SUBJECT_DEFAULT, _TOUCH2_BODY_DEFAULT),
     "touch3": (_TOUCH3_SMS_DEFAULT, _TOUCH3_SUBJECT_DEFAULT, _TOUCH3_BODY_DEFAULT),
     "touch4": (_TOUCH4_SMS_DEFAULT, _TOUCH4_SUBJECT_DEFAULT, _TOUCH4_BODY_DEFAULT),
 }
@@ -180,8 +176,18 @@ async def send_due_touches():
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM appointment_reminders WHERE status = 'canceled' "
-            "AND cancel_sequence_stopped_at IS NULL AND canceled_at IS NOT NULL"
+            # Only Dylan's own sales-pipeline appointments — a client's own
+            # lead is handled entirely by client_appointment_sequence.py's
+            # one-shot send instead (see routers/appointments.py's cancel
+            # handler), never this Dylan-branded drip. Same exclusion as
+            # call_reminders.py's _check().
+            """
+            SELECT ar.* FROM appointment_reminders ar
+            LEFT JOIN contacts c ON c.id = ar.contact_id
+            WHERE ar.status = 'canceled'
+            AND ar.cancel_sequence_stopped_at IS NULL AND ar.canceled_at IS NOT NULL
+            AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
+            """
         )
     if not rows:
         return

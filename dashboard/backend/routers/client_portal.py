@@ -31,6 +31,7 @@ from models import (
     ClientRequestCreate, UploadPresignRequest, UploadRecordCreate,
 )
 import cancel_sequence
+import client_appointment_sequence
 import client_email
 import client_sms
 import integrations
@@ -175,6 +176,40 @@ async def portal_videos(token: str):
             "WHERE active ORDER BY sort_order, id"
         )
     return [dict(r) for r in rows]
+
+
+@router.get("/{token}/websites")
+async def portal_websites(token: str):
+    """Websites/funnels built for this client (admin-managed via
+    clients.py's client_websites CRUD) — stats come from
+    content_view_events (source='client_website', content_key=website id
+    as text), the same tracking pipeline the VSL/outreach-video funnels
+    already use, populated by a beacon snippet baked into each generated
+    page (see design-agent's funnel-building skill)."""
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM client_websites WHERE client_id = $1 ORDER BY sort_order, id", client["id"]
+        )
+        out = []
+        for r in rows:
+            d = dict(r)
+            stats = await conn.fetchrow(
+                """
+                SELECT
+                    COALESCE(SUM((event_type = 'view')::int), 0) AS views,
+                    COALESCE(SUM((event_type = 'conversion')::int), 0) AS conversions
+                FROM content_view_events
+                WHERE source = 'client_website' AND content_key = $1
+                """,
+                str(d["id"]),
+            )
+            d["views"] = stats["views"]
+            d["conversions"] = stats["conversions"]
+            d["conversion_rate"] = round(stats["conversions"] / stats["views"] * 100, 1) if stats["views"] else 0.0
+            out.append(d)
+    return out
 
 
 @router.get("/{token}/action-items")
@@ -366,10 +401,9 @@ async def portal_stats(token: str, period: str = "all"):
     vocabulary as portal_inbox_list's `since` param. Scopes sms/email
     sent+replies to messages sent in that window, and leads to contacts
     created in that window. Appointments are real (all-time, not scoped to
-    `period`) only for the is_test client, computed live from
-    appointment_reminders.outcome_show/outcome_close — every other real
-    client still gets the zeroed placeholder (see portal_appointments()
-    below for why)."""
+    `period`) for every client, computed live from appointment_reminders.
+    outcome_show/outcome_close — read-only, so unlike portal_appointments()
+    below this isn't gated to the is_test client."""
     if period != "all" and period not in _PERIOD_INTERVAL:
         raise HTTPException(status_code=400, detail="period must be 'all', 'today', 'week', or 'month'")
     interval = _PERIOD_INTERVAL.get(period)
@@ -467,26 +501,32 @@ async def portal_stats(token: str, period: str = "all"):
         # why that's not a lead in their portal at all), excluding canceled
         # appointments from every count below — a canceled appointment never
         # happened, so it shouldn't count toward "total" or any outcome.
-        # Real numbers here only for the is_test client, same gate as
-        # portal_appointments()/portal_update_appointment_outcome(). Every
-        # other real client keeps the zeroed placeholder below, unchanged.
-        appt_row = None
-        if client.get("is_test"):
-            appt_row = await conn.fetchrow(
-                """
-                SELECT
-                    COUNT(*) AS total,
-                    COALESCE(SUM((ar.status = 'scheduled' AND ar.appointment_at > now())::int), 0) AS upcoming,
-                    COALESCE(SUM((ar.outcome_show = 'show')::int), 0) AS shows,
-                    COALESCE(SUM((ar.outcome_show = 'no_show')::int), 0) AS no_shows,
-                    COALESCE(SUM((ar.outcome_close = 'closed')::int), 0) AS closed,
-                    COALESCE(SUM((ar.outcome_close = 'not_closed')::int), 0) AS not_closed
-                FROM appointment_reminders ar
-                JOIN contacts c ON c.id = ar.contact_id
-                WHERE c.client_id = $1 AND NOT c.is_client_anchor AND ar.status != 'canceled'
-                """,
-                client["id"],
-            )
+        #
+        # Computed live for every client, not just is_test — this is a
+        # read-only rollup of whatever DigiGrowth staff have already booked/
+        # dispositioned internally for this client's leads (routers/
+        # appointments.py, never gated), so it's real data regardless of
+        # whether the client can self-book/self-disposition yet. The
+        # self-service WRITE endpoints below (portal_appointments(),
+        # portal_book_appointment(), portal_update_appointment_outcome(),
+        # portal_cancel_appointment()) stay is_test-gated per Dylan's
+        # 2026-09-01 call — this only changes what a real client sees, not
+        # what they can do.
+        appt_row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) AS total,
+                COALESCE(SUM((ar.status = 'scheduled' AND ar.appointment_at > now())::int), 0) AS upcoming,
+                COALESCE(SUM((ar.outcome_show = 'show')::int), 0) AS shows,
+                COALESCE(SUM((ar.outcome_show = 'no_show')::int), 0) AS no_shows,
+                COALESCE(SUM((ar.outcome_close = 'closed')::int), 0) AS closed,
+                COALESCE(SUM((ar.outcome_close = 'not_closed')::int), 0) AS not_closed
+            FROM appointment_reminders ar
+            JOIN contacts c ON c.id = ar.contact_id
+            WHERE c.client_id = $1 AND NOT c.is_client_anchor AND ar.status != 'canceled'
+            """,
+            client["id"],
+        )
     if appt_row:
         shows, no_shows = appt_row["shows"], appt_row["no_shows"]
         closed, not_closed = appt_row["closed"], appt_row["not_closed"]
@@ -716,7 +756,14 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
 
     if updates.get("outcome_show") == "no_show":
         try:
-            await no_show_sequence.send_first_touch(dict(updated))
+            # Same client-lead branch as routers/appointments.py's PATCH
+            # handler — this row always belongs to a real client's own lead
+            # here (portal-scoped), so this always routes through
+            # client_appointment_sequence.py, never Dylan's own drip.
+            if await client_appointment_sequence.resolve_client_lead(updated["contact_id"]):
+                await client_appointment_sequence.send_first_touch(dict(updated), "no_show")
+            else:
+                await no_show_sequence.send_first_touch(dict(updated))
         except Exception as e:
             print(f"[client_portal] no-show touch 1 failed for {appointment_id}: {e}")
     if updates.get("outcome_close") == "closed":

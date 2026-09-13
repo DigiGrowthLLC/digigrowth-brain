@@ -35,6 +35,7 @@ from fastapi import APIRouter, HTTPException, Query
 from db import get_pool
 from timezone_lookup import guess_timezone, US_TIMEZONES
 import cancel_sequence
+import client_appointment_sequence
 import client_booking_notification
 import no_show_sequence
 import onboarding_sequence
@@ -42,21 +43,27 @@ import reminder_engine
 
 router = APIRouter()
 
-# sequence key -> engine module + the columns that track its 4-touch drip,
+# sequence key -> engine module + the columns that track its 3-touch drip,
 # shared by the /sequence/{sequence} list/add/remove endpoints below. The
 # "reminder" sequence isn't in here — it's a fixed 3-window (24h/6h/1h)
-# countdown to appointment_at rather than a 4-touch drip from an anchor
-# event, so it's handled separately in the endpoints below.
+# countdown to appointment_at rather than a drip from an anchor event, so
+# it's handled separately in the endpoints below.
+#
+# Touch 2 (the old 3h, SMS-only "same-day follow-up") was removed by
+# request from both no_show_sequence.py and cancel_sequence.py — touch_cols/
+# touch_delays below only list touches 1/3/4 to match, so the "Active
+# Prospects" progress display doesn't sit forever "waiting" on a touch that
+# will never send. See either sequence module's docstring for why the
+# numbering gap (1, then 3, then 4) is kept instead of renumbered.
 _SEQUENCE_CONFIG = {
     "no_show": {
         "module": no_show_sequence,
         "active_where": "ar.outcome_show = 'no_show' AND ar.no_show_sequence_stopped_at IS NULL",
         "anchor_col": "outcome_show_at",
         "touch_cols": [
-            "no_show_touch1_sent_at", "no_show_touch2_sent_at",
-            "no_show_touch3_sent_at", "no_show_touch4_sent_at",
+            "no_show_touch1_sent_at", "no_show_touch3_sent_at", "no_show_touch4_sent_at",
         ],
-        "touch_delays": [timedelta(hours=0), timedelta(hours=3), timedelta(hours=24), timedelta(hours=72)],
+        "touch_delays": [timedelta(hours=0), timedelta(hours=24), timedelta(hours=72)],
         "stopped_col": "no_show_sequence_stopped_at",
     },
     "cancel": {
@@ -64,17 +71,16 @@ _SEQUENCE_CONFIG = {
         "active_where": "ar.status = 'canceled' AND ar.cancel_sequence_stopped_at IS NULL",
         "anchor_col": "canceled_at",
         "touch_cols": [
-            "cancel_touch1_sent_at", "cancel_touch2_sent_at",
-            "cancel_touch3_sent_at", "cancel_touch4_sent_at",
+            "cancel_touch1_sent_at", "cancel_touch3_sent_at", "cancel_touch4_sent_at",
         ],
-        "touch_delays": [timedelta(hours=0), timedelta(hours=3), timedelta(hours=24), timedelta(hours=72)],
+        "touch_delays": [timedelta(hours=0), timedelta(hours=24), timedelta(hours=72)],
         "stopped_col": "cancel_sequence_stopped_at",
     },
 }
 
 
 def _touch_progress(row: dict, cfg: dict) -> dict:
-    """4-touch-drip progress (no_show/cancel) — how many touches have gone
+    """3-touch-drip progress (no_show/cancel) — how many touches have gone
     out and when the next one is due, for display in the queue list."""
     anchor = row.get(cfg["anchor_col"])
     sent_count = sum(1 for c in cfg["touch_cols"] if row.get(c) is not None)
@@ -320,8 +326,8 @@ async def update_appointment(appointment_id: int, payload: dict):
             "reminders_armed_at = now()",
         ]
     # No Show sequence bookkeeping: entering 'no_show' stamps outcome_show_at
-    # (the clock no_show_sequence.py's 4-touch drip counts its 20min/4h/24h/
-    # 72h delays from) and resets every touch/stop column so re-marking a
+    # (the clock no_show_sequence.py's 3-touch drip counts its 0h/24h/72h
+    # delays from) and resets every touch/stop column so re-marking a
     # previously-cleared no-show restarts the sequence from touch 1. Leaving
     # 'no_show' (cleared, or flipped to 'show') clears outcome_show_at, which
     # is what the poller's WHERE clause actually keys off to stop sending.
@@ -364,7 +370,14 @@ async def update_appointment(appointment_id: int, payload: dict):
 
     if updates.get("outcome_show") == "no_show":
         try:
-            await no_show_sequence.send_first_touch(dict(updated))
+            # A client's own lead gets that client's own branded copy
+            # (client_appointment_sequence.py) from their own Twilio/Gmail —
+            # never Dylan's own signed no_show_sequence.py drip, which is
+            # only for Dylan's own sales-pipeline appointments.
+            if await client_appointment_sequence.resolve_client_lead(updated["contact_id"]):
+                await client_appointment_sequence.send_first_touch(dict(updated), "no_show")
+            else:
+                await no_show_sequence.send_first_touch(dict(updated))
         except Exception as e:
             print(f"[appointments] no-show touch 1 failed for {appointment_id}: {e}")
 
@@ -381,7 +394,7 @@ async def update_appointment(appointment_id: int, payload: dict):
 async def cancel_appointment(appointment_id: int):
     """Marks the appointment canceled and kicks off the cancellation-recovery
     drip (cancel_sequence.py) — stamps canceled_at, the clock that sequence's
-    4-touch drip counts its 0h/3h/24h/72h delays from, and fires Touch 1
+    3-touch drip counts its 0h/24h/72h delays from, and fires Touch 1
     immediately (same synchronous-send-then-poller-picks-up-the-rest pattern
     as no_show_sequence.send_first_touch, see routers/appointments.py's PATCH
     handler above)."""
@@ -400,7 +413,11 @@ async def cancel_appointment(appointment_id: int):
         raise HTTPException(404, "appointment not found or already resolved")
 
     try:
-        await cancel_sequence.send_first_touch(dict(row))
+        # Same client-lead branch as the no-show handler above.
+        if await client_appointment_sequence.resolve_client_lead(row["contact_id"]):
+            await client_appointment_sequence.send_first_touch(dict(row), "cancellation")
+        else:
+            await cancel_sequence.send_first_touch(dict(row))
     except Exception as e:
         print(f"[appointments] cancel touch 1 failed for {appointment_id}: {e}")
 
@@ -502,7 +519,11 @@ async def add_to_sequence(appointment_id: int, sequence: str):
         )
 
     try:
-        await cfg["module"].send_first_touch(dict(updated))
+        client_seq_key = "no_show" if sequence == "no_show" else "cancellation"
+        if await client_appointment_sequence.resolve_client_lead(updated["contact_id"]):
+            await client_appointment_sequence.send_first_touch(dict(updated), client_seq_key)
+        else:
+            await cfg["module"].send_first_touch(dict(updated))
     except Exception as e:
         print(f"[appointments] manual re-enroll ({sequence}) touch 1 failed for {appointment_id}: {e}")
 

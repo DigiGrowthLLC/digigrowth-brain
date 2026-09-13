@@ -1,6 +1,6 @@
 """No Show outreach sequence — scheduled from main.py's APScheduler job.
 
-Fires a 4-touch SMS/email drip at a prospect after a rep marks an
+Fires a 3-touch SMS/email drip at a prospect after a rep marks an
 appointment's outcome "No Show" in the Appointments tab
 (routers/appointments.py's PATCH handler sets outcome_show_at = now() and
 resets every touch/stop column below whenever outcome_show transitions to
@@ -14,12 +14,17 @@ Touch schedule (all offsets measured from outcome_show_at):
                       in _TOUCHES below as a zero-delay entry so the poller
                       picks it up as a fallback if that synchronous send
                       never ran (e.g. a mid-request crash).
-  Touch 2 —   3h:    SMS only (no email — one channel per touch keeps this
-                      from feeling like a barrage; email fields are blank by
-                      default and any touch's email send is skipped if either
-                      its subject or body template is blank).
   Touch 3 —  24h:    SMS + email, social-proof framing.
   Touch 4 —  72h:    SMS + email, the "breakup" touch — closes the loop.
+
+  Touch 2 (the 3h, SMS-only "same-day follow-up") was removed by request —
+  it's gone from _TOUCHES/TEMPLATE_INSTANCES entirely, not just skipped, so
+  it no longer sends, no longer appears in Business Resources → Outreach
+  Templates → No Show, and no longer counts in the "Active Prospects"
+  touch-progress display. The numbering gap (1, then 3, then 4) is
+  deliberate — kept so historical no_show_touch3/no_show_touch4 stage tags
+  in sms_messages and any dialer_settings keys a rep already customized stay
+  correctly attributed instead of silently shifting meaning.
 
 Stops permanently the moment the prospect replies on either channel:
 routers/sms.py's inbound Twilio webhook and routers/email_inbox.py's Gmail
@@ -42,10 +47,10 @@ import integrations
 from db import get_pool
 from merge_fields import first_name_from_owner
 
-# (touch number, sent-at column, delay after outcome_show_at)
+# (touch number, sent-at column, delay after outcome_show_at) — no entry 2,
+# see module docstring for why the numbering gap is intentional.
 _TOUCHES = [
     (1, "no_show_touch1_sent_at", timedelta(hours=0)),
-    (2, "no_show_touch2_sent_at", timedelta(hours=3)),
     (3, "no_show_touch3_sent_at", timedelta(hours=24)),
     (4, "no_show_touch4_sent_at", timedelta(hours=72)),
 ]
@@ -61,15 +66,6 @@ _TOUCH1_BODY_DEFAULT = (
     "Whenever's good for you: {link}\n\n"
     "Talk soon,\nDylan"
 )
-
-_TOUCH2_SMS_DEFAULT = (
-    "{first_name} — still want to show you how studios like yours are "
-    "adding 15-20 sessions/month. 15 min, your call: {link}"
-)
-# Touch 2 is SMS-only by design — email subject/body default to empty so
-# _send_touch() below skips the email channel entirely for this one.
-_TOUCH2_SUBJECT_DEFAULT = ""
-_TOUCH2_BODY_DEFAULT = ""
 
 _TOUCH3_SMS_DEFAULT = (
     "{first_name}, happens to lots of folks — still open if you want to "
@@ -96,13 +92,12 @@ _TOUCH4_BODY_DEFAULT = (
     "here whenever it opens up.\n\nDylan"
 )
 
-# Each of the 4 touches gets its own sms/email_subject/email_body — key prefix
-# -> (sms default, email subject default, email body default). dialer.py's
-# GET/PUT /dialer/no-show-template iterates this dict generically, so
-# adding/renaming a touch here is the only backend change needed.
+# Each of the 3 remaining touches gets its own sms/email_subject/email_body —
+# key prefix -> (sms default, email subject default, email body default).
+# dialer.py's GET/PUT /dialer/no-show-template iterates this dict
+# generically, so adding/renaming a touch here is the only backend change needed.
 TEMPLATE_INSTANCES = {
     "touch1": (_TOUCH1_SMS_DEFAULT, _TOUCH1_SUBJECT_DEFAULT, _TOUCH1_BODY_DEFAULT),
-    "touch2": (_TOUCH2_SMS_DEFAULT, _TOUCH2_SUBJECT_DEFAULT, _TOUCH2_BODY_DEFAULT),
     "touch3": (_TOUCH3_SMS_DEFAULT, _TOUCH3_SUBJECT_DEFAULT, _TOUCH3_BODY_DEFAULT),
     "touch4": (_TOUCH4_SMS_DEFAULT, _TOUCH4_SUBJECT_DEFAULT, _TOUCH4_BODY_DEFAULT),
 }
@@ -174,8 +169,18 @@ async def send_due_touches():
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM appointment_reminders WHERE outcome_show = 'no_show' "
-            "AND no_show_sequence_stopped_at IS NULL AND outcome_show_at IS NOT NULL"
+            # Only Dylan's own sales-pipeline appointments — a client's own
+            # lead is handled entirely by client_appointment_sequence.py's
+            # one-shot send instead (see routers/appointments.py's PATCH
+            # handler), never this Dylan-branded drip. Same exclusion as
+            # call_reminders.py's _check().
+            """
+            SELECT ar.* FROM appointment_reminders ar
+            LEFT JOIN contacts c ON c.id = ar.contact_id
+            WHERE ar.outcome_show = 'no_show'
+            AND ar.no_show_sequence_stopped_at IS NULL AND ar.outcome_show_at IS NOT NULL
+            AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
+            """
         )
     if not rows:
         return
