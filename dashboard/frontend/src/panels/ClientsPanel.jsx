@@ -75,6 +75,7 @@ const DETAILS_TABS = [
   { id: "requests", label: "Requests" },
   { id: "uploads", label: "Uploads" },
   { id: "resources", label: "Resources" },
+  { id: "websites", label: "Websites" },
 ];
 
 function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact }) {
@@ -240,6 +241,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
           {detailsTab === "requests" && <ClientRequests clientId={client.id} />}
           {detailsTab === "uploads" && <ClientUploads clientId={client.id} />}
           {detailsTab === "resources" && <ClientResources clientId={client.id} />}
+          {detailsTab === "websites" && <ClientWebsites clientId={client.id} />}
         </div>
       )}
     </div>
@@ -1007,46 +1009,77 @@ function ClientRequests({ clientId }) {
 // directly in the browser, and a plain one for the DOWNLOAD button. Lets
 // Dylan flip through what a client uploaded and judge what's usable without
 // downloading each file first.
+//
+// Perf note: an earlier version fetched a presigned URL AND mounted a real
+// <video> element for every video the instant the grid rendered — with a
+// batch of dozens of 50-80MB videos, that meant dozens of simultaneous
+// browser video decoders spinning up at once, which is what made the whole
+// tab lag badly. Fix: images lazy-load only once actually scrolled into
+// view (IntersectionObserver), and videos never load or decode anything
+// for their thumbnail at all — just a static icon — until the user
+// explicitly clicks to open one in the lightbox.
 function UploadThumb({ clientId, file, onOpen }) {
   const [inlineUrl, setInlineUrl] = useState(null);
+  const [loadingVideo, setLoadingVideo] = useState(false);
+  const elRef = useRef(null);
   const isImage = file.file_type?.startsWith("image/");
   const isVideo = file.file_type?.startsWith("video/");
 
+  const fetchInlineUrl = async () => {
+    const r = await fetch(API(`/clients/${clientId}/uploads/${file.id}/download?inline=true`));
+    if (r.ok) return (await r.json()).url;
+    return null;
+  };
+
+  // Images: fetch + render only once the thumbnail is actually visible.
   useEffect(() => {
-    let cancelled = false;
-    if (isImage || isVideo) {
-      fetch(API(`/clients/${clientId}/uploads/${file.id}/download?inline=true`))
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data) => { if (!cancelled && data) setInlineUrl(data.url); })
-        .catch(() => {});
-    }
-    return () => { cancelled = true; };
-  }, [clientId, file.id, isImage, isVideo]);
+    if (!isImage || inlineUrl || !elRef.current) return;
+    const el = elRef.current;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        observer.disconnect();
+        fetchInlineUrl().then((url) => url && setInlineUrl(url));
+      }
+    }, { rootMargin: "200px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isImage, clientId, file.id]);
+
+  const openVideo = async () => {
+    if (loadingVideo) return;
+    setLoadingVideo(true);
+    const url = inlineUrl || (await fetchInlineUrl());
+    setLoadingVideo(false);
+    if (url) { setInlineUrl(url); onOpen(file, url); }
+  };
+
+  const clickable = isImage ? Boolean(inlineUrl) : isVideo;
 
   return (
     <div
-      onClick={() => (isImage || isVideo) && inlineUrl && onOpen(file, inlineUrl)}
+      ref={elRef}
+      onClick={() => { if (isImage && inlineUrl) onOpen(file, inlineUrl); else if (isVideo) openVideo(); }}
       style={{
         position: "relative", aspectRatio: "1 / 1", borderRadius: 10, overflow: "hidden",
         background: "rgba(255,255,255,0.03)", border: "1px solid rgba(58,123,213,0.12)",
-        cursor: (isImage || isVideo) && inlineUrl ? "pointer" : "default",
+        cursor: clickable ? "pointer" : "default",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
       {isImage && inlineUrl && (
-        <img src={inlineUrl} alt={file.file_name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <img src={inlineUrl} alt={file.file_name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       )}
-      {isVideo && inlineUrl && (
-        <>
-          <video src={inlineUrl} muted preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          <div style={{
-            position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,0.25)", fontSize: 28, color: "#fff", pointerEvents: "none",
-          }}>▶</div>
-        </>
+      {isImage && !inlineUrl && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a8a" }}>…</div>
       )}
-      {(isImage || isVideo) && !inlineUrl && (
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a8a" }}>LOADING…</div>
+      {isVideo && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%",
+          background: "rgba(58,123,213,0.06)",
+        }}>
+          <div style={{ fontSize: 28, color: loadingVideo ? "#3a5a8a" : "#9cc4f5" }}>{loadingVideo ? "…" : "▶"}</div>
+        </div>
       )}
       {!isImage && !isVideo && (
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", textAlign: "center", padding: 8 }}>
@@ -1140,6 +1173,17 @@ function ClientUploads({ clientId }) {
 
   return (
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>
+          {files.length} FILE{files.length === 1 ? "" : "S"}
+        </div>
+        <button
+          className="btn btn-secondary" style={{ fontSize: 10 }}
+          onClick={() => window.open(API(`/clients/${clientId}/uploads/zip`), "_blank")}
+        >
+          DOWNLOAD ALL (ZIP)
+        </button>
+      </div>
       {media.length > 0 && (
         <div style={{
           display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, marginBottom: other.length ? 16 : 0,
@@ -2005,6 +2049,124 @@ function ClientResources({ clientId }) {
         </div>
       )}
       {resources.map((r) => <MiscResourceRow key={r.id} resource={r} onDelete={removeResource} />)}
+    </div>
+  );
+}
+
+function WebsiteRow({ site, onDelete }) {
+  return (
+    <div style={{ padding: "12px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff" }}>{site.label}</div>
+          <a href={site.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#3a7bd5", wordBreak: "break-all" }}>{site.url}</a>
+        </div>
+        <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(site.id)}>DELETE</button>
+      </div>
+      <div style={{ display: "flex", gap: 18, marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>VIEWS</div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#c8d8f0" }}>{site.views}</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>CONSULT REQUESTS</div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#4ade80" }}>{site.conversions}</div>
+        </div>
+        <div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>CONVERSION RATE</div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#c8d8f0" }}>{site.conversion_rate}%</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Websites/funnels built for this client (e.g. via design-agent's
+// funnel-building skill) — shown to the client themselves under their
+// portal's own "Website" tab, stats included. Same add/list/delete shape
+// as ClientResources above, but a dedicated table (client_websites)
+// rather than the generic label/value resource bucket, since a website
+// needs real view/conversion stats attached, not just a stored link.
+function ClientWebsites({ clientId }) {
+  const [sites, setSites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ label: "", url: "" });
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/websites`));
+    if (r.ok) setSites(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const addSite = async () => {
+    if (!form.label.trim() || !form.url.trim()) return;
+    setSaving(true);
+    await fetch(API(`/clients/${clientId}/websites`), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: form.label.trim(), url: form.url.trim(), sort_order: sites.length }),
+    });
+    setForm({ label: "", url: "" });
+    setShowForm(false);
+    setSaving(false);
+    load();
+  };
+
+  const removeSite = async (id) => {
+    if (!window.confirm("Remove this website from the client's portal?")) return;
+    await fetch(API(`/clients/${clientId}/websites/${id}`), { method: "DELETE" });
+    load();
+  };
+
+  if (loading) {
+    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  }
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 12, lineHeight: 1.5 }}>
+        Websites/funnels built for this client — shown to them in their own portal's Website
+        tab, with view/conversion stats. Add the live URL once it's deployed (see the
+        funnel-building skill's step 6). Stats populate automatically once the page's
+        tracking snippet starts reporting real traffic.
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 0 8px" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.08em" }}>
+          WEBSITES
+        </div>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowForm((s) => !s)}>
+          {showForm ? "CANCEL" : "+ ADD"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+          <input
+            className="dg-input" placeholder="Label, e.g. Meta Ads Funnel" value={form.label}
+            onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} autoFocus
+          />
+          <input
+            className="dg-input" placeholder="https://funnel.clientdomain.com" value={form.url}
+            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
+          />
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={addSite} disabled={saving || !form.label.trim() || !form.url.trim()}>
+              {saving ? "SAVING…" : "SAVE WEBSITE"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {sites.length === 0 && !showForm && (
+        <div style={{ padding: "16px 0", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
+          NO WEBSITES ADDED YET
+        </div>
+      )}
+      {sites.map((s) => <WebsiteRow key={s.id} site={s} onDelete={removeSite} />)}
     </div>
   );
 }

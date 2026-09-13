@@ -8,7 +8,11 @@ import json
 import os
 import secrets
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from stream_zip import ZIP_64, stream_zip
 
 import r2_storage
 from db import get_pool
@@ -18,6 +22,7 @@ from models import (
     LaunchChecklistItemCreate, LaunchChecklistItemUpdate, LaunchChecklistStatusUpdate,
     SequenceStepUpdate, ClientRequestUpdate,
     ClientResourceCreate, ClientResourceUpdate,
+    ClientWebsiteCreate, ClientWebsiteUpdate,
 )
 
 router = APIRouter()
@@ -330,6 +335,66 @@ async def delete_client_resource(client_id: int, resource_id: int):
         )
     if not row:
         raise HTTPException(status_code=404, detail="Resource not found")
+    return {"ok": True}
+
+
+# Websites/funnels built for a client — admin-side CRUD, same shape as
+# client_resources above. Stats (views/conversions) are read on the portal
+# side from content_view_events, not stored here.
+@router.get("/clients/{client_id}/websites")
+async def list_client_websites(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM client_websites WHERE client_id = $1 ORDER BY sort_order, id", client_id
+        )
+    return [dict(r) for r in rows]
+
+
+@router.post("/clients/{client_id}/websites")
+async def create_client_website(client_id: int, body: ClientWebsiteCreate):
+    label = body.label.strip()
+    url = body.url.strip()
+    if not label or not url:
+        raise HTTPException(status_code=400, detail="label and url required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        row = await conn.fetchrow(
+            "INSERT INTO client_websites (client_id, label, url, sort_order) VALUES ($1, $2, $3, $4) RETURNING *",
+            client_id, label, url, body.sort_order,
+        )
+    return dict(row)
+
+
+@router.patch("/clients/{client_id}/websites/{website_id}")
+async def update_client_website(client_id: int, website_id: int, body: ClientWebsiteUpdate):
+    fields = body.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=400, detail="no fields to update")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        set_clauses = ", ".join(f"{k} = ${i+3}" for i, k in enumerate(fields))
+        row = await conn.fetchrow(
+            f"UPDATE client_websites SET {set_clauses} WHERE id = $1 AND client_id = $2 RETURNING *",
+            website_id, client_id, *fields.values(),
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Website not found")
+    return dict(row)
+
+
+@router.delete("/clients/{client_id}/websites/{website_id}")
+async def delete_client_website(client_id: int, website_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM client_websites WHERE id = $1 AND client_id = $2 RETURNING id", website_id, client_id
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Website not found")
     return {"ok": True}
 
 
@@ -670,6 +735,53 @@ async def list_client_uploads(client_id: int):
             client_id,
         )
     return [dict(r) for r in rows]
+
+
+@router.get("/clients/{client_id}/uploads/zip")
+async def download_all_client_uploads_zip(client_id: int):
+    """Streams every one of this client's uploads into a single .zip, built
+    on the fly (stream-zip) so nothing is ever buffered whole in memory or
+    written to disk — same "Railway never persists the bytes" principle as
+    everywhere else in this file, just a transient in-flight stream this
+    one time instead of a direct-to-R2 presigned URL. Exists because
+    clicking DOWNLOAD one at a time on a big upload batch (dozens of large
+    videos) is painfully slow."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT name FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        rows = await conn.fetch(
+            "SELECT file_name, r2_key FROM client_uploads WHERE client_id = $1 ORDER BY uploaded_at DESC",
+            client_id,
+        )
+    if not rows:
+        raise HTTPException(status_code=404, detail="No files to download")
+    if not r2_storage.is_configured():
+        raise HTTPException(status_code=503, detail="File storage isn't connected yet")
+
+    now = datetime.now(timezone.utc)
+    seen_names: dict[str, int] = {}
+
+    def member_files():
+        for row in rows:
+            name = row["file_name"] or row["r2_key"].rsplit("/", 1)[-1]
+            # Same original filename uploaded more than once would otherwise
+            # collide inside the zip — de-dupe by suffixing a counter.
+            if name in seen_names:
+                seen_names[name] += 1
+                stem, _, ext = name.rpartition(".")
+                name = f"{stem or name} ({seen_names[name]}).{ext}" if ext else f"{name} ({seen_names[name]})"
+            else:
+                seen_names[name] = 0
+            yield name, now, 0o600, ZIP_64, r2_storage.iter_object_chunks(row["r2_key"])
+
+    safe_client_name = "".join(c if c.isalnum() or c in "._- " else "_" for c in (client["name"] or "client")).strip() or "client"
+    return StreamingResponse(
+        stream_zip(member_files()),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{safe_client_name}-uploads.zip"'},
+    )
 
 
 @router.get("/clients/{client_id}/uploads/{upload_id}/download")

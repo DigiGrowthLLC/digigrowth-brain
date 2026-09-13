@@ -95,3 +95,15 @@ def presign_get(key: str, download_filename: str | None = None) -> str:
 def delete_object(key: str) -> None:
     bucket = os.environ["R2_BUCKET_NAME"]
     _client().delete_object(Bucket=bucket, Key=key)
+
+
+def iter_object_chunks(key: str, chunk_size: int = 1024 * 1024):
+    """Streams one object's bytes in chunks — used by the admin "download all
+    as a zip" endpoint (routers/clients.py) to build a zip archive on the fly
+    without ever buffering a whole file (let alone a whole client's uploads)
+    in memory. Still never touches disk/Postgres — this is a transient
+    in-memory stream from R2 straight into the HTTP response."""
+    bucket = os.environ["R2_BUCKET_NAME"]
+    body = _client().get_object(Bucket=bucket, Key=key)["Body"]
+    for chunk in body.iter_chunks(chunk_size=chunk_size):
+        yield chunk
