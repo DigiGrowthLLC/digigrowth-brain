@@ -161,6 +161,6 @@ async def generate_context(client_id: int) -> str:
     model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-5")
     response = await asyncio.to_thread(
         api_client.messages.create,
-        model=model, max_tokens=2500, messages=[{"role": "user", "content": prompt}],
+        model=model, max_tokens=4096, messages=[{"role": "user", "content": prompt}],
     )
     return "".join(b.text for b in response.content if b.type == "text").strip()
