@@ -577,6 +577,13 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_url TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS calendly_url TEXT;
+            -- Agency-level sales KPIs (Dylan's own pipeline only) -- entered
+            -- on the appointment disposition screen alongside outcome_close,
+            -- replacing the Google-Sheet-sourced sales_stats.json fields.
+            -- See routers/appointments.py's PATCH handler and
+            -- routers/analytics.py's OS-native sales computation.
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS deal_value NUMERIC;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS is_strategy_session BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS booking_notification_enabled BOOLEAN NOT NULL DEFAULT true;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS ads_manager_resource TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS registrar_resource TEXT;

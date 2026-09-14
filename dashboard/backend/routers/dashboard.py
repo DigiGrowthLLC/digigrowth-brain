@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone, date
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
-from routers.analytics import _sms_metrics, _email_metrics, _app_booked_count, _sheet_stat
+from routers.analytics import _sms_metrics, _email_metrics, _os_sales_stats, _sheet_stat
 
 _SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 
@@ -69,7 +69,7 @@ async def summary(period: str = "day"):
         p_days = period_to_days.get(period, 0)
         sms_funnel   = await _sms_metrics(conn, None if p_days == 0 else since)
         email_funnel = await _email_metrics(conn, None if p_days == 0 else since)
-        app_booked   = await _app_booked_count(conn, stats, p_days)
+        os_sales     = await _os_sales_stats(conn, p_days)
 
     # "Today" (period=day, p_days=1) has no base_key_1d bucket in
     # sales_stats.json — the Sheets Digest only tracks fixed 7d/30d/
@@ -90,12 +90,10 @@ async def summary(period: str = "day"):
     # Channel-agnostic combined totals (calling + SMS + email), same
     # methodology as the Analytics tab's 6-Stage Acquisition Funnel: every
     # stage sums calling (sheets) + SMS (DB) + email (DB) where that stage
-    # applies, except appointments, which uses the manually-logged
-    # cross-channel total (discovery_calls) since some bookings come from
-    # channels (e.g. DM campaigns) neither data source tracks, and a
-    # bottom-up sum would under-count — plus app_booked (bookings made in
-    # the app itself, not yet reflected in that sheet — see
-    # analytics.py::_app_booked_count).
+    # applies, except appointments, which is OS-native now — read straight
+    # off appointment_reminders (any booking source: Inbox/CRM/Dialer/DM/
+    # etc.), not a manually-synced sheet total plus an app-bookings-not-yet-
+    # reflected patch (see analytics.py::_os_sales_stats).
     # Reached = calls reached (dms_reached) + SMS DM Reached stage (the
     # "reached" equivalent for SMS, not the later Engaged stage) + email
     # opened (confirmed opens, not counting the tracking pixel's own
@@ -108,7 +106,7 @@ async def summary(period: str = "day"):
     total_outreach     = calls_made + sms_funnel["total_outreach"] + email_funnel["total_outreach"]
     total_answered      = calls_answered + sms_funnel["replied"]
     total_reached       = dms_reached + sms_funnel["dm_reached"] + email_funnel["opened"]
-    total_appointments  = _sheet("discovery_calls") + app_booked
+    total_appointments  = os_sales["discovery_calls"]
     total_abr           = round(total_appointments / total_outreach * 100, 1) if total_outreach else 0
 
     return {

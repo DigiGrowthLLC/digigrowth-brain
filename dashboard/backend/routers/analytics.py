@@ -115,49 +115,85 @@ def _normalize_state(raw: str) -> str:
     return _US_STATE_ABBR.get(s.upper(), s)
 
 
-def _last_sheet_sync(stats: dict):
-    ts = stats.get("last_sheet_sync")
-    if not ts:
-        return None
-    try:
-        dt = datetime.fromisoformat(ts)
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
-
-
-async def _app_booked_count(conn, stats: dict, days: int) -> int:
+async def _os_sales_stats(conn, days: int) -> dict:
     """
-    Appointments booked through the app itself (routers/appointments.py's
-    POST /appointment-reminders — Inbox/CRM/Dialer bookings) that aren't yet
-    reflected in the manually-synced Sales Performance Tracker Sheet
-    (sales_stats.json's discovery_calls). Added on top of that sheet figure
-    everywhere "Booked" is a cross-channel total, so a booking made in the
-    app shows up immediately instead of waiting for (or risking a double
-    count against) the next manual sheet sync.
+    OS-native sales KPIs computed straight from appointment_reminders —
+    discovery_calls/strategy_sessions/shows/closes/total_revenue/
+    avg_deal_size — replacing the Google-Sheet-sourced sales_stats.json
+    fields of the same names (the sheets-digest skill no longer reports
+    these; see executive-assistant/.claude/skills/sheets-digest/SKILL.md).
 
-    Only counts app bookings created *after* the sheet was last synced —
-    anything before that point may already be reflected in discovery_calls,
-    since the sheet is manually maintained and could include app-sourced
-    bookings a rep also logged there by hand. Canceled appointments never
-    count as a win.
+    Scoped exactly like the old _app_booked_count(): Dylan's own
+    sales-pipeline appointments only — excludes a client's own lead
+    appointments (booked through their portal) via the same
+    (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor) exclusion
+    used elsewhere (appointments.py's list_appointments(), dialer.py's
+    queue, the pipeline funnel above) — and excludes canceled appointments,
+    which never count as a win or a booking.
+
+    Each metric windows on the timestamp that actually reflects when that
+    thing happened, not a single blanket cutoff: discovery_calls/
+    strategy_sessions on created_at (when booked), shows on outcome_show_at
+    (when marked), closes/revenue on outcome_close_at (when marked) — a
+    close logged today on a call booked a month ago should count toward
+    today's close-rate window, not get excluded because the booking itself
+    is old. days=0 means all-time (no window).
+
+    discovery_calls counts appointments that are NOT flagged
+    is_strategy_session — the sheet's original "Discovery calls / booked
+    calls" naming implies the non-strategy-session bookings specifically,
+    with strategy_sessions counted separately (same split the sheet used).
     """
-    cutoff = _last_sheet_sync(stats) or datetime.min.replace(tzinfo=timezone.utc)
-    if days:
-        cutoff = max(cutoff, _since(days))
-    # Dylan's own sales-pipeline discovery calls only — excludes a client's
-    # own lead appointments (booked through their portal), same exclusion as
-    # appointments.py's list_appointments()/reminder_engine.py. Without this
-    # a client's real patient bookings inflated this agency-level KPI.
-    return await conn.fetchval(
-        """
-        SELECT COUNT(*) FROM appointment_reminders ar
-        LEFT JOIN contacts c ON c.id = ar.contact_id
-        WHERE ar.status != 'canceled' AND ar.created_at >= $1
-        AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
+    since = _since(days) if days else None
+    where = (
+        "ar.status != 'canceled' AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)"
+    )
+    join = "LEFT JOIN contacts c ON c.id = ar.contact_id"
+
+    discovery_calls = await conn.fetchval(
+        f"""
+        SELECT COUNT(*) FROM appointment_reminders ar {join}
+        WHERE {where} AND NOT ar.is_strategy_session
+        AND ($1::timestamptz IS NULL OR ar.created_at >= $1)
         """,
-        cutoff,
+        since,
     ) or 0
+    strategy_sessions = await conn.fetchval(
+        f"""
+        SELECT COUNT(*) FROM appointment_reminders ar {join}
+        WHERE {where} AND ar.is_strategy_session
+        AND ($1::timestamptz IS NULL OR ar.created_at >= $1)
+        """,
+        since,
+    ) or 0
+    shows = await conn.fetchval(
+        f"""
+        SELECT COUNT(*) FROM appointment_reminders ar {join}
+        WHERE {where} AND ar.outcome_show = 'show'
+        AND ($1::timestamptz IS NULL OR ar.outcome_show_at >= $1)
+        """,
+        since,
+    ) or 0
+    close_row = await conn.fetchrow(
+        f"""
+        SELECT COUNT(*) AS closes, COALESCE(SUM(ar.deal_value), 0) AS revenue
+        FROM appointment_reminders ar {join}
+        WHERE {where} AND ar.outcome_close = 'closed'
+        AND ($1::timestamptz IS NULL OR ar.outcome_close_at >= $1)
+        """,
+        since,
+    )
+    closes  = close_row["closes"] or 0
+    revenue = float(close_row["revenue"] or 0)
+
+    return {
+        "discovery_calls":   discovery_calls,
+        "strategy_sessions": strategy_sessions,
+        "shows":             shows,
+        "closes":            closes,
+        "total_revenue":     revenue,
+        "avg_deal_size":     round(revenue / closes) if closes else 0,
+    }
 
 
 def _load_sales_stats() -> dict:
@@ -809,7 +845,7 @@ async def pipeline(days: int = 0):
             GROUP BY state
             """
         )
-        app_booked = await _app_booked_count(conn, sales, days)
+        os_sales = await _os_sales_stats(conn, days)
 
     by_grade = [
         {"grade": r["grade"], "cnt": r["cnt"], "booked": r["booked"], "book_rate": _pct(r["booked"], r["cnt"])}
@@ -826,23 +862,21 @@ async def pipeline(days: int = 0):
     )[:8]
 
     # Funnel is channel-agnostic — cold calling (sheets) + SMS (DB) + email
-    # (DB) combined at every stage, not cold-calling-only. Shows/closes are
-    # already cross-channel (logged manually in the Sales Performance
-    # Tracker regardless of source), so those two are untouched.
+    # (DB) combined at every stage, not cold-calling-only.
     #
     # "Pitched" (the reached stage) sums calls reached + SMS's own DM
     # Reached stage — not the later Engaged stage, which undercounts what
     # "reached" means — + confirmed email opens. Same fix as
     # dashboard.py::summary's total_reached.
     #
-    # "Booked" is the one stage that can't just be calling+SMS summed: some
-    # booked appointments come from channels this OS doesn't track at all
-    # (e.g. DM campaigns), so a bottom-up sum would under-count. discovery_calls
-    # is the manually-logged, authoritative cross-channel total from the Sales
-    # Performance Tracker — same source Sales Statistics' "Appointments Booked"
-    # already uses — so use that as the base, plus app_booked (bookings made
-    # in the app itself, not yet reflected in that sheet — see
-    # _app_booked_count) instead of sheet_appointments_booked + sms.booked.
+    # "Booked" is OS-native now — appointment_reminders (Dylan's own
+    # sales-pipeline bookings, any source: Inbox/CRM/Dialer/DM/etc.) is the
+    # single system of record going forward, not a manually-synced sheet
+    # total plus an app-bookings-not-yet-reflected patch (see
+    # _os_sales_stats). "Shows"/"closes" are OS-native for the same reason —
+    # they're read straight off outcome_show/outcome_close on the same
+    # table (see AppointmentOutcomeCard.jsx / routers/appointments.py's PATCH
+    # handler), not the old Sales Performance Tracker sheet.
     # "Dialed" (labeled "Total Outreach" in the funnel UI) uses SMS/email's
     # total_outreach — each prospect's first-ever message only, not
     # sms["contacted"]/email["initial_sent"] (every distinct recipient
@@ -853,7 +887,7 @@ async def pipeline(days: int = 0):
     dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["total_outreach"] + email["total_outreach"]
     answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]      + email["replied"]
     pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["dm_reached"] + email["opened"]
-    booked   = _sheet_stat(sales, "discovery_calls",        days) + app_booked
+    booked   = os_sales["discovery_calls"]
 
     return {
         "funnel": {
@@ -862,8 +896,8 @@ async def pipeline(days: int = 0):
             "answered": answered,
             "pitched":  pitched,
             "booked":   booked,
-            "shows":    _sheet_stat(sales, "shows",  days),
-            "closes":   _sheet_stat(sales, "closes", days),
+            "shows":    os_sales["shows"],
+            "closes":   os_sales["closes"],
         },
         "by_grade":       by_grade,
         "top_states":     top_states,
@@ -881,11 +915,13 @@ async def sales_stats(days: int = 0):
         total_leads = await conn.fetchval(
             "SELECT COUNT(*) FROM contacts WHERE (client_id IS NULL OR is_client_anchor)"
         )
+        os_sales = await _os_sales_stats(conn, days)
 
-    discovery = _sheet_stat(stats, "discovery_calls", days)
-    closes    = _sheet_stat(stats, "closes",           days)
-    revenue   = _sheet_stat(stats, "total_revenue",    days)
-    shows     = _sheet_stat(stats, "shows",            days)
+    discovery         = os_sales["discovery_calls"]
+    closes            = os_sales["closes"]
+    revenue           = os_sales["total_revenue"]
+    shows             = os_sales["shows"]
+    strategy_sessions = os_sales["strategy_sessions"]
 
     sheet_sync = None
     if stats.get("last_sheet_sync"):
@@ -901,7 +937,7 @@ async def sales_stats(days: int = 0):
     return {
         "total_leads":       total_leads or 0,
         "discovery_calls":   discovery,
-        "strategy_sessions": stats.get("strategy_sessions", 0),
+        "strategy_sessions": strategy_sessions,
         "closes":            closes,
         # Closed ÷ shows (who actually showed up), not ÷ discovery calls
         # booked — a booked call that no-shows was never a chance to close,
@@ -910,7 +946,7 @@ async def sales_stats(days: int = 0):
         # in AnalyticsPanel.jsx, which already divides by shows.
         "close_rate":        _pct(closes, shows),
         "total_revenue":     revenue,
-        "avg_deal_size":     round(revenue / closes) if closes else 0,
+        "avg_deal_size":     os_sales["avg_deal_size"],
         "shows":             shows,
         "sheet_sync":        sheet_sync,
     }

@@ -29,10 +29,18 @@ function fmtWhen(ts) {
   return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose, onSaved }) {
+export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose, onSaved, showRevenueFields = false }) {
   const [show, setShow]   = useState(appointment.outcome_show || null);
   const [close, setClose] = useState(appointment.outcome_close || null);
   const [notes, setNotes] = useState(appointment.outcome_notes || "");
+  // Agency-level sales KPIs (Dylan's own pipeline only) -- only ever read,
+  // sent, and rendered when showRevenueFields is true (internal
+  // AppointmentsPanel). Never wired into the client-portal usage of this
+  // same component -- see routers/appointments.py vs. client_portal.py.
+  const [dealValue, setDealValue] = useState(
+    appointment.deal_value != null ? String(appointment.deal_value) : ""
+  );
+  const [isStrategySession, setIsStrategySession] = useState(!!appointment.is_strategy_session);
   const [saving, setSaving] = useState(false);
   const [err, setErr]       = useState("");
 
@@ -40,10 +48,15 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
     setSaving(true);
     setErr("");
     try {
+      const body = { outcome_show: show, outcome_close: close, outcome_notes: notes.trim() || null };
+      if (showRevenueFields) {
+        body.deal_value = dealValue.trim() === "" ? null : Number(dealValue);
+        body.is_strategy_session = isStrategySession;
+      }
       const r = await fetch(patchUrl, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outcome_show: show, outcome_close: close, outcome_notes: notes.trim() || null }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
@@ -51,7 +64,12 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
         setSaving(false);
         return;
       }
-      onSaved?.({ ...appointment, outcome_show: show, outcome_close: close, outcome_notes: notes.trim() || null });
+      const saved = { ...appointment, outcome_show: show, outcome_close: close, outcome_notes: notes.trim() || null };
+      if (showRevenueFields) {
+        saved.deal_value = body.deal_value;
+        saved.is_strategy_session = body.is_strategy_session;
+      }
+      onSaved?.(saved);
     } catch (e) {
       setErr("Couldn't save outcome: " + e.message);
       setSaving(false);
@@ -98,6 +116,30 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
               onClick={() => setClose(close === "not_closed" ? null : "not_closed")}>NOT CLOSED</Pill>
           </div>
         </div>
+
+        {showRevenueFields && close === "closed" && (
+          <div>
+            <div style={labelStyle}>DEAL VALUE</div>
+            <input
+              type="number" min="0" step="0.01"
+              value={dealValue} onChange={(e) => setDealValue(e.target.value)}
+              className="dg-input" style={{ width: "100%", boxSizing: "border-box" }}
+              placeholder="$0.00"
+            />
+          </div>
+        )}
+
+        {showRevenueFields && (
+          <div>
+            <div style={labelStyle}>STRATEGY SESSION</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Pill active={isStrategySession} color="#3a7bd5" disabled={saving}
+                onClick={() => setIsStrategySession(!isStrategySession)}>
+                {isStrategySession ? "YES — STRATEGY SESSION" : "MARK AS STRATEGY SESSION"}
+              </Pill>
+            </div>
+          </div>
+        )}
 
         <div>
           <div style={labelStyle}>NOTES</div>

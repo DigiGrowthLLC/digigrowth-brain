@@ -332,6 +332,21 @@ async def update_appointment(appointment_id: int, payload: dict):
         updates["outcome_close"] = value
     if "outcome_notes" in payload:
         updates["outcome_notes"] = (payload["outcome_notes"] or "").strip() or None
+    # Agency-level sales KPIs (Dylan's own pipeline only) -- see
+    # routers/analytics.py for how these feed the OS-native sales stats,
+    # replacing the Google-Sheet-sourced sales_stats.json fields.
+    if "deal_value" in payload:
+        value = payload["deal_value"]
+        if value is not None:
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                raise HTTPException(400, "deal_value must be a number or null")
+            if value < 0:
+                raise HTTPException(400, "deal_value must be non-negative")
+        updates["deal_value"] = value
+    if "is_strategy_session" in payload:
+        updates["is_strategy_session"] = bool(payload["is_strategy_session"])
 
     if not updates:
         return {"ok": True, "id": appointment_id}

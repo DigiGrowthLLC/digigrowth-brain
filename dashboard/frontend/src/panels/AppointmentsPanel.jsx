@@ -195,6 +195,7 @@ export default function AppointmentsPanel() {
           patchUrl={API(`/appointment-reminders/${outcomeTarget.id}`)}
           onClose={() => setOutcomeTarget(null)}
           onSaved={handleOutcomeSaved}
+          showRevenueFields
         />
       )}
     </div>

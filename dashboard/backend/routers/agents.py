@@ -399,35 +399,20 @@ TOOLS = [
     {
         "name": "update_os_stats",
         "description": (
-            "Write sales and outreach metrics extracted from Google Sheets directly into the OS dashboard "
-            "and Analytics panel. Updates sales_stats.json which drives: Sales Statistics card, "
-            "Daily Scoreboard (shows/closes), and the bottom of the 6-Stage Acquisition Funnel. "
+            "Write cold-calling outreach metrics extracted from the Cold Calling Metrics Google Sheet "
+            "directly into the OS dashboard and Analytics panel. Updates sales_stats.json, which feeds "
+            "the outreach/calling side of the Analytics panel (cold-calling only — shows/closes/revenue/"
+            "discovery calls/strategy sessions are now computed by the OS itself from appointment_reminders, "
+            "not from a sheet, so this tool no longer accepts those fields). "
             "Only provide fields where you found real data — omit fields you did not find. "
-            "Base fields (shows, closes, total_revenue, discovery_calls, etc.) should be cumulative "
-            "all-time totals. If the source sheet has a date column, also compute and pass the "
+            "Base fields (calls_made, calls_answered, etc.) should be cumulative all-time totals. "
+            "If the source sheet has a date column, also compute and pass the "
             "_30d and _7d variants (sum of rows dated within the last 30/7 days) so the Analytics "
             "panel's period toggle (7D/30D/All Time) reflects real data instead of falling back to 0."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                # Sales funnel (cumulative all-time totals)
-                "shows":              {"type": "integer", "description": "Total prospects who showed up to a sales call/demo"},
-                "closes":             {"type": "integer", "description": "Total deals closed / clients signed"},
-                "total_revenue":      {"type": "number",  "description": "Total revenue collected in dollars"},
-                "avg_deal_size":      {"type": "number",  "description": "Average deal size in dollars (auto-calculated if omitted)"},
-                "discovery_calls":    {"type": "integer", "description": "Total discovery / intro calls completed"},
-                "strategy_sessions":  {"type": "integer", "description": "Total strategy sessions / deep-dive calls completed"},
-                # Sales funnel — last 30 days (sum rows dated within last 30 days, using the sheet's date column)
-                "shows_30d":            {"type": "integer", "description": "Shows in last 30 days"},
-                "closes_30d":           {"type": "integer", "description": "Closes in last 30 days"},
-                "total_revenue_30d":    {"type": "number",  "description": "Revenue collected in last 30 days"},
-                "discovery_calls_30d":  {"type": "integer", "description": "Discovery calls in last 30 days"},
-                # Sales funnel — last 7 days
-                "shows_7d":             {"type": "integer", "description": "Shows in last 7 days"},
-                "closes_7d":            {"type": "integer", "description": "Closes in last 7 days"},
-                "total_revenue_7d":     {"type": "number",  "description": "Revenue collected in last 7 days"},
-                "discovery_calls_7d":   {"type": "integer", "description": "Discovery calls in last 7 days"},
                 # Outreach — all-time totals
                 "calls_made":            {"type": "integer", "description": "All-time total calls dialed"},
                 "calls_answered":        {"type": "integer", "description": "All-time total calls answered (pickups)"},
@@ -670,21 +655,6 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
                 current = {}
 
             FIELD_MAP = {
-                "shows":                  "shows",
-                "closes":                 "closes",
-                "total_revenue":          "total_revenue",
-                "avg_deal_size":          "avg_deal_size",
-                "discovery_calls":        "discovery_calls",
-                "strategy_sessions":      "strategy_sessions",
-                # sales funnel — 30-day / 7-day
-                "shows_30d":              "shows_30d",
-                "closes_30d":             "closes_30d",
-                "total_revenue_30d":      "total_revenue_30d",
-                "discovery_calls_30d":    "discovery_calls_30d",
-                "shows_7d":               "shows_7d",
-                "closes_7d":              "closes_7d",
-                "total_revenue_7d":       "total_revenue_7d",
-                "discovery_calls_7d":     "discovery_calls_7d",
                 # all-time
                 "calls_made":             "sheet_calls_made",
                 "calls_answered":         "sheet_calls_answered",
@@ -722,12 +692,6 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
                         continue
                     daily.setdefault(date_key, {}).update(day_fields)
                 updated.append(f"daily+={len(daily_input)}d")
-
-            # Auto-calculate avg_deal_size if not provided
-            closes = current.get("closes", 0)
-            revenue = current.get("total_revenue", 0)
-            if closes and revenue and "avg_deal_size" not in tool_input:
-                current["avg_deal_size"] = round(revenue / closes)
 
             from datetime import datetime as _dt, timezone as _tz
             current["last_sheet_sync"] = _dt.now().isoformat()
