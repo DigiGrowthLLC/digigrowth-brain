@@ -1252,16 +1252,42 @@ async def _create_schema(pool: asyncpg.Pool):
         await conn.execute(
             "UPDATE email_conversations SET booked_at = updated_at WHERE disposition = 'booked' AND booked_at IS NULL"
         )
-        # Backfill 2: conversations whose contact has a real appointment on
-        # the books but whose disposition was since overwritten (the exact
-        # case above) — recover booked_at from the appointment itself
-        # rather than losing the credit. Only fills rows backfill 1 missed.
+        # Corrective: the first version of backfill 2 below (deployed
+        # 2026-09-14) didn't exclude canceled appointments, so a contact
+        # whose only appointment_reminders rows are canceled — e.g. the
+        # "Dylan"/"Outcome Verification Test" contact used to test the
+        # reminder pipeline itself, never a real prospect — got wrongly
+        # credited with booked_at. Clear it before backfill 2 re-runs with
+        # the status filter added below; a conversation genuinely booked
+        # keeps its credit either via disposition='booked' (backfill 1) or
+        # a real, non-canceled appointment (backfill 2).
+        await conn.execute(
+            """
+            UPDATE sms_conversations sc SET booked_at = NULL
+            WHERE disposition IS DISTINCT FROM 'booked'
+              AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id)
+              AND NOT EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled')
+            """
+        )
+        await conn.execute(
+            """
+            UPDATE email_conversations ec SET booked_at = NULL
+            WHERE disposition IS DISTINCT FROM 'booked'
+              AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id)
+              AND NOT EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled')
+            """
+        )
+        # Backfill 2: conversations whose contact has a real, non-canceled
+        # appointment on the books but whose disposition was since
+        # overwritten (the exact case above) — recover booked_at from the
+        # appointment itself rather than losing the credit. Only fills rows
+        # backfill 1 missed.
         await conn.execute(
             """
             UPDATE sms_conversations sc SET booked_at = ar.first_booked_at
             FROM (
                 SELECT contact_id, MIN(created_at) AS first_booked_at
-                FROM appointment_reminders WHERE contact_id IS NOT NULL
+                FROM appointment_reminders WHERE contact_id IS NOT NULL AND status != 'canceled'
                 GROUP BY contact_id
             ) ar
             WHERE ar.contact_id = sc.contact_id AND sc.booked_at IS NULL
@@ -1272,7 +1298,7 @@ async def _create_schema(pool: asyncpg.Pool):
             UPDATE email_conversations ec SET booked_at = ar.first_booked_at
             FROM (
                 SELECT contact_id, MIN(created_at) AS first_booked_at
-                FROM appointment_reminders WHERE contact_id IS NOT NULL
+                FROM appointment_reminders WHERE contact_id IS NOT NULL AND status != 'canceled'
                 GROUP BY contact_id
             ) ar
             WHERE ar.contact_id = ec.contact_id AND ec.booked_at IS NULL
