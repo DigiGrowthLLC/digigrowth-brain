@@ -124,3 +124,45 @@ async def find_earliest_available_times(
                 return slots
             window_start = window_end
         return []
+
+
+async def find_slot_scheduling_url(
+    token: str, scheduling_url: str, date_str: str, time_str: str, tz,
+) -> str | None:
+    """Looks up the direct, single-slot Calendly booking link for one
+    exact local date/time (e.g. "2026-09-17" / "14:00") — each slot in
+    Calendly's own available-times response already carries its own
+    scheduling_url pointing straight at that time, one tap from a
+    confirmed booking, no re-picking a day on Calendly's page needed.
+    Used by propose_appointment so the agent can text the lead something
+    that actually finishes the booking, instead of just logging a
+    trusted-verbal-agreement row internally (Calendly's API still has no
+    way to create the confirmed booking itself — the lead has to be the
+    one to complete it). Returns None if the slot can't be re-matched
+    (already taken, clock drift, bad date/time) — caller falls back to
+    the internal-only booking message in that case."""
+    async with httpx.AsyncClient(timeout=10) as http:
+        event_type = await _get_matching_event_type(http, token, scheduling_url)
+        if not event_type:
+            return None
+
+        local_day_start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tz)
+        local_day_end = local_day_start + timedelta(days=1)
+        resp = await http.get(
+            f"{_API_BASE}/event_type_available_times",
+            headers=_headers(token),
+            params={
+                "event_type": event_type["uri"],
+                "start_time": local_day_start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "end_time": local_day_end.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            },
+        )
+        _raise_with_context(resp)
+        slots = resp.json().get("collection", [])
+
+        target = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
+        for s in slots:
+            slot_local = datetime.fromisoformat(s["start_time"].replace("Z", "+00:00")).astimezone(tz)
+            if abs((slot_local - target).total_seconds()) < 60:
+                return s.get("scheduling_url")
+        return None

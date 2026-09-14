@@ -96,7 +96,9 @@ exact same times you already gave them.
 files a complaint, or you're not confident how to respond, call escalate_to_human and let them \
 know a team member will follow up.
 - Never claim an appointment is booked unless you actually called propose_appointment \
-successfully in this same turn.
+successfully in this same turn. If its result includes a link, the booking ISN'T confirmed yet — \
+you must include that exact link in your reply and tell the lead to tap it to lock the time in, \
+never say they're all set until they've done that.
 """
 
 _TOOLS = [
@@ -453,6 +455,7 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             async with pool.acquire() as conn:
                 contact_id = await _get_or_create_contact(conn, client_id, from_phone)
             tz_name = guess_timezone(from_phone)
+            tz = ZoneInfo(tz_name)
             # create_appointment_row acquires its own connection internally
             # (it's shared with the manual-booking HTTP route) — don't hold
             # one open across this call, just for the contact lookup above
@@ -468,6 +471,29 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 await conn.execute(
                     "UPDATE client_lead_conversations SET status = 'booked' WHERE client_id = $1 AND phone = $2",
                     client_id, from_phone,
+                )
+                cal_row = await conn.fetchrow(
+                    "SELECT calendly_api_token, calendly_event_type_url FROM client_marketing_config "
+                    "WHERE client_id = $1", client_id,
+                )
+            token = cal_row["calendly_api_token"] if cal_row else None
+            event_type_url = cal_row["calendly_event_type_url"] if cal_row else None
+            slot_url = None
+            if token and event_type_url:
+                try:
+                    slot_url = await calendly_integration.find_slot_scheduling_url(
+                        token, event_type_url, tool_input.get("date"), tool_input.get("time"), tz,
+                    )
+                except Exception as e:
+                    print(f"[response_ai] find_slot_scheduling_url failed for client={client_id}: {e}", flush=True)
+            if slot_url:
+                return (
+                    f"Logged internally as appointment id={row['id']}. This time isn't actually "
+                    f"confirmed on the calendar yet — Calendly requires the lead to tap through "
+                    f"themselves. Send them this exact link in your reply so they can lock it in "
+                    f"with one tap: {slot_url} — tell them it's their {tool_input.get('date')} "
+                    f"{tool_input.get('time')} slot, already picked, just confirm name/email on "
+                    f"Calendly's page to finish. Do not tell them they're fully booked until that."
                 )
             return f"Booked appointment id={row['id']} for {tool_input.get('date')} {tool_input.get('time')} ({tz_name})."
         except ValueError as e:
