@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse
 import integrations
 import client_email
 import email_warmup
+import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
 from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_sms_webhooks, appointwise_webhooks
@@ -292,6 +293,7 @@ async def lifespan(app: FastAPI):
     await get_pool()
 
     scheduler = AsyncIOScheduler()
+    scheduler_registry.set_scheduler(scheduler)
     eastern = "America/New_York"
     # Sheets digest and daily briefing now run as Claude Code cloud routines
     # ("EA Sheets Digest" 5:57am ET, "EA Daily Briefing" 6:03am ET) under the

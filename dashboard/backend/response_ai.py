@@ -10,15 +10,24 @@ Same underlying mechanism as routers/agents.py's chat loop (plain Anthropic
 Messages API, a system prompt assembled from stored text, a small tool
 loop) — just narrower: no file/bash/integration tools, one client-specific
 context string instead of a whole directory of files, and no attended chat
-UI. Runs as a normal awaited call on the request's own event loop (NOT
-backgrounded onto a separate thread) — every helper this module calls
-(client_sms.send_client_sms, create_appointment_row) goes through db.py's
-single global asyncpg pool, which is bound to the main event loop; a
-separate thread would need its own event loop, and asyncpg connections/pools
-can't cross event loops. Keeping this synchronous-but-awaited, with a low
-tool-iteration cap and modest max_tokens, keeps a turn fast enough to stay
-well within Twilio's webhook response window (the same tradeoff the
-existing Appointwise-forwarding call already makes, just usually faster).
+UI. Every helper this module calls (client_sms.send_client_sms,
+create_appointment_row) goes through db.py's single global asyncpg pool,
+which is bound to the main event loop, so handle_inbound_sms() must always
+run ON that loop — either awaited directly from the webhook, or as an
+APScheduler job (scheduler_registry.py), never on a raw background thread
+(a separate thread would need its own event loop, and asyncpg
+connections/pools can't cross event loops).
+
+Per-client config also drives:
+- response_ai_sequence — an ordered list of short stage descriptions (the
+  admin UI's "first text" through "fifth text") woven into the system
+  prompt as a loose conversational arc, not a rigid script.
+- response_ai_max_chars — an SMS length cap, enforced both as a prompt
+  instruction and a hard truncation fallback in handle_inbound_sms().
+- response_ai_min_delay_seconds — client_sms_webhooks.py defers the actual
+  handle_inbound_sms() call via scheduler_registry when this is set, rather
+  than sleeping inline (which would hold the Twilio webhook open and risk
+  a timeout/retry).
 
 V1 scope: SMS only, no live calendar-availability check (none exists
 anywhere in this system) — the agent proposes/confirms a time and books it
@@ -35,6 +44,7 @@ proactively — handle_inbound_sms() below only ever reacts to an inbound
 message, it never starts a thread.
 """
 import asyncio
+import json
 import os
 import uuid
 
@@ -140,23 +150,36 @@ async def _load_recent_messages(conn, client_id: int, phone: str) -> list[dict]:
     ]
 
 
-def _build_system_prompt(business_name: str, context: str) -> str:
-    return f"{_SYSTEM_PREAMBLE}\n--- Business: {business_name} ---\n{context.strip()}\n"
+def _build_system_prompt(business_name: str, context: str, sequence: list[str], max_chars: int | None) -> str:
+    parts = [_SYSTEM_PREAMBLE]
+    if sequence:
+        steps = "\n".join(f"{i+1}. {step}" for i, step in enumerate(sequence) if step and step.strip())
+        parts.append(
+            "\nGeneral conversation arc to aim for (loose guidance, not a script — always answer "
+            "the lead's own questions first, then steer back toward whichever of these is next):\n"
+            f"{steps}\n"
+        )
+    if max_chars:
+        parts.append(f"\nHard limit: every reply must be {max_chars} characters or fewer.\n")
+    parts.append(f"\n--- Business: {business_name} ---\n{context.strip()}\n")
+    return "".join(parts)
 
 
 async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None:
-    """Entry point called from client_sms_webhooks.py for every inbound SMS
-    to a client's own number, when that client has response_ai_enabled.
-    Never raises — a bug here must never break the webhook it's called
-    from. `body` isn't used directly (the inbound row is already inserted
-    into client_sms_messages by the caller before this runs, so
+    """Entry point — called directly from client_sms_webhooks.py when a
+    client has no reply-delay configured, or as a scheduler_registry-backed
+    deferred job when response_ai_min_delay_seconds > 0. Never raises — a
+    bug here must never break the webhook (or the scheduler) that runs it.
+    `body` isn't used directly (the inbound row is already inserted into
+    client_sms_messages by the caller before this runs, so
     _load_recent_messages already picks it up) — kept as a parameter for
     logging/clarity at the call site."""
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT cmc.response_ai_context, c.name FROM client_marketing_config cmc "
+                "SELECT cmc.response_ai_context, cmc.response_ai_sequence, cmc.response_ai_max_chars, "
+                "c.name FROM client_marketing_config cmc "
                 "JOIN clients c ON c.id = cmc.client_id WHERE cmc.client_id = $1",
                 client_id,
             )
@@ -169,9 +192,22 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
 
             messages = await _load_recent_messages(conn, client_id, from_phone)
 
-        system_prompt = _build_system_prompt(row["name"], row["response_ai_context"] or "")
+        # asyncpg has no JSONB codec registered on this pool (matches
+        # client_marketing.py's _decode_config) — comes back as a raw string.
+        sequence = row["response_ai_sequence"]
+        if isinstance(sequence, str):
+            sequence = json.loads(sequence)
+        max_chars = row["response_ai_max_chars"]
+
+        system_prompt = _build_system_prompt(row["name"], row["response_ai_context"] or "", sequence or [], max_chars)
         reply_text = await _run_agent_turn(client_id, from_phone, system_prompt, messages)
         if reply_text:
+            if max_chars and len(reply_text) > max_chars:
+                # Belt-and-suspenders — the prompt already instructs the
+                # limit, this just guarantees it's never violated even if
+                # the model ignores it. Cut at the last full word so it
+                # doesn't end mid-word.
+                reply_text = reply_text[:max_chars].rsplit(" ", 1)[0].rstrip()
             await client_sms.send_client_sms(client_id, from_phone, reply_text)
     except Exception as e:
         print(f"[response_ai] handle_inbound_sms failed for client={client_id} phone={from_phone}: {e}")

@@ -616,6 +616,14 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS email_sync_last_ts BIGINT NOT NULL DEFAULT 0;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_enabled BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_context TEXT;
+            -- Ordered array of short stage descriptions ("first text" through
+            -- "fifth text" in the admin UI) — a loose conversational arc the
+            -- agent tries to progress through, not a rigid state machine (it
+            -- still answers off-script questions first). See response_ai.py.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_sequence JSONB NOT NULL DEFAULT '[]';
+            -- Guardrails: 0 delay / NULL max_chars = no limit.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_min_delay_seconds INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_max_chars INTEGER;
             ALTER TABLE client_email_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_channel_last_read_at TIMESTAMPTZ;
         """)

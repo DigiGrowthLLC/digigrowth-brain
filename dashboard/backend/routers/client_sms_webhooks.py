@@ -11,9 +11,12 @@ client_marketing_config.response_ai_enabled: the self-built AI agent
 (routers/appointwise_webhooks.py) — never both, so migrating a client off
 Appointwise is a single flag flip, reversible per client.
 """
+from datetime import datetime, timedelta, timezone as dt_timezone
+
 from fastapi import APIRouter, Request, Response
 
 import response_ai
+import scheduler_registry
 from db import get_pool
 from routers.appointwise_webhooks import forward_inbound_to_appointwise
 
@@ -34,7 +37,7 @@ async def client_sms_inbound(client_id: int, request: Request):
     pool = await get_pool()
     async with pool.acquire() as conn:
         client = await conn.fetchrow(
-            "SELECT c.id, cmc.response_ai_enabled FROM clients c "
+            "SELECT c.id, cmc.response_ai_enabled, cmc.response_ai_min_delay_seconds FROM clients c "
             "LEFT JOIN client_marketing_config cmc ON cmc.client_id = c.id WHERE c.id = $1",
             client_id,
         )
@@ -53,7 +56,25 @@ async def client_sms_inbound(client_id: int, request: Request):
     # agent (response_ai.py) and the old Appointwise-forwarding path — never
     # both, so migrating a client off Appointwise is a single flag flip.
     if client["response_ai_enabled"]:
-        await response_ai.handle_inbound_sms(client_id, from_phone, body)
+        delay = client["response_ai_min_delay_seconds"] or 0
+        sched = scheduler_registry.get_scheduler()
+        if delay > 0 and sched:
+            # Deferred via the app's own scheduler (same mechanism every
+            # other scheduled job in this codebase uses) rather than
+            # sleeping inline — sleeping here would hold the Twilio webhook
+            # open for the full delay and risk a timeout/retry, and a plain
+            # background thread can't safely reuse db.py's asyncpg pool
+            # (bound to the main event loop) — see response_ai.py and
+            # scheduler_registry.py's docstrings.
+            run_at = datetime.now(dt_timezone.utc) + timedelta(seconds=delay)
+            sched.add_job(
+                response_ai.handle_inbound_sms, "date", run_date=run_at,
+                args=[client_id, from_phone, body],
+                id=f"response-ai-{client_id}-{twilio_sid or run_at.timestamp()}",
+                replace_existing=True,
+            )
+        else:
+            await response_ai.handle_inbound_sms(client_id, from_phone, body)
     else:
         await forward_inbound_to_appointwise(client_id, from_phone, body)
     return Response(content="", media_type="text/plain")

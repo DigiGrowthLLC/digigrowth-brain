@@ -29,7 +29,7 @@ router = APIRouter()
 
 # asyncpg has no JSONB codec registered on this pool (matches client_portal.py's
 # _decode_response_row) — a JSONB column comes back as a raw JSON string.
-_JSONB_FIELDS = ("ad_creative_status", "guide_progress")
+_JSONB_FIELDS = ("ad_creative_status", "guide_progress", "response_ai_sequence")
 
 
 def _decode_config(row) -> dict:

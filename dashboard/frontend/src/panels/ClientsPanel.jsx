@@ -72,6 +72,7 @@ const DETAILS_TABS = [
   { id: "checklist", label: "Launch Checklist" },
   { id: "sequences", label: "Sequences" },
   { id: "marketing", label: "Marketing Setup" },
+  { id: "agent", label: "Agent" },
   { id: "requests", label: "Requests" },
   { id: "uploads", label: "Uploads" },
   { id: "resources", label: "Resources" },
@@ -238,6 +239,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
           {detailsTab === "checklist" && <ClientLaunchChecklist clientId={client.id} />}
           {detailsTab === "sequences" && <ClientSequences clientId={client.id} />}
           {detailsTab === "marketing" && <ClientMarketingSetup clientId={client.id} />}
+          {detailsTab === "agent" && <ClientAgentSetup clientId={client.id} />}
           {detailsTab === "requests" && <ClientRequests clientId={client.id} />}
           {detailsTab === "uploads" && <ClientUploads clientId={client.id} />}
           {detailsTab === "resources" && <ClientResources clientId={client.id} />}
@@ -1339,8 +1341,8 @@ const MARKETING_GUIDES = {
     title: "Set Up Response AI (Self-Built)",
     steps: [
       { text: "Confirm SMS marketing is provisioned first — this reuses the client's own Twilio number, it doesn't bring its own." },
-      { text: "Enable the agent and write this client's context: business name, offer/guarantee, tone, hours, FAQs, and what it should always hand off to a human for. The more specific this is, the better the AI's replies will be — it never invents facts you didn't give it here.", responseAiAction: true },
-      { text: "Text the client's number from your own phone and have a real back-and-forth. Confirm: replies sound on-brand, agreeing to a time actually creates an appointment (check the Appointments tab), and asking for a human stops the AI from replying further to that thread." },
+      { text: "Head to this client's own \"Agent\" tab (next to Marketing Setup) to enable the agent, write/generate its context, set the SMS sequence it should try to progress leads through, and any rules (reply delay, character limit)." },
+      { text: "Text the client's number from your own phone and have a real back-and-forth. Confirm: replies sound on-brand and follow the sequence loosely, agreeing to a time actually creates an appointment (check the Appointments tab), and asking for a human stops the AI from replying further to that thread." },
     ],
   },
   landing_page: {
@@ -1599,6 +1601,201 @@ function ResponseAiSetup({ clientId, config, onSaveFields, onSaved }) {
   );
 }
 
+const AGENT_SEQUENCE_LENGTH = 5;
+const AGENT_SEQUENCE_LABELS = ["First text", "Second text", "Third text", "Fourth text", "Fifth text"];
+
+// The loose conversational arc response_ai.py tries to progress a lead
+// through — 5 fixed stages (mirrors client_sms_sequences' fixed-step shape
+// elsewhere in this file) stored as one JSONB array. Not a rigid script:
+// the agent always answers off-script questions first, per its own system
+// prompt preamble — this is just the "what's next" guidance.
+function AgentSequenceEditor({ config, onSaveFields }) {
+  const initial = Array.isArray(config?.response_ai_sequence) ? config.response_ai_sequence : [];
+  const [steps, setSteps] = useState(() =>
+    Array.from({ length: AGENT_SEQUENCE_LENGTH }, (_, i) => initial[i] || "")
+  );
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setSaved(false);
+    setSaveError("");
+    const result = await onSaveFields({ response_ai_sequence: steps.map((s) => s.trim()) });
+    setSaving(false);
+    if (result?.ok) setSaved(true); else setSaveError(result?.error || "Save failed");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 12, color: "#8aaad0" }}>
+        The general sequence the agent tries to move a conversation through — it doesn't have to follow this perfectly. If a lead asks a question, it answers first, then tries to progress to the next stage.
+      </div>
+      {AGENT_SEQUENCE_LABELS.map((label, i) => (
+        <div key={i}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>{label.toUpperCase()}</div>
+          <textarea
+            className="dg-input" rows={2} style={{ fontSize: 12, width: "100%", boxSizing: "border-box", resize: "vertical" }}
+            value={steps[i]}
+            onChange={(e) => {
+              const next = [...steps];
+              next[i] = e.target.value;
+              setSteps(next);
+              setSaved(false); setSaveError("");
+            }}
+            placeholder={i === 0 ? "e.g. Greet them, confirm what they're looking for, and ask a qualifying question." : "e.g. Present the offer and ask if they'd like to grab a free consult time."}
+          />
+        </div>
+      ))}
+      <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
+        {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
+      </button>
+      {saveError && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{saveError}</div>
+      )}
+    </div>
+  );
+}
+
+// Behavioral guardrails enforced in response_ai.py itself (not just prompt
+// suggestions) — a reply delay (deferred via scheduler_registry so the
+// Twilio webhook never blocks on it) and a hard character cap (enforced
+// both as a prompt instruction and a truncation fallback).
+function AgentRulesEditor({ config, onSaveFields }) {
+  const [minDelay, setMinDelay] = useState(config?.response_ai_min_delay_seconds ?? 0);
+  const [maxChars, setMaxChars] = useState(config?.response_ai_max_chars ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setSaved(false);
+    setSaveError("");
+    const result = await onSaveFields({
+      response_ai_min_delay_seconds: Number(minDelay) || 0,
+      response_ai_max_chars: maxChars === "" ? null : Number(maxChars),
+    });
+    setSaving(false);
+    if (result?.ok) setSaved(true); else setSaveError(result?.error || "Save failed");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>
+          MINIMUM DELAY BEFORE REPLYING (SECONDS)
+        </div>
+        <input
+          type="number" min="0" className="dg-input" style={{ fontSize: 12, width: 140 }}
+          value={minDelay}
+          onChange={(e) => { setMinDelay(e.target.value); setSaved(false); setSaveError(""); }}
+        />
+        <div style={{ marginTop: 3, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
+          0 = reply immediately. A delay makes it feel less like an instant bot response.
+        </div>
+      </div>
+      <div>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>
+          MAX CHARACTERS PER TEXT
+        </div>
+        <input
+          type="number" min="1" className="dg-input" style={{ fontSize: 12, width: 140 }}
+          value={maxChars} placeholder="no limit"
+          onChange={(e) => { setMaxChars(e.target.value); setSaved(false); setSaveError(""); }}
+        />
+        <div style={{ marginTop: 3, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
+          Leave blank for no limit. Enforced as a hard cutoff even if the AI runs long.
+        </div>
+      </div>
+      <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
+        {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
+      </button>
+      {saveError && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{saveError}</div>
+      )}
+    </div>
+  );
+}
+
+// Dedicated "Agent" tab — the self-built response_ai.py agent's full admin
+// surface (context, sequence, rules) in one place, rather than buried
+// inside the Marketing Setup guide's checklist. Fetches/saves through the
+// same generic marketing-config endpoint every other per-client config
+// field in this file already uses.
+function ClientAgentSetup({ clientId }) {
+  const [config, setConfig] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/marketing-config`));
+    if (r.ok) setConfig(await r.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const saveFields = async (fields) => {
+    let result = { ok: true, error: null };
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config`), {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        result = { ok: false, error: detail?.detail || "Failed to save" };
+        setError(result.error);
+      } else {
+        setError("");
+      }
+    } catch (e) {
+      result = { ok: false, error: e.message };
+      setError(e.message);
+    }
+    await load();
+    return result;
+  };
+
+  if (loading) return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+
+  const section = (title, description, children) => (
+    <div style={{ marginBottom: 20, padding: 14, borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.1)" }}>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: "#e8f0ff", marginBottom: 2 }}>{title}</div>
+      {description && <div style={{ fontSize: 11.5, color: "#8aaad0", marginBottom: 10 }}>{description}</div>}
+      {children}
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 14, lineHeight: 1.5 }}>
+        This client's self-built AI SMS response agent (response_ai.py) — replies to inbound leads on their own Twilio number. Replaces Appointwise; enable per client from the toggle below.
+      </div>
+      {section(
+        "Enable & Context",
+        "The agent's knowledge of the business — enable it and write or generate its context.",
+        <ResponseAiSetup clientId={clientId} config={config} onSaveFields={saveFields} />
+      )}
+      {section(
+        "SMS Sequence",
+        null,
+        <AgentSequenceEditor config={config} onSaveFields={saveFields} />
+      )}
+      {section(
+        "Rules",
+        "Behavioral guardrails, enforced by the agent itself — not just suggestions.",
+        <AgentRulesEditor config={config} onSaveFields={saveFields} />
+      )}
+      {error && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{error}</div>
+      )}
+    </div>
+  );
+}
+
 // The "click a step, get a doc with numbered instructions + the exact links
 // to go to" surface — one guide at a time, rendered via portal like the
 // existing dropdown menus in this file. Each step can be checked off
@@ -1703,12 +1900,6 @@ function GuideModal({
                   {s.fields && (
                     <GuideStepFields
                       fields={s.fields} config={config} onSaveFields={onSaveFields}
-                      onSaved={() => onToggleStep(i, true)}
-                    />
-                  )}
-                  {s.responseAiAction && (
-                    <ResponseAiSetup
-                      clientId={client?.id} config={config} onSaveFields={onSaveFields}
                       onSaved={() => onToggleStep(i, true)}
                     />
                   )}

@@ -197,6 +197,9 @@ class ClientMarketingConfigUpdate(BaseModel):
     appointwise_webhook_url: Optional[str] = None
     response_ai_enabled: Optional[bool] = None
     response_ai_context: Optional[str] = None
+    response_ai_sequence: Optional[list] = None
+    response_ai_min_delay_seconds: Optional[int] = None
+    response_ai_max_chars: Optional[int] = None
     landing_page_url: Optional[str] = None
     ad_creative_status: Optional[dict] = None
     guide_progress: Optional[dict] = None
