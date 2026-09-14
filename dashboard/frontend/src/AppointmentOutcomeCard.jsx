@@ -37,10 +37,10 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
   // sent, and rendered when showRevenueFields is true (internal
   // AppointmentsPanel). Never wired into the client-portal usage of this
   // same component -- see routers/appointments.py vs. client_portal.py.
-  const [dealValue, setDealValue] = useState(
-    appointment.deal_value != null ? String(appointment.deal_value) : ""
+  const [pricing, setPricing] = useState(
+    appointment.pricing != null ? String(appointment.pricing) : ""
   );
-  const [isStrategySession, setIsStrategySession] = useState(!!appointment.is_strategy_session);
+  const [callLength, setCallLength] = useState(appointment.call_length || "");
   const [saving, setSaving] = useState(false);
   const [err, setErr]       = useState("");
 
@@ -50,8 +50,8 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
     try {
       const body = { outcome_show: show, outcome_close: close, outcome_notes: notes.trim() || null };
       if (showRevenueFields) {
-        body.deal_value = dealValue.trim() === "" ? null : Number(dealValue);
-        body.is_strategy_session = isStrategySession;
+        body.pricing = pricing.trim() === "" ? null : Number(pricing);
+        body.call_length = callLength.trim() || null;
       }
       const r = await fetch(patchUrl, {
         method: "PATCH",
@@ -66,8 +66,8 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
       }
       const saved = { ...appointment, outcome_show: show, outcome_close: close, outcome_notes: notes.trim() || null };
       if (showRevenueFields) {
-        saved.deal_value = body.deal_value;
-        saved.is_strategy_session = body.is_strategy_session;
+        saved.pricing = body.pricing;
+        saved.call_length = body.call_length;
       }
       onSaved?.(saved);
     } catch (e) {
@@ -119,10 +119,10 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
 
         {showRevenueFields && close === "closed" && (
           <div>
-            <div style={labelStyle}>DEAL VALUE</div>
+            <div style={labelStyle}>PRICING</div>
             <input
               type="number" min="0" step="0.01"
-              value={dealValue} onChange={(e) => setDealValue(e.target.value)}
+              value={pricing} onChange={(e) => setPricing(e.target.value)}
               className="dg-input" style={{ width: "100%", boxSizing: "border-box" }}
               placeholder="$0.00"
             />
@@ -131,13 +131,13 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
 
         {showRevenueFields && (
           <div>
-            <div style={labelStyle}>STRATEGY SESSION</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Pill active={isStrategySession} color="#3a7bd5" disabled={saving}
-                onClick={() => setIsStrategySession(!isStrategySession)}>
-                {isStrategySession ? "YES — STRATEGY SESSION" : "MARK AS STRATEGY SESSION"}
-              </Pill>
-            </div>
+            <div style={labelStyle}>CALL LENGTH</div>
+            <input
+              type="text"
+              value={callLength} onChange={(e) => setCallLength(e.target.value)}
+              className="dg-input" style={{ width: "100%", boxSizing: "border-box" }}
+              placeholder="e.g. 32 min"
+            />
           </div>
         )}
 

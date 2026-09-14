@@ -118,10 +118,10 @@ def _normalize_state(raw: str) -> str:
 async def _os_sales_stats(conn, days: int) -> dict:
     """
     OS-native sales KPIs computed straight from appointment_reminders —
-    discovery_calls/strategy_sessions/shows/closes/total_revenue/
-    avg_deal_size — replacing the Google-Sheet-sourced sales_stats.json
-    fields of the same names (the sheets-digest skill no longer reports
-    these; see executive-assistant/.claude/skills/sheets-digest/SKILL.md).
+    discovery_calls/shows/closes/total_revenue/avg_deal_size — replacing
+    the Google-Sheet-sourced sales_stats.json fields of the same names
+    (the sheets-digest skill no longer reports these; see
+    executive-assistant/.claude/skills/sheets-digest/SKILL.md).
 
     Scoped exactly like the old _app_booked_count(): Dylan's own
     sales-pipeline appointments only — excludes a client's own lead
@@ -132,17 +132,12 @@ async def _os_sales_stats(conn, days: int) -> dict:
     which never count as a win or a booking.
 
     Each metric windows on the timestamp that actually reflects when that
-    thing happened, not a single blanket cutoff: discovery_calls/
-    strategy_sessions on created_at (when booked), shows on outcome_show_at
-    (when marked), closes/revenue on outcome_close_at (when marked) — a
-    close logged today on a call booked a month ago should count toward
-    today's close-rate window, not get excluded because the booking itself
-    is old. days=0 means all-time (no window).
-
-    discovery_calls counts appointments that are NOT flagged
-    is_strategy_session — the sheet's original "Discovery calls / booked
-    calls" naming implies the non-strategy-session bookings specifically,
-    with strategy_sessions counted separately (same split the sheet used).
+    thing happened, not a single blanket cutoff: discovery_calls on
+    created_at (when booked), shows on outcome_show_at (when marked),
+    closes/revenue on outcome_close_at (when marked) — a close logged
+    today on a call booked a month ago should count toward today's
+    close-rate window, not get excluded because the booking itself is
+    old. days=0 means all-time (no window).
     """
     since = _since(days) if days else None
     where = (
@@ -153,15 +148,7 @@ async def _os_sales_stats(conn, days: int) -> dict:
     discovery_calls = await conn.fetchval(
         f"""
         SELECT COUNT(*) FROM appointment_reminders ar {join}
-        WHERE {where} AND NOT ar.is_strategy_session
-        AND ($1::timestamptz IS NULL OR ar.created_at >= $1)
-        """,
-        since,
-    ) or 0
-    strategy_sessions = await conn.fetchval(
-        f"""
-        SELECT COUNT(*) FROM appointment_reminders ar {join}
-        WHERE {where} AND ar.is_strategy_session
+        WHERE {where}
         AND ($1::timestamptz IS NULL OR ar.created_at >= $1)
         """,
         since,
@@ -176,7 +163,7 @@ async def _os_sales_stats(conn, days: int) -> dict:
     ) or 0
     close_row = await conn.fetchrow(
         f"""
-        SELECT COUNT(*) AS closes, COALESCE(SUM(ar.deal_value), 0) AS revenue
+        SELECT COUNT(*) AS closes, COALESCE(SUM(ar.pricing), 0) AS revenue
         FROM appointment_reminders ar {join}
         WHERE {where} AND ar.outcome_close = 'closed'
         AND ($1::timestamptz IS NULL OR ar.outcome_close_at >= $1)
@@ -188,7 +175,6 @@ async def _os_sales_stats(conn, days: int) -> dict:
 
     return {
         "discovery_calls":   discovery_calls,
-        "strategy_sessions": strategy_sessions,
         "shows":             shows,
         "closes":            closes,
         "total_revenue":     revenue,
@@ -200,7 +186,7 @@ def _load_sales_stats() -> dict:
     try:
         return json.loads(_SALES_STATS_PATH.read_text())
     except Exception:
-        return {"discovery_calls": 0, "strategy_sessions": 0, "closes": 0,
+        return {"discovery_calls": 0, "closes": 0,
                 "shows": 0, "total_revenue": 0, "avg_deal_size": 0}
 
 
@@ -917,11 +903,10 @@ async def sales_stats(days: int = 0):
         )
         os_sales = await _os_sales_stats(conn, days)
 
-    discovery         = os_sales["discovery_calls"]
-    closes            = os_sales["closes"]
-    revenue           = os_sales["total_revenue"]
-    shows             = os_sales["shows"]
-    strategy_sessions = os_sales["strategy_sessions"]
+    discovery = os_sales["discovery_calls"]
+    closes    = os_sales["closes"]
+    revenue   = os_sales["total_revenue"]
+    shows     = os_sales["shows"]
 
     sheet_sync = None
     if stats.get("last_sheet_sync"):
@@ -937,7 +922,6 @@ async def sales_stats(days: int = 0):
     return {
         "total_leads":       total_leads or 0,
         "discovery_calls":   discovery,
-        "strategy_sessions": strategy_sessions,
         "closes":            closes,
         # Closed ÷ shows (who actually showed up), not ÷ discovery calls
         # booked — a booked call that no-shows was never a chance to close,
