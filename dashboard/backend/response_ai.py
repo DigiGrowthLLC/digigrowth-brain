@@ -55,7 +55,7 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import anthropic
@@ -373,7 +373,19 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
         try:
             tz_name = guess_timezone(from_phone)
             tz = ZoneInfo(tz_name)
-            start_iso = f"{after_date}T00:00:00Z" if after_date else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            # Calendly requires start_time to be strictly in the future at
+            # the moment IT processes the request, not when this code reads
+            # the clock — a timestamp that's "now" here can already be past
+            # by the time it arrives (network latency, the model's own
+            # tool-call round trip), and even today's 00:00Z boundary is
+            # already in the past by any afternoon call. Both were hit as
+            # real "start_time must be in the future" 400s in testing
+            # 2026-09-14. A 15-minute forward buffer clears that race with
+            # room to spare while still capturing same-day openings.
+            if after_date:
+                start_iso = f"{after_date}T00:00:00Z"
+            else:
+                start_iso = (datetime.now(timezone.utc) + timedelta(minutes=15)).strftime("%Y-%m-%dT%H:%M:%SZ")
             slots = await calendly_integration.find_earliest_available_times(
                 token, event_type_url, start_iso, max_days=30,
             )
