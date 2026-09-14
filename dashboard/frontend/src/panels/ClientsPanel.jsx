@@ -2197,9 +2197,15 @@ function AgentResetTest({ clientId }) {
         </button>
       </div>
       {result && (
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4ade80" }}>
-          Reset ✓ — cleared conversation state and {result.messages_deleted} message{result.messages_deleted === 1 ? "" : "s"}. Text the number again to start fresh.
-        </div>
+        result.messages_deleted > 0 ? (
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4ade80" }}>
+            Reset ✓ — cleared conversation state and {result.messages_deleted} message{result.messages_deleted === 1 ? "" : "s"}. Text the number again to start fresh.
+          </div>
+        ) : (
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#f0b429" }}>
+            No messages found for that number on this client — double check the number, it may not match any test conversation here.
+          </div>
+        )
       )}
       {error && (
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{error}</div>

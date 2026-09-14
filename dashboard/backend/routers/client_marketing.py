@@ -176,20 +176,33 @@ async def reset_response_ai_test(client_id: int, phone: str = Query(...)):
     """Testing convenience: wipes the client_lead_conversations row and that
     phone's client_sms_messages history for this client, so re-texting the
     number starts response_ai.py fresh — no escalated/booked state or prior
-    message context carried over from an earlier test run."""
+    message context carried over from an earlier test run. Matches on the
+    last 10 digits (same normalization dialer_webhooks.py uses for phone
+    lookups) rather than an exact string, since client_lead_conversations
+    stores E.164 (+1...) but someone testing this might paste the number
+    with or without the country code/formatting — an exact-match miss here
+    silently "succeeds" with messages_deleted=0, which looks like nothing
+    happened."""
+    digits = "".join(c for c in phone if c.isdigit())[-10:]
+    if not digits:
+        raise HTTPException(400, "phone must contain at least 10 digits")
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
         if not client:
             raise HTTPException(404, "Client not found")
         await conn.execute(
-            "DELETE FROM client_lead_conversations WHERE client_id = $1 AND phone = $2",
-            client_id, phone,
+            "DELETE FROM client_lead_conversations WHERE client_id = $1 "
+            "AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = $2",
+            client_id, digits,
         )
         deleted = await conn.fetchval(
             "WITH d AS (DELETE FROM client_sms_messages WHERE client_id = $1 "
-            "AND (from_number = $2 OR to_number = $2) RETURNING id) SELECT count(*) FROM d",
-            client_id, phone,
+            "AND (right(regexp_replace(from_number, '\\D', '', 'g'), 10) = $2 "
+            "OR right(regexp_replace(to_number, '\\D', '', 'g'), 10) = $2) RETURNING id) "
+            "SELECT count(*) FROM d",
+            client_id, digits,
         )
     return {"ok": True, "messages_deleted": deleted}
 
