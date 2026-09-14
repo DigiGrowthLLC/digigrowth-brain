@@ -315,6 +315,15 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
                 return
 
             conversation = await _get_or_create_conversation(conn, client_id, from_phone)
+            # Every inbound lead needs a contacts row to show up in the
+            # client portal's inbox at all (it lists threads by contact,
+            # not by client_sms_messages directly) — this used to only
+            # happen inside propose_appointment, so any conversation that
+            # never reached a booking (a question, an objection, an
+            # escalation) was invisible in the portal even though the AI
+            # was actively replying. Create it up front instead, for every
+            # message, not just a booked one.
+            await _get_or_create_contact(conn, client_id, from_phone)
             if conversation["status"] == "escalated":
                 return  # a human has taken over this thread — stay silent
 
