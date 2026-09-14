@@ -1856,7 +1856,14 @@ const MARKETING_STEPS = [
       const n = cfg?.ad_creative_status ? Object.keys(cfg.ad_creative_status).length : 0;
       return n > 0 ? `${n} asset${n === 1 ? "" : "s"} tracked` : "None yet";
     },
-    done: (cfg) => Boolean(cfg?.ad_creative_status && Object.keys(cfg.ad_creative_status).length > 0),
+    // Was keyed off ad_creative_status (a "how many assets tracked" JSONB
+    // field) instead of the guide checklist like every other step here —
+    // nothing in the app ever actually writes to ad_creative_status, so
+    // checking off every step in the guide modal never marked this done.
+    // Matches automations/client_portal below now: done = every guide step
+    // checked off. Status text is untouched (still a legitimate separate
+    // "how many assets tracked" readout once that field is ever populated).
+    done: (cfg) => _guideStepsAllDone(cfg, "ad_creatives"),
   },
   {
     key: "automations", label: "SMS/Email Automations",
