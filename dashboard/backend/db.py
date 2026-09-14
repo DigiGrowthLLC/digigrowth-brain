@@ -650,6 +650,15 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS meta_pixel_id TEXT;
             ALTER TABLE client_email_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_channel_last_read_at TIMESTAMPTZ;
+            -- Per-step sent tracking for client_appointment_reminders.py's
+            -- scheduled 24h/day-of reminder sends to a CLIENT's own lead
+            -- (client_sequence_steps sequence_key='appointment_reminder'),
+            -- keyed by that step's step_order as a string (e.g. {"0": "<ts>"}
+            -- once the 24h step has gone out). A JSONB map rather than fixed
+            -- named columns (unlike reminder_24h/6h/1h_sent_at above) since a
+            -- client can have any number of appointment_reminder steps, not
+            -- a fixed 3.
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS reminder_steps_sent JSONB NOT NULL DEFAULT '{}';
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

@@ -24,6 +24,7 @@ from pending_approvals_relay import process_pending_approvals, process_pending_c
 from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks
 import call_reminders
 import cancel_sequence
+import client_appointment_reminders
 import dm_followup_sequence
 import no_show_sequence
 import onboarding_sequence
@@ -374,6 +375,12 @@ async def lifespan(app: FastAPI):
         reminder_engine.send_due_reminders,
         IntervalTrigger(minutes=5),
         id="appointment-reminders",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        client_appointment_reminders.send_due_reminders,
+        IntervalTrigger(minutes=5),
+        id="client-appointment-reminders",
         replace_existing=True,
     )
     scheduler.add_job(
