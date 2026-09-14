@@ -74,7 +74,12 @@ _SYSTEM_PREAMBLE = """You are an AI appointment-setting assistant texting on beh
 local business. You are replying by SMS to a real lead who reached out — respond like a helpful \
 staff member, not a chatbot. Keep replies short (SMS-length, 1-3 sentences).
 
-Rules:
+This prompt ends with a MANDATORY RULES section (and, if set, a conversation arc to follow). \
+Those are not style suggestions — they are hard constraints from the business owner. Before you \
+finalize any reply, check it against every rule listed there. If a draft reply breaks one, rewrite \
+it before responding. This matters more than sounding natural or being thorough.
+
+Baseline behavior (the mandatory rules below can add to this, never loosen it):
 - Only state facts, pricing, offers, or guarantees that are explicitly given to you in the \
 business info below. Never invent or guess at anything you weren't told.
 - If the lead wants to book, and a specific day is on the table, call check_availability for \
@@ -216,22 +221,34 @@ def _split_into_sms_segments(text: str, max_words: int | None) -> list[str]:
 def _build_system_prompt(
     business_name: str, context: str, sequence: list[str], max_words: int | None, rules: str,
 ) -> str:
-    parts = [_SYSTEM_PREAMBLE]
+    # Order matters here: business context and the conversation arc come
+    # first (background the model reasons with), and the mandatory rules
+    # come LAST, right before the model has to actually generate a reply —
+    # instructions placed at the end of a long system prompt get more
+    # weight than ones sandwiched in the middle, and repeating the "these
+    # are mandatory" framing right here (on top of _SYSTEM_PREAMBLE's
+    # opening mention) is deliberate reinforcement, not redundancy.
+    parts = [_SYSTEM_PREAMBLE, f"\n--- Business: {business_name} ---\n{context.strip()}\n"]
+
     if sequence:
         steps = "\n".join(f"{i+1}. {step}" for i, step in enumerate(sequence) if step and step.strip())
         parts.append(
-            "\nGeneral conversation arc to aim for (loose guidance, not a script — always answer "
-            "the lead's own questions first, then steer back toward whichever of these is next):\n"
-            f"{steps}\n"
+            "\n--- Conversation arc to aim for ---\n"
+            "Loose guidance, not a script — always answer the lead's own questions first, then "
+            f"steer back toward whichever of these is next:\n{steps}\n"
         )
-    if max_words:
-        parts.append(f"\nHard limit: every reply must be {max_words} words or fewer.\n")
-    if rules and rules.strip():
+
+    if max_words or (rules and rules.strip()):
         parts.append(
-            "\nRules — read these before every reply and make sure you follow them:\n"
-            f"{rules.strip()}\n"
+            "\n=== MANDATORY RULES ===\n"
+            "Check your reply against every rule below before sending it. These override your own "
+            "instincts about phrasing, length, or style — if a draft breaks one, rewrite it.\n"
         )
-    parts.append(f"\n--- Business: {business_name} ---\n{context.strip()}\n")
+        if max_words:
+            parts.append(f"- Every reply must be {max_words} words or fewer.\n")
+        if rules and rules.strip():
+            parts.append(f"{rules.strip()}\n")
+
     return "".join(parts)
 
 
