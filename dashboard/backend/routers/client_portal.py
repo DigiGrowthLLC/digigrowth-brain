@@ -507,11 +507,10 @@ async def portal_stats(token: str, period: str = "all"):
         # dispositioned internally for this client's leads (routers/
         # appointments.py, never gated), so it's real data regardless of
         # whether the client can self-book/self-disposition yet. The
-        # self-service WRITE endpoints below (portal_appointments(),
+        # The self-service WRITE endpoints below (portal_appointments(),
         # portal_book_appointment(), portal_update_appointment_outcome(),
-        # portal_cancel_appointment()) stay is_test-gated per Dylan's
-        # 2026-09-01 call — this only changes what a real client sees, not
-        # what they can do.
+        # portal_cancel_appointment()) are open to every real client too as
+        # of 2026-09-14 — see the module note above portal_appointments().
         appt_row = await conn.fetchrow(
             """
             SELECT
@@ -621,17 +620,15 @@ async def portal_campaign_email(token: str):
 # anchor still has to be excluded — that action swept the anchor's own old
 # test bookings in under this client's id too.
 #
-# Per Dylan's explicit call (2026-09-01): only the is_test client's portal
-# can see/create real appointment data — every other real client keeps
-# getting an empty list, same as before, until this is deliberately opened
-# up. Gated the same way as the Twilio/Gmail endpoints above
-# (_require_test_client), not just left stubbed by omission.
+# Opened up for real clients 2026-09-14 (Dylan's explicit call, superseding
+# the 2026-09-01 is_test-only restriction noted above) — the dialer/calling
+# endpoints below stay is_test-gated (they route through DigiGrowth's own
+# shared Twilio account, not a client's own), but booking/outcome/cancel
+# never touch shared credentials and are safe to open for every real client.
 
 @router.get("/{token}/appointments")
 async def portal_appointments(token: str, status: str = "scheduled"):
     client = await get_client_from_token(token)
-    if not client.get("is_test"):
-        return []
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -661,10 +658,9 @@ async def portal_book_appointment(token: str, contact_id: str, body: dict):
     (never the anchor contact — see module note above). Reuses
     routers/appointments.py's create_appointment() so the reminder
     pipeline (24h/6h/1h sends) picks this up exactly like an internally
-    booked appointment. is_test-gated like every other real-data-writing
-    portal endpoint."""
+    booked appointment. Open to every real client as of 2026-09-14 — see
+    module note above."""
     client = await get_client_from_token(token)
-    _require_test_client(client)
     pool = await get_pool()
     async with pool.acquire() as conn:
         contact = await conn.fetchrow(
@@ -692,12 +688,9 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
     outcome-only branch of routers/appointments.py's PATCH handler,
     including its side effects (No Show sequence touch 1, onboarding
     kickoff on Closed), scoped to appointments that actually belong to
-    this client. is_test-gated like portal_appointments() above — a real
-    client has nothing to click through to this from the UI, but the
-    route itself must refuse it too (public/unauthenticated, reachable
-    directly by anyone holding that client's own portal token)."""
+    this client. Open to every real client as of 2026-09-14 — see module
+    note above."""
     client = await get_client_from_token(token)
-    _require_test_client(client)
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -782,10 +775,9 @@ async def portal_cancel_appointment(token: str, appointment_id: int):
     (cancel_sequence.py) fires for the lead exactly like an internally
     canceled appointment, and the appointment is immediately excluded
     from portal_stats()'s analytics (every count there already filters
-    ar.status != 'canceled'). is_test-gated like portal_book_appointment()/
-    portal_update_appointment_outcome() above — see _require_test_client."""
+    ar.status != 'canceled'). Open to every real client as of 2026-09-14 —
+    see module note above."""
     client = await get_client_from_token(token)
-    _require_test_client(client)
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
