@@ -138,6 +138,29 @@ def _os_sales_baseline(stats: dict) -> dict:
     }
 
 
+def _os_sales_baseline_cutoff(stats: dict):
+    """
+    The instant the frozen baseline (see _os_sales_baseline) was captured.
+    Several of the sheet's last rows (e.g. Austin Treadwell, Brandon
+    Crosdale, Louis Walker) were *also* re-entered natively in
+    appointment_reminders once the disposition screen went live, so an
+    unwindowed native count double-counts them on top of the baseline.
+    Restricting the native, all-time query to rows created at/after this
+    cutoff (see its use in _os_sales_stats) keeps every pre-baseline row
+    on the sheet side of the ledger and every post-cutoff row (new
+    bookings, and any outcome later marked on them) on the native side,
+    with nothing counted twice.
+    """
+    ts = stats.get("sheet_baseline_captured_at")
+    if not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
 async def _os_sales_stats(conn, days: int) -> dict:
     """
     OS-native sales KPIs computed straight from appointment_reminders —
@@ -162,9 +185,17 @@ async def _os_sales_stats(conn, days: int) -> dict:
     closes/revenue on outcome_close_at (when marked) — a close logged
     today on a call booked a month ago should count toward today's
     close-rate window, not get excluded because the booking itself is
-    old. days=0 means all-time (no window).
+    old. days=0 (all-time) uses _os_sales_baseline_cutoff instead of no
+    window at all — the sheet's last few rows (e.g. Brandon Crosdale's
+    close) were also re-entered natively once the disposition screen went
+    live, so an unwindowed all-time query would double-count them on top
+    of the frozen baseline; windowing on each row's own created_at/
+    outcome_*_at against the cutoff naturally excludes exactly the rows
+    the baseline already covers (their timestamps predate the cutoff)
+    while still picking up any new booking or freshly-marked outcome.
     """
-    since = _since(days) if days else None
+    stats = _load_sales_stats()
+    since = _since(days) if days else _os_sales_baseline_cutoff(stats)
     where = (
         "ar.status != 'canceled' AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)"
     )
@@ -199,7 +230,7 @@ async def _os_sales_stats(conn, days: int) -> dict:
     revenue = float(close_row["revenue"] or 0)
 
     if not days:
-        baseline = _os_sales_baseline(_load_sales_stats())
+        baseline = _os_sales_baseline(stats)
         discovery_calls += baseline["discovery_calls"]
         shows           += baseline["shows"]
         closes          += baseline["closes"]
