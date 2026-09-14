@@ -1170,14 +1170,29 @@ function AnalyticsTab({ token }) {
   const leadsTotal = stats.leads.total;
   const bookingRate = leadsTotal > 0 ? Math.round((appt.total / leadsTotal) * 1000) / 10 : null;
 
-  const smsSent = stats.sms.sent, smsReplies = stats.sms.replies;
-  const emailSent = stats.email.sent, emailReplies = stats.email.replies;
+  // Combines two data sources: DigiGrowth's own agency-run outreach system
+  // (stats.sms/stats.email — sms_conversations/email_conversations, used
+  // when DigiGrowth sends cold SMS/email to a client's leads directly) and
+  // the client's OWN provisioned Twilio number / Gmail mailbox
+  // (stats.campaign_sms/stats.campaign_email — client_sms_messages/
+  // client_email_messages, e.g. Sophie's replies or the client's own team
+  // texting/emailing leads back). A client like CrosaCore who never uses
+  // DigiGrowth's agency-outreach system showed 0 sent/replies and the wrong
+  // "Active Conversations" count here before this fix — all their real
+  // activity lived only in campaign_sms/campaign_email, which this section
+  // never read. Confirmed live: 2 leads with real threads (4 SMS + 2 email
+  // sent, 2 SMS + 6 email replies) showing as 0 sent / 1 active conversation.
+  const smsSent = stats.sms.sent + (stats.campaign_sms?.sent || 0);
+  const smsReplies = stats.sms.replies + (stats.campaign_sms?.received || 0);
+  const emailSent = stats.email.sent + (stats.campaign_email?.sent || 0);
+  const emailReplies = stats.email.replies + (stats.campaign_email?.received || 0);
   const smsReplyRate = smsSent > 0 ? Math.round((smsReplies / smsSent) * 1000) / 10 : null;
   const emailReplyRate = emailSent > 0 ? Math.round((emailReplies / emailSent) * 1000) / 10 : null;
   const totalSent = smsSent + emailSent;
   const totalReplies = smsReplies + emailReplies;
   const overallReplyRate = totalSent > 0 ? Math.round((totalReplies / totalSent) * 1000) / 10 : null;
-  const activeConvos = (stats.sms.conversations || 0) + (stats.email.conversations || 0);
+  const activeConvos = (stats.sms.conversations || 0) + (stats.email.conversations || 0)
+    + (stats.campaign_sms?.conversations || 0) + (stats.campaign_email?.conversations || 0);
 
   // ad_campaign_stats rows — real once meta_ads.py is wired up per client,
   // empty array (not fake zeros) until then, so the section below shows the

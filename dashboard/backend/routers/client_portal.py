@@ -476,7 +476,8 @@ async def portal_stats(token: str, period: str = "all"):
             f"""
             SELECT
                 COALESCE(SUM((direction = 'outbound')::int), 0) AS sent,
-                COALESCE(SUM((direction = 'inbound')::int), 0) AS received
+                COALESCE(SUM((direction = 'inbound')::int), 0) AS received,
+                COUNT(DISTINCT CASE WHEN direction = 'inbound' THEN from_number ELSE to_number END) AS conversations
             FROM client_sms_messages
             WHERE client_id = $1 {sms_since_clause.replace('sm.sent_at', 'created_at')}
             """,
@@ -486,7 +487,8 @@ async def portal_stats(token: str, period: str = "all"):
             f"""
             SELECT
                 COALESCE(SUM((direction = 'outbound')::int), 0) AS sent,
-                COALESCE(SUM((direction = 'inbound')::int), 0) AS received
+                COALESCE(SUM((direction = 'inbound')::int), 0) AS received,
+                COUNT(DISTINCT to_email) AS conversations
             FROM client_email_messages
             WHERE client_id = $1 {email_since_clause.replace('em.sent_at', 'created_at')}
             """,
