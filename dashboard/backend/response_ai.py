@@ -42,15 +42,14 @@ to the exact slot instead. A client with no token connected just gets
 asked for their preferred day/time as before (check_availability says so
 and the model falls back).
 
-Phase 2 (not built): Meta Lead Ads ingestion, once Dylan has a Meta app +
-page webhook access — a new POST /webhooks/meta-leadgen endpoint would
-verify Meta's webhook challenge, pull lead data via Graph API using the
-leadgen_id, resolve to a client via a new client_marketing_config column
-(e.g. meta_page_id), create/upsone the contacts row the same way
-_get_or_create_contact() below already does, and call a new
-initiate_conversation() entry point to send the first outbound message
-proactively — handle_inbound_sms() below only ever reacts to an inbound
-message, it never starts a thread.
+Meta Lead Ads ingestion: routers/meta_lead_webhooks.py verifies Meta's
+webhook challenge/signature, pulls lead data via Graph API, resolves the
+lead to a client via client_marketing_config.meta_page_id, creates/claims
+the contacts row via client_portal.py's exact ownership contract, and — for
+a genuinely new/claimed contact — calls initiate_conversation() below to
+proactively send the first outbound message. Distinct from
+handle_inbound_sms(), which only ever reacts to an inbound message and
+never starts a thread on its own.
 """
 import asyncio
 import json
@@ -65,6 +64,7 @@ import anthropic
 
 import calendly_integration
 import client_sms
+import scheduler_registry
 from db import get_pool
 from routers.appointments import create_appointment_row
 from sms_text import gsm7_safe
@@ -393,6 +393,98 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
                 await client_sms.send_client_sms(client_id, from_phone, segment)
     except Exception as e:
         print(f"[response_ai] handle_inbound_sms failed for client={client_id} phone={from_phone}: {e}")
+
+
+_PROACTIVE_PREAMBLE_ADDITION = (
+    "\nYou are OPENING this conversation, not replying to one — the lead just submitted this "
+    "business's lead form (e.g. a Facebook/Instagram ad) and hasn't heard from you yet. There is no "
+    "real message from them to react to, only the system note below. Send a warm, on-brand first "
+    "text that acknowledges they reached out, briefly says what the business can help with, and "
+    "invites them to book or share what they're looking for — never answer a question they never "
+    "asked, and never reference the system note itself.\n"
+)
+
+
+async def initiate_conversation(client_id: int, phone: str, lead_name: str | None = None) -> None:
+    """Proactive entry point — the only caller is routers/meta_lead_webhooks.py, for a fresh Meta
+    Lead Ads submission. Unlike handle_inbound_sms, there's no real inbound message to react to, so
+    a small preamble tells the model it's opening the thread, and a single synthetic system-note
+    turn stands in for message history. Never raises — same contract as handle_inbound_sms."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT cmc.response_ai_enabled, cmc.response_ai_context, cmc.response_ai_sequence, "
+                "cmc.response_ai_max_words, cmc.response_ai_rules, cmc.response_ai_min_delay_seconds, "
+                "c.name FROM client_marketing_config cmc JOIN clients c ON c.id = cmc.client_id "
+                "WHERE cmc.client_id = $1",
+                client_id,
+            )
+        if not row or not row["response_ai_enabled"]:
+            return  # agent disabled for this client — Meta lead falls back to manual, same as SMS
+
+        sequence = row["response_ai_sequence"]
+        if isinstance(sequence, str):
+            sequence = json.loads(sequence)
+        max_words = row["response_ai_max_words"]
+
+        tz_name = guess_timezone(phone)
+        today_str = datetime.now(ZoneInfo(tz_name)).strftime("%A, %B %-d, %Y")
+
+        system_prompt = _build_system_prompt(
+            row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
+            today_str,
+        ) + _PROACTIVE_PREAMBLE_ADDITION
+
+        note = (
+            f"[System note: {lead_name.strip() if lead_name else 'A new lead'} just submitted this "
+            "business's Facebook/Instagram lead form and hasn't heard from you yet. Send the opening text.]"
+        )
+        messages = [{"role": "user", "content": note}]
+
+        # A text landing the same second someone submits a Facebook form
+        # reads unmistakably as a bot — always deferred, unlike
+        # handle_inbound_sms's inline fallback for a 0-second delay, which
+        # is fine for an active back-and-forth but not for a cold open.
+        delay = max(row["response_ai_min_delay_seconds"] or 0, 30)
+        run_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
+        sched = scheduler_registry.get_scheduler()
+        if sched:
+            sched.add_job(
+                _send_initial_message, "date", run_date=run_at,
+                args=[client_id, phone, system_prompt, messages, max_words],
+                id=f"meta-lead-opener-{client_id}-{phone}-{run_at.timestamp()}",
+                replace_existing=True,
+            )
+        else:
+            await _send_initial_message(client_id, phone, system_prompt, messages, max_words)
+    except Exception as e:
+        print(f"[response_ai] initiate_conversation failed for client={client_id} phone={phone}: {e}")
+
+
+async def _send_initial_message(
+    client_id: int, phone: str, system_prompt: str, messages: list[dict], max_words: int | None,
+) -> None:
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            # Creates the client_lead_conversations row right before the
+            # first text goes out, so the thread shows up in the portal
+            # inbox from message one, same as handle_inbound_sms does for
+            # a reactive thread.
+            await _get_or_create_conversation(conn, client_id, phone)
+
+        reply_text = await _run_agent_turn(client_id, phone, system_prompt, messages)
+        if not reply_text:
+            return
+        reply_text = gsm7_safe(reply_text)
+        segments = _split_into_sms_segments(reply_text, max_words)
+        for i, segment in enumerate(segments):
+            if i > 0:
+                await asyncio.sleep(10)
+            await client_sms.send_client_sms(client_id, phone, segment, stage="meta_lead_opener")
+    except Exception as e:
+        print(f"[response_ai] _send_initial_message failed for client={client_id} phone={phone}: {e}")
 
 
 async def _run_agent_turn(client_id: int, from_phone: str, system_prompt: str, messages: list[dict]) -> str | None:

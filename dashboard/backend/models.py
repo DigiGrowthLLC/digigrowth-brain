@@ -217,6 +217,8 @@ class ClientMarketingConfigUpdate(BaseModel):
     calendly_event_type_url: Optional[str] = None
     landing_page_url: Optional[str] = None
     meta_pixel_id: Optional[str] = None
+    meta_ad_account_id: Optional[str] = None
+    meta_page_id: Optional[str] = None
     ad_creative_status: Optional[dict] = None
     guide_progress: Optional[dict] = None
 

@@ -657,6 +657,12 @@ async def _create_schema(pool: asyncpg.Pool):
             -- on hand and can visually verify is the right one.
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS calendly_event_type_url TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS meta_pixel_id TEXT;
+            -- Meta ad account (act_XXXXXXXXX, digits only stored here) and
+            -- Facebook Page ID for this client — meta_ads.py's spend sync
+            -- reads the former, routers/meta_lead_webhooks.py resolves an
+            -- inbound Lead Ads webhook's page_id to a client via the latter.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS meta_ad_account_id TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS meta_page_id TEXT;
             ALTER TABLE client_email_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_channel_last_read_at TIMESTAMPTZ;
             -- Per-step sent tracking for client_appointment_reminders.py's

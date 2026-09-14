@@ -1781,6 +1781,12 @@ const MARKETING_GUIDES = {
       { text: "Set up the Meta Pixel before running anything: create (or open) the client's pixel in Business Manager → Events Manager, then install the pixel base code plus Lead/Purchase standard events on their landing page. Do this before spending any budget — without it, none of the ad spend is trackable and Analytics' ad-spend fields have nothing to attribute to.", link: "https://business.facebook.com/events_manager2/list/pixel/", linkLabel: "Meta Events Manager",
         fields: [{ key: "meta_pixel_id", label: "Pixel ID", placeholder: "1234567890123456" }] },
       { text: "Verify the pixel is actually firing (base PageView + the Lead/Purchase events) using the Meta Pixel Helper browser extension on the live landing page before moving on." },
+      { text: "Enter this client's Meta ad account ID and Page ID (Business Manager → Business Settings → Accounts) so ad-spend sync and Facebook Lead Ads auto-follow-up can find this client's data.",
+        link: "https://business.facebook.com/settings/ad-accounts", linkLabel: "Business Settings → Ad Accounts",
+        fields: [
+          { key: "meta_ad_account_id", label: "Meta Ad Account ID", placeholder: "123456789012345" },
+          { key: "meta_page_id", label: "Meta Page ID", placeholder: "987654321098765" },
+        ] },
       { text: "Not yet automated for visuals — see the automation note below this guide. For now: produce the image/video manually using the copy above." },
       { text: "Upload the finished creative directly into the client's ad account.", link: "https://business.facebook.com/adsmanager", linkLabel: "Meta Ads Manager" },
     ],

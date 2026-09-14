@@ -1,25 +1,133 @@
 """
-STUB — Meta/Facebook Graph API integration. Not implemented yet.
+Meta (Facebook) Ads spend sync — populates ad_campaign_stats so each real
+client's own portal Analytics tab (routers/client_portal.py's portal_stats(),
+"ads" section) shows real spend/impressions/clicks/leads instead of the
+permanent "coming_soon" empty state. The portal side needs zero changes —
+it already reads ad_campaign_stats and renders CTR/CPC/cost-per-lead/CAC
+the moment real rows exist.
 
-Nothing in this repo talks to the Meta Ads API today (no Graph API client, no
-FB_/META_ env vars, no ad-account polling). This module is the intended home
-for that integration once it's built.
+Auth: ONE shared System User access token (Business Manager structure is one
+DigiGrowth-owned Business Manager with every client's ad account added as an
+assigned asset — mirrors how a client's Twilio subaccount already sits under
+DigiGrowth's own master Twilio account, see client_sms.py) — read from
+META_SYSTEM_USER_TOKEN in the shared `digigrowth` Doppler vault, never a
+per-client token/OAuth flow. Requires the `ads_management` or `ads_read`
+permission, which requires Meta App Review + Business Verification — until
+that's approved, every client is simply skipped (see sync_meta_ad_stats), not
+an error.
 
-When wiring the real thing:
-- Poll each active client's Meta ad account on a schedule, mirroring the
-  `_export_*` cron job pattern registered in main.py's lifespan() (see
-  _export_sms_outreach_stats for the shape: a scheduler.add_job(...) calling
-  an async function that queries an external source and persists the result).
-- Upsert normalized rows into ad_campaign_stats, keyed on
-  (client_id, platform, stat_date) via ON CONFLICT — spend/impressions/
-  clicks/leads as typed columns, plus the full untouched API response in the
-  `raw` JSONB column so nothing needs to be re-fetched if a new normalized
-  field is needed later.
-- Requires per-client Meta ad account IDs (add to the `clients` table or a
-  new client_ad_accounts table) and app credentials — store FB_APP_ID /
-  FB_APP_SECRET / any long-lived tokens in the shared `digigrowth` Doppler
-  vault (see CLAUDE.md's Secrets convention), not in a local .env file.
-- routers/client_portal.py's GET /portal-api/{token}/stats already reads
-  from ad_campaign_stats and returns an empty array today — once this module
-  populates that table, the portal stats endpoint needs no changes.
+Requires meta_ad_account_id set on a client's client_marketing_config
+(entered via the Marketing Setup guide's "Create Paid Ad Creatives" step,
+ClientsPanel.jsx) before that client is polled at all.
 """
+import json
+import os
+from datetime import date, timedelta
+
+import httpx
+
+from db import get_pool
+
+_GRAPH_BASE = "https://graph.facebook.com/v21.0"
+_WINDOW_DAYS = 3  # trailing window re-synced every run so a transient
+                  # failure or late-attributed conversion self-heals on the
+                  # next run instead of needing a manual backfill — the
+                  # (client_id, platform, stat_date) unique constraint makes
+                  # re-upserting the same days idempotent and cheap.
+
+# Meta's `actions` array entries use one of a few action_type strings for a
+# Lead Ads result depending on API version/campaign objective — checking
+# several known aliases rather than trusting exactly one. Flagged as an
+# assumption to verify against Meta's current docs; add more here if a
+# real client's leads count comes back as 0 despite having real Lead Ads
+# activity.
+_LEAD_ACTION_TYPES = {"lead", "onsite_conversion.lead_grouped", "leadgen.other"}
+
+
+def _extract_lead_count(actions: list[dict] | None) -> int:
+    if not actions:
+        return 0
+    return sum(
+        int(float(a.get("value", 0)))
+        for a in actions
+        if a.get("action_type") in _LEAD_ACTION_TYPES
+    )
+
+
+async def _fetch_insights(http: httpx.AsyncClient, ad_account_id: str, token: str, since: date, until: date) -> list[dict]:
+    resp = await http.get(
+        f"{_GRAPH_BASE}/act_{ad_account_id}/insights",
+        params={
+            "access_token": token,
+            "level": "account",
+            "fields": "spend,impressions,clicks,actions,date_start,date_stop",
+            "time_range": f'{{"since":"{since.isoformat()}","until":"{until.isoformat()}"}}',
+            "time_increment": 1,
+        },
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"Meta Graph API returned {resp.status_code}: {resp.text.strip()[:300]}")
+    return resp.json().get("data", [])
+
+
+async def sync_meta_ad_stats() -> None:
+    """Scheduler job (main.py, once daily) — polls every client with a
+    configured meta_ad_account_id and upserts the last _WINDOW_DAYS days of
+    spend/impressions/clicks/leads into ad_campaign_stats. One client's
+    missing token/revoked access/bad account id must never block every
+    other client's sync — each client's block is fully isolated."""
+    token = os.environ.get("META_SYSTEM_USER_TOKEN")
+    if not token:
+        print("[meta_ads] META_SYSTEM_USER_TOKEN not set — skipping sync entirely (Meta App Review likely not complete yet)")
+        return
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        clients = await conn.fetch(
+            "SELECT client_id, meta_ad_account_id FROM client_marketing_config WHERE meta_ad_account_id IS NOT NULL"
+        )
+    if not clients:
+        return
+
+    until = date.today()
+    since = until - timedelta(days=_WINDOW_DAYS)
+
+    async with httpx.AsyncClient() as http:
+        for row in clients:
+            client_id = row["client_id"]
+            ad_account_id = (row["meta_ad_account_id"] or "").strip().removeprefix("act_")
+            if not ad_account_id:
+                continue
+            try:
+                days = await _fetch_insights(http, ad_account_id, token, since, until)
+            except Exception as e:
+                print(f"[meta_ads] sync failed for client={client_id} (ad account {ad_account_id}): {e}")
+                continue
+
+            for day in days:
+                try:
+                    stat_date = day.get("date_start")
+                    if not stat_date:
+                        continue
+                    pool = await get_pool()
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            """
+                            INSERT INTO ad_campaign_stats
+                                (client_id, platform, stat_date, spend, impressions, clicks, leads, raw, synced_at)
+                            VALUES ($1, 'meta', $2, $3, $4, $5, $6, $7, now())
+                            ON CONFLICT (client_id, platform, stat_date) DO UPDATE SET
+                                spend = EXCLUDED.spend, impressions = EXCLUDED.impressions,
+                                clicks = EXCLUDED.clicks, leads = EXCLUDED.leads,
+                                raw = EXCLUDED.raw, synced_at = now()
+                            """,
+                            client_id, stat_date,
+                            float(day.get("spend", 0) or 0),
+                            int(float(day.get("impressions", 0) or 0)),
+                            int(float(day.get("clicks", 0) or 0)),
+                            _extract_lead_count(day.get("actions")),
+                            json.dumps(day),
+                        )
+                except Exception as e:
+                    print(f"[meta_ads] failed to upsert day {day.get('date_start')} for client={client_id}: {e}")
