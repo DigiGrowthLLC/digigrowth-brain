@@ -236,6 +236,10 @@ export default function InboxPanel({ initialTarget }) {
   const [cardOpen, setCardOpen]   = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [stageMenuOpen, setStageMenuOpen] = useState(false);
+  const [seqPanelOpen, setSeqPanelOpen] = useState(false);
+  const [contactSeqs, setContactSeqs] = useState(null);
+  const [contactSeqsLoading, setContactSeqsLoading] = useState(false);
+  const [contactSeqsBusy, setContactSeqsBusy] = useState(null); // `${sequence}:${appointment_id}` while an add/remove is in flight
   const [deleting, setDeleting]   = useState(false);
   const [composing, setComposing] = useState(false);
   const [seqOpen, setSeqOpen]       = useState(false);
@@ -314,6 +318,8 @@ export default function InboxPanel({ initialTarget }) {
     setThread(null);
     setSeqOpen(false);
     setStageMenuOpen(false);
+    setSeqPanelOpen(false);
+    setContactSeqs(null);
     setReplySubject("");
     setAppliedStage(null);
     setAppliedStageLabel(null);
@@ -421,6 +427,36 @@ export default function InboxPanel({ initialTarget }) {
     });
     await refreshThread(selected);
     await loadConvos();
+  };
+
+  const loadContactSeqs = async (contactId) => {
+    setContactSeqsLoading(true);
+    try {
+      const r = await fetch(API(`/appointment-reminders/contact/${encodeURIComponent(contactId)}/sequences`));
+      setContactSeqs(r.ok ? await r.json() : null);
+    } catch {
+      setContactSeqs(null);
+    }
+    setContactSeqsLoading(false);
+  };
+
+  const openSeqPanel = () => {
+    setSeqPanelOpen(o => {
+      const next = !o;
+      if (next && selected) loadContactSeqs(selected);
+      return next;
+    });
+  };
+
+  const toggleDripSequence = async (sequence, appointmentId, active) => {
+    setContactSeqsBusy(`${sequence}:${appointmentId}`);
+    try {
+      await fetch(API(`/appointment-reminders/${appointmentId}/sequence/${sequence}/${active ? "remove" : "add"}`), {
+        method: "POST",
+      });
+      await loadContactSeqs(selected);
+    } catch {}
+    setContactSeqsBusy(null);
   };
 
   const deleteConvo = async () => {
@@ -754,6 +790,98 @@ export default function InboxPanel({ initialTarget }) {
                               {s.label}
                             </label>
                           ))}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ position: "relative" }}>
+                      <button onClick={openSeqPanel} className="btn btn-ghost"
+                        style={{ fontSize: 10, borderColor: "rgba(58,123,213,0.4)", color: "#6ab0ff" }}>
+                        SEQUENCES ▾
+                      </button>
+                      {seqPanelOpen && (
+                        <div style={{
+                          position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20,
+                          background: "#0d1626", border: "1px solid #1a2540", borderRadius: 8,
+                          padding: "10px 12px", width: 280, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                          fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#c4d0e8",
+                          maxHeight: 360, overflowY: "auto",
+                        }}>
+                          {contactSeqsLoading && <div style={{ color: "#3a5a80" }}>LOADING…</div>}
+                          {!contactSeqsLoading && contactSeqs && (
+                            <>
+                              <div style={{ color: "#6ab0ff", letterSpacing: "0.08em", marginBottom: 6 }}>DRIP SEQUENCES</div>
+                              {contactSeqs.drip_sequences.length === 0 && (
+                                <div style={{ color: "#3a5a80", marginBottom: 10 }}>
+                                  None yet — no_show/cancel/reminder only appear once triggered by an appointment outcome.
+                                </div>
+                              )}
+                              {contactSeqs.drip_sequences.map((s) => {
+                                const busyKey = `${s.sequence}:${s.appointment_id}`;
+                                const label = { no_show: "No Show", cancel: "Cancellation", reminder: "Reminder" }[s.sequence];
+                                return (
+                                  <div key={busyKey} style={{
+                                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                                    padding: "6px 0", borderBottom: "1px solid #1a2540", gap: 8,
+                                  }}>
+                                    <div>
+                                      <div style={{ color: "#f0f4ff" }}>{label}</div>
+                                      <div style={{ color: "#3a5a80", fontSize: 9, marginTop: 2 }}>
+                                        {fmtMsgTime(s.appointment_at)} · {s.step_label}
+                                        {s.active ? "" : " · stopped"}
+                                      </div>
+                                    </div>
+                                    <button
+                                      disabled={contactSeqsBusy === busyKey}
+                                      onClick={() => toggleDripSequence(s.sequence, s.appointment_id, s.active)}
+                                      className="btn btn-ghost"
+                                      style={{
+                                        fontSize: 9, padding: "3px 8px", flexShrink: 0,
+                                        borderColor: s.active ? "rgba(220,80,80,0.4)" : "rgba(20,200,130,0.4)",
+                                        color: s.active ? "#e05c5c" : "#14c882",
+                                      }}
+                                    >
+                                      {s.active ? "REMOVE" : "ADD"}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+
+                              <div style={{ color: "#6ab0ff", letterSpacing: "0.08em", margin: "12px 0 6px" }}>DM FOLLOW-UP</div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                <div style={{ color: "#3a5a80", fontSize: 9 }}>
+                                  {contactSeqs.dm_followup?.stage_dm_reached
+                                    ? `Enrolled${contactSeqs.dm_followup.dm_followup_anchor_at ? " · mid-cycle" : ""}`
+                                    : "Not enrolled — toggle DM Reached to enroll."}
+                                </div>
+                                <button
+                                  onClick={async () => {
+                                    await setStage("dm_reached", !contactSeqs.dm_followup?.stage_dm_reached);
+                                    await loadContactSeqs(selected);
+                                  }}
+                                  className="btn btn-ghost"
+                                  style={{
+                                    fontSize: 9, padding: "3px 8px", flexShrink: 0,
+                                    borderColor: contactSeqs.dm_followup?.stage_dm_reached ? "rgba(220,80,80,0.4)" : "rgba(20,200,130,0.4)",
+                                    color: contactSeqs.dm_followup?.stage_dm_reached ? "#e05c5c" : "#14c882",
+                                  }}
+                                >
+                                  {contactSeqs.dm_followup?.stage_dm_reached ? "REMOVE" : "ADD"}
+                                </button>
+                              </div>
+
+                              {contactSeqs.onboarding.length > 0 && (
+                                <>
+                                  <div style={{ color: "#6ab0ff", letterSpacing: "0.08em", margin: "12px 0 6px" }}>ONBOARDING (read-only)</div>
+                                  {contactSeqs.onboarding.map((o) => (
+                                    <div key={o.appointment_id} style={{ color: "#3a5a80", fontSize: 9, padding: "4px 0" }}>
+                                      Kickoff {o.kickoff_sent_at ? "sent" : "pending"}
+                                      {" · "}Follow-up {o.followup_sent_at ? "sent" : "pending"}
+                                    </div>
+                                  ))}
+                                </>
+                              )}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

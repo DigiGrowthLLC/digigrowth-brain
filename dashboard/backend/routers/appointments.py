@@ -467,6 +467,71 @@ def _validate_sequence(sequence: str):
         raise HTTPException(400, "sequence must be 'no_show', 'cancel', or 'reminder'")
 
 
+@router.get("/appointment-reminders/contact/{contact_id}/sequences")
+async def contact_sequences(contact_id: str):
+    """Every long-running, multi-touch sequence one contact is (or has
+    been) in, across every appointment they've ever had here — backs the
+    Inbox's per-contact SEQUENCES view so a rep can see and manually
+    add/remove someone without hunting through the separate Outreach
+    Templates 'Active Prospects' queues one sequence at a time. Reuses
+    the exact same columns/progress helpers as list_sequence_active()
+    above; this is just contact-scoped instead of sequence-scoped.
+
+    A sequence only appears here once its trigger condition has actually
+    happened (e.g. no_show only appears after an appointment was marked
+    a no-show) — there's no such thing as "not yet enrolled" for these,
+    since each one is a consequence of an appointment outcome, not a
+    freely-assignable tag. DM follow-up is the one exception (a plain
+    stage_dm_reached checkbox, already toggleable from the Inbox's STAGE
+    menu) and onboarding is read-only here (a one-time two-touch pair,
+    not an ongoing drip with anything to add/remove)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        appts = await conn.fetch(
+            "SELECT * FROM appointment_reminders WHERE contact_id = $1 ORDER BY appointment_at DESC",
+            contact_id,
+        )
+        dm = await conn.fetchrow(
+            "SELECT stage_dm_reached, dm_followup_enrolled_at, dm_followup_anchor_at, "
+            "dm_followup_touch1_sent_at, dm_followup_touch2_sent_at, dm_followup_touch3_sent_at "
+            "FROM sms_conversations WHERE contact_id = $1",
+            contact_id,
+        )
+
+    drips = []
+    onboarding = []
+    for r in appts:
+        row = dict(r)
+        base = {"appointment_id": row["id"], "appointment_at": row["appointment_at"]}
+        if row.get("outcome_show") == "no_show":
+            drips.append({
+                **base, "sequence": "no_show", "active": row["no_show_sequence_stopped_at"] is None,
+                **_touch_progress(row, _SEQUENCE_CONFIG["no_show"]),
+            })
+        if row.get("status") == "canceled":
+            drips.append({
+                **base, "sequence": "cancel", "active": row["cancel_sequence_stopped_at"] is None,
+                **_touch_progress(row, _SEQUENCE_CONFIG["cancel"]),
+            })
+        if row.get("status") == "scheduled":
+            drips.append({
+                **base, "sequence": "reminder", "active": row["reminders_stopped_at"] is None,
+                **_reminder_progress(row),
+            })
+        if row.get("outcome_close") == "closed":
+            onboarding.append({
+                **base,
+                "kickoff_sent_at": row["onboarding_kickoff_sent_at"],
+                "followup_sent_at": row["onboarding_followup_sent_at"],
+            })
+
+    return {
+        "drip_sequences": drips,
+        "onboarding": onboarding,
+        "dm_followup": dict(dm) if dm else None,
+    }
+
+
 @router.get("/appointment-reminders/sequence/{sequence}")
 async def list_sequence_active(sequence: str):
     """Everyone currently mid-sequence for the given type, with computed
