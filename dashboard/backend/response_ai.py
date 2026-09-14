@@ -27,18 +27,20 @@ Per-client config also drives:
   than sleeping inline (which would hold the Twilio webhook open and risk
   a timeout/retry).
 
-V1 scope: SMS only. Calendar availability is read-only, via Calendly's API
-(calendly_integration.py) when a client has connected a Personal Access
-Token (client_marketing_config.calendly_api_token) — the check_availability
-tool looks up real open slots so the agent doesn't propose an already-taken
-time, but booking still happens the same way it always has: logged
-directly into this system (create_appointment_row), same trust level as a
-rep manually noting a booked time today. Calendly's API has no endpoint to
-create a CONFIRMED booking on someone else's behalf (an invitee always
-completes that on Calendly's own page), so this is as far as automation
-goes without a client-side click — confirmed scope as of 2026-09-14. A
-client with no token connected just gets asked for their preferred
-day/time as before (check_availability says so and the model falls back).
+V1 scope: SMS only. When a client has connected a Personal Access Token
+(client_marketing_config.calendly_api_token, client_marketing_config.
+calendly_event_type_url), check_availability (calendly_integration.py)
+looks up real open slots so the agent never proposes an already-taken
+time. propose_appointment always logs the appointment internally
+(create_appointment_row, same trust level as a rep noting a booked time)
+and, when it was able to collect the lead's name/email/reason, ALSO
+creates a genuinely confirmed booking straight on Calendly via its
+Scheduling API (calendly_integration.create_booking — found live
+2026-09-14; requires a paid Calendly plan) — no click needed from the
+lead. Missing any of those falls back to texting a direct one-tap link
+to the exact slot instead. A client with no token connected just gets
+asked for their preferred day/time as before (check_availability says so
+and the model falls back).
 
 Phase 2 (not built): Meta Lead Ads ingestion, once Dylan has a Meta app +
 page webhook access — a new POST /webhooks/meta-leadgen endpoint would
@@ -88,8 +90,13 @@ first, and don't ask them to pick one blind. It searches forward on its own and 
 open times on the earliest available day, which may be a while out — offer exactly what it gives \
 you as a simple either/or (or just the one time, on a day with only one opening), never a \
 day/time you made up yourself and never more than what you were given. If it says the calendar \
-isn't connected, ask for their preferred day and time instead. Either way, confirm the agreed \
-time back to them in one message, then call propose_appointment.
+isn't connected, ask for their preferred day and time instead. Once they agree to a specific time, \
+before calling propose_appointment ask for their name and email in that same confirmation message \
+(e.g. "Locking in Thursday 2pm — what name and email should I put the invite under?") — this is \
+what lets the booking actually confirm itself on the calendar instead of just being logged \
+internally. If they don't give an email, that's fine, still call propose_appointment; the lead \
+will just get a link to finish it themselves instead. Pass the reason for their call too if you \
+already know it from earlier in the conversation.
 - If the lead can't make the time(s) you offered, call check_availability again with after_date \
 set to the day AFTER the day you just offered — never re-offer the same day, and never repeat the \
 exact same times you already gave them.
@@ -124,12 +131,21 @@ _TOOLS = [
     },
     {
         "name": "propose_appointment",
-        "description": "Book a tentative appointment for this lead once they've agreed to a specific day and time.",
+        "description": (
+            "Book this lead's appointment once they've agreed to a specific day and time. If the "
+            "business has a connected calendar and you were able to get the lead's name, email, and "
+            "a one-line reason for the call, this creates a REAL confirmed booking on the calendar "
+            "with no further action needed from the lead. Missing any of those (most commonly: no "
+            "email) falls back to texting the lead a direct link to finish it themselves in one tap."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "date": {"type": "string", "description": "YYYY-MM-DD"},
                 "time": {"type": "string", "description": "HH:MM in 24h format"},
+                "name": {"type": "string", "description": "The lead's name, if you have it."},
+                "email": {"type": "string", "description": "The lead's email, if you have it — required for a fully-confirmed booking."},
+                "reason": {"type": "string", "description": "One short line on why they're reaching out, from earlier in this conversation."},
                 "notes": {"type": "string", "description": "Anything worth noting for the business, e.g. what the lead is coming in for."},
             },
             "required": ["date", "time"],
@@ -506,6 +522,31 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 )
             token = cal_row["calendly_api_token"] if cal_row else None
             event_type_url = cal_row["calendly_event_type_url"] if cal_row else None
+
+            name = tool_input.get("name") or (contact.get("owner") if contact else None)
+            email = tool_input.get("email") or (contact.get("email") if contact else None)
+            reason = tool_input.get("reason")
+
+            # Try a real, immediately-confirmed booking first (Calendly's
+            # Scheduling API, live as of 2026-09-14) — only possible when
+            # we actually have name/email/reason to submit. Any failure
+            # (missing pieces, an unrecognized required question on the
+            # event type, the slot getting taken) falls through to the
+            # tap-to-confirm link exactly as before this existed.
+            if token and event_type_url and name and email and reason:
+                try:
+                    await calendly_integration.create_booking(
+                        token, event_type_url, tool_input.get("date"), tool_input.get("time"), tz,
+                        name, email, from_phone, reason,
+                    )
+                    return (
+                        f"Confirmed on the calendar — appointment id={row['id']} for "
+                        f"{tool_input.get('date')} {tool_input.get('time')} ({tz_name}), no further "
+                        f"action needed from the lead. Tell them they're all set."
+                    )
+                except Exception as e:
+                    print(f"[response_ai] create_booking failed for client={client_id}: {e}", flush=True)
+
             slot_url = None
             if token and event_type_url:
                 try:
@@ -515,15 +556,16 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 except Exception as e:
                     print(f"[response_ai] find_slot_scheduling_url failed for client={client_id}: {e}", flush=True)
             if slot_url:
-                # Pre-fill Calendly's name/email fields from the matched
-                # CRM contact when known, so the lead isn't retyping info
-                # already on file — Calendly reads these as ordinary query
-                # params on any of its booking pages.
+                # Pre-fill Calendly's name/email fields from whatever's
+                # known (what the model just collected, or already on
+                # file for this contact) so the lead isn't retyping info
+                # that's already available — Calendly reads these as
+                # ordinary query params on any of its booking pages.
                 prefill = {}
-                if contact and contact.get("owner"):
-                    prefill["name"] = contact["owner"]
-                if contact and contact.get("email"):
-                    prefill["email"] = contact["email"]
+                if name:
+                    prefill["name"] = name
+                if email:
+                    prefill["email"] = email
                 if prefill:
                     sep = "&" if "?" in slot_url else "?"
                     slot_url = f"{slot_url}{sep}{urlencode(prefill)}"

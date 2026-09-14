@@ -1,23 +1,25 @@
 """
-Read-only Calendly integration for response_ai.py's check_availability
-tool — looks up a client's REAL open time slots via Calendly's API so the
-agent proposes times that are actually open instead of guessing blind.
+Calendly integration for response_ai.py — looks up a client's REAL open
+time slots (check_availability) and, since Calendly's Scheduling API
+launched (found live 2026-09-14, superseding this module's original
+read-only-only design), can create a genuinely CONFIRMED booking directly
+(create_booking) without the lead having to tap through anything.
 
 Auth is a Calendly Personal Access Token the client generates from their
 own Calendly account (Integrations & Apps -> API & Webhooks -> Generate New
 Token) — or Dylan's, once added as an admin on that client's account — and
 pastes into their Marketing Setup (client_marketing_config.calendly_api_token).
 Same "one credential per client, pasted in" pattern as the Gmail refresh
-token.
+token. The Scheduling API (POST /invitees) requires the account be on a
+paid Calendly plan and the token have scheduled_events:write scope.
 
-Deliberately read-only: Calendly's public API has no endpoint to create a
-CONFIRMED booking on someone else's behalf — an invitee always has to
-complete the scheduling flow on Calendly's own page. Booking itself still
-happens exactly as it always has in this system (routers/appointments.py's
-create_appointment_row, called from response_ai.py's propose_appointment
-tool) — this module just makes that a well-informed choice of time instead
-of a blind guess, per confirmed scope (2026-09-14): check real availability,
-still book internally.
+create_booking() only ever answers a REQUIRED custom question on the
+event type if it can clearly tell what it's asking for (phone number, or
+the single other required question treated as "reason for the call") —
+any other required question it doesn't recognize means it refuses to
+guess and raises, so response_ai.py's propose_appointment can fall back
+to texting the lead a direct link to finish it themselves instead of
+submitting a wrong or incomplete answer.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -45,6 +47,12 @@ def _raise_with_context(resp: httpx.Response) -> None:
             "read permissions. Regenerate it from Calendly's own account (not a third-party OAuth "
             "connection) via Integrations & Apps -> API & Webhooks -> Generate New Token."
         )
+    if resp.status_code == 400:
+        # create_booking's 400s are almost always something diagnosable
+        # (a missing/mismatched required question, a slot that just got
+        # taken) — httpx's default message is just "400 Bad Request" with
+        # none of that, which was a real pain to debug live 2026-09-14.
+        raise RuntimeError(f"Calendly returned 400 Bad Request: {resp.text.strip()[:300]}")
     resp.raise_for_status()
 
 
@@ -145,13 +153,13 @@ async def find_slot_scheduling_url(
     Calendly's own available-times response already carries its own
     scheduling_url pointing straight at that time, one tap from a
     confirmed booking, no re-picking a day on Calendly's page needed.
-    Used by propose_appointment so the agent can text the lead something
-    that actually finishes the booking, instead of just logging a
-    trusted-verbal-agreement row internally (Calendly's API still has no
-    way to create the confirmed booking itself — the lead has to be the
-    one to complete it). Returns None if the slot can't be re-matched
-    (already taken, clock drift, bad date/time) — caller falls back to
-    the internal-only booking message in that case."""
+    Used by propose_appointment as the fallback when create_booking can't
+    complete the booking itself (missing email, an unrecognized required
+    question, the slot got taken, etc.) — texting the lead this link lets
+    them finish it themselves in one tap instead of the reply going out
+    with no way to actually confirm anything. Returns None if the slot
+    can't be re-matched (already taken, clock drift, bad date/time) —
+    caller falls back to the internal-only booking message in that case."""
     async with httpx.AsyncClient(timeout=10) as http:
         event_type = await _get_matching_event_type(http, token, scheduling_url)
         if not event_type:
@@ -177,3 +185,80 @@ async def find_slot_scheduling_url(
             if abs((slot_local - target).total_seconds()) < 60:
                 return s.get("scheduling_url")
         return None
+
+
+class RequiredQuestionUnrecognized(Exception):
+    """Raised when the event type has a required custom question
+    create_booking can't confidently answer — better to refuse and let
+    the caller fall back to the tap-to-confirm link than submit a wrong
+    or made-up answer to Calendly's booking form."""
+
+
+async def create_booking(
+    token: str, scheduling_url: str, date_str: str, time_str: str, tz,
+    name: str, email: str, phone: str, reason: str,
+) -> dict:
+    """Creates a REAL, immediately-confirmed booking via Calendly's
+    Scheduling API (POST /invitees) — no invitee action needed, unlike
+    everything else in this module. Requires the connected account be on
+    a paid Calendly plan and the token have scheduled_events:write scope
+    (verified live against a real event 2026-09-14, then canceled).
+
+    Only supports the "outbound_call" and "inbound_call" location kinds
+    (a phone consult, the common case for this system's clients) — any
+    other kind (in-person, a conferencing app) raises, since building the
+    right location payload for those isn't implemented, and the caller
+    should fall back to the tap-to-confirm link instead of guessing.
+
+    Every REQUIRED custom question on the event type must be answered or
+    Calendly rejects the whole booking — a phone-number-looking one gets
+    `phone`, and exactly one other non-phone required question gets
+    `reason` (best guess: the "what brings you in" style question every
+    intake form like this tends to have). More than one other required
+    question raises RequiredQuestionUnrecognized rather than guessing
+    which one `reason` belongs to."""
+    async with httpx.AsyncClient(timeout=10) as http:
+        event_type = await _get_matching_event_type(http, token, scheduling_url)
+        if not event_type:
+            raise RequiredQuestionUnrecognized("event type not found")
+
+        locations = event_type.get("locations") or []
+        kind = locations[0].get("kind") if locations else None
+        if kind == "outbound_call":
+            location = {"kind": "outbound_call", "location": phone}
+        elif kind == "inbound_call":
+            location = {"kind": "inbound_call"}
+        else:
+            raise RequiredQuestionUnrecognized(f"unsupported location kind: {kind}")
+
+        questions_and_answers = []
+        reason_used = False
+        for q in event_type.get("custom_questions", []):
+            if not q.get("required"):
+                continue
+            qname = (q.get("name") or "").lower()
+            if "phone" in qname:
+                answer = phone
+            elif not reason_used:
+                answer = reason
+                reason_used = True
+            else:
+                raise RequiredQuestionUnrecognized(f"unrecognized required question: {q.get('name')!r}")
+            questions_and_answers.append({"question": q["name"], "answer": answer, "position": q["position"]})
+
+        local_start = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
+        start_utc = local_start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        resp = await http.post(
+            f"{_API_BASE}/invitees",
+            headers=_headers(token),
+            json={
+                "event_type": event_type["uri"],
+                "start_time": start_utc,
+                "invitee": {"name": name, "email": email, "timezone": str(tz), "text_reminder_number": phone},
+                "location": location,
+                "questions_and_answers": questions_and_answers,
+            },
+        )
+        _raise_with_context(resp)
+        return resp.json()["resource"]
