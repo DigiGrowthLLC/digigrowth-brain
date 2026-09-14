@@ -83,15 +83,15 @@ Baseline behavior (the mandatory rules below can add to this, never loosen it):
 - Only state facts, pricing, offers, or guarantees that are explicitly given to you in the \
 business info below. Never invent or guess at anything you weren't told.
 - The moment the lead wants to book, call check_availability — don't wait for them to name a day \
-first, and don't ask them to pick one blind. It searches forward on its own and returns the \
-earliest real day with two open times on it, which may be a while out — offer exactly those two \
-times as a simple either/or, never a day/time you made up yourself and never more than the two \
-you were given. If it says the calendar isn't connected, ask for their preferred day and time \
-instead. Either way, confirm the agreed time back to them in one message, then call \
-propose_appointment.
-- If the lead can't make either time you offered, call check_availability again with after_date \
+first, and don't ask them to pick one blind. It searches forward on its own and returns real \
+open times on the earliest available day, which may be a while out — offer exactly what it gives \
+you as a simple either/or (or just the one time, on a day with only one opening), never a \
+day/time you made up yourself and never more than what you were given. If it says the calendar \
+isn't connected, ask for their preferred day and time instead. Either way, confirm the agreed \
+time back to them in one message, then call propose_appointment.
+- If the lead can't make the time(s) you offered, call check_availability again with after_date \
 set to the day AFTER the day you just offered — never re-offer the same day, and never repeat the \
-exact same two times you already gave them.
+exact same times you already gave them.
 - If the lead asks for something outside what you were told, seems upset, asks for a refund or \
 files a complaint, or you're not confident how to respond, call escalate_to_human and let them \
 know a team member will follow up.
@@ -104,12 +104,13 @@ _TOOLS = [
         "name": "check_availability",
         "description": (
             "Finds REAL open appointment times on the business's calendar, if connected. Searches "
-            "forward automatically (up to a month out) and returns TWO times on the EARLIEST real "
-            "day it finds — call this as soon as the lead wants to book, even before they've named "
-            "a day, rather than asking them to pick a date first. If the lead already named a day, "
+            "forward automatically (up to a month out) and returns the EARLIEST real day's opening "
+            "and closing slot (its two most spread-apart times, or just the one slot on a day with "
+            "only one) — call this as soon as the lead wants to book, even before they've named a "
+            "day, rather than asking them to pick a date first. If the lead already named a day, "
             "pass it as after_date so the search starts there instead of today. If the lead just "
-            "rejected the two times you already offered, call this again with after_date set to "
-            "the day after that one, so you don't hand back the same day/times again."
+            "rejected the times you already offered, call this again with after_date set to the "
+            "day after that one, so you don't hand back the same day/times again."
         ),
         "input_schema": {
             "type": "object",
@@ -414,12 +415,16 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                     "availability set further out yet. Let the lead know you'll follow up once a "
                     "slot opens, or offer to have a human confirm timing with them."
                 )
-            # Only offer two options, both from the single earliest day —
-            # a longer list (multiple days, or more than two times) reads
-            # as decision paralysis over SMS; two times on one day lets the
-            # lead just reply "A" or "B" instead of juggling dates.
+            # Only offer options from the single earliest day — a longer
+            # list (multiple days) reads as decision paralysis over SMS.
+            # Within that day, offer the EARLIEST and LATEST slot rather
+            # than the first two chronologically: two options 30 minutes
+            # apart aren't a real choice (if the lead can't make 3:00,
+            # they probably can't make 3:30 either), while the day's
+            # opening and closing slots actually differentiate. Falls back
+            # to the single slot itself when that's all there is.
             earliest_day = None
-            times: list[str] = []
+            day_times: list[datetime] = []
             for s in slots:
                 local = datetime.fromisoformat(s["start_time"].replace("Z", "+00:00")).astimezone(tz)
                 day_label = local.strftime("%A, %B %-d")
@@ -427,9 +432,11 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                     earliest_day = day_label
                 if day_label != earliest_day:
                     break
-                times.append(local.strftime("%-I:%M %p"))
-                if len(times) == 2:
-                    break
+                day_times.append(local)
+            if len(day_times) >= 2:
+                times = [day_times[0].strftime("%-I:%M %p"), day_times[-1].strftime("%-I:%M %p")]
+            else:
+                times = [day_times[0].strftime("%-I:%M %p")]
             return f"Earliest real openings (lead's local time): {earliest_day} at {' or '.join(times)}"
         except Exception as e:
             # This failure was previously silent to Dylan — the model just
