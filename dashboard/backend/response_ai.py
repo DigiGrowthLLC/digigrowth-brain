@@ -363,6 +363,13 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             )
             return f"Real open times on {date_str} (lead's local time): {times}"
         except Exception as e:
+            # This failure was previously silent to Dylan — the model just
+            # got a graceful fallback string and asked for a day instead,
+            # which looks identical to "no calendar connected" from the
+            # outside. Logging it is what actually surfaces a bad/under-
+            # scoped token (e.g. Calendly's "Insufficient scope" 403) as
+            # something diagnosable instead of an unexplained behavior gap.
+            print(f"[response_ai] check_availability failed for client={client_id}: {e}", flush=True)
             return f"Couldn't check the calendar ({e}) — ask for their preferred day and time instead."
 
     if tool_name == "propose_appointment":
