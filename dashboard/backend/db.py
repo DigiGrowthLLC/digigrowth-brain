@@ -621,9 +621,17 @@ async def _create_schema(pool: asyncpg.Pool):
             -- agent tries to progress through, not a rigid state machine (it
             -- still answers off-script questions first). See response_ai.py.
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_sequence JSONB NOT NULL DEFAULT '[]';
-            -- Guardrails: 0 delay / NULL max_chars = no limit.
+            -- Guardrails: 0 delay / NULL max_words = no limit. response_ai_max_chars
+            -- (character-based) was replaced by response_ai_max_words (word-based,
+            -- reads more naturally for a length rule) before real use — left in
+            -- place unused rather than dropped.
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_min_delay_seconds INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_max_chars INTEGER;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_max_words INTEGER;
+            -- Freeform "read these before every reply" guardrails, in the
+            -- admin's own words — separate from response_ai_context (the
+            -- business knowledge) so the two don't get muddled together.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_rules TEXT;
             ALTER TABLE client_email_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_channel_last_read_at TIMESTAMPTZ;
         """)
@@ -1008,6 +1016,26 @@ async def _create_schema(pool: asyncpg.Pool):
                 created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE(client_id, phone)
             );
+
+            -- Per-client manual ledger, mirroring the shape of the agency-wide
+            -- `transactions` table above but scoped to one client's own P&L:
+            -- what it costs DigiGrowth to deliver/run the campaign (category
+            -- 'Ad Spend' plus whatever else) against the revenue that client's
+            -- own business generated from it, so client_finance.py can surface
+            -- ROAS (revenue / ad spend) per client instead of only agency-wide
+            -- income vs. expenses.
+            CREATE TABLE IF NOT EXISTS client_transactions (
+                id          SERIAL PRIMARY KEY,
+                client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                date        DATE NOT NULL,
+                description TEXT,
+                amount      NUMERIC(10,2) NOT NULL,
+                is_income   BOOLEAN NOT NULL DEFAULT false,
+                category    TEXT NOT NULL DEFAULT 'Other',
+                notes       TEXT,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_transactions_client ON client_transactions(client_id, date);
         """)
         # Templatize the launch checklist itself: fill in the real,
         # step-by-step setup SOP for SMS/Response AI/Email as each item's

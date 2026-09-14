@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { API } from "../api.js";
 import { SECTIONS } from "../onboardingSections.js";
+import PeriodToggle from "../components/PeriodToggle.jsx";
 
 function OnboardingAnswers({ clientId }) {
   const [detail, setDetail] = useState(null);
@@ -73,10 +78,10 @@ const DETAILS_TABS = [
   { id: "sequences", label: "Sequences" },
   { id: "marketing", label: "Marketing Setup" },
   { id: "agent", label: "Agent" },
+  { id: "finance", label: "Finance" },
   { id: "requests", label: "Requests" },
   { id: "uploads", label: "Uploads" },
   { id: "resources", label: "Resources" },
-  { id: "websites", label: "Websites" },
 ];
 
 function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact }) {
@@ -240,10 +245,10 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
           {detailsTab === "sequences" && <ClientSequences clientId={client.id} />}
           {detailsTab === "marketing" && <ClientMarketingSetup clientId={client.id} />}
           {detailsTab === "agent" && <ClientAgentSetup clientId={client.id} />}
+          {detailsTab === "finance" && <ClientFinance clientId={client.id} />}
           {detailsTab === "requests" && <ClientRequests clientId={client.id} />}
           {detailsTab === "uploads" && <ClientUploads clientId={client.id} />}
           {detailsTab === "resources" && <ClientResources clientId={client.id} />}
-          {detailsTab === "websites" && <ClientWebsites clientId={client.id} />}
         </div>
       )}
     </div>
@@ -941,6 +946,416 @@ function ClientSequences({ clientId }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ---------------- Per-client finance ledger (Finance tab) ----------------
+//
+// What it costs DigiGrowth to deliver/run this client's campaign (ad spend,
+// tools, labor) against the revenue that client's own business generated
+// from it — same manual-ledger shape as FinancesPanel.jsx's agency-wide
+// P&L, just scoped to client_transactions via routers/client_finance.py, so
+// ROAS (revenue / ad spend) can be tracked per client instead of only
+// agency-wide.
+
+const CLIENT_FINANCE_EXPENSE_CATEGORIES = ["Ad Spend", "Software & Tools", "Labor & Fulfillment", "Other"];
+const CLIENT_FINANCE_PERIOD_OPTIONS = [[7, "7D"], [30, "30D"], [90, "90D"], [365, "1Y"]];
+
+function clientFinanceMoney(v) {
+  if (v == null) return "—";
+  return `$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function ClientFinanceTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: "rgba(10,18,48,0.95)", border: "1px solid rgba(58,123,213,0.2)",
+      borderRadius: 10, padding: "8px 14px", fontSize: 12,
+      fontFamily: "'Space Grotesk', sans-serif",
+    }}>
+      <div style={{ color: "#8aaad0", marginBottom: 4 }}>{label}</div>
+      {payload.map((p) => (
+        <div key={p.dataKey} style={{ color: p.color, fontWeight: 600 }}>
+          {p.name}: ${p.value?.toLocaleString()}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ClientFinanceSummaryCard({ label, value, color, sub }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-card-label">{label}</div>
+      <div className="stat-card-value" style={{ color: color || "#f0f4ff" }}>{value ?? "—"}</div>
+      {sub && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function AddClientTransactionModal({ clientId, onClose, onSaved }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({
+    is_income: false,
+    description: "",
+    amount: "",
+    date: today,
+    category: "Ad Spend",
+    notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+
+  const handleSave = async () => {
+    const amt = parseFloat(form.amount);
+    if (!form.amount || isNaN(amt) || amt <= 0) { setError("Enter a valid amount greater than 0."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const resp = await fetch(API(`/clients/${clientId}/finance/transactions`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          is_income: form.is_income,
+          description: form.description.trim() || undefined,
+          amount: amt,
+          date: form.date,
+          category: form.is_income ? "Client Revenue" : form.category,
+          notes: form.notes.trim() || null,
+        }),
+      });
+      if (!resp.ok) { setError(await resp.text()); return; }
+      onSaved(await resp.json());
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
+        backdropFilter: "blur(6px)", zIndex: 1000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+      onClick={onClose}
+    >
+      <div className="glass-card" style={{ width: 440, padding: "28px 32px" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "#f0f4ff", marginBottom: 22 }}>
+          Add Entry
+        </div>
+
+        <div style={{ display: "flex", marginBottom: 20, background: "rgba(10,18,48,0.7)", borderRadius: 10, padding: 4, gap: 4 }}>
+          {[[false, "Expense"], [true, "Client Revenue"]].map(([val, label]) => (
+            <button key={label} onClick={() => set("is_income", val)} style={{
+              flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600,
+              padding: "9px 0", borderRadius: 8, border: "none", cursor: "pointer",
+              background: form.is_income === val
+                ? val ? "linear-gradient(135deg, #0d7a4e, #14c882)" : "linear-gradient(135deg, #7a3a00, #f0a028)"
+                : "transparent",
+              color: form.is_income === val ? "#fff" : "#4a6080",
+              transition: "all 0.15s",
+            }}>{label}</button>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>DESCRIPTION</div>
+          <input
+            className="dg-input" type="text"
+            style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+            placeholder={form.is_income ? "e.g. Attributed sales from campaign…" : "e.g. Meta Ads spend, editor hours…"}
+            value={form.description}
+            onChange={(e) => set("description", e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+          />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>AMOUNT ($)</div>
+            <input
+              className="dg-input" type="number" min="0" step="0.01"
+              style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+              placeholder="0.00"
+              value={form.amount}
+              onChange={(e) => set("amount", e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+            />
+          </div>
+          <div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>DATE</div>
+            <input
+              className="dg-input" type="date"
+              style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+              value={form.date}
+              onChange={(e) => set("date", e.target.value)}
+            />
+          </div>
+        </div>
+
+        {!form.is_income && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>CATEGORY</div>
+            <select
+              className="dg-input"
+              style={{ width: "100%", fontSize: 13 }}
+              value={form.category}
+              onChange={(e) => set("category", e.target.value)}
+            >
+              {CLIENT_FINANCE_EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {form.category === "Ad Spend" && (
+              <div style={{ fontSize: 10, color: "#5a7096", marginTop: 5 }}>
+                Counts as the ROAS denominator for this client.
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>NOTES (OPTIONAL)</div>
+          <input
+            className="dg-input" type="text"
+            style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+            placeholder="Optional note…"
+            value={form.notes}
+            onChange={(e) => set("notes", e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+          />
+        </div>
+
+        {error && (
+          <div style={{
+            marginBottom: 14, padding: "8px 12px", borderRadius: 8,
+            background: "rgba(220,60,60,0.08)", border: "1px solid rgba(220,60,60,0.2)",
+            fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#dc3c3c", letterSpacing: "0.04em",
+          }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} className="btn btn-secondary" style={{ flex: 1, fontSize: 12 }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ flex: 1, fontSize: 12 }}>
+            {saving ? "Saving…" : `Add ${form.is_income ? "Revenue" : "Expense"}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClientFinance({ clientId }) {
+  const [days, setDays] = useState(30);
+  const [summary, setSummary] = useState(null);
+  const [categories, setCategories] = useState(null);
+  const [txns, setTxns] = useState(null);
+  const [txnType, setTxnType] = useState("all");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [expandedTxn, setExpandedTxn] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [hoveredTxn, setHoveredTxn] = useState(null);
+
+  const loadAll = useCallback(async (d = days) => {
+    const [s, c, t] = await Promise.all([
+      fetch(API(`/clients/${clientId}/finance/summary?days=${d}`)).then((x) => (x.ok ? x.json() : null)),
+      fetch(API(`/clients/${clientId}/finance/categories?days=${d}`)).then((x) => (x.ok ? x.json() : null)),
+      fetch(API(`/clients/${clientId}/finance/transactions?days=${d}&type=all&limit=1000`)).then((x) => (x.ok ? x.json() : null)),
+    ]);
+    setSummary(s);
+    setCategories(c);
+    setTxns(t);
+  }, [clientId, days]);
+
+  useEffect(() => { loadAll(days); /* eslint-disable-next-line */ }, [clientId, days]);
+
+  const handleTxnSaved = (newTxn) => {
+    setTxns((prev) => prev ? { ...prev, total: prev.total + 1, transactions: [newTxn, ...prev.transactions] } : { total: 1, transactions: [newTxn] });
+    loadAll();
+  };
+
+  const deleteTxn = async (id) => {
+    setDeletingId(id);
+    try {
+      await fetch(API(`/clients/${clientId}/finance/transactions/${id}`), { method: "DELETE" });
+      setTxns((prev) => prev ? { ...prev, total: prev.total - 1, transactions: prev.transactions.filter((t) => t.id !== id) } : prev);
+      setExpandedTxn(null);
+      loadAll();
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const updateTxn = async (id, patch) => {
+    await fetch(API(`/clients/${clientId}/finance/transactions/${id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    setTxns((prev) => prev ? { ...prev, transactions: prev.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)) } : prev);
+  };
+
+  const filteredTxns = (txns?.transactions ?? []).filter((t) => {
+    if (txnType === "income") return t.is_income;
+    if (txnType === "expense") return !t.is_income;
+    return true;
+  });
+
+  if (!summary) {
+    return (
+      <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>
+    );
+  }
+
+  const roasColor = summary.roas == null ? "#3a5a80" : summary.roas >= 3 ? "#14c882" : summary.roas >= 1 ? "#f0a028" : "#dc3c3c";
+
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 18 }}>
+      {showAddForm && (
+        <AddClientTransactionModal clientId={clientId} onClose={() => setShowAddForm(false)} onSaved={handleTxnSaved} />
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>
+          MANUAL LEDGER · COST TO DELIVER VS. CLIENT-ATTRIBUTED REVENUE
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => setShowAddForm(true)} className="btn btn-primary" style={{ fontSize: 11, padding: "6px 14px" }}>
+            + Add Entry
+          </button>
+          <PeriodToggle days={days} setDays={setDays} options={CLIENT_FINANCE_PERIOD_OPTIONS} />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <ClientFinanceSummaryCard label="Client Revenue" value={clientFinanceMoney(summary.revenue)} color="#14c882" />
+        <ClientFinanceSummaryCard label="Total Expenses" value={clientFinanceMoney(summary.expenses)} color="#f0a028" />
+        <ClientFinanceSummaryCard label="Ad Spend" value={clientFinanceMoney(summary.ad_spend)} color="#6ab0ff" />
+        <ClientFinanceSummaryCard
+          label="ROAS"
+          value={summary.roas != null ? `${summary.roas}x` : "—"}
+          color={roasColor}
+          sub={summary.roas == null ? "NO AD SPEND LOGGED" : summary.roas >= 3 ? "STRONG" : summary.roas >= 1 ? "BREAKEVEN+" : "LOSING MONEY"}
+        />
+      </div>
+
+      <div className="glass-card" style={{ padding: "16px 18px" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: "#d0dcf0", marginBottom: 12 }}>
+          Revenue vs Expenses
+        </div>
+        <ResponsiveContainer width="100%" height={140}>
+          <AreaChart data={categories?.daily ?? []} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+            <defs>
+              <linearGradient id={`cfRevenue-${clientId}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#14c882" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#14c882" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id={`cfExpense-${clientId}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f0a028" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#f0a028" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
+            <XAxis dataKey="date" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }} axisLine={false} tickLine={false}
+              tickFormatter={(v) => (v ? v.slice(5) : "")} />
+            <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
+            <Tooltip content={<ClientFinanceTooltip />} />
+            <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#14c882" strokeWidth={2} fill={`url(#cfRevenue-${clientId})`} />
+            <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f0a028" strokeWidth={2} fill={`url(#cfExpense-${clientId})`} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="glass-card" style={{ padding: "16px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: "#d0dcf0" }}>Entries</div>
+          <div style={{ display: "flex", background: "rgba(10,18,48,0.5)", border: "1px solid rgba(58,123,213,0.1)", borderRadius: 8, padding: 3, gap: 2 }}>
+            {[["all", "ALL"], ["income", "REVENUE"], ["expense", "EXPENSES"]].map(([v, label]) => (
+              <button key={v} onClick={() => setTxnType(v)} style={{
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 9, padding: "4px 12px", letterSpacing: "0.08em",
+                borderRadius: 6, border: "none", cursor: "pointer",
+                background: txnType === v ? "rgba(58,123,213,0.3)" : "transparent",
+                color: txnType === v ? "#6ab0ff" : "#2a4a7a",
+              }}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {filteredTxns.length === 0 ? (
+          <div style={{ padding: "24px 0", textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>
+            NO ENTRIES YET
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {filteredTxns.map((t) => (
+              <div key={t.id} onMouseEnter={() => setHoveredTxn(t.id)} onMouseLeave={() => setHoveredTxn(null)}>
+                <div
+                  onClick={() => setExpandedTxn(expandedTxn === t.id ? null : t.id)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "9px 0", borderBottom: expandedTxn === t.id ? "none" : "0.5px solid #1a2540", cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, marginRight: 12 }}>
+                    <span style={{ fontSize: 12, color: "#8aaad0", fontWeight: 500 }}>{t.description || "—"}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>{t.date}</span>
+                      <span style={{
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8, padding: "2px 6px", borderRadius: 4,
+                        background: "rgba(58,123,213,0.08)", color: "#3a7bd5", letterSpacing: "0.06em",
+                      }}>{t.category}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{
+                      fontFamily: "'Share Tech Mono', monospace", fontSize: 13, fontWeight: 700,
+                      color: t.is_income ? "#14c882" : "#f0a028", letterSpacing: "-0.01em",
+                    }}>
+                      {t.is_income ? "+" : "-"}{clientFinanceMoney(t.amount)}
+                    </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteTxn(t.id); }}
+                      disabled={deletingId === t.id}
+                      style={{
+                        padding: "3px 9px", borderRadius: 5, border: "1px solid rgba(220,60,60,0.25)",
+                        background: "rgba(220,60,60,0.06)", color: "#dc3c3c",
+                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8, cursor: "pointer", letterSpacing: "0.06em",
+                        opacity: deletingId === t.id ? 0.5 : hoveredTxn === t.id ? 1 : 0,
+                        transition: "opacity 0.15s", pointerEvents: hoveredTxn === t.id ? "auto" : "none",
+                      }}
+                    >
+                      {deletingId === t.id ? "…" : "✕"}
+                    </button>
+                  </div>
+                </div>
+
+                {expandedTxn === t.id && (
+                  <div style={{ padding: "10px 12px", background: "rgba(10,18,48,0.4)", borderBottom: "0.5px solid #1a2540", display: "flex", gap: 10, alignItems: "center" }}>
+                    <select
+                      value={t.category}
+                      onChange={(e) => updateTxn(t.id, { category: e.target.value })}
+                      className="dg-input"
+                      style={{ fontSize: 11, padding: "5px 8px", flex: "0 0 auto" }}
+                    >
+                      {(t.is_income ? ["Client Revenue"] : CLIENT_FINANCE_EXPENSE_CATEGORIES).map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <input
+                      className="dg-input" style={{ flex: 1, fontSize: 11 }} placeholder="Add note…"
+                      defaultValue={t.notes || ""} onBlur={(e) => updateTxn(t.id, { notes: e.target.value })}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1658,13 +2073,17 @@ function AgentSequenceEditor({ config, onSaveFields }) {
   );
 }
 
-// Behavioral guardrails enforced in response_ai.py itself (not just prompt
-// suggestions) — a reply delay (deferred via scheduler_registry so the
-// Twilio webhook never blocks on it) and a hard character cap (enforced
-// both as a prompt instruction and a truncation fallback).
+// Behavioral guardrails. Two are actually enforced in code (not just prompt
+// suggestions): the reply delay (deferred via scheduler_registry so the
+// Twilio webhook never blocks on it) and a hard word-count cap (enforced
+// both as a prompt instruction and a truncation fallback in response_ai.py).
+// Everything else is freeform text the admin writes, which the agent is
+// told to read before every reply — same "AI reads it, doesn't just
+// display it" pattern as response_ai_context.
 function AgentRulesEditor({ config, onSaveFields }) {
   const [minDelay, setMinDelay] = useState(config?.response_ai_min_delay_seconds ?? 0);
-  const [maxChars, setMaxChars] = useState(config?.response_ai_max_chars ?? "");
+  const [maxWords, setMaxWords] = useState(config?.response_ai_max_words ?? "");
+  const [rules, setRules] = useState(config?.response_ai_rules || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -1675,7 +2094,8 @@ function AgentRulesEditor({ config, onSaveFields }) {
     setSaveError("");
     const result = await onSaveFields({
       response_ai_min_delay_seconds: Number(minDelay) || 0,
-      response_ai_max_chars: maxChars === "" ? null : Number(maxChars),
+      response_ai_max_words: maxWords === "" ? null : Number(maxWords),
+      response_ai_rules: rules.trim() || null,
     });
     setSaving(false);
     if (result?.ok) setSaved(true); else setSaveError(result?.error || "Save failed");
@@ -1683,31 +2103,41 @@ function AgentRulesEditor({ config, onSaveFields }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>
-          MINIMUM DELAY BEFORE REPLYING (SECONDS)
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>
+            MIN DELAY BEFORE REPLYING (SECONDS)
+          </div>
+          <input
+            type="number" min="0" className="dg-input" style={{ fontSize: 12, width: 120 }}
+            value={minDelay}
+            onChange={(e) => { setMinDelay(e.target.value); setSaved(false); setSaveError(""); }}
+          />
         </div>
-        <input
-          type="number" min="0" className="dg-input" style={{ fontSize: 12, width: 140 }}
-          value={minDelay}
-          onChange={(e) => { setMinDelay(e.target.value); setSaved(false); setSaveError(""); }}
-        />
-        <div style={{ marginTop: 3, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
-          0 = reply immediately. A delay makes it feel less like an instant bot response.
+        <div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>
+            MAX WORDS PER TEXT
+          </div>
+          <input
+            type="number" min="1" className="dg-input" style={{ fontSize: 12, width: 120 }}
+            value={maxWords} placeholder="no limit"
+            onChange={(e) => { setMaxWords(e.target.value); setSaved(false); setSaveError(""); }}
+          />
         </div>
+      </div>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
+        Both are actually enforced — the delay is scheduled server-side, and the word cap is hard-truncated even if the AI runs long.
       </div>
       <div>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>
-          MAX CHARACTERS PER TEXT
+          ADDITIONAL RULES (the agent reads this before every reply)
         </div>
-        <input
-          type="number" min="1" className="dg-input" style={{ fontSize: 12, width: 140 }}
-          value={maxChars} placeholder="no limit"
-          onChange={(e) => { setMaxChars(e.target.value); setSaved(false); setSaveError(""); }}
+        <textarea
+          className="dg-input" rows={8} style={{ fontSize: 12, width: "100%", boxSizing: "border-box", resize: "vertical" }}
+          value={rules}
+          onChange={(e) => { setRules(e.target.value); setSaved(false); setSaveError(""); }}
+          placeholder={"e.g. Never mention competitors by name. Always use the lead's first name if known. If they ask about a refund, escalate immediately rather than answering."}
         />
-        <div style={{ marginTop: 3, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
-          Leave blank for no limit. Enforced as a hard cutoff even if the AI runs long.
-        </div>
       </div>
       <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
         {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
@@ -2409,123 +2839,6 @@ function ClientResources({ clientId }) {
   );
 }
 
-function WebsiteRow({ site, onDelete }) {
-  return (
-    <div style={{ padding: "12px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff" }}>{site.label}</div>
-          <a href={site.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#3a7bd5", wordBreak: "break-all" }}>{site.url}</a>
-        </div>
-        <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(site.id)}>DELETE</button>
-      </div>
-      <div style={{ display: "flex", gap: 18, marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-        <div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>VIEWS</div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#c8d8f0" }}>{site.views}</div>
-        </div>
-        <div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>CONSULT REQUESTS</div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#4ade80" }}>{site.conversions}</div>
-        </div>
-        <div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>CONVERSION RATE</div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#c8d8f0" }}>{site.conversion_rate}%</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Websites/funnels built for this client (e.g. via design-agent's
-// funnel-building skill) — shown to the client themselves under their
-// portal's own "Website" tab, stats included. Same add/list/delete shape
-// as ClientResources above, but a dedicated table (client_websites)
-// rather than the generic label/value resource bucket, since a website
-// needs real view/conversion stats attached, not just a stored link.
-function ClientWebsites({ clientId }) {
-  const [sites, setSites] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ label: "", url: "" });
-  const [saving, setSaving] = useState(false);
-
-  const load = async () => {
-    const r = await fetch(API(`/clients/${clientId}/websites`));
-    if (r.ok) setSites(await r.json());
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
-
-  const addSite = async () => {
-    if (!form.label.trim() || !form.url.trim()) return;
-    setSaving(true);
-    await fetch(API(`/clients/${clientId}/websites`), {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label: form.label.trim(), url: form.url.trim(), sort_order: sites.length }),
-    });
-    setForm({ label: "", url: "" });
-    setShowForm(false);
-    setSaving(false);
-    load();
-  };
-
-  const removeSite = async (id) => {
-    if (!window.confirm("Remove this website from the client's portal?")) return;
-    await fetch(API(`/clients/${clientId}/websites/${id}`), { method: "DELETE" });
-    load();
-  };
-
-  if (loading) {
-    return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
-  }
-
-  return (
-    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 12, lineHeight: 1.5 }}>
-        Websites/funnels built for this client — shown to them in their own portal's Website
-        tab, with view/conversion stats. Add the live URL once it's deployed (see the
-        funnel-building skill's step 6). Stats populate automatically once the page's
-        tracking snippet starts reporting real traffic.
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 0 8px" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.08em" }}>
-          WEBSITES
-        </div>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowForm((s) => !s)}>
-          {showForm ? "CANCEL" : "+ ADD"}
-        </button>
-      </div>
-
-      {showForm && (
-        <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8, display: "flex", flexDirection: "column", gap: 8 }}>
-          <input
-            className="dg-input" placeholder="Label, e.g. Meta Ads Funnel" value={form.label}
-            onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} autoFocus
-          />
-          <input
-            className="dg-input" placeholder="https://funnel.clientdomain.com" value={form.url}
-            onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={addSite} disabled={saving || !form.label.trim() || !form.url.trim()}>
-              {saving ? "SAVING…" : "SAVE WEBSITE"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {sites.length === 0 && !showForm && (
-        <div style={{ padding: "16px 0", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
-          NO WEBSITES ADDED YET
-        </div>
-      )}
-      {sites.map((s) => <WebsiteRow key={s.id} site={s} onDelete={removeSite} />)}
-    </div>
-  );
-}
 
 export default function ClientsPanel() {
   const [clients, setClients] = useState([]);

@@ -182,6 +182,20 @@ class ClientWebsiteUpdate(BaseModel):
     sort_order: Optional[int] = None
 
 
+class ClientTransactionCreate(BaseModel):
+    date: str
+    description: Optional[str] = None
+    amount: float
+    is_income: bool = False
+    category: str = "Other"
+    notes: Optional[str] = None
+
+
+class ClientTransactionUpdate(BaseModel):
+    category: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class ClientLinkContact(BaseModel):
     contact_id: Optional[str] = None
 
@@ -199,7 +213,8 @@ class ClientMarketingConfigUpdate(BaseModel):
     response_ai_context: Optional[str] = None
     response_ai_sequence: Optional[list] = None
     response_ai_min_delay_seconds: Optional[int] = None
-    response_ai_max_chars: Optional[int] = None
+    response_ai_max_words: Optional[int] = None
+    response_ai_rules: Optional[str] = None
     landing_page_url: Optional[str] = None
     ad_creative_status: Optional[dict] = None
     guide_progress: Optional[dict] = None

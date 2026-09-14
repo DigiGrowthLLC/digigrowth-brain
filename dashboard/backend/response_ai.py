@@ -150,7 +150,9 @@ async def _load_recent_messages(conn, client_id: int, phone: str) -> list[dict]:
     ]
 
 
-def _build_system_prompt(business_name: str, context: str, sequence: list[str], max_chars: int | None) -> str:
+def _build_system_prompt(
+    business_name: str, context: str, sequence: list[str], max_words: int | None, rules: str,
+) -> str:
     parts = [_SYSTEM_PREAMBLE]
     if sequence:
         steps = "\n".join(f"{i+1}. {step}" for i, step in enumerate(sequence) if step and step.strip())
@@ -159,8 +161,13 @@ def _build_system_prompt(business_name: str, context: str, sequence: list[str], 
             "the lead's own questions first, then steer back toward whichever of these is next):\n"
             f"{steps}\n"
         )
-    if max_chars:
-        parts.append(f"\nHard limit: every reply must be {max_chars} characters or fewer.\n")
+    if max_words:
+        parts.append(f"\nHard limit: every reply must be {max_words} words or fewer.\n")
+    if rules and rules.strip():
+        parts.append(
+            "\nRules — read these before every reply and make sure you follow them:\n"
+            f"{rules.strip()}\n"
+        )
     parts.append(f"\n--- Business: {business_name} ---\n{context.strip()}\n")
     return "".join(parts)
 
@@ -178,8 +185,8 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
         pool = await get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT cmc.response_ai_context, cmc.response_ai_sequence, cmc.response_ai_max_chars, "
-                "c.name FROM client_marketing_config cmc "
+                "SELECT cmc.response_ai_context, cmc.response_ai_sequence, cmc.response_ai_max_words, "
+                "cmc.response_ai_rules, c.name FROM client_marketing_config cmc "
                 "JOIN clients c ON c.id = cmc.client_id WHERE cmc.client_id = $1",
                 client_id,
             )
@@ -197,17 +204,19 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
         sequence = row["response_ai_sequence"]
         if isinstance(sequence, str):
             sequence = json.loads(sequence)
-        max_chars = row["response_ai_max_chars"]
+        max_words = row["response_ai_max_words"]
 
-        system_prompt = _build_system_prompt(row["name"], row["response_ai_context"] or "", sequence or [], max_chars)
+        system_prompt = _build_system_prompt(
+            row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
+        )
         reply_text = await _run_agent_turn(client_id, from_phone, system_prompt, messages)
         if reply_text:
-            if max_chars and len(reply_text) > max_chars:
+            words = reply_text.split()
+            if max_words and len(words) > max_words:
                 # Belt-and-suspenders — the prompt already instructs the
                 # limit, this just guarantees it's never violated even if
-                # the model ignores it. Cut at the last full word so it
-                # doesn't end mid-word.
-                reply_text = reply_text[:max_chars].rsplit(" ", 1)[0].rstrip()
+                # the model ignores it.
+                reply_text = " ".join(words[:max_words])
             await client_sms.send_client_sms(client_id, from_phone, reply_text)
     except Exception as e:
         print(f"[response_ai] handle_inbound_sms failed for client={client_id} phone={from_phone}: {e}")
