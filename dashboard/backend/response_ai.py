@@ -289,6 +289,10 @@ def _build_system_prompt(
             "\n--- Conversation arc to aim for ---\n"
             "Loose guidance, not a script — always answer the lead's own questions first, then "
             f"steer back toward whichever of these is next:\n{steps}\n"
+            "\nIf a step above mentions several things worth asking about, that's a menu, not a "
+            "checklist to work through at once — pick the single most natural one for THIS text and "
+            "save the rest for a later message. Two things joined with \"and\" is still two "
+            "questions in one text, whether or not each one ends in a question mark.\n"
         )
 
     if max_words or (rules and rules.strip()):
