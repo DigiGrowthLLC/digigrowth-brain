@@ -89,6 +89,9 @@ times as a simple either/or, never a day/time you made up yourself and never mor
 you were given. If it says the calendar isn't connected, ask for their preferred day and time \
 instead. Either way, confirm the agreed time back to them in one message, then call \
 propose_appointment.
+- If the lead can't make either time you offered, call check_availability again with after_date \
+set to the day AFTER the day you just offered — never re-offer the same day, and never repeat the \
+exact same two times you already gave them.
 - If the lead asks for something outside what you were told, seems upset, asks for a refund or \
 files a complaint, or you're not confident how to respond, call escalate_to_human and let them \
 know a team member will follow up.
@@ -104,7 +107,9 @@ _TOOLS = [
             "forward automatically (up to a month out) and returns TWO times on the EARLIEST real "
             "day it finds — call this as soon as the lead wants to book, even before they've named "
             "a day, rather than asking them to pick a date first. If the lead already named a day, "
-            "pass it as after_date so the search starts there instead of today."
+            "pass it as after_date so the search starts there instead of today. If the lead just "
+            "rejected the two times you already offered, call this again with after_date set to "
+            "the day after that one, so you don't hand back the same day/times again."
         ),
         "input_schema": {
             "type": "object",
