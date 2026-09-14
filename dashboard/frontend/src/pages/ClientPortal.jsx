@@ -2184,7 +2184,22 @@ function InboxThread({ token, contactId, onSent }) {
     setLoading(false);
   };
 
+  // Background refetch for new messages arriving mid-conversation (e.g. the
+  // response AI's reply) without a full page reload. Skips setLoading so
+  // it doesn't flash "LOADING..." over an already-open thread every tick,
+  // and leaves the draft box alone — only the message list updates.
+  const refreshSilently = async () => {
+    const r = await fetch(`/portal-api/${token}/inbox/${contactId}`);
+    if (r.ok) setThread(await r.json());
+  };
+
   useEffect(() => { setNotice(null); setDraft(""); load(); /* eslint-disable-next-line */ }, [token, contactId]);
+
+  useEffect(() => {
+    const id = setInterval(refreshSilently, 6000);
+    return () => clearInterval(id);
+    /* eslint-disable-next-line */
+  }, [token, contactId]);
 
   const send = async () => {
     if (!draft.trim()) return;
@@ -2417,11 +2432,28 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
     setLoading(false);
   };
 
+  // Same background refetch as InboxThread — new leads texting/emailing in
+  // (or the response AI's reply landing) should surface here without the
+  // client having to reload the page. Skips setLoading to avoid flashing
+  // "LOADING..." over an already-populated list every tick.
+  const refreshSilently = async () => {
+    const params = new URLSearchParams({ channel: channelFilter, since: sinceFilter });
+    if (tagFilter) params.set("tag", tagFilter);
+    const r = await fetch(`/portal-api/${token}/inbox?${params.toString()}`);
+    if (r.ok) setConvos(await r.json());
+  };
+
   useEffect(() => {
     fetch(`/portal-api/${token}/tags`).then((r) => r.ok && r.json()).then((d) => d && setAllTags(d));
     /* eslint-disable-next-line */
   }, [token]);
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [token, channelFilter, sinceFilter, tagFilter]);
+
+  useEffect(() => {
+    const id = setInterval(refreshSilently, 10000);
+    return () => clearInterval(id);
+    /* eslint-disable-next-line */
+  }, [token, channelFilter, sinceFilter, tagFilter]);
 
   // Jumped here from a lead's "Message" button — open that contact's
   // thread directly even if it has no prior messages yet (InboxThread/the
