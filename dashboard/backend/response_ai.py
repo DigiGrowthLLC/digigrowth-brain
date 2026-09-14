@@ -84,10 +84,11 @@ Baseline behavior (the mandatory rules below can add to this, never loosen it):
 business info below. Never invent or guess at anything you weren't told.
 - The moment the lead wants to book, call check_availability — don't wait for them to name a day \
 first, and don't ask them to pick one blind. It searches forward on its own and returns the \
-earliest real openings, which may be a while out — offer exactly those (grouped by day if it \
-returns more than one), never a day/time you made up yourself. If it says the calendar isn't \
-connected, ask for their preferred day and time instead. Either way, confirm the agreed time back \
-to them in one message, then call propose_appointment.
+earliest real day with two open times on it, which may be a while out — offer exactly those two \
+times as a simple either/or, never a day/time you made up yourself and never more than the two \
+you were given. If it says the calendar isn't connected, ask for their preferred day and time \
+instead. Either way, confirm the agreed time back to them in one message, then call \
+propose_appointment.
 - If the lead asks for something outside what you were told, seems upset, asks for a refund or \
 files a complaint, or you're not confident how to respond, call escalate_to_human and let them \
 know a team member will follow up.
@@ -100,10 +101,10 @@ _TOOLS = [
         "name": "check_availability",
         "description": (
             "Finds REAL open appointment times on the business's calendar, if connected. Searches "
-            "forward automatically (up to a month out) and returns the EARLIEST real openings it "
-            "finds — call this as soon as the lead wants to book, even before they've named a day, "
-            "rather than asking them to pick a date first. If the lead already named a day, pass it "
-            "as after_date so the search starts there instead of today."
+            "forward automatically (up to a month out) and returns TWO times on the EARLIEST real "
+            "day it finds — call this as soon as the lead wants to book, even before they've named "
+            "a day, rather than asking them to pick a date first. If the lead already named a day, "
+            "pass it as after_date so the search starts there instead of today."
         ),
         "input_schema": {
             "type": "object",
@@ -395,16 +396,23 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                     "availability set further out yet. Let the lead know you'll follow up once a "
                     "slot opens, or offer to have a human confirm timing with them."
                 )
-            # Slots can span several different days (the earliest open window
-            # might be two-plus weeks out) — group by date so "the 17th at
-            # 10am or 2pm, or the 22nd at 9am" reads clearly instead of a
-            # flat list of times with no day attached.
-            by_date: dict[str, list[str]] = {}
+            # Only offer two options, both from the single earliest day —
+            # a longer list (multiple days, or more than two times) reads
+            # as decision paralysis over SMS; two times on one day lets the
+            # lead just reply "A" or "B" instead of juggling dates.
+            earliest_day = None
+            times: list[str] = []
             for s in slots:
                 local = datetime.fromisoformat(s["start_time"].replace("Z", "+00:00")).astimezone(tz)
-                by_date.setdefault(local.strftime("%A, %B %-d"), []).append(local.strftime("%-I:%M %p"))
-            lines = [f"{day}: {', '.join(times[:4])}" for day, times in list(by_date.items())[:3]]
-            return "Earliest real openings (lead's local time):\n" + "\n".join(lines)
+                day_label = local.strftime("%A, %B %-d")
+                if earliest_day is None:
+                    earliest_day = day_label
+                if day_label != earliest_day:
+                    break
+                times.append(local.strftime("%-I:%M %p"))
+                if len(times) == 2:
+                    break
+            return f"Earliest real openings (lead's local time): {earliest_day} at {' or '.join(times)}"
         except Exception as e:
             # This failure was previously silent to Dylan — the model just
             # got a graceful fallback string and asked for a day instead,
