@@ -216,6 +216,7 @@ class ClientMarketingConfigUpdate(BaseModel):
     response_ai_max_words: Optional[int] = None
     response_ai_rules: Optional[str] = None
     landing_page_url: Optional[str] = None
+    meta_pixel_id: Optional[str] = None
     ad_creative_status: Optional[dict] = None
     guide_progress: Optional[dict] = None
 

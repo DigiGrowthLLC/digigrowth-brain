@@ -22,6 +22,16 @@ Ask if not already given:
 2. **Avatar(s)/angle(s)** — who this ad is for. If Dylan hasn't picked one, propose 2-3 narrow
    avatar/angle options per `context/ad-creative-principles.md`'s "go niche" guidance rather than
    defaulting to something broad.
+2a. **Funnel stage — top or bottom** (per the "Only 2 Ad Creative Formats" section of `context/ad-
+   creative-principles.md`): every concept must be explicitly one or the other, never a vague
+   in-between ad.
+   - **Top of funnel** = problem + solution, for an avatar who doesn't know your product yet. Build
+     the angle from the avatar's list of problems (the Avatar Framework).
+   - **Bottom of funnel** = one specific objection (usually price, unless Dylan names another), for
+     an avatar who already knows the product but hasn't converted. Address only that one objection —
+     don't restate the full pitch.
+   - If Dylan doesn't specify, default to producing one of each rather than a single ad that tries to
+     do both.
 3. **New concept vs. iteration** (per the "Post-Andromeda" section of `context/ad-creative-
    principles.md`) — clarify which mode this request is:
    - **Default / most requests**: Dylan wants fresh creative to test → produce **new concepts**

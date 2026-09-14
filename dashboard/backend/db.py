@@ -632,6 +632,7 @@ async def _create_schema(pool: asyncpg.Pool):
             -- admin's own words — separate from response_ai_context (the
             -- business knowledge) so the two don't get muddled together.
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_rules TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS meta_pixel_id TEXT;
             ALTER TABLE client_email_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_channel_last_read_at TIMESTAMPTZ;
         """)
@@ -908,6 +909,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 appointwise_agent_id   TEXT,
                 appointwise_webhook_url TEXT,
                 landing_page_url       TEXT,
+                meta_pixel_id          TEXT,
                 ad_creative_status     JSONB NOT NULL DEFAULT '{}',
                 updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
             );
