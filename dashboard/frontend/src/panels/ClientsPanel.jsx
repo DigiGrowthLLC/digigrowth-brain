@@ -1774,6 +1774,9 @@ const MARKETING_GUIDES = {
     title: "Create Paid Ad Creatives",
     steps: [
       { text: "Use the ad-copy skill (content-agent) to write the ad copy/hook/CTA." },
+      { text: "Set up the Meta Pixel before running anything: create (or open) the client's pixel in Business Manager → Events Manager, then install the pixel base code plus Lead/Purchase standard events on their landing page. Do this before spending any budget — without it, none of the ad spend is trackable and Analytics' ad-spend fields have nothing to attribute to.", link: "https://business.facebook.com/events_manager2/list/pixel/", linkLabel: "Meta Events Manager",
+        fields: [{ key: "meta_pixel_id", label: "Pixel ID", placeholder: "1234567890123456" }] },
+      { text: "Verify the pixel is actually firing (base PageView + the Lead/Purchase events) using the Meta Pixel Helper browser extension on the live landing page before moving on." },
       { text: "Not yet automated for visuals — see the automation note below this guide. For now: produce the image/video manually using the copy above." },
       { text: "Upload the finished creative directly into the client's ad account.", link: "https://business.facebook.com/adsmanager", linkLabel: "Meta Ads Manager" },
     ],
@@ -2149,6 +2152,58 @@ function AgentRulesEditor({ config, onSaveFields }) {
   );
 }
 
+// Wipes a test phone number's conversation state (client_lead_conversations
+// row + client_sms_messages history) so re-texting the client's number
+// starts response_ai.py fresh — no escalated/booked state or prior message
+// context left over from an earlier test run.
+function AgentResetTest({ clientId }) {
+  const [phone, setPhone] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const reset = async () => {
+    if (!phone.trim()) return;
+    setResetting(true);
+    setResult(null);
+    setError("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/response-ai/reset-test?phone=${encodeURIComponent(phone.trim())}`), { method: "POST" });
+      if (!r.ok) {
+        const detail = await r.json().catch(() => null);
+        throw new Error(detail?.detail || "Failed to reset");
+      }
+      setResult(await r.json());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          className="dg-input" style={{ fontSize: 12, flex: 1 }} placeholder="+15551234567"
+          value={phone} onChange={(e) => { setPhone(e.target.value); setResult(null); setError(""); }}
+        />
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={reset} disabled={resetting || !phone.trim()}>
+          {resetting ? "RESETTING…" : "RESET"}
+        </button>
+      </div>
+      {result && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4ade80" }}>
+          Reset ✓ — cleared conversation state and {result.messages_deleted} message{result.messages_deleted === 1 ? "" : "s"}. Text the number again to start fresh.
+        </div>
+      )}
+      {error && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{error}</div>
+      )}
+    </div>
+  );
+}
+
 // Dedicated "Agent" tab — the self-built response_ai.py agent's full admin
 // surface (context, sequence, rules) in one place, rather than buried
 // inside the Marketing Setup guide's checklist. Fetches/saves through the
@@ -2218,6 +2273,11 @@ function ClientAgentSetup({ clientId }) {
         "Rules",
         "Behavioral guardrails, enforced by the agent itself — not just suggestions.",
         <AgentRulesEditor config={config} onSaveFields={saveFields} />
+      )}
+      {section(
+        "Testing",
+        "Wipe a test number's conversation state to start the agent fresh — no escalated/booked status or old message history carried over.",
+        <AgentResetTest clientId={clientId} />
       )}
       {error && (
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{error}</div>

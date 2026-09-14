@@ -16,7 +16,7 @@ the per-client start/status endpoints (start-warmup, warmup-status) below.
 """
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 import client_email
 import client_sms
@@ -168,6 +168,29 @@ async def get_email_warmup_status(client_id: int):
         if not client:
             raise HTTPException(404, "Client not found")
     return await email_warmup.get_status(client_id)
+
+
+@router.post("/clients/{client_id}/response-ai/reset-test")
+async def reset_response_ai_test(client_id: int, phone: str = Query(...)):
+    """Testing convenience: wipes the client_lead_conversations row and that
+    phone's client_sms_messages history for this client, so re-texting the
+    number starts response_ai.py fresh — no escalated/booked state or prior
+    message context carried over from an earlier test run."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(404, "Client not found")
+        await conn.execute(
+            "DELETE FROM client_lead_conversations WHERE client_id = $1 AND phone = $2",
+            client_id, phone,
+        )
+        deleted = await conn.fetchval(
+            "WITH d AS (DELETE FROM client_sms_messages WHERE client_id = $1 "
+            "AND (from_number = $2 OR to_number = $2) RETURNING id) SELECT count(*) FROM d",
+            client_id, phone,
+        )
+    return {"ok": True, "messages_deleted": deleted}
 
 
 @router.post("/clients/{client_id}/marketing-config/generate-response-ai-context")
