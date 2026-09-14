@@ -1230,3 +1230,51 @@ async def _create_schema(pool: asyncpg.Pool):
             """,
             _calendly_admin_title, _calendly_admin_description, _calendly_admin_guide_url,
         )
+
+        # booked_at: a permanent record of "an appointment was booked from
+        # this conversation", separate from `disposition`. Analytics'
+        # Booked count used to read disposition='booked' directly, but
+        # disposition is a single current-status field a rep can overwrite
+        # later (e.g. closing a no-show thread as 'not_interested' after
+        # the prospect ghosts) — which silently erased that conversation's
+        # booked credit even though the appointment genuinely happened.
+        # See routers/analytics.py's booked-count queries and
+        # routers/appointments.py's booking handler, which now stamps this
+        # column instead of relying on disposition alone.
+        await conn.execute("ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS booked_at TIMESTAMPTZ")
+        await conn.execute("ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS booked_at TIMESTAMPTZ")
+        # Backfill 1: conversations currently sitting at disposition='booked'
+        # — updated_at is the closest proxy for when that happened, matching
+        # how the old disposition-based query was already windowed.
+        await conn.execute(
+            "UPDATE sms_conversations SET booked_at = updated_at WHERE disposition = 'booked' AND booked_at IS NULL"
+        )
+        await conn.execute(
+            "UPDATE email_conversations SET booked_at = updated_at WHERE disposition = 'booked' AND booked_at IS NULL"
+        )
+        # Backfill 2: conversations whose contact has a real appointment on
+        # the books but whose disposition was since overwritten (the exact
+        # case above) — recover booked_at from the appointment itself
+        # rather than losing the credit. Only fills rows backfill 1 missed.
+        await conn.execute(
+            """
+            UPDATE sms_conversations sc SET booked_at = ar.first_booked_at
+            FROM (
+                SELECT contact_id, MIN(created_at) AS first_booked_at
+                FROM appointment_reminders WHERE contact_id IS NOT NULL
+                GROUP BY contact_id
+            ) ar
+            WHERE ar.contact_id = sc.contact_id AND sc.booked_at IS NULL
+            """
+        )
+        await conn.execute(
+            """
+            UPDATE email_conversations ec SET booked_at = ar.first_booked_at
+            FROM (
+                SELECT contact_id, MIN(created_at) AS first_booked_at
+                FROM appointment_reminders WHERE contact_id IS NOT NULL
+                GROUP BY contact_id
+            ) ar
+            WHERE ar.contact_id = ec.contact_id AND ec.booked_at IS NULL
+            """
+        )

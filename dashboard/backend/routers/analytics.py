@@ -404,10 +404,13 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     where every touch in the window is a legitimate opportunity to reply,
     not just the first one.
 
-    Booked/Not Interested are windowed by sms_conversations.updated_at
+    Booked is windowed by sms_conversations.booked_at — stamped once when a
+    booking happens and never cleared, so a later disposition change (e.g.
+    closing the thread as not_interested after a no-show ghosts) can't
+    erase the booked credit. Not Interested still windows on updated_at
     (bumped when disposition is set) — an approximation, since updated_at
-    bumps on other edits too, not just a disposition change, but a
-    disposition set is rare enough after the fact that this is close enough.
+    bumps on other edits too, but a disposition set is rare enough after
+    the fact that this is close enough.
     """
     if campaign_id is not None:
         contacted_row = await conn.fetchrow(
@@ -487,7 +490,7 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
                 COUNT(*) FILTER (WHERE stage_interested   AND ($2::timestamptz IS NULL
                                                                 OR stage_interested_at >= $2
                                                                 OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS interested,
-                COUNT(*) FILTER (WHERE disposition = 'booked'         AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS booked,
+                COUNT(*) FILTER (WHERE booked_at IS NOT NULL          AND ($2::timestamptz IS NULL OR booked_at >= $2)) AS booked,
                 COUNT(*) FILTER (WHERE disposition = 'not_interested' AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS not_interested
             FROM sms_conversations sc
             WHERE campaign_id = $1
@@ -524,14 +527,17 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     msg_filter = "AND NOT is_automated" + (" AND sent_at >= $1" if since else "")
     params = [since] if since else []
 
-    # Windowed by updated_at (bumped when disposition is set), not created_at
-    # (when the conversation first started) — same fix as _email_metrics
-    # below, whose comment explains why: a booking that lands in this period
-    # must show up even if the contact was first texted before the window
-    # started. Using created_at here meant a booking on a conversation that
-    # started outside the window never counted, no matter how recent the
-    # booking itself was.
-    booked_filter = "AND updated_at >= $1" if since else ""
+    # Not Interested is windowed by updated_at (bumped when disposition is
+    # set), not created_at (when the conversation first started) — same fix
+    # as _email_metrics below, whose comment explains why: a disposition
+    # change that lands in this period must show up even if the contact was
+    # first texted before the window started. Using created_at here meant a
+    # disposition change on a conversation that started outside the window
+    # never counted, no matter how recent the change itself was. Booked
+    # uses its own booked_at column instead (see _sms_metrics' docstring)
+    # so it isn't affected by a later disposition change at all.
+    booked_filter = "AND booked_at >= $1" if since else ""
+    not_interested_filter = "AND updated_at >= $1" if since else ""
 
     # Total Outreach — each phone's first-ever non-automated outbound
     # message only (MIN(sent_at) across all history), not every message —
@@ -626,12 +632,12 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     interested  = await _stage_count_with_activity_fallback("stage_interested")
 
     booked = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='booked' {booked_filter}",
+        f"SELECT COUNT(*) FROM sms_conversations WHERE booked_at IS NOT NULL {booked_filter}",
         *params,
     )
 
     not_interested = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='not_interested' {booked_filter}",
+        f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='not_interested' {not_interested_filter}",
         *params,
     )
 
@@ -693,12 +699,14 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
 
     if campaign_id is not None:
         params = [campaign_id, since] if since else [campaign_id]
-        booked_filter = "AND campaign_id = $1" + (" AND updated_at >= $2" if since else "")
+        booked_filter = "AND campaign_id = $1" + (" AND booked_at >= $2" if since else "")
+        not_interested_filter = "AND campaign_id = $1" + (" AND updated_at >= $2" if since else "")
         unsub_filter = ""  # unsubscribes are tracked on contacts, not per-conversation — no clean campaign scope
         unsub_params = []
     else:
         params = [since] if since else []
-        booked_filter = "AND updated_at >= $1" if since else ""
+        booked_filter = "AND booked_at >= $1" if since else ""
+        not_interested_filter = "AND updated_at >= $1" if since else ""
         unsub_filter = "AND opted_out_at >= $1" if since else ""
         unsub_params = params
 
@@ -746,17 +754,22 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         replied_threads = {r["thread_id"] for r in reply_rows}
         replied = sum(1 for r in initial_rows if r["thread_id"] in replied_threads)
 
-    # Windowed by updated_at (bumped when disposition is set — see
-    # email_inbox.py's close-conversation handler), not created_at (when the
-    # thread first started), so a booking that lands in this period shows up
-    # here even if the contact was first emailed before the window started.
+    # Booked is windowed by email_conversations.booked_at — stamped once
+    # when a booking happens and never cleared, so a later disposition
+    # change (e.g. closing the thread as not_interested) can't erase the
+    # booked credit (same fix as _sms_metrics — see its docstring). Not
+    # Interested still windows on updated_at (bumped when disposition is
+    # set — see email_inbox.py's close-conversation handler), not
+    # created_at (when the thread first started), so a disposition change
+    # that lands in this period shows up even if the contact was first
+    # emailed before the window started.
     booked_total = await conn.fetchval(
-        f"SELECT COUNT(*) FROM email_conversations WHERE disposition='booked' {booked_filter}",
+        f"SELECT COUNT(*) FROM email_conversations WHERE booked_at IS NOT NULL {booked_filter}",
         *params,
     )
 
     not_interested = await conn.fetchval(
-        f"SELECT COUNT(*) FROM email_conversations WHERE disposition='not_interested' {booked_filter}",
+        f"SELECT COUNT(*) FROM email_conversations WHERE disposition='not_interested' {not_interested_filter}",
         *params,
     )
 

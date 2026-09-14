@@ -206,15 +206,22 @@ async def create_appointment_row(payload: dict) -> dict:
         try:
             pool = await get_pool()
             async with pool.acquire() as conn:
+                # booked_at is stamped alongside disposition and never
+                # cleared — it's the permanent "this really got booked"
+                # record Analytics' Booked count reads (see
+                # routers/analytics.py), so a later disposition change
+                # (e.g. closing the thread as not_interested after a
+                # no-show ghosts) can't erase the booked credit the way
+                # relying on disposition alone used to.
                 if channel == "sms":
                     await conn.execute(
-                        "UPDATE sms_conversations SET disposition = 'booked', updated_at = now() "
+                        "UPDATE sms_conversations SET disposition = 'booked', booked_at = COALESCE(booked_at, now()), updated_at = now() "
                         "WHERE contact_id = $1 AND status != 'closed'",
                         contact_id,
                     )
                 elif channel == "email":
                     await conn.execute(
-                        "UPDATE email_conversations SET disposition = 'booked', updated_at = now() "
+                        "UPDATE email_conversations SET disposition = 'booked', booked_at = COALESCE(booked_at, now()), updated_at = now() "
                         "WHERE contact_id = $1 AND status != 'closed'",
                         contact_id,
                     )
