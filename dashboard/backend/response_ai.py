@@ -91,12 +91,9 @@ open times on the earliest available day, which may be a while out — offer exa
 you as a simple either/or (or just the one time, on a day with only one opening), never a \
 day/time you made up yourself and never more than what you were given. If it says the calendar \
 isn't connected, ask for their preferred day and time instead. Once they agree to a specific time, \
-before calling propose_appointment ask for their name and email in that same confirmation message \
-(e.g. "Locking in Thursday 2pm — what name and email should I put the invite under?") — this is \
-what lets the booking actually confirm itself on the calendar instead of just being logged \
-internally. If they don't give an email, that's fine, still call propose_appointment; the lead \
-will just get a link to finish it themselves instead. Pass the reason for their call too if you \
-already know it from earlier in the conversation.
+confirm it back in one message and call propose_appointment — never ask them for their name or \
+email, that's looked up automatically from their info already on file. Pass the reason for their \
+call too if you already know it from earlier in the conversation.
 - If the lead can't make the time(s) you offered, call check_availability again with after_date \
 set to the day AFTER the day you just offered — never re-offer the same day, and never repeat the \
 exact same times you already gave them.
@@ -132,19 +129,18 @@ _TOOLS = [
     {
         "name": "propose_appointment",
         "description": (
-            "Book this lead's appointment once they've agreed to a specific day and time. If the "
-            "business has a connected calendar and you were able to get the lead's name, email, and "
-            "a one-line reason for the call, this creates a REAL confirmed booking on the calendar "
-            "with no further action needed from the lead. Missing any of those (most commonly: no "
-            "email) falls back to texting the lead a direct link to finish it themselves in one tap."
+            "Book this lead's appointment once they've agreed to a specific day and time. Never ask "
+            "the lead for their name or email — their name/email (if already on file for this phone "
+            "number) is looked up automatically. If the business has a connected calendar and that "
+            "lookup finds both, plus a reason for the call, this creates a REAL confirmed booking on "
+            "the calendar with no further action needed from the lead. Missing any of those falls "
+            "back to texting the lead a direct link to finish it themselves in one tap."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "date": {"type": "string", "description": "YYYY-MM-DD"},
                 "time": {"type": "string", "description": "HH:MM in 24h format"},
-                "name": {"type": "string", "description": "The lead's name, if you have it."},
-                "email": {"type": "string", "description": "The lead's email, if you have it — required for a fully-confirmed booking."},
                 "reason": {"type": "string", "description": "One short line on why they're reaching out, from earlier in this conversation."},
                 "notes": {"type": "string", "description": "Anything worth noting for the business, e.g. what the lead is coming in for."},
             },
@@ -523,8 +519,13 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             token = cal_row["calendly_api_token"] if cal_row else None
             event_type_url = cal_row["calendly_event_type_url"] if cal_row else None
 
-            name = tool_input.get("name") or (contact.get("owner") if contact else None)
-            email = tool_input.get("email") or (contact.get("email") if contact else None)
+            # Name/email come ONLY from the matched CRM contact, never from
+            # the model — the lead should never be asked for info that's
+            # already on file, and this also means the model can't work
+            # around that instruction by just inventing/asking for it
+            # through the tool call instead.
+            name = contact.get("owner") if contact else None
+            email = contact.get("email") if contact else None
             reason = tool_input.get("reason")
 
             # Try a real, immediately-confirmed booking first (Calendly's
