@@ -240,7 +240,17 @@ async def create_appointment(payload: dict):
 
 @router.get("/appointment-reminders")
 async def list_appointments(status: str = Query("scheduled"), contact_id: Optional[str] = Query(None)):
-    conditions = []
+    """Powers the internal OS's own Appointments tab — DigiGrowth's own
+    sales-pipeline meetings only (a prospective new-business contact with no
+    client_id yet, or a client's anchor contact — the "this business became
+    our client" sales contact). Excludes a client's own patient/lead
+    appointments (client_id set AND NOT is_client_anchor) — those are booked
+    through that client's own portal (portal_book_appointment(), which
+    reuses create_appointment() below so the reminder pipeline picks them up
+    identically) and belong in THEIR portal's Appointments tab, never
+    Dylan's own internal one. Caught live 2026-09-14: a client-portal test
+    booking was showing up here with no separation at all."""
+    conditions = ["(c.client_id IS NULL OR c.is_client_anchor)"]
     params = []
     if status != "all":
         params.append(status)
@@ -248,7 +258,7 @@ async def list_appointments(status: str = Query("scheduled"), contact_id: Option
     if contact_id:
         params.append(contact_id)
         conditions.append(f"ar.contact_id = ${len(params)}")
-    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    where = f"WHERE {' AND '.join(conditions)}"
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -446,7 +456,11 @@ def _validate_sequence(sequence: str):
 async def list_sequence_active(sequence: str):
     """Everyone currently mid-sequence for the given type, with computed
     touch/window progress — backs the Outreach Templates tab's 'View Active
-    Prospects' queue for No Show / Cancellation / Reminders."""
+    Prospects' queue for No Show / Cancellation / Reminders. Dylan's own
+    sales-pipeline prospects only — same exclusion as list_appointments()
+    above, since these sequences (no_show_sequence.py/cancel_sequence.py/
+    reminder_engine.py) run on DigiGrowth's own shared Twilio/Gmail and must
+    never touch a client's own lead."""
     _validate_sequence(sequence)
     where = (
         "ar.status = 'scheduled' AND ar.appointment_at > now() AND ar.reminders_stopped_at IS NULL"
@@ -460,6 +474,7 @@ async def list_sequence_active(sequence: str):
             SELECT ar.*, c.business, c.owner FROM appointment_reminders ar
             LEFT JOIN contacts c ON c.id = ar.contact_id
             WHERE {where}
+            AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
             ORDER BY ar.appointment_at ASC
             """
         )

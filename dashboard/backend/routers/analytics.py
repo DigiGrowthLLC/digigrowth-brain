@@ -145,8 +145,17 @@ async def _app_booked_count(conn, stats: dict, days: int) -> int:
     cutoff = _last_sheet_sync(stats) or datetime.min.replace(tzinfo=timezone.utc)
     if days:
         cutoff = max(cutoff, _since(days))
+    # Dylan's own sales-pipeline discovery calls only — excludes a client's
+    # own lead appointments (booked through their portal), same exclusion as
+    # appointments.py's list_appointments()/reminder_engine.py. Without this
+    # a client's real patient bookings inflated this agency-level KPI.
     return await conn.fetchval(
-        "SELECT COUNT(*) FROM appointment_reminders WHERE status != 'canceled' AND created_at >= $1",
+        """
+        SELECT COUNT(*) FROM appointment_reminders ar
+        LEFT JOIN contacts c ON c.id = ar.contact_id
+        WHERE ar.status != 'canceled' AND ar.created_at >= $1
+        AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
+        """,
         cutoff,
     ) or 0
 

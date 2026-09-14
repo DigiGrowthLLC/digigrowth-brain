@@ -179,8 +179,30 @@ async def send_due_reminders():
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM appointment_reminders WHERE status = 'scheduled' AND appointment_at > now() "
-            "AND reminders_stopped_at IS NULL"
+            # Dylan's own sales-pipeline appointments ONLY (no contact, no
+            # client_id, or the client's anchor contact) — same exclusion as
+            # call_reminders.py/appointments.py's list_appointments(). A
+            # client's own lead (client_id set AND NOT is_client_anchor) must
+            # NEVER reach this path: it sends via DigiGrowth's own shared
+            # Twilio/Gmail with copy hardcoded to say "your call with
+            # DigiGrowth" (see DEFAULT_* below), which is wrong on every
+            # count for a client's real patient. Caught live 2026-09-14 —
+            # this ran unfiltered against every appointment_reminders row
+            # since portal_book_appointment() started writing real client
+            # bookings into the same shared table. A client lead's actual
+            # reminder is client_appointment_sequence.py's job (their own
+            # Twilio/Gmail + their own client_sequence_steps copy) — not yet
+            # wired for the scheduled 24h/6h/1h windows (only one-shot no
+            # show/cancellation touches so far), so client leads currently
+            # get NO reminder at all rather than the wrong one. Flag to
+            # Dylan as a follow-up build, not silently left as-is.
+            """
+            SELECT ar.* FROM appointment_reminders ar
+            LEFT JOIN contacts c ON c.id = ar.contact_id
+            WHERE ar.status = 'scheduled' AND ar.appointment_at > now()
+            AND ar.reminders_stopped_at IS NULL
+            AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
+            """
         )
     if not rows:
         return
