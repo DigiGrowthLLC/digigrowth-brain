@@ -60,15 +60,26 @@ async def _get_matching_event_type(http: httpx.AsyncClient, token: str, scheduli
     added, or a reordering on Calendly's side, could just as easily point
     this at someone else's calendar entirely. Matching on the exact
     scheduling_url the admin configured (their real public booking link,
-    something they can visually verify) is the only safe way to do this."""
+    something they can visually verify) is the only safe way to do this.
+
+    Queries by organization, not by the token owner's own user URI —
+    ?user=<token's own uri> only reliably returns event types Calendly
+    considers "owned" by that exact user, which excludes a teammate's
+    event type under conditions that aren't fully predictable (confirmed
+    live 2026-09-14: Brandon's own event type stopped appearing under
+    Dylan's user-scoped query the moment Brandon renamed its URL slug,
+    while the organization-scoped query kept seeing it the whole time).
+    Organization scope reliably sees every team member's event types
+    regardless of that, which is exactly what this admin-manages-clients
+    setup needs."""
     me = await http.get(f"{_API_BASE}/users/me", headers=_headers(token))
     _raise_with_context(me)
-    user_uri = me.json()["resource"]["uri"]
+    org_uri = me.json()["resource"]["current_organization"]
 
     target = scheduling_url.strip().rstrip("/")
     page_token = None
     while True:
-        params = {"user": user_uri, "active": "true", "count": 100}
+        params = {"organization": org_uri, "active": "true", "count": 100}
         if page_token:
             params["page_token"] = page_token
         resp = await http.get(f"{_API_BASE}/event_types", headers=_headers(token), params=params)
