@@ -2222,31 +2222,57 @@ function AgentResetTest({ clientId }) {
 // this is availability-checking only; the actual booking still gets logged
 // the same way it always has.
 function AgentCalendlyConnect({ config, onSaveFields }) {
-  const [token, setToken] = useState(config?.calendly_api_token || "");
+  // Deliberately NEVER pre-fill this with the existing token (unlike every
+  // other field in this file) — a password-type input silently holding the
+  // old secret as masked dots is a real trap: paste a new one without
+  // first selecting-all, or click Save without noticing the field already
+  // had content, and you silently re-save the SAME old token while
+  // believing you replaced it. Starting blank means typing anything and
+  // saving unambiguously replaces it, and an accidental empty-save is a
+  // no-op (see save() below) rather than wiping the connection out.
+  const [token, setToken] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const connected = Boolean(config?.calendly_api_token);
 
   const save = async () => {
+    if (!token.trim()) return;
     setSaving(true);
     setSaved(false);
     setSaveError("");
-    const result = await onSaveFields({ calendly_api_token: token.trim() || null });
+    const result = await onSaveFields({ calendly_api_token: token.trim() });
     setSaving(false);
-    if (result?.ok) setSaved(true); else setSaveError(result?.error || "Save failed");
+    if (result?.ok) { setSaved(true); setToken(""); } else setSaveError(result?.error || "Save failed");
+  };
+
+  const disconnect = async () => {
+    if (!window.confirm("Disconnect Calendly for this client? The agent will go back to asking leads for their preferred day/time.")) return;
+    setSaving(true);
+    setSaveError("");
+    const result = await onSaveFields({ calendly_api_token: null });
+    setSaving(false);
+    if (result?.ok) { setSaved(true); setToken(""); } else setSaveError(result?.error || "Failed to disconnect");
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: 12, color: "#8aaad0" }}>
-        Generate a Personal Access Token from the client's Calendly account (Integrations &amp; Apps → API &amp; Webhooks → Generate New Token) and paste it below. {config?.calendly_api_token ? "Connected." : "Not connected — the agent will just ask leads for their preferred day/time until this is set."}
+        Generate a Personal Access Token from the client's Calendly account (Integrations &amp; Apps → API &amp; Webhooks → Generate New Token — not a "connect an app" OAuth button) and paste it below. {connected ? "Connected — paste a new token below to replace it." : "Not connected — the agent will just ask leads for their preferred day/time until this is set."}
       </div>
-      <input
-        type="password" autoComplete="off" className="dg-input" style={{ fontSize: 12, width: "100%", boxSizing: "border-box" }}
-        value={token} placeholder="Calendly Personal Access Token"
-        onChange={(e) => { setToken(e.target.value); setSaved(false); setSaveError(""); }}
-      />
-      <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          type="password" autoComplete="off" className="dg-input" style={{ fontSize: 12, flex: 1, boxSizing: "border-box" }}
+          value={token} placeholder={connected ? "Paste a new token to replace the connected one" : "Calendly Personal Access Token"}
+          onChange={(e) => { setToken(e.target.value); setSaved(false); setSaveError(""); }}
+        />
+        {connected && (
+          <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={disconnect} disabled={saving}>
+            DISCONNECT
+          </button>
+        )}
+      </div>
+      <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving || !token.trim()}>
         {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
       </button>
       {saveError && (
