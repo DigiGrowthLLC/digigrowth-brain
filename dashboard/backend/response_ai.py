@@ -1,10 +1,8 @@
 """
-Self-built, per-client AI appointment-setting agent — replacement for the
-Appointwise stub (routers/appointwise_webhooks.py). Called from
+Self-built, per-client AI appointment-setting agent. Called from
 routers/client_sms_webhooks.py for every inbound SMS to a client's own
-Twilio number, gated by client_marketing_config.response_ai_enabled so
-migration off Appointwise is reversible per client (a client with the flag
-off still gets forwarded to Appointwise exactly as before).
+Twilio number, gated by client_marketing_config.response_ai_enabled (a
+client with the flag off just gets logged for manual reply instead).
 
 Same underlying mechanism as routers/agents.py's chat loop (plain Anthropic
 Messages API, a system prompt assembled from stored text, a small tool
@@ -65,6 +63,7 @@ import calendly_integration
 import client_sms
 from db import get_pool
 from routers.appointments import create_appointment_row
+from sms_text import gsm7_safe
 from timezone_lookup import guess_timezone
 
 _MAX_TOOL_ITERATIONS = 4
@@ -236,6 +235,16 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
         )
         reply_text = await _run_agent_turn(client_id, from_phone, system_prompt, messages)
         if reply_text:
+            # Belt-and-suspenders, same as the word-count cap below: a "no
+            # em dashes" rule in response_ai_rules is a prompt instruction
+            # the model can still ignore. gsm7_safe() normalizes em/en
+            # dashes, curly quotes, and ellipses to their plain-ASCII
+            # equivalents (it already exists purely to stop stray
+            # typographic characters from silently doubling Twilio's
+            # per-segment billing — this reuses it as a content guardrail
+            # too) BEFORE the reply is stored, so client_sms_messages and
+            # what the lead actually receives always match.
+            reply_text = gsm7_safe(reply_text)
             words = reply_text.split()
             if max_words and len(words) > max_words:
                 # Belt-and-suspenders — the prompt already instructs the

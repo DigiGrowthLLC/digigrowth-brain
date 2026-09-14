@@ -207,8 +207,6 @@ class ClientMarketingConfigUpdate(BaseModel):
     email_dns_status: Optional[str] = None
     gmail_refresh_token: Optional[str] = None
     gmail_sender_email: Optional[str] = None
-    appointwise_agent_id: Optional[str] = None
-    appointwise_webhook_url: Optional[str] = None
     response_ai_enabled: Optional[bool] = None
     response_ai_context: Optional[str] = None
     response_ai_sequence: Optional[list] = None

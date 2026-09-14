@@ -612,7 +612,6 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS guide_progress JSONB NOT NULL DEFAULT '{}';
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_refresh_token TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_sender_email TEXT;
-            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS appointwise_webhook_url TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS email_sync_last_ts BIGINT NOT NULL DEFAULT 0;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_enabled BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_context TEXT;
@@ -897,10 +896,11 @@ async def _create_schema(pool: asyncpg.Pool):
         # own outreach machinery, gated so only an is_test client can touch
         # DigiGrowth's shared Twilio/Gmail credentials. This block is the
         # opposite: it provisions each real client's OWN Twilio number, own
-        # email-sending domain, own AI response agent (Appointwise), own
-        # landing page, and own ad creatives — infrastructure that belongs to
-        # the client, not to DigiGrowth, and must never share a table or a
-        # send credential with the internal outreach system above.
+        # email-sending domain, own self-built AI response agent
+        # (response_ai.py), own landing page, and own ad creatives —
+        # infrastructure that belongs to the client, not to DigiGrowth, and
+        # must never share a table or a send credential with the internal
+        # outreach system above.
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS client_marketing_config (
                 client_id              INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
@@ -910,8 +910,6 @@ async def _create_schema(pool: asyncpg.Pool):
                 email_dns_status       TEXT NOT NULL DEFAULT 'pending',
                 gmail_refresh_token    TEXT,
                 gmail_sender_email     TEXT,
-                appointwise_agent_id   TEXT,
-                appointwise_webhook_url TEXT,
                 landing_page_url       TEXT,
                 meta_pixel_id          TEXT,
                 ad_creative_status     JSONB NOT NULL DEFAULT '{}',
@@ -1004,15 +1002,14 @@ async def _create_schema(pool: asyncpg.Pool):
             );
             CREATE INDEX IF NOT EXISTS idx_client_sms_messages_client ON client_sms_messages(client_id, created_at DESC);
 
-            -- Self-built replacement for Appointwise (response_ai.py) —
-            -- per-(client, lead phone) conversation state. client_sms_messages
-            -- above is just a flat message log; this is what tracks whether
-            -- the AI is still actively handling a thread ('ai_active'), has
-            -- handed it to a human ('escalated', e.g. the lead asked for one
-            -- or the model wasn't confident), or already booked the lead
-            -- ('booked'). response_ai_enabled on client_marketing_config is
-            -- the per-client kill switch that gates whether this whole path
-            -- runs at all vs. the old Appointwise-forwarding path.
+            -- response_ai.py's per-(client, lead phone) conversation state.
+            -- client_sms_messages above is just a flat message log; this is
+            -- what tracks whether the AI is still actively handling a thread
+            -- ('ai_active'), has handed it to a human ('escalated', e.g. the
+            -- lead asked for one or the model wasn't confident), or already
+            -- booked the lead ('booked'). response_ai_enabled on
+            -- client_marketing_config is the per-client kill switch that
+            -- gates whether this whole path runs at all.
             CREATE TABLE IF NOT EXISTS client_lead_conversations (
                 id              SERIAL PRIMARY KEY,
                 client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
@@ -1073,16 +1070,48 @@ async def _create_schema(pool: asyncpg.Pool):
             WHERE title = $1 AND (description IS NULL OR description = '')
             """,
             "Set up response AI",
-            "1) Confirm SMS marketing is provisioned first -- Appointwise "
-            "plugs into the client's own Twilio number, it doesn't bring one. "
-            "2) Set the client up in Appointwise's own dashboard; note the "
-            "agent ID. "
-            "3) Paste the agent ID into this client's Marketing Setup tab. "
-            "4) Once Appointwise's inbound-forwarding webhook contract is "
-            "confirmed, paste their webhook URL into the same tab -- until "
-            "then inbound texts just log for manual reply. "
-            "5) Test: text the client's number, confirm Appointwise receives "
-            "it, replies, and any resulting booking shows up correctly.",
+            "1) Confirm SMS marketing is provisioned first -- this reuses the "
+            "client's own Twilio number, it doesn't bring one. "
+            "2) Open this client's Agent tab, enable the agent, and write or "
+            "generate its context (business info, offer, tone, hours, FAQs, "
+            "what to escalate). "
+            "3) Fill in the SMS Sequence (5 stage goals) and Rules (reply "
+            "delay, max words, freeform rules the agent reads before every "
+            "reply). "
+            "4) Optional: connect the client's Calendly Personal Access "
+            "Token under Calendar so the agent checks real availability "
+            "before proposing a time. "
+            "5) Test: text the client's number, confirm the agent replies "
+            "on-brand, booking a time creates a real appointment, and asking "
+            "for a human stops it from auto-replying to that thread.",
+        )
+        # One-time fix: replace the stale Appointwise-era description on
+        # existing installs even though it's already non-blank (the general
+        # IS NULL/blank guard above only protects a manually-edited
+        # description, and this specific text is now simply wrong, not a
+        # customization worth preserving) — narrowly scoped to rows that
+        # still contain the literal old text, so a real admin edit that
+        # happens not to mention Appointwise is never touched.
+        await conn.execute(
+            """
+            UPDATE launch_checklist_items SET description = $2
+            WHERE title = $1 AND description LIKE '%Appointwise%'
+            """,
+            "Set up response AI",
+            "1) Confirm SMS marketing is provisioned first -- this reuses the "
+            "client's own Twilio number, it doesn't bring one. "
+            "2) Open this client's Agent tab, enable the agent, and write or "
+            "generate its context (business info, offer, tone, hours, FAQs, "
+            "what to escalate). "
+            "3) Fill in the SMS Sequence (5 stage goals) and Rules (reply "
+            "delay, max words, freeform rules the agent reads before every "
+            "reply). "
+            "4) Optional: connect the client's Calendly Personal Access "
+            "Token under Calendar so the agent checks real availability "
+            "before proposing a time. "
+            "5) Test: text the client's number, confirm the agent replies "
+            "on-brand, booking a time creates a real appointment, and asking "
+            "for a human stops it from auto-replying to that thread.",
         )
         await conn.execute(
             """

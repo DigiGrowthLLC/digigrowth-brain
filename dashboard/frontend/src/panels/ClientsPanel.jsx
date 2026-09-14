@@ -1753,11 +1753,15 @@ const MARKETING_GUIDES = {
     ],
   },
   response_ai: {
-    title: "Set Up Response AI (Self-Built)",
+    title: "Set Up Response AI",
     steps: [
       { text: "Confirm SMS marketing is provisioned first — this reuses the client's own Twilio number, it doesn't bring its own." },
-      { text: "Head to this client's own \"Agent\" tab (next to Marketing Setup) to enable the agent, write/generate its context, set the SMS sequence it should try to progress leads through, and any rules (reply delay, character limit)." },
-      { text: "Text the client's number from your own phone and have a real back-and-forth. Confirm: replies sound on-brand and follow the sequence loosely, agreeing to a time actually creates an appointment (check the Appointments tab), and asking for a human stops the AI from replying further to that thread." },
+      { text: "Head to this client's own \"Agent\" tab (next to Marketing Setup). Everything below happens there." },
+      { text: "Enable the agent, then write its context (business info, offer, tone, hours, FAQs, what to escalate) — or click GENERATE CONTEXT to draft one from this client's onboarding answers, linked contact info, and any uploaded PDFs/docx, then review and edit it." },
+      { text: "Fill in the SMS Sequence — 5 short stage goals (first text through fifth text) the agent tries to progress a conversation through. It doesn't follow this rigidly: it always answers whatever the lead actually asks first, then steers back toward the next stage." },
+      { text: "Set Rules — a minimum reply delay and a max words-per-text are actually enforced, not just suggested. Add any other freeform rules (tone quirks, things to never say, etc.) in the big text box; the agent reads it before every reply." },
+      { text: "Optional: connect the client's Calendly under \"Calendar (Calendly)\" — a Personal Access Token (Calendly account → Integrations & Apps → API & Webhooks → Generate New Token) lets the agent check real open times before proposing one, instead of asking blind. Without it, the agent just asks the lead for their preferred day/time." },
+      { text: "Text the client's number from your own phone and have a real back-and-forth. Confirm: replies sound on-brand and follow the sequence loosely, agreeing to a time actually creates an appointment (check the Appointments tab), and asking for a human stops the AI from replying further to that thread. Use the Agent tab's \"Testing\" section to reset that number's conversation state between test runs." },
     ],
   },
   landing_page: {
@@ -1797,7 +1801,7 @@ const MARKETING_GUIDES = {
       { text: "Link this client's leads: Clients list → \"Link contact to client\" (or \"Link all unassigned\") for every contact that's actually theirs — Leads/SMS/Email/Appointment stats all key off contacts.client_id, so an unlinked contact is invisible everywhere in their portal." },
       { text: "Open this client's portal Analytics tab (use their portal link) and sanity-check Total Leads and SMS/Email Sent+Replies against what you already know is true." },
       { text: "Appointments Booked / Show Rate / Close Rate compute live from the internal Appointments tab's outcome marking (outcome_show/outcome_close) for this client's leads — nothing to connect, just make sure reps are actually marking outcomes for this client's appointments instead of leaving them blank." },
-      { text: "\"Your Number\"/\"Your Mailbox\" SMS + email counts only populate once real sends go through the client's own Twilio number / Gmail mailbox (portal replies, the automations above, or Appointwise once connected) — if those read zero, that's accurate, not broken, until one of those is live." },
+      { text: "\"Your Number\"/\"Your Mailbox\" SMS + email counts only populate once real sends go through the client's own Twilio number / Gmail mailbox (portal replies, the automations above, or the Response AI agent once enabled) — if those read zero, that's accurate, not broken, until one of those is live." },
       { text: "Ad Spend / Impressions / Clicks / CTR / CPC / Cost per Lead are NOT wired up yet — there's no Meta or Google Ads API integration in this codebase (meta_ads.py is a stub), so the portal correctly shows \"Coming Soon\" for every client. Building that needs a real Meta Marketing API / Google Ads API integration plus each client's own ad-account access — flag to Dylan as a separate build, don't expect it from this step." },
     ],
   },
@@ -1810,7 +1814,7 @@ const MARKETING_GUIDES = {
 const AUTOMATION_CANDIDATES = [
   { step: "Landing Page", note: "Automatable: a content-agent skill could take the client's onboarding answers (offer, guarantee, CTA, brand) and generate the page's copy + layout automatically, matching the existing digigrowth-website design system. Still needs a human to review before it goes live and to push the Vercel deploy." },
   { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automatable without picking an image-gen provider and building the Meta Ads API integration (currently a stub)." },
-  { step: "SMS / Email / Response AI", note: "SMS and Email still need a one-time human setup step outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent) that no API lets us do on someone's behalf. Response AI, as of 2026-09-13, is fully self-built and automated once enabled — response_ai.py replies to inbound SMS itself (no external Appointwise account/webhook needed anymore), only the per-client context needs writing. What's already automated across all three: the number/mailbox setup itself, every send/receive once connected, and the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats)." },
+  { step: "SMS / Email / Response AI", note: "SMS and Email still need a one-time human setup step outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent) that no API lets us do on someone's behalf. Response AI is fully self-built and automated once enabled — response_ai.py replies to inbound SMS itself, no third-party account needed, just per-client context/sequence/rules written on the Agent tab. What's already automated across all three: the number/mailbox setup itself, every send/receive once connected, and the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats)." },
   { step: "SMS/Email Automations", note: "As of 2026-09-13, fully automated once the copy's filled in: writing the No Show/Cancellation SMS+email copy on the Sequences tab is the only manual step — the actual send (client_appointment_sequence.py) fires on its own the moment a lead's appointment is marked No Show/Canceled, no scheduler or extra connection needed. Not automatable: onboarding a client's EXISTING patient base, which lives in their own booking/EHR system outside this app." },
   { step: "Analytics", note: "Mostly already automatic: Leads/SMS/Email/Appointment stats compute live once contacts are linked to the client — no integration needed, just a data-hygiene check. Ad spend/CTR/CPC/etc. are the one real gap: no Meta or Google Ads API integration exists in this codebase yet, so those stay \"Coming Soon\" until that's built as its own project." },
 ];
@@ -2299,7 +2303,7 @@ function ClientAgentSetup({ clientId }) {
   return (
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 14, lineHeight: 1.5 }}>
-        This client's self-built AI SMS response agent (response_ai.py) — replies to inbound leads on their own Twilio number. Replaces Appointwise; enable per client from the toggle below.
+        This client's self-built AI SMS response agent (response_ai.py) — replies to inbound leads on their own Twilio number. Enable per client from the toggle below.
       </div>
       {section(
         "Enable & Context",
@@ -2702,9 +2706,9 @@ function ClientMarketingSetup({ clientId }) {
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 12, lineHeight: 1.5 }}>
         This client's OWN marketing infrastructure — their Twilio number, their email-sending
-        domain, their Appointwise agent, their landing page, their ad creatives, their No Show/
-        Cancellation automations, and their portal analytics. Separate from DigiGrowth's own
-        outreach system. Numbered steps below (1-7) are meant to be done in order.
+        domain, their AI response agent (see the Agent tab), their landing page, their ad
+        creatives, their No Show/Cancellation automations, and their portal analytics. Separate
+        from DigiGrowth's own outreach system. Numbered steps below (1-7) are meant to be done in order.
       </div>
 
       <button
@@ -2779,25 +2783,6 @@ function ClientMarketingSetup({ clientId }) {
                   </div>
                 )}
               </div>
-            )
-          )}
-          {step.key === "response_ai" && (
-            editing === "appointwise" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft} placeholder="Appointwise agent ID"
-                  onChange={(e) => setDraft(e.target.value)} autoFocus />
-                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft2} placeholder="Appointwise webhook URL"
-                  onChange={(e) => setDraft2(e.target.value)} />
-                <button className="btn btn-primary" style={{ fontSize: 10 }}
-                  onClick={() => saveFields({ appointwise_agent_id: draft.trim() || null, appointwise_webhook_url: draft2.trim() || null })}
-                  disabled={saving}>
-                  SAVE
-                </button>
-              </div>
-            ) : (
-              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setEditing("appointwise"); setDraft(config?.appointwise_agent_id || ""); setDraft2(config?.appointwise_webhook_url || ""); }}>
-                {config?.appointwise_agent_id ? "EDIT" : "CONNECT"}
-              </button>
             )
           )}
           {step.key === "landing_page" && (

@@ -1,7 +1,8 @@
 """
 Admin-side management of each REAL client's OWN marketing infrastructure —
-their Twilio number, their email-sending domain, their Appointwise response
-agent, their landing page, and their ad creatives. Deliberately separate
+their Twilio number, their email-sending domain, their self-built AI
+response agent (response_ai.py), their landing page, and their ad
+creatives. Deliberately separate
 from crm.py/sms.py/sms_sequences.py (DigiGrowth's own outreach) — nothing
 here ever touches DigiGrowth's shared Twilio/Gmail credentials or the
 internal sms_messages/email_messages/campaigns tables.
