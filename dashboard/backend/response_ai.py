@@ -330,7 +330,20 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
             # it even if the model runs long. Split into multiple texts
             # instead of truncating (which was silently dropping the tail
             # of the reply) — sent in order, each its own SMS.
-            for segment in _split_into_sms_segments(reply_text, max_words):
+            segments = _split_into_sms_segments(reply_text, max_words)
+            for i, segment in enumerate(segments):
+                if i > 0:
+                    # A multi-text reply landing all at once reads as
+                    # obviously automated — a real person typing a second
+                    # text takes a beat. Every client configured with the
+                    # existing response_ai_min_delay_seconds rule (meant to
+                    # be 15s+) already reaches this via the scheduler, off
+                    # the Twilio request path, so this sleep is safe there.
+                    # Only a client explicitly configured with a 0-second
+                    # min delay hits this inline on the webhook response —
+                    # an edge case, but worth knowing about if Twilio ever
+                    # times out a reply on such a client.
+                    await asyncio.sleep(10)
                 await client_sms.send_client_sms(client_id, from_phone, segment)
     except Exception as e:
         print(f"[response_ai] handle_inbound_sms failed for client={client_id} phone={from_phone}: {e}")
