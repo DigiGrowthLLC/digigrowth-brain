@@ -19,9 +19,12 @@ tool) — this module just makes that a well-informed choice of time instead
 of a blind guess, per confirmed scope (2026-09-14): check real availability,
 still book internally.
 """
+from datetime import datetime, timedelta, timezone
+
 import httpx
 
 _API_BASE = "https://api.calendly.com"
+_CHUNK_DAYS = 7  # Calendly caps a single query window to 7 days
 
 
 def _headers(token: str) -> dict:
@@ -79,22 +82,45 @@ async def _get_matching_event_type(http: httpx.AsyncClient, token: str, scheduli
             return None
 
 
-async def get_available_times(token: str, scheduling_url: str, start_iso: str, end_iso: str) -> list[dict]:
-    """start_iso/end_iso: RFC3339 timestamps bounding the query window —
-    Calendly caps a single request to a 7-day span, well within a
-    single-day lookup. scheduling_url identifies exactly which event type
-    to check (see _get_matching_event_type). Returns Calendly's raw slot
-    objects (each has start_time in UTC) — empty list if nothing's open or
-    the scheduling_url doesn't match any event type this token can see."""
+async def find_earliest_available_times(
+    token: str, scheduling_url: str, start_iso: str, max_days: int = 30,
+) -> list[dict]:
+    """Searches forward from start_iso in 7-day windows (Calendly's own
+    per-query cap) until it finds real open slots or exhausts max_days,
+    returning the first day's worth found. A newly-active event type often
+    has nothing open for the first week or two (the business hasn't set
+    availability that far out yet, or the near term is already booked) —
+    only ever checking one exact day and giving up the moment it's empty
+    means the agent asks the lead to guess-and-check days one at a time
+    instead of just finding the real earliest opening itself. Returns
+    Calendly's raw slot objects (each has start_time in UTC) — empty list
+    if genuinely nothing's open in the whole window, or the scheduling_url
+    doesn't match any event type this token can see."""
     async with httpx.AsyncClient(timeout=10) as http:
         event_type = await _get_matching_event_type(http, token, scheduling_url)
         if not event_type:
             return []
 
-        resp = await http.get(
-            f"{_API_BASE}/event_type_available_times",
-            headers=_headers(token),
-            params={"event_type": event_type["uri"], "start_time": start_iso, "end_time": end_iso},
-        )
-        _raise_with_context(resp)
-        return resp.json().get("collection", [])
+        start = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        horizon = start + timedelta(days=max_days)
+
+        window_start = start
+        while window_start < horizon:
+            window_end = min(window_start + timedelta(days=_CHUNK_DAYS), horizon)
+            resp = await http.get(
+                f"{_API_BASE}/event_type_available_times",
+                headers=_headers(token),
+                params={
+                    "event_type": event_type["uri"],
+                    "start_time": window_start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "end_time": window_end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                },
+            )
+            _raise_with_context(resp)
+            slots = resp.json().get("collection", [])
+            if slots:
+                return slots
+            window_start = window_end
+        return []

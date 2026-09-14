@@ -55,7 +55,7 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import anthropic
@@ -82,10 +82,12 @@ it before responding. This matters more than sounding natural or being thorough.
 Baseline behavior (the mandatory rules below can add to this, never loosen it):
 - Only state facts, pricing, offers, or guarantees that are explicitly given to you in the \
 business info below. Never invent or guess at anything you weren't told.
-- If the lead wants to book, and a specific day is on the table, call check_availability for \
-that day first — if it returns real open times, offer from those rather than asking blind. If it \
-says the calendar isn't connected, just ask for their preferred day and time as usual. Either way, \
-confirm the agreed time back to them in one message, then call propose_appointment.
+- The moment the lead wants to book, call check_availability — don't wait for them to name a day \
+first, and don't ask them to pick one blind. It searches forward on its own and returns the \
+earliest real openings, which may be a while out — offer exactly those (grouped by day if it \
+returns more than one), never a day/time you made up yourself. If it says the calendar isn't \
+connected, ask for their preferred day and time instead. Either way, confirm the agreed time back \
+to them in one message, then call propose_appointment.
 - If the lead asks for something outside what you were told, seems upset, asks for a refund or \
 files a complaint, or you're not confident how to respond, call escalate_to_human and let them \
 know a team member will follow up.
@@ -96,13 +98,18 @@ successfully in this same turn.
 _TOOLS = [
     {
         "name": "check_availability",
-        "description": "Look up REAL open appointment times on the business's calendar for one specific day, if their calendar is connected. Call this before offering a specific time whenever a day is already on the table.",
+        "description": (
+            "Finds REAL open appointment times on the business's calendar, if connected. Searches "
+            "forward automatically (up to a month out) and returns the EARLIEST real openings it "
+            "finds — call this as soon as the lead wants to book, even before they've named a day, "
+            "rather than asking them to pick a date first. If the lead already named a day, pass it "
+            "as after_date so the search starts there instead of today."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "date": {"type": "string", "description": "YYYY-MM-DD"},
+                "after_date": {"type": "string", "description": "YYYY-MM-DD to start searching from. Omit to search from today."},
             },
-            "required": ["date"],
         },
     },
     {
@@ -362,20 +369,30 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
         event_type_url = row["calendly_event_type_url"] if row else None
         if not token or not event_type_url:
             return "Calendar isn't connected for this business — ask the lead for their preferred day and time instead."
-        date_str = (tool_input.get("date") or "").strip()
+        after_date = (tool_input.get("after_date") or "").strip()
         try:
             tz_name = guess_timezone(from_phone)
             tz = ZoneInfo(tz_name)
-            slots = await calendly_integration.get_available_times(
-                token, event_type_url, f"{date_str}T00:00:00Z", f"{date_str}T23:59:59Z",
+            start_iso = f"{after_date}T00:00:00Z" if after_date else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            slots = await calendly_integration.find_earliest_available_times(
+                token, event_type_url, start_iso, max_days=30,
             )
             if not slots:
-                return f"No open times found on {date_str}. Ask if another day works."
-            times = ", ".join(
-                datetime.fromisoformat(s["start_time"].replace("Z", "+00:00")).astimezone(tz).strftime("%-I:%M %p")
-                for s in slots[:8]
-            )
-            return f"Real open times on {date_str} (lead's local time): {times}"
+                return (
+                    "No open times found in the next 30 days — this calendar likely hasn't had "
+                    "availability set further out yet. Let the lead know you'll follow up once a "
+                    "slot opens, or offer to have a human confirm timing with them."
+                )
+            # Slots can span several different days (the earliest open window
+            # might be two-plus weeks out) — group by date so "the 17th at
+            # 10am or 2pm, or the 22nd at 9am" reads clearly instead of a
+            # flat list of times with no day attached.
+            by_date: dict[str, list[str]] = {}
+            for s in slots:
+                local = datetime.fromisoformat(s["start_time"].replace("Z", "+00:00")).astimezone(tz)
+                by_date.setdefault(local.strftime("%A, %B %-d"), []).append(local.strftime("%-I:%M %p"))
+            lines = [f"{day}: {', '.join(times[:4])}" for day, times in list(by_date.items())[:3]]
+            return "Earliest real openings (lead's local time):\n" + "\n".join(lines)
         except Exception as e:
             # This failure was previously silent to Dylan — the model just
             # got a graceful fallback string and asked for a day instead,
