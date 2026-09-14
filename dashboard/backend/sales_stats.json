@@ -30,5 +30,11 @@
   "total_revenue_7d": 0,
   "sheet_resonations": 27,
   "sheet_resonations_30d": 0,
-  "sheet_resonations_7d": 0
+  "sheet_resonations_7d": 0,
+  "sheet_baseline_discovery_calls": 21,
+  "sheet_baseline_shows": 11,
+  "sheet_baseline_closes": 1,
+  "sheet_baseline_total_revenue": 0,
+  "sheet_baseline_captured_at": "2026-09-14T09:59:05.000Z",
+  "sheet_baseline_note": "Frozen carry-forward from the last Sales Performance Tracker sync before sales KPIs went OS-native (appointment_reminders) in commit e067afee. Added to all-time totals only in analytics.py::_os_sales_stats — see _os_sales_baseline."
 }

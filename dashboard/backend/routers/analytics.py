@@ -115,13 +115,38 @@ def _normalize_state(raw: str) -> str:
     return _US_STATE_ABBR.get(s.upper(), s)
 
 
+def _os_sales_baseline(stats: dict) -> dict:
+    """
+    One-time carry-forward of everything the manually-maintained Sales
+    Performance Tracker sheet had already logged before _os_sales_stats
+    switched to computing these numbers natively from
+    appointment_reminders. Without this, the switchover made discovery
+    calls/shows/closes/revenue jump straight to whatever's in that table
+    (which starts near-empty) and silently dropped months of pre-migration
+    history. Captured once as sheet_baseline_* in sales_stats.json (see
+    sheet_baseline_captured_at) and frozen forever after — sheets-digest
+    no longer writes these fields, so nothing will bump the baseline again.
+    Added only to all-time totals (days=0); the sheet's own historical
+    figures were all-time-only too, so there's no meaningful "baseline in
+    the last 7/30 days" to add to period-windowed totals.
+    """
+    return {
+        "discovery_calls": stats.get("sheet_baseline_discovery_calls", 0) or 0,
+        "shows":            stats.get("sheet_baseline_shows", 0) or 0,
+        "closes":           stats.get("sheet_baseline_closes", 0) or 0,
+        "total_revenue":    stats.get("sheet_baseline_total_revenue", 0) or 0,
+    }
+
+
 async def _os_sales_stats(conn, days: int) -> dict:
     """
     OS-native sales KPIs computed straight from appointment_reminders —
     discovery_calls/shows/closes/total_revenue/avg_deal_size — replacing
     the Google-Sheet-sourced sales_stats.json fields of the same names
     (the sheets-digest skill no longer reports these; see
-    executive-assistant/.claude/skills/sheets-digest/SKILL.md).
+    executive-assistant/.claude/skills/sheets-digest/SKILL.md). All-time
+    totals (days=0) get the pre-migration sheet history added back in —
+    see _os_sales_baseline.
 
     Scoped exactly like the old _app_booked_count(): Dylan's own
     sales-pipeline appointments only — excludes a client's own lead
@@ -172,6 +197,13 @@ async def _os_sales_stats(conn, days: int) -> dict:
     )
     closes  = close_row["closes"] or 0
     revenue = float(close_row["revenue"] or 0)
+
+    if not days:
+        baseline = _os_sales_baseline(_load_sales_stats())
+        discovery_calls += baseline["discovery_calls"]
+        shows           += baseline["shows"]
+        closes          += baseline["closes"]
+        revenue         += baseline["total_revenue"]
 
     return {
         "discovery_calls":   discovery_calls,
