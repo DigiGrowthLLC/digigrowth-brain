@@ -53,6 +53,7 @@ message, it never starts a thread.
 import asyncio
 import json
 import os
+import re
 import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -174,6 +175,44 @@ async def _load_recent_messages(conn, client_id: int, phone: str) -> list[dict]:
     ]
 
 
+def _split_into_sms_segments(text: str, max_words: int | None) -> list[str]:
+    """Splits a reply into multiple SMS-sized segments instead of
+    truncating it — a reply that runs past max_words used to just get cut
+    off mid-thought, silently dropping whatever came after the limit.
+    Breaks at sentence boundaries so each segment reads naturally on its
+    own; only hard-splits mid-sentence as a last resort, if one sentence by
+    itself is longer than the whole limit. Segments are sent in order as
+    separate texts (see handle_inbound_sms)."""
+    if not max_words:
+        return [text]
+
+    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+    segments: list[str] = []
+    current: list[str] = []
+
+    def flush():
+        if current:
+            segments.append(" ".join(current))
+
+    for sentence in sentences:
+        sentence_words = sentence.split()
+        if not sentence_words:
+            continue
+        if len(sentence_words) > max_words:
+            flush()
+            current.clear()
+            for i in range(0, len(sentence_words), max_words):
+                segments.append(" ".join(sentence_words[i:i + max_words]))
+            continue
+        if len(current) + len(sentence_words) > max_words:
+            flush()
+            current = list(sentence_words)
+        else:
+            current.extend(sentence_words)
+    flush()
+    return segments or [text]
+
+
 def _build_system_prompt(
     business_name: str, context: str, sequence: list[str], max_words: int | None, rules: str,
 ) -> str:
@@ -245,13 +284,13 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
             # too) BEFORE the reply is stored, so client_sms_messages and
             # what the lead actually receives always match.
             reply_text = gsm7_safe(reply_text)
-            words = reply_text.split()
-            if max_words and len(words) > max_words:
-                # Belt-and-suspenders — the prompt already instructs the
-                # limit, this just guarantees it's never violated even if
-                # the model ignores it.
-                reply_text = " ".join(words[:max_words])
-            await client_sms.send_client_sms(client_id, from_phone, reply_text)
+            # Belt-and-suspenders, same reasoning as the em-dash fix above —
+            # the prompt already instructs the word limit, this guarantees
+            # it even if the model runs long. Split into multiple texts
+            # instead of truncating (which was silently dropping the tail
+            # of the reply) — sent in order, each its own SMS.
+            for segment in _split_into_sms_segments(reply_text, max_words):
+                await client_sms.send_client_sms(client_id, from_phone, segment)
     except Exception as e:
         print(f"[response_ai] handle_inbound_sms failed for client={client_id} phone={from_phone}: {e}")
 
