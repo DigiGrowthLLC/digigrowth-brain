@@ -697,7 +697,7 @@ async def portal_appointments(token: str, status: str = "scheduled"):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT ar.* FROM appointment_reminders ar
+            SELECT ar.*, c.business, c.owner FROM appointment_reminders ar
             JOIN contacts c ON c.id = ar.contact_id
             WHERE c.client_id = $1 AND NOT c.is_client_anchor AND ar.status = $2
             ORDER BY ar.appointment_at ASC
