@@ -54,6 +54,7 @@ import asyncio
 import json
 import os
 import re
+from urllib.parse import urlencode
 import uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -161,24 +162,41 @@ async def _get_or_create_conversation(conn, client_id: int, phone: str) -> dict:
     return dict(row)
 
 
-async def _get_or_create_contact(conn, client_id: int, phone: str) -> str | None:
+async def _get_or_create_contact(conn, client_id: int, phone: str) -> dict | None:
     """Same ownership rules as client_portal.py's portal_create_lead() —
     never claim a phone number that's already someone else's anchor contact
     or another client's lead. Returns None (rather than raising) if the
     phone is already claimed elsewhere, so a booking still succeeds with
-    contact_id=None rather than blocking the lead's reply over an edge case."""
+    contact_id=None rather than blocking the lead's reply over an edge case.
+
+    Matches on the last 10 digits rather than an exact string (same
+    normalization dialer_webhooks.py and the reset-test endpoint already
+    use) — contacts can be stored as bare 10-digit numbers, with a leading
+    1, or full E.164 depending on where they were entered, while an
+    inbound Twilio webhook's From is always E.164. An exact-string match
+    was silently missing existing leads already in the CRM and creating a
+    duplicate contact for the same real person instead of reusing theirs.
+
+    Returns {id, owner, email} rather than just an id — when the phone
+    matches an existing lead (e.g. one that came in earlier through Meta
+    Lead Ads or was added manually) their name/email is already on file,
+    and propose_appointment uses it to pre-fill the Calendly link instead
+    of sending the lead a blank form to fill out again."""
     existing = await conn.fetchrow(
-        "SELECT id, client_id, is_client_anchor FROM contacts WHERE phone = $1", phone,
+        "SELECT id, client_id, is_client_anchor, owner, email FROM contacts "
+        "WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = right(regexp_replace($1, '\\D', '', 'g'), 10) "
+        "ORDER BY (client_id = $2) DESC, created_at ASC LIMIT 1",
+        phone, client_id,
     )
     if existing:
         if existing["is_client_anchor"] or (existing["client_id"] is not None and existing["client_id"] != client_id):
             return None
-        return existing["id"]
+        return {"id": existing["id"], "owner": existing["owner"], "email": existing["email"]}
     row = await conn.fetchrow(
         "INSERT INTO contacts (id, phone, status, client_id) VALUES ($1, $2, 'new', $3) RETURNING id",
         str(uuid.uuid4()), phone, client_id,
     )
-    return row["id"]
+    return {"id": row["id"], "owner": None, "email": None}
 
 
 async def _load_recent_messages(conn, client_id: int, phone: str) -> list[dict]:
@@ -453,7 +471,8 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
     if tool_name == "propose_appointment":
         try:
             async with pool.acquire() as conn:
-                contact_id = await _get_or_create_contact(conn, client_id, from_phone)
+                contact = await _get_or_create_contact(conn, client_id, from_phone)
+            contact_id = contact["id"] if contact else None
             tz_name = guess_timezone(from_phone)
             tz = ZoneInfo(tz_name)
             # create_appointment_row acquires its own connection internally
@@ -487,13 +506,27 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 except Exception as e:
                     print(f"[response_ai] find_slot_scheduling_url failed for client={client_id}: {e}", flush=True)
             if slot_url:
+                # Pre-fill Calendly's name/email fields from the matched
+                # CRM contact when known, so the lead isn't retyping info
+                # already on file — Calendly reads these as ordinary query
+                # params on any of its booking pages.
+                prefill = {}
+                if contact and contact.get("owner"):
+                    prefill["name"] = contact["owner"]
+                if contact and contact.get("email"):
+                    prefill["email"] = contact["email"]
+                if prefill:
+                    sep = "&" if "?" in slot_url else "?"
+                    slot_url = f"{slot_url}{sep}{urlencode(prefill)}"
                 return (
                     f"Logged internally as appointment id={row['id']}. This time isn't actually "
                     f"confirmed on the calendar yet — Calendly requires the lead to tap through "
                     f"themselves. Send them this exact link in your reply so they can lock it in "
                     f"with one tap: {slot_url} — tell them it's their {tool_input.get('date')} "
-                    f"{tool_input.get('time')} slot, already picked, just confirm name/email on "
-                    f"Calendly's page to finish. Do not tell them they're fully booked until that."
+                    f"{tool_input.get('time')} slot, already picked"
+                    + (", name/email pre-filled" if prefill else "")
+                    + ", just confirm on Calendly's page to finish. Do not tell them they're "
+                    "fully booked until that."
                 )
             return f"Booked appointment id={row['id']} for {tool_input.get('date')} {tool_input.get('time')} ({tz_name})."
         except ValueError as e:
