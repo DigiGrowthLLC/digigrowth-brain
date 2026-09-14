@@ -2204,6 +2204,48 @@ function AgentResetTest({ clientId }) {
   );
 }
 
+// Calendly connection — a Personal Access Token the client (or Dylan, once
+// added as an admin on their account) generates from Calendly's own
+// settings. Read-only use (calendly_integration.py) — lets response_ai's
+// check_availability tool propose real open times instead of asking blind.
+// Calendly's API can't create a confirmed booking on someone's behalf, so
+// this is availability-checking only; the actual booking still gets logged
+// the same way it always has.
+function AgentCalendlyConnect({ config, onSaveFields }) {
+  const [token, setToken] = useState(config?.calendly_api_token || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setSaved(false);
+    setSaveError("");
+    const result = await onSaveFields({ calendly_api_token: token.trim() || null });
+    setSaving(false);
+    if (result?.ok) setSaved(true); else setSaveError(result?.error || "Save failed");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 12, color: "#8aaad0" }}>
+        Generate a Personal Access Token from the client's Calendly account (Integrations &amp; Apps → API &amp; Webhooks → Generate New Token) and paste it below. {config?.calendly_api_token ? "Connected." : "Not connected — the agent will just ask leads for their preferred day/time until this is set."}
+      </div>
+      <input
+        type="password" autoComplete="off" className="dg-input" style={{ fontSize: 12, width: "100%", boxSizing: "border-box" }}
+        value={token} placeholder="Calendly Personal Access Token"
+        onChange={(e) => { setToken(e.target.value); setSaved(false); setSaveError(""); }}
+      />
+      <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={save} disabled={saving}>
+        {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
+      </button>
+      {saveError && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{saveError}</div>
+      )}
+    </div>
+  );
+}
+
 // Dedicated "Agent" tab — the self-built response_ai.py agent's full admin
 // surface (context, sequence, rules) in one place, rather than buried
 // inside the Marketing Setup guide's checklist. Fetches/saves through the
@@ -2273,6 +2315,11 @@ function ClientAgentSetup({ clientId }) {
         "Rules",
         "Behavioral guardrails, enforced by the agent itself — not just suggestions.",
         <AgentRulesEditor config={config} onSaveFields={saveFields} />
+      )}
+      {section(
+        "Calendar (Calendly)",
+        "Optional — lets the agent check real availability before proposing a time, instead of asking blind.",
+        <AgentCalendlyConnect config={config} onSaveFields={saveFields} />
       )}
       {section(
         "Testing",

@@ -29,9 +29,18 @@ Per-client config also drives:
   than sleeping inline (which would hold the Twilio webhook open and risk
   a timeout/retry).
 
-V1 scope: SMS only, no live calendar-availability check (none exists
-anywhere in this system) — the agent proposes/confirms a time and books it
-directly, same trust level as a rep manually noting a booked time today.
+V1 scope: SMS only. Calendar availability is read-only, via Calendly's API
+(calendly_integration.py) when a client has connected a Personal Access
+Token (client_marketing_config.calendly_api_token) — the check_availability
+tool looks up real open slots so the agent doesn't propose an already-taken
+time, but booking still happens the same way it always has: logged
+directly into this system (create_appointment_row), same trust level as a
+rep manually noting a booked time today. Calendly's API has no endpoint to
+create a CONFIRMED booking on someone else's behalf (an invitee always
+completes that on Calendly's own page), so this is as far as automation
+goes without a client-side click — confirmed scope as of 2026-09-14. A
+client with no token connected just gets asked for their preferred
+day/time as before (check_availability says so and the model falls back).
 
 Phase 2 (not built): Meta Lead Ads ingestion, once Dylan has a Meta app +
 page webhook access — a new POST /webhooks/meta-leadgen endpoint would
@@ -47,9 +56,12 @@ import asyncio
 import json
 import os
 import uuid
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import anthropic
 
+import calendly_integration
 import client_sms
 from db import get_pool
 from routers.appointments import create_appointment_row
@@ -65,8 +77,10 @@ staff member, not a chatbot. Keep replies short (SMS-length, 1-3 sentences).
 Rules:
 - Only state facts, pricing, offers, or guarantees that are explicitly given to you in the \
 business info below. Never invent or guess at anything you weren't told.
-- If the lead wants to book, get their preferred day and time, confirm it back to them in one \
-message, then call propose_appointment.
+- If the lead wants to book, and a specific day is on the table, call check_availability for \
+that day first — if it returns real open times, offer from those rather than asking blind. If it \
+says the calendar isn't connected, just ask for their preferred day and time as usual. Either way, \
+confirm the agreed time back to them in one message, then call propose_appointment.
 - If the lead asks for something outside what you were told, seems upset, asks for a refund or \
 files a complaint, or you're not confident how to respond, call escalate_to_human and let them \
 know a team member will follow up.
@@ -75,6 +89,17 @@ successfully in this same turn.
 """
 
 _TOOLS = [
+    {
+        "name": "check_availability",
+        "description": "Look up REAL open appointment times on the business's calendar for one specific day, if their calendar is connected. Call this before offering a specific time whenever a day is already on the table.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD"},
+            },
+            "required": ["date"],
+        },
+    },
     {
         "name": "propose_appointment",
         "description": "Book a tentative appointment for this lead once they've agreed to a specific day and time.",
@@ -250,6 +275,30 @@ async def _run_agent_turn(client_id: int, from_phone: str, system_prompt: str, m
 
 async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_input: dict) -> str:
     pool = await get_pool()
+
+    if tool_name == "check_availability":
+        async with pool.acquire() as conn:
+            token = await conn.fetchval(
+                "SELECT calendly_api_token FROM client_marketing_config WHERE client_id = $1", client_id,
+            )
+        if not token:
+            return "Calendar isn't connected for this business — ask the lead for their preferred day and time instead."
+        date_str = (tool_input.get("date") or "").strip()
+        try:
+            tz_name = guess_timezone(from_phone)
+            tz = ZoneInfo(tz_name)
+            slots = await calendly_integration.get_available_times(
+                token, f"{date_str}T00:00:00Z", f"{date_str}T23:59:59Z",
+            )
+            if not slots:
+                return f"No open times found on {date_str}. Ask if another day works."
+            times = ", ".join(
+                datetime.fromisoformat(s["start_time"].replace("Z", "+00:00")).astimezone(tz).strftime("%-I:%M %p")
+                for s in slots[:8]
+            )
+            return f"Real open times on {date_str} (lead's local time): {times}"
+        except Exception as e:
+            return f"Couldn't check the calendar ({e}) — ask for their preferred day and time instead."
 
     if tool_name == "propose_appointment":
         try:
