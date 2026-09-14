@@ -16,6 +16,7 @@ import os
 from twilio.rest import Client as TwilioClient
 
 from db import get_pool
+from sms_text import gsm7_safe
 
 
 def _master_client() -> TwilioClient:
@@ -107,7 +108,7 @@ async def send_client_sms(client_id: int, to_number: str, body: str, stage: str 
             master.api.accounts(config["twilio_subaccount_sid"]).fetch().auth_token,
         )
         message = subaccount_client.messages.create(
-            to=to_number, from_=config["twilio_number"], body=body,
+            to=to_number, from_=config["twilio_number"], body=gsm7_safe(body),
         )
 
         await conn.execute(
