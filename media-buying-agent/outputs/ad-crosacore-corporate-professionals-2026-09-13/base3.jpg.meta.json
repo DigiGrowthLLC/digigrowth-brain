@@ -1,0 +1,8 @@
+{
+  "model": "fal-ai/flux-pro/v1.1",
+  "prompt": "raw, unedited-looking iPhone photo, slightly imperfect candid angle, a physical therapist assessing and mobilizing the shoulder of a seated professional client in business-casual clothing, client's face shows real mild discomfort with natural facial asymmetry, therapist mid-motion with hands on the shoulder, ordinary clinic or home-office treatment room with visible clutter like folders and a lamp, mixed indoor lighting with slight color cast, visible skin texture and pores, slight motion blur, grainy low-contrast amateur photography, not a professional photoshoot, no text, no logos",
+  "request_id": "01a09de0-6f67-7cd3-be06-de8c2108b3c2",
+  "generated_at": "2026-09-14T03:05:35.843496+00:00",
+  "aspect": "4:5",
+  "ref": null
+}

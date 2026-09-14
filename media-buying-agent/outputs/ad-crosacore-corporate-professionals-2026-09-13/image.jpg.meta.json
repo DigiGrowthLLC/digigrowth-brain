@@ -1,0 +1,12 @@
+{
+  "base_ai_render": {
+    "model": "fal-ai/flux-pro/v1.1",
+    "prompt": "medium-distance candid documentary photograph, shot from about six feet back showing full upper bodies, a physical therapist standing beside a seated professional client and clearly mobilizing the client's shoulder with both hands, client's posture shows mild discomfort, ordinary home-office or clinic room visible around them with desk and window, natural mixed indoor lighting, realistic amateur photography rather than a tight beauty close-up, no exaggerated facial detail, no text, no logos",
+    "request_id": "01a09de7-f0f9-7132-88ae-593bf013f89e",
+    "generated_at": "2026-09-14T03:13:43.746054+00:00",
+    "aspect": "4:5",
+    "ref": null
+  },
+  "post_process": "v6: reverted to vertical top/bottom layout (photo top ~40%%, panel bottom ~60%%). Photo regenerated at medium distance (~6ft, full upper/full bodies) instead of tight close-up, to de-emphasize facial/skin detail while keeping the PT action clearly visible. Composited with Pillow, not AI-generated text.",
+  "composited_at": "2026-09-14T03:15:09.151216+00:00"
+}

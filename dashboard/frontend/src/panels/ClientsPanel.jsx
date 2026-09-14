@@ -1795,9 +1795,11 @@ const MARKETING_GUIDES = {
       { text: "Real limitation, not automatable from here: this only covers leads DigiGrowth booked for this client through this OS. A client's EXISTING patient base lives in their own booking software/EHR, which this system has no connection to — the same automation for their whole existing patient list needs that specific system integrated (a real per-client dev task) or the client running it through their own tool." },
     ],
   },
-  analytics: {
-    title: "Verify & Hook Up Analytics",
+  client_portal: {
+    title: "Set Up Client Portal",
     steps: [
+      { text: "Connect the client's own Calendly so leads booked through their portal (Leads tab → a lead's booking modal) land straight on their real calendar instead of showing \"not connected yet.\" Paste their event type's booking page URL (Calendly → the specific event type → Share → Copy Link) — this is the same link used as the ad funnel's CTA destination, not a generic Calendly homepage link.",
+        fields: [{ key: "calendly_url", label: "Client's Calendly event link", placeholder: "https://calendly.com/their-username/event-type" }] },
       { text: "Link this client's leads: Clients list → \"Link contact to client\" (or \"Link all unassigned\") for every contact that's actually theirs — Leads/SMS/Email/Appointment stats all key off contacts.client_id, so an unlinked contact is invisible everywhere in their portal." },
       { text: "Open this client's portal Analytics tab (use their portal link) and sanity-check Total Leads and SMS/Email Sent+Replies against what you already know is true." },
       { text: "Appointments Booked / Show Rate / Close Rate compute live from the internal Appointments tab's outcome marking (outcome_show/outcome_close) for this client's leads — nothing to connect, just make sure reps are actually marking outcomes for this client's appointments instead of leaving them blank." },
@@ -1864,9 +1866,11 @@ const MARKETING_STEPS = [
     done: (cfg) => _guideStepsAllDone(cfg, "automations"),
   },
   {
-    key: "analytics", label: "Analytics",
-    status: () => "Manual verification — see guide",
-    done: (cfg) => _guideStepsAllDone(cfg, "analytics"),
+    key: "client_portal", label: "Set Up Client Portal",
+    status: (cfg, client) => (client?.calendly_url
+      ? "Calendly connected — Analytics still needs manual verification, see guide"
+      : "Calendly not connected yet — see guide"),
+    done: (cfg) => _guideStepsAllDone(cfg, "client_portal"),
   },
 ];
 
@@ -1883,9 +1887,9 @@ function _guideStepsAllDone(cfg, guideKey) {
 // Inline "paste the info this step needs, right here" mini-form — saves via
 // the same saveFields() the tab's own field editors use, so filling it in
 // from inside the guide and from the tab below stay in sync.
-function GuideStepFields({ fields, config, onSaveFields, onSaved }) {
+function GuideStepFields({ fields, config, client, onSaveFields, onSaved }) {
   const [drafts, setDrafts] = useState(() =>
-    Object.fromEntries(fields.map((f) => [f.key, config?.[f.key] || ""]))
+    Object.fromEntries(fields.map((f) => [f.key, config?.[f.key] || client?.[f.key] || ""]))
   );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -2522,7 +2526,7 @@ function GuideModal({
                   )}
                   {s.fields && (
                     <GuideStepFields
-                      fields={s.fields} config={config} onSaveFields={onSaveFields}
+                      fields={s.fields} config={config} client={client} onSaveFields={onSaveFields}
                       onSaved={() => onToggleStep(i, true)}
                     />
                   )}
@@ -2670,6 +2674,12 @@ function ClientMarketingSetup({ clientId }) {
     load();
   };
 
+  // Fields the guide's `fields` step type can save that actually live on the
+  // `clients` row, not client_marketing_config (e.g. calendly_url, used by
+  // the client portal's booking modal) — everything else in a step's fields
+  // still goes to marketing-config as before.
+  const CLIENT_TABLE_FIELDS = new Set(["calendly_url"]);
+
   // Returns { ok, error } instead of throwing, so callers (including the
   // guide modal's inline field forms) can tell a save actually took and
   // only then treat the step as done — a write that 500s (e.g. a column
@@ -2679,12 +2689,28 @@ function ClientMarketingSetup({ clientId }) {
     setError("");
     let result = { ok: true, error: null };
     try {
-      const r = await fetch(API(`/clients/${clientId}/marketing-config`), {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fields),
-      });
-      if (!r.ok) {
-        const detail = await r.json().catch(() => null);
+      const clientFields = {};
+      const configFields = {};
+      for (const [key, value] of Object.entries(fields)) {
+        (CLIENT_TABLE_FIELDS.has(key) ? clientFields : configFields)[key] = value;
+      }
+      const requests = [];
+      if (Object.keys(clientFields).length) {
+        requests.push(fetch(API(`/clients/${clientId}`), {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(clientFields),
+        }));
+      }
+      if (Object.keys(configFields).length) {
+        requests.push(fetch(API(`/clients/${clientId}/marketing-config`), {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(configFields),
+        }));
+      }
+      const responses = await Promise.all(requests);
+      const failed = responses.find((r) => !r.ok);
+      if (failed) {
+        const detail = await failed.json().catch(() => null);
         result = { ok: false, error: detail?.detail || "Failed to save" };
         setError(result.error);
       }
@@ -2821,7 +2847,7 @@ function ClientMarketingSetup({ clientId }) {
               {idx + 1}. {step.label}
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", marginTop: 2 }}>
-              {step.status(config)}
+              {step.status(config, client)}
             </div>
             <button
               className="btn btn-secondary" style={{ fontSize: 9, marginTop: 6, padding: "3px 8px" }}

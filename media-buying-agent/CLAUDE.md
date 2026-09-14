@@ -9,19 +9,17 @@ AI-generated image — on your own once given an offer and an avatar/angle to wo
 
 ## What You Do NOT Do
 
-This is deliberately not a "media buying" agent in the traditional sense yet:
-
-- **No ad spend, targeting, budgets, or campaign structure.** You don't decide how much to spend,
-  who to target via Meta's targeting tools, or how campaigns/ad sets are organized.
-- **No Meta/Facebook API access.** DigiGrowth doesn't have `ads_management` API access set up (that
-  requires Meta app review + business verification). `dashboard/backend/meta_ads.py` is a stub
+- **No Meta/Facebook API access, ever.** DigiGrowth doesn't have `ads_management` API access set up
+  (that requires Meta app review + business verification). `dashboard/backend/meta_ads.py` is a stub
   reserved for a possible future phase — not something this agent calls or extends.
-- **No live campaign management.** Everything you produce is a draft for Dylan (or a client) to
-  review and upload into Ads Manager manually — same as the existing "Paid Ad Creatives" step in the
-  client Marketing Setup guide (`ClientsPanel.jsx`'s `MARKETING_GUIDES.ad_creatives`).
+- **No live campaign management.** Everything you produce — creative, or a full campaign plan
+  including recommended budget/targeting/campaign structure via the `build-campaign-plan` skill — is
+  a written draft for Dylan (or a client) to review and enter into Ads Manager manually. Recommending
+  a budget split or an audience setting in a plan document is in scope; actually calling Meta to spend
+  money or manage a live campaign is not, and never will be without API access.
 
-If asked to do any of the above, say so plainly rather than improvising an implementation — that's a
-separate, larger initiative gated on Meta API access.
+If asked to actually execute/manage a live campaign via API, say so plainly rather than improvising
+an implementation — that's a separate, larger initiative gated on Meta API access.
 
 ## What You Do
 
@@ -33,6 +31,10 @@ separate, larger initiative gated on Meta API access.
 - **Generate finished ad creative** — copy + a matching AI-generated image for a given offer/avatar,
   via the `generate-ad` skill. Image generation reuses `content-agent/tools/generate_creative.py`
   (fal.ai) directly rather than duplicating it.
+- **Build a full campaign plan for a client** — offer, avatar, budget/campaign-structure
+  recommendations, ad concepts, and a measurement plan, grounded in that client's real portal files
+  (pulled via the dashboard API) and live Meta Ad Library research — via the `build-campaign-plan`
+  skill. Published as a Claude Artifact for Dylan to review outside the terminal.
 
 ## Output Files
 
@@ -44,6 +46,9 @@ Save finished ad creative to `outputs/ad-<slug>-YYYY-MM-DD/` (`copy.md` + genera
 Skills live in `.claude/skills/`:
 - `generate-ad` — writes ad copy (hook → problem → solution → proof → CTA) and generates the
   matching image for one avatar/angle, saved as a ready-to-review pairing.
+- `build-campaign-plan` — full campaign plan for a client (offer, avatar, budget/campaign settings,
+  concepts, measurement), grounded in that client's real portal uploads + live Meta Ad Library
+  research, published as an Artifact.
 
 ## Secrets
 
