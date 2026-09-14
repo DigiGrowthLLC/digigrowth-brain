@@ -343,17 +343,20 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
 
     if tool_name == "check_availability":
         async with pool.acquire() as conn:
-            token = await conn.fetchval(
-                "SELECT calendly_api_token FROM client_marketing_config WHERE client_id = $1", client_id,
+            row = await conn.fetchrow(
+                "SELECT calendly_api_token, calendly_event_type_url FROM client_marketing_config "
+                "WHERE client_id = $1", client_id,
             )
-        if not token:
+        token = row["calendly_api_token"] if row else None
+        event_type_url = row["calendly_event_type_url"] if row else None
+        if not token or not event_type_url:
             return "Calendar isn't connected for this business — ask the lead for their preferred day and time instead."
         date_str = (tool_input.get("date") or "").strip()
         try:
             tz_name = guess_timezone(from_phone)
             tz = ZoneInfo(tz_name)
             slots = await calendly_integration.get_available_times(
-                token, f"{date_str}T00:00:00Z", f"{date_str}T23:59:59Z",
+                token, event_type_url, f"{date_str}T00:00:00Z", f"{date_str}T23:59:59Z",
             )
             if not slots:
                 return f"No open times found on {date_str}. Ask if another day works."

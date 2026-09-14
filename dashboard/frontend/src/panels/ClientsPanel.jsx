@@ -2278,6 +2278,56 @@ function AgentCalendlyConnect({ config, onSaveFields }) {
       {saveError && (
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{saveError}</div>
       )}
+      <AgentCalendlyEventType config={config} onSaveFields={onSaveFields} />
+    </div>
+  );
+}
+
+// The exact event type this client's agent should check — required, never
+// inferred. A token can see event types belonging to OTHER people entirely
+// (e.g. Dylan's own token, as an admin on a client's Calendly, also sees
+// his own unrelated event types) — "just grab whichever comes back first"
+// risks silently checking/booking against the wrong calendar the moment
+// more than one client shares that ambiguity. Not a secret, so — unlike
+// the token field above — this is safe to pre-fill and edit in place.
+function AgentCalendlyEventType({ config, onSaveFields }) {
+  const [url, setUrl] = useState(config?.calendly_event_type_url || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => { setUrl(config?.calendly_event_type_url || ""); }, [config?.calendly_event_type_url]);
+
+  const save = async () => {
+    setSaving(true);
+    setSaved(false);
+    setSaveError("");
+    const result = await onSaveFields({ calendly_event_type_url: url.trim() || null });
+    setSaving(false);
+    if (result?.ok) setSaved(true); else setSaveError(result?.error || "Save failed");
+  };
+
+  return (
+    <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginBottom: 2 }}>
+        EVENT TYPE / BOOKING LINK TO CHECK
+      </div>
+      <div style={{ fontSize: 11, color: "#8aaad0", marginBottom: 6 }}>
+        The client's actual public Calendly link for the offer this agent books (e.g. their free consult) — copy it straight from Calendly. Required for availability checks to actually run, even with a token connected.
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          className="dg-input" style={{ fontSize: 12, flex: 1, boxSizing: "border-box" }}
+          value={url} placeholder="https://calendly.com/name/event-slug"
+          onChange={(e) => { setUrl(e.target.value); setSaved(false); setSaveError(""); }}
+        />
+        <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={save} disabled={saving}>
+          {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
+        </button>
+      </div>
+      {saveError && (
+        <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{saveError}</div>
+      )}
     </div>
   );
 }
