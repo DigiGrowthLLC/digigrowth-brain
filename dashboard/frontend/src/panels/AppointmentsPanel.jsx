@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { API } from "../api.js";
 import AppointmentOutcomeCard from "../AppointmentOutcomeCard.jsx";
 
@@ -55,18 +55,6 @@ function OutcomeSummary({ appointment, onClick }) {
   );
 }
 
-function StatChip({ label, value, color }) {
-  return (
-    <div style={{
-      display: "flex", flexDirection: "column", gap: 2, padding: "8px 14px",
-      borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid #1a2540", minWidth: 84,
-    }}>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a6f8f", letterSpacing: "0.1em" }}>{label}</div>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: color || "#f0f4ff" }}>{value}</div>
-    </div>
-  );
-}
-
 // An appointment counts as "past" an hour after its scheduled time — status
 // stays 'scheduled' in the DB either way (only an explicit Cancel flips it),
 // so this split is purely a client-side time comparison against appointment_at.
@@ -102,20 +90,6 @@ export default function AppointmentsPanel() {
     ? rows.filter(r => new Date(r.appointment_at).getTime() + PAST_GRACE_MS <= Date.now())
     : rows;
 
-  // Derived directly from whatever's currently loaded/filtered — no
-  // separate backend stats endpoint, so this always matches what's on
-  // screen. Deliberately kept out of the Sales Performance sheet-driven
-  // Analytics numbers (see analytics.py) — this is a DB-truth view of
-  // outcomes logged in the OS, not a replacement for the manually-tracked
-  // pipeline sheet.
-  const stats = useMemo(() => {
-    const shows    = displayRows.filter(r => r.outcome_show === "show").length;
-    const noShows  = displayRows.filter(r => r.outcome_show === "no_show").length;
-    const closed   = displayRows.filter(r => r.outcome_close === "closed").length;
-    const notClosed = displayRows.filter(r => r.outcome_close === "not_closed").length;
-    return { shows, noShows, closed, notClosed };
-  }, [displayRows]);
-
   const cancel = async (id) => {
     if (!confirm("Cancel reminders for this appointment?")) return;
     await fetch(API(`/appointment-reminders/${id}/cancel`), { method: "POST" }).catch(() => {});
@@ -139,13 +113,6 @@ export default function AppointmentsPanel() {
           <option value="canceled">Canceled</option>
           <option value="all">All</option>
         </select>
-      </div>
-
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <StatChip label="SHOWS" value={stats.shows} color="#14c882" />
-        <StatChip label="NO SHOWS" value={stats.noShows} color="#dc3c3c" />
-        <StatChip label="CLOSED" value={stats.closed} color="#14c882" />
-        <StatChip label="NOT CLOSED" value={stats.notClosed} color="#dc3c3c" />
       </div>
 
       <div className="glass-card" style={{ padding: 0, overflow: "hidden" }}>
