@@ -494,30 +494,57 @@ async def portal_stats(token: str, period: str = "all"):
             """,
             client["id"],
         )
-        # "Active Conversations" = distinct real leads with any activity on
-        # any channel/system, not a sum of per-channel thread counts — the
-        # sum double-counted a lead active on both SMS and email, and pulled
-        # in stray/legacy rows from DigiGrowth's own agency-outreach tables
-        # unrelated to this client's real leads. Mirrors the same
-        # phone/email matching portal_inbox_list() already uses, so this
-        # number always agrees with how many threads actually show up there.
-        active_conversations = await conn.fetchval(
+        # Per Dylan's explicit call (2026-09-14): every outreach figure caps
+        # at 1 per prospect — "SMS Sent" means how many distinct leads got at
+        # least one SMS, not a raw message count, and same for replies/email/
+        # the totals. Gathers every (contact, channel, direction) touch from
+        # BOTH systems (DigiGrowth's own agency-outreach tables and the
+        # client's own Twilio/Gmail activity) into one set, then counts
+        # distinct contacts per bucket — this is also what "Active
+        # Conversations" (any activity, either direction/channel) reduces to.
+        sms_client_since = sms_since_clause.replace("sm.sent_at", "csm.created_at")
+        email_client_since = email_since_clause.replace("em.sent_at", "cem.created_at")
+        outreach_row = await conn.fetchrow(
             f"""
-            WITH csm AS ({_client_sms_counterparty_sql('$1')})
-            SELECT COUNT(DISTINCT c.id) FROM contacts c
-            WHERE c.client_id = $1 AND NOT c.is_client_anchor
-            AND (
-                EXISTS (SELECT 1 FROM sms_conversations sc WHERE sc.contact_id = c.id)
-                OR EXISTS (SELECT 1 FROM email_conversations ec WHERE ec.contact_id = c.id)
-                OR (c.phone IS NOT NULL AND trim(c.phone) != ''
-                    AND EXISTS (SELECT 1 FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}))
-                OR (c.email IS NOT NULL AND trim(c.email) != ''
-                    AND EXISTS (SELECT 1 FROM client_email_messages cem
-                                WHERE cem.client_id = $1 AND lower(cem.to_email) = lower(c.email)))
+            WITH csm AS ({_client_sms_counterparty_sql('$1')}),
+            activity AS (
+                SELECT c.id AS contact_id, 'sms' AS channel, sm.direction AS direction
+                FROM sms_conversations sc
+                JOIN contacts c ON c.id = sc.contact_id
+                JOIN sms_messages sm ON sm.contact_id = sc.contact_id
+                WHERE c.client_id = $1 AND NOT c.is_client_anchor {sms_since_clause}
+                UNION ALL
+                SELECT c.id, 'sms', csm.direction
+                FROM contacts c
+                JOIN csm ON {sms_router._phone_match('csm.counterparty', 'c.phone')}
+                WHERE c.client_id = $1 AND NOT c.is_client_anchor
+                    AND c.phone IS NOT NULL AND trim(c.phone) != '' {sms_client_since}
+                UNION ALL
+                SELECT c.id, 'email', em.direction
+                FROM email_conversations ec
+                JOIN contacts c ON c.id = ec.contact_id
+                JOIN email_messages em ON em.contact_id = ec.contact_id
+                WHERE c.client_id = $1 AND NOT c.is_client_anchor {email_since_clause}
+                UNION ALL
+                SELECT c.id, 'email', cem.direction
+                FROM contacts c
+                JOIN client_email_messages cem ON lower(cem.to_email) = lower(c.email)
+                WHERE c.client_id = $1 AND NOT c.is_client_anchor AND cem.client_id = $1
+                    AND c.email IS NOT NULL AND trim(c.email) != '' {email_client_since}
             )
+            SELECT
+                COUNT(DISTINCT CASE WHEN channel = 'sms' AND direction = 'outbound' THEN contact_id END) AS sms_sent,
+                COUNT(DISTINCT CASE WHEN channel = 'sms' AND direction = 'inbound' THEN contact_id END) AS sms_replies,
+                COUNT(DISTINCT CASE WHEN channel = 'email' AND direction = 'outbound' THEN contact_id END) AS email_sent,
+                COUNT(DISTINCT CASE WHEN channel = 'email' AND direction = 'inbound' THEN contact_id END) AS email_replies,
+                COUNT(DISTINCT CASE WHEN direction = 'outbound' THEN contact_id END) AS total_sent,
+                COUNT(DISTINCT CASE WHEN direction = 'inbound' THEN contact_id END) AS total_replies,
+                COUNT(DISTINCT contact_id) AS active_conversations
+            FROM activity
             """,
             client["id"],
         )
+        active_conversations = outreach_row["active_conversations"]
         leads_total = await conn.fetchval(
             f"SELECT count(*) FROM contacts WHERE client_id = $1 AND NOT is_client_anchor {leads_since_clause}",
             client["id"],
@@ -583,6 +610,16 @@ async def portal_stats(token: str, period: str = "all"):
         "leads": {"total": leads_total},
         "appointments": appointments_out,
         "active_conversations": active_conversations,
+        # Every figure here is a distinct-prospect count (capped at 1 per
+        # lead), not a raw message count — see the `activity` CTE above.
+        "outreach": {
+            "sms_sent": outreach_row["sms_sent"],
+            "sms_replies": outreach_row["sms_replies"],
+            "email_sent": outreach_row["email_sent"],
+            "email_replies": outreach_row["email_replies"],
+            "total_sent": outreach_row["total_sent"],
+            "total_replies": outreach_row["total_replies"],
+        },
     }
 
 

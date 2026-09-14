@@ -1170,26 +1170,20 @@ function AnalyticsTab({ token }) {
   const leadsTotal = stats.leads.total;
   const bookingRate = leadsTotal > 0 ? Math.round((appt.total / leadsTotal) * 1000) / 10 : null;
 
-  // Combines two data sources: DigiGrowth's own agency-run outreach system
-  // (stats.sms/stats.email — sms_conversations/email_conversations, used
-  // when DigiGrowth sends cold SMS/email to a client's leads directly) and
-  // the client's OWN provisioned Twilio number / Gmail mailbox
-  // (stats.campaign_sms/stats.campaign_email — client_sms_messages/
-  // client_email_messages, e.g. Sophie's replies or the client's own team
-  // texting/emailing leads back). A client like CrosaCore who never uses
-  // DigiGrowth's agency-outreach system showed 0 sent/replies and the wrong
-  // "Active Conversations" count here before this fix — all their real
-  // activity lived only in campaign_sms/campaign_email, which this section
-  // never read. Confirmed live: 2 leads with real threads (4 SMS + 2 email
-  // sent, 2 SMS + 6 email replies) showing as 0 sent / 1 active conversation.
-  const smsSent = stats.sms.sent + (stats.campaign_sms?.sent || 0);
-  const smsReplies = stats.sms.replies + (stats.campaign_sms?.received || 0);
-  const emailSent = stats.email.sent + (stats.campaign_email?.sent || 0);
-  const emailReplies = stats.email.replies + (stats.campaign_email?.received || 0);
+  // Every outreach figure is a distinct-prospect count capped at 1 per lead
+  // (Dylan's explicit call, 2026-09-14) — "SMS Sent" means how many leads
+  // got at least one SMS, not a raw message count — computed server-side
+  // in portal_stats() across BOTH DigiGrowth's own agency-outreach system
+  // and the client's own Twilio/Gmail activity combined, so a lead reached
+  // through either (or both, for the "Total" figures) counts exactly once.
+  const smsSent = stats.outreach.sms_sent;
+  const smsReplies = stats.outreach.sms_replies;
+  const emailSent = stats.outreach.email_sent;
+  const emailReplies = stats.outreach.email_replies;
   const smsReplyRate = smsSent > 0 ? Math.round((smsReplies / smsSent) * 1000) / 10 : null;
   const emailReplyRate = emailSent > 0 ? Math.round((emailReplies / emailSent) * 1000) / 10 : null;
-  const totalSent = smsSent + emailSent;
-  const totalReplies = smsReplies + emailReplies;
+  const totalSent = stats.outreach.total_sent;
+  const totalReplies = stats.outreach.total_replies;
   const overallReplyRate = totalSent > 0 ? Math.round((totalReplies / totalSent) * 1000) / 10 : null;
   // Distinct real leads with any activity, computed server-side (not summed
   // per-channel here) — summing would double-count a lead active on both
