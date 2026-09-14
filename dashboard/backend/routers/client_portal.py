@@ -494,6 +494,30 @@ async def portal_stats(token: str, period: str = "all"):
             """,
             client["id"],
         )
+        # "Active Conversations" = distinct real leads with any activity on
+        # any channel/system, not a sum of per-channel thread counts — the
+        # sum double-counted a lead active on both SMS and email, and pulled
+        # in stray/legacy rows from DigiGrowth's own agency-outreach tables
+        # unrelated to this client's real leads. Mirrors the same
+        # phone/email matching portal_inbox_list() already uses, so this
+        # number always agrees with how many threads actually show up there.
+        active_conversations = await conn.fetchval(
+            f"""
+            WITH csm AS ({_client_sms_counterparty_sql('$1')})
+            SELECT COUNT(DISTINCT c.id) FROM contacts c
+            WHERE c.client_id = $1 AND NOT c.is_client_anchor
+            AND (
+                EXISTS (SELECT 1 FROM sms_conversations sc WHERE sc.contact_id = c.id)
+                OR EXISTS (SELECT 1 FROM email_conversations ec WHERE ec.contact_id = c.id)
+                OR (c.phone IS NOT NULL AND trim(c.phone) != ''
+                    AND EXISTS (SELECT 1 FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}))
+                OR (c.email IS NOT NULL AND trim(c.email) != ''
+                    AND EXISTS (SELECT 1 FROM client_email_messages cem
+                                WHERE cem.client_id = $1 AND lower(cem.to_email) = lower(c.email)))
+            )
+            """,
+            client["id"],
+        )
         leads_total = await conn.fetchval(
             f"SELECT count(*) FROM contacts WHERE client_id = $1 AND NOT is_client_anchor {leads_since_clause}",
             client["id"],
@@ -558,6 +582,7 @@ async def portal_stats(token: str, period: str = "all"):
         },
         "leads": {"total": leads_total},
         "appointments": appointments_out,
+        "active_conversations": active_conversations,
     }
 
 

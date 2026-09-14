@@ -1191,8 +1191,11 @@ function AnalyticsTab({ token }) {
   const totalSent = smsSent + emailSent;
   const totalReplies = smsReplies + emailReplies;
   const overallReplyRate = totalSent > 0 ? Math.round((totalReplies / totalSent) * 1000) / 10 : null;
-  const activeConvos = (stats.sms.conversations || 0) + (stats.email.conversations || 0)
-    + (stats.campaign_sms?.conversations || 0) + (stats.campaign_email?.conversations || 0);
+  // Distinct real leads with any activity, computed server-side (not summed
+  // per-channel here) — summing would double-count a lead active on both
+  // SMS and email, and the old version also pulled in unrelated legacy rows
+  // from DigiGrowth's own agency-outreach system. See portal_stats().
+  const activeConvos = stats.active_conversations || 0;
 
   // ad_campaign_stats rows — real once meta_ads.py is wired up per client,
   // empty array (not fake zeros) until then, so the section below shows the
