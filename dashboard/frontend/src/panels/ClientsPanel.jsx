@@ -2697,7 +2697,7 @@ function ClientMarketingSetup({ clientId }) {
       const requests = [];
       if (Object.keys(clientFields).length) {
         requests.push(fetch(API(`/clients/${clientId}`), {
-          method: "PUT", headers: { "Content-Type": "application/json" },
+          method: "PATCH", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(clientFields),
         }));
       }
