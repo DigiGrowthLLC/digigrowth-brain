@@ -220,6 +220,7 @@ def _split_into_sms_segments(text: str, max_words: int | None) -> list[str]:
 
 def _build_system_prompt(
     business_name: str, context: str, sequence: list[str], max_words: int | None, rules: str,
+    today_str: str,
 ) -> str:
     # Order matters here: business context and the conversation arc come
     # first (background the model reasons with), and the mandatory rules
@@ -228,7 +229,13 @@ def _build_system_prompt(
     # weight than ones sandwiched in the middle, and repeating the "these
     # are mandatory" framing right here (on top of _SYSTEM_PREAMBLE's
     # opening mention) is deliberate reinforcement, not redundancy.
-    parts = [_SYSTEM_PREAMBLE, f"\n--- Business: {business_name} ---\n{context.strip()}\n"]
+    parts = [
+        _SYSTEM_PREAMBLE,
+        f"\nToday is {today_str} (the lead's local date/day of week). Use this to resolve "
+        "relative dates like \"tomorrow\" or \"next Tuesday\" into an actual YYYY-MM-DD yourself — "
+        "never ask the lead to spell out a date they already gave you in relative terms.\n",
+        f"\n--- Business: {business_name} ---\n{context.strip()}\n",
+    ]
 
     if sequence:
         steps = "\n".join(f"{i+1}. {step}" for i, step in enumerate(sequence) if step and step.strip())
@@ -286,8 +293,12 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
             sequence = json.loads(sequence)
         max_words = row["response_ai_max_words"]
 
+        tz_name = guess_timezone(from_phone)
+        today_str = datetime.now(ZoneInfo(tz_name)).strftime("%A, %B %-d, %Y")
+
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
+            today_str,
         )
         reply_text = await _run_agent_turn(client_id, from_phone, system_prompt, messages)
         if reply_text:
