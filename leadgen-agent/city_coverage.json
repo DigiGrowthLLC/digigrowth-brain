@@ -452,9 +452,9 @@
       "last_scraped_date": "2026-09-10"
     },
     "Long Beach, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 334,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 451,
       "qualified_count": 11,
       "last_scraped_date": "2026-09-14"
     },
