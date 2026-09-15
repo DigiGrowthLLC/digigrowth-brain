@@ -507,10 +507,19 @@ async def list_dm_followup_active():
     what makes a prospect drop off this list on reply, with no separate
     stop hook needed — same self-correcting design as the send side.
 
+    Also filtered to dm_followup_touch3_sent_at IS NULL, so a prospect
+    drops off the moment Touch 3 sends (or is skipped due to the lifetime
+    cap — either way that column gets stamped, see send_due_touches()) —
+    there's no next touch left to count down to. If they later reply and
+    go quiet again, a new cycle clears all three touch*_sent_at columns
+    back to NULL (is_new_cycle branch in send_due_touches()), so they
+    reappear here with a genuinely new countdown, as expected.
+
     A rep can still be enrolled (stage_dm_reached = true) without showing
     here — e.g. right after they've replied and the anchor was just
-    cleared, waiting on Dylan's next outbound to start a new cycle. That's
-    correct: there's nothing actively counting down for them right now.
+    cleared, waiting on Dylan's next outbound to start a new cycle, or
+    after Touch 3 has already gone out. That's correct: there's nothing
+    actively counting down for them right now.
 
     Add/remove aren't separate endpoints here — the existing
     POST /inbox/contact/{contact_id}/stage (stage="dm_reached", checked)
@@ -526,6 +535,7 @@ async def list_dm_followup_active():
             LEFT JOIN contacts c ON c.id = sc.contact_id
             WHERE sc.stage_dm_reached = true AND sc.status != 'closed' AND sc.disposition IS NULL
             AND sc.dm_followup_enrolled_at IS NOT NULL AND sc.dm_followup_anchor_at IS NOT NULL
+            AND sc.dm_followup_touch3_sent_at IS NULL
             ORDER BY sc.dm_followup_anchor_at ASC
             """
         )
