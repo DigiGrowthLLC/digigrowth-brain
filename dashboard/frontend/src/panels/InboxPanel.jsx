@@ -124,12 +124,13 @@ function ComposeModal({ onClose, onSent }) {
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
         backdropFilter: "blur(6px)", zIndex: 1000,
         display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
       }}
       onClick={onClose}
     >
       <div
         className="glass-card"
-        style={{ width: 420, padding: 0, overflow: "hidden" }}
+        style={{ width: "100%", maxWidth: 420, padding: 0, overflow: "hidden" }}
         onClick={e => e.stopPropagation()}
       >
         <div style={{ padding: "18px 22px 14px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -518,11 +519,13 @@ export default function InboxPanel({ initialTarget }) {
         />
       )}
 
-      {/* Thread list */}
-      <aside style={{
-        width: 280, borderRight: "0.5px solid #1a2540",
-        display: "flex", flexDirection: "column", flexShrink: 0,
-      }}>
+      {/* Thread list — full-width on mobile when no thread is open, hidden
+          once one is (the thread view takes over); always side-by-side at
+          md+, regardless of selection. */}
+      <aside
+        className={(selected ? "hidden " : "flex ") + "md:flex flex-col flex-shrink-0 w-full md:w-[280px]"}
+        style={{ borderRight: "0.5px solid #1a2540" }}
+      >
         <div style={{ padding: "14px 16px", borderBottom: "0.5px solid #1a2540",
                       display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#f0f4ff" }}>
@@ -712,8 +715,9 @@ export default function InboxPanel({ initialTarget }) {
         </div>
       </aside>
 
-      {/* Thread view */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      {/* Thread view — takes over full-width on mobile once a thread is
+          selected; always visible alongside the list at md+. */}
+      <div className={(!selected ? "hidden " : "flex ") + "md:flex flex-col flex-1 min-w-0"}>
         {!selected ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
                         justifyContent: "center", gap: 8 }}>
@@ -724,8 +728,19 @@ export default function InboxPanel({ initialTarget }) {
         ) : (
           <>
             {/* Thread header */}
-            <div style={{ padding: "14px 20px", borderBottom: "0.5px solid #1a2540",
-                          display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <div className="flex-wrap" style={{ padding: "14px 20px", borderBottom: "0.5px solid #1a2540",
+                          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexShrink: 0 }}>
+              <button
+                onClick={() => setSelected(null)}
+                className="md:hidden"
+                style={{
+                  background: "none", border: "none", color: "#3a7bd5", cursor: "pointer",
+                  fontFamily: "'Share Tech Mono', monospace", fontSize: 10, letterSpacing: "0.06em",
+                  padding: "4px 6px 4px 0", flexShrink: 0,
+                }}
+              >
+                ‹ BACK
+              </button>
               <div
                 onClick={() => setCardOpen(true)}
                 style={{ cursor: "pointer" }}
@@ -749,7 +764,7 @@ export default function InboxPanel({ initialTarget }) {
                 </div>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {thread?.status !== "closed" && (
                   <>
                     <div style={{ position: "relative" }}>
@@ -929,7 +944,7 @@ export default function InboxPanel({ initialTarget }) {
                 return (
                   <div key={i} style={{ display: "flex", justifyContent: isOut ? "flex-end" : "flex-start" }}>
                     <div style={{
-                      maxWidth: 420, padding: "9px 13px", borderRadius: isOut ? "8px 8px 2px 8px" : "8px 8px 8px 2px",
+                      maxWidth: "min(420px, 82%)", padding: "9px 13px", borderRadius: isOut ? "8px 8px 2px 8px" : "8px 8px 8px 2px",
                       background: isOut ? "#1f3d70" : "#0d1626",
                       border: `0.5px solid ${isOut ? "#2857a0" : "#1a2540"}`,
                     }}>

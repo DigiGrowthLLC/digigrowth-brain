@@ -1304,7 +1304,7 @@ export default function CRMPanel({ onNavigate }) {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
 
       {/* Header */}
-      <div style={{ padding: "16px 20px", borderBottom: "0.5px solid #1a2540",
+      <div className="flex-wrap" style={{ padding: "16px 20px", borderBottom: "0.5px solid #1a2540",
                     display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: "#f0f4ff" }}>
@@ -1316,11 +1316,11 @@ export default function CRMPanel({ onNavigate }) {
           </div>
         </div>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          <form onSubmit={handleSearch} style={{ display: "flex", gap: 6 }}>
+        <div className="flex-wrap md:ml-auto" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <form onSubmit={handleSearch} className="flex-wrap" style={{ display: "flex", gap: 6 }}>
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
               placeholder="Search business, owner, phone…"
-              className="dg-input" style={{ width: 240 }} />
+              className="dg-input w-full sm:w-[240px]" />
             <button type="submit" className="btn btn-primary">Search</button>
             {search && (
               <button type="button" className="btn btn-secondary"
@@ -1471,8 +1471,10 @@ export default function CRMPanel({ onNavigate }) {
         </div>
       )}
 
-      {/* Table */}
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      {/* Table — horizontal overflow (10 columns) is contained to this
+          scroller so the header/filters above stay full-width and usable
+          on a phone instead of the whole page shifting sideways. */}
+      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", overflowX: "auto" }}>
         {loading ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 120,
                         fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52",
@@ -1486,7 +1488,7 @@ export default function CRMPanel({ onNavigate }) {
             NO CONTACTS FOUND
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", minWidth: 860, borderCollapse: "collapse" }}>
             <thead style={{ position: "sticky", top: 0, background: "#080c14", zIndex: 1 }}>
               <tr style={{ borderBottom: "0.5px solid #1a2540" }}>
                 <th style={{ padding: "8px 10px 8px 14px", width: 32 }}>

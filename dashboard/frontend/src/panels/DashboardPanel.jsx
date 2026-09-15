@@ -372,10 +372,10 @@ export default function DashboardPanel({ onNavigate }) {
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 22 }}>
+    <div className="px-4 py-4 sm:px-7 sm:py-6" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", display: "flex", flexDirection: "column", gap: 22 }}>
 
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700,
                         color: "#f0f4ff", letterSpacing: "-0.02em" }}>
@@ -387,7 +387,7 @@ export default function DashboardPanel({ onNavigate }) {
           </div>
         </div>
         {/* Period toggle */}
-        <div style={{
+        <div className="flex-wrap" style={{
           display: "flex", background: "rgba(10,18,48,0.7)",
           border: "1px solid rgba(58,123,213,0.1)", borderRadius: 12, padding: 4, gap: 2,
         }}>
@@ -405,7 +405,7 @@ export default function DashboardPanel({ onNavigate }) {
       </div>
 
       {/* ── Row 1: 4 Stat Cards ────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+      <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 16 }}>
         <TopStatCard label="Total Outreach"    value={calling.total_outreach}  iconKey="dialer"
           delta={calling.total_outreach > 0 ? `${calling.total_outreach} touches` : null} positive={true} />
         <TopStatCard label="Total Reached"     value={calling.total_reached}   iconKey="reach"
@@ -419,7 +419,7 @@ export default function DashboardPanel({ onNavigate }) {
       </div>
 
       {/* ── Row 2: To-Do + Today's Calendar ───────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16 }}>
 
         {/* To-Do */}
         <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", minHeight: 280 }}>
@@ -435,7 +435,7 @@ export default function DashboardPanel({ onNavigate }) {
       </div>
 
       {/* ── Row 3: Charts ──────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr", gap: 16 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1.8fr_1fr]" style={{ gap: 16 }}>
 
         {/* Funnel chart — calls overview for selected period */}
         <div className="glass-card" style={{ padding: "22px 24px" }}>
@@ -521,7 +521,7 @@ export default function DashboardPanel({ onNavigate }) {
       </div>
 
       {/* ── Row 4: Metric cards ────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 16 }}>
 
         {/* Reach Rate */}
         <div className="glass-card" style={{ padding: "24px 22px" }}>
@@ -576,7 +576,7 @@ export default function DashboardPanel({ onNavigate }) {
       </div>
 
       {/* ── Row 5: Agent Activity + Needs Reply ────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16 }}>
 
         {/* Agent Messages */}
         <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", height: 280 }}>
