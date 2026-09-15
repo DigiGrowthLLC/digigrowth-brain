@@ -128,12 +128,17 @@ const LogoMark = () => (
 export default function App() {
   const [active, setActive] = useState("home");
   const [navContext, setNavContext] = useState(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const prevActiveRef = useRef("home");
 
   const navigateTo = (panel, ctx = null) => {
     setNavContext(ctx);
     setActive(panel);
   };
+
+  // Close the mobile drawer any time navigation happens — otherwise it'd
+  // stay open over the newly-selected panel.
+  useEffect(() => { setMobileNavOpen(false); }, [active]);
 
   const { incoming, activeCall, callInfo, answer, decline, hangUp, clearCallInfo } = useIncomingCall();
 
@@ -181,14 +186,49 @@ export default function App() {
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
 
-      {/* Sidebar */}
-      <aside style={{
-        width: 220,
-        background: "linear-gradient(180deg, rgba(9,15,38,0.98) 0%, rgba(7,12,30,0.98) 100%)",
-        borderRight: "1px solid rgba(58,123,213,0.07)",
-        display: "flex", flexDirection: "column", flexShrink: 0,
+      {/* Mobile top bar — hidden at md+, where the sidebar is always visible */}
+      <div className="flex md:hidden" style={{
+        position: "fixed", top: 0, left: 0, right: 0, zIndex: 40, height: 56,
+        alignItems: "center", justifyContent: "space-between", padding: "0 14px",
+        background: "rgba(9,15,38,0.98)", borderBottom: "1px solid rgba(58,123,213,0.1)",
         backdropFilter: "blur(20px)",
       }}>
+        <button
+          onClick={() => setMobileNavOpen(true)}
+          aria-label="Open menu"
+          style={{ background: "none", border: "none", color: "#c4d0e8", padding: 6, display: "flex" }}
+        >
+          <svg viewBox="0 0 20 20" width={22} height={22} fill="none">
+            <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+          </svg>
+        </button>
+        <img src={logoWordmark} alt="DigiGrowth" style={{ height: 30 }} />
+        <div style={{ width: 34 }} />
+      </div>
+
+      {/* Mobile drawer backdrop */}
+      {mobileNavOpen && (
+        <div
+          className="md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(4,8,16,0.7)", zIndex: 49 }}
+        />
+      )}
+
+      {/* Sidebar — fixed slide-in drawer on mobile, static column at md+ */}
+      <aside
+        className={
+          "fixed md:relative top-0 left-0 bottom-0 md:top-auto md:left-auto md:bottom-auto " +
+          "z-50 md:z-auto transition-transform duration-200 md:translate-x-0 " +
+          (mobileNavOpen ? "translate-x-0" : "-translate-x-full")
+        }
+        style={{
+          width: 220,
+          background: "linear-gradient(180deg, rgba(9,15,38,0.98) 0%, rgba(7,12,30,0.98) 100%)",
+          borderRight: "1px solid rgba(58,123,213,0.07)",
+          display: "flex", flexDirection: "column", flexShrink: 0,
+          backdropFilter: "blur(20px)",
+        }}>
 
         {/* Brand */}
         <div style={{ padding: "22px 18px 20px", borderBottom: "1px solid rgba(58,123,213,0.07)" }}>
@@ -263,8 +303,8 @@ export default function App() {
       </aside>
 
       {/* Main content */}
-      <main style={{
-        flex: 1, overflow: "hidden", display: "flex", flexDirection: "column",
+      <main className="pt-14 md:pt-0" style={{
+        flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column",
         background: "transparent",
       }}>
         {active === "home"     && <DashboardPanel onNavigate={navigateTo} />}
