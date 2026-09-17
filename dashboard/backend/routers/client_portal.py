@@ -1054,6 +1054,26 @@ async def portal_list_tags(token: str):
     return [dict(r) for r in rows]
 
 
+@router.post("/{token}/tags")
+async def portal_create_tag(token: str, body: dict):
+    """Lets a client create their own custom tag (e.g. for segmenting an
+    imported patient list) — mirrors routers/tags.py::create_tag. Tags are
+    a shared global catalog, same as portal_list_tags above, so this just
+    adds to it rather than creating a client-scoped concept."""
+    await get_client_from_token(token)
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO tags (name, color) VALUES ($1, $2) "
+            "ON CONFLICT (name) DO UPDATE SET color = tags.color RETURNING *",
+            name, body.get("color") or "#3a7bd5",
+        )
+    return dict(row)
+
+
 @router.post("/{token}/leads/{contact_id}/tags")
 async def portal_add_lead_tag(token: str, contact_id: str, body: TagAssign):
     """Mirrors POST /contacts/{id}/tags (routers/crm.py) but scoped to this
@@ -1190,6 +1210,7 @@ async def portal_import_leads(token: str, body: dict):
     rows = body.get("contacts", [])
     if not rows:
         raise HTTPException(status_code=400, detail="No contacts provided")
+    import_tags = [t.strip() for t in (body.get("tags") or []) if t.strip()]
 
     pool = await get_pool()
     inserted = updated = skipped = 0
@@ -1209,8 +1230,8 @@ async def portal_import_leads(token: str, body: dict):
 
             result = await conn.fetchrow(
                 """
-                INSERT INTO contacts (id, business, owner, phone, email, website, city, state, notes, status, client_id)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10)
+                INSERT INTO contacts (id, business, owner, phone, email, website, city, state, notes, status, client_id, tags)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10,$11)
                 ON CONFLICT (phone) DO UPDATE SET
                     business  = COALESCE(EXCLUDED.business, contacts.business),
                     owner     = COALESCE(EXCLUDED.owner, contacts.owner),
@@ -1220,6 +1241,7 @@ async def portal_import_leads(token: str, body: dict):
                     state     = COALESCE(EXCLUDED.state, contacts.state),
                     notes     = COALESCE(EXCLUDED.notes, contacts.notes),
                     client_id = COALESCE(contacts.client_id, EXCLUDED.client_id),
+                    tags      = (SELECT array_agg(DISTINCT t) FROM unnest(contacts.tags || EXCLUDED.tags) AS t),
                     updated_at = now()
                 RETURNING (xmax = 0) AS was_inserted
                 """,
@@ -1233,6 +1255,7 @@ async def portal_import_leads(token: str, body: dict):
                 (c.get("state") or "").strip() or None,
                 (c.get("notes") or "").strip() or None,
                 client["id"],
+                import_tags,
             )
             if result["was_inserted"]:
                 inserted += 1

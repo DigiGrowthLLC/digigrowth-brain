@@ -1393,6 +1393,33 @@ async def _create_schema(pool: asyncpg.Pool):
         await conn.execute("INSERT INTO tags (name, color) VALUES ('ads-lead', '#f5a623') ON CONFLICT (name) DO NOTHING")
         await conn.execute("INSERT INTO tags (name, color) VALUES ('organic-lead', '#4ade80') ON CONFLICT (name) DO NOTHING")
 
+        # Starter tag catalog for database-reactivation imports — a client
+        # importing an old/lapsed patient list (not fresh ad leads) tags them
+        # on the way in so they can be segmented later, same tags table/UI
+        # ads-lead/organic-lead already use above.
+        for _tag_name, _tag_color in [
+            ("Previous Patient", "#6ab0ff"), ("Never Followed Up", "#f5a623"),
+            ("No-Show History", "#dc3c3c"), ("Cancelled Appointment", "#e08ad0"),
+            ("Lost to Insurance", "#8a6fd8"), ("Price Objection", "#c2c24a"),
+            ("Referral", "#4ade80"), ("Cold / Unresponsive", "#5a6f8f"),
+        ]:
+            await conn.execute("INSERT INTO tags (name, color) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING", _tag_name, _tag_color)
+
+        # Placeholder agent slots an admin can name ahead of building them
+        # (e.g. a future database-reactivation agent) — the existing
+        # Facebook Leads response agent stays wired to client_marketing_config
+        # and is NOT a row in this table; see ClientsPanel.jsx's Agents tab.
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS client_agents (
+                id         SERIAL PRIMARY KEY,
+                client_id  INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                name       TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+
         # Dylan's OWN Calendly connection — same idea as client_marketing_config's
         # calendly_* columns above, just for DigiGrowth's own pipeline rather
         # than a client's. Reuses dialer_settings (the app's existing

@@ -361,6 +361,47 @@ async def delete_client_resource(client_id: int, resource_id: int):
     return {"ok": True}
 
 
+# Placeholder agent slots on a client's Agents tab — named ahead of being
+# built (e.g. a future database-reactivation agent). The existing Facebook
+# Leads response agent is NOT one of these rows; it stays wired to
+# client_marketing_config and is always shown as a fixed first entry by
+# ClientsPanel.jsx's ClientAgentSetup.
+@router.get("/clients/{client_id}/agents")
+async def list_client_agents(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM client_agents WHERE client_id = $1 ORDER BY created_at", client_id
+        )
+    return [dict(r) for r in rows]
+
+
+@router.post("/clients/{client_id}/agents")
+async def create_client_agent(client_id: int, body: dict):
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO client_agents (client_id, name) VALUES ($1, $2) RETURNING *",
+            client_id, name,
+        )
+    return dict(row)
+
+
+@router.delete("/clients/{client_id}/agents/{agent_id}")
+async def delete_client_agent(client_id: int, agent_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "DELETE FROM client_agents WHERE id = $1 AND client_id = $2 RETURNING id", agent_id, client_id
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return {"ok": True}
+
+
 # Websites/funnels built for a client — admin-side CRUD, same shape as
 # client_resources above. Stats (views/conversions) are read on the portal
 # side from content_view_events, not stored here.

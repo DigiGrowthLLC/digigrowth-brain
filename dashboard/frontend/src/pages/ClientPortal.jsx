@@ -2313,6 +2313,8 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
   const [parsed, setParsed] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [importTags, setImportTags] = useState([]); // tag names to stamp on every imported/updated row
+  const [newTagName, setNewTagName] = useState("");
 
   // Tagging — mirrors the internal CRM's tag system (routers/tags.py +
   // routers/crm.py's per-contact tag endpoints), scoped to this client's
@@ -2392,10 +2394,29 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
     setImporting(true);
     const r = await fetch(`/portal-api/${token}/leads/import`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contacts: parsed }),
+      body: JSON.stringify({ contacts: parsed, tags: importTags }),
     });
     if (r.ok) { setImportResult(await r.json()); load(); }
     setImporting(false);
+  };
+
+  const toggleImportTag = (name) => {
+    setImportTags((prev) => (prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]));
+  };
+
+  const createAndSelectTag = async () => {
+    const name = newTagName.trim();
+    if (!name) return;
+    const r = await fetch(`/portal-api/${token}/tags`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (r.ok) {
+      const tag = await r.json();
+      setAllTags((prev) => (prev.some((t) => t.name === tag.name) ? prev : [...prev, tag]));
+      setImportTags((prev) => (prev.includes(tag.name) ? prev : [...prev, tag.name]));
+    }
+    setNewTagName("");
   };
 
   const withPhone = parsed ? parsed.filter((r) => r.phone) : [];
@@ -2414,7 +2435,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
             <option value="">All tags</option>
             {allTags.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
           </select>
-          <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => { setShowImport((s) => !s); setShowAdd(false); }}>
+          <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => { setShowImport((s) => !s); setShowAdd(false); setParsed(null); setImportResult(null); setImportTags([]); }}>
             {showImport ? "CANCEL" : "IMPORT CSV"}
           </button>
           <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={() => { setShowAdd((s) => !s); setShowImport(false); }}>
@@ -2457,8 +2478,44 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#6ab0ff" }}>
                 {withPhone.length} leads ready · {parsed.length - withPhone.length} skipped (no phone)
               </div>
+              <div>
+                <div style={{ fontSize: 11.5, color: "#8aaad0", marginBottom: 6 }}>
+                  Tag these leads (optional) — useful for an old/lapsed patient list so you can tell them apart from fresh leads later:
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                  {allTags.map((t) => {
+                    const on = importTags.includes(t.name);
+                    return (
+                      <span
+                        key={t.id}
+                        onClick={() => toggleImportTag(t.name)}
+                        style={{
+                          cursor: "pointer", display: "inline-flex", alignItems: "center",
+                          padding: "2px 8px", borderRadius: 999, fontSize: 10,
+                          fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+                          color: t.color, background: on ? `${t.color}44` : `${t.color}15`,
+                          border: `1px solid ${t.color}${on ? "aa" : "40"}`,
+                        }}
+                      >
+                        {t.name}
+                      </span>
+                    );
+                  })}
+                  <input
+                    className="dg-input"
+                    placeholder="New tag name…"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") createAndSelectTag(); }}
+                    style={{ fontSize: 10, padding: "3px 8px", width: 130 }}
+                  />
+                  <button className="btn btn-secondary" style={{ fontSize: 10, padding: "3px 10px" }} onClick={createAndSelectTag} disabled={!newTagName.trim()}>
+                    + CREATE
+                  </button>
+                </div>
+              </div>
               <button className="btn btn-primary" onClick={doImport} disabled={importing} style={{ fontSize: 11, width: "fit-content" }}>
-                {importing ? "IMPORTING…" : `IMPORT ${withPhone.length} LEADS`}
+                {importing ? "IMPORTING…" : `IMPORT ${withPhone.length} LEADS${importTags.length ? ` (${importTags.length} tag${importTags.length > 1 ? "s" : ""})` : ""}`}
               </button>
             </>
           )}

@@ -77,7 +77,7 @@ const DETAILS_TABS = [
   { id: "checklist", label: "Launch Checklist" },
   { id: "sequences", label: "Sequences" },
   { id: "marketing", label: "Marketing Setup" },
-  { id: "agent", label: "Agent" },
+  { id: "agent", label: "Agents" },
   { id: "finance", label: "Finance" },
   { id: "requests", label: "Requests" },
   { id: "uploads", label: "Uploads" },
@@ -1762,12 +1762,12 @@ const MARKETING_GUIDES = {
     title: "Set Up Response AI",
     steps: [
       { text: "Confirm SMS marketing is provisioned first — this reuses the client's own Twilio number, it doesn't bring its own." },
-      { text: "Head to this client's own \"Agent\" tab (next to Marketing Setup). Everything below happens there." },
+      { text: "Head to this client's own \"Agents\" tab (next to Marketing Setup), expand the Facebook Leads Agent row. Everything below happens there." },
       { text: "Enable the agent, then write its context (business info, offer, tone, hours, FAQs, what to escalate) — or click GENERATE CONTEXT to draft one from this client's onboarding answers, linked contact info, and any uploaded PDFs/docx, then review and edit it." },
       { text: "Fill in the SMS Sequence — 5 short stage goals (first text through fifth text) the agent tries to progress a conversation through. It doesn't follow this rigidly: it always answers whatever the lead actually asks first, then steers back toward the next stage." },
       { text: "Set Rules — a minimum reply delay and a max words-per-text are actually enforced, not just suggested. Add any other freeform rules (tone quirks, things to never say, etc.) in the big text box; the agent reads it before every reply." },
       { text: "Optional: connect the client's Calendly under \"Calendar (Calendly)\" — a Personal Access Token (Calendly account → Integrations & Apps → API & Webhooks → Generate New Token) lets the agent check real open times before proposing one, instead of asking blind. Without it, the agent just asks the lead for their preferred day/time." },
-      { text: "Text the client's number from your own phone and have a real back-and-forth. Confirm: replies sound on-brand and follow the sequence loosely, agreeing to a time actually creates an appointment (check the Appointments tab), and asking for a human stops the AI from replying further to that thread. Use the Agent tab's \"Testing\" section to reset that number's conversation state between test runs." },
+      { text: "Text the client's number from your own phone and have a real back-and-forth. Confirm: replies sound on-brand and follow the sequence loosely, agreeing to a time actually creates an appointment (check the Appointments tab), and asking for a human stops the AI from replying further to that thread. Use the Agents tab's Facebook Leads Agent row's \"Testing\" section to reset that number's conversation state between test runs." },
     ],
   },
   landing_page: {
@@ -2394,19 +2394,69 @@ function AgentCalendlyEventType({ config, onSaveFields }) {
   );
 }
 
-// Dedicated "Agent" tab — the self-built response_ai.py agent's full admin
-// surface (context, sequence, rules) in one place, rather than buried
-// inside the Marketing Setup guide's checklist. Fetches/saves through the
+// Dedicated "Agents" tab — an accordion of every AI agent running for this
+// client. The Facebook Leads Agent (response_ai.py's full admin surface:
+// context, sequence, rules) is a fixed first row; additional rows are
+// placeholder agent slots (client_agents table) named ahead of being built,
+// e.g. a future database-reactivation agent. Fetches/saves through the
 // same generic marketing-config endpoint every other per-client config
 // field in this file already uses.
+// One collapsible row in the Agents tab's accordion — click the header to
+// expand/collapse, same interaction as the Finance tab's transaction rows
+// (expandedTxn above).
+function AgentAccordionItem({ title, subtitle, open, onToggle, onDelete, children }) {
+  return (
+    <div style={{ marginBottom: 12, borderRadius: 10, border: "1px solid rgba(58,123,213,0.15)", overflow: "hidden" }}>
+      <div
+        onClick={onToggle}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 14px", cursor: "pointer",
+          background: open ? "rgba(58,123,213,0.08)" : "rgba(255,255,255,0.02)",
+        }}
+      >
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: "#e8f0ff" }}>{title}</div>
+          {subtitle && <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 2 }}>{subtitle}</div>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {onDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              style={{
+                padding: "3px 9px", borderRadius: 5, border: "1px solid rgba(220,60,60,0.25)",
+                background: "rgba(220,60,60,0.06)", color: "#dc3c3c",
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 8, cursor: "pointer", letterSpacing: "0.06em",
+              }}
+            >
+              ✕
+            </button>
+          )}
+          <span style={{ color: "#5a7aa0", fontSize: 11, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
+        </div>
+      </div>
+      {open && <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>{children}</div>}
+    </div>
+  );
+}
+
 function ClientAgentSetup({ clientId }) {
   const [config, setConfig] = useState(null);
+  const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [openAgent, setOpenAgent] = useState(null); // "facebook" | a client_agents row id | null
+  const [showAddAgent, setShowAddAgent] = useState(false);
+  const [newAgentName, setNewAgentName] = useState("");
+  const [addingAgent, setAddingAgent] = useState(false);
 
   const load = async () => {
-    const r = await fetch(API(`/clients/${clientId}/marketing-config`));
-    if (r.ok) setConfig(await r.json());
+    const [configRes, agentsRes] = await Promise.all([
+      fetch(API(`/clients/${clientId}/marketing-config`)),
+      fetch(API(`/clients/${clientId}/agents`)),
+    ]);
+    if (configRes.ok) setConfig(await configRes.json());
+    if (agentsRes.ok) setAgents(await agentsRes.json());
     setLoading(false);
   };
 
@@ -2434,6 +2484,32 @@ function ClientAgentSetup({ clientId }) {
     return result;
   };
 
+  const addAgent = async () => {
+    const name = newAgentName.trim();
+    if (!name) return;
+    setAddingAgent(true);
+    const r = await fetch(API(`/clients/${clientId}/agents`), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (r.ok) {
+      const agent = await r.json();
+      setAgents((prev) => [...prev, agent]);
+      setNewAgentName("");
+      setShowAddAgent(false);
+    }
+    setAddingAgent(false);
+  };
+
+  const deleteAgent = async (agentId) => {
+    if (!window.confirm("Remove this agent slot?")) return;
+    const r = await fetch(API(`/clients/${clientId}/agents/${agentId}`), { method: "DELETE" });
+    if (r.ok) {
+      setAgents((prev) => prev.filter((a) => a.id !== agentId));
+      if (openAgent === agentId) setOpenAgent(null);
+    }
+  };
+
   if (loading) return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
 
   const section = (title, description, children) => (
@@ -2447,35 +2523,73 @@ function ClientAgentSetup({ clientId }) {
   return (
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 14, lineHeight: 1.5 }}>
-        This client's self-built AI SMS response agent (response_ai.py) — replies to inbound leads on their own Twilio number. Enable per client from the toggle below.
+        Every AI agent running for this client lives here, one per accordion row below. Click a row to expand its config.
       </div>
-      {section(
-        "Enable & Context",
-        "The agent's knowledge of the business — enable it and write or generate its context.",
-        <ResponseAiSetup clientId={clientId} config={config} onSaveFields={saveFields} />
-      )}
-      {section(
-        "SMS Sequence",
-        null,
-        <AgentSequenceEditor config={config} onSaveFields={saveFields} />
-      )}
-      {section(
-        "Rules",
-        "Behavioral guardrails, enforced by the agent itself — not just suggestions.",
-        <AgentRulesEditor config={config} onSaveFields={saveFields} />
-      )}
-      {section(
-        "Calendar (Calendly)",
-        "Optional — lets the agent check real availability before proposing a time, instead of asking blind.",
-        <AgentCalendlyConnect config={config} onSaveFields={saveFields} clientId={clientId} />
-      )}
-      {section(
-        "Testing",
-        "Wipe a test number's conversation state to start the agent fresh — no escalated/booked status or old message history carried over.",
-        <AgentResetTest clientId={clientId} />
-      )}
-      {error && (
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{error}</div>
+
+      <AgentAccordionItem
+        title="Facebook Leads Agent"
+        subtitle="The self-built AI SMS response agent (response_ai.py) — replies to inbound leads on their own Twilio number."
+        open={openAgent === "facebook"}
+        onToggle={() => setOpenAgent(openAgent === "facebook" ? null : "facebook")}
+      >
+        {section(
+          "Enable & Context",
+          "The agent's knowledge of the business — enable it and write or generate its context.",
+          <ResponseAiSetup clientId={clientId} config={config} onSaveFields={saveFields} />
+        )}
+        {section(
+          "SMS Sequence",
+          null,
+          <AgentSequenceEditor config={config} onSaveFields={saveFields} />
+        )}
+        {section(
+          "Rules",
+          "Behavioral guardrails, enforced by the agent itself — not just suggestions.",
+          <AgentRulesEditor config={config} onSaveFields={saveFields} />
+        )}
+        {section(
+          "Calendar (Calendly)",
+          "Optional — lets the agent check real availability before proposing a time, instead of asking blind.",
+          <AgentCalendlyConnect config={config} onSaveFields={saveFields} clientId={clientId} />
+        )}
+        {section(
+          "Testing",
+          "Wipe a test number's conversation state to start the agent fresh — no escalated/booked status or old message history carried over.",
+          <AgentResetTest clientId={clientId} />
+        )}
+        {error && (
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{error}</div>
+        )}
+      </AgentAccordionItem>
+
+      {agents.map((a) => (
+        <AgentAccordionItem
+          key={a.id}
+          title={a.name}
+          subtitle="Not built yet — this is a placeholder slot."
+          open={openAgent === a.id}
+          onToggle={() => setOpenAgent(openAgent === a.id ? null : a.id)}
+          onDelete={() => deleteAgent(a.id)}
+        >
+          <div style={{ fontSize: 12, color: "#5a7aa0" }}>Coming soon — this agent isn't built yet.</div>
+        </AgentAccordionItem>
+      ))}
+
+      {showAddAgent ? (
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <input
+            className="dg-input" autoFocus placeholder="Agent name (e.g. Database Reactivation Agent)"
+            value={newAgentName} onChange={(e) => setNewAgentName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addAgent(); if (e.key === "Escape") setShowAddAgent(false); }}
+            style={{ flex: 1, fontSize: 12 }}
+          />
+          <button className="btn btn-primary" onClick={addAgent} disabled={addingAgent || !newAgentName.trim()} style={{ fontSize: 11 }}>
+            {addingAgent ? "ADDING…" : "ADD"}
+          </button>
+          <button className="btn btn-secondary" onClick={() => { setShowAddAgent(false); setNewAgentName(""); }} style={{ fontSize: 11 }}>CANCEL</button>
+        </div>
+      ) : (
+        <button className="btn btn-secondary" onClick={() => setShowAddAgent(true)} style={{ fontSize: 11, marginTop: 8 }}>+ ADD AGENT</button>
       )}
     </div>
   );
@@ -2915,7 +3029,7 @@ function ClientMarketingSetup({ clientId }) {
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 12, lineHeight: 1.5 }}>
         This client's OWN marketing infrastructure — their Twilio number, their email-sending
-        domain, their AI response agent (see the Agent tab), their landing page, their ad
+        domain, their AI response agent (see the Agents tab), their landing page, their ad
         creatives, their No Show/Cancellation automations, and their portal analytics. Separate
         from DigiGrowth's own outreach system. Numbered steps below (1-7) are meant to be done in order.
       </div>
