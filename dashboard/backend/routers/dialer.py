@@ -144,10 +144,13 @@ async def get_script():
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM cold_call_scripts WHERE is_default = true LIMIT 1")
     if not row:
-        return {"script": "", "name": None}
-    sections = [row["opener"], row["intro"], row["main_body"], row["close"]]
-    script = "\n\n".join(s for s in sections if s and s.strip())
-    return {"script": script, "name": row["name"]}
+        return {"script": "", "name": None, "sections": {}}
+    sections = {k: row[k] or "" for k in ("opener", "intro", "main_body", "close")}
+    # "script" (joined) kept for any other/older consumer; DialerPanel.jsx
+    # itself now reads "sections" directly to show each one in its own box,
+    # matching how they're edited in Business Resources → Outreach Templates.
+    script = "\n\n".join(s for s in sections.values() if s.strip())
+    return {"script": script, "name": row["name"], "sections": sections}
 
 
 # ── "Send Info" disposition templates (edited from Business Resources ────────

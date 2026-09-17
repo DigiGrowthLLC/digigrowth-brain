@@ -41,6 +41,16 @@ function fillScriptText(template, lead) {
 
 const DIALPAD_KEYS = ["1","2","3","4","5","6","7","8","9","*","0","#"];
 
+// Mirrors SOPsPanel.jsx's CALL_SCRIPT_SECTIONS — same 4 boxes as the Cold
+// Call Script editor in Business Resources → Outreach Templates, so the
+// live-call view matches how the script is actually laid out there.
+const SCRIPT_SECTIONS = [
+  { key: "opener", label: "Opener" },
+  { key: "intro", label: "Intro" },
+  { key: "main_body", label: "Main Body" },
+  { key: "close", label: "Close" },
+];
+
 export default function DialerPanel() {
   const [stats, setStats]       = useState(null);
   const [sess, setSess]         = useState(null);
@@ -59,9 +69,12 @@ const [notes, setNotes]                 = useState("");
   // Templates as a list of named Cold Call Scripts, one marked default
   // (see routers/cold_call_scripts.py). This just displays whichever one
   // is currently default.
-  const [scriptTemplate, setScriptTemplate] = useState("");
+  // { opener, intro, main_body, close } — same shape as Business Resources →
+  // Outreach Templates' Cold Call Script editor, shown as separate boxes
+  // below rather than joined into one block of text.
+  const [scriptTemplate, setScriptTemplate] = useState({});
   const [scriptName, setScriptName]         = useState(null);
-  const [filledScript, setFilledScript]     = useState("");
+  const [filledScript, setFilledScript]     = useState({});
   const [scriptFilled, setScriptFilled]     = useState(false);
   // Dial / error feedback
   const [dialMsg, setDialMsg]   = useState("");
@@ -135,8 +148,8 @@ const [notes, setNotes]                 = useState("");
       try {
         const r = await fetch(API("/dialer/script"));
         if (r.ok) {
-          const { script, name } = await r.json();
-          setScriptTemplate(script || "");
+          const { sections, name } = await r.json();
+          setScriptTemplate(sections || {});
           setScriptName(name || null);
         }
       } catch {}
@@ -219,8 +232,12 @@ const [notes, setNotes]                 = useState("");
 
     // Lead connected: fill script
     if (sess.status === "connected" && sess.current_lead && !scriptFilled) {
-      if (scriptTemplate.trim()) {
-        setFilledScript(fillScriptText(scriptTemplate, sess.current_lead));
+      if (Object.values(scriptTemplate).some(s => (s || "").trim())) {
+        const filled = {};
+        for (const key of Object.keys(scriptTemplate)) {
+          filled[key] = fillScriptText(scriptTemplate[key] || "", sess.current_lead);
+        }
+        setFilledScript(filled);
         setScriptFilled(true);
       }
     }
@@ -228,7 +245,7 @@ const [notes, setNotes]                 = useState("");
     // Back to waiting/idle: clear filled script
     if (sess.status === "waiting") {
       setScriptFilled(false);
-      setFilledScript("");
+      setFilledScript({});
     }
   }, [sess?.status, sess?.current_lead]);
 
@@ -734,26 +751,40 @@ const [notes, setNotes]                 = useState("");
                 )}
               </div>
 
-              {scriptFilled ? (
-                <div
-                  dangerouslySetInnerHTML={{ __html: filledScript }}
-                  style={{
-                    background: "#050d1a", borderRadius: 8, padding: "12px 14px",
-                    minHeight: 260, maxHeight: 520, overflowY: "auto",
-                    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
-                    color: "#a0b8d0", lineHeight: 1.75, whiteSpace: "pre-wrap",
-                    border: "1px solid rgba(58,123,213,0.15)",
-                  }}
-                />
-              ) : scriptTemplate ? (
-                <div style={{
-                  background: "#050d1a", borderRadius: 8, padding: "12px 14px",
-                  minHeight: 260, maxHeight: 520, overflowY: "auto",
-                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
-                  color: "#a0b8d0", lineHeight: 1.75, whiteSpace: "pre-wrap",
-                  border: "1px solid rgba(58,123,213,0.15)",
-                }}>
-                  {scriptTemplate}
+              {Object.values(scriptTemplate).some(s => (s || "").trim()) ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {SCRIPT_SECTIONS.map(({ key, label }) => (
+                    (scriptTemplate[key] || "").trim() && (
+                      <div key={key} style={{
+                        background: "#050d1a", borderRadius: 8, padding: "10px 14px",
+                        maxHeight: 220, overflowY: "auto",
+                        border: "1px solid rgba(58,123,213,0.15)",
+                      }}>
+                        <div style={{
+                          fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80",
+                          letterSpacing: "0.12em", marginBottom: 6,
+                        }}>
+                          {label.toUpperCase()}
+                        </div>
+                        {scriptFilled ? (
+                          <div
+                            dangerouslySetInnerHTML={{ __html: filledScript[key] || "" }}
+                            style={{
+                              fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+                              color: "#a0b8d0", lineHeight: 1.75, whiteSpace: "pre-wrap",
+                            }}
+                          />
+                        ) : (
+                          <div style={{
+                            fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+                            color: "#a0b8d0", lineHeight: 1.75, whiteSpace: "pre-wrap",
+                          }}>
+                            {scriptTemplate[key]}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  ))}
                 </div>
               ) : (
                 <div style={{
