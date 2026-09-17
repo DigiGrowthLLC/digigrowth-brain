@@ -10,9 +10,13 @@ Two callback URLs, one shared handler:
 
 Each is registered (see routers/client_marketing.py's connect-calendly-webhook
 and routers/calendly_admin.py's /calendly/connect) against that account's OWN
-Calendly organization using that account's OWN Personal Access Token — so
-the callback URL itself is what tells this handler which side of the system
-a given payload belongs to; nothing in the payload needs to disambiguate.
+Calendly organization using that account's OWN Personal Access Token — but
+the subscription itself is organization-scoped, so when Dylan is an admin on
+a client's Calendly account (both sides sharing one org), EACH side's
+webhook also receives the OTHER side's bookings. Both handlers below verify
+the event's actual host (_resolve_host_uri) against their own account's user
+URI before processing, and silently no-op otherwise — see calendly_webhook_
+dylan's docstring comment for the incident this fixed.
 
 Public/unauthenticated (mounted with no dependencies, same as every other
 inbound webhook in this codebase — Twilio, Meta) since Calendly can't send
@@ -63,6 +67,32 @@ async def _resolve_start_time(payload: dict, token: str) -> str:
         resp = await http.get(event_uri, headers={"Authorization": f"Bearer {token}"})
         resp.raise_for_status()
         return resp.json()["resource"]["start_time"]
+
+
+async def _resolve_host_uri(payload: dict, token: str) -> str | None:
+    """The Calendly user URI of whoever's calendar this booking actually
+    landed on (the embedded scheduled_event's event_memberships), same
+    embedded-first/fetch-fallback shape as _resolve_start_time above.
+    Needed because Dylan's own webhook subscription is organization-scoped
+    (see calendly_integration.register_webhook's docstring) and Dylan is
+    also an admin on client Calendly accounts, so his subscription also
+    receives every team member's bookings — not just his own. Returns None
+    (never raises) if it can't be determined, so callers fail open rather
+    than silently dropping a real booking."""
+    embedded = payload.get("scheduled_event") or {}
+    memberships = embedded.get("event_memberships")
+    if not memberships:
+        event_uri = payload.get("event")
+        if not event_uri:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=10) as http:
+                resp = await http.get(event_uri, headers={"Authorization": f"Bearer {token}"})
+                resp.raise_for_status()
+                memberships = resp.json()["resource"].get("event_memberships") or []
+        except Exception:
+            return None
+    return memberships[0]["user"] if memberships else None
 
 
 async def _handle_invitee_created(payload: dict, token: str, client_id: int | None) -> dict:
@@ -230,6 +260,23 @@ async def calendly_webhook_dylan(request: Request):
     if not token:
         raise HTTPException(400, "No Calendly token saved for Dylan's account")
 
+    # This subscription is organization-scoped (calendly_integration.
+    # register_webhook), and Dylan is also an admin on client Calendly
+    # accounts sharing the same org, so it also receives bookings made on a
+    # CLIENT's own event type — those are already handled correctly by
+    # that client's own /webhooks/calendly/client/{id} subscription. Only
+    # process an event here if it's actually Dylan's own, or a client
+    # patient booking lands unattributed (contact_id NULL) in Dylan's own
+    # internal Appointments tab instead of that client's portal. Caught
+    # live 2026-09-17: two of Crosacore's discovery-call bookings showed up
+    # this way. Fails open (processes as before) if the host can't be
+    # determined, rather than risk silently dropping a real booking.
+    host_uri = await _resolve_host_uri(body["payload"], token)
+    if host_uri:
+        dylan_uri = await calendly_integration.get_user_uri(token)
+        if host_uri != dylan_uri:
+            return {"ok": True}
+
     await _handle_invitee_created(body["payload"], token, client_id=None)
     return {"ok": True}
 
@@ -254,8 +301,22 @@ async def calendly_webhook_client(client_id: int, request: Request):
     if body.get("event") != "invitee.created":
         return {"ok": True}
 
-    if not config["calendly_api_token"]:
+    token = config["calendly_api_token"]
+    if not token:
         raise HTTPException(400, "No Calendly token saved for this client")
 
-    await _handle_invitee_created(body["payload"], config["calendly_api_token"], client_id=client_id)
+    # Symmetric guard to calendly_webhook_dylan above — this org-scoped
+    # subscription can equally receive a booking made on DYLAN's own event
+    # type (or another client sharing the org) if the client's Calendly
+    # account is on the same shared organization. Only process an event
+    # that's actually this client's own, or one of Dylan's own sales-
+    # pipeline prospects could get created as a "lead" inside this client's
+    # portal instead. Fails open if the host can't be determined.
+    host_uri = await _resolve_host_uri(body["payload"], token)
+    if host_uri:
+        client_user_uri = await calendly_integration.get_user_uri(token)
+        if host_uri != client_user_uri:
+            return {"ok": True}
+
+    await _handle_invitee_created(body["payload"], token, client_id=client_id)
     return {"ok": True}

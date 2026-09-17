@@ -49,6 +49,18 @@ async def get_organization_uri(token: str) -> str:
         return me.json()["resource"]["current_organization"]
 
 
+async def get_user_uri(token: str) -> str:
+    """The token owner's own Calendly user URI — distinct from
+    get_organization_uri's org-wide URI. Needed to tell whether an inbound
+    webhook event actually belongs to this token's own calendar or to a
+    team member sharing the same organization-scoped subscription (see
+    routers/calendly_webhooks.py's calendly_webhook_dylan)."""
+    async with httpx.AsyncClient(timeout=10) as http:
+        me = await http.get(f"{_API_BASE}/users/me", headers=_headers(token))
+        _raise_with_context(me)
+        return me.json()["resource"]["uri"]
+
+
 async def register_webhook(token: str, callback_url: str, org_uri: str) -> dict:
     """Creates (or, if one already exists at this exact URL, reuses) a
     Calendly webhook subscription for invitee.created events across the
