@@ -95,6 +95,28 @@ async def _resolve_host_uri(payload: dict, token: str) -> str | None:
     return memberships[0]["user"] if memberships else None
 
 
+async def _resolve_event_type_uri(payload: dict, token: str) -> str | None:
+    """The API URI of the Calendly event type this booking was made on, same
+    embedded-first/fetch-fallback shape as _resolve_host_uri above. Used to
+    reject a booking made on some OTHER event type on the client's Calendly
+    account — see calendly_webhook_client's guard below. Returns None
+    (never raises) if it can't be determined."""
+    embedded = payload.get("scheduled_event") or {}
+    event_type_uri = embedded.get("event_type")
+    if event_type_uri:
+        return event_type_uri
+    event_uri = payload.get("event")
+    if not event_uri:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10) as http:
+            resp = await http.get(event_uri, headers={"Authorization": f"Bearer {token}"})
+            resp.raise_for_status()
+            return resp.json()["resource"].get("event_type")
+    except Exception:
+        return None
+
+
 async def _handle_invitee_created(payload: dict, token: str, client_id: int | None) -> dict:
     name = (payload.get("name") or "").strip() or None
     email = (payload.get("email") or "").strip() or None
@@ -328,7 +350,8 @@ async def calendly_webhook_client(client_id: int, request: Request):
     pool = await get_pool()
     async with pool.acquire() as conn:
         config = await conn.fetchrow(
-            "SELECT calendly_api_token, calendly_webhook_signing_key FROM client_marketing_config WHERE client_id = $1",
+            "SELECT calendly_api_token, calendly_webhook_signing_key, calendly_event_type_url "
+            "FROM client_marketing_config WHERE client_id = $1",
             client_id,
         )
     if not config or not config["calendly_webhook_signing_key"]:
@@ -360,6 +383,23 @@ async def calendly_webhook_client(client_id: int, request: Request):
     if host_uri:
         client_user_uri = await calendly_integration.get_user_uri(token)
         if host_uri != client_user_uri:
+            return {"ok": True}
+
+    # Only accept a booking made on the ONE Calendly link actually connected
+    # for this client (calendly_event_type_url, set from Marketing Setup's
+    # Response AI step) — a client's Calendly account can have other event
+    # types on it (other services they offer, personal/unrelated links) that
+    # this org-scoped subscription also delivers, and those must never
+    # create a "lead" here just because they share an account. Skips this
+    # check (accepts anything, old behavior) if no event type is configured
+    # yet, or if either side can't be resolved — fails open on ambiguity,
+    # closed only on a confirmed mismatch. Caught live 2026-09-17: Crosacore's
+    # existing-patient follow-up/treatment links (unrelated to the "Pain
+    # Confidence Consultation" lead-intake link) were feeding bookings in.
+    if config["calendly_event_type_url"]:
+        configured_uri = await calendly_integration.get_event_type_uri(token, config["calendly_event_type_url"])
+        incoming_uri = await _resolve_event_type_uri(body["payload"], token)
+        if configured_uri and incoming_uri and incoming_uri != configured_uri:
             return {"ok": True}
 
     await _handle_invitee_created(body["payload"], token, client_id=client_id)

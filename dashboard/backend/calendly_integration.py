@@ -216,6 +216,20 @@ async def _get_matching_event_type(http: httpx.AsyncClient, token: str, scheduli
             return None
 
 
+async def get_event_type_uri(token: str, scheduling_url: str) -> str | None:
+    """Public wrapper around _get_matching_event_type — resolves a
+    configured scheduling_url to that event type's API URI, or None if
+    nothing on this account matches it exactly. Used by
+    routers/calendly_webhooks.py to reject an inbound booking made on some
+    OTHER event type on the same organization-scoped webhook subscription
+    (see _get_matching_event_type's docstring for why an org-scoped token
+    can see event types that were never actually connected for this
+    client)."""
+    async with httpx.AsyncClient(timeout=10) as http:
+        event_type = await _get_matching_event_type(http, token, scheduling_url)
+        return event_type["uri"] if event_type else None
+
+
 async def find_earliest_available_times(
     token: str, scheduling_url: str, start_iso: str, max_days: int = 30,
 ) -> list[dict]:
