@@ -721,6 +721,12 @@ async def _create_schema(pool: asyncpg.Pool):
             -- booking completes on Calendly's domain, not ours — see
             -- routers/calendly_webhooks.py's _handle_invitee_created.
             ALTER TABLE content_view_events ADD COLUMN IF NOT EXISTS from_meta BOOLEAN;
+            -- Fourth single free-text resource field alongside ads_manager/
+            -- registrar/hosting (see clients.py's "Per-client resources"
+            -- comment) — the client's funnel/landing-page link, promoted
+            -- out of the freeform "Other Resources" list into its own field
+            -- since every client has at most one of these too.
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS funnel_resource TEXT;
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

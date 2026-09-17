@@ -298,11 +298,11 @@ async def update_client(client_id: int, body: ClientUpdate):
 
 # ---------------- Per-client resources (admin-only reference, not shown in the client portal) ----------------
 #
-# Ads Manager / Registrar / Hosting are single free-text fields on the client
-# row itself (Dylan pastes a link, login note, or ID for each) since every
-# client has at most one of each. Everything else — Drive folders, brand
-# assets, marketing material links, etc. — is an open-ended list instead,
-# since a client can have any number of those.
+# Ads Manager / Registrar / Hosting / Funnel are single free-text fields on
+# the client row itself (Dylan pastes a link, login note, or ID for each)
+# since every client has at most one of each. Everything else — Drive
+# folders, brand assets, marketing material links, etc. — is an open-ended
+# list instead, since a client can have any number of those.
 
 @router.get("/clients/{client_id}/resources")
 async def list_client_resources(client_id: int):

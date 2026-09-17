@@ -156,6 +156,7 @@ class ClientUpdate(BaseModel):
     ads_manager_resource: Optional[str] = None
     registrar_resource: Optional[str] = None
     hosting_resource: Optional[str] = None
+    funnel_resource: Optional[str] = None
 
 
 class ClientResourceCreate(BaseModel):

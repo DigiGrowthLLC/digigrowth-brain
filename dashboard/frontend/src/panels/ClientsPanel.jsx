@@ -1705,6 +1705,42 @@ function ResourceField({ clientId, field, label, placeholder, value, onSaved }) 
   );
 }
 
+// Excludes the CALLER's own IP (resolved server-side via X-Forwarded-For)
+// from all funnel/VSL view tracking going forward — click this from your
+// own browser/device, not somewhere else, since it's your IP on THIS
+// request that gets excluded. Safe to click again if your IP changes.
+// Lives next to the Funnel resource link since that's the page it's for.
+function ExcludeMyIpButton() {
+  const [state, setState] = useState("idle"); // idle | saving | done | error
+  const [ip, setIp] = useState(null);
+
+  const click = async () => {
+    setState("saving");
+    try {
+      const r = await fetch(API("/content-analytics/exclude-my-ip"), { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Failed");
+      setIp(d.ip);
+      setState("done");
+    } catch {
+      setState("error");
+    }
+  };
+
+  if (state === "done") {
+    return (
+      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882" }}>
+        ✓ Excluded {ip}
+      </span>
+    );
+  }
+  return (
+    <button className="btn btn-secondary" style={{ fontSize: 10, padding: "6px 12px" }} onClick={click} disabled={state === "saving"}>
+      {state === "saving" ? "Excluding…" : state === "error" ? "Failed — retry?" : "Exclude My IP From Tracking"}
+    </button>
+  );
+}
+
 function MiscResourceRow({ resource, onDelete }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
@@ -3219,6 +3255,19 @@ function ClientResources({ clientId }) {
         placeholder="e.g. Vercel / hosting link or login notes…"
         value={client?.hosting_resource} onSaved={setClient}
       />
+      <ResourceField
+        clientId={clientId} field="funnel_resource" label="Funnel"
+        placeholder="e.g. the client's live funnel/landing-page URL…"
+        value={client?.funnel_resource} onSaved={setClient}
+      />
+      {client?.funnel_resource && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "-2px 0 8px", padding: "0 12px" }}>
+          <a href={client.funnel_resource} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10 }}>
+            VISIT FUNNEL &#8599;
+          </a>
+          <ExcludeMyIpButton />
+        </div>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "18px 0 8px" }}>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.08em" }}>
