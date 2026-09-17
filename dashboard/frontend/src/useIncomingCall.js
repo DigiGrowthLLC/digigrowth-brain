@@ -58,6 +58,18 @@ export default function useIncomingCall() {
             setCallInfo(info);
             setIncoming(call);
 
+            // Caller hangs up or the ring times out before anyone answers/declines —
+            // clear the popup so it doesn't stay stuck on screen forever.
+            const dismissIfStillRinging = () => {
+              if (incomingRef.current === call) {
+                setIncoming(null);
+                setCallInfo(null);
+              }
+            };
+            call.on("cancel", dismissIfStillRinging);
+            call.on("disconnect", dismissIfStillRinging);
+            call.on("reject", dismissIfStillRinging);
+
             if (window.Notification && Notification.permission === "granted") {
               const label = info.name || info.business || info.phone || "Unknown caller";
               new Notification("Incoming call", { body: label });
