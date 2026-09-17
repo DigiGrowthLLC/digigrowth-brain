@@ -444,35 +444,61 @@ async def update_appointment(appointment_id: int, payload: dict):
 
 
 @router.post("/appointment-reminders/{appointment_id}/cancel")
-async def cancel_appointment(appointment_id: int):
-    """Marks the appointment canceled and kicks off the cancellation-recovery
-    drip (cancel_sequence.py) — stamps canceled_at, the clock that sequence's
-    3-touch drip counts its 0h/24h/72h delays from, and fires Touch 1
-    immediately (same synchronous-send-then-poller-picks-up-the-rest pattern
-    as no_show_sequence.send_first_touch, see routers/appointments.py's PATCH
-    handler above)."""
+async def cancel_appointment(appointment_id: int, notify: bool = False):
+    """Marks the appointment canceled, and only kicks off the cancellation-
+    recovery drip (cancel_sequence.py) when notify=True — stamps canceled_at,
+    the clock that sequence's 3-touch drip counts its 0h/24h/72h delays from,
+    and fires Touch 1 immediately (same synchronous-send-then-poller-picks-
+    up-the-rest pattern as no_show_sequence.send_first_touch, see
+    routers/appointments.py's PATCH handler above).
+
+    notify defaults to False (silent) because this endpoint/function is the
+    shared path for every STAFF-initiated cancel — a rep canceling here in
+    the internal OS, or a client canceling from their own portal
+    (client_portal.py's portal_cancel_appointment). The recovery drip is
+    meant to win back a lead who canceled on THEIR OWN, so staff canceling
+    on the lead's behalf (or tidying up a booking that was already resolved
+    elsewhere, e.g. by phone) must never re-contact them about it. Only
+    routers/calendly_webhooks.py's _handle_invitee_canceled passes
+    notify=True, and only when Calendly reports the invitee (not the host)
+    as who actually canceled it."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             # Also halts any active No Show drip (no_show_sequence.py's poller
             # requires no_show_sequence_stopped_at IS NULL to send) so a
-            # canceled appointment stops getting no-show touches.
+            # canceled appointment stops getting no-show touches. Stops the
+            # cancel drip up front too — only re-armed below when notify=True
+            # actually sends Touch 1, so a silent cancel can never have a
+            # later touch fire off canceled_at by some other path.
             "UPDATE appointment_reminders SET status = 'canceled', canceled_at = now(), "
-            "no_show_sequence_stopped_at = COALESCE(no_show_sequence_stopped_at, now()) "
+            "no_show_sequence_stopped_at = COALESCE(no_show_sequence_stopped_at, now()), "
+            "cancel_sequence_stopped_at = COALESCE(cancel_sequence_stopped_at, now()) "
             "WHERE id = $1 AND status = 'scheduled' RETURNING *",
             appointment_id,
         )
     if row is None:
         raise HTTPException(404, "appointment not found or already resolved")
 
-    try:
-        # Same client-lead branch as the no-show handler above.
-        if await client_appointment_sequence.resolve_client_lead(row["contact_id"]):
-            await client_appointment_sequence.send_first_touch(dict(row), "cancellation")
-        else:
-            await cancel_sequence.send_first_touch(dict(row))
-    except Exception as e:
-        print(f"[appointments] cancel touch 1 failed for {appointment_id}: {e}")
+    if notify:
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                # Re-open the drip this row was just stopped on above —
+                # send_first_touch below fires Touch 1 immediately, and
+                # cancel_sequence.py's poller needs cancel_sequence_stopped_at
+                # NULL again to pick up Touches 2-4 on schedule.
+                await conn.execute(
+                    "UPDATE appointment_reminders SET cancel_sequence_stopped_at = NULL WHERE id = $1",
+                    appointment_id,
+                )
+            # Same client-lead branch as the no-show handler above.
+            if await client_appointment_sequence.resolve_client_lead(row["contact_id"]):
+                await client_appointment_sequence.send_first_touch(dict(row), "cancellation")
+            else:
+                await cancel_sequence.send_first_touch(dict(row))
+        except Exception as e:
+            print(f"[appointments] cancel touch 1 failed for {appointment_id}: {e}")
 
     return {"ok": True}
 

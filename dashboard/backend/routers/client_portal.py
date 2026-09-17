@@ -897,12 +897,14 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
 @router.post("/{token}/appointments/{appointment_id}/cancel")
 async def portal_cancel_appointment(token: str, appointment_id: int):
     """Client-facing cancellation — reuses routers/appointments.py's
-    cancel_appointment() so the cancellation-recovery drip
-    (cancel_sequence.py) fires for the lead exactly like an internally
-    canceled appointment, and the appointment is immediately excluded
-    from portal_stats()'s analytics (every count there already filters
-    ar.status != 'canceled'). Open to every real client as of 2026-09-14 —
-    see module note above."""
+    cancel_appointment() so the appointment is marked canceled exactly like
+    an internal cancel, and immediately excluded from portal_stats()'s
+    analytics (every count there already filters ar.status != 'canceled').
+    Deliberately silent (notify defaults to False) — the CLIENT is canceling
+    on their patient's behalf here, not the patient canceling on their own,
+    so the cancellation-recovery drip (which is meant to win back someone
+    who backed out themselves) must never fire and re-contact them. Open to
+    every real client as of 2026-09-14 — see module note above."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:

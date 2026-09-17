@@ -238,7 +238,17 @@ async def _handle_invitee_canceled(payload: dict) -> None:
     event can't be matched (e.g. a booking made before calendly_event_uri
     existed) or the appointment's already resolved — cancel_appointment
     raises HTTPException in both cases, which this swallows since a webhook
-    has no one to show that error to."""
+    has no one to show that error to.
+
+    Only notifies (fires the cancellation-recovery drip) when Calendly says
+    the INVITEE canceled it themselves — payload.cancellation.canceler_type
+    is "invitee" or "host". A host cancel here means Dylan or the client
+    canceled directly in their own Calendly account rather than through the
+    OS/portal — staff-initiated either way, so same silent-by-default rule
+    as routers/appointments.py's cancel_appointment(). Also stays silent if
+    canceler_type is missing/unrecognized — safer to skip a recovery text
+    than to risk re-contacting someone who didn't actually cancel it
+    themselves."""
     event_uri = payload.get("event")
     if not event_uri:
         return
@@ -250,8 +260,9 @@ async def _handle_invitee_canceled(payload: dict) -> None:
         )
     if not row:
         return
+    canceler_type = (payload.get("cancellation") or {}).get("canceler_type")
     try:
-        await cancel_appointment(row["id"])
+        await cancel_appointment(row["id"], notify=canceler_type == "invitee")
     except HTTPException:
         pass
 
