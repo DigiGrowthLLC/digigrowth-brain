@@ -33,6 +33,7 @@ from models import (
 import cancel_sequence
 import client_appointment_reminders
 import client_appointment_sequence
+import client_dialer
 import client_email
 import client_sms
 import integrations
@@ -1512,79 +1513,60 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
 
 @router.post("/{token}/leads/{contact_id}/call")
 async def portal_call_lead(token: str, contact_id: str):
-    """Places a real single-dial call through DigiGrowth's existing shared
-    Twilio setup (same dialer_engine/TwiML app as the internal OS dialer) —
-    but ONLY for the is_test client (see _require_test_client's note on why:
-    no per-client Twilio credentials exist yet, so any other client would be
-    placing real calls through DigiGrowth's own shared line). Every other
-    real client gets the same friendly "not connected yet" stub this
-    endpoint always returned before. Validates the lead belongs to this
-    client via the token, then (for the test client only) reuses
-    dialer.call_single() (the same one-lead session entrypoint the internal
-    CRM's "Call Now" button uses) to seed the dialer engine's single global
-    session. The portal frontend then drives it exactly like DialerPanel
-    does: fetch a Twilio token, connect the browser as the agent leg, and
-    POST dial-batch once connected — see the /dialer/* proxy endpoints below.
-
-    NOTE: dialer_engine's session is a single process-global session, not
-    per-caller — the test client placing a call here will conflict with the
-    admin running the internal Dialer panel at the same time. Acceptable for
-    now (test-client-only use); would need real session isolation to
-    support concurrent internal + portal dialing."""
+    """Places a real single-lead call through THIS CLIENT's own Twilio
+    subaccount/number (client_dialer.py) — never DigiGrowth's shared Twilio
+    setup, and never the internal Dialer panel's global session (each call
+    here gets its own isolated call_id and conference, so a client calling
+    from their portal can never collide with Dylan running the internal
+    Dialer, or with another client calling at the same time). Gated on
+    whether this client has actually completed Twilio Voice provisioning
+    (client_sms.provision_client_number()) rather than is_test specifically
+    — any client (test or real) who has a number gets a real call; anyone
+    who doesn't gets the same friendly "not connected yet" stub this
+    endpoint always returned before."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
         contact = await conn.fetchrow(
-            "SELECT id FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
+            "SELECT id, phone, owner FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
             contact_id, client["id"],
         )
     if not contact:
         raise HTTPException(status_code=404, detail="Lead not found")
+    if not (contact["phone"] or "").strip():
+        raise HTTPException(status_code=400, detail="This lead has no phone number on file")
 
-    if not client.get("is_test"):
+    if not await client_dialer.is_voice_ready(client["id"]):
         return {
             "ok": False,
             "status": "not_connected",
             "detail": "Calling isn't connected for your account yet — DigiGrowth is setting this up and will notify you once you can call leads directly from here.",
         }
 
-    return await dialer_router.call_single({"contact_id": contact_id})
+    call_id = client_dialer.create_call(client["id"], contact_id, contact["phone"], contact["owner"])
+    return {"ok": True, "call_id": call_id}
 
 
-@router.get("/{token}/dialer/token")
-async def portal_dialer_token(token: str):
-    """Twilio Voice JS SDK access token for the portal's browser Device —
-    same shared TwiML app/credentials as the internal OS dialer (see
-    dialer.get_token()); the portal user becomes the agent leg on the call.
-    is_test-gated like every other endpoint below — see _require_test_client."""
+@router.get("/{token}/calls/{call_id}/token")
+async def portal_call_token(token: str, call_id: str):
+    """Twilio Voice JS SDK access token scoped to THIS client's own
+    subaccount/API key/TwiML app — the portal user becomes the agent leg on
+    the call. See client_dialer.get_access_token()."""
     client = await get_client_from_token(token)
-    _require_test_client(client)
-    return await dialer_router.get_token()
+    try:
+        return {"token": await client_dialer.get_access_token(client["id"])}
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/{token}/dialer/dial-batch")
-async def portal_dialer_dial_batch(token: str):
-    client = await get_client_from_token(token)
-    _require_test_client(client)
-    return await dialer_router.dial_batch()
+@router.get("/{token}/calls/{call_id}/status")
+async def portal_call_status(token: str, call_id: str):
+    await get_client_from_token(token)
+    return client_dialer.get_status(call_id)
 
 
-@router.get("/{token}/dialer/session")
-async def portal_dialer_session(token: str):
-    client = await get_client_from_token(token)
-    _require_test_client(client)
-    return await dialer_router.get_session()
-
-
-@router.post("/{token}/dialer/end-call")
-async def portal_dialer_end_call(token: str):
-    client = await get_client_from_token(token)
-    _require_test_client(client)
-    return await dialer_router.end_call()
-
-
-@router.post("/{token}/dialer/end-session")
-async def portal_dialer_end_session(token: str):
-    client = await get_client_from_token(token)
-    _require_test_client(client)
-    return await dialer_router.end_session()
+@router.post("/{token}/calls/{call_id}/end")
+async def portal_call_end(token: str, call_id: str):
+    await get_client_from_token(token)
+    await client_dialer.end_call(call_id)
+    return {"ok": True}

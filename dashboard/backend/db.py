@@ -677,6 +677,14 @@ async def _create_schema(pool: asyncpg.Pool):
             -- inbound Lead Ads webhook's page_id to a client via the latter.
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS meta_ad_account_id TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS meta_page_id TEXT;
+            -- Voice calling for the client portal's "Call" button
+            -- (client_dialer.py) — a Twilio Access Token is scoped to one
+            -- Account SID + one API Key + one TwiML App SID, none of which
+            -- exist per-subaccount until provision_client_number() creates
+            -- them (see client_sms.py).
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS twilio_twiml_app_sid TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS twilio_api_key_sid TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS twilio_api_key_secret TEXT;
             ALTER TABLE client_email_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_channel_last_read_at TIMESTAMPTZ;
             -- Per-step sent tracking for client_appointment_reminders.py's

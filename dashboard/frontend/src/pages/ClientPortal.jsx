@@ -1913,6 +1913,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
   const deviceRef = useRef(null);
   const activeCallRef = useRef(null);
   const pollRef = useRef(null);
+  const callIdRef = useRef(null);
   const [showBook, setShowBook] = useState(false);
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -1925,23 +1926,26 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
     try { deviceRef.current?.destroy(); } catch {}
     deviceRef.current = null;
     activeCallRef.current = null;
-    await fetch(`/portal-api/${token}/dialer/end-session`, { method: "POST" }).catch(() => {});
+    if (callIdRef.current) {
+      await fetch(`/portal-api/${token}/calls/${callIdRef.current}/end`, { method: "POST" }).catch(() => {});
+      callIdRef.current = null;
+    }
   };
 
   useEffect(() => () => { teardownCall(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pollSession = () => {
+  const pollCallStatus = (callId) => {
     stopPolling();
     pollRef.current = setInterval(async () => {
-      const r = await fetch(`/portal-api/${token}/dialer/session`).catch(() => null);
+      const r = await fetch(`/portal-api/${token}/calls/${callId}/status`).catch(() => null);
       if (!r || !r.ok) return;
       const d = await r.json();
       if (d.status === "connected") setCallPhase("connected");
-      else if (d.status === "classify" || (!d.active && callPhase !== "connecting")) {
+      else if (d.status === "ended") {
         setCallPhase("ended");
         setCallMsg("Call ended.");
         stopPolling();
-      } else if (d.status === "waiting") setCallPhase("ringing");
+      } else if (d.status === "ringing") setCallPhase("ringing");
     }, 1500);
   };
 
@@ -1956,12 +1960,14 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
       const cr = await fetch(`/portal-api/${token}/leads/${lead.id}/call`, { method: "POST" });
       const cd = await cr.json().catch(() => ({}));
       if (!cr.ok) { setCallPhase("idle"); setCallMsg(cd.detail || "Couldn't start the call."); return; }
-      // Real clients get a 200 OK with ok:false (the "not connected yet"
-      // stub) rather than an HTTP error — stop here instead of trying to
-      // connect a Twilio Device that the backend will just 403 anyway.
+      // Real clients without Voice provisioned yet get a 200 OK with
+      // ok:false (the "not connected yet" stub) rather than an HTTP error —
+      // stop here instead of trying to connect a Twilio Device that has
+      // nothing to connect to.
       if (cd.ok === false) { setCallPhase("idle"); setCallMsg(cd.detail || "Calling isn't available yet."); return; }
 
-      const tr = await fetch(`/portal-api/${token}/dialer/token`);
+      callIdRef.current = cd.call_id;
+      const tr = await fetch(`/portal-api/${token}/calls/${cd.call_id}/token`);
       const td = await tr.json().catch(() => ({}));
       if (!tr.ok) { setCallPhase("idle"); setCallMsg(td.detail || "Couldn't connect to the calling line."); return; }
 
@@ -1970,13 +1976,12 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
       device.on("error", (e) => { setCallPhase("idle"); setCallMsg("Call error: " + (e.message || "unknown")); stopPolling(); });
 
       await device.register();
-      const call = await device.connect({ params: { session_id: cd.session_id } });
+      const call = await device.connect({ params: { call_id: cd.call_id } });
       activeCallRef.current = call;
 
-      call.on("accept", async () => {
+      call.on("accept", () => {
         setCallMsg("Connected — dialing " + (display.owner || display.business || "the lead") + "…");
-        await fetch(`/portal-api/${token}/dialer/dial-batch`, { method: "POST" }).catch(() => {});
-        pollSession();
+        pollCallStatus(cd.call_id);
       });
       call.on("disconnect", () => { setCallPhase("ended"); stopPolling(); });
       call.on("cancel", () => { setCallPhase("idle"); setCallMsg("Call was canceled."); stopPolling(); });
@@ -1987,7 +1992,6 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
   };
 
   const handleHangup = async () => {
-    await fetch(`/portal-api/${token}/dialer/end-call`, { method: "POST" }).catch(() => {});
     await teardownCall();
     setCallPhase("ended");
   };

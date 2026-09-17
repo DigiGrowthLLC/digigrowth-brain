@@ -29,10 +29,18 @@ def _master_client() -> TwilioClient:
 async def provision_client_number(client_id: int, area_code: str | None = None) -> dict:
     """
     Idempotent: if the client already has a subaccount/number in
-    client_marketing_config, returns the existing values instead of buying a
-    second number. Buys the first available local number in `area_code` (or
-    Twilio's default search if omitted) under a new (or existing) subaccount
-    named for the client.
+    client_marketing_config, skips straight to Voice provisioning instead of
+    buying a second number. Buys the first available local number in
+    `area_code` (or Twilio's default search if omitted) under a new (or
+    existing) subaccount named for the client.
+
+    Also provisions Voice calling (client_dialer.py's "Call" button) in the
+    same subaccount — a Signing API Key + a TwiML Application, both required
+    to mint a Twilio Access Token, neither of which the SMS-only path above
+    ever needed. Checked/created independently of the SMS provisioning above
+    (its own `if`, not an `elif`) so re-running this for a client who
+    already has a number just backfills the missing Voice pieces, rather
+    than being skipped entirely by the SMS branch's own early return.
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -41,14 +49,11 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
             raise ValueError(f"Client {client_id} not found")
 
         config = await conn.fetchrow(
-            "SELECT twilio_subaccount_sid, twilio_number FROM client_marketing_config WHERE client_id = $1",
+            "SELECT * FROM client_marketing_config WHERE client_id = $1",
             client_id,
         )
-        if config and config["twilio_subaccount_sid"] and config["twilio_number"]:
-            return dict(config)
 
         master = _master_client()
-
         subaccount_sid = config["twilio_subaccount_sid"] if config else None
         if not subaccount_sid:
             subaccount = master.api.accounts.create(
@@ -64,29 +69,55 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
             master.api.accounts(subaccount_sid).fetch().auth_token,
         )
 
-        search_kwargs = {"limit": 1}
-        if area_code:
-            search_kwargs["area_code"] = area_code
-        candidates = subaccount_client.available_phone_numbers("US").local.list(**search_kwargs)
-        if not candidates:
-            raise RuntimeError(f"No available Twilio numbers found for client {client_id}")
+        if not (config and config["twilio_number"]):
+            search_kwargs = {"limit": 1}
+            if area_code:
+                search_kwargs["area_code"] = area_code
+            candidates = subaccount_client.available_phone_numbers("US").local.list(**search_kwargs)
+            if not candidates:
+                raise RuntimeError(f"No available Twilio numbers found for client {client_id}")
 
-        purchased = subaccount_client.incoming_phone_numbers.create(
-            phone_number=candidates[0].phone_number,
-            sms_url=f"{os.environ.get('DASHBOARD_URL', '').rstrip('/')}/webhooks/client-sms/{client_id}",
-        )
+            purchased = subaccount_client.incoming_phone_numbers.create(
+                phone_number=candidates[0].phone_number,
+                sms_url=f"{os.environ.get('DASHBOARD_URL', '').rstrip('/')}/webhooks/client-sms/{client_id}",
+            )
+            phone_number = purchased.phone_number
+        else:
+            phone_number = config["twilio_number"]
+
+        voice_fields = {}
+        if not (config and config["twilio_twiml_app_sid"]):
+            dashboard_url = os.environ.get("DASHBOARD_URL", "").rstrip("/")
+            app = subaccount_client.applications.create(
+                friendly_name=f"DigiGrowth Client Voice — {client['name']}",
+                voice_url=f"{dashboard_url}/webhooks/client-voice/{client_id}/agent-join",
+                voice_method="POST",
+            )
+            voice_fields["twilio_twiml_app_sid"] = app.sid
+        if not (config and config["twilio_api_key_sid"]):
+            key = subaccount_client.new_keys.create(friendly_name=f"DigiGrowth Client Voice — {client['name']}")
+            voice_fields["twilio_api_key_sid"] = key.sid
+            voice_fields["twilio_api_key_secret"] = key.secret
 
         row = await conn.fetchrow(
-            """
-            INSERT INTO client_marketing_config (client_id, twilio_subaccount_sid, twilio_number, updated_at)
-            VALUES ($1, $2, $3, now())
+            f"""
+            INSERT INTO client_marketing_config (
+                client_id, twilio_subaccount_sid, twilio_number,
+                twilio_twiml_app_sid, twilio_api_key_sid, twilio_api_key_secret, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, now())
             ON CONFLICT (client_id) DO UPDATE
                 SET twilio_subaccount_sid = EXCLUDED.twilio_subaccount_sid,
                     twilio_number = EXCLUDED.twilio_number,
+                    {"twilio_twiml_app_sid = EXCLUDED.twilio_twiml_app_sid," if "twilio_twiml_app_sid" in voice_fields else ""}
+                    {"twilio_api_key_sid = EXCLUDED.twilio_api_key_sid, twilio_api_key_secret = EXCLUDED.twilio_api_key_secret," if "twilio_api_key_sid" in voice_fields else ""}
                     updated_at = now()
             RETURNING *
             """,
-            client_id, subaccount_sid, purchased.phone_number,
+            client_id, subaccount_sid, phone_number,
+            voice_fields.get("twilio_twiml_app_sid") or (config["twilio_twiml_app_sid"] if config else None),
+            voice_fields.get("twilio_api_key_sid") or (config["twilio_api_key_sid"] if config else None),
+            voice_fields.get("twilio_api_key_secret") or (config["twilio_api_key_secret"] if config else None),
         )
         return dict(row)
 
