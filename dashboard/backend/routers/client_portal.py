@@ -35,6 +35,7 @@ import client_appointment_sequence
 import client_email
 import client_sms
 import integrations
+import meta_ads
 import no_show_sequence
 import onboarding_sequence
 import r2_storage
@@ -621,6 +622,25 @@ async def portal_stats(token: str, period: str = "all"):
             "total_replies": outreach_row["total_replies"],
         },
     }
+
+
+@router.post("/{token}/sync-meta-ads")
+async def portal_sync_meta_ads(token: str):
+    """Manual trigger for the Analytics tab's Paid Acquisition section, so
+    whoever's looking at the portal (currently just Dylan, via the one
+    is_test client — see _require_test_client) can pull ad_campaign_stats
+    immediately instead of waiting on the daily cron, same idea as
+    routers/client_marketing.py's admin-side .../sync-meta-ads but reachable
+    from inside the portal itself. Gated to the test client because this
+    hits Meta's live Graph API and surfaces its raw error text — not
+    something a real client should be able to trigger or see."""
+    client = await get_client_from_token(token)
+    _require_test_client(client)
+    try:
+        days_synced = await meta_ads.sync_one_client_now(client["id"])
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "days_synced": days_synced}
 
 
 # ---------------- Campaign SMS / Email (the client's OWN Twilio number and ----

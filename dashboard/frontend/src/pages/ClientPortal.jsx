@@ -1154,14 +1154,40 @@ function AnalyticsTab({ token }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("all");
+  const [syncingMeta, setSyncingMeta] = useState(false);
+  const [metaSyncMsg, setMetaSyncMsg] = useState("");
+  const [metaSyncErr, setMetaSyncErr] = useState("");
 
-  useEffect(() => {
+  const loadStats = () => {
     setLoading(true);
     fetch(`/portal-api/${token}/stats?period=${period}`)
       .then((r) => r.json())
       .then((data) => { setStats(data); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [token, period]);
+  };
+
+  useEffect(loadStats, [token, period]);
+
+  // Manual trigger — the daily Meta sync otherwise only ever reports
+  // failures to Railway's server logs, invisible from here. Gated
+  // server-side to the one is_test client (see routers/client_portal.py's
+  // portal_sync_meta_ads), so this 403s harmlessly for a real client.
+  const syncMetaAdsNow = async () => {
+    setSyncingMeta(true);
+    setMetaSyncMsg("");
+    setMetaSyncErr("");
+    try {
+      const r = await fetch(`/portal-api/${token}/sync-meta-ads`, { method: "POST" });
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(data?.detail || "Failed to sync Meta ads");
+      setMetaSyncMsg(`Synced ${data.days_synced} day(s).`);
+      loadStats();
+    } catch (e) {
+      setMetaSyncErr(e.message);
+    } finally {
+      setSyncingMeta(false);
+    }
+  };
 
   if (loading && !stats) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (!stats) return null;
@@ -1250,7 +1276,25 @@ function AnalyticsTab({ token }) {
 
       {/* Row 3: paid acquisition (Meta Ads) + CAC */}
       <div>
-        <SectionHeading>Paid Acquisition (Meta Ads)</SectionHeading>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+          <SectionHeading>Paid Acquisition (Meta Ads)</SectionHeading>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: 10, padding: "4px 10px", marginBottom: 8 }}
+            onClick={syncMetaAdsNow}
+            disabled={syncingMeta}
+          >
+            {syncingMeta ? "SYNCING…" : "SYNC NOW"}
+          </button>
+        </div>
+        {(metaSyncMsg || metaSyncErr) && (
+          <div style={{
+            fontFamily: "'Share Tech Mono', monospace", fontSize: 10, marginBottom: 8,
+            color: metaSyncErr ? "#e05c5c" : "#4ade80",
+          }}>
+            {metaSyncErr || metaSyncMsg}
+          </div>
+        )}
         {adConnected ? (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
             <AnalyticsStat label="Ad Spend" value={`$${spend.toLocaleString()}`} iconKey="upcoming" />
