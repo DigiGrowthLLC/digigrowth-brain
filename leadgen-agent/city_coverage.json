@@ -481,9 +481,9 @@
     },
     "Tulsa, OK": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 121,
-      "qualified_count": 6,
+      "term_index": 2,
+      "reviewed_count": 242,
+      "qualified_count": 8,
       "last_scraped_date": "2026-09-17"
     },
     "Tampa, FL": {
