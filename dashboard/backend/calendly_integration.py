@@ -23,6 +23,7 @@ submitting a wrong or incomplete answer.
 """
 import hashlib
 import hmac
+import secrets
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -53,11 +54,14 @@ async def register_webhook(token: str, callback_url: str, org_uri: str) -> dict:
     Calendly webhook subscription for invitee.created events across the
     whole organization — reusing avoids piling up duplicate subscriptions
     on the same Calendly account every time a rep re-clicks "Connect
-    Calendly". Returns {"uri": ..., "signing_key": ...} — signing_key is
-    ONLY ever returned at creation time by Calendly's API, so it must be
-    stored immediately (see routers/calendly_webhooks.py's verify_signature
-    use of it) or it's unrecoverable short of deleting and recreating the
-    subscription."""
+    Calendly". Returns {"uri": ..., "signing_key": ...}.
+
+    Corrected 2026-09-17 (confirmed live against a real 400 error): Calendly's
+    create-subscription response does NOT hand back a signing_key — WE supply
+    one as part of the create request, and Calendly signs future payloads
+    with it. The original version assumed Calendly generated and returned
+    it, which raised KeyError on every real call."""
+    signing_key = secrets.token_hex(32)
     async with httpx.AsyncClient(timeout=10) as http:
         existing = await http.get(
             f"{_API_BASE}/webhook_subscriptions",
@@ -67,9 +71,12 @@ async def register_webhook(token: str, callback_url: str, org_uri: str) -> dict:
         _raise_with_context(existing)
         for item in existing.json().get("collection", []):
             if item.get("callback_url") == callback_url:
-                # Signing key isn't returned on GET, only on create — an
-                # already-registered webhook whose key we've lost (e.g. a
-                # DB row wiped) has to be deleted and recreated, not reused.
+                # An existing subscription at this URL was signed with
+                # whatever key we generated when IT was created — that key
+                # is gone (never persisted past that one register_webhook
+                # call unless the caller saved it), so it must be deleted
+                # and recreated with the new key we're about to generate,
+                # never reused as-is.
                 del_resp = await http.delete(item["uri"], headers=_headers(token))
                 if del_resp.status_code not in (200, 204, 404):
                     _raise_with_context(del_resp)
@@ -83,11 +90,12 @@ async def register_webhook(token: str, callback_url: str, org_uri: str) -> dict:
                 "events": ["invitee.created"],
                 "organization": org_uri,
                 "scope": "organization",
+                "signing_key": signing_key,
             },
         )
         _raise_with_context(resp)
         resource = resp.json()["resource"]
-        return {"uri": resource["uri"], "signing_key": resource["signing_key"]}
+        return {"uri": resource["uri"], "signing_key": signing_key}
 
 
 async def unregister_webhook(token: str, webhook_uri: str) -> None:
