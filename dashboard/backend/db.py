@@ -1313,6 +1313,15 @@ async def _create_schema(pool: asyncpg.Pool):
         await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS calendly_webhook_uri TEXT")
         await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS calendly_webhook_signing_key TEXT")
 
+        # Seed the two auto-applied lead-source tags calendly_webhooks.py
+        # stamps onto a client's leads (ads-lead vs organic-lead, based on
+        # the ?utm_source=paid_ad marker on the ad-funnel page's Calendly
+        # link) so they render with real colors in the portal's tag chips
+        # from the first booking on, instead of falling back to the default
+        # blue the first time each name is used.
+        await conn.execute("INSERT INTO tags (name, color) VALUES ('ads-lead', '#f5a623') ON CONFLICT (name) DO NOTHING")
+        await conn.execute("INSERT INTO tags (name, color) VALUES ('organic-lead', '#4ade80') ON CONFLICT (name) DO NOTHING")
+
         # Dylan's OWN Calendly connection — same idea as client_marketing_config's
         # calendly_* columns above, just for DigiGrowth's own pipeline rather
         # than a client's. Reuses dialer_settings (the app's existing

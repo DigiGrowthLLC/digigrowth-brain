@@ -122,6 +122,23 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
             # lead; the appointment still gets created (reminders still
             # send off prospect_name/phone/email directly) just without
             # client-portal visibility.
+
+            # Auto-tag the lead by source: the ad-funnel landing page's
+            # Calendly CTA carries ?utm_source=paid_ad (see design-agent's
+            # funnel-building skill), which Calendly echoes back in this
+            # payload's `tracking` object; the client's own real website's
+            # link carries nothing, so it falls through to organic-lead.
+            # Guarded to only fire once per contact — a repeat booking from
+            # an already-tagged lead is left alone, and the client's own
+            # manual re-tag in the portal is never silently overwritten.
+            if contact_id is not None:
+                tracking = payload.get("tracking") or {}
+                lead_tag = "ads-lead" if tracking.get("utm_source") == "paid_ad" else "organic-lead"
+                await conn.execute(
+                    "UPDATE contacts SET tags = array_append(tags, $1), updated_at = now() "
+                    "WHERE id = $2 AND NOT ('ads-lead' = ANY(tags)) AND NOT ('organic-lead' = ANY(tags))",
+                    lead_tag, contact_id,
+                )
         else:
             # Dylan's own pipeline — match an existing CRM contact by phone,
             # or create a new one from the Calendly invitee's own info

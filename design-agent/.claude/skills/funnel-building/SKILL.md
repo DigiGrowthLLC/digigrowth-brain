@@ -88,7 +88,15 @@ batch job die silently; that's a standing rule here too.
    seam, no second audience. Follow `cro-funnel-principles.md`'s fixed section
    order exactly (hero -> trust bar -> problem -> offer -> proof -> FAQ -> final
    CTA), with every CTA button on the page pointing at the client's real
-   `calendly_url` from step 1. Ground every specific claim in real data from
+   `calendly_url` from step 1, with `?utm_source=paid_ad` appended to every
+   occurrence (e.g. `href="https://calendly.com/theirlink?utm_source=paid_ad"`).
+   This is what lets `calendly_webhooks.py` tell a booking that came from this ad
+   funnel apart from one booked through the client's own site (which carries no
+   such param) — Calendly echoes query params on the booking link back in its
+   webhook payload's `tracking.utm_source` field, and the OS auto-tags the
+   resulting lead `ads-lead` vs `organic-lead` from that. Don't drop this param on
+   any CTA occurrence — this page should have no Calendly link without it. Ground
+   every specific claim in real data from
    steps 1-2 — the real offer from `offer_economics.specials` (or a plain "free
    consultation" if no special offer exists), real testimonials only if the
    scrape or `differentiation_voice.reviews` produced them (never invent a
