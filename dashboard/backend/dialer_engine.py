@@ -191,7 +191,14 @@ def init_session(session_id: str, config_data: dict, leads: list) -> None:
         _session["total_leads"]         = len(leads)
         _session["max_lines"]           = config_data.get("max_parallel_lines", 5)
         _session["end_requested"]       = False
-        _session["auto_dialed"]         = False
+        # True only while the agent-join webhook's background thread is
+        # actively placing the first batch's Twilio calls — a short window
+        # (well under a second), just long enough to stop the frontend's own
+        # post-accept dial-batch call from double-dialing that same batch.
+        # Must NOT stay true past that, or every later dial-batch call (e.g.
+        # after the first batch goes entirely unanswered) gets silently
+        # blocked forever even with leads left in the queue.
+        _session["auto_dial_in_flight"] = False
         _session["session_start_time"]  = datetime.now(timezone.utc)
 
 

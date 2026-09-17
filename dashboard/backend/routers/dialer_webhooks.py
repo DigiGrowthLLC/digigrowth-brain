@@ -53,6 +53,11 @@ async def agent_join(request: Request):
         start_conference_on_enter=True,
         end_conference_on_exit=True,
         beep=False,
+        # Twilio's default conference hold jingle plays while the agent
+        # waits alone for a lead to pick up — swapped for the "ambient"
+        # preset (calm background-noise loop, no melody) via Twilio's
+        # hosted holdmusic twimlet.
+        wait_url="http://twimlets.com/holdmusic?Bucket=com.twilio.music.ambient",
     )
     # Use a plain daemon thread — asyncio.create_task and BackgroundTask both
     # silently fail in this Starlette/uvicorn context. threading.Thread is
@@ -63,9 +68,12 @@ async def agent_join(request: Request):
 
 def _auto_first_dial_sync(session_id: str):
     """Fire the first dial-batch synchronously in a background thread."""
-    # Claim auto_dialed immediately so the frontend's dial-batch guard fires first
-    # and doesn't race this thread for the eligible_leads queue.
-    engine._session["auto_dialed"] = True
+    # Claim the queue immediately so the frontend's dial-batch guard fires
+    # first and doesn't race this thread for the eligible_leads queue. Cleared
+    # in the finally block below the instant this thread is done placing its
+    # calls — it must not stay set, or it'd block every later dial-batch call
+    # too (see the flag's definition in dialer_engine.init_session).
+    engine._session["auto_dial_in_flight"] = True
     print(f"  dialer: _auto_first_dial_sync STARTED session={session_id}", flush=True)
     _log.info(f"dialer: _auto_first_dial_sync STARTED session={session_id}")
     try:
@@ -129,6 +137,8 @@ def _auto_first_dial_sync(session_id: str):
         import traceback
         print(f"  dialer: auto_first_dial failed: {e}", flush=True)
         traceback.print_exc()
+    finally:
+        engine._session["auto_dial_in_flight"] = False
 
 
 # ── Lead picks up ─────────────────────────────────────────────────────────────

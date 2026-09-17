@@ -788,12 +788,16 @@ async def dial_batch():
         if engine._session.get("end_requested"):
             return {"ok": True, "dialed": 0, "done": True}
 
-        # Guard: if server-side auto_first_dial already claimed the first batch,
-        # skip this frontend-initiated call (prevents double-dial at session start).
-        # auto_dialed is reset to False at session init so it only blocks the
-        # very first batch — subsequent batches (after classification) proceed normally.
-        if engine._session.get("auto_dialed") and not engine._session.get("batch_had_answer"):
-            return {"ok": True, "dialed": 0, "done": False, "note": "first batch auto-dialed"}
+        # Guard: while the server-side auto_first_dial background thread is
+        # actively placing the first batch's calls, skip this frontend-
+        # initiated call so the two don't double-dial the same batch. This
+        # flag clears itself the instant that thread finishes (see
+        # dialer_webhooks._auto_first_dial_sync) — it must NOT be tied to
+        # whether anyone answered, or a fully-unanswered first batch would
+        # permanently block every later dial-batch call for the rest of the
+        # session even with leads left in the queue.
+        if engine._session.get("auto_dial_in_flight"):
+            return {"ok": True, "dialed": 0, "done": False, "note": "first batch auto-dialing"}
 
         # Guard: never start a new batch while a lead is currently bridged or
         # sitting in classify (awaiting a disposition click). Nothing else
