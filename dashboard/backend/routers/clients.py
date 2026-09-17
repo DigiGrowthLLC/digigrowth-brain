@@ -22,7 +22,7 @@ from models import (
     LaunchChecklistItemCreate, LaunchChecklistItemUpdate, LaunchChecklistStatusUpdate,
     SequenceStepUpdate, ClientRequestUpdate,
     ClientResourceCreate, ClientResourceUpdate,
-    ClientWebsiteCreate, ClientWebsiteUpdate,
+    ClientWebsiteCreate, ClientWebsiteUpdate, ClientWebsiteStatsSet,
 )
 
 router = APIRouter()
@@ -404,6 +404,45 @@ async def update_client_website(client_id: int, website_id: int, body: ClientWeb
     if not row:
         raise HTTPException(status_code=404, detail="Website not found")
     return dict(row)
+
+
+@router.put("/clients/{client_id}/websites/{website_id}/stats")
+async def set_client_website_stats(client_id: int, website_id: int, body: ClientWebsiteStatsSet):
+    """Manual override for a website's view/conversion counts — same idea
+    as content_tracking.py's reset_vsl_stats (clearing out test-generated
+    events), generalized to setting an EXACT count rather than just
+    zeroing. Replaces every content_view_events row for this website's
+    content_key with `views` synthetic 'view' rows and `conversions`
+    synthetic 'conversion' rows, so portal_websites()/list_client_websites()
+    (both just COUNT(*) these rows by event_type) read back exactly what
+    was set here until real traffic accumulates on top of it."""
+    if body.views < 0 or body.conversions < 0:
+        raise HTTPException(status_code=400, detail="views and conversions must be >= 0")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        site = await conn.fetchrow(
+            "SELECT id FROM client_websites WHERE id = $1 AND client_id = $2", website_id, client_id,
+        )
+        if not site:
+            raise HTTPException(status_code=404, detail="Website not found")
+        async with conn.transaction():
+            await conn.execute(
+                "DELETE FROM content_view_events WHERE source = 'client_website' AND content_key = $1",
+                str(website_id),
+            )
+            if body.views:
+                await conn.execute(
+                    "INSERT INTO content_view_events (source, content_key, event_type) "
+                    "SELECT 'client_website', $1, 'view' FROM generate_series(1, $2)",
+                    str(website_id), body.views,
+                )
+            if body.conversions:
+                await conn.execute(
+                    "INSERT INTO content_view_events (source, content_key, event_type) "
+                    "SELECT 'client_website', $1, 'conversion' FROM generate_series(1, $2)",
+                    str(website_id), body.conversions,
+                )
+    return {"ok": True, "views": body.views, "conversions": body.conversions}
 
 
 @router.delete("/clients/{client_id}/websites/{website_id}")

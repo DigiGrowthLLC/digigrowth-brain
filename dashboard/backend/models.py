@@ -182,6 +182,11 @@ class ClientWebsiteUpdate(BaseModel):
     sort_order: Optional[int] = None
 
 
+class ClientWebsiteStatsSet(BaseModel):
+    views: int
+    conversions: int
+
+
 class ClientTransactionCreate(BaseModel):
     date: str
     description: Optional[str] = None

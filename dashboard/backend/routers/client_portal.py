@@ -213,6 +213,48 @@ async def portal_websites(token: str):
     return out
 
 
+@router.put("/{token}/websites/{website_id}/stats")
+async def portal_set_website_stats(token: str, website_id: int, body: dict):
+    """Manual override for a website's view/consultation-request counts —
+    same shape as clients.py's admin-side set_client_website_stats(), just
+    reachable from inside the portal itself (mirrors the Meta Ads Sync Now
+    button above). Gated to the one is_test client for the same reason:
+    this rewrites real tracked data, not something a real client should be
+    able to do to their own numbers."""
+    client = await get_client_from_token(token)
+    _require_test_client(client)
+    views = int(body.get("views", 0))
+    conversions = int(body.get("conversions", 0))
+    if views < 0 or conversions < 0:
+        raise HTTPException(400, "views and conversions must be >= 0")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        site = await conn.fetchrow(
+            "SELECT id FROM client_websites WHERE id = $1 AND client_id = $2", website_id, client["id"],
+        )
+        if not site:
+            raise HTTPException(404, "Website not found")
+        async with conn.transaction():
+            await conn.execute(
+                "DELETE FROM content_view_events WHERE source = 'client_website' AND content_key = $1",
+                str(website_id),
+            )
+            if views:
+                await conn.execute(
+                    "INSERT INTO content_view_events (source, content_key, event_type) "
+                    "SELECT 'client_website', $1, 'view' FROM generate_series(1, $2)",
+                    str(website_id), views,
+                )
+            if conversions:
+                await conn.execute(
+                    "INSERT INTO content_view_events (source, content_key, event_type) "
+                    "SELECT 'client_website', $1, 'conversion' FROM generate_series(1, $2)",
+                    str(website_id), conversions,
+                )
+    return {"ok": True, "views": views, "conversions": conversions}
+
+
 @router.get("/{token}/action-items")
 async def portal_action_items(token: str):
     client = await get_client_from_token(token)
