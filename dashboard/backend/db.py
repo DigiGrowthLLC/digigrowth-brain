@@ -694,6 +694,14 @@ async def _create_schema(pool: asyncpg.Pool):
             -- instead of requiring a manual cancel. See
             -- routers/calendly_webhooks.py.
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS calendly_event_uri TEXT;
+            -- Dylan's own sales-pipeline call artifacts (internal
+            -- AppointmentsPanel only, never surfaced in the client portal):
+            -- a pasted link to the call recording, and a link to the
+            -- discovery/question form Dylan filled out for that specific
+            -- prospect. Both free-text URLs, set manually from the outcome
+            -- card alongside pricing/call_length.
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS call_recording_url TEXT;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS question_form_url TEXT;
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

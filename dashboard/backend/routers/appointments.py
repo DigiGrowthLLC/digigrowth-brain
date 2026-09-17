@@ -357,6 +357,10 @@ async def update_appointment(appointment_id: int, payload: dict):
         updates["pricing"] = value
     if "call_length" in payload:
         updates["call_length"] = (payload["call_length"] or "").strip() or None
+    if "call_recording_url" in payload:
+        updates["call_recording_url"] = (payload["call_recording_url"] or "").strip() or None
+    if "question_form_url" in payload:
+        updates["question_form_url"] = (payload["question_form_url"] or "").strip() or None
 
     if not updates:
         return {"ok": True, "id": appointment_id}

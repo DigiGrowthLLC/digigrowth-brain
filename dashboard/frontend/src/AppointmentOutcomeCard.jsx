@@ -41,6 +41,8 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
     appointment.pricing != null ? String(appointment.pricing) : ""
   );
   const [callLength, setCallLength] = useState(appointment.call_length || "");
+  const [callRecordingUrl, setCallRecordingUrl] = useState(appointment.call_recording_url || "");
+  const [questionFormUrl, setQuestionFormUrl] = useState(appointment.question_form_url || "");
   const [saving, setSaving] = useState(false);
   const [err, setErr]       = useState("");
 
@@ -52,6 +54,8 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
       if (showRevenueFields) {
         body.pricing = pricing.trim() === "" ? null : Number(pricing);
         body.call_length = callLength.trim() || null;
+        body.call_recording_url = callRecordingUrl.trim() || null;
+        body.question_form_url = questionFormUrl.trim() || null;
       }
       const r = await fetch(patchUrl, {
         method: "PATCH",
@@ -68,6 +72,8 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
       if (showRevenueFields) {
         saved.pricing = body.pricing;
         saved.call_length = body.call_length;
+        saved.call_recording_url = body.call_recording_url;
+        saved.question_form_url = body.question_form_url;
       }
       onSaved?.(saved);
     } catch (e) {
@@ -137,6 +143,30 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
               value={callLength} onChange={(e) => setCallLength(e.target.value)}
               className="dg-input" style={{ width: "100%", boxSizing: "border-box" }}
               placeholder="e.g. 32 min"
+            />
+          </div>
+        )}
+
+        {showRevenueFields && (
+          <div>
+            <div style={labelStyle}>CALL RECORDING LINK</div>
+            <input
+              type="url"
+              value={callRecordingUrl} onChange={(e) => setCallRecordingUrl(e.target.value)}
+              className="dg-input" style={{ width: "100%", boxSizing: "border-box" }}
+              placeholder="Paste the call recording URL…"
+            />
+          </div>
+        )}
+
+        {showRevenueFields && (
+          <div>
+            <div style={labelStyle}>QUESTION FORM LINK</div>
+            <input
+              type="url"
+              value={questionFormUrl} onChange={(e) => setQuestionFormUrl(e.target.value)}
+              className="dg-input" style={{ width: "100%", boxSizing: "border-box" }}
+              placeholder="Paste this prospect's filled-out question form URL…"
             />
           </div>
         )}
