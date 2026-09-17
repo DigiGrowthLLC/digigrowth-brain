@@ -405,7 +405,10 @@ TOOLS = [
             "discovery calls/strategy sessions are now computed by the OS itself from appointment_reminders, "
             "not from a sheet, so this tool no longer accepts those fields). "
             "Only provide fields where you found real data — omit fields you did not find. "
-            "Base fields (calls_made, calls_answered, etc.) should be cumulative all-time totals. "
+            "Base fields (calls_made, calls_answered, etc.) should be this sheet FILE's own total "
+            "(the Cold Calling Metrics sheet is a new file every month — just sum whichever one "
+            "file you actually opened; do NOT try to track or add up prior months yourself, the "
+            "backend banks each month's total automatically across month-file rollovers). "
             "If the source sheet has a date column, also compute and pass the "
             "_30d and _7d variants (sum of rows dated within the last 30/7 days) so the Analytics "
             "panel's period toggle (7D/30D/All Time) reflects real data instead of falling back to 0."
@@ -413,13 +416,14 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                # Outreach — all-time totals
-                "calls_made":            {"type": "integer", "description": "All-time total calls dialed"},
-                "calls_answered":        {"type": "integer", "description": "All-time total calls answered (pickups)"},
-                "contacts_reached":      {"type": "integer", "description": "All-time total contacts spoken to / pitched (the sheet's own KPI panel calls this 'Pitches')"},
-                "resonations":           {"type": "integer", "description": "All-time total prospects who resonated with the pitch (the sheet's 'Resonations' column)"},
-                "appointments_booked":   {"type": "integer", "description": "All-time total appointments booked"},
-                "sms_sent":              {"type": "integer", "description": "All-time total SMS sent"},
+                # Outreach — this month-file's own totals (backend banks
+                # across month-file rollovers, see handler below)
+                "calls_made":            {"type": "integer", "description": "This sheet file's total calls dialed"},
+                "calls_answered":        {"type": "integer", "description": "This sheet file's total calls answered (pickups)"},
+                "contacts_reached":      {"type": "integer", "description": "This sheet file's total contacts spoken to / pitched (the sheet's own KPI panel calls this 'Pitches')"},
+                "resonations":           {"type": "integer", "description": "This sheet file's total prospects who resonated with the pitch (the sheet's 'Resonations' column)"},
+                "appointments_booked":   {"type": "integer", "description": "This sheet file's total appointments booked"},
+                "sms_sent":              {"type": "integer", "description": "This sheet file's total SMS sent"},
                 # Outreach — last 30 days (sum rows dated within last 30 days)
                 "calls_made_30d":        {"type": "integer", "description": "Calls dialed in last 30 days"},
                 "calls_answered_30d":    {"type": "integer", "description": "Calls answered in last 30 days"},
@@ -675,11 +679,50 @@ def _execute_tool(agent: dict, tool_name: str, tool_input: dict) -> str:
                 "resonations_7d":         "sheet_resonations_7d",
                 "appointments_booked_7d": "sheet_appointments_booked_7d",
             }
+            # The 6 "all-time" keys above are NOT actually all-time from the
+            # skill's own side — the Cold Calling Metrics sheet is a brand
+            # new Google Sheets file every month (see sheets-digest/SKILL.md
+            # step 2), and the skill only ever opens whichever one file was
+            # most recently touched. So the "all-time total" it reports is
+            # really just "this one month-file's total" — accurate while
+            # the month is still being logged into, but the moment a new
+            # month's empty file gets opened, that total silently resets to
+            # ~0 and would overwrite months of real cumulative history.
+            # (Exactly what happened 2026-09-17: sheet_calls_made dropped
+            # from 3757 to 0 when September's fresh, still-empty sheet was
+            # read for the first time.)
+            #
+            # Fix: track each field's current month-file total separately
+            # (_month_raw) from a running bank of every month that's
+            # already rolled over (_banked); the exposed all-time value is
+            # always banked + this month's raw. A rollover is detected the
+            # only way it can be from here — the incoming total is LOWER
+            # than what we last saw for that field — at which point the
+            # old (now-final) month's raw total gets folded into the bank
+            # before the new month's number takes its place. Never loses
+            # history to a sheet swap again, self-heals with no manual
+            # intervention needed going forward.
+            _CUMULATIVE_KEYS = {
+                "sheet_calls_made", "sheet_calls_answered", "sheet_contacts_reached",
+                "sheet_resonations", "sheet_appointments_booked", "sheet_sms_sent",
+            }
             updated = []
             for key, stat_key in FIELD_MAP.items():
-                if key in tool_input and tool_input[key] is not None:
-                    current[stat_key] = tool_input[key]
-                    updated.append(f"{stat_key}={tool_input[key]}")
+                if key not in tool_input or tool_input[key] is None:
+                    continue
+                new_val = tool_input[key]
+                if stat_key in _CUMULATIVE_KEYS:
+                    raw_key = f"{stat_key}_month_raw"
+                    banked_key = f"{stat_key}_banked"
+                    prev_raw = current.get(raw_key)
+                    if prev_raw is not None and new_val < prev_raw:
+                        current[banked_key] = current.get(banked_key, 0) + prev_raw
+                    current[raw_key] = new_val
+                    current[stat_key] = current.get(banked_key, 0) + new_val
+                    updated.append(f"{stat_key}={current[stat_key]} (month_raw={new_val}, banked={current.get(banked_key, 0)})")
+                else:
+                    current[stat_key] = new_val
+                    updated.append(f"{stat_key}={new_val}")
 
             # Per-day breakdown — upsert each date's fields, never wipe history,
             # since a single digest run only covers whatever window the sheet

@@ -16,7 +16,7 @@
 4. The Cold Calling Metrics file has a date column. Calculate three totals per metric using that date column:
    - **7D**: sum rows where date is within last 7 days
    - **30D**: sum rows where date is within last 30 days
-   - **All-time**: sum all rows
+   - **This file's total**: sum all rows in the ONE file you opened this run — do NOT try to track or carry forward prior months yourself (you only ever see one month's file per run, per step 2). The `update_os_stats` backend banks each month's total automatically the moment a new, smaller file-total comes in, so the OS's displayed all-time figure stays a true running total across every month even though you never see more than one file at a time. (Fixed 2026-09-17 after a fresh, still-empty September file's 0 total briefly overwrote months of real history — that failure mode is now structurally prevented on the backend, not something to work around here.)
 5. Also group its rows by calendar date and sum `calls_made`, `calls_answered`, `contacts_reached`, `resonations`, `appointments_booked` per day, covering every date that appears in the sheet's rows for the last 30 days (this feeds campaign-scoped calling analytics, which need to slice by an arbitrary date range instead of the fixed 7D/30D/all-time buckets — pass it as the `daily` field, keyed by ISO date `YYYY-MM-DD`, e.g. `{"2026-08-01": {"calls_made": 12, "calls_answered": 3}, ...}`).
 6. Call `update_os_stats` with all found values (including `daily` if computed in step 5) — **always call it, even if nothing changed**
 7. Save the completion report to `reports/sheets-digest-YYYY-MM-DD.md` where YYYY-MM-DD is today's **full 4-digit year** date from the system prompt (e.g. 2026-06-12, never 2025).
@@ -26,7 +26,7 @@
 
 **Period calculation rules:**
 - Today's date is in the system prompt. Use the full year (e.g. 2026) — never default to 2025.
-- Pass period fields separately: `calls_made` (all-time), `calls_made_30d`, `calls_made_7d` — never merge them.
+- Pass period fields separately: `calls_made` (this file's own total), `calls_made_30d`, `calls_made_7d` — never merge them.
 
 ---
 
