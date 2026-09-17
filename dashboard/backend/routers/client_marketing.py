@@ -19,9 +19,11 @@ import json
 
 from fastapi import APIRouter, HTTPException, Query
 
+import calendly_integration
 import client_email
 import client_sms
 import context_gen
+import dialer_engine
 import email_warmup
 import meta_ads
 from db import get_pool
@@ -166,6 +168,44 @@ async def sync_client_meta_ads_now(client_id: int):
     except Exception as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "days_synced": days_synced}
+
+
+@router.post("/clients/{client_id}/marketing-config/connect-calendly-webhook")
+async def connect_client_calendly_webhook(client_id: int):
+    """Registers (or re-registers) this client's Calendly webhook — real
+    bookings on their Calendly link then automatically create the
+    appointment_reminders row that drives their No Show reminder sequence
+    (client_appointment_reminders.py), instead of a rep entering it
+    manually. Requires calendly_api_token already saved (Marketing Setup's
+    Response AI step). See routers/calendly_webhooks.py for the receiving
+    side."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        config = await conn.fetchrow(
+            "SELECT calendly_api_token FROM client_marketing_config WHERE client_id = $1", client_id,
+        )
+    token = config["calendly_api_token"] if config else None
+    if not token:
+        raise HTTPException(400, "No Calendly API token saved for this client yet — add one first.")
+
+    base = dialer_engine.base_url()
+    if not base:
+        raise HTTPException(400, "RAILWAY_PUBLIC_DOMAIN not set — can't build a callback URL.")
+    callback_url = f"{base}/webhooks/calendly/client/{client_id}"
+
+    try:
+        org_uri = await calendly_integration.get_organization_uri(token)
+        result = await calendly_integration.register_webhook(token, callback_url, org_uri)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE client_marketing_config SET calendly_webhook_uri = $2, "
+            "calendly_webhook_signing_key = $3, updated_at = now() WHERE client_id = $1",
+            client_id, result["uri"], result["signing_key"],
+        )
+    return {"ok": True}
 
 
 @router.post("/clients/{client_id}/marketing-config/start-warmup")

@@ -550,9 +550,9 @@
     } catch(e) {}
   }
   send("view");
-  document.querySelectorAll('a[href*="calendly.com"]').forEach(function(el){
-    el.addEventListener("click", function(){ send("conversion"); });
-  });
+  // "conversion" (Consultation Requests) is recorded server-side only when
+  // a Calendly booking is actually confirmed (routers/calendly_webhooks.py) —
+  // no click-based send() here, a click isn't a real consultation request.
 })();
 </script>
 

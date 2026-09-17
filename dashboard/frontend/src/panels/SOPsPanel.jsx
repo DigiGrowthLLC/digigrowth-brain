@@ -1625,6 +1625,101 @@ const REMINDER_FIELDS = [
   },
 ];
 
+// Dylan's own Calendly connection — real bookings on his Calendly link then
+// automatically create the appointment_reminders row that drives the
+// 24h/6h/1h reminders below (reminder_engine.py), instead of him entering
+// them manually. See routers/calendly_admin.py + routers/calendly_webhooks.py.
+function DylanCalendlyConnect() {
+  const [status, setStatus] = useState(null);
+  const [token, setToken] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = async () => {
+    const r = await fetch("/api/calendly/my-status");
+    if (r.ok) setStatus(await r.json());
+  };
+  useEffect(() => { load(); }, []);
+
+  const saveToken = async () => {
+    if (!token.trim()) return;
+    setSaving(true); setError(""); setMsg("");
+    try {
+      const r = await fetch("/api/calendly/my-token", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: token.trim() }),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || "Failed to save token"); }
+      setToken("");
+      await load();
+      setMsg("Token saved.");
+    } catch (e) { setError(e.message); }
+    setSaving(false);
+  };
+
+  const connect = async () => {
+    setConnecting(true); setError(""); setMsg("");
+    try {
+      const r = await fetch("/api/calendly/connect", { method: "POST" });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || "Failed to connect"); }
+      await load();
+      setMsg("Connected — real bookings will now auto-create reminders.");
+    } catch (e) { setError(e.message); }
+    setConnecting(false);
+  };
+
+  if (!status) return null;
+
+  return (
+    <div className="glass-card-sm" style={{ padding: "16px 18px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#e8f0ff" }}>
+            Your Calendly Connection
+          </div>
+          <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 3, maxWidth: 520 }}>
+            {status.webhook_connected
+              ? "Connected — a real booking on your Calendly link now automatically creates these reminders, no manual entry needed."
+              : "Not connected yet — bookings on your Calendly link still need to be entered manually to trigger these reminders."}
+          </div>
+        </div>
+        <span className={`badge ${status.webhook_connected ? "badge-green" : "badge-gray"}`}>
+          {status.webhook_connected ? "CONNECTED" : "NOT CONNECTED"}
+        </span>
+      </div>
+      {!status.token_saved ? (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input className="dg-input" style={{ flex: 1, minWidth: 220, fontSize: 12 }}
+              placeholder="Calendly Personal Access Token"
+              value={token} onChange={e => setToken(e.target.value)} type="password" />
+            <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={saveToken} disabled={saving || !token.trim()}>
+              {saving ? "Saving…" : "Save Token"}
+            </button>
+          </div>
+          <div style={{ ...hintStyleShared, marginTop: 6 }}>
+            From Calendly → Integrations & Apps → API & Webhooks → Generate New Token.
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginTop: 12 }}>
+          <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={connect} disabled={connecting}>
+            {connecting ? "Connecting…" : status.webhook_connected ? "Reconnect" : "Connect Calendly"}
+          </button>
+        </div>
+      )}
+      {msg && <div style={{ marginTop: 8, fontSize: 11, color: "#4ade80" }}>{msg}</div>}
+      {error && <div style={{ marginTop: 8, fontSize: 11, color: "#e05c5c" }}>{error}</div>}
+    </div>
+  );
+}
+
+const hintStyleShared = {
+  fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, color: "#4a6a8a",
+};
+
 function AppointmentRemindersEditor({ categories, onCategoryChange }) {
   const [values, setValues] = useState({ category: "General" });
   const [saved, setSaved] = useState({ category: "General" });
@@ -1748,6 +1843,7 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
       {showQueue && <SequenceQueueModal sequence="reminder" onClose={() => setShowQueue(false)} />}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        <DylanCalendlyConnect />
         {REMINDER_FIELDS.map((f, i) => {
           const smsKey = `reminder_${f.instance}_sms`;
           const subjectKey = `reminder_${f.instance}_email_subject`;
@@ -1803,16 +1899,15 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
 // Editable SMS + email templates for the 4-touch No Show drip
 // (dashboard/backend/no_show_sequence.py), fired automatically after a rep
 // marks an appointment's outcome "No Show" in the Appointments tab — touch 1
-// ~20 minutes later, touch 2 same-day a few hours later, touch 3 the next
-// day, touch 4 (the "breakup") on day 3. Backed by GET/PUT
-// /api/dialer/no-show-template — no_show_sequence.py reads these same keys
-// fresh from dialer_settings at send time. The sequence stops permanently
-// the moment the prospect replies on either channel (see stop_sequence_for_reply()
-// in no_show_sequence.py). Touch 2 is SMS-only by design — leave its email
-// fields blank to skip that channel for that touch, same as it ships by default.
+// immediately, touch 3 the next day, touch 4 (the "breakup") on day 3.
+// Backed by GET/PUT /api/dialer/no-show-template — no_show_sequence.py reads
+// these same keys fresh from dialer_settings at send time. The sequence
+// stops permanently the moment the prospect replies on either channel (see
+// stop_sequence_for_reply() in no_show_sequence.py). The old Touch 2 (3h,
+// SMS-only same-day follow-up) was removed by request; the numbering gap is
+// intentional — see no_show_sequence.py's docstring.
 const NO_SHOW_FIELDS = [
   { heading: "Touch 1 — Missed You", hint: "Sent immediately when marked No Show. SMS + email.", instance: "touch1" },
-  { heading: "Touch 2 — Same-Day Follow-Up", hint: "3 hours after. SMS only — leave email fields blank to keep it that way.", instance: "touch2" },
   { heading: "Touch 3 — Social Proof", hint: "24 hours after. SMS + email.", instance: "touch3" },
   { heading: "Touch 4 — Final / Breakup", hint: "72 hours after. Closes the loop unless the prospect replies. SMS + email.", instance: "touch4" },
 ];
@@ -1905,7 +2000,7 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
         <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Fires automatically after an appointment is marked <strong style={{ color: "#a080f0" }}>No Show</strong> in the Appointments tab — 4 touches, stops the moment the prospect replies. Edits apply to the very next send.
+          Fires automatically after an appointment is marked <strong style={{ color: "#a080f0" }}>No Show</strong> in the Appointments tab — 3 touches, stops the moment the prospect replies. Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -1959,7 +2054,7 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
             />
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL SUBJECT {f.instance === "touch2" && "(leave blank to skip email)"}</label>
+              <label style={labelStyle}>EMAIL SUBJECT</label>
               <input
                 value={values[subjectKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
@@ -1968,7 +2063,7 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL BODY {f.instance === "touch2" && "(leave blank to skip email)"}</label>
+              <label style={labelStyle}>EMAIL BODY</label>
               <textarea
                 value={values[bodyKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [bodyKey]: e.target.value }))}
@@ -1994,16 +2089,15 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
 // Editable SMS + email templates for the 4-touch cancellation-recovery drip
 // (dashboard/backend/cancel_sequence.py), fired automatically after a rep
 // clicks Cancel on an appointment in the Appointments tab — touch 1
-// immediately, touch 2 a few hours later, touch 3 the next day, touch 4 (the
-// "breakup") on day 3. Backed by GET/PUT /api/dialer/cancel-template —
-// cancel_sequence.py reads these same keys fresh from dialer_settings at
-// send time. The sequence stops permanently the moment the prospect replies
-// on either channel (see stop_sequence_for_reply() in cancel_sequence.py).
-// Touch 2 is SMS-only by design — leave its email fields blank to skip that
-// channel for that touch, same as it ships by default.
+// immediately, touch 3 the next day, touch 4 (the "breakup") on day 3.
+// Backed by GET/PUT /api/dialer/cancel-template — cancel_sequence.py reads
+// these same keys fresh from dialer_settings at send time. The sequence
+// stops permanently the moment the prospect replies on either channel (see
+// stop_sequence_for_reply() in cancel_sequence.py). The old Touch 2 (3h,
+// SMS-only same-day follow-up) was removed by request; the numbering gap is
+// intentional — see cancel_sequence.py's docstring.
 const CANCEL_FIELDS = [
   { heading: "Touch 1 — No Worries", hint: "Sent immediately when canceled. SMS + email.", instance: "touch1" },
-  { heading: "Touch 2 — Same-Day Follow-Up", hint: "3 hours after. SMS only — leave email fields blank to keep it that way.", instance: "touch2" },
   { heading: "Touch 3 — Still Worth 15 Minutes", hint: "24 hours after. SMS + email.", instance: "touch3" },
   { heading: "Touch 4 — Final / Breakup", hint: "72 hours after. Closes the loop unless the prospect replies. SMS + email.", instance: "touch4" },
 ];
@@ -2096,7 +2190,7 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
         <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Fires automatically after an appointment is marked <strong style={{ color: "#a080f0" }}>Cancel</strong> in the Appointments tab — 4 touches, stops the moment the prospect replies. Edits apply to the very next send.
+          Fires automatically after an appointment is marked <strong style={{ color: "#a080f0" }}>Cancel</strong> in the Appointments tab — 3 touches, stops the moment the prospect replies. Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -2150,7 +2244,7 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
             />
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL SUBJECT {f.instance === "touch2" && "(leave blank to skip email)"}</label>
+              <label style={labelStyle}>EMAIL SUBJECT</label>
               <input
                 value={values[subjectKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
@@ -2159,7 +2253,7 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL BODY {f.instance === "touch2" && "(leave blank to skip email)"}</label>
+              <label style={labelStyle}>EMAIL BODY</label>
               <textarea
                 value={values[bodyKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [bodyKey]: e.target.value }))}

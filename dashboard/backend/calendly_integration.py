@@ -21,6 +21,9 @@ guess and raises, so response_ai.py's propose_appointment can fall back
 to texting the lead a direct link to finish it themselves instead of
 submitting a wrong or incomplete answer.
 """
+import hashlib
+import hmac
+import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -31,6 +34,90 @@ _CHUNK_DAYS = 7  # Calendly caps a single query window to 7 days
 
 def _headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+
+async def get_organization_uri(token: str) -> str:
+    """The token owner's Calendly organization URI — needed to scope both
+    event-type lookups (see _get_matching_event_type) and webhook
+    subscriptions (register_webhook below) to the whole org rather than
+    just the token owner's own user, same reasoning as that function's
+    docstring."""
+    async with httpx.AsyncClient(timeout=10) as http:
+        me = await http.get(f"{_API_BASE}/users/me", headers=_headers(token))
+        _raise_with_context(me)
+        return me.json()["resource"]["current_organization"]
+
+
+async def register_webhook(token: str, callback_url: str, org_uri: str) -> dict:
+    """Creates (or, if one already exists at this exact URL, reuses) a
+    Calendly webhook subscription for invitee.created events across the
+    whole organization — reusing avoids piling up duplicate subscriptions
+    on the same Calendly account every time a rep re-clicks "Connect
+    Calendly". Returns {"uri": ..., "signing_key": ...} — signing_key is
+    ONLY ever returned at creation time by Calendly's API, so it must be
+    stored immediately (see routers/calendly_webhooks.py's verify_signature
+    use of it) or it's unrecoverable short of deleting and recreating the
+    subscription."""
+    async with httpx.AsyncClient(timeout=10) as http:
+        existing = await http.get(
+            f"{_API_BASE}/webhook_subscriptions",
+            headers=_headers(token),
+            params={"organization": org_uri, "scope": "organization"},
+        )
+        _raise_with_context(existing)
+        for item in existing.json().get("collection", []):
+            if item.get("callback_url") == callback_url:
+                # Signing key isn't returned on GET, only on create — an
+                # already-registered webhook whose key we've lost (e.g. a
+                # DB row wiped) has to be deleted and recreated, not reused.
+                del_resp = await http.delete(item["uri"], headers=_headers(token))
+                if del_resp.status_code not in (200, 204, 404):
+                    _raise_with_context(del_resp)
+                break
+
+        resp = await http.post(
+            f"{_API_BASE}/webhook_subscriptions",
+            headers=_headers(token),
+            json={
+                "url": callback_url,
+                "events": ["invitee.created"],
+                "organization": org_uri,
+                "scope": "organization",
+            },
+        )
+        _raise_with_context(resp)
+        resource = resp.json()["resource"]
+        return {"uri": resource["uri"], "signing_key": resource["signing_key"]}
+
+
+async def unregister_webhook(token: str, webhook_uri: str) -> None:
+    async with httpx.AsyncClient(timeout=10) as http:
+        resp = await http.delete(webhook_uri, headers=_headers(token))
+        if resp.status_code not in (200, 204, 404):
+            _raise_with_context(resp)
+
+
+def verify_signature(raw_body: bytes, signature_header: str | None, signing_key: str) -> bool:
+    """Calendly signs each webhook payload as `Calendly-Webhook-Signature:
+    t=<unix ts>,v1=<hex hmac-sha256 of "t.<raw body>">`. Rejects a missing/
+    malformed header, a signature mismatch, or a timestamp more than 5
+    minutes old (replay protection) — same tolerance Stripe's docs
+    recommend for the identical t=/v1= scheme."""
+    if not signature_header:
+        return False
+    parts = dict(p.split("=", 1) for p in signature_header.split(",") if "=" in p)
+    ts, sig = parts.get("t"), parts.get("v1")
+    if not ts or not sig:
+        return False
+    try:
+        if abs(time.time() - int(ts)) > 300:
+            return False
+    except ValueError:
+        return False
+    expected = hmac.new(
+        signing_key.encode(), f"{ts}.{raw_body.decode()}".encode(), hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, sig)
 
 
 def _raise_with_context(resp: httpx.Response) -> None:

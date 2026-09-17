@@ -1304,3 +1304,21 @@ async def _create_schema(pool: asyncpg.Pool):
             WHERE ar.contact_id = ec.contact_id AND ec.booked_at IS NULL
             """
         )
+
+        # Calendly webhook subscription — real bookings on a Calendly link
+        # (Dylan's own, or a client's) push invitee.created events here
+        # instead of a rep having to notice the booking and manually create
+        # the appointment_reminders row (see routers/calendly_webhooks.py).
+        # signing_key is what Calendly hands back at subscription-creation
+        # time, used to verify every inbound payload is really from them;
+        # webhook_uri is the subscription's own resource URI, kept so it can
+        # be looked up/torn down (a client re-clicking "Connect" shouldn't
+        # pile up duplicate subscriptions on their Calendly account).
+        await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS calendly_webhook_uri TEXT")
+        await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS calendly_webhook_signing_key TEXT")
+
+        # Dylan's OWN Calendly connection — same idea as client_marketing_config's
+        # calendly_* columns above, just for DigiGrowth's own pipeline rather
+        # than a client's. Reuses dialer_settings (the app's existing
+        # generic key/value store, see reminder_engine.py/dm_followup_sequence.py's
+        # template storage) instead of a dedicated table for a handful of values.

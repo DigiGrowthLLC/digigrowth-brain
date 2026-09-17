@@ -2238,7 +2238,43 @@ function AgentResetTest({ clientId }) {
 // Calendly's API can't create a confirmed booking on someone's behalf, so
 // this is availability-checking only; the actual booking still gets logged
 // the same way it always has.
-function AgentCalendlyConnect({ config, onSaveFields }) {
+function CalendlyWebhookConnect({ clientId, connected }) {
+  const [webhookConnected, setWebhookConnected] = useState(Boolean(connected));
+  const [connecting, setConnecting] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const connect = async () => {
+    setConnecting(true); setMsg(""); setErr("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/connect-calendly-webhook`), { method: "POST" });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || "Failed to connect"); }
+      setWebhookConnected(true);
+      setMsg("Connected — real bookings now automatically create this client's No Show reminders.");
+    } catch (e) { setErr(e.message); }
+    setConnecting(false);
+  };
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 12, color: "#8aaad0", flex: 1 }}>
+          Auto-create No Show reminders the moment this client's leads actually book — no manual entry.
+        </div>
+        <span className={`badge ${webhookConnected ? "badge-green" : "badge-gray"}`}>
+          {webhookConnected ? "CONNECTED" : "NOT CONNECTED"}
+        </span>
+      </div>
+      <button className="btn btn-secondary" style={{ fontSize: 10, marginTop: 8 }} onClick={connect} disabled={connecting}>
+        {connecting ? "CONNECTING…" : webhookConnected ? "RECONNECT" : "CONNECT WEBHOOK"}
+      </button>
+      {msg && <div style={{ marginTop: 6, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4ade80" }}>{msg}</div>}
+      {err && <div style={{ marginTop: 6, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{err}</div>}
+    </div>
+  );
+}
+
+function AgentCalendlyConnect({ config, onSaveFields, clientId }) {
   // Deliberately NEVER pre-fill this with the existing token (unlike every
   // other field in this file) — a password-type input silently holding the
   // old secret as masked dots is a real trap: paste a new one without
@@ -2296,6 +2332,9 @@ function AgentCalendlyConnect({ config, onSaveFields }) {
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{saveError}</div>
       )}
       <AgentCalendlyEventType config={config} onSaveFields={onSaveFields} />
+      {connected && (
+        <CalendlyWebhookConnect clientId={clientId} connected={Boolean(config?.calendly_webhook_uri)} />
+      )}
     </div>
   );
 }
@@ -2422,7 +2461,7 @@ function ClientAgentSetup({ clientId }) {
       {section(
         "Calendar (Calendly)",
         "Optional — lets the agent check real availability before proposing a time, instead of asking blind.",
-        <AgentCalendlyConnect config={config} onSaveFields={saveFields} />
+        <AgentCalendlyConnect config={config} onSaveFields={saveFields} clientId={clientId} />
       )}
       {section(
         "Testing",
