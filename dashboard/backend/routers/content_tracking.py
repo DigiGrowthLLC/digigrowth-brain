@@ -13,12 +13,17 @@ POST /track/view-event is intentionally public/unauthenticated (mounted
 with no dependencies, same as watch.router) — it's hit via
 navigator.sendBeacon() from a fully public marketing site with no
 DigiGrowth auth of its own, and from the public /watch/{slug} pages.
+
+POST /content-analytics/exclude-my-ip (authenticated) lets Dylan exclude
+his own IP from ever counting toward these stats — call it from your own
+browser/device so checking a client's live funnel doesn't inflate their
+real traffic numbers.
 """
 
 import json
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from db import get_pool
 
 router = APIRouter()          # public — mounted with no auth
@@ -27,9 +32,34 @@ admin_router = APIRouter()    # authenticated — mounted under /api
 _VALID_SOURCES = {"vsl", "outreach_video", "landing_page", "client_website"}
 _VALID_EVENTS = {"view", "play", "progress_25", "progress_50", "progress_75", "complete", "conversion"}
 
+_EXCLUDED_IPS_KEY = "tracking_excluded_ips"
+
 
 def _since(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
+
+
+def _client_ip(request: Request) -> str:
+    """Railway sits in front of this app as a reverse proxy, so the real
+    caller IP is the first hop in X-Forwarded-For, not request.client.host
+    (that's Railway's own internal proxy IP)."""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+async def _excluded_ips(conn) -> list:
+    row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = $1", _EXCLUDED_IPS_KEY)
+    return json.loads(row["value"]) if row and row["value"] else []
+
+
+async def _save_excluded_ips(conn, ips: list) -> None:
+    await conn.execute(
+        "INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now()) "
+        "ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()",
+        _EXCLUDED_IPS_KEY, json.dumps(ips),
+    )
 
 
 @router.post("/track/view-event")
@@ -73,8 +103,17 @@ async def track_view_event(request: Request):
     from_meta = body.get("from_meta")
     from_meta = bool(from_meta) if isinstance(from_meta, bool) else None
 
+    ip = _client_ip(request)
+
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Self-view exclusion (routers/content_tracking.py's exclude_my_ip) —
+        # checking your own funnel/VSL page from your own network otherwise
+        # inflates a client's real traffic stats. Checked before anything
+        # else so an excluded IP never even resolves a contact lookup.
+        if ip and ip in await _excluded_ips(conn):
+            return {"ok": True}
+
         contact_id = None
         if lead:
             row = await conn.fetchrow("SELECT id FROM contacts WHERE id = $1", lead)
@@ -90,6 +129,41 @@ async def track_view_event(request: Request):
             print(f"[content_tracking] failed to log view event: {e}")
 
     return {"ok": True}
+
+
+@admin_router.get("/content-analytics/excluded-ips")
+async def list_excluded_ips():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return {"ips": await _excluded_ips(conn)}
+
+
+@admin_router.post("/content-analytics/exclude-my-ip")
+async def exclude_my_ip(request: Request):
+    """Adds the CALLER's own resolved IP to the tracking exclusion list —
+    call this from your own browser/device, never from a server-side
+    script or a different network, since it excludes whatever IP actually
+    made THIS request. Safe to call again later if your IP changes; it's
+    a no-op if that IP's already excluded."""
+    ip = _client_ip(request)
+    if not ip:
+        raise HTTPException(400, "Could not determine caller IP")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        ips = await _excluded_ips(conn)
+        if ip not in ips:
+            ips.append(ip)
+            await _save_excluded_ips(conn, ips)
+    return {"ok": True, "ip": ip, "excluded_ips": ips}
+
+
+@admin_router.delete("/content-analytics/excluded-ips/{ip}")
+async def remove_excluded_ip(ip: str):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        ips = [x for x in await _excluded_ips(conn) if x != ip]
+        await _save_excluded_ips(conn, ips)
+    return {"ok": True, "excluded_ips": ips}
 
 
 @admin_router.delete("/content-analytics/vsl")

@@ -311,6 +311,41 @@ const ANALYTICS_VIEW_TABS = [
   { value: "campaigns", label: "CAMPAIGNS" },
 ];
 
+// Excludes the CALLER's own IP (resolved server-side via X-Forwarded-For)
+// from all funnel/VSL view tracking going forward — click this from your
+// own browser/device, not somewhere else, since it's your IP on THIS
+// request that gets excluded. Safe to click again if your IP changes.
+function ExcludeMyIpButton() {
+  const [state, setState] = useState("idle"); // idle | saving | done | error
+  const [ip, setIp] = useState(null);
+
+  const click = async () => {
+    setState("saving");
+    try {
+      const r = await fetch(API("/content-analytics/exclude-my-ip"), { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Failed");
+      setIp(d.ip);
+      setState("done");
+    } catch {
+      setState("error");
+    }
+  };
+
+  if (state === "done") {
+    return (
+      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882" }}>
+        ✓ Excluded {ip}
+      </span>
+    );
+  }
+  return (
+    <button className="btn btn-secondary" style={{ fontSize: 10, padding: "6px 12px" }} onClick={click} disabled={state === "saving"}>
+      {state === "saving" ? "Excluding…" : state === "error" ? "Failed — retry?" : "Exclude My IP From Tracking"}
+    </button>
+  );
+}
+
 export default function AnalyticsPanel() {
   const [view, setView]               = useState("overview");
   const [days, setDays]               = useState(0);
@@ -361,7 +396,10 @@ export default function AnalyticsPanel() {
             OUTREACH & ACQUISITION
           </div>
         </div>
-        <PeriodToggle days={days} setDays={setDays} options={ANALYTICS_PERIOD_OPTIONS} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <ExcludeMyIpButton />
+          <PeriodToggle days={days} setDays={setDays} options={ANALYTICS_PERIOD_OPTIONS} />
+        </div>
       </div>
 
       {/* ── Overview / Campaigns sub-tabs ────────────────────────────── */}
