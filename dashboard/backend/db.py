@@ -1277,32 +1277,28 @@ async def _create_schema(pool: asyncpg.Pool):
               AND NOT EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled')
             """
         )
-        # Backfill 2: conversations whose contact has a real, non-canceled
-        # appointment on the books but whose disposition was since
-        # overwritten (the exact case above) — recover booked_at from the
-        # appointment itself rather than losing the credit. Only fills rows
-        # backfill 1 missed.
+        # Backfill 2 (REMOVED 2026-09-17): used to recover booked_at for any
+        # conversation whose contact had a real appointment, regardless of
+        # which channel actually booked it. appointment_reminders has no
+        # channel column (create_appointment_row() only knows the channel at
+        # request time, via payload.get("channel") — it's never persisted),
+        # so this blindly stamped BOTH sms_conversations.booked_at AND
+        # email_conversations.booked_at for a contact any time either table's
+        # row wasn't already 'booked' — crediting appointments booked by
+        # phone/Dialer/CRM (channel=None) to whichever conversation threads
+        # happened to exist for that contact. Reported live 2026-09-17: email
+        # outreach showed 5 "booked" appointments that were never booked
+        # through email. Corrective below undoes exactly what this stamped
+        # (rows with booked_at set but disposition never actually 'booked')
+        # and, since this ran on every startup, must stay in place rather
+        # than being a one-shot — see analytics.py's booked-count queries,
+        # which now only trust disposition='booked' (backfill 1) or a real
+        # channel-scoped stamp from create_appointment_row() going forward.
         await conn.execute(
-            """
-            UPDATE sms_conversations sc SET booked_at = ar.first_booked_at
-            FROM (
-                SELECT contact_id, MIN(created_at) AS first_booked_at
-                FROM appointment_reminders WHERE contact_id IS NOT NULL AND status != 'canceled'
-                GROUP BY contact_id
-            ) ar
-            WHERE ar.contact_id = sc.contact_id AND sc.booked_at IS NULL
-            """
+            "UPDATE sms_conversations SET booked_at = NULL WHERE disposition IS DISTINCT FROM 'booked' AND booked_at IS NOT NULL"
         )
         await conn.execute(
-            """
-            UPDATE email_conversations ec SET booked_at = ar.first_booked_at
-            FROM (
-                SELECT contact_id, MIN(created_at) AS first_booked_at
-                FROM appointment_reminders WHERE contact_id IS NOT NULL AND status != 'canceled'
-                GROUP BY contact_id
-            ) ar
-            WHERE ar.contact_id = ec.contact_id AND ec.booked_at IS NULL
-            """
+            "UPDATE email_conversations SET booked_at = NULL WHERE disposition IS DISTINCT FROM 'booked' AND booked_at IS NOT NULL"
         )
 
         # Calendly webhook subscription — real bookings on a Calendly link

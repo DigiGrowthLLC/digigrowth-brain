@@ -383,6 +383,11 @@ async def update_appointment(appointment_id: int, payload: dict):
             "no_show_touch3_sent_at = NULL", "no_show_touch4_sent_at = NULL",
             "no_show_sequence_stopped_at = NULL",
         ]
+    elif updates.get("outcome_show") == "show":
+        # Also stamps outcome_show_at (not just the no_show branch above) —
+        # analytics._os_sales_stats() counts a show by outcome_show_at, so a
+        # "Showed" click that left this NULL would never appear in the stats.
+        set_clauses += ["outcome_show_at = now()"]
     elif "outcome_show" in updates:
         set_clauses += ["outcome_show_at = NULL"]
     # Onboarding kickoff bookkeeping: entering 'closed' (won) stamps
