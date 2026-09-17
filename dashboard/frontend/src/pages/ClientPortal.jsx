@@ -2404,28 +2404,42 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
     setImportTags((prev) => (prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]));
   };
 
-  const createAndSelectTag = async () => {
-    const name = newTagName.trim();
-    if (!name) return;
+  // Creates a tag in the shared catalog and returns it (or null on
+  // failure) — used both by the always-visible "+ New Tag" control below
+  // and by the import panel's tag picker.
+  const createTag = async (name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
     const r = await fetch(`/portal-api/${token}/tags`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: trimmed }),
     });
-    if (r.ok) {
-      const tag = await r.json();
-      setAllTags((prev) => (prev.some((t) => t.name === tag.name) ? prev : [...prev, tag]));
-      setImportTags((prev) => (prev.includes(tag.name) ? prev : [...prev, tag.name]));
-    }
+    if (!r.ok) return null;
+    const tag = await r.json();
+    setAllTags((prev) => (prev.some((t) => t.name === tag.name) ? prev : [...prev, tag]));
+    return tag;
+  };
+
+  const createAndSelectTag = async () => {
+    const tag = await createTag(newTagName);
+    if (tag) setImportTags((prev) => (prev.includes(tag.name) ? prev : [...prev, tag.name]));
     setNewTagName("");
+  };
+
+  const [showNewTag, setShowNewTag] = useState(false);
+  const [headerNewTagName, setHeaderNewTagName] = useState("");
+  const createHeaderTag = async () => {
+    const tag = await createTag(headerNewTagName);
+    if (tag) { setHeaderNewTagName(""); setShowNewTag(false); }
   };
 
   const withPhone = parsed ? parsed.filter((r) => r.phone) : [];
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <SectionHeading>Leads ({leads.length})</SectionHeading>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <select
             className="dg-input"
             value={activeTag}
@@ -2435,6 +2449,20 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
             <option value="">All tags</option>
             {allTags.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
           </select>
+          {showNewTag ? (
+            <>
+              <input
+                className="dg-input" autoFocus placeholder="New tag name…"
+                value={headerNewTagName} onChange={(e) => setHeaderNewTagName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") createHeaderTag(); if (e.key === "Escape") setShowNewTag(false); }}
+                style={{ fontSize: 11, padding: "6px 10px", width: 140 }}
+              />
+              <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={createHeaderTag} disabled={!headerNewTagName.trim()}>SAVE</button>
+              <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => { setShowNewTag(false); setHeaderNewTagName(""); }}>CANCEL</button>
+            </>
+          ) : (
+            <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => setShowNewTag(true)}>+ NEW TAG</button>
+          )}
           <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => { setShowImport((s) => !s); setShowAdd(false); setParsed(null); setImportResult(null); setImportTags([]); }}>
             {showImport ? "CANCEL" : "IMPORT CSV"}
           </button>

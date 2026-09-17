@@ -1040,6 +1040,14 @@ async def portal_list_leads(token: str, tag: Optional[str] = None):
     return [dict(r) for r in rows]
 
 
+# Tags that exist in the shared catalog purely for DigiGrowth's own
+# internal CRM automation (e.g. crm.py's NEWSLETTER_TAG, auto-applied on
+# certain dispositions to Dylan's own contacts) and have no meaning for a
+# client managing their own leads — hidden from every client-facing tag
+# endpoint below, without touching the shared `tags` table itself.
+_INTERNAL_ONLY_TAGS = {"Newsletter"}
+
+
 @router.get("/{token}/tags")
 async def portal_list_tags(token: str):
     """Read-only view of the shared global tag catalog (same `tags` table
@@ -1051,7 +1059,7 @@ async def portal_list_tags(token: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM tags ORDER BY name")
-    return [dict(r) for r in rows]
+    return [dict(r) for r in rows if r["name"] not in _INTERNAL_ONLY_TAGS]
 
 
 @router.post("/{token}/tags")
@@ -1064,6 +1072,8 @@ async def portal_create_tag(token: str, body: dict):
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="name required")
+    if name in _INTERNAL_ONLY_TAGS:
+        raise HTTPException(status_code=400, detail="That tag name is reserved")
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
