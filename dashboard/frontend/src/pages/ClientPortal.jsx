@@ -1014,10 +1014,17 @@ function VideosTab({ token }) {
 // (routers/calendly_webhooks.py's invitee.created handler inserts it,
 // only when this client has exactly one tracked website — see that
 // handler's docstring on the attribution limitation), not a page CTA
-// click — deliberately labeled "Consultation Requests" rather than the
+// click — deliberately labeled "Booked Consultations" rather than the
 // more technical "conversions" since this reads to a client, not an
-// engineer. WebsiteStatsEditor below lets Dylan manually correct the
-// counts (is_test-client-gated, see portal_set_website_stats()).
+// engineer. The *_from_meta counts are a genuine Meta (Facebook/
+// Instagram) attribution, not just "all traffic assumed to be ads" —
+// views are flagged client-side (fbclid param or a facebook.com/
+// instagram.com referrer, see the funnel page's tracking snippet) and
+// bookings are flagged via Calendly's tracking.utm_content echo, since
+// the booking itself completes on Calendly's own domain. WebsiteStatsEditor
+// below lets Dylan manually correct the top-line counts (is_test-client-
+// gated, see portal_set_website_stats()) — the Meta breakdown isn't
+// manually editable, it's always the real tracked numbers.
 function WebsiteStatsEditor({ token, site, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [views, setViews] = useState(site.views);
@@ -1055,7 +1062,7 @@ function WebsiteStatsEditor({ token, site, onSaved }) {
         <input type="number" min="0" className="dg-input" style={{ width: 80, marginLeft: 6, fontSize: 12 }}
           value={views} onChange={(e) => setViews(e.target.value)} />
       </label>
-      <label style={{ fontSize: 11, color: "#5a7aa0" }}>Consultation Requests
+      <label style={{ fontSize: 11, color: "#5a7aa0" }}>Booked Consultations
         <input type="number" min="0" className="dg-input" style={{ width: 80, marginLeft: 6, fontSize: 12 }}
           value={conversions} onChange={(e) => setConversions(e.target.value)} />
       </label>
@@ -1107,12 +1114,20 @@ function WebsiteTab({ token }) {
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#d0e8ff" }}>{s.views}</div>
             </div>
             <div className="stat-card">
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>CONSULTATION REQUESTS</div>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>BOOKED CONSULTATIONS</div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#4ade80" }}>{s.conversions}</div>
             </div>
             <div className="stat-card">
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>CONVERSION RATE</div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#d0e8ff" }}>{s.conversion_rate}%</div>
+            </div>
+            <div className="stat-card">
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>VIEWERS FROM META</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#d0e8ff" }}>{s.views_from_meta}</div>
+            </div>
+            <div className="stat-card">
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>BOOKED FROM META</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#4ade80" }}>{s.conversions_from_meta}</div>
             </div>
           </div>
           <div style={{ marginTop: 14 }}>

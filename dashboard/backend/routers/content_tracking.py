@@ -65,6 +65,13 @@ async def track_view_event(request: Request):
 
     lead = (body.get("lead") or "").strip() or None
     session_id = (body.get("session_id") or "").strip() or None
+    # Only 'client_website' senders currently set this (fbclid param or a
+    # facebook.com/instagram.com document.referrer, detected client-side —
+    # see design-agent's funnel tracking snippet). Left NULL for every
+    # other source/caller rather than defaulting to False, so "unknown" is
+    # distinguishable from "confirmed not Meta" if that ever matters.
+    from_meta = body.get("from_meta")
+    from_meta = bool(from_meta) if isinstance(from_meta, bool) else None
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -75,9 +82,9 @@ async def track_view_event(request: Request):
                 contact_id = row["id"]
         try:
             await conn.execute(
-                "INSERT INTO content_view_events (source, content_key, contact_id, session_id, event_type) "
-                "VALUES ($1, $2, $3, $4, $5)",
-                source, content_key, contact_id, session_id, event_type,
+                "INSERT INTO content_view_events (source, content_key, contact_id, session_id, event_type, from_meta) "
+                "VALUES ($1, $2, $3, $4, $5, $6)",
+                source, content_key, contact_id, session_id, event_type, from_meta,
             )
         except Exception as e:
             print(f"[content_tracking] failed to log view event: {e}")

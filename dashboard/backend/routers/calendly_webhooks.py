@@ -132,6 +132,15 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
     start_utc = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
     local = start_utc.astimezone(tz)
 
+    # Calendly echoes back whatever UTM params were on the booking link in
+    # this payload's `tracking` object — utm_content=meta is set by the
+    # funnel page's own tracking snippet only when it detected a genuine
+    # Meta (Facebook/Instagram) origin (fbclid or referrer), so this is
+    # the one signal available for attributing an actual CONFIRMED booking
+    # to Meta, since the booking itself completes on Calendly's domain.
+    tracking = payload.get("tracking") or {}
+    from_meta = tracking.get("utm_content") == "meta"
+
     contact_id = None
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -184,7 +193,6 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
             # an already-tagged lead is left alone, and the client's own
             # manual re-tag in the portal is never silently overwritten.
             if contact_id is not None:
-                tracking = payload.get("tracking") or {}
                 lead_tag = "ads-lead" if tracking.get("utm_source") == "paid_ad" else "organic-lead"
                 await conn.execute(
                     "UPDATE contacts SET tags = array_append(tags, $1), updated_at = now() "
@@ -230,13 +238,15 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
         "calendly_event_uri": payload.get("event"),
     })
 
-    # "Consultation Requests" on a client's portal Website tab (see
+    # "Booked Consultations" on a client's portal Website tab (see
     # client_portal.py's portal_websites()) now means a REAL booking, not
     # just a click on the page's CTA — only wired when the client has
     # exactly one tracked landing page, since a real Calendly booking event
     # carries no page-level attribution back to WHICH of several pages sent
     # them there (would need UTM params threaded through the CTA link and
-    # echoed back in Calendly's `tracking` payload field — not built yet).
+    # echoed back in Calendly's `tracking` payload field to fix — that part
+    # IS built now, just for the from_meta signal above, not full
+    # multi-page attribution).
     if client_id is not None:
         async with pool.acquire() as conn:
             sites = await conn.fetch(
@@ -244,9 +254,9 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
             )
             if len(sites) == 1:
                 await conn.execute(
-                    "INSERT INTO content_view_events (source, content_key, contact_id, event_type) "
-                    "VALUES ('client_website', $1, $2, 'conversion')",
-                    str(sites[0]["id"]), contact_id,
+                    "INSERT INTO content_view_events (source, content_key, contact_id, event_type, from_meta) "
+                    "VALUES ('client_website', $1, $2, 'conversion', $3)",
+                    str(sites[0]["id"]), contact_id, from_meta,
                 )
 
     return appt_row

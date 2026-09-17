@@ -710,6 +710,17 @@ async def _create_schema(pool: asyncpg.Pool):
             -- card alongside pricing/call_length.
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS call_recording_url TEXT;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS question_form_url TEXT;
+            -- Whether a content_view_events row (a client funnel's page view,
+            -- or its eventual booking conversion) is attributable to Meta
+            -- (Facebook/Instagram), so a client's Website tab can report
+            -- "viewers/bookings from Meta" instead of just total traffic.
+            -- 'view' rows get this straight from the browser (fbclid param
+            -- or a facebook.com/instagram.com referrer, see the funnel
+            -- page's tracking snippet); 'conversion' rows get it from
+            -- Calendly's own tracking.utm_content echo, since the actual
+            -- booking completes on Calendly's domain, not ours — see
+            -- routers/calendly_webhooks.py's _handle_invitee_created.
+            ALTER TABLE content_view_events ADD COLUMN IF NOT EXISTS from_meta BOOLEAN;
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

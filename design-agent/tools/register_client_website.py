@@ -40,18 +40,49 @@ def main():
 <script>
 (function(){{
   var WEBSITE_ID = "{row['id']}";
+
+  // Genuine Meta (Facebook/Instagram) origin, detected client-side — a
+  // paid-ad click carries fbclid automatically; organic Meta traffic
+  // (bio link, shared post) won't have fbclid but does carry a matching
+  // document.referrer. Used for the "viewers/booked from Meta" stats on
+  // this client's portal Website tab, NOT just "assume all traffic is ads."
+  function fromMeta(){{
+    try {{
+      if (new URLSearchParams(window.location.search).has("fbclid")) return true;
+      var ref = (document.referrer || "").toLowerCase();
+      return ["facebook.com","fb.com","instagram.com","l.facebook.com","lm.facebook.com","m.facebook.com"]
+        .some(function(d){{ return ref.indexOf(d) !== -1; }});
+    }} catch(e) {{ return false; }}
+  }}
+  var FROM_META = fromMeta();
+
   function send(type){{
     try {{
       navigator.sendBeacon(
         "{dashboard_url}/track/view-event",
-        new Blob([JSON.stringify({{source:"client_website", event_type:type, content_key:WEBSITE_ID}})], {{type:"application/json"}})
+        new Blob([JSON.stringify({{source:"client_website", event_type:type, content_key:WEBSITE_ID, from_meta:FROM_META}})], {{type:"application/json"}})
       );
     }} catch(e) {{}}
   }}
   send("view");
-  // "conversion" (Consultation Requests) is recorded server-side only when
+  // "conversion" (Booked Consultations) is recorded server-side only when
   // a Calendly booking is actually confirmed (routers/calendly_webhooks.py) —
-  // no click-based send() here, a click isn't a real consultation request.
+  // no click-based send() here, a click isn't a real booked consultation.
+
+  // Thread the Meta-origin signal through to that eventual booking: Calendly
+  // echoes utm_content back in its invitee.created webhook payload's
+  // `tracking` object (routers/calendly_webhooks.py reads it there) — that's
+  // the only way to attribute a REAL confirmed booking to Meta, since the
+  // booking itself completes on Calendly's own domain, not this page.
+  if (FROM_META) {{
+    document.querySelectorAll('a[href*="calendly.com"]').forEach(function(el){{
+      try {{
+        var url = new URL(el.href);
+        url.searchParams.set("utm_content", "meta");
+        el.href = url.toString();
+      }} catch(e) {{}}
+    }});
+  }}
 }})();
 </script>
 """)

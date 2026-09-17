@@ -202,14 +202,18 @@ async def portal_websites(token: str):
                 """
                 SELECT
                     COALESCE(SUM((event_type = 'view')::int), 0) AS views,
-                    COALESCE(SUM((event_type = 'conversion')::int), 0) AS conversions
+                    COALESCE(SUM((event_type = 'view' AND from_meta)::int), 0) AS views_from_meta,
+                    COALESCE(SUM((event_type = 'conversion')::int), 0) AS conversions,
+                    COALESCE(SUM((event_type = 'conversion' AND from_meta)::int), 0) AS conversions_from_meta
                 FROM content_view_events
                 WHERE source = 'client_website' AND content_key = $1
                 """,
                 str(d["id"]),
             )
             d["views"] = stats["views"]
+            d["views_from_meta"] = stats["views_from_meta"]
             d["conversions"] = stats["conversions"]
+            d["conversions_from_meta"] = stats["conversions_from_meta"]
             d["conversion_rate"] = round(stats["conversions"] / stats["views"] * 100, 1) if stats["views"] else 0.0
             out.append(d)
     return out
