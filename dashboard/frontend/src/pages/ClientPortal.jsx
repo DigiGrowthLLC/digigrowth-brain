@@ -226,8 +226,10 @@ function LaunchChecklistTab({ token }) {
 
   const prelaunch = items.filter((i) => (i.phase || "prelaunch") === "prelaunch");
   const postLaunch = items.filter((i) => i.phase === "post_launch");
-  const doneCount = items.filter((i) => i.completed_at).length;
-  const pct = items.length ? Math.round((doneCount / items.length) * 100) : 0;
+  // Top progress bar tracks only prelaunch — post-launch items are a
+  // separate, ongoing phase and shouldn't dilute "ready to launch" progress.
+  const doneCount = prelaunch.filter((i) => i.completed_at).length;
+  const pct = prelaunch.length ? Math.round((doneCount / prelaunch.length) * 100) : 0;
 
   return (
     <div>
@@ -235,15 +237,15 @@ function LaunchChecklistTab({ token }) {
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
           Watch as we get you ready to launch
         </div>
-        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, marginBottom: !loading && items.length > 0 ? 16 : 0 }}>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, marginBottom: !loading && prelaunch.length > 0 ? 16 : 0 }}>
           This is our own checklist, not yours — we're handling every item below.
           Check back anytime to see our progress as we build out your campaign.
         </div>
-        {!loading && items.length > 0 && (
+        {!loading && prelaunch.length > 0 && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
               <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.1em" }}>
-                {doneCount} OF {items.length} COMPLETE
+                {doneCount} OF {prelaunch.length} COMPLETE
               </span>
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#6ab0ff" }}>{pct}%</span>
             </div>
@@ -734,24 +736,81 @@ function VideosTab({ token }) {
   );
 }
 
-// Websites/funnels built for this client (admin-managed via ClientsPanel's
-// Websites tab) — the live link plus basic view/conversion stats, read
-// from content_view_events via client_portal.py's portal_websites(). A
-// "conversion" here is a click on the page's booking CTA (tracked by a
-// snippet baked into the generated page itself, not something this tab
-// computes) — deliberately labeled "Consultation Requests" rather than
-// the more technical "conversions" since this reads to a client, not an
-// engineer.
+// Websites/funnels built for this client (admin CRUD in routers/clients.py;
+// no dedicated admin UI yet) — the live link plus basic view/conversion
+// stats, read from content_view_events via client_portal.py's
+// portal_websites(). A "conversion" here means a REAL Calendly booking
+// (routers/calendly_webhooks.py's invitee.created handler inserts it,
+// only when this client has exactly one tracked website — see that
+// handler's docstring on the attribution limitation), not a page CTA
+// click — deliberately labeled "Consultation Requests" rather than the
+// more technical "conversions" since this reads to a client, not an
+// engineer. WebsiteStatsEditor below lets Dylan manually correct the
+// counts (is_test-client-gated, see portal_set_website_stats()).
+function WebsiteStatsEditor({ token, site, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [views, setViews] = useState(site.views);
+  const [conversions, setConversions] = useState(site.conversions);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  if (!editing) {
+    return (
+      <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setEditing(true)}>
+        EDIT STATS
+      </button>
+    );
+  }
+
+  const save = async () => {
+    setSaving(true);
+    setErr("");
+    try {
+      const r = await fetch(`/portal-api/${token}/websites/${site.id}/stats`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ views: Number(views) || 0, conversions: Number(conversions) || 0 }),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || "Failed to save"); }
+      setEditing(false);
+      onSaved();
+    } catch (e) { setErr(e.message); }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <label style={{ fontSize: 11, color: "#5a7aa0" }}>Views
+        <input type="number" min="0" className="dg-input" style={{ width: 80, marginLeft: 6, fontSize: 12 }}
+          value={views} onChange={(e) => setViews(e.target.value)} />
+      </label>
+      <label style={{ fontSize: 11, color: "#5a7aa0" }}>Consultation Requests
+        <input type="number" min="0" className="dg-input" style={{ width: 80, marginLeft: 6, fontSize: 12 }}
+          value={conversions} onChange={(e) => setConversions(e.target.value)} />
+      </label>
+      <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={save} disabled={saving}>
+        {saving ? "SAVING…" : "SAVE"}
+      </button>
+      <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setEditing(false)} disabled={saving}>
+        CANCEL
+      </button>
+      {err && <div style={{ fontSize: 10, color: "#e05c5c", width: "100%" }}>{err}</div>}
+    </div>
+  );
+}
+
 function WebsiteTab({ token }) {
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadSites = () => {
     fetch(`/portal-api/${token}/websites`)
       .then((r) => r.json())
       .then((data) => { setSites(data); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [token]);
+  };
+
+  useEffect(loadSites, [token]);
 
   if (loading) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (sites.length === 0) return (
@@ -784,6 +843,9 @@ function WebsiteTab({ token }) {
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>CONVERSION RATE</div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#d0e8ff" }}>{s.conversion_rate}%</div>
             </div>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <WebsiteStatsEditor token={token} site={s} onSaved={loadSites} />
           </div>
         </div>
       ))}
