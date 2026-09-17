@@ -82,10 +82,10 @@ function ProspectInfoPanel({ name, phone, email, contact }) {
   );
 }
 
-// Shared "book on Calendly + capture the reminder details" modal — the
-// Calendly iframe for live booking plus BookingForm for the reminder
-// pipeline's date/time/timezone capture (Calendly's free plan has no
-// webhook, so this is how appointment_reminders rows get created), plus a
+// Shared "book on Calendly" modal — the Calendly iframe for live booking
+// plus BookingForm, which now just watches for the appointment the Calendly
+// webhook (routers/calendly_webhooks.py) automatically creates once the rep
+// completes the booking, and offers a Stop Reminders control — plus a
 // ProspectInfoPanel so the prospect's details stay visible/copyable while
 // booking — this modal covers the whole screen, so whatever contact info
 // was visible before opening it isn't anymore.
@@ -117,7 +117,7 @@ export default function BookingModal({ open, onClose, contactId, phone, name, em
             <div style={{ flex: 1, overflow: "hidden" }}>
               <iframe src={CALENDLY_URL} style={{ width: "100%", height: "100%", border: "none" }} allow="camera; microphone" />
             </div>
-            <BookingForm contactId={contactId} phone={phone} name={name} email={email} channel={channel} onBooked={onBooked} />
+            <BookingForm contactId={contactId} onBooked={onBooked} />
           </div>
           <ProspectInfoPanel name={name} phone={phone} email={email} contact={contact} />
         </div>

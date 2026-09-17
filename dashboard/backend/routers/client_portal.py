@@ -919,6 +919,30 @@ async def portal_cancel_appointment(token: str, appointment_id: int):
     return await appointments_router.cancel_appointment(appointment_id)
 
 
+@router.post("/{token}/appointments/{appointment_id}/stop-reminders")
+async def portal_stop_reminders(token: str, appointment_id: int):
+    """Client-facing 'stop the 24h/6h/1h reminders without canceling the
+    appointment itself' — same scoping pattern as portal_cancel_appointment
+    above, reusing routers/appointments.py's generic remove_from_sequence()
+    so this is the exact same stop mechanism the internal OS's Inbox
+    SEQUENCES panel already uses, just token-scoped to this client's own
+    lead."""
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT ar.id FROM appointment_reminders ar
+            JOIN contacts c ON c.id = ar.contact_id
+            WHERE ar.id = $1 AND c.client_id = $2 AND NOT c.is_client_anchor
+            """,
+            appointment_id, client["id"],
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return await appointments_router.remove_from_sequence(appointment_id, "reminder")
+
+
 # ---------------- Leads / CRM (scoped via contacts.client_id) ----------------
 
 _LEAD_FIELDS = ("business", "owner", "phone", "email", "website", "city", "state", "notes")

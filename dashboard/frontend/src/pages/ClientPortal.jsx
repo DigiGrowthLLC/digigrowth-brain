@@ -1907,42 +1907,59 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
   );
 }
 
-// Full-screen booking modal — mirrors the internal OS's BookingModal.jsx
-// (Calendly iframe + date/time/timezone capture form) so booking through
-// the client portal looks and works the same way. `calendlyUrl` is null
-// for every real client until they connect their own Calendly (see db.py's
-// migration note) — shows a plain "not connected yet" message instead of
-// the iframe in that case, while the manual date/time form (the actual
-// mechanism that creates the appointment_reminders row) still works either way.
+function fmtBookedWhen(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-US", {
+    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
+
+// Full-screen booking modal — mirrors the internal OS's BookingModal.jsx.
+// `calendlyUrl` is null until DigiGrowth connects this client's own
+// Calendly — shows a plain "not connected yet" message instead of the
+// iframe in that case. Booking itself now happens automatically via the
+// Calendly webhook (routers/calendly_webhooks.py) once the booking
+// completes in the iframe — this just watches for the appointment that
+// webhook creates for this lead and offers a Stop Reminders control,
+// same as the internal OS's BookingForm.jsx.
 function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
-  const [timezones, setTimezones] = useState([]);
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
-  const [tz, setTz] = useState("America/New_York");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [appointment, setAppointment] = useState(null);
+  const [checked, setChecked] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [stopped, setStopped] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(`/portal-api/${token}/appointments/timezones`).then((r) => r.json()).then(setTimezones).catch(() => {});
-  }, [token]);
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const r = await fetch(`/portal-api/${token}/appointments?status=scheduled`);
+        if (r.ok && !cancelled) {
+          const rows = await r.json();
+          const mine = rows.find((a) => a.contact_id === lead.id);
+          if (mine) setAppointment(mine);
+        }
+      } catch {}
+      if (!cancelled) setChecked(true);
+    };
+    check();
+    const id = setInterval(check, 4000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [token, lead.id]);
 
-  const save = async () => {
-    if (!date || !time) { setError("Enter the appointment date and time"); return; }
-    setSaving(true);
+  const stopReminders = async () => {
+    if (!appointment) return;
+    setStopping(true);
     setError("");
     try {
-      const r = await fetch(`/portal-api/${token}/leads/${lead.id}/book`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, time, timezone: tz }),
-      });
+      const r = await fetch(`/portal-api/${token}/appointments/${appointment.id}/stop-reminders`, { method: "POST" });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { setError(d.detail || "Couldn't book appointment."); setSaving(false); return; }
-      setSaved(true);
+      if (!r.ok) throw new Error(d.detail || "Failed to stop reminders");
+      setStopped(true);
     } catch (e) {
-      setError("Couldn't book appointment: " + e.message);
+      setError("Failed to stop reminders: " + e.message);
     }
-    setSaving(false);
+    setStopping(false);
   };
 
   return (
@@ -1976,38 +1993,33 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
                 <div style={{ fontSize: 32 }}>📅</div>
                 <div style={{ fontSize: 13, color: "#8a9cc0", fontFamily: "'Space Grotesk', sans-serif" }}>No Calendly connected yet</div>
                 <div style={{ fontSize: 11, maxWidth: 380 }}>
-                  DigiGrowth hasn't connected a Calendly account for this business yet — you can still log an appointment manually below.
+                  DigiGrowth hasn't connected a Calendly account for this business yet — check back once it's connected to book here.
                 </div>
               </div>
             )}
           </div>
 
-          {saved ? (
-            <div style={{ padding: "10px 14px", fontSize: 12, color: "#14c882", fontFamily: "'Space Grotesk', sans-serif", borderTop: "1px solid #1a2540" }}>
-              ✅ Appointment booked, reminders scheduled — 24h, 6h, and 1h before the appointment.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 8, padding: "10px 14px", borderTop: "1px solid #1a2540" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <label style={{ fontSize: 10, color: "#5a6f8f" }}>Date</label>
-                <input type="date" className="dg-input" value={date} onChange={(e) => setDate(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 14px", borderTop: "1px solid #1a2540" }}>
+            {stopped ? (
+              <div style={{ fontSize: 12, color: "#f0a028", fontFamily: "'Space Grotesk', sans-serif" }}>
+                Reminders stopped for this appointment — it's still on the books, it just won't text/email the lead.
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <label style={{ fontSize: 10, color: "#5a6f8f" }}>Time</label>
-                <input type="time" className="dg-input" value={time} onChange={(e) => setTime(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
+            ) : appointment ? (
+              <>
+                <div style={{ fontSize: 12, color: "#14c882", fontFamily: "'Space Grotesk', sans-serif" }}>
+                  ✅ Booked for {fmtBookedWhen(appointment.appointment_at)} — reminders scheduled automatically.
+                </div>
+                <button className="btn btn-danger" disabled={stopping} onClick={stopReminders} style={{ fontSize: 11, padding: "6px 12px" }}>
+                  {stopping ? "Stopping…" : "Stop Reminders"}
+                </button>
+              </>
+            ) : (
+              <div style={{ fontSize: 11.5, color: "#5a6f8f", fontFamily: "'Space Grotesk', sans-serif" }}>
+                {checked ? "Book using the Calendly widget above — reminders will be scheduled automatically once it's booked (usually within a few seconds)." : "Checking…"}
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <label style={{ fontSize: 10, color: "#5a6f8f" }}>Timezone</label>
-                <select className="dg-input" value={tz} onChange={(e) => setTz(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }}>
-                  {timezones.map((t) => <option key={t.iana} value={t.iana}>{t.label}</option>)}
-                </select>
-              </div>
-              <button className="btn btn-primary" disabled={saving} onClick={save} style={{ fontSize: 12, padding: "7px 14px" }}>
-                {saving ? "Saving…" : "Schedule Reminders"}
-              </button>
-              {error && <div style={{ fontSize: 11, color: "#dc3c3c", width: "100%" }}>{error}</div>}
-            </div>
-          )}
+            )}
+            {error && <div style={{ fontSize: 11, color: "#dc3c3c", width: "100%" }}>{error}</div>}
+          </div>
         </div>
       </div>
     </div>

@@ -1,85 +1,90 @@
 import React, { useState, useEffect } from "react";
 import { API } from "./api.js";
 
-// Appointment-reminder capture form — shown alongside the Calendly iframe
-// when a rep dispositions a call "Appointment Booked". Calendly itself has
-// no webhook wired up (free plan), so this is how the reminder pipeline
-// learns the booked date/time + the prospect's timezone. See
-// dashboard/backend/routers/appointments.py + reminder_engine.py.
-export default function BookingForm({ contactId, phone, name, email, channel, onBooked }) {
-  const [timezones, setTimezones] = useState([]);
-  const [date, setDate]           = useState("");
-  const [time, setTime]           = useState("");
-  const [tz, setTz]               = useState("America/New_York");
-  const [saving, setSaving]       = useState(false);
-  const [saved, setSaved]         = useState(false);
-  const [error, setError]         = useState("");
+function fmtWhen(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("en-US", {
+    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
+
+// Sits below the Calendly iframe in BookingModal. Booking itself now happens
+// automatically via the Calendly webhook (routers/calendly_webhooks.py) the
+// moment the rep completes the booking in the iframe above — this no longer
+// captures date/time manually. Instead it polls for the appointment that
+// webhook just created for this contact and offers a one-click way to stop
+// its 24h/6h/1h reminders (without canceling the appointment itself) in case
+// the rep books something that shouldn't send them — e.g. an internal test,
+// or the prospect asks not to be texted.
+//
+// Requires contactId — a prospect not yet linked to a CRM contact has no way
+// to be matched back to the webhook-created row, so this falls back to a
+// plain "booked automatically" notice with no stop control in that case.
+export default function BookingForm({ contactId, onBooked }) {
+  const [appointment, setAppointment] = useState(null);
+  const [checked, setChecked] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [stopped, setStopped] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch(API("/appointment-reminders/timezones")).then(r => r.json()).then(setTimezones).catch(() => {});
-  }, []);
+    if (!contactId) { setChecked(true); return; }
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const r = await fetch(API(`/appointment-reminders?status=scheduled&contact_id=${encodeURIComponent(contactId)}`));
+        if (r.ok && !cancelled) {
+          const rows = await r.json();
+          if (rows.length) { setAppointment(rows[0]); onBooked?.(); }
+        }
+      } catch {}
+      if (!cancelled) setChecked(true);
+    };
+    check();
+    // Polls while the modal is open — the webhook can take a few seconds
+    // after the rep completes the Calendly iframe booking.
+    const id = setInterval(check, 4000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [contactId]);
 
-  useEffect(() => {
-    if (!phone) return;
-    fetch(API(`/appointment-reminders/guess-timezone?phone=${encodeURIComponent(phone)}`))
-      .then(r => r.json())
-      .then(d => { if (d.timezone) setTz(d.timezone); })
-      .catch(() => {});
-  }, [phone]);
-
-  const save = async () => {
-    if (!date || !time) { setError("Enter the appointment date and time"); return; }
-    setSaving(true);
+  const stopReminders = async () => {
+    if (!appointment) return;
+    setStopping(true);
     setError("");
     try {
-      const r = await fetch(API("/appointment-reminders"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contact_id: contactId || null,
-          prospect_name: name || null,
-          prospect_phone: phone || null,
-          prospect_email: email || null,
-          date, time, timezone: tz,
-          channel: channel || null,
-        }),
-      });
+      const r = await fetch(API(`/appointment-reminders/${appointment.id}/sequence/reminder/remove`), { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
-      setSaved(true);
-      onBooked?.();
+      setStopped(true);
     } catch (e) {
-      setError("Failed to save — " + (e.message || "unknown error"));
+      setError("Failed to stop reminders — " + (e.message || "unknown error"));
     }
-    setSaving(false);
+    setStopping(false);
   };
 
-  if (saved) {
-    return (
-      <div style={{ padding: "10px 14px", fontSize: 12, color: "#14c882", fontFamily: "'Space Grotesk', sans-serif" }}>
-        ✅ Appointment booked, reminders scheduled — 24h, 6h, and 1h before the appointment.
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 8, padding: "10px 14px", borderTop: "1px solid #1a2540" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <label style={{ fontSize: 10, color: "#5a6f8f" }}>Date</label>
-        <input type="date" className="dg-input" value={date} onChange={e => setDate(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <label style={{ fontSize: 10, color: "#5a6f8f" }}>Time</label>
-        <input type="time" className="dg-input" value={time} onChange={e => setTime(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }} />
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-        <label style={{ fontSize: 10, color: "#5a6f8f" }}>Prospect's Timezone</label>
-        <select className="dg-input" value={tz} onChange={e => setTz(e.target.value)} style={{ fontSize: 12, padding: "6px 8px" }}>
-          {timezones.map(t => <option key={t.iana} value={t.iana}>{t.label}</option>)}
-        </select>
-      </div>
-      <button className="btn btn-primary" disabled={saving} onClick={save} style={{ fontSize: 12, padding: "7px 14px" }}>
-        {saving ? "Saving…" : "Schedule Reminders"}
-      </button>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 14px", borderTop: "1px solid #1a2540" }}>
+      {!contactId ? (
+        <div style={{ fontSize: 11.5, color: "#5a6f8f", fontFamily: "'Space Grotesk', sans-serif" }}>
+          Book using the Calendly widget above — reminders are scheduled automatically once it's booked. (No linked contact here, so there's no automatic way to stop them from this window — use the Appointments tab afterward if needed.)
+        </div>
+      ) : stopped ? (
+        <div style={{ fontSize: 12, color: "#f0a028", fontFamily: "'Space Grotesk', sans-serif" }}>
+          Reminders stopped for this appointment — it's still on the books, it just won't text/email the prospect.
+        </div>
+      ) : appointment ? (
+        <>
+          <div style={{ fontSize: 12, color: "#14c882", fontFamily: "'Space Grotesk', sans-serif" }}>
+            ✅ Booked for {fmtWhen(appointment.appointment_at)} — reminders scheduled automatically.
+          </div>
+          <button className="btn btn-danger" disabled={stopping} onClick={stopReminders} style={{ fontSize: 11, padding: "6px 12px" }}>
+            {stopping ? "Stopping…" : "Stop Reminders"}
+          </button>
+        </>
+      ) : (
+        <div style={{ fontSize: 11.5, color: "#5a6f8f", fontFamily: "'Space Grotesk', sans-serif" }}>
+          {checked ? "Book using the Calendly widget above — reminders will be scheduled automatically once it's booked (usually within a few seconds)." : "Checking…"}
+        </div>
+      )}
       {error && <div style={{ fontSize: 11, color: "#dc3c3c", width: "100%" }}>{error}</div>}
     </div>
   );
