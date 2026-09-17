@@ -64,7 +64,7 @@ export default function CampaignModal({ open, defaultChannel, onClose, onCreated
     }}>
       <div style={{
         background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 8,
-        width: 420, padding: "24px 28px", display: "flex", flexDirection: "column", gap: 14,
+        width: 420, maxWidth: "92vw", maxHeight: "88vh", overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 14,
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>

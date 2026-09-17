@@ -90,7 +90,7 @@ function AddToSequenceModal({ sequence, activeIds, onClose, onAdded }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(4,8,16,0.85)" }} onClick={onClose} />
       <div style={{ position: "relative", background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 8,
-                    width: 480, maxHeight: "80vh", display: "flex", flexDirection: "column", padding: "24px 28px", gap: 14 }}>
+                    width: 480, maxWidth: "92vw", maxHeight: "80vh", display: "flex", flexDirection: "column", padding: "24px 28px", gap: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>{copy.addTitle}</div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 14 }}>✕</button>

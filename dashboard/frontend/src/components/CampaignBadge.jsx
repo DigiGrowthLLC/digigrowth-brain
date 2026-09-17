@@ -37,7 +37,7 @@ export default function CampaignBadge({ channel, label }) {
             Switch ▾
           </button>
           {switchOpen && (
-            <div style={{
+            <div className="dg-menu" style={{
               position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20,
               background: "#0d1626", border: "1px solid #1a2540", borderRadius: 8,
               padding: "6px 0", minWidth: 180, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",

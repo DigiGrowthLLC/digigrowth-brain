@@ -170,4 +170,38 @@
    !important is for; per-component inline styles otherwise always win). */
 @media (max-width: 767px) {
   input, textarea, select { font-size: 16px !important; }
+
+  /* Nothing should ever force horizontal page scroll on mobile — anything
+     that overflows should clip/wrap instead of requiring a swipe. Individual
+     wide tables opt back into horizontal scroll via their own
+     overflow:auto wrapper (see AppointmentsPanel etc.), which still works
+     fine with this in place since it's a local scroller, not the page. */
+  html, body, #root { overflow-x: hidden; max-width: 100vw; }
+
+  /* Small anchored popup/context menus (stage picker, sequences picker,
+     campaign menu, tag menu, etc.) are normally positioned absolute
+     relative to the button that opened them, with a fixed pixel width --
+     on a narrow phone that can push them partly off-screen either side.
+     Apply this class to those dropdown panels (not full page modals, which
+     already clamp with maxWidth/92vw) to re-anchor them centered and
+     screen-width-capped instead. */
+  .dg-menu {
+    position: fixed !important;
+    top: 50% !important;
+    bottom: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translate(-50%, -50%) !important;
+    width: calc(100vw - 32px) !important;
+    max-width: 340px !important;
+    max-height: 70vh !important;
+  }
+
+  /* Agents chat's Terminal/Files side panel is a fixed 340px column next to
+     the chat on desktop -- on a phone that squeezes the chat pane down to a
+     sliver instead of giving the side panel real room. When it's open on
+     mobile, let it take the full width and hide the chat behind it instead
+     (same "one view at a time" pattern the rest of the mobile layout uses). */
+  .dg-chat-rightpanel { width: 100% !important; }
+  .dg-chat-main:has(+ .dg-chat-rightpanel) { display: none !important; }
 }

@@ -707,7 +707,7 @@ function NewAgentModal({ onClose, onCreated }) {
       position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200,
     }}>
-      <div className="glass-card" style={{ width: 420, padding: 28 }}>
+      <div className="glass-card" style={{ width: 420, maxWidth: "92vw", maxHeight: "88vh", overflowY: "auto", padding: 28 }}>
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 20 }}>
           New Agent
         </div>

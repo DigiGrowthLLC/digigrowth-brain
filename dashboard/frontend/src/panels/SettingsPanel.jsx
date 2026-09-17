@@ -336,7 +336,7 @@ export default function SettingsPanel() {
     <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
 
       {/* ── Chat pane ─────────────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+      <div className="dg-chat-main" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
         {/* Header */}
         <div style={{
@@ -439,7 +439,7 @@ export default function SettingsPanel() {
 
       {/* ── Right panel ───────────────────────────────────────────────────── */}
       {rightPanel && (
-        <div style={{
+        <div className="dg-chat-rightpanel" style={{
           width: 340, flexShrink: 0,
           borderLeft: "1px solid rgba(58,123,213,0.07)",
           display: "flex", flexDirection: "column", overflow: "hidden",

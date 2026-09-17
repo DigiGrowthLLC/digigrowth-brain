@@ -785,7 +785,7 @@ export default function InboxPanel({ initialTarget }) {
                         {thread?.stage_interested ? "★ INTERESTED" : "STAGE ▾"}
                       </button>
                       {stageMenuOpen && (
-                        <div style={{
+                        <div className="dg-menu" style={{
                           position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20,
                           background: "#0d1626", border: "1px solid #1a2540", borderRadius: 8,
                           padding: "8px 10px", minWidth: 150, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
@@ -821,7 +821,7 @@ export default function InboxPanel({ initialTarget }) {
                         SEQUENCES ▾
                       </button>
                       {seqPanelOpen && (
-                        <div style={{
+                        <div className="dg-menu" style={{
                           position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 20,
                           background: "#0d1626", border: "1px solid #1a2540", borderRadius: 8,
                           padding: "10px 12px", width: 280, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
@@ -1052,7 +1052,7 @@ export default function InboxPanel({ initialTarget }) {
                 </div>
 
                 {seqOpen && (
-                  <div style={{
+                  <div className="dg-menu" style={{
                     position: "absolute", bottom: "100%", left: 20, marginBottom: 8,
                     background: "#0d1830", border: "1px solid rgba(58,123,213,0.4)",
                     borderRadius: 12, padding: "10px 0", width: 320, maxHeight: 320, overflowY: "auto",
