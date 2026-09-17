@@ -494,11 +494,11 @@
       "last_scraped_date": "2026-09-03"
     },
     "Aurora, CO": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 120,
+      "qualified_count": 2,
+      "last_scraped_date": "2026-09-17"
     },
     "Arlington, TX": {
       "status": "not_started",
