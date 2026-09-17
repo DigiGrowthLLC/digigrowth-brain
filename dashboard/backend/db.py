@@ -569,6 +569,20 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS client_booking_notification_sent_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS client_no_show_sequence_sent_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS client_cancel_sequence_sent_at TIMESTAMPTZ;
+            -- Per-step progress for the client-branded no_show/cancellation
+            -- drips (client_appointment_sequence.py), same shape as
+            -- reminder_steps_sent below — keyed by client_sequence_steps.
+            -- step_order as a string. Replaces the single sent_at columns
+            -- above (kept, unused going forward) now that these are real
+            -- 3-touch drips instead of one-shot sends.
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS client_no_show_steps_sent JSONB NOT NULL DEFAULT '{}';
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS client_cancel_steps_sent JSONB NOT NULL DEFAULT '{}';
+            UPDATE appointment_reminders SET client_no_show_steps_sent =
+                jsonb_build_object('0', client_no_show_sequence_sent_at, '1', client_no_show_sequence_sent_at)
+                WHERE client_no_show_sequence_sent_at IS NOT NULL AND client_no_show_steps_sent = '{}';
+            UPDATE appointment_reminders SET client_cancel_steps_sent =
+                jsonb_build_object('0', client_cancel_sequence_sent_at, '1', client_cancel_sequence_sent_at)
+                WHERE client_cancel_sequence_sent_at IS NOT NULL AND client_cancel_steps_sent = '{}';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_client_anchor BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
@@ -737,6 +751,41 @@ async def _create_schema(pool: asyncpg.Pool):
                  E'Hi {first_name},\n\nThis confirms your upcoming appointment with {business} has been canceled.\n\nIf you''d like to reschedule, just reply to this email or call us — we''re happy to find a time that works for you.\n\nTake care,\n{business}')
             ) AS s(sequence_key, step_order, label, channel, subject, body)
             WHERE NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id)
+            """
+        )
+        # Backfill Touch 3/Touch 4 steps (step_order 2-5) for existing
+        # clients whose no_show/cancellation sequences were seeded before
+        # this build, back when they were one-shot (Touch 1 only). The
+        # blanket seed above only fires for a client with zero rows, so it
+        # never reaches these — this backfill is scoped per sequence_key
+        # instead (WHERE NOT EXISTS a step_order=2 row for that specific
+        # sequence), and never touches a client who already has Touch 3/4
+        # rows (e.g. from an admin edit or a re-run).
+        await conn.execute(
+            """
+            INSERT INTO client_sequence_steps (client_id, sequence_key, step_order, label, channel, subject, body)
+            SELECT c.id, s.sequence_key, s.step_order, s.label, s.channel, s.subject, s.body
+            FROM clients c
+            CROSS JOIN (VALUES
+                ('no_show', 2, 'Touch 3 (SMS)', 'sms', NULL,
+                 'Hi {first_name}, still happy to get you back on the schedule at {business} whenever works for you — just reply here or give us a call.'),
+                ('no_show', 3, 'Touch 3 (Email)', 'email', 'Still here when you''re ready',
+                 E'Hi {first_name},\n\nThings come up — no worries at all. Whenever you''re ready to get back on track, just reply to this email or give {business} a call and we''ll find a time that fits.\n\nTalk soon,\n{business}'),
+                ('no_show', 4, 'Touch 4 (SMS)', 'sms', NULL,
+                 '{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know.'),
+                ('no_show', 5, 'Touch 4 (Email)', 'email', 'Closing your file',
+                 E'Hi {first_name},\n\nHaven''t heard back, so we''ll close this out on our end unless we hear from you. If timing''s just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}'),
+                ('cancellation', 2, 'Touch 3 (SMS)', 'sms', NULL,
+                 'Hi {first_name}, if timing''s better now, still happy to get you a new time at {business} — just reply here or give us a call.'),
+                ('cancellation', 3, 'Touch 3 (Email)', 'email', 'Still worth getting back on the schedule?',
+                 E'Hi {first_name},\n\nPlans change, that''s normal. If it''s still worth getting back on the schedule at {business}, just reply to this email or give us a call.\n\nTalk soon,\n{business}'),
+                ('cancellation', 4, 'Touch 4 (SMS)', 'sms', NULL,
+                 '{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know.'),
+                ('cancellation', 5, 'Touch 4 (Email)', 'email', 'Closing your file',
+                 E'Hi {first_name},\n\nHaven''t heard back, so we''ll close this out on our end unless we hear from you. If timing''s just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}')
+            ) AS s(sequence_key, step_order, label, channel, subject, body)
+            WHERE EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key)
+            AND NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key AND step_order = s.step_order)
             """
         )
         # Real clients' portals must never touch DigiGrowth's own shared

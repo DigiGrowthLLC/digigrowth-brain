@@ -148,3 +148,89 @@ async def send_due_reminders():
                         "UPDATE appointment_reminders SET reminder_steps_sent = $2 WHERE id = $1",
                         row["id"], json.dumps(sent_map),
                     )
+
+
+def _progress(row: dict, step_count: int) -> dict:
+    raw_sent = row.get("reminder_steps_sent")
+    sent_map = json.loads(raw_sent) if isinstance(raw_sent, str) else dict(raw_sent or {})
+    appt_at = row["appointment_at"]
+    lead_time = appt_at - row["reminders_armed_at"]
+    next_due = None
+    for idx in range(min(step_count, len(_WINDOW_HOURS_BY_STEP))):
+        if str(idx) in sent_map:
+            continue
+        hours_before = _WINDOW_HOURS_BY_STEP[idx]
+        if lead_time < timedelta(hours=hours_before):
+            continue
+        next_due = appt_at - timedelta(hours=hours_before)
+        break
+    return {
+        "touches_sent": len(sent_map),
+        "touches_total": step_count,
+        "step_label": f"{len(sent_map)} of {step_count} sent" if sent_map else "None sent yet",
+        "next_touch_due_at": next_due,
+    }
+
+
+async def list_active(client_id: int) -> list[dict]:
+    """Upcoming scheduled appointments for this client with reminders still
+    active — backs the client portal Messaging tab's 'View Active Prospects'
+    queue for Appointment Reminders."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT ar.*, c.business, c.owner FROM appointment_reminders ar
+            JOIN contacts c ON c.id = ar.contact_id
+            WHERE c.client_id = $1 AND NOT c.is_client_anchor
+            AND ar.status = 'scheduled' AND ar.appointment_at > now() AND ar.reminders_stopped_at IS NULL
+            ORDER BY ar.appointment_at ASC
+            """,
+            client_id,
+        )
+        counts = await conn.fetch(
+            "SELECT client_id, COUNT(*) AS cnt FROM client_sequence_steps WHERE client_id = $1 AND sequence_key = $2 GROUP BY client_id",
+            client_id, _SEQUENCE_KEY,
+        )
+    step_count = counts[0]["cnt"] if counts else len(_WINDOW_HOURS_BY_STEP)
+    return [{**dict(r), **_progress(dict(r), step_count)} for r in rows]
+
+
+async def remove(client_id: int, appointment_id: int) -> bool:
+    """Stop future reminder windows for one of this client's appointments
+    without canceling the appointment itself. Returns False if the
+    appointment doesn't belong to this client or reminders are already
+    stopped."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE appointment_reminders ar SET reminders_stopped_at = now()
+            FROM contacts c
+            WHERE ar.id = $1 AND c.id = ar.contact_id AND c.client_id = $2 AND NOT c.is_client_anchor
+            AND ar.reminders_stopped_at IS NULL
+            RETURNING ar.id
+            """,
+            appointment_id, client_id,
+        )
+    return row is not None
+
+
+async def add(client_id: int, appointment_id: int) -> bool:
+    """Re-arm reminders for one of this client's existing appointment rows —
+    resets the window progress as if just booked. Returns False if the
+    appointment doesn't belong to this client or is already in the past."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE appointment_reminders ar SET status = 'scheduled', reminders_armed_at = now(),
+                reminder_steps_sent = '{}', reminders_stopped_at = NULL
+            FROM contacts c
+            WHERE ar.id = $1 AND c.id = ar.contact_id AND c.client_id = $2 AND NOT c.is_client_anchor
+            AND ar.appointment_at > now()
+            RETURNING ar.id
+            """,
+            appointment_id, client_id,
+        )
+    return row is not None

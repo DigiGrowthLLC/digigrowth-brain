@@ -25,6 +25,7 @@ from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_w
 import call_reminders
 import cancel_sequence
 import client_appointment_reminders
+import client_appointment_sequence
 import dm_followup_sequence
 import meta_ads
 import no_show_sequence
@@ -394,6 +395,12 @@ async def lifespan(app: FastAPI):
         cancel_sequence.send_due_touches,
         IntervalTrigger(minutes=5),
         id="cancel-sequence",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        client_appointment_sequence.send_due_touches,
+        IntervalTrigger(minutes=5),
+        id="client-appointment-sequence",
         replace_existing=True,
     )
     scheduler.add_job(

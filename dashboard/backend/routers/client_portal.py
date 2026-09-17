@@ -31,6 +31,7 @@ from models import (
     ClientRequestCreate, UploadPresignRequest, UploadRecordCreate,
 )
 import cancel_sequence
+import client_appointment_reminders
 import client_appointment_sequence
 import client_email
 import client_sms
@@ -755,16 +756,23 @@ async def portal_campaign_email(token: str):
 @router.get("/{token}/appointments")
 async def portal_appointments(token: str, status: str = "scheduled"):
     client = await get_client_from_token(token)
+    conditions = ["c.client_id = $1", "NOT c.is_client_anchor"]
+    params = [client["id"]]
+    if status != "all":
+        params.append(status)
+        conditions.append(f"ar.status = ${len(params)}")
+    where = f"WHERE {' AND '.join(conditions)}"
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """
+            f"""
             SELECT ar.*, c.owner, c.notes FROM appointment_reminders ar
             JOIN contacts c ON c.id = ar.contact_id
-            WHERE c.client_id = $1 AND NOT c.is_client_anchor AND ar.status = $2
+            {where}
             ORDER BY ar.appointment_at ASC
             """,
-            client["id"], status,
+            *params,
         )
     return [dict(r) for r in rows]
 
@@ -943,6 +951,64 @@ async def portal_stop_reminders(token: str, appointment_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="Appointment not found")
     return await appointments_router.remove_from_sequence(appointment_id, "reminder")
+
+
+# sequence in "reminder" | "no_show" | "cancel" — same three keys
+# SequenceQueueModal.jsx already uses for the internal Outreach Templates
+# tab's queue, here dispatched to the client-branded engines instead of
+# reminder_engine.py/no_show_sequence.py/cancel_sequence.py.
+_CLIENT_SEQUENCE_MODULES = {
+    "reminder": client_appointment_reminders,
+    "no_show": client_appointment_sequence,
+    "cancel": client_appointment_sequence,
+}
+_CLIENT_SEQUENCE_KEY = {"no_show": "no_show", "cancel": "cancellation"}
+
+
+def _validate_client_sequence(sequence: str):
+    if sequence not in _CLIENT_SEQUENCE_MODULES:
+        raise HTTPException(status_code=400, detail="sequence must be 'reminder', 'no_show', or 'cancel'")
+
+
+@router.get("/{token}/sequences/{sequence}/active")
+async def portal_list_sequence_active(token: str, sequence: str):
+    """Backs the Messaging tab's 'View Active Prospects' queue — same shape
+    as routers/appointments.py's list_sequence_active(), scoped to this
+    client's own leads via the client-branded engines."""
+    _validate_client_sequence(sequence)
+    client = await get_client_from_token(token)
+    module = _CLIENT_SEQUENCE_MODULES[sequence]
+    if sequence == "reminder":
+        return await module.list_active(client["id"])
+    return await module.list_active(client["id"], _CLIENT_SEQUENCE_KEY[sequence])
+
+
+@router.post("/{token}/sequences/{sequence}/{appointment_id}/remove")
+async def portal_remove_from_sequence(token: str, sequence: str, appointment_id: int):
+    _validate_client_sequence(sequence)
+    client = await get_client_from_token(token)
+    module = _CLIENT_SEQUENCE_MODULES[sequence]
+    if sequence == "reminder":
+        ok = await module.remove(client["id"], appointment_id)
+    else:
+        ok = await module.remove(client["id"], appointment_id, _CLIENT_SEQUENCE_KEY[sequence])
+    if not ok:
+        raise HTTPException(status_code=404, detail="appointment not found or not currently active in that sequence")
+    return {"ok": True}
+
+
+@router.post("/{token}/sequences/{sequence}/{appointment_id}/add")
+async def portal_add_to_sequence(token: str, sequence: str, appointment_id: int):
+    _validate_client_sequence(sequence)
+    client = await get_client_from_token(token)
+    module = _CLIENT_SEQUENCE_MODULES[sequence]
+    if sequence == "reminder":
+        ok = await module.add(client["id"], appointment_id)
+    else:
+        ok = await module.add(client["id"], appointment_id, _CLIENT_SEQUENCE_KEY[sequence])
+    if not ok:
+        raise HTTPException(status_code=404, detail="appointment not found, or (reminders) already in the past")
+    return {"ok": True}
 
 
 # ---------------- Leads / CRM (scoped via contacts.client_id) ----------------

@@ -132,6 +132,9 @@ async def _sync_one_mailbox(conn, client_id: int, refresh_token: str, last_ts: i
             """,
             client_id, from_addr, subject, body, mid, internal_ts,
         )
+        if from_addr:
+            import client_appointment_sequence
+            await client_appointment_sequence.stop_sequence_for_reply(email=from_addr)
     return newest_ts
 
 

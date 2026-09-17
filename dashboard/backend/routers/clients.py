@@ -44,6 +44,29 @@ _DEFAULT_SEQUENCE_STEPS = [
      "Hi {first_name}, we've canceled your appointment as requested. Whenever you're ready to get back to feeling better, just reply here or give us a call to grab a new time."),
     ("cancellation", 1, "Touch 1 (Email)", "email", "Your appointment has been canceled",
      "Hi {first_name},\n\nThis confirms your upcoming appointment with {business} has been canceled.\n\nIf you'd like to reschedule, just reply to this email or call us — we're happy to find a time that works for you.\n\nTake care,\n{business}"),
+    # Touch 3 (24h) / Touch 4 (72h) — real 3-touch drips as of the client
+    # sequence-management build, matching Dylan's own no_show_sequence.py/
+    # cancel_sequence.py cadence (client_appointment_sequence.py's
+    # send_due_touches() sends these on schedule). Only {first_name}/
+    # {business} merge fields, same as the Touch 1 defaults above — no
+    # {link}, since a client's own patients call/text back rather than
+    # self-serve rebook through a link.
+    ("no_show", 2, "Touch 3 (SMS)", "sms", None,
+     "Hi {first_name}, still happy to get you back on the schedule at {business} whenever works for you — just reply here or give us a call."),
+    ("no_show", 3, "Touch 3 (Email)", "email", "Still here when you're ready",
+     "Hi {first_name},\n\nThings come up — no worries at all. Whenever you're ready to get back on track, just reply to this email or give {business} a call and we'll find a time that fits.\n\nTalk soon,\n{business}"),
+    ("no_show", 4, "Touch 4 (SMS)", "sms", None,
+     "{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know."),
+    ("no_show", 5, "Touch 4 (Email)", "email", "Closing your file",
+     "Hi {first_name},\n\nHaven't heard back, so we'll close this out on our end unless we hear from you. If timing's just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}"),
+    ("cancellation", 2, "Touch 3 (SMS)", "sms", None,
+     "Hi {first_name}, if timing's better now, still happy to get you a new time at {business} — just reply here or give us a call."),
+    ("cancellation", 3, "Touch 3 (Email)", "email", "Still worth getting back on the schedule?",
+     "Hi {first_name},\n\nPlans change, that's normal. If it's still worth getting back on the schedule at {business}, just reply to this email or give us a call.\n\nTalk soon,\n{business}"),
+    ("cancellation", 4, "Touch 4 (SMS)", "sms", None,
+     "{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know."),
+    ("cancellation", 5, "Touch 4 (Email)", "email", "Closing your file",
+     "Hi {first_name},\n\nHaven't heard back, so we'll close this out on our end unless we hear from you. If timing's just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}"),
 ]
 
 

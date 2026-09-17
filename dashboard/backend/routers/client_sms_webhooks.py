@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 
 from fastapi import APIRouter, Request, Response
 
+import client_appointment_sequence
 import response_ai
 import scheduler_registry
 from db import get_pool
@@ -48,6 +49,8 @@ async def client_sms_inbound(client_id: int, request: Request):
             """,
             client_id, from_phone, to_phone, body, twilio_sid,
         )
+
+    await client_appointment_sequence.stop_sequence_for_reply(phone=from_phone)
 
     if client["response_ai_enabled"]:
         delay = client["response_ai_min_delay_seconds"] or 0
