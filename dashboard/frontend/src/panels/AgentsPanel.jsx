@@ -941,13 +941,15 @@ export default function AgentsPanel({ initialAgentId }) {
 
       <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
 
-        {/* ── Left sidebar: agent list ────────────────────────────────── */}
-        <aside style={{
-          width: 260, flexShrink: 0,
-          borderRight: "0.5px solid #1a2540",
-          display: "flex", flexDirection: "column",
-          background: "rgba(8,12,28,0.6)",
-        }}>
+        {/* ── Left sidebar: agent list — full-width on mobile until an
+             agent is selected, then the chat pane takes over; always
+             side-by-side at md+. ────────────────────────────────────── */}
+        <aside
+          className={(selectedId ? "hidden " : "flex ") + "md:flex flex-col flex-shrink-0 w-full md:w-[260px]"}
+          style={{
+            borderRight: "0.5px solid #1a2540",
+            background: "rgba(8,12,28,0.6)",
+          }}>
           <div style={{
             padding: "16px 16px 12px",
             borderBottom: "0.5px solid #1a2540",
@@ -1013,26 +1015,39 @@ export default function AgentsPanel({ initialAgentId }) {
           </div>
         </aside>
 
-        {/* ── Chat pane ──────────────────────────────────────────────── */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+        {/* ── Chat pane — hidden on mobile until an agent is selected ─── */}
+        <div className={(!selectedId ? "hidden " : "flex ") + "md:flex flex-col flex-1 min-w-0"} style={{ overflow: "hidden" }}>
 
           {selectedAgent ? (
             <>
               {/* Header */}
-              <div style={{
+              <div className="flex-wrap" style={{
                 padding: "14px 20px", borderBottom: "0.5px solid #1a2540",
-                display: "flex", alignItems: "center", justifyContent: "space-between",
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
                 flexShrink: 0,
               }}>
-                <div>
-                  <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>
-                    {selectedAgent.name}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#3a5a80", marginTop: 2 }}>
-                    {selectedAgent.description}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    onClick={() => setSelectedId(null)}
+                    className="md:hidden"
+                    style={{
+                      background: "none", border: "none", color: "#3a7bd5", cursor: "pointer",
+                      fontFamily: "'Share Tech Mono', monospace", fontSize: 10, letterSpacing: "0.06em",
+                      padding: "4px 4px 4px 0", flexShrink: 0,
+                    }}
+                  >
+                    ‹ BACK
+                  </button>
+                  <div>
+                    <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>
+                      {selectedAgent.name}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#3a5a80", marginTop: 2 }}>
+                      {selectedAgent.description}
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div className="flex-wrap" style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   {/* Mode toggles */}
                   <div style={{
                     display: "flex", gap: 2,

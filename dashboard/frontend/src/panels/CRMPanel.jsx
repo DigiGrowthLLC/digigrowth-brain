@@ -429,15 +429,15 @@ function AddContactModal({ onClose, onSaved }) {
   );
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(4,8,16,0.85)" }} onClick={onClose} />
-      <div style={{ position: "relative", background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 8, width: 560, maxHeight: "88vh", overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div className="w-full sm:w-[560px]" style={{ position: "relative", background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 8, maxHeight: "88vh", overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>Add Contact</div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 14 }}>✕</button>
         </div>
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 14 }}>
             {field("Business Name", "business")}
             {field("Owner / Contact", "owner")}
             {field("Phone *", "phone", { placeholder: "+1 555 000 0000" })}
@@ -928,8 +928,8 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end" }}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(8,12,20,0.7)" }} onClick={onClose} />
-      <aside style={{
-        position: "relative", width: 460,
+      <aside className="w-full sm:w-[460px]" style={{
+        position: "relative",
         background: "#0d1626",
         borderLeft: "0.5px solid #1a2540",
         height: "100%", overflowY: "auto",
@@ -961,7 +961,7 @@ function ContactDrawer({ contact, onClose, onUpdate, onNavigate, tags, tagColor,
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
 
           {/* Fields */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "0 16px" }}>
             {CONTACT_FIELDS.map(f => (
               <div key={f.k} style={{ marginBottom: 12 }}>
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a",

@@ -161,3 +161,13 @@
   /* ── Dividers ────────────────────────────────────────────────────── */
   .dg-divider { height: 1px; background: rgba(58,123,213,0.08); }
 }
+
+/* Mobile Safari/Chrome auto-zoom the whole page on focusing any text input
+   under 16px, which looks like the box itself warping/distorting until you
+   zoom back out. Most inputs/textareas across the app use a 12-13px font
+   to match the desktop-oriented design, so force 16px specifically on
+   narrow viewports — overriding inline font-size (that's what the
+   !important is for; per-component inline styles otherwise always win). */
+@media (max-width: 767px) {
+  input, textarea, select { font-size: 16px !important; }
+}

@@ -787,7 +787,7 @@ const [notes, setNotes]                 = useState("");
             {liveStatus === "classify" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <div className="sec-label" style={{ marginBottom: 0 }}>Disposition</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                <div className="grid grid-cols-2 sm:grid-cols-3" style={{ gap: 8 }}>
                   {DISPO_BUTTONS.map(({ label, emoji, style }) => (
                     <button key={label} disabled={classifying} onClick={() => classify(label)} style={{
                       ...style, borderRadius: 6, padding: "10px 8px",
@@ -883,7 +883,7 @@ const [notes, setNotes]                 = useState("");
       <div className="dg-divider" />
 
       {/* ── Historical ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16 }}>
 
         <div className="glass-card" style={{ padding: 16 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>

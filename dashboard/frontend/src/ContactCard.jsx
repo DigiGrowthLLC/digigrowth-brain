@@ -161,7 +161,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
           )
         ) : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "0 16px" }}>
               <Field label="BUSINESS NAME" k="business" />
               <Field label="OWNER / CONTACT" k="owner" />
               <Field label="PHONE" k="phone" />
@@ -174,7 +174,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
             <Field label="CUSTOM OPENER" k="opener" />
             <Field label="STATUS" k="status" options={STATUSES} />
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "0 16px" }}>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 4 }}>
                   SMS CAMPAIGN
@@ -270,12 +270,13 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
           backdropFilter: "blur(6px)", zIndex: 1000,
           display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 16,
         }}
         onClick={onClose}
       >
         <div
-          className="glass-card"
-          style={{ width: 480, maxHeight: "85vh", display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}
+          className="glass-card w-full sm:w-[480px]"
+          style={{ maxHeight: "85vh", display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}
           onClick={e => e.stopPropagation()}
         >
           {body}
