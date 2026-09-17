@@ -3166,7 +3166,10 @@ export default function ClientPortal() {
       </div>
 
       <div style={{ maxWidth: 1240, margin: "0 auto", padding: "36px 24px" }}>
-        <div style={{ display: "flex", gap: 4, marginBottom: 4, borderBottom: "1px solid rgba(58,123,213,0.1)" }}>
+        <div style={{
+          display: "flex", gap: 4, marginBottom: 4, borderBottom: "1px solid rgba(58,123,213,0.1)",
+          overflowX: "auto", WebkitOverflowScrolling: "touch",
+        }}>
           {NAV.map((g) => {
             const active = g.children ? g.children.some((c) => c.id === tab) : g.id === tab;
             return (
@@ -3175,10 +3178,11 @@ export default function ClientPortal() {
                 onClick={() => setTab(g.children ? g.children[0].id : g.id)}
                 className={active ? "dg-tab dg-tab-active" : "dg-tab"}
                 style={{
-                  background: "none", border: "none", cursor: "pointer",
+                  background: "none", border: "none", cursor: "pointer", flexShrink: 0,
                   padding: "10px 16px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
                   color: active ? "#6ab0ff" : "#5a7aa0",
                   borderRadius: "6px 6px 0 0",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {g.label}
@@ -3191,7 +3195,7 @@ export default function ClientPortal() {
           const activeGroup = NAV.find((g) => (g.children ? g.children.some((c) => c.id === tab) : g.id === tab));
           if (!activeGroup?.children) return null;
           return (
-            <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+            <div style={{ display: "flex", gap: 6, marginBottom: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
               {activeGroup.children.map((c) => (
                 <button
                   key={c.id}
@@ -3199,9 +3203,10 @@ export default function ClientPortal() {
                   style={{
                     background: tab === c.id ? "rgba(58,123,213,0.14)" : "transparent",
                     border: tab === c.id ? "1px solid rgba(58,123,213,0.3)" : "1px solid transparent",
-                    borderRadius: 999, cursor: "pointer", padding: "5px 14px",
+                    borderRadius: 999, cursor: "pointer", padding: "5px 14px", flexShrink: 0,
                     fontFamily: "'Space Grotesk', sans-serif", fontSize: 11.5, fontWeight: 600,
                     color: tab === c.id ? "#9cc4f5" : "#5a7aa0",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {c.label}

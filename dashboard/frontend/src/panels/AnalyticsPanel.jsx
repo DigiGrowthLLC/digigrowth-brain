@@ -223,7 +223,7 @@ function CampaignsView({ days }) {
 
 function FunnelBlock({ label, value, convRate, color, isFirst }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", flex: 1 }}>
+    <div className="dg-funnel-item" style={{ display: "flex", alignItems: "center", flex: 1 }}>
       {!isFirst && (
         <div style={{ fontSize: 18, color: "#1a2f52", margin: "0 6px", flexShrink: 0 }}>›</div>
       )}
@@ -261,7 +261,7 @@ function VslFunnelCard({ data }) {
   return (
     <div className="glass-card" style={{ padding: "20px 22px" }}>
       <SecLabel>VSL (Contact Page Video)</SecLabel>
-      <div style={{ display: "flex", alignItems: "stretch", gap: 0, marginTop: 4 }}>
+      <div className="dg-funnel-row" style={{ display: "flex", alignItems: "stretch", gap: 0, marginTop: 4 }}>
         <FunnelBlock isFirst label="Viewed" value={data.viewed} convRate={null} color="90,155,240" />
         <FunnelBlock label="Watched 50%+" value={data.watched_half} convRate={halfRate} color="20,200,130" />
         <FunnelBlock label="Completed" value={data.completed} convRate={completedRate} color="20,200,130" />
@@ -294,7 +294,7 @@ function LoomOutreachFunnelCard({ data }) {
       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.08em", marginTop: 4, marginBottom: 10 }}>
         ONLY PROSPECTS ACTUALLY SENT AN OUTREACH VIDEO
       </div>
-      <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
+      <div className="dg-funnel-row" style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
         <FunnelBlock isFirst label="Sent" value={data.sent} convRate={null} color="160,110,240" />
         <FunnelBlock label="Viewed" value={data.viewed} convRate={viewedRate} color="160,110,240" />
         <FunnelBlock label="Completed" value={data.completed} convRate={completedRate} color="90,155,240" />
@@ -386,7 +386,7 @@ export default function AnalyticsPanel() {
       {/* ── 6-Stage Acquisition Funnel ─────────────────────────────── */}
       <div className="glass-card" style={{ padding: "20px 22px" }}>
         <SecLabel>6-Stage Acquisition Funnel</SecLabel>
-        <div style={{ display: "flex", alignItems: "stretch", gap: 0, marginTop: 4 }}>
+        <div className="dg-funnel-row" style={{ display: "flex", alignItems: "stretch", gap: 0, marginTop: 4 }}>
           <FunnelBlock isFirst label="Total Leads" value={funnel.total_leads} convRate={null}
             color="90,155,240" />
           <FunnelBlock label="Total Outreach" value={funnel.dialed} convRate={dialedRate}

@@ -204,4 +204,13 @@
      (same "one view at a time" pattern the rest of the mobile layout uses). */
   .dg-chat-rightpanel { width: 100% !important; }
   .dg-chat-main:has(+ .dg-chat-rightpanel) { display: none !important; }
+
+  /* Analytics funnel rows (VSL, DM outreach, 6-stage acquisition) lay out
+     3-7 stages as equal flex:1 boxes joined by "›" arrows -- on a phone
+     that squeezes every stage down to unreadable and the row still doesn't
+     fit. Give each stage a fixed minimum width and let the row itself
+     scroll horizontally instead, same "contained scroller" pattern used
+     for wide tables elsewhere in the app. */
+  .dg-funnel-row { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .dg-funnel-item { flex: 0 0 150px !important; }
 }
