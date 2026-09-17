@@ -674,6 +674,12 @@ async def _create_schema(pool: asyncpg.Pool):
             -- client can have any number of appointment_reminder steps, not
             -- a fixed 3.
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS reminder_steps_sent JSONB NOT NULL DEFAULT '{}';
+            -- The Calendly scheduled_event URI a booking came from (NULL for
+            -- manually-entered/AI-booked appointments) — lets an inbound
+            -- invitee.canceled webhook find and cancel the matching row
+            -- instead of requiring a manual cancel. See
+            -- routers/calendly_webhooks.py.
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS calendly_event_uri TEXT;
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

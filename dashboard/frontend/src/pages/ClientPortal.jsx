@@ -995,7 +995,6 @@ function UpcomingAppointmentsWidget({ token }) {
               {fmtLocal(r.appointment_at, r.prospect_timezone)}
             </div>
             <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>{r.prospect_name || r.owner || "—"}</div>
-            {r.business && <div style={{ fontSize: 10, color: "#3a5a7a", marginTop: 2 }}>{r.business}</div>}
           </div>
         ))}
       </div>
@@ -1484,19 +1483,21 @@ function AppointmentsTab({ token }) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(58,123,213,0.15)" }}>
-              {["Prospect", "Business", "Appointment", "Outcome", "Action"].map((h) => (
+              {["Patient", "Phone", "Email", "Notes", "Appointment", "Outcome", "Action"].map((h) => (
                 <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && displayRows.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No appointments in this view.</td></tr>
+              <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No appointments in this view.</td></tr>
             )}
             {displayRows.map((row) => (
               <tr key={row.id} style={{ borderBottom: "1px solid rgba(58,123,213,0.08)" }}>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{row.prospect_name || row.owner || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.business || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.prospect_phone || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.prospect_email || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.notes || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</td>
                 <td style={{ padding: "10px 14px" }}>
                   {row.status !== "canceled" && <OutcomeSummary appointment={row} onClick={() => setOutcomeTarget(row)} />}

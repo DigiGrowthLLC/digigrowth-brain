@@ -34,7 +34,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 import calendly_integration
 from db import get_pool
-from routers.appointments import create_appointment_row
+from routers.appointments import cancel_appointment, create_appointment_row
 
 router = APIRouter()  # public — mounted with no auth, see main.py
 
@@ -205,6 +205,7 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
         "date": local.strftime("%Y-%m-%d"),
         "time": local.strftime("%H:%M"),
         "timezone": tz_name,
+        "calendly_event_uri": payload.get("event"),
     })
 
     # "Consultation Requests" on a client's portal Website tab (see
@@ -229,6 +230,32 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
     return appt_row
 
 
+async def _handle_invitee_canceled(payload: dict) -> None:
+    """Cancels the appointment_reminders row a Calendly invitee.canceled
+    event corresponds to, via its stored calendly_event_uri, so a
+    cancellation made directly in Calendly (rather than through the OS or
+    client portal) doesn't have to be mirrored there by hand. A no-op if the
+    event can't be matched (e.g. a booking made before calendly_event_uri
+    existed) or the appointment's already resolved — cancel_appointment
+    raises HTTPException in both cases, which this swallows since a webhook
+    has no one to show that error to."""
+    event_uri = payload.get("event")
+    if not event_uri:
+        return
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM appointment_reminders WHERE calendly_event_uri = $1 AND status = 'scheduled'",
+            event_uri,
+        )
+    if not row:
+        return
+    try:
+        await cancel_appointment(row["id"])
+    except HTTPException:
+        pass
+
+
 async def _load_dylan_signing_key() -> str | None:
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -248,6 +275,9 @@ async def calendly_webhook_dylan(request: Request):
         raise HTTPException(401, "Invalid signature")
 
     body = json.loads(raw)
+    if body.get("event") == "invitee.canceled":
+        await _handle_invitee_canceled(body["payload"])
+        return {"ok": True}
     if body.get("event") != "invitee.created":
         return {"ok": True}
 
@@ -298,6 +328,9 @@ async def calendly_webhook_client(client_id: int, request: Request):
         raise HTTPException(401, "Invalid signature")
 
     body = json.loads(raw)
+    if body.get("event") == "invitee.canceled":
+        await _handle_invitee_canceled(body["payload"])
+        return {"ok": True}
     if body.get("event") != "invitee.created":
         return {"ok": True}
 

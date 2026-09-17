@@ -135,7 +135,9 @@ async def create_appointment_row(payload: dict) -> dict:
     input rather than HTTPException so it's usable outside a request
     context. Expects: contact_id (optional), prospect_name, prospect_phone,
     prospect_email, date ("YYYY-MM-DD"), time ("HH:MM", 24h), timezone
-    (IANA name). Returns the full inserted row."""
+    (IANA name), calendly_event_uri (optional -- set only by
+    routers/calendly_webhooks.py, lets a later invitee.canceled webhook find
+    and cancel this row automatically). Returns the full inserted row."""
     date_str = (payload.get("date") or "").strip()
     time_str = (payload.get("time") or "").strip()
     tz_name  = (payload.get("timezone") or "").strip()
@@ -158,8 +160,8 @@ async def create_appointment_row(payload: dict) -> dict:
         row = await conn.fetchrow(
             """
             INSERT INTO appointment_reminders
-                (contact_id, prospect_name, prospect_phone, prospect_email, appointment_at, prospect_timezone)
-            VALUES ($1, $2, $3, $4, $5, $6)
+                (contact_id, prospect_name, prospect_phone, prospect_email, appointment_at, prospect_timezone, calendly_event_uri)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
             """,
             payload.get("contact_id"),
@@ -168,6 +170,7 @@ async def create_appointment_row(payload: dict) -> dict:
             payload.get("prospect_email"),
             local_dt,
             tz_name,
+            payload.get("calendly_event_uri"),
         )
 
     # Notify the CLIENT (business owner) that a new appointment just landed

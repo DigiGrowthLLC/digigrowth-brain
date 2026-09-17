@@ -63,10 +63,18 @@ async def get_user_uri(token: str) -> str:
 
 async def register_webhook(token: str, callback_url: str, org_uri: str) -> dict:
     """Creates (or, if one already exists at this exact URL, reuses) a
-    Calendly webhook subscription for invitee.created events across the
-    whole organization — reusing avoids piling up duplicate subscriptions
-    on the same Calendly account every time a rep re-clicks "Connect
-    Calendly". Returns {"uri": ..., "signing_key": ...}.
+    Calendly webhook subscription for invitee.created AND invitee.canceled
+    events across the whole organization — reusing avoids piling up
+    duplicate subscriptions on the same Calendly account every time a rep
+    re-clicks "Connect Calendly". Returns {"uri": ..., "signing_key": ...}.
+
+    invitee.canceled added 2026-09-17 so a cancellation made directly in
+    Calendly auto-cancels the matching appointment_reminders row (see
+    routers/calendly_webhooks.py's _handle_invitee_canceled) instead of
+    requiring a manual cancel in the OS/portal. A subscription created
+    before this change only delivers invitee.created — re-clicking
+    "Connect Calendly" deletes and recreates it with both events, since
+    Calendly's event list is fixed at creation time and can't be patched.
 
     Corrected 2026-09-17 (confirmed live against a real 400 error): Calendly's
     create-subscription response does NOT hand back a signing_key — WE supply
@@ -99,7 +107,7 @@ async def register_webhook(token: str, callback_url: str, org_uri: str) -> dict:
             headers=_headers(token),
             json={
                 "url": callback_url,
-                "events": ["invitee.created"],
+                "events": ["invitee.created", "invitee.canceled"],
                 "organization": org_uri,
                 "scope": "organization",
                 "signing_key": signing_key,
