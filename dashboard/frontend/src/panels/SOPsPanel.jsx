@@ -1720,6 +1720,58 @@ const hintStyleShared = {
   fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, color: "#4a6a8a",
 };
 
+// Dylan's own Facebook Page id — same idea as DylanCalendlyConnect above,
+// for meta_lead_webhooks.py's Dylan's-own-pipeline branch. Inert until
+// Meta App Review grants real leadgen permissions (see that module's
+// docstring) — saving this now just means it's ready the moment that
+// access lands, same reasoning as building the Calendly webhook ahead of
+// time didn't require anything special either.
+function DylanMetaPageId() {
+  const [pageId, setPageId] = useState("");
+  const [saved, setSaved] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/dialer/dylan-meta-page-id").then(r => r.json()).then(d => {
+      setPageId(d.page_id || "");
+      setSaved(d.page_id || "");
+    }).catch(() => {});
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/dialer/dylan-meta-page-id", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page_id: pageId.trim() }),
+      });
+      if (r.ok) setSaved(pageId.trim());
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (saved === null) return null;
+
+  return (
+    <div className="glass-card-sm" style={{ padding: "16px 18px", marginTop: -8 }}>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#e8f0ff" }}>
+        Your Facebook Page (for Lead Ads)
+      </div>
+      <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 3, marginBottom: 10, maxWidth: 520 }}>
+        Not active yet — requires Meta App Review to approve leadgen permissions. Saving this now just means a Lead Ads submission on your own page will create a CRM contact automatically the moment that access is granted, same as a client's already does.
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input className="dg-input" style={{ flex: 1, minWidth: 220, fontSize: 12 }}
+          placeholder="Facebook Page ID" value={pageId} onChange={e => setPageId(e.target.value)} />
+        <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={save} disabled={saving || pageId.trim() === saved}>
+          {saving ? "Saving…" : pageId.trim() === saved ? "Saved" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppointmentRemindersEditor({ categories, onCategoryChange }) {
   const [values, setValues] = useState({ category: "General" });
   const [saved, setSaved] = useState({ category: "General" });
@@ -1844,6 +1896,7 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         <DylanCalendlyConnect />
+        <DylanMetaPageId />
         {REMINDER_FIELDS.map((f, i) => {
           const smsKey = `reminder_${f.instance}_sms`;
           const subjectKey = `reminder_${f.instance}_email_subject`;

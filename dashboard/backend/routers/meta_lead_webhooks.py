@@ -83,7 +83,14 @@ async def _fetch_lead_fields(leadgen_id: str, token: str) -> list[dict]:
         return resp.json().get("field_data", [])
 
 
-async def _process_lead(client_id: int, leadgen_id: str, token: str) -> None:
+async def _process_lead(client_id: int | None, leadgen_id: str, token: str) -> None:
+    """client_id=None means this form belongs to Dylan's OWN Facebook Page
+    (see dylan_meta_page_id in the caller below), not a client's — mirrors
+    routers/calendly_webhooks.py's Dylan's-own-pipeline branch: still
+    creates/claims a contacts row from the submitted form data so the lead
+    lands in the internal CRM, it just never touches client_marketing_config
+    or fires response_ai (a client-only SMS auto-response feature — there's
+    no equivalent for DigiGrowth's own inbound leads here)."""
     try:
         field_data = await _fetch_lead_fields(leadgen_id, token)
     except Exception as e:
@@ -102,11 +109,13 @@ async def _process_lead(client_id: int, leadgen_id: str, token: str) -> None:
         # Exact same ownership contract as client_portal.py's
         # portal_create_lead — never claim an anchor contact or another
         # client's already-owned lead just because it shares a phone
-        # number; an unowned contact is fair game.
+        # number; an unowned contact is fair game. For Dylan's own pipeline
+        # (client_id is None), an anchor contact IS fair game too — that's
+        # just this business's own sales contact, legitimate to link.
         existing = await conn.fetchrow(
             "SELECT id, client_id, is_client_anchor, tags FROM contacts WHERE phone = $1", phone,
         )
-        if existing and existing["is_client_anchor"]:
+        if existing and existing["is_client_anchor"] and client_id is not None:
             print(f"[meta_lead_webhooks] lead {leadgen_id} phone matches the anchor contact — skipping")
             return
         if existing and existing["client_id"] is not None and existing["client_id"] != client_id:
@@ -130,7 +139,7 @@ async def _process_lead(client_id: int, leadgen_id: str, token: str) -> None:
             str(uuid.uuid4()), name, phone, email, client_id,
         )
 
-    if is_new_or_claimed:
+    if is_new_or_claimed and client_id is not None:
         await response_ai.initiate_conversation(client_id, row["phone"], lead_name=name)
 
 
@@ -157,12 +166,21 @@ async def meta_leadgen_inbound(request: Request):
                 mapped = await conn.fetchrow(
                     "SELECT client_id FROM client_marketing_config WHERE meta_page_id = $1", str(page_id),
                 )
-            if not mapped:
-                print(f"[meta_lead_webhooks] no client mapped to page_id={page_id} — skipping lead {leadgen_id}")
-                continue
+                resolved_client_id = mapped["client_id"] if mapped else None
+                if not mapped:
+                    # Not a client's page — check whether it's Dylan's own
+                    # (dialer_settings key 'dylan_meta_page_id', set the same
+                    # way as his own Calendly token — see calendly_admin.py).
+                    dylan_page = await conn.fetchrow(
+                        "SELECT value FROM dialer_settings WHERE key = 'dylan_meta_page_id'",
+                    )
+                    if not dylan_page or dylan_page["value"] != str(page_id):
+                        print(f"[meta_lead_webhooks] no client or Dylan's own page mapped to page_id={page_id} — skipping lead {leadgen_id}")
+                        continue
+                    resolved_client_id = None
             if not token:
                 print(f"[meta_lead_webhooks] META_SYSTEM_USER_TOKEN not set — skipping lead {leadgen_id}")
                 continue
-            await _process_lead(mapped["client_id"], leadgen_id, token)
+            await _process_lead(resolved_client_id, leadgen_id, token)
 
     return Response(content="", media_type="text/plain")

@@ -123,17 +123,32 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
             # send off prospect_name/phone/email directly) just without
             # client-portal visibility.
         else:
-            # Dylan's own pipeline — best-effort match against the existing
-            # CRM so the appointment shows linked to a real contact card,
-            # but unlike the client case this is optional: create_appointment_row
-            # works fine with contact_id=None (reminder_engine.py's WHERE
-            # treats "no contact" as ours too).
+            # Dylan's own pipeline — match an existing CRM contact by phone,
+            # or create a new one from the Calendly invitee's own info
+            # (name/phone/email) when none exists, same "create if missing"
+            # behavior as the client branch above — a cold Calendly booking
+            # with no prior contact should still land in the CRM with a real
+            # contact card, not just float as prospect_name/phone/email on
+            # the appointment row with nothing to click through to.
             if phone:
-                row = await conn.fetchrow(
-                    "SELECT id FROM contacts WHERE phone = $1 AND (client_id IS NULL OR is_client_anchor)", phone,
+                existing = await conn.fetchrow(
+                    "SELECT id, client_id, is_client_anchor FROM contacts WHERE phone = $1", phone,
                 )
-                if row:
+                if existing and (existing["client_id"] is None or existing["is_client_anchor"]):
+                    contact_id = existing["id"]
+                elif not existing:
+                    row = await conn.fetchrow(
+                        """
+                        INSERT INTO contacts (id, owner, phone, email, status, tags)
+                        VALUES ($1, $2, $3, $4, 'new', ARRAY['calendly_lead'])
+                        RETURNING id
+                        """,
+                        str(uuid.uuid4()), name, phone, email,
+                    )
                     contact_id = row["id"]
+                # else: phone already belongs to another client's lead —
+                # leave contact_id unset rather than misattributing it,
+                # same non-claiming rule as the client branch above.
 
     appt_row = await create_appointment_row({
         "contact_id": contact_id,

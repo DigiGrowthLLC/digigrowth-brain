@@ -614,6 +614,34 @@ async def save_reminder_template(body: dict):
     return {"ok": True}
 
 
+# ── Dylan's own Facebook Page id for meta_lead_webhooks.py's Dylan's-own- ─────
+# pipeline branch (client_id=None) — same dialer_settings-KV pattern as his
+# own Calendly token (calendly_admin.py). Inert until META_SYSTEM_USER_TOKEN
+# + real Page leadgen permissions exist; see that module's docstring.
+
+@router.get("/dialer/dylan-meta-page-id")
+async def get_dylan_meta_page_id():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = 'dylan_meta_page_id'")
+    return {"page_id": row["value"] if row else ""}
+
+
+@router.put("/dialer/dylan-meta-page-id")
+async def save_dylan_meta_page_id(body: dict):
+    page_id = (body.get("page_id") or "").strip()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO dialer_settings (key, value, updated_at) VALUES ('dylan_meta_page_id', $1, now())
+            ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = now()
+            """,
+            page_id,
+        )
+    return {"ok": True}
+
+
 # ── Native OS session management ──────────────────────────────────────────────
 
 @router.get("/dialer/session")
