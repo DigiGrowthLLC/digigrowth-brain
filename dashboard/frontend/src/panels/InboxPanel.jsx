@@ -25,6 +25,13 @@ function fmtMsgTime(ts) {
 }
 
 function convoBadge(c) {
+  // Once this contact's business has actually become a client (client_id
+  // set on the anchor row -- see is_client_anchor in db.py), that outranks
+  // every pipeline-stage badge below: "interested"/"booked" would be stale
+  // now that they've converted.
+  if (c.client_id) {
+    return { label: "CLIENT", cls: "badge-green" };
+  }
   if (c.disposition === "not_interested") {
     return { label: "NOT INTERESTED", cls: "badge-red" };
   }

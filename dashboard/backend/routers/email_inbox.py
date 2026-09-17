@@ -421,7 +421,7 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
         g = grouped[cid] = {
             "contact_id": cid, "business": r["business"], "owner": r["owner"],
             "phone": r["phone"], "email": r["email"], "tags": r["tags"] or [],
-            "contact_status": r["contact_status"],
+            "contact_status": r["contact_status"], "client_id": r.get("client_id"),
             "channels": [], "last_message": None, "updated_at": None,
             "status": "closed", "disposition": None, "unread": False,
             "stage_initial_outreach": False, "stage_replied": False, "stage_dm_reached": False,
@@ -485,7 +485,7 @@ async def list_inbox_conversations(
                 f"""
                 SELECT sc.contact_id, sc.status, sc.disposition,
                        sc.stage_initial_outreach, sc.stage_replied, sc.stage_dm_reached, sc.stage_primed, sc.stage_engaged, sc.stage_interested,
-                       c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
+                       c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status, c.client_id,
                        (SELECT body FROM sms_messages WHERE phone = sc.phone
                         ORDER BY sent_at DESC LIMIT 1) AS last_message,
                        (SELECT MAX(sent_at) FROM sms_messages WHERE phone = sc.phone) AS last_message_at,
@@ -525,7 +525,7 @@ async def list_inbox_conversations(
             email_rows = await conn.fetch(
                 f"""
                 SELECT ec.contact_id, ec.status, ec.disposition,
-                       c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status,
+                       c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status, c.client_id,
                        (SELECT body FROM email_messages WHERE thread_id = ec.thread_id
                         ORDER BY sent_at DESC LIMIT 1) AS last_message,
                        (SELECT MAX(sent_at) FROM email_messages WHERE thread_id = ec.thread_id) AS last_message_at,
