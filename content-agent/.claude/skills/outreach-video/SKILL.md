@@ -36,6 +36,8 @@ Activate this skill when the user says:
 - "run the loom skill for [prospect]"
 - "generate outreach videos for [list of leads]"
 - "outreach video skill"
+- "process the send info queue" / "run send info looms" — see SEND INFO QUEUE MODE below, a
+  different entry point that works a backend-maintained queue instead of a named prospect
 
 ---
 
@@ -127,8 +129,8 @@ with no CRM contact behind it.
 
 ### STEP 8 — Send it to the prospect automatically
 This runs unless Dylan explicitly says just to generate the video without sending it. Send the
-**permanent, hardcoded primed-message text** — `[Loom link] Shoot me a 👍 once you've watched it`
-— tagged as the "2. Primed Message" step (`stage="relevance"` in
+**permanent, hardcoded primed-message text** — `[Loom link] Shoot me a thumbs up once you've watched it`
+(plain text, not an emoji — see the GSM-7 note below) — tagged as the "2. Primed Message" step (`stage="relevance"` in
 `dashboard/backend/routers/sms.py`'s `SEQUENCE_STEPS`), with the placeholder swapped for the real
 watch URL:
 ```bash
@@ -141,6 +143,12 @@ swap (e.g. to "Free Offer V.1.4") no longer breaks or alters Loom sends. The act
 still looked up only to label which sequence context the send is reported under; it's never
 required and never supplies the message body. Sends via `POST /api/sms/send` tagged
 `stage="relevance"` so it shows correctly in the SMS inbox/sequence dropdown.
+
+**GSM-7 only, no emoji, in this or any other SMS body** — an emoji (or em dash, curly quote,
+ellipsis) forces the whole text into UCS-2 encoding, cutting Twilio's segment limit from ~153 to
+~67 chars and roughly doubling the per-message cost. `dashboard/backend/routers/sms.py`'s
+`_send_twilio()` now sanitizes every outbound body as a guardrail (`sms_text.py`), but don't rely
+on that as license to draft carelessly — write plain-ASCII SMS text to begin with.
 
 ### STEP 9 — Report
 Tell Dylan: the watch URL, the local file path (reference/archival), and that the primed-message
@@ -176,3 +184,35 @@ send result) as it finishes rather than batching all reports to the end.
 Or naturally:
 > "Make an outreach video for [prospect]"
 > "Generate outreach videos for [lead 1], [lead 2], [lead 3]"
+
+---
+
+## SEND INFO QUEUE MODE
+
+Setting a contact's disposition to "Send Info" (CRM or live Dialer) no longer sends a generic
+templated SMS/email immediately — it enqueues a row in `send_info_loom_queue`
+(`dashboard/backend/send_info_queue.py`), because generating a personalized video needs this
+skill's local Playwright/ffmpeg + `headcam-master.mp4`, none of which exist on the Railway
+container. This mode drains that queue, one entry at a time, and is what
+`content-agent/run-send-info-queue.ps1` invokes on a schedule.
+
+### Trigger
+- "process the send info queue", "run send info looms", "drain the send info queue"
+
+### Workflow
+1. `GET {DASHBOARD_URL}/api/send-info-queue?status=pending` (Doppler-sourced creds, same auth
+   pattern as `lookup_lead.py`/`publish_to_watch.py`). Each row already has `contact_id`,
+   `business`, `owner`, `phone`, `email`, `website`.
+2. For each pending row, **in the foreground, one at a time** (never background this — see the
+   leadgen backgrounding-bug precedent):
+   - **If `website` is set:** run Steps 3-6 of the main workflow above (headcam duration → capture
+     site → composite → verify) to build the personalized video.
+   - **If `website` is blank:** skip straight to publishing — per Dylan's explicit call, there's no
+     site to composite a background from, so the send goes out with the **headcam clip alone**, no
+     bubble/background compositing. Use `content-agent/raw/headcam-master.mp4` directly as the file
+     to publish in the next step.
+   - Publish via `publish_to_watch.py "<file>" "<business-slug>-<YYYY-MM-DD>" "<Business Name>" "<contact_id>"` (same as Step 7 above — always pass `contact_id`, it's already known from the queue row). Note the `WATCH_URL`.
+   - Report the result back: `POST {DASHBOARD_URL}/api/send-info-queue/{id}/complete {"watch_url": "<WATCH_URL>"}`. This is what actually sends — the backend drops `WATCH_URL` into whatever's currently saved in Business Resources → Outreach Templates → "Send Info (SMS + Email)"'s `{loom_link}` field and sends via the contact's normal Send Info SMS/email. Do **not** send anything yourself in this mode — no `send_outreach_sms.py` call, unlike the main workflow's Step 8.
+   - On any failure (site unreachable, composite/verify error, publish error), instead report `POST {DASHBOARD_URL}/api/send-info-queue/{id}/fail {"error": "<what went wrong>"}` and move to the next row — don't retry the same row in this run.
+3. Report each row's result (sent / failed + why) as it finishes, not batched to the end.
+4. If the queue is empty, say so and stop — nothing else to do.

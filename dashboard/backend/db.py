@@ -1431,6 +1431,31 @@ async def _create_schema(pool: asyncpg.Pool):
             """
         )
 
+        # Queue for personalized Send Info Loom videos — the outreach-video
+        # skill needs local Playwright/ffmpeg + the local headcam master
+        # clip, none of which exist on this Railway container, so a
+        # disposition change can't generate the video synchronously. This
+        # gets drained by a scheduled local Claude Code run (see
+        # content-agent/run-send-info-queue.ps1), same shape as
+        # leadgen-agent's scheduled scrape-leads run. See send_info_queue.py.
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS send_info_loom_queue (
+                id           SERIAL PRIMARY KEY,
+                contact_id   TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+                status       TEXT NOT NULL DEFAULT 'pending',
+                watch_url    TEXT,
+                error        TEXT,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                completed_at TIMESTAMPTZ
+            )
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_send_info_loom_queue_pending "
+            "ON send_info_loom_queue(created_at) WHERE status = 'pending'"
+        )
+
         # Dylan's OWN Calendly connection — same idea as client_marketing_config's
         # calendly_* columns above, just for DigiGrowth's own pipeline rather
         # than a client's. Reuses dialer_settings (the app's existing

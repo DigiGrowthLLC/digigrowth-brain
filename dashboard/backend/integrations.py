@@ -474,10 +474,14 @@ DigiGrowth
 """
 
 
-async def send_info_email(to: str, owner: str | None, business: str | None) -> str:
+async def send_info_email(to: str, owner: str | None, business: str | None, loom_url: str | None = None) -> str:
     """Send the "Send Info" disposition's follow-up email — website + company blurb.
     Subject/body are editable from Business Resources → Outreach Templates
     (stored in dialer_settings); falls back to the defaults below if never saved.
+
+    `loom_url` is the personalized outreach-video watch link generated for
+    this contact by send_info_queue.py — dropped into the template's
+    {loom_link} merge field if present, blank otherwise.
     """
     first_name = first_name_from_owner(owner)
 
@@ -491,7 +495,7 @@ async def send_info_email(to: str, owner: str | None, business: str | None) -> s
     body_template = values.get("info_email_body", INFO_EMAIL_BODY)
 
     subject = f"{subject_template} — {business}" if business else subject_template
-    body = body_template.replace("{first_name}", first_name)
+    body = body_template.replace("{first_name}", first_name).replace("{loom_link}", loom_url or "")
     return await asyncio.to_thread(gmail_send, to, subject, body, True)
 
 

@@ -34,6 +34,7 @@ import integrations
 from db import get_pool
 from merge_fields import apply_merge_fields, first_name_from_owner, greeting_name_from_owner
 from routers import campaigns as campaigns_router
+from sms_text import gsm7_safe
 
 router         = APIRouter()   # authenticated API routes
 webhook_router = APIRouter()  # public Twilio webhook
@@ -56,7 +57,7 @@ SEQUENCE_STEPS = [
 ]
 
 INFO_MESSAGE = (
-    "Hey {first_name}, here's that info — {vsl_link}. "
+    "Hey {first_name}, here's that info - {vsl_link}. "
     "Take a look and let me know what stands out. If it makes sense to chat more, "
     "I'll follow up in a couple days."
 )
@@ -70,6 +71,12 @@ def _twilio():
 
 
 def _send_twilio(to: str, body: str):
+    # GSM-7 guardrail — a stray em dash/curly quote/emoji in a template
+    # silently forces the whole message into UCS-2 (70 chars/segment instead
+    # of 160), roughly doubling Twilio's per-message segment cost. Catches
+    # this here so it's enforced regardless of which template/caller the
+    # body came from. See sms_text.py.
+    body = gsm7_safe(body)
     _twilio().messages.create(
         to=to,
         from_=os.environ["TWILIO_PHONE_NUMBER"],
@@ -325,11 +332,16 @@ async def send_opening_message(contact: dict) -> bool:
     return True
 
 
-async def send_info_message(contact: dict) -> bool:
+async def send_info_message(contact: dict, loom_url: str | None = None) -> bool:
     """
     Send the "Send Info" text — website + a one-line pitch. Unlike the sms-handoff
     opener, this doesn't require sms-handoff status; it fires for any contact the
     dialer disposition "Send Info" is logged against. Returns True if sent.
+
+    `loom_url` is the personalized outreach-video watch link generated for
+    this contact by send_info_queue.py (see its module docstring) — dropped
+    into the template's {loom_link} merge field if present. Blank (not the
+    literal placeholder) when no video was generated for this send.
     """
     phone = (contact.get("phone") or "").strip()
     if not phone:
@@ -344,6 +356,7 @@ async def send_info_message(contact: dict) -> bool:
         body = (
             template.replace("{first_name}", first_name)
             .replace("{vsl_link}", integrations.vsl_link(contact.get("id")))
+            .replace("{loom_link}", loom_url or "")
         )
 
         conv = await _get_or_create_conversation(conn, phone)

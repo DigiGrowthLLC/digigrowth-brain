@@ -15,6 +15,9 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   GET  /api/dialer/script        — the default Call Script's text (read-only; see below)
   GET  /api/dialer/info-template — "Send Info" SMS/email templates
   PUT  /api/dialer/info-template — save "Send Info" SMS/email templates
+  GET  /api/send-info-queue      — pending Send Info Loom queue entries
+  POST /api/send-info-queue/{id}/complete — report a generated video, sends the SMS/email
+  POST /api/send-info-queue/{id}/fail     — report generation failure
   GET  /api/dialer/no-show-template — "No Show" SMS/email templates
   PUT  /api/dialer/no-show-template — save "No Show" SMS/email templates
   GET  /api/dialer/cancel-template — "Cancellation" recovery SMS/email templates
@@ -52,6 +55,7 @@ import integrations
 import no_show_sequence
 import onboarding_sequence
 import reminder_engine
+import send_info_queue
 from db import get_pool
 from models import DISPOSITION_TO_STATUS
 from routers import sms as sms_router
@@ -194,6 +198,45 @@ async def save_info_template(body: dict):
                 key, value,
             )
     return {"ok": True}
+
+
+# ── Send Info Loom queue (drained by a scheduled local Claude Code run — ────
+# see send_info_queue.py's module docstring for why generation can't happen
+# synchronously here). GET lists pending work for the outreach-video skill's
+# Send Info Queue Mode; complete/fail report back once each item's done.
+
+@router.get("/send-info-queue")
+async def list_send_info_queue(status: str = "pending"):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT q.id, q.status, q.watch_url, q.error, q.created_at, "
+            "c.id AS contact_id, c.business, c.owner, c.phone, c.email, c.website "
+            "FROM send_info_loom_queue q JOIN contacts c ON c.id = q.contact_id "
+            "WHERE q.status = $1 ORDER BY q.created_at",
+            status,
+        )
+    return [dict(r) for r in rows]
+
+
+@router.post("/send-info-queue/{queue_id}/complete")
+async def complete_send_info_queue(queue_id: int, body: dict):
+    watch_url = (body.get("watch_url") or "").strip()
+    if not watch_url:
+        raise HTTPException(status_code=400, detail="watch_url required")
+    try:
+        return await send_info_queue.complete(queue_id, watch_url)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/send-info-queue/{queue_id}/fail")
+async def fail_send_info_queue(queue_id: int, body: dict):
+    error = (body.get("error") or "").strip() or "unknown error"
+    try:
+        return await send_info_queue.fail(queue_id, error)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 # ── "No Show" 4-touch sequence templates (Business Resources → Outreach ─────
@@ -994,23 +1037,14 @@ async def classify(body: dict):
                     except Exception as e:
                         print(f"sms-handoff opener failed for {updated['phone']}: {e}")
 
-                # Send Info: text and email the prospect DigiGrowth's website and a
-                # short company blurb. Independent sends — one failing shouldn't
-                # block the other.
+                # Send Info: queues a personalized outreach-video Loom for
+                # this contact instead of sending immediately — see
+                # send_info_queue.py's module docstring.
                 if disposition == "Send Info" and updated:
                     try:
-                        await sms_router.send_info_message(dict(updated))
+                        await send_info_queue.enqueue(dict(updated))
                     except Exception as e:
-                        print(f"send-info SMS failed for {updated['phone']}: {e}")
-                    if updated.get("email"):
-                        try:
-                            result = await integrations.send_info_email(
-                                updated["email"], updated.get("owner"), updated.get("business"),
-                            )
-                            if not result.startswith("Sent email"):
-                                print(f"send-info email to {updated['email']} did not send: {result}")
-                        except Exception as e:
-                            print(f"send-info email failed for {updated['email']}: {e}")
+                        print(f"send-info enqueue failed for contact {updated.get('id')}: {e}")
 
                 # Append call notes to the contact card (visible in CRM/dialer/SMS
                 # panels), timestamped and tagged with the disposition for context.
