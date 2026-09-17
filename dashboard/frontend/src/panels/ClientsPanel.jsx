@@ -663,9 +663,12 @@ function ActionItemsSection() {
 // team actually does the work (see the per-client toggle panel added to
 // ClientRow below).
 
+// Post-launch items are generic timeline milestones (not per-client agency
+// tasks), so they're excluded from the admin catalog editor and per-client
+// toggle below entirely — the client portal's LaunchChecklistTab still
+// renders them (fetched straight from the API, not filtered by phase).
 const CHECKLIST_PHASE_OPTIONS = [
   { value: "prelaunch", label: "Prelaunch" },
-  { value: "post_launch", label: "Post Launch" },
 ];
 
 function ChecklistItemRow({ item, onDelete }) {
@@ -722,7 +725,6 @@ function LaunchChecklistSection() {
   };
 
   const prelaunch = items.filter((i) => (i.phase || "prelaunch") === "prelaunch");
-  const postLaunch = items.filter((i) => i.phase === "post_launch");
 
   return (
     <div style={{ marginTop: 32 }}>
@@ -761,7 +763,7 @@ function LaunchChecklistSection() {
       )}
 
       {CHECKLIST_PHASE_OPTIONS.map((phaseOpt) => {
-        const phaseItems = phaseOpt.value === "prelaunch" ? prelaunch : postLaunch;
+        const phaseItems = prelaunch;
         return (
           <div key={phaseOpt.value} style={{ marginBottom: 18 }}>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginBottom: 8 }}>
@@ -791,7 +793,10 @@ function ClientLaunchChecklist({ clientId }) {
 
   const load = async () => {
     const r = await fetch(API(`/clients/${clientId}/launch-checklist`));
-    if (r.ok) setItems(await r.json());
+    // Post-launch items are generic timeline milestones, not per-client
+    // agency tasks — keep them out of this admin toggle (see the note on
+    // CHECKLIST_PHASE_OPTIONS above).
+    if (r.ok) setItems((await r.json()).filter((i) => (i.phase || "prelaunch") === "prelaunch"));
     setLoading(false);
   };
 
