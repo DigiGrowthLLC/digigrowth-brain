@@ -61,7 +61,7 @@ async def _fetch_report_from_github(rel_path: str, job_label: str) -> str | None
     """
     import base64
 
-    repo = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+    repo = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
     token = os.environ.get("GIT_TOKEN", "")
     api_url = f"https://api.github.com/repos/{repo}/contents/{rel_path}"
     headers = {"Accept": "application/vnd.github.v3+json"}
@@ -125,7 +125,7 @@ async def _push_file_to_github(rel_path: str, content: str, message: str) -> str
     """Write a file to GitHub via the REST API (get current SHA, then PUT)."""
     import base64
 
-    repo = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+    repo = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
     token = os.environ.get("GIT_TOKEN", "")
     if not token:
         return "no GIT_TOKEN set"

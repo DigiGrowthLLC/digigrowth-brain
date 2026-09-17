@@ -27,7 +27,7 @@ from db import get_pool
 router = APIRouter()
 
 _REPO_ROOT = pathlib.Path(__file__).parent.parent.parent.parent.resolve()
-_GITHUB_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+_GITHUB_REPO = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
 _AGENT_ID = "settings-os"
 
 BLOCKED_FILENAMES = {".env", "credentials.json", "settings.local.json"}

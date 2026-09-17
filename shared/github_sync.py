@@ -23,7 +23,7 @@ import subprocess
 import urllib.error
 import urllib.request
 
-GITHUB_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
 
 # Repo root = parent of this file's directory (shared/ → repo root)
 _REPO_ROOT = pathlib.Path(__file__).parent.parent.resolve()

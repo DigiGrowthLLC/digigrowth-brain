@@ -32,7 +32,7 @@ router = APIRouter()
 
 _REGISTRY_PATH = pathlib.Path(__file__).parent.parent / "agents_registry.json"
 _REPO_ROOT = _REGISTRY_PATH.parent.parent.parent  # dashboard/backend/ → dashboard/ → repo root
-_GITHUB_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+_GITHUB_REPO = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
 
 
 # ── GitHub API helpers ────────────────────────────────────────────────────────
@@ -1117,7 +1117,7 @@ async def post_report_now(filename_prefix: str, date: str | None = None):
 
     date_str = date or datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
     rel_path = f"executive-assistant/reports/{filename_prefix}-{date_str}.md"
-    repo = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+    repo = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
     token = os.environ.get("GIT_TOKEN", "")
     api_url = f"https://api.github.com/repos/{repo}/contents/{rel_path}"
     headers = {"Accept": "application/vnd.github.v3+json"}

@@ -13,9 +13,9 @@ from db import get_pool
 
 router = APIRouter()
 
-_WEBSITE_REPO = "dylangroenendijk-sys/digigrowth-website"
+_WEBSITE_REPO = "DigiGrowthLLC/digigrowth-website"
 _BLOG_POSTS_PATH = "src/content/blog-posts.json"
-_BRAIN_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+_BRAIN_REPO = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
 _API_BASE = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app")
 NEWSLETTER_DAILY_CAP = integrations.NEWSLETTER_DAILY_CAP
 

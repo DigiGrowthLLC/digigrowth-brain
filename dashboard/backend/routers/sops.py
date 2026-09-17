@@ -15,7 +15,7 @@ from db import get_pool
 router = APIRouter()
 
 _COLS = "id, title, content, category, visibility, sort_order, doc_type, file_name, file_type, file_size, github_path, created_at, updated_at"
-_GITHUB_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+_GITHUB_REPO = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
 _MAX_UPLOAD_BYTES = 95 * 1024 * 1024  # 95 MB — under GitHub's 100 MB API limit
 
 

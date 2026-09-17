@@ -31,7 +31,7 @@ import integrations
 from db import get_pool
 from routers.approvals import create_approval_row
 
-_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+_REPO = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
 _TOKEN = os.environ.get("GIT_TOKEN", "")
 _REPO_ROOT = pathlib.Path("/repo")
 

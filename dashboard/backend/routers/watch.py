@@ -30,7 +30,7 @@ from db import get_pool
 router = APIRouter()          # public: /watch/{slug}, /watch/{slug}/file
 admin_router = APIRouter()    # authenticated: /watch-videos (upload)
 
-_GITHUB_REPO = os.environ.get("GITHUB_REPO", "dylangroenendijk-sys/digigrowth-brain")
+_GITHUB_REPO = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
 _DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/")
 
 # In-memory cache of fetched video bytes, keyed by slug — only ever populated
