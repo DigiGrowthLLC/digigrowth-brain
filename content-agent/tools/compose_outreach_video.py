@@ -7,10 +7,12 @@ MARGIN = 40
 # window's default centered x-offset. Positive = crop window moves right, which
 # moves the subject's face LEFT in the bubble; negative = window moves left,
 # face moves RIGHT (and crops out anything to the right, e.g. a mirror in the
-# background). Tuned against headcam-master.mp4 so the subject is centered and
-# the mirror in the room is fully cropped out — re-tune (grab a frame, render a
-# few offset previews, pick) if a differently-framed headcam clip is ever used.
-CROP_X_SHIFT = -60
+# background). Re-tuned 2026-09-17 against the new headcam-master.mp4 (a wider
+# 1920x1080 recording, differently framed than the old clip -60 was tuned
+# against) — verified centered via a red guideline test at x=160 across a
+# shift sweep. Re-tune again (grab a frame, render a few offset previews,
+# pick) if a differently-framed headcam clip is ever swapped in.
+CROP_X_SHIFT = 0
 
 
 def main():
