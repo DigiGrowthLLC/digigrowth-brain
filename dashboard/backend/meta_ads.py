@@ -71,12 +71,47 @@ async def _fetch_insights(http: httpx.AsyncClient, ad_account_id: str, token: st
     return resp.json().get("data", [])
 
 
+async def _upsert_days(conn, client_id: int, days: list[dict]) -> int:
+    upserted = 0
+    for day in days:
+        try:
+            stat_date = day.get("date_start")
+            if not stat_date:
+                continue
+            await conn.execute(
+                """
+                INSERT INTO ad_campaign_stats
+                    (client_id, platform, stat_date, spend, impressions, clicks, leads, raw, synced_at)
+                VALUES ($1, 'meta', $2, $3, $4, $5, $6, $7, now())
+                ON CONFLICT (client_id, platform, stat_date) DO UPDATE SET
+                    spend = EXCLUDED.spend, impressions = EXCLUDED.impressions,
+                    clicks = EXCLUDED.clicks, leads = EXCLUDED.leads,
+                    raw = EXCLUDED.raw, synced_at = now()
+                """,
+                client_id, stat_date,
+                float(day.get("spend", 0) or 0),
+                int(float(day.get("impressions", 0) or 0)),
+                int(float(day.get("clicks", 0) or 0)),
+                _extract_lead_count(day.get("actions")),
+                json.dumps(day),
+            )
+            upserted += 1
+        except Exception as e:
+            print(f"[meta_ads] failed to upsert day {day.get('date_start')} for client={client_id}: {e}")
+    return upserted
+
+
 async def sync_meta_ad_stats() -> None:
     """Scheduler job (main.py, once daily) — polls every client with a
     configured meta_ad_account_id and upserts the last _WINDOW_DAYS days of
     spend/impressions/clicks/leads into ad_campaign_stats. One client's
     missing token/revoked access/bad account id must never block every
-    other client's sync — each client's block is fully isolated."""
+    other client's sync — each client's block is fully isolated.
+
+    Errors here only ever reach Railway's stdout logs — see
+    sync_one_client_now() below for the manual-trigger path a rep can
+    actually see the result of, from Business Resources → the client's
+    Marketing Setup guide."""
     token = os.environ.get("META_SYSTEM_USER_TOKEN")
     if not token:
         print("[meta_ads] META_SYSTEM_USER_TOKEN not set — skipping sync entirely (Meta App Review likely not complete yet)")
@@ -105,29 +140,38 @@ async def sync_meta_ad_stats() -> None:
                 print(f"[meta_ads] sync failed for client={client_id} (ad account {ad_account_id}): {e}")
                 continue
 
-            for day in days:
-                try:
-                    stat_date = day.get("date_start")
-                    if not stat_date:
-                        continue
-                    pool = await get_pool()
-                    async with pool.acquire() as conn:
-                        await conn.execute(
-                            """
-                            INSERT INTO ad_campaign_stats
-                                (client_id, platform, stat_date, spend, impressions, clicks, leads, raw, synced_at)
-                            VALUES ($1, 'meta', $2, $3, $4, $5, $6, $7, now())
-                            ON CONFLICT (client_id, platform, stat_date) DO UPDATE SET
-                                spend = EXCLUDED.spend, impressions = EXCLUDED.impressions,
-                                clicks = EXCLUDED.clicks, leads = EXCLUDED.leads,
-                                raw = EXCLUDED.raw, synced_at = now()
-                            """,
-                            client_id, stat_date,
-                            float(day.get("spend", 0) or 0),
-                            int(float(day.get("impressions", 0) or 0)),
-                            int(float(day.get("clicks", 0) or 0)),
-                            _extract_lead_count(day.get("actions")),
-                            json.dumps(day),
-                        )
-                except Exception as e:
-                    print(f"[meta_ads] failed to upsert day {day.get('date_start')} for client={client_id}: {e}")
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                await _upsert_days(conn, client_id, days)
+
+
+async def sync_one_client_now(client_id: int) -> int:
+    """Manual trigger for testing/verification (routers/client_marketing.py's
+    POST .../sync-meta-ads) — same code path as the scheduled daily sync,
+    just scoped to one client and raising RuntimeError with a specific,
+    user-facing reason instead of silently skipping/printing to logs.
+    Returns the number of days upserted."""
+    token = os.environ.get("META_SYSTEM_USER_TOKEN")
+    if not token:
+        raise RuntimeError(
+            "META_SYSTEM_USER_TOKEN isn't set — this requires Meta App Review + "
+            "Business Verification to be complete first (see meta_ads.py's module docstring)."
+        )
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        config = await conn.fetchrow(
+            "SELECT meta_ad_account_id FROM client_marketing_config WHERE client_id = $1", client_id,
+        )
+    ad_account_id = ((config["meta_ad_account_id"] if config else None) or "").strip().removeprefix("act_")
+    if not ad_account_id:
+        raise RuntimeError("No Meta Ad Account ID saved for this client yet.")
+
+    until = date.today()
+    since = until - timedelta(days=_WINDOW_DAYS)
+    async with httpx.AsyncClient() as http:
+        days = await _fetch_insights(http, ad_account_id, token, since, until)
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await _upsert_days(conn, client_id, days)

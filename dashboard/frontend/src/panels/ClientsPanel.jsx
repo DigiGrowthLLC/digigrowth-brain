@@ -1786,7 +1786,7 @@ const MARKETING_GUIDES = {
         fields: [
           { key: "meta_ad_account_id", label: "Meta Ad Account ID", placeholder: "123456789012345" },
           { key: "meta_page_id", label: "Meta Page ID", placeholder: "987654321098765" },
-        ] },
+        ], testAction: "meta_ads" },
       { text: "Not yet automated for visuals — see the automation note below this guide. For now: produce the image/video manually using the copy above." },
       { text: "Upload the finished creative directly into the client's ad account.", link: "https://business.facebook.com/adsmanager", linkLabel: "Meta Ads Manager" },
     ],
@@ -2445,6 +2445,7 @@ function GuideModal({
   guide, progress, onToggleStep, config, client, onSaveFields,
   testEmailTo, setTestEmailTo, sendTestEmail, testingEmail, testError,
   syncEmailNow, syncingEmail,
+  syncMetaAdsNow, syncingMeta, metaSyncResult, metaSyncError,
   warmupStatus, warmupLoading, warmupError, startWarmup, refreshWarmupStatus,
   onClose,
 }) {
@@ -2569,6 +2570,29 @@ function GuideModal({
                       </div>
                       {testError && (
                         <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{testError}</div>
+                      )}
+                    </div>
+                  )}
+                  {s.testAction === "meta_ads" && (
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        className="btn btn-secondary" style={{ fontSize: 9, padding: "3px 8px" }}
+                        onClick={syncMetaAdsNow} disabled={syncingMeta}
+                      >
+                        {syncingMeta ? "SYNCING…" : "SYNC NOW"}
+                      </button>
+                      <div style={{ marginTop: 3, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
+                        Pulls this client's last 3 days of Meta ad spend immediately instead of waiting for the daily 5am sync — use this to confirm the connection actually works.
+                      </div>
+                      {metaSyncResult && (
+                        <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4ade80" }}>
+                          {metaSyncResult}
+                        </div>
+                      )}
+                      {metaSyncError && (
+                        <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>
+                          {metaSyncError}
+                        </div>
                       )}
                     </div>
                   )}
@@ -2786,6 +2810,25 @@ function ClientMarketingSetup({ clientId }) {
     }
   };
 
+  const [syncingMeta, setSyncingMeta] = useState(false);
+  const [metaSyncResult, setMetaSyncResult] = useState("");
+  const [metaSyncError, setMetaSyncError] = useState("");
+  const syncMetaAdsNow = async () => {
+    setSyncingMeta(true);
+    setMetaSyncResult("");
+    setMetaSyncError("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/sync-meta-ads`), { method: "POST" });
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(data?.detail || "Failed to sync Meta ads");
+      setMetaSyncResult(`Synced ${data.days_synced} day(s) — check the client's portal Analytics tab.`);
+    } catch (e) {
+      setMetaSyncError(e.message);
+    } finally {
+      setSyncingMeta(false);
+    }
+  };
+
   const [warmupStatus, setWarmupStatus] = useState(null);
   const [warmupLoading, setWarmupLoading] = useState(false);
   const [warmupError, setWarmupError] = useState("");
@@ -2942,6 +2985,10 @@ function ClientMarketingSetup({ clientId }) {
         testError={error}
         syncEmailNow={syncEmailNow}
         syncingEmail={syncingEmail}
+        syncMetaAdsNow={syncMetaAdsNow}
+        syncingMeta={syncingMeta}
+        metaSyncResult={metaSyncResult}
+        metaSyncError={metaSyncError}
         warmupStatus={warmupStatus}
         warmupLoading={warmupLoading}
         warmupError={warmupError}

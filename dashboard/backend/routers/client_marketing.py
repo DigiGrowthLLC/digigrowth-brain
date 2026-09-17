@@ -23,6 +23,7 @@ import client_email
 import client_sms
 import context_gen
 import email_warmup
+import meta_ads
 from db import get_pool
 from models import ClientMarketingConfigUpdate, ClientSmsSequenceUpdate, ClientTestEmail
 
@@ -146,6 +147,25 @@ async def sync_client_email_now(client_id: int):
                 client_id, newest_ts,
             )
     return {"ok": True}
+
+
+@router.post("/clients/{client_id}/marketing-config/sync-meta-ads")
+async def sync_client_meta_ads_now(client_id: int):
+    """Manual trigger for testing/verification — same code path as the
+    scheduled daily sync (meta_ads.sync_meta_ad_stats), scoped to one client
+    and surfacing the specific reason it didn't work (no token yet, no ad
+    account id saved, or the Graph API's own error) instead of that only
+    ever reaching Railway's logs."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(404, "Client not found")
+    try:
+        days_synced = await meta_ads.sync_one_client_now(client_id)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "days_synced": days_synced}
 
 
 @router.post("/clients/{client_id}/marketing-config/start-warmup")
