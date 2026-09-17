@@ -103,7 +103,7 @@ export default function AppointmentsPanel() {
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <div>
           <div className="sec-label" style={{ marginBottom: 2 }}>{FILTER_LABELS[filter]}</div>
         </div>
@@ -115,8 +115,10 @@ export default function AppointmentsPanel() {
         </select>
       </div>
 
-      <div className="glass-card" style={{ padding: 0, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      {/* Table has 8 columns — horizontal overflow on a phone is contained
+          to this scroller, same as CRM's contact table. */}
+      <div className="glass-card" style={{ padding: 0, overflow: "auto" }}>
+        <table style={{ width: "100%", minWidth: 720, borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid #1a2540" }}>
               {["Prospect", "Business", "Appointment (local time)", "24h", "6h", "1h", "Outcome", ""].map(h => (

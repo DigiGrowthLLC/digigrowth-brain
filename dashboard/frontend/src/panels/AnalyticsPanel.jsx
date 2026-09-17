@@ -39,7 +39,7 @@ function SmsOutreachCard({ outreach, tab }) {
   return (
     <div className="glass-card" style={{ padding: "20px 22px" }}>
       <SecLabel>SMS Outreach</SecLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 4 }}>
+      <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 10, marginTop: 4 }}>
         <MiniStat label="Total Outreach"  value={num(sms.total_outreach)}  color="#5a9bf0" />
         <MiniStat label="Reply Rate"      value={pct(sms.reply_rate)}      color="#5a9bf0" />
         <MiniStat label="DM Reached Rate" value={pct(sms.dm_reached_rate)} color="#5a9bf0" />
@@ -62,7 +62,7 @@ function EmailOutreachCard({ outreach, tab }) {
   return (
     <div className="glass-card" style={{ padding: "20px 22px" }}>
       <SecLabel>Email Outreach</SecLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 4 }}>
+      <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 10, marginTop: 4 }}>
         <MiniStat label="Sent"                  value={num(email.total_sent)}          color="#9b6bd8" />
         <MiniStat label="Open Rate"              value={pct(email.open_rate)}           color="#9b6bd8" />
         <MiniStat label="Reply Rate"             value={pct(email.reply_rate)}          color="#9b6bd8" />
@@ -83,7 +83,7 @@ function ColdCallingCard({ outreach, tab }) {
   return (
     <div className="glass-card" style={{ padding: "20px 22px" }}>
       <SecLabel>Cold Calling</SecLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 4 }}>
+      <div className="grid grid-cols-2 sm:grid-cols-3" style={{ gap: 10, marginTop: 4 }}>
         <MiniStat label="Total Calls"       value={num(call.total)}             color="#3a7bd5" />
         <MiniStat label="Answer Rate"       value={pct(call.answer_rate)}       color="#3a7bd5" />
         <MiniStat label="Pitch Rate"        value={pct(call.pitch_rate)}        color="#3a7bd5" />
@@ -349,10 +349,10 @@ export default function AnalyticsPanel() {
   const closeRate    = funnel.shows       ? _pct(funnel.closes,   funnel.shows)       : null;
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="px-4 py-4 sm:px-6 sm:py-6" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 24 }}>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
             Analytics
@@ -417,7 +417,7 @@ export default function AnalyticsPanel() {
       {/* ── Sales Statistics ───────────────────────────────────────── */}
       <div>
         <SecLabel>Sales Statistics</SecLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+        <div className="grid grid-cols-2 sm:grid-cols-3" style={{ gap: 10 }}>
           <MiniStat label="Appointments Booked" value={num(sales?.discovery_calls)} color="#5a9bf0" />
           <MiniStat label="Shows"               value={num(sales?.shows)}   color="#5a9bf0" />
           <MiniStat label="Show Rate"           value={sales?.discovery_calls ? `${Math.round((sales?.shows ?? 0) / sales.discovery_calls * 100)}%` : "—"} color="#14c882" />
@@ -439,7 +439,7 @@ export default function AnalyticsPanel() {
       {/* ── Lead Grades & Geo ──────────────────────────────────────── */}
       <div>
         <SecLabel>Lead Grades & Geography</SecLabel>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 16 }}>
 
           {/* Grade table */}
           <div className="glass-card" style={{ padding: "18px 20px" }}>

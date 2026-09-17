@@ -2799,17 +2799,34 @@ export default function SOPsPanel() {
   }, {});
 
   const showEditor = selectedId !== null || isNew;
+  // Drives the mobile sidebar<->detail-pane swap below — true any time the
+  // right-hand pane has real content (a selected item, or a new-doc/
+  // new-sequence/new-script draft in progress via showEditor).
+  const mobileDetailActive = !!selectedItem || showEditor;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <style>{PROSE_CSS}</style>
 
       {/* Top bar */}
-      <div style={{
+      <div className="flex-wrap" style={{
         padding: "16px 24px 12px",
         borderBottom: "1px solid rgba(58,123,213,0.12)",
         display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
       }}>
+        {mobileDetailActive && (
+          <button
+            onClick={() => { setSelectedItem(null); setSelectedId(null); setIsNew(false); }}
+            className="md:hidden"
+            style={{
+              background: "none", border: "none", color: "#3a7bd5", cursor: "pointer",
+              fontFamily: "'Share Tech Mono', monospace", fontSize: 10, letterSpacing: "0.06em",
+              padding: "4px 0", flexShrink: 0,
+            }}
+          >
+            ‹ BACK
+          </button>
+        )}
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
@@ -2874,12 +2891,15 @@ export default function SOPsPanel() {
       {/* Body */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* Sidebar */}
-        <div style={{
-          width: 240, flexShrink: 0,
-          borderRight: "1px solid rgba(58,123,213,0.1)",
-          display: "flex", flexDirection: "column", overflow: "hidden",
-        }}>
+        {/* Sidebar — full-width on mobile until something is selected, then
+            the editor/viewer pane takes over full-screen; always
+            side-by-side at md+, same pattern as Inbox/Agents. */}
+        <div
+          className={(mobileDetailActive ? "hidden " : "flex ") + "md:flex flex-col flex-shrink-0 w-full md:w-[240px]"}
+          style={{
+            borderRight: "1px solid rgba(58,123,213,0.1)",
+            overflow: "hidden",
+          }}>
           {/* Subsection tabs */}
           <div style={{ padding: "10px 8px 0", flexShrink: 0 }}>
             {SUBSECTIONS.map(sub => (
@@ -2983,8 +3003,8 @@ export default function SOPsPanel() {
           </div>
         </div>
 
-        {/* Editor / file viewer pane */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {/* Editor / file viewer pane — hidden on mobile until selected */}
+        <div className={(!mobileDetailActive ? "hidden " : "flex ") + "md:flex flex-col flex-1 min-w-0"} style={{ overflow: "hidden" }}>
           {selectedItem?.sendInfo ? (
             <OutreachTemplatesEditor categories={categories} onCategoryChange={setSendInfoCategory} />
           ) : selectedItem?.noShow ? (

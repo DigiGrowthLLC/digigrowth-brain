@@ -126,10 +126,11 @@ function AddTransactionModal({ onClose, onSaved, onRecurringSaved }) {
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
         backdropFilter: "blur(6px)", zIndex: 1000,
         display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
       }}
       onClick={onClose}
     >
-      <div className="glass-card" style={{ width: 440, padding: "28px 32px" }} onClick={e => e.stopPropagation()}>
+      <div className="glass-card w-full sm:w-[440px]" style={{ padding: "28px 32px" }} onClick={e => e.stopPropagation()}>
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "#f0f4ff", marginBottom: 22 }}>
           Add Transaction
         </div>
@@ -176,7 +177,7 @@ function AddTransactionModal({ onClose, onSaved, onRecurringSaved }) {
         </div>
 
         {/* Amount + Date/Start date */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginBottom: 14 }}>
           <div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>AMOUNT ($)</div>
             <input
@@ -370,7 +371,7 @@ export default function FinancesPanel() {
   }
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 24 }}>
+    <div className="px-4 py-4 sm:px-6 sm:py-6" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 24 }}>
 
       {showAddForm && (
         <AddTransactionModal
@@ -381,7 +382,7 @@ export default function FinancesPanel() {
       )}
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
             Finances
@@ -390,7 +391,7 @@ export default function FinancesPanel() {
             MANUAL LEDGER · BUSINESS ACCOUNT
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={() => setShowAddForm(true)}
             className="btn btn-primary"
@@ -403,7 +404,7 @@ export default function FinancesPanel() {
       </div>
 
       {/* Summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 12 }}>
         <SummaryCard label="Revenue"  value={money(summary?.income)}   color="#14c882" />
         <SummaryCard label="Expenses" value={money(summary?.expenses)}  color="#f0a028" />
         <SummaryCard
@@ -539,7 +540,7 @@ export default function FinancesPanel() {
       </div>
 
       {/* Spending by category */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr]" style={{ gap: 16 }}>
 
         <div className="glass-card" style={{ padding: "18px 20px" }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 14 }}>

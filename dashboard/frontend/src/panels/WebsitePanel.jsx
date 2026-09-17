@@ -6,8 +6,8 @@ const ANALYTICS_URL = "https://vercel.com/digi-growth/digigrowth-website/analyti
 
 export default function WebsitePanel() {
   return (
-    <div style={{
-      flex: 1, overflowY: "auto", padding: "32px 32px",
+    <div className="px-4 py-6 sm:px-8 sm:py-8" style={{
+      flex: 1, overflowY: "auto",
       fontFamily: "'Space Grotesk', sans-serif",
     }}>
 
@@ -25,7 +25,7 @@ export default function WebsitePanel() {
       </div>
 
       {/* Cards row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, maxWidth: 1040 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 16, maxWidth: 1040 }}>
 
         {/* Vercel Dashboard */}
         <a

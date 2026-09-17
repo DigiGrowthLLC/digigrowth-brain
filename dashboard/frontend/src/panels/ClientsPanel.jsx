@@ -114,8 +114,8 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
 
   return (
     <div style={{ borderRadius: 10, background: "rgba(255,255,255,0.02)", marginBottom: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px" }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
               {client.name}
@@ -223,7 +223,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
       )}
       {showDetails && (
         <div>
-          <div style={{ display: "flex", gap: 6, padding: "10px 16px 0", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+          <div style={{ display: "flex", gap: 6, padding: "10px 16px 0", borderTop: "1px solid rgba(58,123,213,0.1)", overflowX: "auto" }}>
             {DETAILS_TABS.map((t) => (
               <button
                 key={t.id}
@@ -231,7 +231,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
                 style={{
                   background: detailsTab === t.id ? "rgba(58,123,213,0.14)" : "transparent",
                   border: detailsTab === t.id ? "1px solid rgba(58,123,213,0.3)" : "1px solid transparent",
-                  borderRadius: 999, cursor: "pointer", padding: "5px 12px",
+                  borderRadius: 999, cursor: "pointer", padding: "5px 12px", flexShrink: 0,
                   fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
                   color: detailsTab === t.id ? "#9cc4f5" : "#5a7aa0",
                 }}
@@ -1049,10 +1049,11 @@ function AddClientTransactionModal({ clientId, onClose, onSaved }) {
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
         backdropFilter: "blur(6px)", zIndex: 1000,
         display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
       }}
       onClick={onClose}
     >
-      <div className="glass-card" style={{ width: 440, padding: "28px 32px" }} onClick={(e) => e.stopPropagation()}>
+      <div className="glass-card w-full sm:w-[440px]" style={{ padding: "28px 32px" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "#f0f4ff", marginBottom: 22 }}>
           Add Entry
         </div>
@@ -1083,7 +1084,7 @@ function AddClientTransactionModal({ clientId, onClose, onSaved }) {
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginBottom: 14 }}>
           <div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>AMOUNT ($)</div>
             <input
@@ -1226,11 +1227,11 @@ function ClientFinance({ clientId }) {
         <AddClientTransactionModal clientId={clientId} onClose={() => setShowAddForm(false)} onSaved={handleTxnSaved} />
       )}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>
           MANUAL LEDGER · COST TO DELIVER VS. CLIENT-ATTRIBUTED REVENUE
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={() => setShowAddForm(true)} className="btn btn-primary" style={{ fontSize: 11, padding: "6px 14px" }}>
             + Add Entry
           </button>
@@ -1238,7 +1239,7 @@ function ClientFinance({ clientId }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+      <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 12 }}>
         <ClientFinanceSummaryCard label="Client Revenue" value={clientFinanceMoney(summary.revenue)} color="#14c882" />
         <ClientFinanceSummaryCard label="Total Expenses" value={clientFinanceMoney(summary.expenses)} color="#f0a028" />
         <ClientFinanceSummaryCard label="Ad Spend" value={clientFinanceMoney(summary.ad_spend)} color="#6ab0ff" />
@@ -2937,8 +2938,8 @@ function ClientMarketingSetup({ clientId }) {
       )}
 
       {MARKETING_STEPS.map((step, idx) => (
-        <div key={step.key} style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
+        <div key={step.key} className="flex-wrap" style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
           padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8,
         }}>
           <div>
@@ -2964,11 +2965,11 @@ function ClientMarketingSetup({ clientId }) {
           {step.key === "email" && (
             editing === "gmail" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft3} placeholder="go.clientdomain.com (outreach subdomain)"
+                <input className="dg-input" style={{ fontSize: 11, width: "min(220px, 60vw)" }} value={draft3} placeholder="go.clientdomain.com (outreach subdomain)"
                   onChange={(e) => setDraft3(e.target.value)} autoFocus />
-                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft2} placeholder="contact@go.clientdomain.com"
+                <input className="dg-input" style={{ fontSize: 11, width: "min(220px, 60vw)" }} value={draft2} placeholder="contact@go.clientdomain.com"
                   onChange={(e) => setDraft2(e.target.value)} />
-                <input className="dg-input" style={{ fontSize: 11, width: 220 }} value={draft} placeholder="Gmail refresh token (from reauth_google.py)"
+                <input className="dg-input" style={{ fontSize: 11, width: "min(220px, 60vw)" }} value={draft} placeholder="Gmail refresh token (from reauth_google.py)"
                   onChange={(e) => setDraft(e.target.value)} />
                 <button className="btn btn-primary" style={{ fontSize: 10 }}
                   onClick={() => saveFields({ email_subdomain: draft3.trim() || null, gmail_sender_email: draft2.trim() || null, gmail_refresh_token: draft.trim() || null })}
@@ -2983,7 +2984,7 @@ function ClientMarketingSetup({ clientId }) {
                 </button>
                 {config?.gmail_refresh_token && (
                   <div style={{ display: "flex", gap: 6 }}>
-                    <input className="dg-input" style={{ fontSize: 11, width: 150 }} value={testEmailTo} placeholder="test@…"
+                    <input className="dg-input" style={{ fontSize: 11, width: "min(150px, 45vw)" }} value={testEmailTo} placeholder="test@…"
                       onChange={(e) => setTestEmailTo(e.target.value)} />
                     <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={sendTestEmail} disabled={testingEmail || !testEmailTo.trim()}>
                       {testingEmail ? "SENDING…" : "TEST"}
@@ -3208,9 +3209,9 @@ export default function ClientsPanel() {
   };
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px", display: "flex", flexDirection: "column", gap: 0 }}>
+    <div className="px-4 py-4 sm:px-7 sm:py-6" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 0 }}>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 10 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
             Clients

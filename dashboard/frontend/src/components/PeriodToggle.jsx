@@ -2,7 +2,7 @@ import React from "react";
 
 export default function PeriodToggle({ days, setDays, options }) {
   return (
-    <div style={{
+    <div className="flex-wrap" style={{
       display: "flex", background: "rgba(10,18,48,0.7)",
       border: "1px solid rgba(58,123,213,0.1)", borderRadius: 12, padding: 4, gap: 2,
     }}>
