@@ -139,6 +139,21 @@ async def _process_lead(client_id: int | None, leadgen_id: str, token: str) -> N
             str(uuid.uuid4()), name, phone, email, client_id,
         )
 
+    # Every lead this webhook ever sees came from a paid Meta Lead Ads form
+    # by definition — there's no organic path into this handler at all — so
+    # a client's lead is unconditionally tagged ads-lead here, same
+    # ads-lead/organic-lead vocabulary calendly_webhooks.py's invitee.created
+    # handler uses for a Calendly booking. Guarded the same way: only applied
+    # when the contact doesn't already carry either tag, so this never
+    # clobbers a lead the client (or a rep) already tagged some other way.
+    if client_id is not None:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE contacts SET tags = array_append(tags, 'ads-lead'), updated_at = now() "
+                "WHERE id = $1 AND NOT ('ads-lead' = ANY(tags)) AND NOT ('organic-lead' = ANY(tags))",
+                row["id"],
+            )
+
     if is_new_or_claimed and client_id is not None:
         await response_ai.initiate_conversation(client_id, row["phone"], lead_name=name)
 
