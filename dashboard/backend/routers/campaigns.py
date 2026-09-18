@@ -22,6 +22,8 @@ it's generated/published (its funnel's "Sent" cohort), same timing as
 SMS/email's own stamp-at-send convention.
 """
 
+from datetime import timedelta
+
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
@@ -34,6 +36,16 @@ _CHANNELS_MSG = "channel must be one of sms/email/calling/vsl/loom"
 
 async def _activate(conn, campaign_id: int, channel: str):
     async with conn.transaction():
+        already_active = await conn.fetchval(
+            "SELECT 1 FROM campaign_periods WHERE campaign_id = $1 AND ended_at IS NULL",
+            campaign_id,
+        )
+        if already_active:
+            # No-op — a repeat click on "Reactivate"/create-for-already-active-
+            # channel used to end the open period and immediately open a new
+            # one, logging a spurious few-seconds-long period every time. See
+            # collapse-periods below for cleaning up ones already logged.
+            return
         await conn.execute(
             """
             UPDATE campaign_periods SET ended_at = now()
@@ -160,6 +172,49 @@ async def activate_campaign(campaign_id: int):
             raise HTTPException(status_code=404, detail="Campaign not found")
         await _activate(conn, campaign_id, row["channel"])
     return dict(row)
+
+
+@router.post("/campaigns/{campaign_id}/collapse-periods")
+async def collapse_campaign_periods(campaign_id: int, gap_seconds: int = 30):
+    """Merges this campaign's own consecutive periods wherever the gap
+    between one ending and the next starting is under `gap_seconds` —
+    cleans up the spurious few-seconds-long on/off periods that used to get
+    logged by repeat-clicking Reactivate/create before _activate became a
+    no-op for an already-active campaign (see _activate above). A genuine
+    gap (another campaign was active in between) is always preserved."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        campaign = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        periods = await conn.fetch(
+            "SELECT id, started_at, ended_at FROM campaign_periods WHERE campaign_id = $1 ORDER BY started_at",
+            campaign_id,
+        )
+        gap = timedelta(seconds=gap_seconds)
+        merged = []
+        for p in periods:
+            prev = merged[-1] if merged else None
+            touches_prev = prev is not None and prev["ended_at"] is not None and p["started_at"] <= prev["ended_at"] + gap
+            if touches_prev:
+                prev["ended_at"] = p["ended_at"]
+                prev["ids"].append(p["id"])
+            else:
+                merged.append({"started_at": p["started_at"], "ended_at": p["ended_at"], "ids": [p["id"]]})
+
+        removed = 0
+        async with conn.transaction():
+            for group in merged:
+                keep_id = group["ids"][0]
+                drop_ids = group["ids"][1:]
+                await conn.execute(
+                    "UPDATE campaign_periods SET started_at = $1, ended_at = $2 WHERE id = $3",
+                    group["started_at"], group["ended_at"], keep_id,
+                )
+                if drop_ids:
+                    await conn.execute("DELETE FROM campaign_periods WHERE id = ANY($1)", drop_ids)
+                    removed += len(drop_ids)
+    return {"ok": True, "periods_before": len(periods), "periods_after": len(merged), "removed": removed}
 
 
 @router.post("/campaigns/{campaign_id}/backfill-history")
