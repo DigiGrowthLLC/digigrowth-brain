@@ -306,6 +306,127 @@ function LoomOutreachFunnelCard({ data }) {
   );
 }
 
+const CONTENT_CHANNEL_OPTIONS = [["vsl","VSL"],["loom","Loom Outreach"]];
+const CONTENT_CAMPAIGN_MODAL_CHANNELS = [
+  { value: "vsl",  label: "VSL" },
+  { value: "loom", label: "Loom Outreach" },
+];
+
+// Same "flip through named, time-windowed campaigns" pattern as
+// CampaignsView above, scoped to the two content channels (vsl/loom).
+// A campaign here has no per-contact record to tag (see
+// routers/campaigns.py's module docstring) — a VSL campaign captures
+// every view logged while it's active, a Loom campaign captures every
+// outreach video published while it's active (and everything that
+// video goes on to do later, even after a newer campaign starts).
+function ContentCampaignsView() {
+  const [channel, setChannel]       = useState("vsl");
+  const [campaigns, setCampaigns]   = useState([]);
+  const [selectedId, setSelectedId] = useState(null); // null = All Time (unfiltered aggregate)
+  const [detail, setDetail]         = useState(null);
+  const [allTime, setAllTime]       = useState(null); // unfiltered aggregate for the current channel
+  const [modalOpen, setModalOpen]   = useState(false);
+  const pendingSelectId = React.useRef(undefined);
+
+  useEffect(() => {
+    const path = channel === "vsl" ? "/content-analytics/vsl" : "/content-analytics/loom-outreach";
+    fetch(API(`${path}?days=0`)).then(r => r.ok ? r.json() : null).then(setAllTime);
+  }, [channel]);
+
+  const loadCampaigns = (ch, selectId) => {
+    fetch(API(`/campaigns?channel=${ch}`)).then(r => r.ok ? r.json() : []).then(list => {
+      setCampaigns(list);
+      // Default view is the unfiltered "All Time" aggregate, not any one
+      // campaign — unlike CampaignsView's sms/email/calling flip-through,
+      // where jumping straight into the active campaign is more useful.
+      setSelectedId(selectId !== undefined ? selectId : null);
+    });
+  };
+
+  useEffect(() => {
+    setDetail(null);
+    loadCampaigns(channel, pendingSelectId.current);
+    pendingSelectId.current = undefined;
+  }, [channel]);
+
+  useEffect(() => {
+    if (selectedId == null) { setDetail(null); return; }
+    fetch(API(`/analytics/campaign/${selectedId}?days=0`)).then(r => r.ok ? r.json() : null).then(setDetail);
+  }, [selectedId]);
+
+  async function reactivate(id) {
+    await fetch(API(`/campaigns/${id}/activate`), { method: "POST" });
+    loadCampaigns(channel, id);
+  }
+
+  function onCampaignCreated(campaign) {
+    if (campaign.channel === channel) {
+      loadCampaigns(channel, campaign.id);
+    } else {
+      pendingSelectId.current = campaign.id;
+      setChannel(campaign.channel);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <PeriodToggle days={channel} setDays={setChannel} options={CONTENT_CHANNEL_OPTIONS} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <select
+            value={selectedId ?? ""}
+            onChange={e => setSelectedId(e.target.value === "" ? null : Number(e.target.value))}
+            style={{
+              background: "rgba(30,47,80,0.6)", border: "1px solid #1a2540",
+              borderRadius: 6, color: "#8aaad0",
+              fontFamily: "'Share Tech Mono', monospace", fontSize: 11,
+              padding: "6px 10px", cursor: "pointer",
+            }}
+          >
+            <option value="">All Time (every campaign)</option>
+            {campaigns.map(c => (
+              <option key={c.id} value={c.id}>{c.is_active ? "★ " : ""}{c.name}</option>
+            ))}
+          </select>
+          <button className="btn btn-primary" style={{ fontSize: 11, padding: "6px 14px" }} onClick={() => setModalOpen(true)}>
+            + New {channel === "vsl" ? "VSL" : "Loom"}
+          </button>
+        </div>
+      </div>
+
+      <CampaignModal
+        open={modalOpen}
+        defaultChannel={channel}
+        channels={CONTENT_CAMPAIGN_MODAL_CHANNELS}
+        onClose={() => setModalOpen(false)}
+        onCreated={onCampaignCreated}
+      />
+
+      {selectedId != null && detail && (
+        <div className="glass-card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 700, color: "#f0f4ff" }}>
+              {detail.campaign.name}
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", marginTop: 4 }}>
+              {detail.periods.map((p, i) => (
+                <span key={i}>{i > 0 ? ", " : ""}{fmtCampaignDate(p.started_at)} – {fmtCampaignDate(p.ended_at)}</span>
+              ))}
+            </div>
+          </div>
+          {!detail.campaign.is_active && (
+            <button className="btn btn-secondary" onClick={() => reactivate(detail.campaign.id)}>Reactivate</button>
+          )}
+        </div>
+      )}
+
+      {channel === "vsl"
+        ? <VslFunnelCard data={selectedId == null ? allTime : detail?.metrics} />
+        : <LoomOutreachFunnelCard data={selectedId == null ? allTime : detail?.metrics} />}
+    </div>
+  );
+}
+
 const ANALYTICS_VIEW_TABS = [
   { value: "overview",  label: "OVERVIEW" },
   { value: "campaigns", label: "CAMPAIGNS" },
@@ -317,8 +438,6 @@ export default function AnalyticsPanel() {
   const [outreach, setOutreach]       = useState(null);
   const [pipeline, setPipeline]       = useState(null);
   const [sales, setSales]             = useState(null);
-  const [vslFunnel, setVslFunnel]     = useState(null);
-  const [loomFunnel, setLoomFunnel]   = useState(null);
 
   useEffect(() => {
     fetch(API(`/analytics/outreach?days=${days}`)).then(r => r.ok ? r.json() : null).then(setOutreach);
@@ -329,13 +448,6 @@ export default function AnalyticsPanel() {
       fetch(API(`/analytics/pipeline?days=${days}`)).then(r => r.ok ? r.json() : null),
       fetch(API(`/analytics/sales?days=${days}`)).then(r => r.ok ? r.json() : null),
     ]).then(([p, s]) => { setPipeline(p); setSales(s); });
-  }, [days]);
-
-  useEffect(() => {
-    Promise.all([
-      fetch(API(`/content-analytics/vsl?days=${days}`)).then(r => r.ok ? r.json() : null),
-      fetch(API(`/content-analytics/loom-outreach?days=${days}`)).then(r => r.ok ? r.json() : null),
-    ]).then(([v, l]) => { setVslFunnel(v); setLoomFunnel(l); });
   }, [days]);
 
   const funnel = pipeline?.funnel ?? {};
@@ -430,10 +542,7 @@ export default function AnalyticsPanel() {
       {/* ── Content Engagement (VSL + Loom Outreach video tracking) ─── */}
       <div>
         <SecLabel>Content Engagement</SecLabel>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
-          <VslFunnelCard data={vslFunnel} />
-          <LoomOutreachFunnelCard data={loomFunnel} />
-        </div>
+        <ContentCampaignsView />
       </div>
 
       {/* ── Lead Grades & Geo ──────────────────────────────────────── */}

@@ -26,6 +26,7 @@ from pydantic import BaseModel
 
 import r2_storage
 from db import get_pool
+from routers.campaigns import resolve_send_campaign
 
 router = APIRouter()          # public: /watch/{slug}, /watch/{slug}/file
 admin_router = APIRouter()    # authenticated: /watch-videos (upload)
@@ -115,13 +116,17 @@ async def complete_watch_video(body: CompleteRequest):
     contact_id = (body.contact_id or "").strip() or None
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Stamped once, at publish — this is the Loom Outreach funnel's
+        # "Sent" cohort tag (see content_tracking.py::loom_outreach_funnel),
+        # same "tag at send time" convention as SMS/email campaigns.
+        campaign_id = await resolve_send_campaign(conn, "loom", contact_id)
         row = await conn.fetchrow(
-            """INSERT INTO watch_videos (slug, title, github_path, r2_key, file_type, file_size, contact_id)
-               VALUES ($1, $2, NULL, $3, $4, $5, $6)
+            """INSERT INTO watch_videos (slug, title, github_path, r2_key, file_type, file_size, contact_id, campaign_id)
+               VALUES ($1, $2, NULL, $3, $4, $5, $6, $7)
                ON CONFLICT (slug) DO UPDATE
                  SET title = $2, github_path = NULL, r2_key = $3, file_type = $4, file_size = $5, contact_id = $6
                RETURNING slug, title, r2_key, file_type, file_size, contact_id, created_at""",
-            safe_slug, body.title.strip() or safe_slug, body.r2_key, body.content_type, body.file_size, contact_id,
+            safe_slug, body.title.strip() or safe_slug, body.r2_key, body.content_type, body.file_size, contact_id, campaign_id,
         )
     _video_cache.pop(safe_slug, None)
     return {

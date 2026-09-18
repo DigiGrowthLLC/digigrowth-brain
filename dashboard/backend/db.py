@@ -544,6 +544,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pending_sms_campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pending_email_campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
+            ALTER TABLE watch_videos ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
+            ALTER TABLE content_view_events ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS outcome_show TEXT;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS outcome_close TEXT;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS outcome_show_at TIMESTAMPTZ;

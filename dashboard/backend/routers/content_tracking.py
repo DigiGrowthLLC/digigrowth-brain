@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 from db import get_pool
+from routers.campaigns import resolve_send_campaign
 
 router = APIRouter()          # public — mounted with no auth
 admin_router = APIRouter()    # authenticated — mounted under /api
@@ -119,11 +120,23 @@ async def track_view_event(request: Request):
             row = await conn.fetchrow("SELECT id FROM contacts WHERE id = $1", lead)
             if row:
                 contact_id = row["id"]
+        # Only the VSL has a live "campaign" concept tied to view time — see
+        # routers/campaigns.py's module docstring. Loom outreach videos are
+        # tagged on watch_videos instead, at publish time (routers/watch.py),
+        # since that's this content's real "first touch"; re-stamping the
+        # view here too would let a late view of an old video get miscounted
+        # into whatever VSL/loom campaign happens to be active today.
+        campaign_id = None
+        if source == "vsl":
+            try:
+                campaign_id = await resolve_send_campaign(conn, "vsl", None)
+            except Exception:
+                campaign_id = None
         try:
             await conn.execute(
-                "INSERT INTO content_view_events (source, content_key, contact_id, session_id, event_type, from_meta) "
-                "VALUES ($1, $2, $3, $4, $5, $6)",
-                source, content_key, contact_id, session_id, event_type, from_meta,
+                "INSERT INTO content_view_events (source, content_key, contact_id, session_id, event_type, from_meta, campaign_id) "
+                "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                source, content_key, contact_id, session_id, event_type, from_meta, campaign_id,
             )
         except Exception as e:
             print(f"[content_tracking] failed to log view event: {e}")
@@ -182,7 +195,7 @@ async def reset_vsl_stats():
 
 
 @admin_router.get("/content-analytics/vsl")
-async def vsl_funnel(days: int = 0):
+async def vsl_funnel(days: int = 0, campaign_id: int | None = None, since_override=None):
     """VSL funnel — deliberately NOT scoped to "who's a known lead" (that
     turned out to be more attribution than needed): counts every viewer,
     identified or anonymous, keyed by contact_id when a ?lead= link
@@ -191,10 +204,26 @@ async def vsl_funnel(days: int = 0):
     where Booked can only ever count identified viewers (an anonymous
     session has no contacts row to check appointment status against) —
     so booking_rate is a floor, not exact, by nature of anonymous traffic
-    existing at all. `days=0` means all-time."""
-    since = "AND occurred_at >= $1" if days else ""
-    since_e = "AND e.occurred_at >= $1" if days else ""
-    params = [_since(days)] if days else []
+    existing at all. `days=0` means all-time.
+
+    `campaign_id`, when given, narrows to views stamped with that VSL
+    campaign (see track_view_event — a view is tagged with whichever "vsl"
+    campaign was active the moment it was logged, since a new VSL upload
+    has no other "first touch" to hang a campaign off of).
+
+    `since_override`, when given, is used in place of `days` — for the
+    Analytics tab's per-campaign detail view (analytics.py::campaign_analytics),
+    which already computed an exact `since` datetime from its own `days`
+    toggle and would otherwise lose precision round-tripping through days."""
+    effective_since = since_override if since_override is not None else (_since(days) if days else None)
+    since = "AND occurred_at >= $1" if effective_since else ""
+    since_e = "AND e.occurred_at >= $1" if effective_since else ""
+    params = [effective_since] if effective_since else []
+    camp = ""
+    if campaign_id is not None:
+        params.append(campaign_id)
+        camp = f"AND campaign_id = ${len(params)}"
+    camp_e = camp.replace("campaign_id", "e.campaign_id") if camp else ""
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -203,22 +232,22 @@ async def vsl_funnel(days: int = 0):
             WITH viewed AS (
                 SELECT DISTINCT COALESCE(contact_id::text, session_id) AS viewer
                 FROM content_view_events
-                WHERE source = 'vsl' AND event_type = 'view' {since}
+                WHERE source = 'vsl' AND event_type = 'view' {since} {camp}
             ),
             half AS (
                 SELECT DISTINCT COALESCE(contact_id::text, session_id) AS viewer
                 FROM content_view_events
-                WHERE source = 'vsl' AND event_type IN ('progress_50', 'progress_75', 'complete') {since}
+                WHERE source = 'vsl' AND event_type IN ('progress_50', 'progress_75', 'complete') {since} {camp}
             ),
             done AS (
                 SELECT DISTINCT COALESCE(contact_id::text, session_id) AS viewer
                 FROM content_view_events
-                WHERE source = 'vsl' AND event_type = 'complete' {since}
+                WHERE source = 'vsl' AND event_type = 'complete' {since} {camp}
             ),
             booked AS (
                 SELECT DISTINCT c.id FROM contacts c
                 JOIN content_view_events e ON e.contact_id = c.id
-                WHERE e.source = 'vsl' AND e.event_type = 'view' {since_e}
+                WHERE e.source = 'vsl' AND e.event_type = 'view' {since_e} {camp_e}
                 AND c.status = 'appointment-booked'
             )
             SELECT
@@ -239,7 +268,7 @@ async def vsl_funnel(days: int = 0):
 
 
 @admin_router.get("/content-analytics/loom-outreach")
-async def loom_outreach_funnel(days: int = 0):
+async def loom_outreach_funnel(days: int = 0, campaign_id: int | None = None, since_override=None):
     """Loom outreach funnel, cohort = ONLY contacts who were actually sent
     an outreach video (watch_videos.contact_id IS NOT NULL) — this card is
     deliberately hinged on that; a contact never sent a video never
@@ -251,9 +280,23 @@ async def loom_outreach_funnel(days: int = 0):
     already being logged. Engaged/Interested reuse the existing manual
     stage_engaged/stage_interested checkboxes already tracked on
     sms_conversations (routers/sms.py) rather than inventing a new stage
-    concept."""
-    sent_since = "AND wv.created_at >= $1" if days else ""
-    params = [_since(days)] if days else []
+    concept.
+
+    `campaign_id`, when given, narrows the cohort to videos published while
+    that "loom" campaign was active (watch_videos.campaign_id, stamped at
+    publish time in routers/watch.py) — every downstream stage still joins
+    through contact_id as usual, so a video's later views/engagement stay
+    attributed to the campaign it was sent under even if a newer campaign
+    has since gone active.
+
+    `since_override` mirrors vsl_funnel's — see that docstring."""
+    effective_since = since_override if since_override is not None else (_since(days) if days else None)
+    sent_since = "AND wv.created_at >= $1" if effective_since else ""
+    params = [effective_since] if effective_since else []
+    camp = ""
+    if campaign_id is not None:
+        params.append(campaign_id)
+        camp = f"AND wv.campaign_id = ${len(params)}"
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -261,7 +304,7 @@ async def loom_outreach_funnel(days: int = 0):
             f"""
             WITH cohort AS (
                 SELECT DISTINCT contact_id FROM watch_videos wv
-                WHERE contact_id IS NOT NULL {sent_since}
+                WHERE contact_id IS NOT NULL {sent_since} {camp}
             ),
             viewed AS (
                 SELECT DISTINCT contact_id FROM content_view_events

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { API } from "./api.js";
 
-const CHANNELS = [
+const DEFAULT_CHANNELS = [
   { value: "sms",     label: "SMS" },
   { value: "email",    label: "Email" },
   { value: "calling",  label: "Cold Calling" },
@@ -10,17 +10,19 @@ const CHANNELS = [
 // "New Campaign" modal — pick a channel, name the campaign, create it.
 // Creating activates it, which ends whatever campaign was previously
 // active for that channel (see dashboard/backend/routers/campaigns.py).
-// The single entry point for campaign creation, opened from the
-// Campaigns tab in Analytics.
-export default function CampaignModal({ open, defaultChannel, onClose, onCreated }) {
-  const [channel, setChannel]   = useState(defaultChannel || "sms");
+// The single entry point for campaign creation — opened from the Campaigns
+// tab in Analytics (sms/email/calling, the default `channels` list) and
+// from the Content Engagement section (vsl/loom, passed in explicitly).
+export default function CampaignModal({ open, defaultChannel, channels, onClose, onCreated }) {
+  const CHANNELS = channels || DEFAULT_CHANNELS;
+  const [channel, setChannel]   = useState(defaultChannel || CHANNELS[0].value);
   const [active, setActive]     = useState(null);
   const [name, setName]         = useState("");
   const [saving, setSaving]     = useState(false);
   const [err, setErr]           = useState("");
 
   useEffect(() => {
-    if (open) setChannel(defaultChannel || "sms");
+    if (open) setChannel(defaultChannel || CHANNELS[0].value);
   }, [open, defaultChannel]);
 
   useEffect(() => {

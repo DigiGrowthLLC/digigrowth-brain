@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter
 from db import get_pool
+from routers.content_tracking import vsl_funnel, loom_outreach_funnel
 
 router = APIRouter()
 
@@ -1034,6 +1035,10 @@ async def campaign_analytics(campaign_id: int, days: int = 0):
             metrics = await _sms_metrics(conn, since=since, campaign_id=campaign_id)
         elif campaign["channel"] == "email":
             metrics = await _email_metrics(conn, since=since, campaign_id=campaign_id)
+        elif campaign["channel"] == "vsl":
+            metrics = await vsl_funnel(campaign_id=campaign_id, since_override=since)
+        elif campaign["channel"] == "loom":
+            metrics = await loom_outreach_funnel(campaign_id=campaign_id, since_override=since)
         else:
             sales = _load_sales_stats()
             metrics = _calling_metrics_for_campaign(

@@ -1,16 +1,25 @@
 """
 Campaign tracking — named, time-windowed tags for outreach per channel
-(sms / email / calling). Creating a campaign for a channel activates it and
-ends whichever campaign was previously active for that channel; a past
-campaign can be reactivated later, which is why history lives in
-`campaign_periods` (a set of on/off intervals per campaign) rather than a
-single started_at/ended_at pair on `campaigns` itself.
+(sms / email / calling / vsl / loom). Creating a campaign for a channel
+activates it and ends whichever campaign was previously active for that
+channel; a past campaign can be reactivated later, which is why history
+lives in `campaign_periods` (a set of on/off intervals per campaign) rather
+than a single started_at/ended_at pair on `campaigns` itself.
 
 SMS/email conversations get stamped with campaign_id at the moment they
 first send outbound (see sms.py::_store_message, email_inbox.py::manual_email_send,
 integrations.py::process_newsletter_queue). Calling campaigns are not tagged
 in the DB — analytics.py sums the Sheets-digest daily buckets over the
 campaign's periods instead (calling's system of record stays the sheet).
+
+vsl/loom (content_tracking.py, watch.py) have no CRM contact row to pend a
+campaign assignment on, so resolve_send_campaign below skips that step for
+them entirely and just returns whichever campaign is currently active —
+a VSL view is stamped with the active "vsl" campaign at the moment it's
+logged (there's no per-contact "send" for a public page), while a Loom
+outreach video is stamped with the active "loom" campaign at the moment
+it's generated/published (its funnel's "Sent" cohort), same timing as
+SMS/email's own stamp-at-send convention.
 """
 
 from fastapi import APIRouter, HTTPException
@@ -19,7 +28,8 @@ from db import get_pool
 
 router = APIRouter()
 
-_CHANNELS = {"sms", "email", "calling"}
+_CHANNELS = {"sms", "email", "calling", "vsl", "loom"}
+_CHANNELS_MSG = "channel must be one of sms/email/calling/vsl/loom"
 
 
 async def _activate(conn, campaign_id: int, channel: str):
@@ -45,8 +55,13 @@ async def resolve_send_campaign(conn, channel: str, contact_id: str | None) -> i
     endpoints) takes priority and is consumed/cleared here, since it only
     ever applies to that contact's very first send. Otherwise falls back to
     whichever campaign is currently active for the channel, if any.
+
+    vsl/loom have no pending_{channel}_campaign_id column on contacts (no
+    CRM-side manual assignment exists for them) — skip straight to "whichever
+    campaign is active" for those channels rather than probing a column that
+    doesn't exist.
     """
-    if contact_id:
+    if contact_id and channel in ("sms", "email"):
         pending_col = f"pending_{channel}_campaign_id"
         pending_id = await conn.fetchval(
             f"SELECT {pending_col} FROM contacts WHERE id = $1", contact_id
@@ -69,7 +84,7 @@ async def resolve_send_campaign(conn, channel: str, contact_id: str | None) -> i
 @router.get("/campaigns")
 async def list_campaigns(channel: str):
     if channel not in _CHANNELS:
-        raise HTTPException(status_code=400, detail="channel must be one of sms/email/calling")
+        raise HTTPException(status_code=400, detail=_CHANNELS_MSG)
     pool = await get_pool()
     async with pool.acquire() as conn:
         campaigns = await conn.fetch(
@@ -103,7 +118,7 @@ async def list_campaigns(channel: str):
 @router.get("/campaigns/active")
 async def get_active_campaign(channel: str):
     if channel not in _CHANNELS:
-        raise HTTPException(status_code=400, detail="channel must be one of sms/email/calling")
+        raise HTTPException(status_code=400, detail=_CHANNELS_MSG)
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -122,7 +137,7 @@ async def create_campaign(payload: dict):
     channel = (payload or {}).get("channel", "")
     name = (payload or {}).get("name", "").strip()
     if channel not in _CHANNELS:
-        raise HTTPException(status_code=400, detail="channel must be one of sms/email/calling")
+        raise HTTPException(status_code=400, detail=_CHANNELS_MSG)
     if not name:
         raise HTTPException(status_code=400, detail="name required")
 
