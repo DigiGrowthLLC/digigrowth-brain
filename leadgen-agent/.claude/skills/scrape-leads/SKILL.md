@@ -15,18 +15,21 @@ Before starting, check `config.json` — if `"enabled": false`, stop and report 
 
 ## 1. Load state
 
-Run `python lib.py progress-get` (from `leadgen-agent/`) to get the current `{state, city, term_index}` cursor, and read `scraped_ids.json` (or use `python lib.py scraped-has <id>`) for dedup — `<id>` is `"<business name>|<city>|<state>"` lowercased (no Places `place_id` available anymore).
+Run `python lib.py city-next` (from `leadgen-agent/`) — this is the **only** source of truth for which city to work on; don't reason about it yourself. It returns `{"city": ..., "state": ..., "term_index": N, "resuming": bool}`, or `{"done": true}` if nothing is due (extremely unlikely — the list covers 147 US cities plus a 90-day cooldown revisit cycle). `term_index` tells you which of the 4 search terms to start from (0 = first term; a nonzero value means this city was interrupted mid-run last time — `resuming: true`).
+
+Also read `scraped_ids.json` (or use `python lib.py scraped-has <id>`) for dedup — `<id>` is `"<business name>|<city>|<state>"` lowercased (no Places `place_id` available anymore).
 
 ## 2. Markets and search terms
 
-Work through this list in order, resuming from the saved cursor (find the saved `state` in this list; if empty, start at the top).
+City selection is fully code-driven now (`city_coverage.json`, via `lib.py city-next`/`city-record-progress`) — it deterministically walks a fixed, population-ranked list of 147 US cities, tracks each city's status (`not_started` / `in_progress` / `covered`), and only revisits a `covered` city after a 90-day cooldown (catches new-business churn without re-treading the same ground). This replaced an earlier markdown-table-driven approach that caused the same cities to get re-picked across separate unattended sessions while others never got reached — see `leadgen-agent` memory notes if curious why this exists. You never need to pick a city yourself or ask the user which market comes next; `city-next` always has an answer.
 
-**One run covers up to 5 cities.** For each city, work through its 4 search terms in order — that's what "covering the city's TAM" means here (each term surfaces a different, overlapping slice of the market; running all 4 is how you get to roughly 90%+ real coverage of what's actually out there, not a guess). **A city, once started, is never abandoned mid-term-list — all 4 terms always run**, even if the target gets hit partway through. `config.json`'s `daily_lead_target` is a **target, checked after every search term, but it only stops the run at a city boundary, never mid-city**:
-- After each search term's leads are qualified and pushed (steps 3-7), check the running total of leads qualified-and-pushed so far **this session** against `daily_lead_target`. If you've met or passed it and more terms remain in the current city, **keep going anyway** — finish the current city's remaining terms before stopping. Note internally that the target's been met so you know to stop once the city wraps.
+**One run covers up to 10 cities.** For each city, work through its 4 search terms in order — that's what "covering the city's TAM" means here (each term surfaces a different, overlapping slice of the market; running all 4, each scrolled to exhaustion per step 3, is how you get to roughly 90%+ real coverage of what's actually out there). **A city, once started, is never abandoned mid-term-list — all 4 terms always run**, even if the target gets hit partway through. `config.json`'s `daily_lead_target` is a **target, checked after every search term, but it only stops the run at a city boundary, never mid-city**:
+- After each search term's leads are qualified and pushed (steps 3-7), run `python lib.py daily-tally` and check its `qualified` count against `daily_lead_target`. **Always use this command — never track the target against your own in-session count.** An interrupted run (session limit, or the backgrounding bug) gets resumed as a brand-new `claude -p` process with no memory of earlier progress; an in-session tally would silently reset to zero and blow well past the target across resumes (this happened 2026-09-03: three resumes pushed 176 qualified leads against a target of 100). `daily-tally` sums every city touched today directly from `city_coverage.json`, so it's correct regardless of how many times this run has restarted today.
+- If you've met or passed the target and more terms remain in the current city, **keep going anyway** — finish the current city's remaining terms before stopping. Note internally that the target's been met so you know to stop once the city wraps.
 - If the target isn't met yet and more terms remain in the current city, continue to the next term (same as above — you're continuing either way).
-- Once the current city's 4 terms are exhausted: if the target has been met or passed at any point during this city, **stop** — do not start a new city. If the target still isn't met, check whether you've already done 5 cities this session — if so, stop regardless of the target (per-run cap, keeps sessions bounded and reviewable). Otherwise advance to the next city in the list (see step 8), reset to term index 0, and continue.
+- Once the current city's 4 terms are exhausted: if the target has been met or passed at any point during this city, **stop** — do not start a new city. If the target still isn't met, check whether you've already done 10 cities this session — if so, stop regardless of the target (per-run cap, keeps sessions bounded and reviewable). Otherwise call `python lib.py city-next` again for the next city (see step 8), and continue.
 
-So a session is a sequence of search terms across up to 5 cities, checked after each one: term → check target → term → check target → ... → the moment the target is met, finish out the rest of the current city's terms, then stop — or stop after 5 cities' worth of terms are exhausted with the target still unmet, whichever comes first. **A state boundary is not a stopping point.** The city list below spans multiple states specifically so a session can flow from the last city of one state straight into the first city of the next — e.g. finishing St. Petersburg, FL does not mean "Florida is done, pause here"; if the target isn't met and the city cap isn't hit, continue straight into Houston, TX (or whatever's next) exactly as if it were just another city on the same list, no different treatment, no waiting for confirmation.
+So a session is a sequence of search terms across up to 10 cities, checked after each one via `daily-tally`: term → check target → term → check target → ... → the moment the target is met, finish out the rest of the current city's terms, then stop — or stop after 10 cities' worth of terms are exhausted with the target still unmet, whichever comes first. **A state boundary is not a stopping point** — `city-next` may hand you cities in different states back to back; treat that exactly like moving to the next city on a single list, no different treatment, no waiting for confirmation.
 
 Search terms (run each per city):
 ```
@@ -36,29 +39,12 @@ outpatient physical therapy
 sports physical therapy
 ```
 
-Sun Belt markets first (per `memory.txt`'s priority), then the rest:
-```
-Florida: Jacksonville, Miami, Tampa, Orlando, St. Petersburg
-Texas: Houston, San Antonio, Dallas, Austin, Fort Worth
-Georgia: Atlanta, Augusta, Columbus, Macon, Savannah
-South Carolina: Columbia, Charleston, North Charleston
-North Carolina: Charlotte, Raleigh, Greensboro, Durham
-Arizona: Phoenix, Tucson, Scottsdale, Mesa
-Tennessee: Nashville, Memphis, Knoxville, Chattanooga
-Virginia: Virginia Beach, Norfolk, Chesapeake, Richmond
-California: Los Angeles, San Diego, San Jose, San Francisco
-New York: New York City, Buffalo, Rochester
-... (continue through remaining US states/cities as needed once the above are exhausted — ask the user before expanding beyond Sun Belt markets if unsure)
-```
-
-Everything listed above — Florida through New York — is pre-approved; treat it as one continuous list and move through state boundaries within it without pausing or asking anyone (this matters most for unattended/scheduled runs, where there's no one to ask). The "ask the user" caveat applies only once you'd run past the *last* city on this list (New York's Rochester) with the target still unmet — that's the actual edge of pre-approved territory.
-
 ## 3. Scrape Google Maps (Playwright MCP)
 
 For each search term, for the current city:
 1. `browser_navigate` to `https://www.google.com/maps/search/<term url-encoded> in <city>, <state>`
 2. Take a `browser_snapshot` to confirm the results feed loaded.
-3. Scroll the results feed to load all listings: use `browser_evaluate` with `document.querySelector('[role="feed"]').scrollTop = document.querySelector('[role="feed"]').scrollHeight`, wait ~3-4 seconds, `browser_snapshot` again, repeat until the listing count stops increasing or "You've reached the end of the list" appears. Don't scroll the map itself.
+3. Scroll the results feed to load **every** listing — this is what makes the 4-terms-per-city coverage actually hit ~90%+ of real TAM; stopping early here undermines the whole point of running 4 terms. Use `browser_evaluate` with `document.querySelector('[role="feed"]').scrollTop = document.querySelector('[role="feed"]').scrollHeight`, wait ~3-4 seconds, `browser_snapshot` again, and count listings each time. **Do not stop just because growth has slowed** — Google Maps loads results in batches and a pause between batches is normal, not the end of the list. Only stop once you get **three consecutive scroll+wait cycles with zero new listings**, or the snapshot explicitly shows "You've reached the end of the list" / equivalent end-of-results text. If a batch is slow to load, wait longer (up to ~6-8 seconds) and try again before counting it toward the three-in-a-row — a slow batch is not a stalled one. Don't scroll the map itself.
 4. From the snapshot, extract each listing's business name, phone number, and website URL (click into a listing or read the feed panel detail as needed — address is a bonus, not required).
 
 ## 4. Free filters (no cost — do this before visiting any website)
@@ -72,7 +58,9 @@ For everything skipped, still run `python lib.py scraped-add "<name>|<city>|<sta
 
 ## 5. Website scrape (free — no browser needed here)
 
-For each survivor: `python lib.py scrape-site <website_url>` — returns JSON `{owner_name, website_text}` (homepage + /about + /about-us, JSON-LD/regex owner extraction, already truncated to `max_website_text_words`). This is a plain HTTP fetch, not a Playwright call — no need to open it in the browser.
+For each survivor: `python lib.py scrape-site <website_url>` — returns JSON `{owner_name, website_text, email}` (homepage + /about + /about-us + /contact + /contact-us, JSON-LD/regex owner extraction, mailto:/regex email extraction, already truncated to `max_website_text_words`). This is a plain HTTP fetch, not a Playwright call — no need to open it in the browser.
+
+`email` is picked in priority order: an address whose local part matches the verified owner's name (e.g. `sarah@...` for Sarah Jones) beats a generic `contact@`/`info@`/`hello@`/`office@`/`admin@` address, which beats whatever else was found on the page. Junk addresses (`noreply@`, image-file false-positives, page-builder placeholder domains) are filtered out before picking. It can come back empty — that's fine, it's a bonus field, not a disqualifier.
 
 ## 6. Qualify, grade, verify owner, write opener — YOU do this now
 
@@ -90,23 +78,24 @@ Mark every candidate processed (qualified or not) with `python lib.py scraped-ad
 Build a JSON list of qualified leads in this shape (one object per lead):
 ```json
 {
-  "Business Name": "...", "Owner Name": "...", "Phone": "...", "Website": "...",
+  "Business Name": "...", "Owner Name": "...", "Phone": "...", "Website": "...", "Email": "...",
   "Grade": "A", "Grade Reason": "...", "Opener": "...", "City": "...", "State": "..."
 }
 ```
+`Email` is whatever step 5 found (owner-name match preferred, else contact/info/hello-style) — pass `""` if none was found, never fabricate one.
 Write it to a temp file and run `python lib.py push <path> [status]` — `status` defaults to `new` (pass `sms-handoff` if the user says so). Sorts by grade and POSTs to `/api/contacts`, tagged `independent-pt`.
 
 ## 8. Update state
 
-After **every search term** (not just at the end of a city), run `python lib.py progress-set '{"state": "...", "city": "...", "term_index": N}'` pointing at whatever comes next — the next term in the same city, or term 0 of the next city if this one's 4 terms are done — even if you're about to continue to it immediately in this same session. This keeps the cursor correct if the run stops right after this term (including because the target was just hit) or gets interrupted. `progress-set` and `scraped-add`/every `scraped-has` write already push their files to GitHub via `shared/github_sync.py` — no separate sync step needed.
+After **every search term** (not just at the end of a city), run `python lib.py city-record-progress "<city>" "<state>" <term_index_just_completed_plus_1> <reviewed_delta> <qualified_delta>` — `term_index_just_completed_plus_1` is 1-4 (e.g. finishing the city's 2nd term reports `2`); `reviewed_delta`/`qualified_delta` are this term's counts (not running totals — the command accumulates them itself). Do this even if you're about to continue in the same session — it keeps the record correct if the run stops right after this term (including because the target was just hit) or gets interrupted. Reaching `term_index` 4 automatically marks the city `covered` with today's date; anything less leaves it `in_progress` so `city-next` resumes it correctly next time. This call, `scraped-add`, and every `scraped-has` already push their files to GitHub via `shared/github_sync.py` — no separate sync step needed.
 
-Then apply the step 2 continuation check (target met mid-city → finish the city's remaining terms, then stop; target met at a city's 4th term → stop; target unmet → next term or next city, capped at 5 cities this session).
+Then apply the step 2 continuation check (target met mid-city → finish the city's remaining terms, then stop; target met at a city's 4th term → stop; target unmet → call `python lib.py city-next` for the next city, capped at 10 cities this session).
 
 ## 9. Report
 
 Tell the user, **per city covered this session**: listings reviewed, disqualified (with a one-line reason breakdown), qualified with grades — every city in the report has all 4 terms covered (cities are never left partially covered). Then give a session total: cities covered, combined qualified count, and confirm the push count against `daily_lead_target` (met/exceeded is a good outcome, not something to have avoided). Same shape as the old pipeline's console output, just delivered as a chat summary instead of logs.
 
-**Also post this summary into the OS chat**, so results are visible from the dashboard even when this ran unattended (scheduled task) and nobody was watching this session. Track two running counts throughout the session: total listings reviewed (every listing that reached step 4's free filters, qualified or not — i.e. everything you called `scraped-add` on) and total qualified-and-pushed. At the end, write a short markdown message to a temp file with this shape:
+**Also post this summary into the OS chat**, so results are visible from the dashboard even when this ran unattended (scheduled task) and nobody was watching this session. For the per-city breakdown, track this session's own reviewed/qualified per city as you go (that part is fine to hold in-session — it only covers cities *this* process actually touched). For the **totals line, run `python lib.py daily-tally` one last time** rather than summing your own session numbers — if this run is a resume of an earlier interrupted attempt, the real day's total includes leads from those earlier sessions too, and the report needs to reflect what actually happened today, not just what this process did. At the end, write a short markdown message to a temp file with this shape:
 
 ```
 ## Lead gen run — <date>
@@ -114,8 +103,8 @@ Tell the user, **per city covered this session**: listings reviewed, disqualifie
 **<City>, <ST>** (<N>/4 terms): <reviewed> reviewed → <qualified> qualified (<A count> A, <B count> B, <C count> C, <D count> D)
 **<City 2>, <ST>** ...
 
-**Session total:** <reviewed_total> reviewed → <qualified_total> qualified — qualification rate <qualified_total/reviewed_total as %>
-Target: <daily_lead_target> — <met/exceeded by N / fell short by N>
+**Today's total:** <daily-tally reviewed> reviewed → <daily-tally qualified> qualified — qualification rate <qualified/reviewed as %>
+Target: <daily_lead_target> — <met/exceeded by N / fell short by N> (based on today's total, not just this session)
 ```
 
 Run `python lib.py post-chat <path>` to push it into the leadgen-agent's OS chat (dashboard → Agents → Lead Qualifier). Do this even if the target wasn't reached (e.g. ran out of cities) — the report should reflect what actually happened, not just successful runs.
