@@ -125,8 +125,15 @@ const LogoMark = () => (
   <img src={logoWordmark} alt="DigiGrowth" style={{ height: 52, flexShrink: 0, display: "block" }} />
 );
 
+const VALID_PANELS = new Set(NAV.map(n => n.id));
+
+function panelFromLocation() {
+  const p = new URLSearchParams(window.location.search).get("panel");
+  return VALID_PANELS.has(p) ? p : "home";
+}
+
 export default function App() {
-  const [active, setActive] = useState("home");
+  const [active, setActive] = useState(panelFromLocation);
   const [navContext, setNavContext] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const prevActiveRef = useRef("home");
@@ -134,7 +141,19 @@ export default function App() {
   const navigateTo = (panel, ctx = null) => {
     setNavContext(ctx);
     setActive(panel);
+    if (VALID_PANELS.has(panel)) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("panel", panel);
+      window.history.pushState({ panel }, "", url);
+    }
   };
+
+  // Back/forward browser navigation between panels
+  useEffect(() => {
+    const onPopState = () => setActive(panelFromLocation());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Close the mobile drawer any time navigation happens — otherwise it'd
   // stay open over the newly-selected panel.
@@ -242,12 +261,21 @@ export default function App() {
           {NAV.map(({ id, label }) => {
             const isActive = active === id;
             return (
-              <button key={id}
-                onClick={() => setActive(id)}
+              <a key={id}
+                href={`?panel=${id}`}
+                onClick={e => {
+                  // Plain left-click stays in this SPA tab; ctrl/cmd/middle
+                  // click and "Open link in new tab" from the browser's own
+                  // right-click menu fall through to the real href instead,
+                  // since this is a genuine <a> now (not a JS-only button).
+                  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  e.preventDefault();
+                  navigateTo(id);
+                }}
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 14px", borderRadius: 12,
-                  border: "none", cursor: "pointer",
+                  border: "none", cursor: "pointer", textDecoration: "none",
                   background: isActive
                     ? "linear-gradient(90deg, #2857a0 0%, #3a7bd5 100%)"
                     : "transparent",
@@ -274,7 +302,7 @@ export default function App() {
                 }}>
                   {label}
                 </span>
-              </button>
+              </a>
             );
           })}
         </nav>

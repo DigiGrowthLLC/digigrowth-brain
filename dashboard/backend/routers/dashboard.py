@@ -16,6 +16,7 @@ DELETE /dashboard/todos/{id}                   — delete todo
 import asyncio
 import json
 import pathlib
+import re
 import calendar as _calendar
 from datetime import datetime, timedelta, timezone, date
 
@@ -25,6 +26,7 @@ from db import get_pool
 from routers.analytics import _sms_metrics, _email_metrics, _os_sales_stats, _sheet_stat
 
 _SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")  # HH:MM, 24-hour
 
 router = APIRouter()
 
@@ -259,10 +261,10 @@ async def get_todos():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, text, done, due_date, recurrence, description, created_at
+            SELECT id, text, done, due_date, due_time, recurrence, description, created_at
             FROM todos
             WHERE NOT done
-            ORDER BY due_date ASC NULLS LAST, created_at DESC
+            ORDER BY due_date ASC NULLS LAST, due_time ASC NULLS LAST, created_at DESC
             """
         )
     return [dict(r) for r in rows]
@@ -275,6 +277,7 @@ async def create_todo(payload: dict):
         raise HTTPException(status_code=400, detail="text required")
 
     due_date_raw = payload.get("due_date")
+    due_time = (payload.get("due_time") or "").strip() or None
     recurrence = payload.get("recurrence") or None
     description = (payload.get("description") or "").strip() or None
     due_date = None
@@ -283,16 +286,18 @@ async def create_todo(payload: dict):
             due_date = date.fromisoformat(due_date_raw)
         except ValueError:
             raise HTTPException(status_code=400, detail="invalid due_date")
+    if due_time and not _TIME_RE.match(due_time):
+        raise HTTPException(status_code=400, detail="invalid due_time")
 
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO todos (text, due_date, recurrence, description)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id, text, done, due_date, recurrence, description, created_at
+            INSERT INTO todos (text, due_date, due_time, recurrence, description)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id, text, done, due_date, due_time, recurrence, description, created_at
             """,
-            text, due_date, recurrence, description,
+            text, due_date, due_time, recurrence, description,
         )
     return dict(row)
 
@@ -325,6 +330,13 @@ async def update_todo(todo_id: int, payload: dict):
                 due_date = date.fromisoformat(due_date_raw) if due_date_raw else None
                 await conn.execute(
                     "UPDATE todos SET due_date = $1 WHERE id = $2", due_date, todo_id
+                )
+            if "due_time" in payload:
+                due_time = (payload["due_time"] or "").strip() or None
+                if due_time and not _TIME_RE.match(due_time):
+                    raise HTTPException(status_code=400, detail="invalid due_time")
+                await conn.execute(
+                    "UPDATE todos SET due_time = $1 WHERE id = $2", due_time, todo_id
                 )
             if "description" in payload:
                 description = (payload["description"] or "").strip() or None

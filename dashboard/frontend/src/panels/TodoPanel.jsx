@@ -33,6 +33,12 @@ function fmtDate(iso) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function fmtTime(hhmm) {
+  const [h, m] = hhmm.split(":").map(Number);
+  const d = new Date(2000, 0, 1, h, m);
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
 // Turns bare URLs in plain text into clickable links, leaving everything
 // else as-is — descriptions are just freeform notes, not markdown.
 function linkify(text) {
@@ -116,7 +122,7 @@ function TodoItem({ todo, onComplete, onDelete, onSaveDescription }) {
             fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
             color: "#3a5a80", letterSpacing: "0.06em", flexShrink: 0,
           }}>
-            {fmtDate(todo.due_date)}
+            {fmtDate(todo.due_date)}{todo.due_time ? ` · ${fmtTime(todo.due_time)}` : ""}
           </span>
         )}
 
@@ -184,7 +190,7 @@ function SectionLabel({ label, color, count }) {
 export default function TodoPanel() {
   const [todos, setTodos] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ text: "", due_date: "", recurrence: "", description: "" });
+  const [form, setForm] = useState({ text: "", due_date: "", due_time: "", recurrence: "", description: "" });
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
@@ -225,11 +231,12 @@ export default function TodoPanel() {
       body: JSON.stringify({
         text: form.text.trim(),
         due_date: form.due_date || undefined,
+        due_time: form.due_time || undefined,
         recurrence: form.recurrence || undefined,
         description: form.description.trim() || undefined,
       }),
     });
-    setForm({ text: "", due_date: "", recurrence: "", description: "" });
+    setForm({ text: "", due_date: "", due_time: "", recurrence: "", description: "" });
     setShowForm(false);
     setSaving(false);
     load();
@@ -278,6 +285,13 @@ export default function TodoPanel() {
               className="dg-input"
               value={form.due_date}
               onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
+              style={{ flex: 1, fontSize: 12, colorScheme: "dark" }}
+            />
+            <input
+              type="time"
+              className="dg-input"
+              value={form.due_time}
+              onChange={e => setForm(f => ({ ...f, due_time: e.target.value }))}
               style={{ flex: 1, fontSize: 12, colorScheme: "dark" }}
             />
             <select
