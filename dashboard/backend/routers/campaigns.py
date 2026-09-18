@@ -162,6 +162,51 @@ async def activate_campaign(campaign_id: int):
     return dict(row)
 
 
+@router.post("/campaigns/{campaign_id}/backfill-history")
+async def backfill_campaign_history(campaign_id: int):
+    """One-time convenience for a freshly created vsl/loom campaign meant to
+    represent "everything up to now" (e.g. a V.1.1 baseline created the day
+    campaigning was turned on): attributes every pre-existing row that
+    predates campaign tagging (campaign_id IS NULL) to this campaign, and
+    backdates its currently-open period to the earliest such row's
+    timestamp so the period range reflects real history instead of just
+    "today". Only meaningful for vsl (content_view_events) and loom
+    (watch_videos) — sms/email are tagged at send time with no backlog to
+    backfill, and calling has no per-row campaign_id at all."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        campaign = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
+        if not campaign:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        channel = campaign["channel"]
+        if channel == "vsl":
+            earliest = await conn.fetchval(
+                "SELECT min(occurred_at) FROM content_view_events WHERE source = 'vsl' AND campaign_id IS NULL"
+            )
+            n = await conn.fetchval(
+                "WITH u AS (UPDATE content_view_events SET campaign_id = $1 "
+                "WHERE source = 'vsl' AND campaign_id IS NULL RETURNING 1) SELECT count(*) FROM u",
+                campaign_id,
+            )
+        elif channel == "loom":
+            earliest = await conn.fetchval(
+                "SELECT min(created_at) FROM watch_videos WHERE campaign_id IS NULL"
+            )
+            n = await conn.fetchval(
+                "WITH u AS (UPDATE watch_videos SET campaign_id = $1 "
+                "WHERE campaign_id IS NULL RETURNING 1) SELECT count(*) FROM u",
+                campaign_id,
+            )
+        else:
+            raise HTTPException(status_code=400, detail="backfill only supported for vsl/loom")
+        if earliest:
+            await conn.execute(
+                "UPDATE campaign_periods SET started_at = $1 WHERE campaign_id = $2 AND ended_at IS NULL",
+                earliest, campaign_id,
+            )
+    return {"ok": True, "rows_tagged": n, "backdated_to": earliest}
+
+
 # ── CRM contact ↔ campaign assignment (sms/email only — calling has no ────────
 # ── per-contact record to attach a campaign to) ────────────────────────────────
 

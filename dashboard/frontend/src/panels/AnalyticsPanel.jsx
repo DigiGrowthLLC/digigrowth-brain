@@ -336,10 +336,11 @@ function ContentCampaignsView() {
   const loadCampaigns = (ch, selectId) => {
     fetch(API(`/campaigns?channel=${ch}`)).then(r => r.ok ? r.json() : []).then(list => {
       setCampaigns(list);
-      // Default view is the unfiltered "All Time" aggregate, not any one
-      // campaign — unlike CampaignsView's sms/email/calling flip-through,
-      // where jumping straight into the active campaign is more useful.
-      setSelectedId(selectId !== undefined ? selectId : null);
+      // Default to whichever campaign is currently active — same as
+      // CampaignsView's sms/email/calling flip-through. Falls back to the
+      // unfiltered "All Time" aggregate only when this channel has no
+      // campaigns at all yet.
+      setSelectedId(selectId !== undefined ? selectId : (list.find(c => c.is_active)?.id ?? null));
     });
   };
 
