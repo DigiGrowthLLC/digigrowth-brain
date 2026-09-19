@@ -209,6 +209,40 @@ async def create_appointment_row(payload: dict) -> dict:
         try:
             pool = await get_pool()
             async with pool.acquire() as conn:
+                # Self-service bookings (prospect clicks the Calendly link
+                # sent via SMS/email and books directly — see
+                # routers/calendly_webhooks.py) never go through the Inbox,
+                # so they have no `channel` in the payload. Without an
+                # inferred channel here, sms_conversations.booked_at (what
+                # a campaign's Booked count actually reads — see
+                # routers/analytics.py's _sms_metrics) never got stamped,
+                # so those appointments landed in contacts.status/the CRM
+                # but silently never counted toward the SMS campaign that
+                # actually drove them. Caught live 2026-09-19: three
+                # Appt 1.4 bookings missing from its Analytics count.
+                # Infer from whichever conversation thread this contact
+                # actually has — but ONLY when unambiguous (exactly one of
+                # sms/email exists). A contact with active threads on BOTH
+                # channels is left uncredited rather than guessed, the same
+                # "don't guess" rule that made db.py revert its old blanket
+                # backfill 2 (2026-09-17: it credited both channels
+                # unconditionally and phantom-booked 5 email conversations
+                # that were never actually booked over email).
+                if not channel:
+                    inferred = await conn.fetchrow(
+                        """
+                        SELECT
+                            (SELECT MAX(updated_at) FROM sms_conversations WHERE contact_id = $1) AS sms_updated_at,
+                            (SELECT MAX(updated_at) FROM email_conversations WHERE contact_id = $1) AS email_updated_at
+                        """,
+                        contact_id,
+                    )
+                    sms_at = inferred["sms_updated_at"] if inferred else None
+                    email_at = inferred["email_updated_at"] if inferred else None
+                    if sms_at and not email_at:
+                        channel = "sms"
+                    elif email_at and not sms_at:
+                        channel = "email"
                 # booked_at is stamped alongside disposition and never
                 # cleared — it's the permanent "this really got booked"
                 # record Analytics' Booked count reads (see

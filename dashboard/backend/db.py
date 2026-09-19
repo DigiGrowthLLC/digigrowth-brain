@@ -1379,17 +1379,83 @@ async def _create_schema(pool: asyncpg.Pool):
         # phone/Dialer/CRM (channel=None) to whichever conversation threads
         # happened to exist for that contact. Reported live 2026-09-17: email
         # outreach showed 5 "booked" appointments that were never booked
-        # through email. Corrective below undoes exactly what this stamped
-        # (rows with booked_at set but disposition never actually 'booked')
-        # and, since this ran on every startup, must stay in place rather
-        # than being a one-shot — see analytics.py's booked-count queries,
-        # which now only trust disposition='booked' (backfill 1) or a real
-        # channel-scoped stamp from create_appointment_row() going forward.
+        # through email.
+        #
+        # Backfill 3: recovers the same real-appointment signal as backfill 2
+        # tried to, but only where the channel is UNAMBIGUOUS — the contact
+        # has a conversation row on exactly one of sms/email, not both — so
+        # there's no guessing which channel actually drove the booking, the
+        # exact ambiguity that made backfill 2 mis-credit email. Needed
+        # because routers/appointments.py's create_appointment_row() only
+        # ever got a `channel` from a manual booking-entry form that
+        # 2026-09-16's "Replace manual reminder booking form with a Stop
+        # Reminders control" removed — every booking since is Calendly-
+        # webhook-driven with no channel at all, so without this, a real,
+        # non-canceled appointment permanently earns zero campaign credit.
+        # Runs unconditionally (not "IS NULL"-guarded to a one-shot) so a
+        # later real, non-canceled appointment for an already-tracked
+        # contact still gets picked up on the next deploy.
+        #
+        # Deliberately does NOT touch `disposition` — a contact who no-showed
+        # and was later dispositioned 'not_interested' keeps that as their
+        # current status (that's still true and shouldn't be overwritten
+        # back to 'booked'), while booked_at (which Analytics' Booked count
+        # actually reads — see routers/analytics.py) still credits the real
+        # booking that happened, per this column's whole reason for existing
+        # (see this section's opening comment above). Caught live
+        # 2026-09-19: Louis Walker (Elite Performance PT, V.1.4 campaign)
+        # booked, no-showed, was dispositioned not_interested afterward, and
+        # lost his booked credit entirely under the old all-or-nothing guard
+        # below — this is the fix for that gap.
         await conn.execute(
-            "UPDATE sms_conversations SET booked_at = NULL WHERE disposition IS DISTINCT FROM 'booked' AND booked_at IS NOT NULL"
+            """
+            UPDATE sms_conversations sc SET booked_at = COALESCE(booked_at, (
+                SELECT MIN(ar.created_at) FROM appointment_reminders ar
+                WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled'
+            ))
+            WHERE booked_at IS NULL
+              AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled')
+              AND NOT EXISTS (SELECT 1 FROM email_conversations ec WHERE ec.contact_id = sc.contact_id)
+            """
         )
         await conn.execute(
-            "UPDATE email_conversations SET booked_at = NULL WHERE disposition IS DISTINCT FROM 'booked' AND booked_at IS NOT NULL"
+            """
+            UPDATE email_conversations ec SET booked_at = COALESCE(booked_at, (
+                SELECT MIN(ar.created_at) FROM appointment_reminders ar
+                WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled'
+            ))
+            WHERE booked_at IS NULL
+              AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled')
+              AND NOT EXISTS (SELECT 1 FROM sms_conversations sc WHERE sc.contact_id = ec.contact_id)
+            """
+        )
+        # Corrective guard for backfill 2's mis-credits: clears booked_at
+        # whenever disposition isn't 'booked' UNLESS backfill 3 above just
+        # justified it with real, unambiguous-channel appointment evidence —
+        # same condition as backfill 3's WHERE clause, so this never undoes
+        # what that one just did, only genuine phantom credits left over
+        # from the old backfill 2 (or any other unexplained booked_at).
+        await conn.execute(
+            """
+            UPDATE sms_conversations sc SET booked_at = NULL
+            WHERE disposition IS DISTINCT FROM 'booked'
+              AND booked_at IS NOT NULL
+              AND NOT (
+                EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled')
+                AND NOT EXISTS (SELECT 1 FROM email_conversations ec WHERE ec.contact_id = sc.contact_id)
+              )
+            """
+        )
+        await conn.execute(
+            """
+            UPDATE email_conversations ec SET booked_at = NULL
+            WHERE disposition IS DISTINCT FROM 'booked'
+              AND booked_at IS NOT NULL
+              AND NOT (
+                EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled')
+                AND NOT EXISTS (SELECT 1 FROM sms_conversations sc WHERE sc.contact_id = ec.contact_id)
+              )
+            """
         )
 
         # Calendly webhook subscription — real bookings on a Calendly link

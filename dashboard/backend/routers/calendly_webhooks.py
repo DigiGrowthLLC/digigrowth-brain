@@ -200,32 +200,45 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
                     lead_tag, contact_id,
                 )
         else:
-            # Dylan's own pipeline — match an existing CRM contact by phone,
-            # or create a new one from the Calendly invitee's own info
-            # (name/phone/email) when none exists, same "create if missing"
-            # behavior as the client branch above — a cold Calendly booking
-            # with no prior contact should still land in the CRM with a real
-            # contact card, not just float as prospect_name/phone/email on
-            # the appointment row with nothing to click through to.
+            # Dylan's own pipeline — match an existing CRM contact by phone
+            # (falling back to email — Calendly's default booking form only
+            # asks for name+email, so a cold-SMS prospect who never filled in
+            # a phone question here would otherwise never match back to the
+            # phone-keyed contact/sms_conversations row an earlier campaign
+            # text already created for them, permanently losing that
+            # campaign's booked credit even though they're a real, already-
+            # known lead — caught live 2026-09-19 alongside the channel-
+            # inference fix in create_appointment_row below), or create a new
+            # one from the Calendly invitee's own info (name/phone/email)
+            # when neither matches, same "create if missing" behavior as the
+            # client branch above — a cold Calendly booking with no prior
+            # contact should still land in the CRM with a real contact card,
+            # not just float as prospect_name/phone/email on the appointment
+            # row with nothing to click through to.
+            existing = None
             if phone:
                 existing = await conn.fetchrow(
                     "SELECT id, client_id, is_client_anchor FROM contacts WHERE phone = $1", phone,
                 )
-                if existing and (existing["client_id"] is None or existing["is_client_anchor"]):
-                    contact_id = existing["id"]
-                elif not existing:
-                    row = await conn.fetchrow(
-                        """
-                        INSERT INTO contacts (id, owner, phone, email, status, tags)
-                        VALUES ($1, $2, $3, $4, 'new', ARRAY['calendly_lead'])
-                        RETURNING id
-                        """,
-                        str(uuid.uuid4()), name, phone, email,
-                    )
-                    contact_id = row["id"]
-                # else: phone already belongs to another client's lead —
-                # leave contact_id unset rather than misattributing it,
-                # same non-claiming rule as the client branch above.
+            if not existing and email:
+                existing = await conn.fetchrow(
+                    "SELECT id, client_id, is_client_anchor FROM contacts WHERE email = $1", email,
+                )
+            if existing and (existing["client_id"] is None or existing["is_client_anchor"]):
+                contact_id = existing["id"]
+            elif not existing:
+                row = await conn.fetchrow(
+                    """
+                    INSERT INTO contacts (id, owner, phone, email, status, tags)
+                    VALUES ($1, $2, $3, $4, 'new', ARRAY['calendly_lead'])
+                    RETURNING id
+                    """,
+                    str(uuid.uuid4()), name, phone, email,
+                )
+                contact_id = row["id"]
+            # else: phone/email already belongs to another client's lead —
+            # leave contact_id unset rather than misattributing it, same
+            # non-claiming rule as the client branch above.
 
     appt_row = await create_appointment_row({
         "contact_id": contact_id,
