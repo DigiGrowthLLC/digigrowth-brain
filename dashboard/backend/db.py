@@ -1334,6 +1334,34 @@ async def _create_schema(pool: asyncpg.Pool):
         # column instead of relying on disposition alone.
         await conn.execute("ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS booked_at TIMESTAMPTZ")
         await conn.execute("ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS booked_at TIMESTAMPTZ")
+        # Backfill 0: link an orphaned appointment_reminders row (contact_id
+        # NULL) back to the CRM contact it actually belongs to, by exact
+        # phone or email match — mirrors the same matching rules
+        # calendly_webhooks.py's _handle_invitee_created uses at booking
+        # time (Dylan's own pipeline: client_id NULL or is_client_anchor,
+        # so a client's own patient is never mis-claimed here). Needed
+        # because that matching used to be phone-only; Calendly's default
+        # booking form doesn't collect phone, so a known SMS lead who
+        # booked without re-entering it got contact_id=NULL forever, with
+        # zero way for a later, unrelated app request to fix it after the
+        # fact. Runs unconditionally (contact_id IS NULL is naturally
+        # idempotent) so it also catches any future case where the phone
+        # genuinely wasn't available but the email later gets added to
+        # the contact. Caught live 2026-09-19: Blake Overmiller (Precision
+        # PT, V.1.4 campaign) booked via Calendly with only his email, and
+        # his real, already-texting-with-us contact never got linked.
+        await conn.execute(
+            """
+            UPDATE appointment_reminders ar SET contact_id = c.id
+            FROM contacts c
+            WHERE ar.contact_id IS NULL
+              AND (c.client_id IS NULL OR c.is_client_anchor)
+              AND (
+                (ar.prospect_phone IS NOT NULL AND ar.prospect_phone <> '' AND c.phone = ar.prospect_phone)
+                OR (ar.prospect_email IS NOT NULL AND ar.prospect_email <> '' AND c.email = ar.prospect_email)
+              )
+            """
+        )
         # Backfill 1: conversations currently sitting at disposition='booked'
         # — updated_at is the closest proxy for when that happened, matching
         # how the old disposition-based query was already windowed.
