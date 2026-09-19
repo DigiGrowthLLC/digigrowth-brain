@@ -564,11 +564,11 @@
       "last_scraped_date": "2026-09-18"
     },
     "Stockton, CA": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 113,
+      "qualified_count": 4,
+      "last_scraped_date": "2026-09-18"
     },
     "Newark, NJ": {
       "status": "not_started",
