@@ -543,10 +543,10 @@
       "last_scraped_date": "2026-09-18"
     },
     "Anaheim, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 346,
-      "qualified_count": 15,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 393,
+      "qualified_count": 16,
       "last_scraped_date": "2026-09-18"
     },
     "Orlando, FL": {
