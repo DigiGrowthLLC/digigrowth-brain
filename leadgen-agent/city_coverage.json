@@ -529,10 +529,10 @@
       "last_scraped_date": "2026-09-18"
     },
     "Henderson, NV": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 349,
-      "qualified_count": 11,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 469,
+      "qualified_count": 12,
       "last_scraped_date": "2026-09-18"
     },
     "Honolulu, HI": {
