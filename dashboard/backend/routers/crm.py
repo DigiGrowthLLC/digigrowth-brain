@@ -66,12 +66,14 @@ async def _fire_handoff(contact: dict):
 
 
 async def _fire_email_handoff(contact: dict):
-    """Fire the one-time email-handoff opener (status == EMAIL_HANDOFF_STATUS);
-    swallow errors so a Gmail hiccup never breaks the caller's request."""
+    """Enroll into the 3-touch email-handoff sequence (status ==
+    EMAIL_HANDOFF_STATUS) — see email_handoff_sequence.py. Swallow errors so
+    a DB hiccup never breaks the caller's request; the actual sends happen
+    later from email_handoff_sequence.send_due_touches()."""
     try:
-        await email_handoff_sequence.send_handoff_email(contact)
+        await email_handoff_sequence.enroll(contact)
     except Exception as e:
-        print(f"email-handoff opener failed for {contact.get('email')}: {e}")
+        print(f"email-handoff enroll failed for {contact.get('email')}: {e}")
 
 
 async def _fire_send_info(contact: dict):
@@ -520,6 +522,7 @@ async def import_contacts(body: dict):
                     await _fire_handoff({"phone": phone, "owner": (c.get("owner") or "").strip()})
                 if row_status == EMAIL_HANDOFF_STATUS:
                     await _fire_email_handoff({
+                        "id": result["id"],
                         "email": (c.get("email") or "").strip(),
                         "owner": (c.get("owner") or "").strip(),
                         "business": incoming_business,

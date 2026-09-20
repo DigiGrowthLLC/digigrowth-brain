@@ -35,7 +35,7 @@ function convoBadge(c) {
   if (c.disposition === "not_interested") {
     return { label: "NOT INTERESTED", cls: "badge-red" };
   }
-  if (c.status === "closed") {
+  if (c.status === "closed" || c.disposition === "booked") {
     return { label: "BOOKED", cls: "badge-green" };
   }
   if (c.stage_interested) {
@@ -403,7 +403,10 @@ export default function InboxPanel({ initialTarget }) {
     setSeqLoading(true);
     setSeqError(null);
     try {
-      const r = await fetch(API(`/sms/sequence/${encodeURIComponent(thread.phone)}`));
+      const url = replyChannel === "email"
+        ? API(`/email/sequence/${encodeURIComponent(selected)}`)
+        : API(`/sms/sequence/${encodeURIComponent(thread.phone)}`);
+      const r = await fetch(url);
       const data = await r.json();
       if (!data.ok) {
         setSeqError("Failed to load sequence.");
@@ -421,6 +424,7 @@ export default function InboxPanel({ initialTarget }) {
 
   const applyStep = (step) => {
     setReplyText(step.text);
+    if (replyChannel === "email" && step.subject) setReplySubject(step.subject);
     setAppliedStage(step.key);
     setAppliedStageLabel(step.label);
     setSeqOpen(false);
@@ -778,11 +782,13 @@ export default function InboxPanel({ initialTarget }) {
                       <button onClick={() => setStageMenuOpen(o => !o)} className="btn btn-ghost"
                         style={{
                           fontSize: 10,
-                          borderColor: thread?.stage_interested ? "rgba(240,160,40,0.6)" : "rgba(240,160,40,0.35)",
+                          borderColor: (thread?.is_email_handoff ? thread?.email_stage_replied : thread?.stage_interested) ? "rgba(240,160,40,0.6)" : "rgba(240,160,40,0.35)",
                           color: "#f0a028",
-                          background: thread?.stage_interested ? "rgba(240,160,40,0.12)" : "transparent",
+                          background: (thread?.is_email_handoff ? thread?.email_stage_replied : thread?.stage_interested) ? "rgba(240,160,40,0.12)" : "transparent",
                         }}>
-                        {thread?.stage_interested ? "★ INTERESTED" : "STAGE ▾"}
+                        {thread?.is_email_handoff
+                          ? (thread?.email_stage_replied ? "★ REPLIED" : "EMAIL HANDOFF ▾")
+                          : (thread?.stage_interested ? "★ INTERESTED" : "STAGE ▾")}
                       </button>
                       {stageMenuOpen && (
                         <div className="dg-menu" style={{
@@ -791,7 +797,19 @@ export default function InboxPanel({ initialTarget }) {
                           padding: "8px 10px", minWidth: 150, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
                           display: "flex", flexDirection: "column", gap: 6,
                         }}>
-                          {[
+                          {(thread?.is_email_handoff ? [
+                            // Email Handoff sequence progress — replaces the SMS
+                            // funnel checkboxes above while the contact is in
+                            // "email-handoff" status (see email_handoff_sequence.py).
+                            // Touch 1/2/3 are automatic progress markers (disabled,
+                            // reflect email_handoff_state.touchN_sent_at) — only
+                            // Replied/Not Interested are rep-editable.
+                            { key: "touch1", label: "Touch 1 Sent", checked: !!thread?.email_handoff_touch1_sent_at, disabled: true },
+                            { key: "touch2", label: "Touch 2 Sent", checked: !!thread?.email_handoff_touch2_sent_at, disabled: true },
+                            { key: "touch3", label: "Touch 3 Sent", checked: !!thread?.email_handoff_touch3_sent_at, disabled: true },
+                            { key: "email_replied", label: "Replied", checked: !!thread?.email_stage_replied },
+                            { key: "not_interested", label: "Not Interested", checked: thread?.disposition === "not_interested" },
+                          ] : [
                             { key: "initial_outreach", label: "Initial Outreach", checked: !!thread?.stage_initial_outreach },
                             { key: "replied",     label: "Replied",    checked: !!thread?.stage_replied },
                             { key: "dm_reached",  label: "DM Reached", checked: !!thread?.stage_dm_reached },
@@ -799,15 +817,18 @@ export default function InboxPanel({ initialTarget }) {
                             { key: "engaged",     label: "Engaged",    checked: !!thread?.stage_engaged },
                             { key: "interested",  label: "Interested", checked: !!thread?.stage_interested },
                             { key: "not_interested", label: "Not Interested", checked: thread?.disposition === "not_interested" },
-                          ].map(s => (
+                          ]).map(s => (
                             <label key={s.key} style={{
-                              display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-                              fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#c4d0e8",
+                              display: "flex", alignItems: "center", gap: 8,
+                              cursor: s.disabled ? "default" : "pointer",
+                              fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+                              color: s.disabled ? "#5a6f8f" : "#c4d0e8",
                             }}>
                               <input
                                 type="checkbox"
                                 checked={s.checked}
-                                onChange={e => setStage(s.key, e.target.checked)}
+                                disabled={!!s.disabled}
+                                onChange={e => !s.disabled && setStage(s.key, e.target.checked)}
                               />
                               {s.label}
                             </label>
@@ -991,7 +1012,12 @@ export default function InboxPanel({ initialTarget }) {
                   {["sms", "email"].map(ch => {
                     const available = ch === "sms" ? !!thread?.phone : !!thread?.email;
                     return (
-                      <button key={ch} onClick={() => available && setReplyChannel(ch)} disabled={!available}
+                      <button key={ch} onClick={() => {
+                        if (!available) return;
+                        setReplyChannel(ch);
+                        setAppliedStage(null);
+                        setAppliedStageLabel(null);
+                      }} disabled={!available}
                         style={{
                           padding: "4px 10px", borderRadius: 6,
                           border: `1px solid ${replyChannel === ch ? "rgba(58,123,213,0.6)" : "rgba(58,123,213,0.2)"}`,
@@ -1016,12 +1042,10 @@ export default function InboxPanel({ initialTarget }) {
                   />
                 )}
                 <div style={{ display: "flex", gap: 8 }}>
-                  {replyChannel === "sms" && (
-                    <button onClick={openSequence} className="btn btn-ghost" style={{ fontSize: 10, alignSelf: "flex-end" }}>
-                      SEQUENCE
-                    </button>
-                  )}
-                  {replyChannel === "sms" && appliedStageLabel && (
+                  <button onClick={openSequence} className="btn btn-ghost" style={{ fontSize: 10, alignSelf: "flex-end" }}>
+                    SEQUENCE
+                  </button>
+                  {appliedStageLabel && (
                     <div style={{
                       alignSelf: "flex-end", fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
                       color: "#3a7bd5", padding: "0 4px", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4,

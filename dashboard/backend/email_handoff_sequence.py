@@ -1,69 +1,101 @@
-"""Email handoff — fires once, immediately, the moment a contact's status is
-set to "email-handoff" (e.g. a gatekeeper redirects outreach to a specific
-inbox instead of a phone number). Mirrors HANDOFF_STATUS/_fire_handoff for
-the SMS channel exactly — same status-transition sites in routers/crm.py
-(PATCH /contacts/{id}, POST /contacts/{id}/disposition via the "Email
-Handoff" DISPOSITION_TO_STATUS entry, bulk set_status, and contact
-create/import), just calling _fire_email_handoff instead of _fire_handoff.
-Sends a single opening email built from this module's own template store —
-copied once from the SMS "Free Offer V.1.3" sequence's steps (2026-09-01) as
-a starting point, but stored completely separately (dialer_settings keys
-below, not sms_sequences), so editing it here never touches — and is never
-overwritten by — the SMS sequence.
+"""Email Handoff — 3-touch email sequence, fired once a contact's status is
+set to "email-handoff". Mirrors dm_followup_sequence.py's touch-chaining
+shape (24h / +48h / +4d) but as a single ONE-SHOT sequence rather than a
+restart-on-new-silence-cycle loop — a contact only ever gets enrolled once,
+since "email-handoff" is a terminal channel switch (either the automatic
+3-day-no-SMS-reply trigger in email_followup_trigger.py, or a rep manually
+flipping status for a gatekeeper-redirect case), not something that resets.
 
-Mirrors onboarding_sequence.py's single-touch send_kickoff() pattern and
-routers/sms.py's send_opening_message(), but for the email channel. Uses
-merge_fields.apply_merge_fields (matching the [Name]/{{business}} tokens
-already used in the SMS content this was copied from), not
-onboarding_sequence.py's {first_name}-only convention.
+Entry point: enroll() is called from routers/crm.py's _fire_email_handoff,
+which fires at every status-transition site that sets EMAIL_HANDOFF_STATUS
+(PATCH /contacts/{id}, disposition, bulk set_status, create/import) — same
+sites HANDOFF_STATUS/sms-handoff already uses. enroll() used to send
+immediately (a single opener email); it now just stamps
+email_handoff_state.enrolled_at = now() and starts the 24h clock, matching
+dm_followup_sequence's cadence. This is an intentional behavior change from
+"send instantly" for the manual gatekeeper-flip case too.
 
-Editable from Business Resources -> Outreach Templates -> Email Handoff
-(GET/PUT /api/dialer/email-handoff-template in routers/dialer.py).
+send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
+  - Touch 1 fires 24h after enrolled_at.
+  - Touch 2 fires 48h after touch1_sent_at (not the anchor) — chaining off
+    the previous touch's real send, same reasoning as dm_followup_sequence.py
+    (a touch that's slightly late due to poll cadence doesn't compress the
+    remaining schedule).
+  - Touch 3 fires 4 days after touch2_sent_at.
+  - Reply detection is computed LIVE each poll from email_messages
+    (direction='inbound' for this contact_id) rather than trusted from
+    stage_replied alone — a rep manually clearing the checkbox must never
+    fool this into sending to someone who genuinely replied. A reply at any
+    point permanently stops all remaining touches (no restart — unlike
+    DM Follow-Up, there's no "went quiet again" re-entry for this sequence).
+
+Sending routes through email_identities.pick_identity() — MX-detects
+whether the lead's domain is Google- or Microsoft-hosted (cached on
+contacts.email_provider) and sends from a matching, warmed-up
+email_send_identities row. Touch 1 picks whichever identity is chosen that
+poll and stamps it on email_handoff_state.identity_id; touches 2/3 reuse
+that same identity for thread continuity rather than re-picking each time.
+If zero active identities exist for the matched provider (including no
+active identities anywhere), the touch is skipped and retried next poll —
+see email_identities.pick_identity()'s docstring.
+
+Each touch's subject/body is independently editable from Business Resources
+-> Outreach Templates -> Email Handoff. Templates support {first_name} and
+{link} ({link} resolves to integrations.CALENDLY_URL), same convention as
+dm_followup_sequence.py.
 """
-import asyncio
+from datetime import datetime, timedelta, timezone as dt_timezone
 
+import email_identities
 import integrations
 from db import get_pool
-from merge_fields import apply_merge_fields
+from merge_fields import first_name_from_owner
 
-_SUBJECT_DEFAULT = "Quick question, {{business}}"
-_GATEKEEPER_DEFAULT = (
-    "Hey, no worries. I'm reaching out because I'm actually running a small case-study cohort "
-    "right now - offering our services completely free to a few independent PT practices in "
-    "exchange for a testimonial once we hit results. Figured [Name] would want to know before "
-    "the spots fill. Would you mind passing along my number, or letting me know the best way to "
-    "reach them?"
-)
-_CURIOSITY_OPENER_DEFAULT = (
-    "What's going on [Name], my name is Dylan. I'm reaching out because I'm currently running a "
-    "small case study cohort helping practices like yours book in 10 discovery visits completely "
-    "free with people in your area looking for physical therapy. I see [custom opener] and "
-    "thought you'd be a great fit. Made a personalized video for you explaining how mind if I "
-    "send it over?"
-)
-_RELEVANCE_DEFAULT = " [Loom link] Shoot me a \U0001F44D once you've watched it"
-_GUARANTEE_DEFAULT = (
-    "Glad it landed. We've only got 2 spots left this cycle — worth grabbing 10 min to see how "
-    "it'd work for {{business}}? No pressure if it's not a fit right now."
-)
-_ASK_DEFAULT = (
-    "Perfect. I've got a couple spots open this week for a quick call to show you exactly how "
-    "it'd work for your practice — zero pressure, just walk you through it and you decide if it "
-    "makes sense. Does [Day] at [time] or [Day] at [time] work better for you?"
-)
-_CTA_DEFAULT = "https://calendly.com/dylanrg-digigrowthllc/30min?month=2026-07&date=2026-07-14"
+EMAIL_HANDOFF_STATUS = "email-handoff"
 
-# dialer_settings key -> hardcoded fallback, shared by GET/PUT
-# /dialer/email-handoff-template and send_handoff_email() below.
-TEMPLATE_DEFAULTS = {
-    "email_handoff_subject": _SUBJECT_DEFAULT,
-    "email_handoff_gatekeeper": _GATEKEEPER_DEFAULT,
-    "email_handoff_curiosity_opener": _CURIOSITY_OPENER_DEFAULT,
-    "email_handoff_relevance": _RELEVANCE_DEFAULT,
-    "email_handoff_guarantee": _GUARANTEE_DEFAULT,
-    "email_handoff_ask": _ASK_DEFAULT,
-    "email_handoff_cta": _CTA_DEFAULT,
+# (touch number, sent-at column, reference column to count the delay from —
+# None means "enrolled_at"; otherwise the previous touch's own sent-at
+# column) — see module docstring for why chaining off real sends matters.
+_TOUCHES = [
+    (1, "touch1_sent_at", None, timedelta(hours=24)),
+    (2, "touch2_sent_at", "touch1_sent_at", timedelta(hours=48)),
+    (3, "touch3_sent_at", "touch2_sent_at", timedelta(days=4)),
+]
+
+_TOUCH1_SUBJECT_DEFAULT = "Quick question, {business}"
+_TOUCH1_BODY_DEFAULT = (
+    "Hey {first_name}, tried reaching you by text but figured I'd follow up here too. "
+    "I'm running a small case-study cohort right now, offering our services free to a "
+    "few independent practices in exchange for a testimonial once we hit results. "
+    "Worth a quick look? {link}"
+)
+_TOUCH2_SUBJECT_DEFAULT = "Following up, {business}"
+_TOUCH2_BODY_DEFAULT = (
+    "{first_name} — still happy to walk you through how this would work for your "
+    "practice, no pressure either way. Here's my calendar if you want to grab 10 "
+    "minutes: {link}"
+)
+_TOUCH3_SUBJECT_DEFAULT = "Last check-in, {business}"
+_TOUCH3_BODY_DEFAULT = (
+    "{first_name} — going to close this out unless I hear back. No hard feelings, "
+    "just didn't want it to fall through the cracks: {link}"
+)
+
+# instance -> (subject default, body default). dialer.py's GET/PUT
+# /dialer/email-handoff-template iterates this dict generically, so
+# adding/renaming a touch here is the only backend change needed.
+TEMPLATE_INSTANCES = {
+    "touch1": (_TOUCH1_SUBJECT_DEFAULT, _TOUCH1_BODY_DEFAULT),
+    "touch2": (_TOUCH2_SUBJECT_DEFAULT, _TOUCH2_BODY_DEFAULT),
+    "touch3": (_TOUCH3_SUBJECT_DEFAULT, _TOUCH3_BODY_DEFAULT),
 }
+
+# dialer_settings key -> hardcoded fallback, shared by GET /dialer/email-handoff-template
+# and the templated sends below.
+TEMPLATE_DEFAULTS = {}
+for _instance, (_subject, _body) in TEMPLATE_INSTANCES.items():
+    TEMPLATE_DEFAULTS[f"email_handoff_{_instance}_subject"] = _subject
+    TEMPLATE_DEFAULTS[f"email_handoff_{_instance}_body"] = _body
 
 
 async def _get_templates() -> dict:
@@ -77,43 +109,155 @@ async def _get_templates() -> dict:
     return {key: values.get(key, default) for key, default in TEMPLATE_DEFAULTS.items()}
 
 
-async def send_handoff_email(contact: dict) -> bool:
-    """Sends only the opening step (email_handoff_curiosity_opener) — the
-    other copied steps (gatekeeper/relevance/guarantee/ask/cta) are stored
-    for reference and future manual use, not auto-sent, same as how the SMS
-    sequence's later steps are sent manually from the inbox. Always reads
-    current template values fresh at send time, same as every other
-    sequence module here."""
-    email = (contact.get("email") or "").strip()
+def _fill(template: str, contact: dict) -> str:
+    first_name = first_name_from_owner(contact.get("owner"))
+    return (
+        template.replace("{first_name}", first_name)
+        .replace("{business}", (contact.get("business") or "").strip())
+        .replace("{link}", integrations.CALENDLY_URL)
+    )
+
+
+async def enroll(contact: dict):
+    """Called from routers/crm.py's _fire_email_handoff the moment a
+    contact's status transitions to "email-handoff". Upserts the sequence
+    state row and (re)stamps enrolled_at — a contact re-flipped to
+    email-handoff after having been moved elsewhere restarts the 24h clock,
+    same as re-checking DM Reached re-stamps dm_followup_enrolled_at."""
+    contact_id = contact.get("id")
+    if not contact_id:
+        return
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO email_handoff_state (contact_id, enrolled_at, updated_at)
+            VALUES ($1, now(), now())
+            ON CONFLICT (contact_id) DO UPDATE SET
+                enrolled_at = now(), touch1_sent_at = NULL, touch2_sent_at = NULL,
+                touch3_sent_at = NULL, stage_replied = false, stage_replied_manual = false,
+                stage_replied_at = NULL, updated_at = now()
+            """,
+            contact_id,
+        )
+
+
+async def _has_replied(conn, contact_id: str) -> bool:
+    return bool(await conn.fetchval(
+        "SELECT 1 FROM email_messages WHERE contact_id = $1 AND direction = 'inbound' LIMIT 1",
+        contact_id,
+    ))
+
+
+async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, subject: str, body: str, message_id: str):
+    """Mirrors email_identities.sync_identity_inbox's thread_id scheme
+    (identity-{identity_id}-{contact_id}) so an inbound reply later lands in
+    the same conversation this outbound touch created."""
+    thread_id = f"identity-{identity_id}-{contact_id}"
+    conv = await conn.fetchrow("SELECT id FROM email_conversations WHERE thread_id = $1", thread_id)
+    if not conv:
+        await conn.execute(
+            """INSERT INTO email_conversations (contact_id, thread_id, email, subject, status)
+               VALUES ($1, $2, $3, $4, 'active')""",
+            contact_id, thread_id, email, subject,
+        )
+    if not message_id:
+        # Microsoft Graph's sendMail returns no message id synchronously
+        # (unlike Gmail's send API) — synthesize a unique one so
+        # gmail_message_id's UNIQUE NOT NULL constraint is always satisfied.
+        import uuid
+        message_id = f"graph-{uuid.uuid4().hex}"
+    await conn.execute(
+        """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at)
+           VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now())
+           ON CONFLICT (gmail_message_id) DO NOTHING""",
+        contact_id, thread_id, email, subject, body, message_id,
+    )
+
+
+async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
+    email = (row.get("email") or "").strip()
+    contact_id = row["contact_id"]
     if not email:
-        print(f"[email_handoff_sequence] no email on file for contact {contact.get('id')} — skipping")
+        print(f"[email_handoff_sequence] no email on file for contact {contact_id} — skipping")
         return False
 
-    templates = await _get_templates()
-    subject_template = templates["email_handoff_subject"]
-    body_template = templates["email_handoff_curiosity_opener"]
-    if not subject_template.strip() or not body_template.strip():
-        print("[email_handoff_sequence] subject/opener template is blank — skipping")
+    subject = _fill(templates[f"email_handoff_{instance}_subject"], row)
+    body = _fill(templates[f"email_handoff_{instance}_body"], row)
+    if not subject.strip() or not body.strip():
+        print(f"[email_handoff_sequence] {instance} template is blank — skipping")
         return False
 
-    subject = apply_merge_fields(subject_template, contact)
-    body = apply_merge_fields(body_template, contact)
+    identity_id = row.get("identity_id")
+    if identity_id:
+        identity = await conn.fetchrow("SELECT * FROM email_send_identities WHERE id = $1", identity_id)
+        identity = dict(identity) if identity else None
+    else:
+        provider = await email_identities.get_cached_provider(conn, row)
+        identity = await email_identities.pick_identity(conn, provider)
+
+    if not identity:
+        print(f"[email_handoff_sequence] no active identity available for {email} — will retry next poll")
+        return False
 
     try:
-        # is_automated is deliberately NOT set here (default False) — this is
-        # real cold-outreach volume, the email-channel equivalent of
-        # routers/sms.py's send_opening_message() (which likewise never
-        # passes is_automated). analytics.py's _email_metrics explicitly
-        # excludes is_automated=True sends from outreach stats — that flag is
-        # for lifecycle/back-office mail (onboarding welcome, reminders),
-        # not this.
-        result = await asyncio.to_thread(integrations.gmail_send, email, subject, body, track=True)
+        message_id = await email_identities.send_from_identity(identity, email, subject, body)
     except Exception as e:
-        print(f"[email_handoff_sequence] send failed for {email}: {e}")
+        print(f"[email_handoff_sequence] send failed for {email} via {identity['mailbox_email']}: {e}")
         return False
 
-    if not result.startswith("Sent email"):
-        print(f"[email_handoff_sequence] email to {email} did not send: {result}")
-        return False
-
+    await _record_outbound(conn, contact_id, identity["id"], email, subject, body, message_id)
+    if not row.get("identity_id"):
+        await conn.execute(
+            "UPDATE email_handoff_state SET identity_id = $2, updated_at = now() WHERE contact_id = $1",
+            contact_id, identity["id"],
+        )
     return True
+
+
+async def send_due_touches():
+    """Poll enrolled contacts and send whichever touch is next due — at most
+    one send per contact per poll. See module docstring for the algorithm."""
+    pool = await get_pool()
+    now = datetime.now(dt_timezone.utc)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT ehs.*, c.id, c.email, c.owner, c.business, c.status,
+                   c.email_provider, c.email_provider_checked_at
+            FROM email_handoff_state ehs
+            JOIN contacts c ON c.id = ehs.contact_id
+            WHERE c.status = $1
+            """,
+            EMAIL_HANDOFF_STATUS,
+        )
+        if not rows:
+            return
+
+        templates = await _get_templates()
+        for record in rows:
+            row = dict(record)
+            contact_id = row["contact_id"]
+
+            if await _has_replied(conn, contact_id):
+                if not row["stage_replied"]:
+                    await conn.execute(
+                        "UPDATE email_handoff_state SET stage_replied = true, stage_replied_at = now(), "
+                        "updated_at = now() WHERE contact_id = $1",
+                        contact_id,
+                    )
+                continue
+
+            for touch_num, sent_col, ref_col, delay in _TOUCHES:
+                if row[sent_col] is not None:
+                    continue
+                reference = row["enrolled_at"] if ref_col is None else row[ref_col]
+                if reference is not None and now >= reference + delay:
+                    sent = await _send_touch(conn, row, f"touch{touch_num}", templates)
+                    if sent:
+                        await conn.execute(
+                            f"UPDATE email_handoff_state SET {sent_col} = now(), updated_at = now() "
+                            "WHERE contact_id = $1",
+                            contact_id,
+                        )
+                break

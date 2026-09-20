@@ -89,6 +89,28 @@ async def _create_schema(pool: asyncpg.Pool):
                 last_read_at TIMESTAMPTZ
             );
 
+            -- Email Handoff sequence state — one row per contact, stamped the
+            -- moment a contact's status is set to "email-handoff" (see
+            -- routers/crm.py's _fire_email_handoff, fired from every
+            -- status-transition site, same as sms-handoff). Mirrors
+            -- dm_followup_sequence.py's touch-chaining shape but as a single
+            -- one-shot 3-touch sequence (no restart-on-new-silence-cycle
+            -- logic — a contact only ever gets enrolled once). Reply
+            -- detection for stopping remaining touches is computed live
+            -- against email_messages/email_conversations, not trusted from
+            -- stage_replied alone, same reasoning as the SMS sequence.
+            CREATE TABLE IF NOT EXISTS email_handoff_state (
+                contact_id            TEXT PRIMARY KEY REFERENCES contacts(id) ON DELETE CASCADE,
+                enrolled_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+                touch1_sent_at        TIMESTAMPTZ,
+                touch2_sent_at        TIMESTAMPTZ,
+                touch3_sent_at        TIMESTAMPTZ,
+                stage_replied         BOOLEAN NOT NULL DEFAULT false,
+                stage_replied_manual  BOOLEAN NOT NULL DEFAULT false,
+                stage_replied_at      TIMESTAMPTZ,
+                updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
             CREATE TABLE IF NOT EXISTS todos (
                 id         SERIAL PRIMARY KEY,
                 text       TEXT NOT NULL,
@@ -491,6 +513,10 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_opted_out BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_opted_out_at TIMESTAMPTZ;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS newsletter_opted_out_at TIMESTAMPTZ;
+            -- Cached MX-lookup result (see email_identities.detect_provider) so
+            -- email_handoff_sequence.py doesn't re-query DNS every 5-min poll.
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_provider TEXT;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS email_provider_checked_at TIMESTAMPTZ;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS tracking_token TEXT;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ;
             ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS open_count INTEGER NOT NULL DEFAULT 0;
@@ -1112,6 +1138,69 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
                 UNIQUE(client_id)
             );
+
+            -- Internal (DigiGrowth-owned) cold-outreach email infrastructure
+            -- — NOT client-owned, and deliberately separate from
+            -- client_marketing_config/client_email_*. These are dedicated
+            -- mailboxes on subdomains of digigrowthllc.com used to send the
+            -- email_handoff_sequence.py 3-touch sequence, auto-routed per
+            -- lead by MX-detecting whether the recipient is Google- or
+            -- Microsoft-hosted (see email_identities.py). No fixed count —
+            -- rows are added one at a time via the admin UI as mailboxes are
+            -- provisioned.
+            CREATE TABLE IF NOT EXISTS email_send_identities (
+                id                  SERIAL PRIMARY KEY,
+                provider            TEXT NOT NULL,              -- 'google' | 'microsoft'
+                domain              TEXT NOT NULL,
+                mailbox_email       TEXT NOT NULL UNIQUE,
+                display_name        TEXT,
+                oauth_refresh_token TEXT,
+                ms_tenant_id        TEXT,                        -- Microsoft-only
+                status              TEXT NOT NULL DEFAULT 'warming',  -- 'warming' | 'active' | 'paused'
+                activated_at        TIMESTAMPTZ,
+                send_cursor         INTEGER NOT NULL DEFAULT 0,
+                email_sync_last_ts  INTEGER NOT NULL DEFAULT 0,  -- inbox-poll cursor, mirrors client_marketing_config.email_sync_last_ts
+                created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_email_send_identities_provider_status
+                ON email_send_identities(provider, status);
+
+            -- Per-identity warm-up ramp state (mirrors client_email_warmup's
+            -- shape, but this engine cross-warms identities against EACH
+            -- OTHER with real threaded opener+reply email exchanges instead
+            -- of one-way sends to a fixed seed list — see identity_warmup.py).
+            CREATE TABLE IF NOT EXISTS identity_warmup (
+                identity_id     INTEGER PRIMARY KEY REFERENCES email_send_identities(id) ON DELETE CASCADE,
+                status          TEXT NOT NULL DEFAULT 'not_started',  -- 'not_started' | 'running' | 'complete'
+                started_at      TIMESTAMPTZ,
+                completed_at    TIMESTAMPTZ,
+                current_day     INTEGER NOT NULL DEFAULT 0,
+                sent_today      INTEGER NOT NULL DEFAULT 0,
+                replied_today   INTEGER NOT NULL DEFAULT 0,
+                last_sent_date  DATE,
+                last_sent_at    TIMESTAMPTZ,
+                partner_cursor  INTEGER NOT NULL DEFAULT 0,
+                updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE TABLE IF NOT EXISTS identity_warmup_log (
+                id                   SERIAL PRIMARY KEY,
+                from_identity_id     INTEGER NOT NULL REFERENCES email_send_identities(id) ON DELETE CASCADE,
+                to_identity_id       INTEGER NOT NULL REFERENCES email_send_identities(id) ON DELETE CASCADE,
+                day_number           INTEGER NOT NULL,
+                direction            TEXT NOT NULL,               -- 'opener' | 'reply'
+                thread_key           TEXT NOT NULL,
+                provider_message_id  TEXT,
+                sent_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_identity_warmup_log_from ON identity_warmup_log(from_identity_id, sent_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_identity_warmup_log_thread ON identity_warmup_log(thread_key);
+
+            -- Which identity touch1 sent from, so touch2/3 reuse it for
+            -- thread continuity. Added here (not in the earlier ALTER
+            -- block) since it references email_send_identities, created
+            -- just above in this same statement.
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS identity_id INTEGER REFERENCES email_send_identities(id) ON DELETE SET NULL;
 
             -- Inbound/outbound SMS sent through the CLIENT's own provisioned
             -- Twilio number (client_marketing_config.twilio_number) — kept

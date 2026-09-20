@@ -11,6 +11,7 @@ import TableCell from "@tiptap/extension-table-cell";
 import { marked } from "marked";
 import SequenceQueueModal from "./SequenceQueueModal";
 import DmFollowUpQueueModal from "./DmFollowUpQueueModal";
+import IdentityWarmupModal from "./IdentityWarmupModal";
 
 function isMarkdown(str) {
   return /^#{1,6} |\*\*[^*]|\*[^*\n]|^- |\n- |\d+\. /m.test(str || "");
@@ -918,29 +919,27 @@ function ClientBookingAlertEditor({ categories, onCategoryChange }) {
 }
 
 // ── Email Handoff editor ────────────────────────────────────────────────────
-// One-time copy of the SMS "Free Offer V.1.3" sequence's steps, backed by
-// GET/PUT /api/dialer/email-handoff-template — its own dialer_settings keys,
-// completely independent of sms_sequences, so edits here never affect the
-// SMS sequence it started from. Only "1. Initial Message" is auto-sent (the
-// moment a contact's status is set to "email-handoff"); the rest are kept
-// for reference/future manual sends, same shape as the SMS sequence's steps.
-const EMAIL_HANDOFF_STEP_FIELDS = [
-  { key: "email_handoff_gatekeeper", label: "0. Gatekeeper Message" },
-  { key: "email_handoff_curiosity_opener", label: "1. Initial Message  —  auto-sent when status is set to \"email-handoff\"" },
-  { key: "email_handoff_relevance", label: "2. Primed Message" },
-  { key: "email_handoff_guarantee", label: "3. Engaged Message" },
-  { key: "email_handoff_ask", label: "4. Call To Action" },
-  { key: "email_handoff_cta", label: "5. Booking Link" },
+// 3-touch email sequence (24h / +48h / +4d, chained off real sends — same
+// cadence as DM Follow-Up), backed by GET/PUT /api/dialer/email-handoff-template.
+// Fires automatically when a contact's status is set to "email-handoff" —
+// either manually (gatekeeper redirect) or automatically 3 days after their
+// first cold SMS with zero reply (email_followup_trigger.py). Sends route
+// through the provider-matched email identities (see the "View Warm-Up
+// Status" button below) rather than a single shared mailbox.
+const EMAIL_HANDOFF_FIELDS = [
+  { heading: "Touch 1", hint: "24 hours after status is set to \"email-handoff\".", instance: "touch1" },
+  { heading: "Touch 2", hint: "48 hours after Touch 1 sends.", instance: "touch2" },
+  { heading: "Touch 3", hint: "4 days after Touch 2 sends.", instance: "touch3" },
 ];
 
 function EmailHandoffEditor({ categories, onCategoryChange }) {
-  const [values, setValues] = useState({});
-  const [category, setCategory] = useState("General");
-  const [customCatMode, setCustomCatMode] = useState(false);
+  const [values, setValues] = useState({ category: "General" });
   const [saved, setSaved] = useState({ category: "General" });
+  const [customCatMode, setCustomCatMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showWarmup, setShowWarmup] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -948,17 +947,18 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
       if (r.ok) {
         const data = await r.json();
         setValues(data);
-        setCategory(data.category || "General");
-        setSaved({ ...data, category: data.category || "General" });
+        setSaved(data);
         onCategoryChange?.(data.category || "General");
       }
       setLoading(false);
     })();
   }, []);
 
-  const dirty = values.email_handoff_subject !== saved.email_handoff_subject
-    || EMAIL_HANDOFF_STEP_FIELDS.some(f => (values[f.key] || "") !== (saved[f.key] || ""))
-    || category !== saved.category;
+  const allKeys = [
+    ...EMAIL_HANDOFF_FIELDS.flatMap(f => [`email_handoff_${f.instance}_subject`, `email_handoff_${f.instance}_body`]),
+    "category",
+  ];
+  const dirty = allKeys.some(k => (values[k] || "") !== (saved[k] || ""));
 
   const save = async () => {
     setSaving(true);
@@ -966,11 +966,11 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
       const r = await fetch("/api/dialer/email-handoff-template", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, category }),
+        body: JSON.stringify(values),
       });
       if (r.ok) {
-        setSaved({ ...values, category });
-        onCategoryChange?.(category);
+        setSaved(values);
+        onCategoryChange?.(values.category || "General");
         setSavedFlash(true);
         setTimeout(() => setSavedFlash(false), 2500);
       }
@@ -994,18 +994,23 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
         <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Started as a copy of the SMS <strong style={{ color: "#a080f0" }}>Free Offer V.1.3</strong> sequence — fully independent from here on, edits never sync either direction. Only step 1 sends automatically, the moment a contact's status is set to <code style={{ color: "#6ab0ff" }}>email-handoff</code> (CRM/Inbox status dropdown, or the dialer's "Email Handoff" disposition button).
+          Fires when a contact's status is set to <code style={{ color: "#6ab0ff" }}>email-handoff</code> — 3 touches, stops permanently on reply. Sent from a Google or Microsoft identity matched to the recipient's own provider.
         </span>
         <CategoryPicker
           categories={categories}
-          category={category}
-          setCategory={setCategory}
+          category={values.category || "General"}
+          setCategory={c => setValues(v => ({ ...v, category: c }))}
           customCatMode={customCatMode}
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
         )}
+        <button
+          onClick={() => setShowWarmup(true)}
+          className="btn btn-secondary"
+          style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
+        >View Warm-Up Status</button>
         <button
           onClick={save}
           disabled={saving || !dirty}
@@ -1021,35 +1026,40 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
         >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
-        <div>
-          <label style={sequenceLabelStyle}>Subject line (used for step 1's auto-send)</label>
-          <input
-            value={values.email_handoff_subject || ""}
-            onChange={e => setValues(v => ({ ...v, email_handoff_subject: e.target.value }))}
-            placeholder="Quick question, {{business}}"
-            style={sequenceFieldStyle}
-          />
-          <div style={sequenceHintStyle}>
-            Use <code style={{ color: "#6ab0ff" }}>{"{{name}}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{{business}}"}</code>, or <code style={{ color: "#6ab0ff" }}>{"{{opener}}"}</code> — or bracket form <code style={{ color: "#6ab0ff" }}>[Name]</code> / <code style={{ color: "#6ab0ff" }}>[Custom Opener]</code>.
-          </div>
-        </div>
+      {showWarmup && <IdentityWarmupModal onClose={() => setShowWarmup(false)} />}
 
-        {EMAIL_HANDOFF_STEP_FIELDS.map((f, i) => (
-          <div key={f.key} style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
-            <label style={sequenceLabelStyle}>{f.label}</label>
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
+        {EMAIL_HANDOFF_FIELDS.map((f, i) => {
+          const subjectKey = `email_handoff_${f.instance}_subject`;
+          const bodyKey = `email_handoff_${f.instance}_body`;
+          return (
+          <div key={f.instance} style={i > 0 ? { borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 } : undefined}>
+            <label style={sequenceLabelStyle}>{f.heading}</label>
+            {f.hint && <div style={{ ...sequenceHintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
+
+            <label style={{ ...sequenceLabelStyle, fontSize: 9 }}>SUBJECT</label>
+            <input
+              value={values[subjectKey] || ""}
+              onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
+              placeholder="Quick question, {business}"
+              style={{ ...sequenceFieldStyle, marginBottom: 10 }}
+            />
+
+            <label style={{ ...sequenceLabelStyle, fontSize: 9 }}>BODY</label>
             <textarea
-              value={values[f.key] || ""}
-              onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
+              value={values[bodyKey] || ""}
+              onChange={e => setValues(v => ({ ...v, [bodyKey]: e.target.value }))}
               rows={4}
-              placeholder="Type this step's message..."
+              placeholder="Hey {first_name}, ..."
               style={sequenceFieldStyle}
             />
+
             <div style={sequenceHintStyle}>
-              Use <code style={{ color: "#6ab0ff" }}>{"{{name}}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{{business}}"}</code>, or <code style={{ color: "#6ab0ff" }}>{"{{opener}}"}</code> — or bracket form <code style={{ color: "#6ab0ff" }}>[Name]</code> / <code style={{ color: "#6ab0ff" }}>[Custom Opener]</code>.
+              Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{business}"}</code>, or <code style={{ color: "#6ab0ff" }}>{"{link}"}</code> for the booking link.
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

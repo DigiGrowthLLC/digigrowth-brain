@@ -21,12 +21,15 @@ import email_warmup
 import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
-from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin
+from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin
 import call_reminders
 import cancel_sequence
 import client_appointment_reminders
 import client_appointment_sequence
 import dm_followup_sequence
+import email_handoff_sequence
+import email_followup_trigger
+import identity_warmup
 import meta_ads
 import no_show_sequence
 import onboarding_sequence
@@ -416,6 +419,30 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
+        email_handoff_sequence.send_due_touches,
+        IntervalTrigger(minutes=5),
+        id="email-handoff-sequence",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        email_followup_trigger.send_due_touches,
+        IntervalTrigger(minutes=5),
+        id="email-followup-trigger",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        identity_warmup.send_due_touches,
+        IntervalTrigger(minutes=20),
+        id="identity-warmup-touches",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        identity_warmup.send_due_replies,
+        IntervalTrigger(minutes=10),
+        id="identity-warmup-replies",
+        replace_existing=True,
+    )
+    scheduler.add_job(
         onboarding_sequence.send_followup_touches,
         CronTrigger(hour=8, minute=0, timezone=eastern),
         id="onboarding-followup",
@@ -448,6 +475,7 @@ app.include_router(crm.router, prefix="/api", dependencies=[Depends(require_auth
 app.include_router(sms.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms.webhook_router)         # public — Twilio SMS webhooks
 app.include_router(email_inbox.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(email_identities.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(dialer_webhooks.router)     # public — Twilio voice webhooks
 app.include_router(dialer.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms_sequences.router, prefix="/api", dependencies=[Depends(require_auth)])

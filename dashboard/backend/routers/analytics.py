@@ -821,6 +821,48 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     }
 
 
+async def _email_handoff_metrics(conn, since=None) -> dict:
+    """
+    Email Handoff sequence funnel — enrolled / touch1-3 sent / replied, for
+    contacts currently in "email-handoff" status. This is the stage
+    breakdown a contact's Inbox checkboxes show INSTEAD of the SMS
+    stage_primed/engaged/interested funnel once their status flips to
+    "email-handoff" (see routers/email_inbox.py's set_contact_stage/
+    get_contact_thread) — see email_handoff_sequence.py for the 3-touch
+    engine itself. _email_metrics above already covers general email-channel
+    volume (sent/opened/bounced/replied across ALL email activity, Email
+    Handoff included); this is specifically the touch-by-touch progression,
+    the email equivalent of _sms_metrics' stage funnel.
+
+    Narrowed by each touch's own sent_at column, no activity-fallback
+    needed (unlike _sms_metrics' stage columns) — Email Handoff is a
+    one-shot sequence with no restart/re-enrollment cycle, so a touch's
+    sent_at is always the complete, accurate history of when it happened.
+    """
+    contacted = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state")
+    if since:
+        enrolled  = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE enrolled_at >= $1", since)
+        touch1    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch1_sent_at >= $1", since)
+        touch2    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch2_sent_at >= $1", since)
+        touch3    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch3_sent_at >= $1", since)
+        replied   = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE stage_replied AND stage_replied_at >= $1", since)
+    else:
+        enrolled  = contacted
+        touch1    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch1_sent_at IS NOT NULL")
+        touch2    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch2_sent_at IS NOT NULL")
+        touch3    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch3_sent_at IS NOT NULL")
+        replied   = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE stage_replied")
+
+    return {
+        "enrolled":     enrolled or 0,
+        "touch1_sent":  touch1 or 0,
+        "touch2_sent":  touch2 or 0,
+        "touch3_sent":  touch3 or 0,
+        "replied":      replied or 0,
+        "reply_rate":   _pct(replied, contacted),
+    }
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/analytics/outreach")
@@ -835,6 +877,8 @@ async def outreach(days: int = 30):
         sms_period     = await _sms_metrics(conn, since)
         email_all      = await _email_metrics(conn)
         email_period   = await _email_metrics(conn, since)
+        email_handoff_all    = await _email_handoff_metrics(conn)
+        email_handoff_period = await _email_handoff_metrics(conn, since)
 
     return {
         "period_days": days,
@@ -849,6 +893,10 @@ async def outreach(days: int = 30):
         "email": {
             "all_time": email_all,
             "period":   email_period,
+        },
+        "email_handoff": {
+            "all_time": email_handoff_all,
+            "period":   email_handoff_period,
         },
         "content": {
             "all_time": _content_metrics(cs, 0),

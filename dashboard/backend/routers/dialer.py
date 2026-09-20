@@ -437,13 +437,12 @@ async def save_client_booking_template(body: dict):
 
 # ── "Email Handoff" opener template (Business Resources → Outreach ──────────
 # Templates). Same key/value store as the editors above; a one-time copy of
-# the SMS "Free Offer V.1.3" sequence's steps, kept in its own dialer_settings
-# keys so editing it here never touches sms_sequences. Only the
-# curiosity_opener step is auto-sent — see email_handoff_sequence.py's
-# send_handoff_email(), fired from routers/crm.py the moment a contact's
+# iterates email_handoff_sequence.TEMPLATE_DEFAULTS generically (touch1/2/3
+# subject+body), so adding/renaming a touch there is the only backend change
+# needed. All 3 touches auto-send — see email_handoff_sequence.py's
+# send_due_touches(), enrolled from routers/crm.py the moment a contact's
 # status is set to "email-handoff" (same status-transition sites as
-# HANDOFF_STATUS/sms-handoff). The other steps are kept for reference/future
-# manual sends, same shape as the SMS sequence.
+# HANDOFF_STATUS/sms-handoff).
 
 @router.get("/dialer/email-handoff-template")
 async def get_email_handoff_template():

@@ -426,6 +426,9 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
             "status": "closed", "disposition": None, "unread": False,
             "stage_initial_outreach": False, "stage_replied": False, "stage_dm_reached": False,
             "stage_primed": False, "stage_engaged": False, "stage_interested": False,
+            "is_email_handoff": r["contact_status"] == "email-handoff",
+            "email_handoff_touch1_sent_at": None, "email_handoff_touch2_sent_at": None,
+            "email_handoff_touch3_sent_at": None, "email_stage_replied": False,
         }
     if channel not in g["channels"]:
         g["channels"].append(channel)
@@ -447,6 +450,53 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
         g["status"] = "active"
     if channel == "email" and r["disposition"] == "interested":
         g["disposition"] = "interested"
+
+
+def _merge_email_handoff_row(grouped: dict, r: dict):
+    """Layers Email Handoff sequence progress onto an already-grouped
+    contact row (created by the sms/email blocks above) — a contact only
+    ever reaches "email-handoff" status after existing in the Inbox via one
+    of those channels already, so this never needs to create a fresh row."""
+    cid = r["contact_id"]
+    g = grouped.get(cid)
+    if not g:
+        return
+    g["is_email_handoff"] = True
+    g["email_handoff_touch1_sent_at"] = r["touch1_sent_at"]
+    g["email_handoff_touch2_sent_at"] = r["touch2_sent_at"]
+    g["email_handoff_touch3_sent_at"] = r["touch3_sent_at"]
+    g["email_stage_replied"] = bool(r["stage_replied"])
+
+
+@router.get("/email/sequence/{contact_id}")
+async def get_email_sequence(contact_id: str):
+    """Mirrors GET /sms/sequence/{phone} for the email channel — backs the
+    Inbox compose box's SEQUENCE button when replying by email, letting a
+    rep manually pick one of the 3 Email Handoff touches regardless of the
+    contact's current enrollment/status (same as the SMS version isn't
+    gated on sms-handoff status either)."""
+    import email_handoff_sequence
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow("SELECT owner, business FROM contacts WHERE id = $1", contact_id)
+
+    contact_dict = dict(contact) if contact else {}
+    templates = await email_handoff_sequence._get_templates()
+    steps = []
+    for instance in ("touch1", "touch2", "touch3"):
+        subject = (templates.get(f"email_handoff_{instance}_subject") or "").strip()
+        body = (templates.get(f"email_handoff_{instance}_body") or "").strip()
+        if not body:
+            continue
+        steps.append({
+            "key": instance,
+            "label": {"touch1": "Touch 1", "touch2": "Touch 2", "touch3": "Touch 3"}[instance],
+            "subject": email_handoff_sequence._fill(subject, contact_dict),
+            "text": email_handoff_sequence._fill(body, contact_dict),
+        })
+
+    return {"ok": True, "sequence_title": "Email Handoff", "steps": steps}
 
 
 @router.get("/inbox/conversations")
@@ -543,6 +593,17 @@ async def list_inbox_conversations(
             for r in email_rows:
                 _merge_contact_row(grouped, dict(r), "email")
 
+        if grouped:
+            handoff_rows = await conn.fetch(
+                """
+                SELECT contact_id, touch1_sent_at, touch2_sent_at, touch3_sent_at, stage_replied
+                FROM email_handoff_state WHERE contact_id = ANY($1::text[])
+                """,
+                list(grouped.keys()),
+            )
+            for r in handoff_rows:
+                _merge_email_handoff_row(grouped, dict(r))
+
     rows = list(grouped.values())
     rows.sort(key=lambda r: r["updated_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     return rows
@@ -553,7 +614,7 @@ async def get_contact_thread(contact_id: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
         contact = await conn.fetchrow(
-            "SELECT id, business, owner, phone, email, grade, tags FROM contacts WHERE id = $1", contact_id
+            "SELECT id, business, owner, phone, email, grade, tags, status FROM contacts WHERE id = $1", contact_id
         )
         if not contact:
             return {"contact_id": contact_id, "messages": []}
@@ -573,6 +634,12 @@ async def get_contact_thread(contact_id: str):
         email_conv = await conn.fetchrow(
             """SELECT thread_id, subject, status, disposition FROM email_conversations
                WHERE contact_id = $1 ORDER BY updated_at DESC LIMIT 1""",
+            contact_id,
+        )
+        email_handoff = await conn.fetchrow(
+            """SELECT enrolled_at, touch1_sent_at, touch2_sent_at, touch3_sent_at,
+                      stage_replied, stage_replied_manual, stage_replied_at
+               FROM email_handoff_state WHERE contact_id = $1""",
             contact_id,
         )
 
@@ -604,6 +671,7 @@ async def get_contact_thread(contact_id: str):
         "grade": contact["grade"],
         "phone": contact["phone"],
         "email": contact["email"],
+        "contact_status": contact["status"],
         "status": status,
         "disposition": disposition,
         "sms_status": sms_conv["status"] if sms_conv else None,
@@ -618,6 +686,19 @@ async def get_contact_thread(contact_id: str):
         "email_subject": email_conv["subject"] if email_conv else None,
         "email_status": email_conv["status"] if email_conv else None,
         "email_disposition": email_conv["disposition"] if email_conv else None,
+        # Email Handoff sequence progress — the frontend shows THESE instead
+        # of the stage_* fields above when contact_status == "email-handoff"
+        # (see SOPsPanel.jsx/InboxPanel.jsx). touch1/2/3_sent_at are
+        # automatic progress markers (not rep-editable); email_stage_replied
+        # is the one manually-toggleable checkbox, set via
+        # POST /inbox/contact/{id}/stage {stage: "email_replied"}.
+        "is_email_handoff": contact["status"] == "email-handoff",
+        "email_handoff_enrolled_at": email_handoff["enrolled_at"] if email_handoff else None,
+        "email_handoff_touch1_sent_at": email_handoff["touch1_sent_at"] if email_handoff else None,
+        "email_handoff_touch2_sent_at": email_handoff["touch2_sent_at"] if email_handoff else None,
+        "email_handoff_touch3_sent_at": email_handoff["touch3_sent_at"] if email_handoff else None,
+        "email_stage_replied": email_handoff["stage_replied"] if email_handoff else False,
+        "email_stage_replied_at": email_handoff["stage_replied_at"] if email_handoff else None,
         "messages": messages,
     }
 
@@ -670,8 +751,26 @@ async def set_contact_stage(contact_id: str, payload: dict):
             )
         return {"ok": True, "stage": stage, "checked": checked}
 
+    if stage == "email_replied":
+        # Email Handoff's manual-override equivalent of "replied" — lives on
+        # email_handoff_state, not sms_conversations, since a contact in
+        # "email-handoff" status is tracked by the 3-touch email sequence
+        # instead of the SMS funnel. See email_handoff_sequence.py.
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE email_handoff_state
+                SET stage_replied = $2, stage_replied_manual = true,
+                    stage_replied_at = CASE WHEN $2 THEN now() ELSE NULL END, updated_at = now()
+                WHERE contact_id = $1
+                """,
+                contact_id, checked,
+            )
+        return {"ok": True, "stage": stage, "checked": checked}
+
     if stage not in _STAGE_COLUMNS:
-        return {"ok": False, "error": "stage must be one of initial_outreach/replied/dm_reached/primed/engaged/interested/not_interested"}
+        return {"ok": False, "error": "stage must be one of initial_outreach/replied/dm_reached/primed/engaged/interested/not_interested/email_replied"}
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -739,4 +838,5 @@ async def delete_contact_threads(contact_id: str):
         await conn.execute("DELETE FROM sms_conversations WHERE contact_id = $1", contact_id)
         await conn.execute("DELETE FROM email_messages WHERE contact_id = $1", contact_id)
         await conn.execute("DELETE FROM email_conversations WHERE contact_id = $1", contact_id)
+        await conn.execute("DELETE FROM email_handoff_state WHERE contact_id = $1", contact_id)
     return {"ok": True}
