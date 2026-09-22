@@ -2,6 +2,7 @@ import re
 import uuid
 from typing import Optional
 
+import asyncpg
 from fastapi import APIRouter, Query, HTTPException
 import email_handoff_sequence
 import send_info_queue
@@ -161,6 +162,17 @@ async def update_contact(contact_id: str, body: ContactUpdate):
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
 
+    # contacts.phone is UNIQUE — a raw empty string is a real (colliding)
+    # value there, not "no phone", so two contacts both cleared to "" would
+    # hit the constraint. NULL is the only value Postgres lets repeat freely,
+    # so an explicitly-cleared phone field is stored as NULL instead — this
+    # also happens to be the only way to ever clear phone back out via this
+    # endpoint at all, since the `if v is not None` filter above already
+    # drops a genuine JSON null (Pydantic can't tell "omitted" from
+    # "explicitly null" on an Optional field either way).
+    if updates.get("phone") == "":
+        updates["phone"] = None
+
     set_parts = [f"{k} = ${i+2}" for i, k in enumerate(updates)]
     set_parts.append("updated_at = now()")
     sql = f"UPDATE contacts SET {', '.join(set_parts)} WHERE id = $1 RETURNING *"
@@ -168,7 +180,20 @@ async def update_contact(contact_id: str, body: ContactUpdate):
         if "status" in updates and not await _is_valid_status(conn, updates["status"]):
             raise HTTPException(status_code=400, detail=f"Invalid status: {updates['status']}")
         prev = await conn.fetchrow("SELECT status FROM contacts WHERE id = $1", contact_id)
-        row = await conn.fetchrow(sql, contact_id, *updates.values())
+        try:
+            row = await conn.fetchrow(sql, contact_id, *updates.values())
+        except asyncpg.UniqueViolationError:
+            # Only phone is UNIQUE on this table today — surfaced as a clean
+            # 400 instead of an unhandled exception, which FastAPI turns into
+            # a bare "Internal Server Error" text response with no JSON body.
+            # The frontend's error handling (ContactCard.jsx/CRMPanel.jsx)
+            # expects JSON with a `detail` field and silently falls back to a
+            # generic "Save failed." with no explanation when it isn't valid
+            # JSON — reported live 2026-09-22 as an unexplained save failure.
+            raise HTTPException(
+                status_code=400,
+                detail=f"Phone number {updates.get('phone')!r} is already used by another contact.",
+            )
         if not row:
             raise HTTPException(status_code=404, detail="Contact not found")
         # Re-entering the dialer queue: only clear follow_up_at (the cooldown
