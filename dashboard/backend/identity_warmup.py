@@ -37,7 +37,7 @@ auto-reply to a real lead.
 """
 import random
 import uuid
-from datetime import date, datetime, timedelta, timezone as dt_timezone
+from datetime import date, datetime, timezone as dt_timezone
 
 import email_identities
 from db import get_pool

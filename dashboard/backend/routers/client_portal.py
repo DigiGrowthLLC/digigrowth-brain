@@ -41,7 +41,6 @@ import meta_ads
 import no_show_sequence
 import onboarding_sequence
 import r2_storage
-from routers import dialer as dialer_router
 from routers import appointments as appointments_router
 from routers import sms as sms_router
 from timezone_lookup import US_TIMEZONES
