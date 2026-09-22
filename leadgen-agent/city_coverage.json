@@ -571,11 +571,11 @@
       "last_scraped_date": "2026-09-22"
     },
     "Newark, NJ": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 99,
+      "qualified_count": 10,
+      "last_scraped_date": "2026-09-22"
     },
     "Riverside, CA": {
       "status": "not_started",
