@@ -209,57 +209,68 @@ async def create_appointment_row(payload: dict) -> dict:
         try:
             pool = await get_pool()
             async with pool.acquire() as conn:
-                # Self-service bookings (prospect clicks the Calendly link
-                # sent via SMS/email and books directly — see
-                # routers/calendly_webhooks.py) never go through the Inbox,
-                # so they have no `channel` in the payload. Without an
-                # inferred channel here, sms_conversations.booked_at (what
-                # a campaign's Booked count actually reads — see
-                # routers/analytics.py's _sms_metrics) never got stamped,
-                # so those appointments landed in contacts.status/the CRM
-                # but silently never counted toward the SMS campaign that
-                # actually drove them. Caught live 2026-09-19: three
-                # Appt 1.4 bookings missing from its Analytics count.
-                # Infer from whichever conversation thread this contact
-                # actually has — but ONLY when unambiguous (exactly one of
-                # sms/email exists). A contact with active threads on BOTH
-                # channels is left uncredited rather than guessed, the same
-                # "don't guess" rule that made db.py revert its old blanket
-                # backfill 2 (2026-09-17: it credited both channels
-                # unconditionally and phantom-booked 5 email conversations
-                # that were never actually booked over email).
-                if not channel:
-                    inferred = await conn.fetchrow(
-                        """
-                        SELECT
-                            (SELECT MAX(updated_at) FROM sms_conversations WHERE contact_id = $1) AS sms_updated_at,
-                            (SELECT MAX(updated_at) FROM email_conversations WHERE contact_id = $1) AS email_updated_at
-                        """,
-                        contact_id,
-                    )
-                    sms_at = inferred["sms_updated_at"] if inferred else None
-                    email_at = inferred["email_updated_at"] if inferred else None
-                    if sms_at and not email_at:
-                        channel = "sms"
-                    elif email_at and not sms_at:
-                        channel = "email"
-                # booked_at is stamped alongside disposition and never
-                # cleared — it's the permanent "this really got booked"
-                # record Analytics' Booked count reads (see
-                # routers/analytics.py), so a later disposition change
-                # (e.g. closing the thread as not_interested after a
-                # no-show ghosts) can't erase the booked credit the way
-                # relying on disposition alone used to.
+                # Credit is keyed off the contact's own campaign tag, not a
+                # guess about which channel "actually" drove the booking.
+                # Self-service Calendly bookings (routers/calendly_webhooks.py)
+                # never pass `channel` at all, and even an explicit channel
+                # from the Inbox doesn't tell us whether the OTHER channel's
+                # thread should also get credit. Three narrower attempts at
+                # this (2026-09-14/16/17/19: inferring channel only when
+                # "unambiguous", requiring the thread not already be closed)
+                # each left real, campaign-tagged bookings uncounted — a
+                # contact with threads on both channels was left uncredited
+                # entirely, and a thread already closed (e.g. no-showed then
+                # dispositioned) never got stamped even when unambiguous.
+                # Caught live 2026-09-22 (third time): V.1.4's Analytics
+                # count was two appointments short.
+                #
+                # The actual rule the campaign stats need: any conversation
+                # (sms or email) that already carries a campaign_id for this
+                # contact gets booked_at stamped, independent of the other
+                # channel's state and independent of that thread's current
+                # status — a closed thread's booking still really happened.
+                # If an explicit `channel` was passed (Inbox reply), that
+                # channel is credited even without a campaign_id, same as
+                # before. This can credit both channels when both are
+                # campaign-tagged, which is correct: a prospect run through
+                # both an SMS and an email campaign who then books did get
+                # touched by both.
+                #
+                # Every disposition='booked' write also hard-clears any live
+                # DM Follow-Up enrollment — dm_followup_sequence.py's poller
+                # already excludes rows with disposition set, but a booked
+                # prospect should never sit around "enrolled" either (see
+                # that module's docstring and
+                # POST /inbox/contact/{id}/dm-followup's refusal to
+                # re-enroll a dispositioned contact).
+                _clear_dm_followup = (
+                    "dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL, "
+                    "dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL, "
+                    "dm_followup_touch3_sent_at = NULL, "
+                )
                 if channel == "sms":
                     await conn.execute(
-                        "UPDATE sms_conversations SET disposition = 'booked', booked_at = COALESCE(booked_at, now()), updated_at = now() "
-                        "WHERE contact_id = $1 AND status != 'closed'",
+                        "UPDATE sms_conversations SET disposition = 'booked', booked_at = COALESCE(booked_at, now()), "
+                        + _clear_dm_followup +
+                        "updated_at = now() WHERE contact_id = $1",
                         contact_id,
                     )
                 elif channel == "email":
                     await conn.execute(
                         "UPDATE email_conversations SET disposition = 'booked', booked_at = COALESCE(booked_at, now()), updated_at = now() "
-                        "WHERE contact_id = $1 AND status != 'closed'",
+                        "WHERE contact_id = $1",
+                        contact_id,
+                    )
+                else:
+                    await conn.execute(
+                        "UPDATE sms_conversations SET disposition = 'booked', booked_at = COALESCE(booked_at, now()), "
+                        + _clear_dm_followup +
+                        "updated_at = now() WHERE contact_id = $1 AND campaign_id IS NOT NULL",
+                        contact_id,
+                    )
+                    await conn.execute(
+                        "UPDATE email_conversations SET disposition = 'booked', booked_at = COALESCE(booked_at, now()), updated_at = now() "
+                        "WHERE contact_id = $1 AND campaign_id IS NOT NULL",
                         contact_id,
                     )
                 await conn.execute(

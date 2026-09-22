@@ -3,19 +3,21 @@ import React, { useState, useEffect, useCallback } from "react";
 // ── Active-prospect queue for the DM Follow-Up sequence ──────────────────────
 // Same visual pattern as SequenceQueueModal.jsx (used by No Show/Cancellation/
 // Reminders), but DM Follow-Up is keyed off sms_conversations + contact_id
-// rather than appointment_reminders + numeric id, and its add/remove isn't a
-// dedicated endpoint — it reuses the existing DM Reached checkbox action
-// (POST /api/inbox/contact/{contact_id}/stage) since checking/unchecking that
-// box already IS enroll/unenroll (see email_inbox.py's set_contact_stage).
+// rather than appointment_reminders + numeric id. Enrollment has its own
+// dedicated endpoint (POST /api/inbox/contact/{contact_id}/dm-followup),
+// deliberately independent of the "DM Reached" analytics checkbox — the two
+// used to be the same action, which meant stopping an unwanted follow-up
+// cycle required unchecking DM Reached and corrupting analytics. See
+// email_inbox.py's set_dm_followup_active() docstring.
 // Dropping off this list on reply is automatic (dm_followup_sequence.py
 // clears the row's cycle the moment a reply lands), not something this UI
 // has to do — see GET /api/dialer/dm-followup-active's docstring.
 
-async function setDmReached(contactId, checked) {
-  return fetch(`/api/inbox/contact/${contactId}/stage`, {
+async function setDmFollowUpActive(contactId, active) {
+  return fetch(`/api/inbox/contact/${contactId}/dm-followup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ stage: "dm_reached", checked }),
+    body: JSON.stringify({ active }),
   });
 }
 
@@ -51,7 +53,7 @@ function AddToDmFollowUpModal({ activeContactIds, onClose, onAdded }) {
   async function add(contact) {
     setAddingId(contact.id);
     setErr("");
-    const res = await setDmReached(contact.id, true);
+    const res = await setDmFollowUpActive(contact.id, true);
     if (res.ok) {
       onAdded();
       onClose();
@@ -73,7 +75,7 @@ function AddToDmFollowUpModal({ activeContactIds, onClose, onAdded }) {
         </div>
 
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
-          Same action as checking "DM Reached" on the contact in the Inbox — starts the 24h-silence countdown from now.
+          Enrolls into DM Follow-Up and starts the 24h-silence countdown from now — independent of the "DM Reached" checkbox in the Inbox. Refused for anyone already dispositioned (booked/not interested).
         </div>
 
         <input
@@ -140,10 +142,10 @@ export default function DmFollowUpQueueModal({ onClose }) {
 
   async function remove(row) {
     const name = row.owner || row.business || row.phone;
-    if (!window.confirm(`Remove ${name} from DM Follow-Up? This unchecks "DM Reached" for them — they won't auto re-enroll unless the box is checked again.`)) return;
+    if (!window.confirm(`Remove ${name} from DM Follow-Up? They won't auto re-enroll — someone has to explicitly re-add them.`)) return;
     setBusyId(row.id);
     setErr("");
-    const res = await setDmReached(row.contact_id, false);
+    const res = await setDmFollowUpActive(row.contact_id, false);
     if (res.ok) fetchRows();
     else { const d = await res.json().catch(() => ({})); setErr(d.detail || "Failed to remove."); }
     setBusyId(null);

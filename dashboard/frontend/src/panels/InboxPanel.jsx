@@ -892,23 +892,33 @@ export default function InboxPanel({ initialTarget }) {
                               <div style={{ color: "#6ab0ff", letterSpacing: "0.08em", margin: "12px 0 6px" }}>DM FOLLOW-UP</div>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                                 <div style={{ color: "#3a5a80", fontSize: 9 }}>
-                                  {contactSeqs.dm_followup?.stage_dm_reached
+                                  {contactSeqs.dm_followup?.dm_followup_enrolled_at
                                     ? `Enrolled${contactSeqs.dm_followup.dm_followup_anchor_at ? " · mid-cycle" : ""}`
-                                    : "Not enrolled — toggle DM Reached to enroll."}
+                                    : "Not enrolled — independent of the DM Reached checkbox above."}
                                 </div>
                                 <button
                                   onClick={async () => {
-                                    await setStage("dm_reached", !contactSeqs.dm_followup?.stage_dm_reached);
+                                    const active = !contactSeqs.dm_followup?.dm_followup_enrolled_at;
+                                    const res = await fetch(`/api/inbox/contact/${selected}/dm-followup`, {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ active }),
+                                    });
+                                    if (!res.ok) {
+                                      const d = await res.json().catch(() => ({}));
+                                      alert(d.detail || "Failed to update DM Follow-Up enrollment.");
+                                      return;
+                                    }
                                     await loadContactSeqs(selected);
                                   }}
                                   className="btn btn-ghost"
                                   style={{
                                     fontSize: 9, padding: "3px 8px", flexShrink: 0,
-                                    borderColor: contactSeqs.dm_followup?.stage_dm_reached ? "rgba(220,80,80,0.4)" : "rgba(20,200,130,0.4)",
-                                    color: contactSeqs.dm_followup?.stage_dm_reached ? "#e05c5c" : "#14c882",
+                                    borderColor: contactSeqs.dm_followup?.dm_followup_enrolled_at ? "rgba(220,80,80,0.4)" : "rgba(20,200,130,0.4)",
+                                    color: contactSeqs.dm_followup?.dm_followup_enrolled_at ? "#e05c5c" : "#14c882",
                                   }}
                                 >
-                                  {contactSeqs.dm_followup?.stage_dm_reached ? "REMOVE" : "ADD"}
+                                  {contactSeqs.dm_followup?.dm_followup_enrolled_at ? "REMOVE" : "ADD"}
                                 </button>
                               </div>
 

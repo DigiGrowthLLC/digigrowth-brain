@@ -560,16 +560,18 @@ async def list_dm_followup_active():
     back to NULL (is_new_cycle branch in send_due_touches()), so they
     reappear here with a genuinely new countdown, as expected.
 
-    A rep can still be enrolled (stage_dm_reached = true) without showing
-    here — e.g. right after they've replied and the anchor was just
-    cleared, waiting on Dylan's next outbound to start a new cycle, or
-    after Touch 3 has already gone out. That's correct: there's nothing
-    actively counting down for them right now.
+    A rep can still be enrolled (dm_followup_enrolled_at IS NOT NULL)
+    without showing here — e.g. right after they've replied and the anchor
+    was just cleared, waiting on Dylan's next outbound to start a new
+    cycle, or after Touch 3 has already gone out. That's correct: there's
+    nothing actively counting down for them right now. Enrollment is
+    intentionally independent of the "DM Reached" analytics checkbox
+    (stage_dm_reached) — see dm_followup_sequence.py's module docstring.
 
     Add/remove aren't separate endpoints here — the existing
-    POST /inbox/contact/{contact_id}/stage (stage="dm_reached", checked)
+    POST /inbox/contact/{contact_id}/dm-followup (active: true/false)
     already does exactly enroll/unenroll (see email_inbox.py's
-    set_contact_stage), so the frontend calls that directly instead of
+    set_dm_followup_active), so the frontend calls that directly instead of
     duplicating the logic.
     """
     pool = await get_pool()
@@ -578,7 +580,7 @@ async def list_dm_followup_active():
             """
             SELECT sc.*, c.business, c.owner FROM sms_conversations sc
             LEFT JOIN contacts c ON c.id = sc.contact_id
-            WHERE sc.stage_dm_reached = true AND sc.status != 'closed' AND sc.disposition IS NULL
+            WHERE sc.status != 'closed' AND sc.disposition IS NULL
             AND sc.dm_followup_enrolled_at IS NOT NULL AND sc.dm_followup_anchor_at IS NOT NULL
             AND sc.dm_followup_touch3_sent_at IS NULL
             ORDER BY sc.dm_followup_anchor_at ASC

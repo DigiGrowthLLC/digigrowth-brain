@@ -902,6 +902,24 @@ async def _create_schema(pool: asyncpg.Pool):
                 dm_followup_touch2_sent_at = NULL, dm_followup_touch3_sent_at = NULL
             WHERE dm_followup_enrolled_at IS NULL AND dm_followup_anchor_at IS NOT NULL
         """)
+        # One-time cleanup (2026-09-22): DM Follow-Up enrollment used to be
+        # tied to the "DM Reached" analytics checkbox — checking/unchecking
+        # it was the only way to start/stop the sequence, which forced reps
+        # to corrupt analytics just to stop an unwanted cycle. Enrollment is
+        # now its own control (POST /inbox/contact/{id}/dm-followup — see
+        # dm_followup_sequence.py's module docstring) that refuses to enroll
+        # anyone already dispositioned, but that guard only applies to NEW
+        # enrollments going forward. Any contact already booked/not-interested
+        # under the old coupled logic could still be sitting "enrolled" from
+        # before this shipped — this clears that stale enrollment (and any
+        # in-flight cycle) for every already-dispositioned row, once.
+        await conn.execute("""
+            UPDATE sms_conversations
+            SET dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
+                dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL,
+                dm_followup_touch3_sent_at = NULL
+            WHERE disposition IS NOT NULL AND dm_followup_enrolled_at IS NOT NULL
+        """)
         # One-time backfill for the new "only ever send each touch once"
         # lifetime cap: the *_ever_sent_at columns didn't exist until now, so
         # any touch a prospect already received under the old (resettable)
@@ -1498,17 +1516,29 @@ async def _create_schema(pool: asyncpg.Pool):
         # outreach showed 5 "booked" appointments that were never booked
         # through email.
         #
-        # Backfill 3: recovers the same real-appointment signal as backfill 2
-        # tried to, but only where the channel is UNAMBIGUOUS — the contact
-        # has a conversation row on exactly one of sms/email, not both — so
-        # there's no guessing which channel actually drove the booking, the
-        # exact ambiguity that made backfill 2 mis-credit email. Needed
-        # because routers/appointments.py's create_appointment_row() only
-        # ever got a `channel` from a manual booking-entry form that
-        # 2026-09-16's "Replace manual reminder booking form with a Stop
-        # Reminders control" removed — every booking since is Calendly-
-        # webhook-driven with no channel at all, so without this, a real,
-        # non-canceled appointment permanently earns zero campaign credit.
+        # Backfill 3 (REPLACED 2026-09-22): tried to avoid backfill 2's
+        # mis-credit by only recovering booked_at when the channel was
+        # "unambiguous" — contact has a conversation row on exactly one of
+        # sms/email — and by requiring disposition == 'booked' or this same
+        # unambiguous-appointment evidence before keeping any booked_at. That
+        # correctly stopped guessing between two *untagged* channels, but it
+        # kept leaving real, campaign-tagged bookings uncredited any time a
+        # contact simply had threads on both channels (common — most
+        # prospects get both an SMS and an email touch), which is what
+        # backfill 2's removal was actually trying to prevent, not a reason
+        # to withhold credit. Reported live 2026-09-22 (third time this
+        # exact complaint has come up): V.1.4's Analytics count was two
+        # appointments short.
+        #
+        # The rule that actually matches what "campaign booked" should mean:
+        # credit is a per-channel fact, not a single either/or guess. Any
+        # sms_conversations/email_conversations row that (a) is already
+        # tagged with a campaign_id — i.e. the contact card genuinely shows
+        # that channel's campaign — and (b) belongs to a contact with a
+        # real, non-canceled appointment gets booked_at stamped, full stop.
+        # No requirement that the OTHER channel be empty, and no requirement
+        # that the thread still be open (a closed thread's booking still
+        # really happened — see the 2026-09-19 Louis Walker case below).
         # Runs unconditionally (not "IS NULL"-guarded to a one-shot) so a
         # later real, non-canceled appointment for an already-tracked
         # contact still gets picked up on the next deploy.
@@ -1518,12 +1548,10 @@ async def _create_schema(pool: asyncpg.Pool):
         # current status (that's still true and shouldn't be overwritten
         # back to 'booked'), while booked_at (which Analytics' Booked count
         # actually reads — see routers/analytics.py) still credits the real
-        # booking that happened, per this column's whole reason for existing
-        # (see this section's opening comment above). Caught live
-        # 2026-09-19: Louis Walker (Elite Performance PT, V.1.4 campaign)
-        # booked, no-showed, was dispositioned not_interested afterward, and
-        # lost his booked credit entirely under the old all-or-nothing guard
-        # below — this is the fix for that gap.
+        # booking that happened. Caught live 2026-09-19: Louis Walker (Elite
+        # Performance PT, V.1.4 campaign) booked, no-showed, was dispositioned
+        # not_interested afterward, and lost his booked credit entirely under
+        # the old all-or-nothing guard — this stays fixed under the new rule.
         await conn.execute(
             """
             UPDATE sms_conversations sc SET booked_at = COALESCE(booked_at, (
@@ -1531,8 +1559,8 @@ async def _create_schema(pool: asyncpg.Pool):
                 WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled'
             ))
             WHERE booked_at IS NULL
+              AND sc.campaign_id IS NOT NULL
               AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled')
-              AND NOT EXISTS (SELECT 1 FROM email_conversations ec WHERE ec.contact_id = sc.contact_id)
             """
         )
         await conn.execute(
@@ -1542,24 +1570,25 @@ async def _create_schema(pool: asyncpg.Pool):
                 WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled'
             ))
             WHERE booked_at IS NULL
+              AND ec.campaign_id IS NOT NULL
               AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled')
-              AND NOT EXISTS (SELECT 1 FROM sms_conversations sc WHERE sc.contact_id = ec.contact_id)
             """
         )
-        # Corrective guard for backfill 2's mis-credits: clears booked_at
-        # whenever disposition isn't 'booked' UNLESS backfill 3 above just
-        # justified it with real, unambiguous-channel appointment evidence —
-        # same condition as backfill 3's WHERE clause, so this never undoes
-        # what that one just did, only genuine phantom credits left over
-        # from the old backfill 2 (or any other unexplained booked_at).
+        # Corrective guard: clears booked_at whenever disposition isn't
+        # 'booked' UNLESS the backfill above just justified it with real,
+        # campaign-tagged appointment evidence — same condition as that
+        # backfill's WHERE clause, so this never undoes what it just did,
+        # only genuine phantom credits left over from the old backfill 2 (or
+        # any other unexplained booked_at, e.g. a campaign_id later cleared
+        # by contacts/{id}/campaigns' DELETE endpoint after credit was given).
         await conn.execute(
             """
             UPDATE sms_conversations sc SET booked_at = NULL
             WHERE disposition IS DISTINCT FROM 'booked'
               AND booked_at IS NOT NULL
               AND NOT (
-                EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled')
-                AND NOT EXISTS (SELECT 1 FROM email_conversations ec WHERE ec.contact_id = sc.contact_id)
+                sc.campaign_id IS NOT NULL
+                AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled')
               )
             """
         )
@@ -1569,8 +1598,8 @@ async def _create_schema(pool: asyncpg.Pool):
             WHERE disposition IS DISTINCT FROM 'booked'
               AND booked_at IS NOT NULL
               AND NOT (
-                EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled')
-                AND NOT EXISTS (SELECT 1 FROM sms_conversations sc WHERE sc.contact_id = ec.contact_id)
+                ec.campaign_id IS NOT NULL
+                AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled')
               )
             """
         )
