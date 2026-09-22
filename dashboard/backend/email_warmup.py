@@ -35,11 +35,16 @@ from db import get_pool
 _SCHEDULE_KEY = "warmup_schedule"
 _SEEDS_KEY = "warmup_seed_emails"
 
-# Roughly doubling every 1-2 days — a short ramp on the assumption the
-# subdomain's DNS (SPF/DKIM/MX) is already valid from the earlier guide
-# steps, so this is warming the mailbox's own sending history, not proving
-# out fresh DNS. Tune via the warmup_schedule dialer_settings key.
-_DEFAULT_SCHEDULE = [3, 5, 8, 12, 17, 23, 30, 38, 47, 60]
+# Roughly doubling every 1-2 days, capped at 40/day — a short ramp on the
+# assumption the subdomain's DNS (SPF/DKIM/MX) is already valid from the
+# earlier guide steps, so this is warming the mailbox's own sending history,
+# not proving out fresh DNS. The 40 ceiling (lowered 2026-09-22 from an
+# earlier 60) matches common cold-outreach guidance that a single mailbox's
+# sustainable long-term volume tops out around 30-50/day regardless of warm
+# status — deliverability risk past that point is a volume/engagement
+# function, not something warm-up "unlocks". Tune via the warmup_schedule
+# dialer_settings key.
+_DEFAULT_SCHEDULE = [2, 3, 5, 8, 11, 15, 20, 25, 31, 40]
 
 _SUBJECTS = [
     "Quick check-in",
@@ -48,10 +53,15 @@ _SUBJECTS = [
     "Quick note",
     "Circling back",
 ]
-_BODY = (
-    "Hey,\n\nJust checking in — nothing urgent, wanted to keep this thread moving.\n\n"
-    "Talk soon."
-)
+# Rotated alongside subject (same cursor) so no two consecutive sends share
+# identical subject+body — identical repeated content across dozens of daily
+# sends is itself a spam-pattern signal independent of volume.
+_BODIES = [
+    "Hey,\n\nJust checking in — nothing urgent, wanted to keep this thread moving.\n\nTalk soon.",
+    "Hi,\n\nCircling back on this — no rush, just wanted to keep it on your radar.\n\nSpeak soon.",
+    "Hey there,\n\nWanted to touch base quickly. Nothing pressing, just keeping the loop open.\n\nBest.",
+    "Hi,\n\nQuick note to keep this thread alive on my end — happy to pick back up whenever.\n\nThanks.",
+]
 
 
 async def _get_schedule(conn) -> list[int]:
@@ -191,10 +201,22 @@ async def get_status(client_id: int) -> dict:
 
 def _build_raw_message(to: str, day_number: int, seed_cursor: int) -> str:
     subject = _SUBJECTS[seed_cursor % len(_SUBJECTS)]
-    msg = MIMEText(_BODY)
+    body = _BODIES[seed_cursor % len(_BODIES)]
+    msg = MIMEText(body)
     msg["to"] = to
     msg["subject"] = subject
     return base64.urlsafe_b64encode(msg.as_bytes()).decode()
+
+
+def _within_business_hours() -> bool:
+    """Gmail/Outlook's spam ML weighs send-time patterns — a mailbox firing
+    emails at 3am every night reads as automated regardless of content or
+    volume. Real humans mostly send Mon-Fri, business hours. Gating warm-up
+    sends to the same window is a low-effort, real signal improvement."""
+    from zoneinfo import ZoneInfo
+
+    now = datetime.now(ZoneInfo("America/New_York"))
+    return now.weekday() < 5 and 8 <= now.hour < 18
 
 
 async def send_due_touches():
@@ -204,6 +226,9 @@ async def send_due_touches():
     day_target is e.g. 30 naturally spreads those sends across the day
     instead of firing them all in one shot. Never raises."""
     try:
+        if not _within_business_hours():
+            return
+
         pool = await get_pool()
         async with pool.acquire() as conn:
             rows = await conn.fetch(
