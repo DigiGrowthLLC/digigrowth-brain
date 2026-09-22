@@ -14,21 +14,31 @@ ownership contract as routers/client_portal.py's portal_create_lead
 (never reimplemented separately) → hand off to
 response_ai.initiate_conversation() for a genuinely new/claimed contact.
 
-Correction (2026-09-22): this previously said Meta App Review gates all of
-this — not true for Pages/ad accounts owned within DigiGrowth's own
-Business Manager (same correction as meta_ads.py's docstring). What
-actually gates real traffic: (1) the target Page must have
-leadgen_tos_accepted=true, (2) the Page must be added as an asset to the
-same System User meta_ads.py uses, with a token scoped to include
-leads_retrieval + pages_manage_ads (the plain ads_read/ads_management scope
-used for insights sync is NOT enough — calling {leadgen_id}?fields=field_data
-with an ads-only-scoped token returns a permissions error, confirmed live
-2026-09-22), and (3) that Page must be subscribed to this app's `leadgen`
-webhook field (POST /{page-id}/subscribed_apps with subscribed_fields=leadgen,
-using a Page-scoped token — a separate one-time step per Page, not automatic
-just from creating a Lead Ads form). Until all three are done for a given
-Page, this endpoint still exists and verifies correctly, it just never
-receives real traffic for that Page.
+Correction (2026-09-22), part 1 — infrastructure that does NOT need Meta App
+Review, since it's all within DigiGrowth's own Business Manager: (1) the
+target Page must have leadgen_tos_accepted=true, (2) the Page must be added
+as an asset to the same System User meta_ads.py uses, with a token scoped
+to include leads_retrieval + pages_manage_ads (confirmed live: calling
+{leadgen_id}?fields=field_data requires exchanging the System User token
+for a Page access token first — see _get_page_access_token below — plain
+ads_read/ads_management alone is not enough), and (3) that Page must be
+subscribed to this app's `leadgen` webhook field (POST
+/{page-id}/subscribed_apps with subscribed_fields=leadgen, using a
+Page-scoped token — a separate one-time step per Page, not automatic just
+from creating a Lead Ads form). All three of these were done and verified
+live for CrosaCore's Page on 2026-09-22 without any App Review.
+
+Correction, part 2 — this does NOT mean real traffic is unblocked. Verified
+directly against Meta's own developer docs (developers.facebook.com/
+documentation/ads-commerce/marketing-api/guides/lead-ads) 2026-09-22:
+unlike ads_read/ads_management, the leads_retrieval permission specifically
+DOES require actual Meta App Review to receive real (non-test) lead data —
+Standard Access for this permission only works with test Pages/forms,
+regardless of whether the Page is owned within DigiGrowth's own Business
+Manager. So until App Review for leads_retrieval is submitted and
+approved, this endpoint is correctly wired end-to-end but will only ever
+receive Meta's "Test Lead" submissions (sent to Page admins/app
+testers/developers only), never a real public lead from a live campaign.
 """
 import hashlib
 import hmac
