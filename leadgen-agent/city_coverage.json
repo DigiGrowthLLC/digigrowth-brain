@@ -565,10 +565,10 @@
     },
     "Stockton, CA": {
       "status": "in_progress",
-      "term_index": 2,
-      "reviewed_count": 209,
+      "term_index": 3,
+      "reviewed_count": 269,
       "qualified_count": 4,
-      "last_scraped_date": "2026-09-18"
+      "last_scraped_date": "2026-09-22"
     },
     "Newark, NJ": {
       "status": "not_started",
