@@ -109,12 +109,79 @@ function AddIdentityModal({ onClose, onAdded }) {
   );
 }
 
+// ── Edit identity sub-modal ───────────────────────────────────────────────
+// Used both to rename an identity and to rotate its refresh token (e.g.
+// after an Azure/Google app registration change requires a fresh token) —
+// the refresh token field is left blank by default so re-saving without
+// touching it never overwrites a working token with an empty one.
+
+function EditIdentityModal({ identity, onClose, onSaved }) {
+  const [displayName, setDisplayName] = useState(identity.display_name || "");
+  const [refreshToken, setRefreshToken] = useState("");
+  const [tenantId, setTenantId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function save() {
+    setSaving(true);
+    setErr("");
+    const body = { display_name: displayName.trim() };
+    if (refreshToken.trim()) body.oauth_refresh_token = refreshToken.trim();
+    if (identity.provider === "microsoft" && tenantId.trim()) body.ms_tenant_id = tenantId.trim();
+    try {
+      const res = await fetch(`/api/email-identities/${identity.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        onSaved();
+        onClose();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setErr(d.detail || "Failed to save.");
+      }
+    } catch {
+      setErr("Failed to save.");
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(4,8,16,0.85)" }} onClick={onClose} />
+      <div style={{ position: "relative", background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 8,
+                    width: 480, maxWidth: "92vw", display: "flex", flexDirection: "column", padding: "24px 28px", gap: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
+            Edit {identity.mailbox_email}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 14 }}>✕</button>
+        </div>
+
+        <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Display name" className="dg-input" />
+        <input value={refreshToken} onChange={e => setRefreshToken(e.target.value)} placeholder="New OAuth refresh token (leave blank to keep current)" className="dg-input" />
+        {identity.provider === "microsoft" && (
+          <input value={tenantId} onChange={e => setTenantId(e.target.value)} placeholder="New Azure AD tenant id (leave blank to keep current)" className="dg-input" />
+        )}
+
+        {err && <div style={{ fontSize: 11, color: "#e05555" }}>{err}</div>}
+
+        <button onClick={save} disabled={saving} className="btn btn-primary" style={{ alignSelf: "flex-end" }}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main modal ─────────────────────────────────────────────────────────────
 
 export default function IdentityWarmupModal({ onClose }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingIdentity, setEditingIdentity] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [err, setErr] = useState("");
 
@@ -146,6 +213,16 @@ export default function IdentityWarmupModal({ onClose }) {
     const res = await fetch(`/api/email-identities/${row.id}/${path}`, { method: "POST" });
     if (res.ok) fetchRows();
     else { const d = await res.json().catch(() => ({})); setErr(d.detail || "Failed to update status."); }
+    setBusyId(null);
+  }
+
+  async function deleteIdentity(row) {
+    if (!window.confirm(`Delete ${row.mailbox_email}? This removes its warm-up history and it will never be picked for sends again.`)) return;
+    setBusyId(row.id);
+    setErr("");
+    const res = await fetch(`/api/email-identities/${row.id}`, { method: "DELETE" });
+    if (res.ok) fetchRows();
+    else { const d = await res.json().catch(() => ({})); setErr(d.detail || "Failed to delete."); }
     setBusyId(null);
   }
 
@@ -230,15 +307,23 @@ export default function IdentityWarmupModal({ onClose }) {
                       )}
                       {r.identity_status !== "active" ? (
                         <button onClick={() => setStatus(r, "active")} disabled={busyId === r.id}
-                          className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", color: "#14c882" }}>
+                          className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", color: "#14c882", marginRight: 6 }}>
                           Activate
                         </button>
                       ) : (
                         <button onClick={() => setStatus(r, "paused")} disabled={busyId === r.id}
-                          className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", color: "#e05555" }}>
+                          className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", color: "#e05555", marginRight: 6 }}>
                           Pause
                         </button>
                       )}
+                      <button onClick={() => setEditingIdentity(r)} disabled={busyId === r.id}
+                        className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", marginRight: 6 }}>
+                        Edit
+                      </button>
+                      <button onClick={() => deleteIdentity(r)} disabled={busyId === r.id}
+                        className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", color: "#e05555" }}>
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -250,6 +335,9 @@ export default function IdentityWarmupModal({ onClose }) {
 
       {showAdd && (
         <AddIdentityModal onClose={() => setShowAdd(false)} onAdded={fetchRows} />
+      )}
+      {editingIdentity && (
+        <EditIdentityModal identity={editingIdentity} onClose={() => setEditingIdentity(null)} onSaved={fetchRows} />
       )}
     </div>
   );
