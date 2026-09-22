@@ -353,6 +353,30 @@ async def merge_contacts(keep_id: str, payload: dict):
                 )
                 merged = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", keep_id)
 
+            # keep_id may already have had its OWN real sms_conversations row
+            # (its real texting history, tagged with its own real campaign)
+            # before this merge — untouched above deliberately, since
+            # overwriting a real conversation's campaign_id with whatever the
+            # merged-away contact's pending marker said would misattribute
+            # real history. But the appointment just reassigned onto keep_id
+            # above may have been booked while contact_id still pointed at
+            # merge_id, so this same rule from db.py's own booked_at backfill
+            # (see that migration's docstring) applies here too: any
+            # campaign-tagged conversation for a contact with a real,
+            # non-canceled appointment gets credited, independent of when
+            # that appointment's contact_id got linked.
+            if has_active_appt:
+                await conn.execute(
+                    "UPDATE sms_conversations SET booked_at = COALESCE(booked_at, now()) "
+                    "WHERE contact_id = $1 AND campaign_id IS NOT NULL",
+                    keep_id,
+                )
+                await conn.execute(
+                    "UPDATE email_conversations SET booked_at = COALESCE(booked_at, now()) "
+                    "WHERE contact_id = $1 AND campaign_id IS NOT NULL",
+                    keep_id,
+                )
+
             # Same "count it right away" behavior as campaigns.py's
             # assign_contact_campaign() — a pending SMS campaign shouldn't
             # sit invisible to Analytics just because it arrived via a merge
