@@ -1482,8 +1482,12 @@ function DashboardTab({ token, contactName }) {
 // anywhere in this DB (the agency's own revenue numbers come from a separate
 // Google Sheet, not per-client), so showing a number here would be a guess.
 // CAC uses ad spend / closed appointments instead, which needs no revenue
-// figure and stays honest until Meta Ads (meta_ads.py — currently a stub)
-// is wired up and appointments go live for a given client.
+// figure and stays honest until ad_campaign_stats has real rows for a given
+// client. meta_ads.py is a fully implemented daily-sync pipeline (not a
+// stub) already wired into the scheduler — it's just dormant until
+// META_SYSTEM_USER_TOKEN is set (see meta_ads.py's module docstring); no
+// Meta App Review is required for that, contrary to what this comment used
+// to say.
 function AnalyticsStat({ label, value, sublabel, iconKey }) {
   return (
     <div className="stat-card">

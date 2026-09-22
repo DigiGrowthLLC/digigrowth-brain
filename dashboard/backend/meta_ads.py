@@ -12,9 +12,18 @@ assigned asset — mirrors how a client's Twilio subaccount already sits under
 DigiGrowth's own master Twilio account, see client_sms.py) — read from
 META_SYSTEM_USER_TOKEN in the shared `digigrowth` Doppler vault, never a
 per-client token/OAuth flow. Requires the `ads_management` or `ads_read`
-permission, which requires Meta App Review + Business Verification — until
-that's approved, every client is simply skipped (see sync_meta_ad_stats), not
-an error.
+permission on the System User.
+
+Correction (2026-09-22): this previously said Meta App Review + Business
+Verification was required first — that's wrong. App Review ("Advanced
+Access") is only required to manage *other businesses'* ad accounts. Every
+account this syncs is already owned/assigned within DigiGrowth's own
+Business Manager (same structure as the Twilio subaccount setup above), so
+Standard/Limited Access is sufficient: a verified Business Manager + a live
+app with the Marketing API product enabled + a System User token with
+ads_read scope. No review process is blocking this — it's just not created
+yet. Until META_SYSTEM_USER_TOKEN is set, every client is simply skipped
+(see sync_meta_ad_stats), not an error.
 
 Requires meta_ad_account_id set on a client's client_marketing_config
 (entered via the Marketing Setup guide's "Create Paid Ad Creatives" step,
@@ -37,11 +46,21 @@ _WINDOW_DAYS = 3  # trailing window re-synced every run so a transient
 
 # Meta's `actions` array entries use one of a few action_type strings for a
 # Lead Ads result depending on API version/campaign objective — checking
-# several known aliases rather than trusting exactly one. Flagged as an
-# assumption to verify against Meta's current docs; add more here if a
-# real client's leads count comes back as 0 despite having real Lead Ads
+# several known aliases rather than trusting exactly one. Verified against a
+# real client (CrosaCore, ad account 1497204665790539) on 2026-09-22: that
+# account's own campaign reports its `results.indicator` as
+# "actions:offsite_conversion.fb_pixel_lead" — a website/Pixel-based Lead
+# event (the campaign drives to a landing page + Meta Pixel, not a native
+# Lead Ads form), which was previously missing from this set entirely and
+# would have silently reported 0 leads for this exact client. Add more here
+# if a real client's leads count comes back as 0 despite having real lead
 # activity.
-_LEAD_ACTION_TYPES = {"lead", "onsite_conversion.lead_grouped", "leadgen.other"}
+_LEAD_ACTION_TYPES = {
+    "lead",
+    "onsite_conversion.lead_grouped",
+    "leadgen.other",
+    "offsite_conversion.fb_pixel_lead",
+}
 
 
 def _extract_lead_count(actions: list[dict] | None) -> int:
@@ -75,9 +94,15 @@ async def _upsert_days(conn, client_id: int, days: list[dict]) -> int:
     upserted = 0
     for day in days:
         try:
-            stat_date = day.get("date_start")
-            if not stat_date:
+            stat_date_str = day.get("date_start")
+            if not stat_date_str:
                 continue
+            # asyncpg (unlike psycopg2) does not auto-cast a str into a DATE
+            # column — it requires an actual datetime.date, or every upsert
+            # raises asyncpg.exceptions.DataError, which the except below
+            # swallows silently (only reaching Railway's stdout logs), so
+            # this cast is required, not defensive.
+            stat_date = date.fromisoformat(stat_date_str)
             await conn.execute(
                 """
                 INSERT INTO ad_campaign_stats
@@ -154,8 +179,9 @@ async def sync_one_client_now(client_id: int) -> int:
     token = os.environ.get("META_SYSTEM_USER_TOKEN")
     if not token:
         raise RuntimeError(
-            "META_SYSTEM_USER_TOKEN isn't set — this requires Meta App Review + "
-            "Business Verification to be complete first (see meta_ads.py's module docstring)."
+            "META_SYSTEM_USER_TOKEN isn't set yet — a System User token needs to be "
+            "created in DigiGrowth's Business Manager and added to Doppler (see "
+            "meta_ads.py's module docstring). No Meta App Review is required for this."
         )
 
     pool = await get_pool()
