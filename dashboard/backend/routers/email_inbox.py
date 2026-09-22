@@ -28,7 +28,7 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 import integrations
 import cancel_sequence
@@ -737,8 +737,23 @@ async def set_contact_stage(contact_id: str, payload: dict):
         disposition = "not_interested" if checked else None
         pool = await get_pool()
         async with pool.acquire() as conn:
+            # dm_followup_sequence.py's poller already excludes any row with
+            # disposition IS NOT NULL, so this alone stops a live cycle from
+            # sending again — but checking Not Interested here also hard-clears
+            # enrollment itself (dm_followup_enrolled_at + the in-flight
+            # anchor/touch columns), not just relies on the disposition
+            # filter, so there's no stale enrollment state sitting around
+            # that a later disposition change could silently reactivate. See
+            # POST /inbox/contact/{contact_id}/dm-followup's docstring — it
+            # refuses to (re-)enroll anyone currently dispositioned, so a rep
+            # can't accidentally re-add a Not Interested prospect either.
             await conn.execute(
-                "UPDATE sms_conversations SET disposition = $2, updated_at = now() WHERE contact_id = $1",
+                """
+                UPDATE sms_conversations SET disposition = $2, updated_at = now()""" + (
+                    ", dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL, "
+                    "dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL, "
+                    "dm_followup_touch3_sent_at = NULL" if checked else ""
+                ) + " WHERE contact_id = $1",
                 contact_id, disposition,
             )
             await conn.execute(
@@ -775,43 +790,31 @@ async def set_contact_stage(contact_id: str, payload: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
         if stage == "dm_reached":
-            # dm_followup_sequence.py only ever acts on conversations with
-            # dm_followup_enrolled_at set — deliberately NOT backfilled for
-            # rows that were already stage_dm_reached=true before this
-            # enrollment gate existed, so the DM Follow-Up sequence never
-            # auto-applies to prospects reached before it shipped. Checking
-            # the box (from false, or for the first time) enrolls; the rep
-            # can also intentionally re-enroll an old prospect by unchecking
-            # then rechecking. Unchecking always clears enrollment and any
-            # in-flight cycle, whether or not it was ever enrolled.
-            if checked:
-                await conn.execute(
-                    """
-                    UPDATE sms_conversations
-                    SET stage_dm_reached = true, stage_dm_reached_manual = true,
-                        stage_dm_reached_at = now(), dm_followup_enrolled_at = now(), updated_at = now()
-                    WHERE contact_id = $1 AND stage_dm_reached = false
-                    """,
-                    contact_id,
-                )
-                # No-op if already true (the WHERE above skipped it) — still
-                # need to ensure the manual flag is set for that case.
-                await conn.execute(
-                    "UPDATE sms_conversations SET stage_dm_reached_manual = true, updated_at = now() WHERE contact_id = $1",
-                    contact_id,
-                )
-            else:
-                await conn.execute(
-                    """
-                    UPDATE sms_conversations
-                    SET stage_dm_reached = false, stage_dm_reached_manual = true,
-                        stage_dm_reached_at = NULL, dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
-                        dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL,
-                        dm_followup_touch3_sent_at = NULL, updated_at = now()
-                    WHERE contact_id = $1
-                    """,
-                    contact_id,
-                )
+            # Analytics-only as of 2026-09-22 — this checkbox used to be the
+            # ONLY control for the DM Follow-Up sequence's enrollment
+            # (checking it stamped dm_followup_enrolled_at, unchecking it
+            # cleared enrollment and the in-flight cycle), which meant the
+            # sole way to stop an unwanted follow-up cycle was to uncheck DM
+            # Reached — corrupting the DM-Reached-rate analytics that same
+            # checkbox feeds (analytics.py's _sms_metrics reads stage_dm_reached
+            # /stage_dm_reached_at directly). Reported live 2026-09-22.
+            #
+            # Enrollment now lives entirely behind its own control — see
+            # POST /inbox/contact/{contact_id}/dm-followup below — and this
+            # branch only ever touches stage_dm_reached/stage_dm_reached_at.
+            # It deliberately does NOT stamp or clear dm_followup_enrolled_at
+            # (or the anchor/touch columns) in either direction anymore, so
+            # correcting an accidental click here can never silently start or
+            # stop a live follow-up cycle, and vice versa.
+            await conn.execute(
+                """
+                UPDATE sms_conversations
+                SET stage_dm_reached = $2, stage_dm_reached_manual = true,
+                    stage_dm_reached_at = CASE WHEN $2 THEN now() ELSE NULL END, updated_at = now()
+                WHERE contact_id = $1
+                """,
+                contact_id, checked,
+            )
         else:
             # Analytics narrows Replied/Primed/Engaged/Interested to a period
             # using stage_{stage}_at (see analytics.py::_sms_metrics) — stamp
@@ -828,6 +831,62 @@ async def set_contact_stage(contact_id: str, payload: dict):
                 contact_id, checked,
             )
     return {"ok": True, "stage": stage, "checked": checked}
+
+
+@router.post("/inbox/contact/{contact_id}/dm-followup")
+async def set_dm_followup_active(contact_id: str, payload: dict):
+    """
+    Dedicated start/stop control for the DM Follow-Up sequence
+    (dm_followup_sequence.py), independent of the "DM Reached" analytics
+    checkbox above — see that branch's comment for why they used to be the
+    same action and why that broke analytics. dm_followup_enrolled_at is
+    now the sole thing dm_followup_sequence.py's poller (and dialer.py's
+    dm-followup-active queue) check for "is this cycle live"; whether
+    stage_dm_reached is also checked no longer matters to either.
+
+    active=true enrolls (idempotent — COALESCE keeps an existing enrollment's
+    original timestamp rather than restarting the clock). Refuses to enroll
+    a contact with any disposition already set (booked/not_interested) —
+    this is the actual guarantee that a booked or not-interested prospect
+    never gets back into the sequence: it's enforced here at the one place
+    enrollment can start, not just by the poller's own disposition filter,
+    so even a deliberate "add them anyway" click can't do it by mistake.
+
+    active=false unenrolls and clears the in-flight cycle (anchor + all
+    touch-sent columns) so a later re-enroll starts a fresh 24h countdown
+    rather than resuming mid-cycle.
+    """
+    active = bool((payload or {}).get("active"))
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        conv = await conn.fetchrow(
+            "SELECT disposition FROM sms_conversations WHERE contact_id = $1", contact_id,
+        )
+        if not conv:
+            raise HTTPException(status_code=404, detail="No SMS conversation for this contact")
+        if active:
+            if conv["disposition"] is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Contact is dispositioned '{conv['disposition']}' — cannot enroll in DM Follow-Up",
+                )
+            await conn.execute(
+                "UPDATE sms_conversations SET dm_followup_enrolled_at = COALESCE(dm_followup_enrolled_at, now()), "
+                "updated_at = now() WHERE contact_id = $1",
+                contact_id,
+            )
+        else:
+            await conn.execute(
+                """
+                UPDATE sms_conversations
+                SET dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
+                    dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL,
+                    dm_followup_touch3_sent_at = NULL, updated_at = now()
+                WHERE contact_id = $1
+                """,
+                contact_id,
+            )
+    return {"ok": True, "active": active}
 
 
 @router.delete("/inbox/contact/{contact_id}")

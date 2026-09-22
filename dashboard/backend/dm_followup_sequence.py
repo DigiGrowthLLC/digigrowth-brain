@@ -1,9 +1,19 @@
 """DM Reach follow-up sequence — scheduled from main.py's APScheduler job.
 
-Nudges a prospect who's reached the "DM Reach" stage (sms_conversations.
-stage_dm_reached, a manual checkbox set in the Inbox — see routers/sms.py's
-module docstring) but has gone quiet mid-conversation. SMS-only: there's no
-email equivalent of DM Reach today.
+Nudges a prospect who's gone quiet mid-conversation after being manually
+enrolled from the Inbox (POST /inbox/contact/{contact_id}/dm-followup — see
+that endpoint's docstring). SMS-only: there's no email equivalent today.
+
+Enrollment (dm_followup_enrolled_at) is INTENTIONALLY independent of
+sms_conversations.stage_dm_reached, the "DM Reached" analytics checkbox —
+they used to be the same action (checking/unchecking DM Reached was the only
+way to start/stop this sequence), which meant the only way to stop an
+unwanted cycle was to uncheck DM Reached and corrupt the DM-Reached-rate
+analytics that checkbox feeds (analytics.py's _sms_metrics). Fixed
+2026-09-22: dm_followup_enrolled_at is now the sole "is this cycle live"
+signal this module (and dialer.py's dm-followup-active queue) checks —
+whether stage_dm_reached is also checked is irrelevant to whether the
+sequence runs, in both directions.
 
 Unlike no_show_sequence.py/cancel_sequence.py, this sequence has NO explicit
 reply-stop hook wired into the inbound webhook. Its stop/restart behavior is
@@ -11,22 +21,21 @@ entirely derived, each poll, from live sms_messages timestamps — simpler and
 self-correcting, since (unlike an appointment outcome) "did they reply" is
 naturally re-derivable every time from the message log itself:
 
-  1. For each eligible conversation (stage_dm_reached = true, status != 'closed',
-     disposition IS NULL — the latter covers both the "Not Interested" stop and
-     the "booked" stop, since both set disposition via existing paths in
+  1. For each eligible conversation (status != 'closed', disposition IS NULL
+     — the latter covers both the "Not Interested" stop and the "booked"
+     stop, since both set disposition via existing paths in
      email_inbox.py's stage-set handler and routers/appointments.py's
-     create_appointment() — AND dm_followup_enrolled_at IS NOT NULL, see
-     enrollment note below), compute live: last_outbound_at = MAX(sent_at)
-     FROM sms_messages WHERE direction='outbound', last_inbound_at = same for
-     'inbound'.
+     create_appointment() — AND dm_followup_enrolled_at IS NOT NULL),
+     compute live: last_outbound_at = MAX(sent_at) FROM sms_messages WHERE
+     direction='outbound', last_inbound_at = same for 'inbound'.
 
-  Enrollment gate: dm_followup_enrolled_at is stamped by email_inbox.py's
-  set_contact_stage() the moment stage_dm_reached transitions from false to
-  true — NOT backfilled for conversations that were already DM Reached
-  before this sequence existed. This means the sequence only ever applies to
-  prospects marked DM Reached from this feature's ship date forward; a rep
-  can deliberately opt an older prospect in by unchecking DM Reached and
-  rechecking it (which re-stamps dm_followup_enrolled_at = now()).
+  Both "Not Interested" and a booked appointment also hard-clear
+  dm_followup_enrolled_at itself the moment they're set (not just rely on
+  this disposition filter) — see email_inbox.py's not_interested branch and
+  routers/appointments.py's create_appointment_row() — and the enrollment
+  endpoint refuses to re-enroll anyone with a disposition already set. So a
+  Not Interested or booked prospect can neither still be mid-cycle nor be
+  re-added into one, deliberately or by a stale state.
   2. Ball in Dylan's court (last_inbound_at >= last_outbound_at, i.e. they
      just replied, or no outbound has been sent yet): clear
      dm_followup_anchor_at and all three touch-sent columns to NULL. This IS
@@ -67,9 +76,9 @@ a stop condition. The SMS sequence
 keeps running as normal alongside it: Touch 3 still sends on schedule unless
 they reply (step 2 above), get marked Not Interested (sets disposition,
 which excludes the row from step 1's WHERE clause), or a rep manually
-un-enrolls them by unchecking DM Reached in the Inbox (clears
+un-enrolls them from the Inbox's SEQUENCES panel (clears
 dm_followup_enrolled_at and the whole cycle — see email_inbox.py's
-set_contact_stage()).
+set_dm_followup_active()).
 
 Each touch's SMS text is independently editable from Business Resources →
 Outreach Templates → DM Follow-Up. Templates support {first_name} and
@@ -164,7 +173,7 @@ async def send_due_touches():
             """
             SELECT sc.*, c.owner FROM sms_conversations sc
             LEFT JOIN contacts c ON c.id = sc.contact_id
-            WHERE sc.stage_dm_reached = true AND sc.status != 'closed' AND sc.disposition IS NULL
+            WHERE sc.status != 'closed' AND sc.disposition IS NULL
             AND sc.dm_followup_enrolled_at IS NOT NULL
             """
         )
