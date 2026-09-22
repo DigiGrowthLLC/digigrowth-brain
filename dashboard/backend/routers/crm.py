@@ -230,6 +230,154 @@ async def delete_contact(contact_id: str):
     return {"ok": True}
 
 
+# Every table that hangs data off a contact_id, reassigned during a merge —
+# simple FK, no unique-constraint risk on contact_id itself (contrast with
+# email_handoff_state below, whose contact_id IS its own primary key).
+_MERGE_FK_TABLES = [
+    "call_logs", "sms_messages", "sms_conversations", "email_messages",
+    "email_conversations", "newsletter_send_queue", "appointment_reminders",
+    "content_view_events", "landing_pages", "watch_videos", "send_info_loom_queue",
+]
+
+# Scalar contacts columns eligible to backfill from the merged-away contact
+# onto the survivor — deliberately excludes status/tags/pending_*_campaign_id,
+# each handled with its own merge rule below instead of plain backfill.
+_MERGE_SCALAR_FIELDS = [
+    "business", "owner", "phone", "email", "website", "city", "state",
+    "grade", "opener", "notes",
+]
+
+
+@router.post("/contacts/{keep_id}/merge")
+async def merge_contacts(keep_id: str, payload: dict):
+    """
+    Combine two contact records that turned out to be the same real prospect
+    — most commonly a cold-outreach lead who later self-booked through a
+    Calendly link with different/incomplete info (no phone on the booking
+    form, a different email on file, "Dan" vs "Daniel"), so the exact-match
+    lookup in calendly_webhooks.py couldn't find the existing record and
+    created a duplicate. See that module's _same_person() fuzzy-name match,
+    which now catches most of these before they happen — this endpoint is
+    for the ones that still slip through, or any other duplicate found by
+    hand. `keep_id` survives; `merge_id` (in the body) is deleted.
+
+    Every FK'd table pointing at merge_id gets repointed to keep_id. Two
+    special cases: email_handoff_state's contact_id is its own PRIMARY KEY
+    (not just a plain FK), so if keep_id already has a row there, merge_id's
+    is dropped instead of repointed into a PK collision — keep's active
+    state wins. sms_conversations has no such guard: if both contacts already
+    have their own row (two real phone numbers), keep_id ends up with two
+    sms_conversations rows after the merge — schema-legal, just something a
+    rep should notice if it happens, since most of this codebase's queries
+    assume one row per contact_id.
+
+    Scalar fields (business/owner/phone/email/website/city/state/grade/
+    opener/notes): keep_id's own non-null value always wins; merge_id's only
+    backfills a field that's null on keep_id. `tags` is unioned, not
+    overwritten. `phone` is UNIQUE, so merge_id's phone is freed (set NULL)
+    inside the same transaction before any backfill runs, so a backfill onto
+    keep_id can never collide with the row about to be deleted.
+
+    status and the pending_*_campaign_id columns are NOT plain-backfilled:
+    if the merge leaves keep_id with any non-canceled appointment, status is
+    forced to 'appointment-booked' regardless of either contact's prior
+    status (matching create_appointment_row()'s own rule — a real booking
+    always wins). A pending SMS campaign backfilled from merge_id is
+    resolved immediately if keep_id now has a phone and no sms_conversations
+    row yet, the same "count it right away, don't leave it pending"
+    behavior as assign_contact_campaign() in campaigns.py.
+    """
+    merge_id = (payload or {}).get("merge_id")
+    if not merge_id:
+        raise HTTPException(status_code=400, detail="merge_id required")
+    if merge_id == keep_id:
+        raise HTTPException(status_code=400, detail="keep_id and merge_id must differ")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            keep = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1 FOR UPDATE", keep_id)
+            loser = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1 FOR UPDATE", merge_id)
+            if not keep:
+                raise HTTPException(status_code=404, detail=f"Contact not found: {keep_id}")
+            if not loser:
+                raise HTTPException(status_code=404, detail=f"Contact not found: {merge_id}")
+
+            for table in _MERGE_FK_TABLES:
+                await conn.execute(
+                    f"UPDATE {table} SET contact_id = $1 WHERE contact_id = $2", keep_id, merge_id,
+                )
+
+            existing_handoff = await conn.fetchval(
+                "SELECT 1 FROM email_handoff_state WHERE contact_id = $1", keep_id,
+            )
+            if existing_handoff:
+                await conn.execute("DELETE FROM email_handoff_state WHERE contact_id = $1", merge_id)
+            else:
+                await conn.execute(
+                    "UPDATE email_handoff_state SET contact_id = $1 WHERE contact_id = $2", keep_id, merge_id,
+                )
+
+            if loser["phone"]:
+                await conn.execute("UPDATE contacts SET phone = NULL WHERE id = $1", merge_id)
+
+            backfill = {f: loser[f] for f in _MERGE_SCALAR_FIELDS if keep[f] is None and loser[f] is not None}
+            merged_tags = sorted(set((keep["tags"] or []) + (loser["tags"] or [])))
+
+            pending_sms = keep["pending_sms_campaign_id"] or loser["pending_sms_campaign_id"]
+            pending_email = keep["pending_email_campaign_id"] or loser["pending_email_campaign_id"]
+
+            set_parts = [f"{f} = ${i + 2}" for i, f in enumerate(backfill)]
+            values = list(backfill.values())
+            set_parts.append(f"tags = ${len(values) + 2}")
+            values.append(merged_tags)
+            set_parts.append(f"pending_sms_campaign_id = ${len(values) + 2}")
+            values.append(pending_sms)
+            set_parts.append(f"pending_email_campaign_id = ${len(values) + 2}")
+            values.append(pending_email)
+            set_parts.append("updated_at = now()")
+            await conn.execute(
+                f"UPDATE contacts SET {', '.join(set_parts)} WHERE id = $1", keep_id, *values,
+            )
+
+            await conn.execute("DELETE FROM contacts WHERE id = $1", merge_id)
+
+            merged = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", keep_id)
+
+            has_active_appt = await conn.fetchval(
+                "SELECT 1 FROM appointment_reminders WHERE contact_id = $1 AND status != 'canceled'", keep_id,
+            )
+            if has_active_appt and merged["status"] != "appointment-booked":
+                await conn.execute(
+                    "UPDATE contacts SET status = 'appointment-booked', updated_at = now() WHERE id = $1", keep_id,
+                )
+                merged = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", keep_id)
+
+            # Same "count it right away" behavior as campaigns.py's
+            # assign_contact_campaign() — a pending SMS campaign shouldn't
+            # sit invisible to Analytics just because it arrived via a merge
+            # instead of a direct click.
+            if merged["pending_sms_campaign_id"] and merged["phone"]:
+                has_conv = await conn.fetchval(
+                    "SELECT 1 FROM sms_conversations WHERE contact_id = $1", keep_id,
+                )
+                if not has_conv:
+                    await conn.execute(
+                        """
+                        INSERT INTO sms_conversations (contact_id, phone, campaign_id)
+                        VALUES ($1, $2, $3)
+                        ON CONFLICT (phone) DO UPDATE SET campaign_id = $3, updated_at = now()
+                        """,
+                        keep_id, merged["phone"], merged["pending_sms_campaign_id"],
+                    )
+                    await conn.execute(
+                        "UPDATE contacts SET pending_sms_campaign_id = NULL WHERE id = $1", keep_id,
+                    )
+                    merged = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", keep_id)
+
+    return dict(merged)
+
+
 @router.post("/contacts/bulk")
 async def bulk_action(body: BulkAction):
     pool = await get_pool()

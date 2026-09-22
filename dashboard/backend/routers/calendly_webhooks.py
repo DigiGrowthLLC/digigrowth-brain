@@ -39,6 +39,107 @@ from routers.appointments import cancel_appointment, create_appointment_row
 router = APIRouter()  # public — mounted with no auth, see main.py
 
 
+def _name_tokens(name: str | None) -> tuple[str, str] | None:
+    """(first, last) lowercased tokens from a free-text full name, or None if
+    it doesn't look like at least a first + last name. Only the first and
+    last whitespace-separated tokens are used, so a middle name/initial on
+    either side doesn't break the comparison."""
+    if not name:
+        return None
+    parts = name.strip().split()
+    if len(parts) < 2:
+        return None
+    return parts[0].lower(), parts[-1].lower()
+
+
+def _same_person(name_a: str | None, name_b: str | None) -> bool:
+    """Fuzzy person-name match for the Calendly dedup fallback below: exact
+    last name, plus first names that are equal or one is a prefix of the
+    other — catches "Dan" vs "Daniel", "Mike" vs "Michael", etc. without a
+    nickname dictionary. Same containment heuristic crm.py's _same_business
+    already uses for business names, applied to people instead."""
+    ta, tb = _name_tokens(name_a), _name_tokens(name_b)
+    if not ta or not tb:
+        return False
+    (first_a, last_a), (first_b, last_b) = ta, tb
+    if last_a != last_b:
+        return False
+    return first_a == first_b or first_a.startswith(first_b) or first_b.startswith(first_a)
+
+
+async def _find_by_name(conn, name: str | None, client_id: int | None) -> dict | None:
+    """Last-resort match when a Calendly booking's phone/email don't line up
+    with any existing contact — a self-service booking commonly omits the
+    phone question entirely and may use a different email than whatever's on
+    file from earlier outreach, so an exact-match miss doesn't mean this is
+    actually a new prospect. Restricted to a single UNAMBIGUOUS candidate
+    (exactly one _same_person match): if two+ contacts share a plausible
+    name, this bails and lets the caller create a new contact rather than
+    guess which one — same "don't guess" rule as resolve_send_campaign's
+    channel inference and db.py's booked_at backfills. Reported live
+    2026-09-22: "Dan Leib" (existing lead, phone on file, no email) booked
+    through Calendly as "Daniel Leib" (email only, no phone), creating an
+    unlinked duplicate contact instead of attaching to the real one.
+
+    Pre-filtered by a SQL ILIKE on the last name token (cheap, avoids
+    fetching the whole table) before the exact _same_person check runs in
+    Python, since SQL alone can't express the prefix-match first-name rule."""
+    tokens = _name_tokens(name)
+    if not tokens:
+        return None
+    _first, last = tokens
+    if client_id is not None:
+        candidates = await conn.fetch(
+            "SELECT id, client_id, owner FROM contacts "
+            "WHERE (client_id IS NULL OR client_id = $2) AND owner ILIKE $1",
+            f"% {last}", client_id,
+        )
+    else:
+        candidates = await conn.fetch(
+            "SELECT id, client_id, is_client_anchor, owner FROM contacts WHERE owner ILIKE $1",
+            f"% {last}",
+        )
+    matches = [c for c in candidates if _same_person(name, c["owner"])]
+    return matches[0] if len(matches) == 1 else None
+
+
+async def _backfill_from_booking(conn, contact_id: str, name: str | None, phone: str | None, email: str | None) -> None:
+    """A name-matched contact (see _find_by_name) is, by definition, missing
+    whatever field the exact-match lookup needed — fill it in from this
+    booking rather than leaving the contact card stuck with the same gap
+    that caused the near-miss. phone only backfills if no OTHER contact
+    already has it (still globally UNIQUE) — extremely unlikely for a name
+    match to collide, but silently dropping the phone is safer than a raw
+    constraint violation breaking the booking. Leaves a plain-text note
+    (rather than a hidden flag) since this is an inferred match, not a
+    certainty — a rep skimming the contact card should be able to see why
+    a phone/email showed up that didn't come from that channel's own
+    outreach, same "leave a trail" rule as every other inferred-match path
+    in this codebase (resolve_send_campaign, the booked_at backfills)."""
+    if phone:
+        await conn.execute(
+            "UPDATE contacts SET phone = $2, updated_at = now() "
+            "WHERE id = $1 AND phone IS NULL AND NOT EXISTS (SELECT 1 FROM contacts WHERE phone = $2)",
+            contact_id, phone,
+        )
+    if email:
+        await conn.execute(
+            "UPDATE contacts SET email = $2, updated_at = now() WHERE id = $1 AND email IS NULL",
+            contact_id, email,
+        )
+    await conn.execute(
+        """
+        UPDATE contacts
+        SET notes = CASE WHEN notes IS NULL OR notes = '' THEN $2 ELSE notes || E'\\n' || $2 END,
+            updated_at = now()
+        WHERE id = $1
+        """,
+        contact_id,
+        f"Auto-matched to a Calendly booking as {name!r} (name-only match — phone/email on the "
+        f"booking didn't match this contact's own). Verify this is the same person.",
+    )
+
+
 def _extract_phone(payload: dict) -> str | None:
     phone = (payload.get("text_reminder_number") or "").strip()
     if phone:
@@ -161,6 +262,10 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
                 existing = await conn.fetchrow(
                     "SELECT id, client_id FROM contacts WHERE email = $1 AND client_id = $2", email, client_id,
                 )
+            matched_by_name = False
+            if not existing and name:
+                existing = await _find_by_name(conn, name, client_id)
+                matched_by_name = existing is not None
             if existing and existing["client_id"] in (None, client_id):
                 contact_id = existing["id"]
                 if existing["client_id"] is None:
@@ -168,6 +273,8 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
                         "UPDATE contacts SET client_id = $1, updated_at = now() WHERE id = $2",
                         client_id, contact_id,
                     )
+                if matched_by_name:
+                    await _backfill_from_booking(conn, contact_id, name, phone, email)
             elif not existing:
                 row = await conn.fetchrow(
                     """
@@ -224,8 +331,14 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
                 existing = await conn.fetchrow(
                     "SELECT id, client_id, is_client_anchor FROM contacts WHERE email = $1", email,
                 )
+            matched_by_name = False
+            if not existing and name:
+                existing = await _find_by_name(conn, name, None)
+                matched_by_name = existing is not None
             if existing and (existing["client_id"] is None or existing["is_client_anchor"]):
                 contact_id = existing["id"]
+                if matched_by_name:
+                    await _backfill_from_booking(conn, contact_id, name, phone, email)
             elif not existing:
                 row = await conn.fetchrow(
                     """
