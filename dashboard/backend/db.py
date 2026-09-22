@@ -920,6 +920,39 @@ async def _create_schema(pool: asyncpg.Pool):
                 dm_followup_touch3_sent_at = NULL
             WHERE disposition IS NOT NULL AND dm_followup_enrolled_at IS NOT NULL
         """)
+        # One-time backfill (2026-09-22): assigning an SMS campaign from the
+        # contact card used to only set contacts.pending_sms_campaign_id when
+        # the contact had never been texted yet (no sms_conversations row) —
+        # a value analytics.py's _sms_metrics never reads at all (it only
+        # counts sms_conversations.campaign_id), so the assignment stayed
+        # invisible to Analytics indefinitely despite the UI showing it as
+        # assigned (labeled "(pending)"). routers/campaigns.py's
+        # assign_contact_campaign() now creates that sms_conversations row
+        # immediately instead, but only going forward — this backfill applies
+        # the same fix to every contact already sitting in that stuck state:
+        # for any contact with pending_sms_campaign_id set, a phone on file,
+        # and still no sms_conversations row, create one now with campaign_id
+        # already set (empty message history — a tracking record, not an
+        # enrollment into any send sequence) and clear the pending marker.
+        # A contact with pending_sms_campaign_id set but NO phone (e.g. a
+        # phone-less Calendly self-booking) has no channel to create this
+        # row against and is left as-is — assign_contact_campaign() now
+        # refuses that case outright going forward rather than leaving it
+        # silently pending, but there's nothing to backfill for one that's
+        # already in that state.
+        await conn.execute("""
+            INSERT INTO sms_conversations (contact_id, phone, campaign_id)
+            SELECT c.id, c.phone, c.pending_sms_campaign_id
+            FROM contacts c
+            WHERE c.pending_sms_campaign_id IS NOT NULL
+              AND c.phone IS NOT NULL
+              AND NOT EXISTS (SELECT 1 FROM sms_conversations sc WHERE sc.contact_id = c.id)
+            ON CONFLICT (phone) DO UPDATE SET campaign_id = EXCLUDED.campaign_id, updated_at = now()
+        """)
+        await conn.execute("""
+            UPDATE contacts SET pending_sms_campaign_id = NULL
+            WHERE pending_sms_campaign_id IS NOT NULL AND phone IS NOT NULL
+        """)
         # One-time backfill for the new "only ever send each touch once"
         # lifetime cap: the *_ever_sent_at columns didn't exist until now, so
         # any touch a prospect already received under the old (resettable)

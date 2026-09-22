@@ -320,6 +320,25 @@ async def assign_contact_campaign(contact_id: str, payload: dict):
     just whatever gets sent going forward. So this backfills every existing
     outbound message for the contact into the campaign too, overriding
     whatever campaign (if any) those messages were previously tagged with.
+
+    Clicking a campaign on the contact card is purely a tracking/analytics
+    action, not a trigger for anything to actually send — it must count
+    toward that campaign's stats the moment it's clicked, not sit in limbo
+    until the contact happens to get texted. Previously, a contact with no
+    sms_conversations row yet (never texted) only got pending_sms_campaign_id
+    set on `contacts`, which analytics.py's _sms_metrics never reads at all
+    (it only counts sms_conversations.campaign_id) — so an assignment made
+    from the contact card stayed invisible to Analytics indefinitely,
+    surfacing only as a confusing "(pending)" label with no indication it
+    wasn't actually being tracked. Reported live 2026-09-22. Now creates the
+    sms_conversations row immediately (empty message history — this is a
+    tracking record, not an enrollment into any send sequence) with
+    campaign_id already set, so it's counted right away. A real first
+    outbound later just fills in that same row's messages — sms.py's
+    UPDATE...campaign_id = COALESCE(campaign_id, ...) never overwrites the
+    manual assignment. A contact with no phone on file at all has no channel
+    to create this row against — SMS campaign assignment is refused outright
+    for those rather than left silently pending forever.
     """
     campaign_id = (payload or {}).get("campaign_id")
     if not campaign_id:
@@ -333,7 +352,7 @@ async def assign_contact_campaign(contact_id: str, payload: dict):
         channel = campaign["channel"]
         if channel not in ("sms", "email"):
             raise HTTPException(status_code=400, detail="Only sms/email campaigns can be assigned from the CRM")
-        contact = await conn.fetchrow("SELECT id FROM contacts WHERE id = $1", contact_id)
+        contact = await conn.fetchrow("SELECT id, phone FROM contacts WHERE id = $1", contact_id)
         if not contact:
             raise HTTPException(status_code=404, detail="Contact not found")
 
@@ -349,8 +368,21 @@ async def assign_contact_campaign(contact_id: str, payload: dict):
                     contact_id, campaign_id,
                 )
                 await conn.execute("UPDATE contacts SET pending_sms_campaign_id = NULL WHERE id = $1", contact_id)
+            elif contact["phone"]:
+                await conn.execute(
+                    """
+                    INSERT INTO sms_conversations (contact_id, phone, campaign_id)
+                    VALUES ($1, $2, $3)
+                    ON CONFLICT (phone) DO UPDATE SET campaign_id = $3, updated_at = now()
+                    """,
+                    contact_id, contact["phone"], campaign_id,
+                )
+                await conn.execute("UPDATE contacts SET pending_sms_campaign_id = NULL WHERE id = $1", contact_id)
             else:
-                await conn.execute("UPDATE contacts SET pending_sms_campaign_id = $2 WHERE id = $1", contact_id, campaign_id)
+                raise HTTPException(
+                    status_code=400,
+                    detail="Contact has no phone number on file — add one before assigning an SMS campaign.",
+                )
         else:
             conv = await conn.fetchrow(
                 "SELECT id FROM email_conversations WHERE contact_id = $1 ORDER BY updated_at DESC LIMIT 1",
