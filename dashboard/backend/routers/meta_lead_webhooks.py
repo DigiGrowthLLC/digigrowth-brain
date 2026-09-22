@@ -14,10 +14,21 @@ ownership contract as routers/client_portal.py's portal_create_lead
 (never reimplemented separately) → hand off to
 response_ai.initiate_conversation() for a genuinely new/claimed contact.
 
-Meta App Review gates all of this on real traffic (leads_retrieval to read
-form data, plus whatever page permission is required to subscribe a Page
-to the leadgen field) — until that's approved this endpoint still exists
-and verifies correctly, it just never receives real traffic yet.
+Correction (2026-09-22): this previously said Meta App Review gates all of
+this — not true for Pages/ad accounts owned within DigiGrowth's own
+Business Manager (same correction as meta_ads.py's docstring). What
+actually gates real traffic: (1) the target Page must have
+leadgen_tos_accepted=true, (2) the Page must be added as an asset to the
+same System User meta_ads.py uses, with a token scoped to include
+leads_retrieval + pages_manage_ads (the plain ads_read/ads_management scope
+used for insights sync is NOT enough — calling {leadgen_id}?fields=field_data
+with an ads-only-scoped token returns a permissions error, confirmed live
+2026-09-22), and (3) that Page must be subscribed to this app's `leadgen`
+webhook field (POST /{page-id}/subscribed_apps with subscribed_fields=leadgen,
+using a Page-scoped token — a separate one-time step per Page, not automatic
+just from creating a Lead Ads form). Until all three are done for a given
+Page, this endpoint still exists and verifies correctly, it just never
+receives real traffic for that Page.
 """
 import hashlib
 import hmac
@@ -71,11 +82,33 @@ def _extract_field(field_data: list[dict], names: set[str]) -> str | None:
     return None
 
 
-async def _fetch_lead_fields(leadgen_id: str, token: str) -> list[dict]:
+async def _get_page_access_token(http: httpx.AsyncClient, page_id: str, system_user_token: str) -> str:
+    """Exchange the System User token for a Page-scoped token. Required —
+    confirmed live 2026-09-22 against CrosaCore's own Page: calling a
+    leadgen endpoint with the System User token directly fails with
+    "(#190) This method must be called with a Page Access Token" even
+    though the System User has pages_manage_ads + leads_retrieval and the
+    Page is a shared asset. The System User token is only valid to look up
+    this exchange token, not to read Page-scoped resources itself."""
+    resp = await http.get(
+        f"{_GRAPH_BASE}/{page_id}",
+        params={"fields": "access_token", "access_token": system_user_token},
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"Failed to get Page access token for page {page_id}: {resp.status_code} {resp.text.strip()[:300]}")
+    page_token = resp.json().get("access_token")
+    if not page_token:
+        raise RuntimeError(f"No access_token in Page token exchange response for page {page_id}")
+    return page_token
+
+
+async def _fetch_lead_fields(leadgen_id: str, page_id: str, system_user_token: str) -> list[dict]:
     async with httpx.AsyncClient() as http:
+        page_token = await _get_page_access_token(http, page_id, system_user_token)
         resp = await http.get(
             f"{_GRAPH_BASE}/{leadgen_id}",
-            params={"access_token": token, "fields": "field_data"},
+            params={"access_token": page_token, "fields": "field_data"},
             timeout=30,
         )
         if resp.status_code != 200:
@@ -83,7 +116,7 @@ async def _fetch_lead_fields(leadgen_id: str, token: str) -> list[dict]:
         return resp.json().get("field_data", [])
 
 
-async def _process_lead(client_id: int | None, leadgen_id: str, token: str) -> None:
+async def _process_lead(client_id: int | None, leadgen_id: str, page_id: str, token: str) -> None:
     """client_id=None means this form belongs to Dylan's OWN Facebook Page
     (see dylan_meta_page_id in the caller below), not a client's — mirrors
     routers/calendly_webhooks.py's Dylan's-own-pipeline branch: still
@@ -92,7 +125,7 @@ async def _process_lead(client_id: int | None, leadgen_id: str, token: str) -> N
     or fires response_ai (a client-only SMS auto-response feature — there's
     no equivalent for DigiGrowth's own inbound leads here)."""
     try:
-        field_data = await _fetch_lead_fields(leadgen_id, token)
+        field_data = await _fetch_lead_fields(leadgen_id, page_id, token)
     except Exception as e:
         print(f"[meta_lead_webhooks] failed to fetch lead {leadgen_id} for client={client_id}: {e}")
         return
@@ -196,6 +229,6 @@ async def meta_leadgen_inbound(request: Request):
             if not token:
                 print(f"[meta_lead_webhooks] META_SYSTEM_USER_TOKEN not set — skipping lead {leadgen_id}")
                 continue
-            await _process_lead(resolved_client_id, leadgen_id, token)
+            await _process_lead(resolved_client_id, leadgen_id, str(page_id), token)
 
     return Response(content="", media_type="text/plain")
