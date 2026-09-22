@@ -42,7 +42,37 @@ from datetime import date, datetime, timedelta, timezone as dt_timezone
 import email_identities
 from db import get_pool
 
-_DEFAULT_SCHEDULE = [3, 5, 8, 12, 17, 23, 30, 38, 47, 60]  # same 10-day ramp as email_warmup.py
+# Capped at 40/day (lowered 2026-09-22 from an earlier 60), matching
+# email_warmup.py's client-side ramp — see that module's comment for why:
+# a single mailbox's sustainable volume tops out ~30-50/day regardless of
+# warm status. Doubly true here early on with only 2-3 identities per
+# provider: with few partners, all traffic is a narrow A<->B pattern, so
+# keeping absolute volume conservative matters more, not less, until more
+# identities exist to spread partner variety across.
+_DEFAULT_SCHEDULE = [2, 3, 5, 8, 11, 15, 20, 25, 31, 40]
+
+# How many backlog replies a single identity may send in ONE poll tick.
+# Without this cap, a long outage (like the Graph auth bug that blocked
+# Dylan MS for ~2 days) lets a huge backlog of unread opener threads queue
+# up, and the very next successful poll fires ALL of them back-to-back —
+# observed directly: 16 replies in one tick once that bug was fixed. A
+# burst of near-simultaneous sends from one mailbox is exactly the kind of
+# pattern spam/abuse heuristics (and the provider's own API rate limits)
+# flag, regardless of how "warmed" the mailbox is. Trickling the backlog
+# down at a few per tick keeps every send at the same natural pace as
+# openers, even when catching up.
+_MAX_REPLIES_PER_TICK = 3
+
+
+def _within_business_hours() -> bool:
+    """Same reasoning as email_warmup.py's _within_business_hours — a
+    mailbox sending/replying at 3am every night looks automated regardless
+    of content, volume, or warm-up status. Real humans mostly send Mon-Fri,
+    business hours."""
+    from zoneinfo import ZoneInfo
+
+    now = datetime.now(ZoneInfo("America/New_York"))
+    return now.weekday() < 5 and 8 <= now.hour < 18
 
 _OPENER_SUBJECTS = [
     "Quick one for you",
@@ -121,6 +151,9 @@ async def send_due_touches():
     """Sends one warm-up opener per running identity per tick (short poll
     interval spreads volume across the day), if that identity is still
     under today's target."""
+    if not _within_business_hours():
+        return
+
     pool = await get_pool()
     schedule = await get_schedule()
     async with pool.acquire() as conn:
@@ -189,7 +222,19 @@ async def send_due_touches():
 async def send_due_replies():
     """Polls every non-paused identity's inbox for warm-up candidates
     (mail from a sibling identity) and auto-replies to any open thread this
-    identity hasn't replied to yet."""
+    identity hasn't replied to yet — at most _MAX_REPLIES_PER_TICK per
+    identity per tick, so a backlog (e.g. after an outage) trickles out at
+    a natural pace instead of bursting all at once.
+
+    The inbox poll itself (sync_identity_inbox) always runs regardless of
+    business hours — a real lead's reply must be captured and recorded
+    promptly whenever it arrives, since email_handoff_sequence.py's
+    reply-stop check depends on it. Only the WARM-UP auto-reply SEND is
+    gated to business hours; skipping it this tick is harmless and
+    idempotent — nothing is marked replied until a reply actually sends, so
+    it's simply retried next tick."""
+    send_replies_allowed = _within_business_hours()
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         identities = await conn.fetch("SELECT * FROM email_send_identities WHERE status != 'paused'")
@@ -202,7 +247,13 @@ async def send_due_replies():
             print(f"[identity_warmup] inbox poll failed for {identity['mailbox_email']}: {e}")
             continue
 
+        if not send_replies_allowed:
+            continue
+
+        sent_this_tick = 0
         for msg in result["warmup_candidates"]:
+            if sent_this_tick >= _MAX_REPLIES_PER_TICK:
+                break
             thread_key = None
             for token in msg["body"].split("[warmup:"):
                 if "]" in token:
@@ -262,3 +313,4 @@ async def send_due_replies():
                     "UPDATE identity_warmup SET replied_today = replied_today + 1, updated_at = now() WHERE identity_id = $1",
                     identity["id"],
                 )
+            sent_this_tick += 1
