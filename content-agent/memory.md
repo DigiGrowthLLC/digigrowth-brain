@@ -66,3 +66,10 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   Monday's newsletter), own web search (source pages blocked by sandbox egress proxy, used
   search-snippet stats from outsales.ai/leadresponse.co) — 2026-09-09 — pending approval (draft
   pushed to `content-agent/pending_approvals/blog-2026-09-09.json` on `main`)
+- "The AI Receptionist Trick That Doubled One Gym's Booked Trials" (slug:
+  ai-receptionist-doubled-gym-booked-trials) — pillar: Client Acquisition Systems — topic: rotation
+  #05 (one service business added 20 new appointments/month with a single AI automation), research
+  cache stale (dated 2026-09-21, from Monday's newsletter), own web search (CloudTalk/Circle Gym
+  case study — 150% increase in trial bookings switching from a booking-link follow-up to an AI
+  agent booking live on the call) — 2026-09-23 — pending approval (draft pushed to
+  `content-agent/pending_approvals/blog-2026-09-23.json` on `main`)
