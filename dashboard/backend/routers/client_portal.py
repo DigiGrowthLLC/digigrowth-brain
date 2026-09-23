@@ -652,7 +652,11 @@ async def portal_stats(token: str, period: str = "all"):
         "campaign_email": dict(campaign_email_row),
         "ads": {
             "platform": "meta",
-            "status": "coming_soon",
+            # Not consumed by the frontend (it derives connected-ness from
+            # whether `days` is non-empty) — kept as an honest reflection of
+            # that same check for anyone inspecting the API directly. Used to
+            # be hardcoded "coming_soon" even once meta_ads.py had real rows.
+            "status": "connected" if ad_rows else "coming_soon",
             "days": [dict(r) for r in ad_rows],
         },
         "leads": {"total": leads_total},

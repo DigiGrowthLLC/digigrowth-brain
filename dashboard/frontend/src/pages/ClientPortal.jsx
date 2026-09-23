@@ -1351,6 +1351,16 @@ function DashboardTab({ token, contactName }) {
   ];
   const hasFunnelData = funnelData.some((d) => d.value > 0);
 
+  // Same ad_campaign_stats rows the Analytics tab reads (see its adConnected
+  // logic below) — real once meta_ads.py has synced this client's ad
+  // account, empty array (not fake zeros) until then.
+  const adDays = stats.ads.days || [];
+  const adConnected = adDays.length > 0;
+  const adSpend = adDays.reduce((s, d) => s + (Number(d.spend) || 0), 0);
+  const adImpressions = adDays.reduce((s, d) => s + (Number(d.impressions) || 0), 0);
+  const adClicks = adDays.reduce((s, d) => s + (Number(d.clicks) || 0), 0);
+  const adLeads = adDays.reduce((s, d) => s + (Number(d.leads) || 0), 0);
+
   const channelData = [
     { name: "SMS Sent", value: stats.sms.sent, fill: "#3a7bd5" },
     { name: "SMS Replies", value: stats.sms.replies, fill: "#14c882" },
@@ -1463,12 +1473,22 @@ function DashboardTab({ token, contactName }) {
         />
       </div>
 
-      {/* Row 5: ads placeholder */}
+      {/* Row 5: Meta ads summary — same source data as the Analytics tab's
+          Paid Acquisition section, just a lighter-weight rollup here. */}
       <div>
         <SectionHeading>Facebook Ads</SectionHeading>
-        <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
-          Facebook Ads reporting — coming soon
-        </div>
+        {adConnected ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+            <DashTopStat label="Ad Spend" value={`$${adSpend.toLocaleString()}`} iconKey="upcoming" />
+            <DashTopStat label="Impressions" value={adImpressions.toLocaleString()} iconKey="upcoming" />
+            <DashTopStat label="Clicks" value={adClicks.toLocaleString()} iconKey="upcoming" />
+            <DashTopStat label="Leads" value={adLeads.toLocaleString()} iconKey="leads" />
+          </div>
+        ) : (
+          <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
+            Facebook Ads reporting isn't connected yet — once it is, spend and performance will show here automatically.
+          </div>
+        )}
       </div>
     </div>
   );
