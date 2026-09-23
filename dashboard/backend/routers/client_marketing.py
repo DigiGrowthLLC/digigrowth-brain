@@ -152,19 +152,25 @@ async def sync_client_email_now(client_id: int):
 
 
 @router.post("/clients/{client_id}/marketing-config/sync-meta-ads")
-async def sync_client_meta_ads_now(client_id: int):
+async def sync_client_meta_ads_now(client_id: int, days_back: int = 3):
     """Manual trigger for testing/verification — same code path as the
     scheduled daily sync (meta_ads.sync_meta_ad_stats), scoped to one client
     and surfacing the specific reason it didn't work (no token yet, no ad
     account id saved, or the Graph API's own error) instead of that only
-    ever reaching Railway's logs."""
+    ever reaching Railway's logs.
+
+    days_back defaults to the daily job's normal 3-day trailing window, but
+    can be widened (e.g. ?days_back=30) for a one-time historical backfill —
+    the daily job never fills in days from before it started running for a
+    given client, so a client whose ads predate this pipeline going live
+    needs one manual wider-window sync to pull in that history."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
         if not client:
             raise HTTPException(404, "Client not found")
     try:
-        days_synced = await meta_ads.sync_one_client_now(client_id)
+        days_synced = await meta_ads.sync_one_client_now(client_id, days_back=days_back)
     except Exception as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "days_synced": days_synced}

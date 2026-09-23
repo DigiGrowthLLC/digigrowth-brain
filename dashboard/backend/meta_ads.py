@@ -170,12 +170,19 @@ async def sync_meta_ad_stats() -> None:
                 await _upsert_days(conn, client_id, days)
 
 
-async def sync_one_client_now(client_id: int) -> int:
+async def sync_one_client_now(client_id: int, days_back: int = _WINDOW_DAYS) -> int:
     """Manual trigger for testing/verification (routers/client_marketing.py's
     POST .../sync-meta-ads) — same code path as the scheduled daily sync,
     just scoped to one client and raising RuntimeError with a specific,
     user-facing reason instead of silently skipping/printing to logs.
-    Returns the number of days upserted."""
+    Returns the number of days upserted.
+
+    days_back defaults to the same _WINDOW_DAYS as the daily scheduler, but
+    callers can widen it for a one-time historical backfill — e.g. a client
+    whose ads had been running for a while before META_SYSTEM_USER_TOKEN was
+    first set (the daily job only ever re-syncs the trailing _WINDOW_DAYS
+    window going forward, so it never fills in days from before it started
+    running)."""
     token = os.environ.get("META_SYSTEM_USER_TOKEN")
     if not token:
         raise RuntimeError(
@@ -194,7 +201,7 @@ async def sync_one_client_now(client_id: int) -> int:
         raise RuntimeError("No Meta Ad Account ID saved for this client yet.")
 
     until = date.today()
-    since = until - timedelta(days=_WINDOW_DAYS)
+    since = until - timedelta(days=days_back)
     async with httpx.AsyncClient() as http:
         days = await _fetch_insights(http, ad_account_id, token, since, until)
 
