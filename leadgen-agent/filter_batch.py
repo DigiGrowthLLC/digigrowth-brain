@@ -18,6 +18,24 @@ import json
 import sys
 import lib
 
+CHAINS = [
+    "ati physical therapy", "athletico", "us physical therapy", "select physical therapy",
+    "select medical", "ivy rehab", "fyzical", "cora physical therapy", "novacare",
+    "results physiotherapy", "bayada", "interim healthcare", "amedisys", "lhc group",
+    "encompass health",
+]
+NON_PT_KEYWORDS = [
+    "hospital", "home health", "nursing home", "skilled nursing", "hospice", "urgent care",
+    "behavioral health", "addiction", "mental health", "psychiatric", "chiropractic",
+    "chiropractor", "home care", "va medical", "rehabilitation hospital", "assisted living",
+    "senior living", "physical therapy school", "university",
+]
+
+
+def looks_like_chain_or_non_pt(name: str) -> bool:
+    n = name.lower()
+    return any(k in n for k in CHAINS) or any(k in n for k in NON_PT_KEYWORDS)
+
 def main():
     raw_path, city, state = sys.argv[1], sys.argv[2], sys.argv[3]
     with open(raw_path, "r", encoding="utf-8") as f:
@@ -41,7 +59,7 @@ def main():
             skipped["no_phone_or_site"] += 1
             scraped_ids.add(norm)
             continue
-        if lib.looks_like_chain_or_non_pt(name):
+        if looks_like_chain_or_non_pt(name):
             skipped["chain_or_nonpt"] += 1
             scraped_ids.add(norm)
             continue

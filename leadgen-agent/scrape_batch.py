@@ -22,13 +22,14 @@ def main():
     max_words = lib.config.get("max_website_text_words", 300)
     out = []
     for item in survivors:
-        owner, text = lib.scrape_website_full(item["website"], max_words)
+        owner, text, email = lib.scrape_website_full(item["website"], max_words)
         out.append({
             "name": item["name"],
             "phone": item["phone"],
             "website": item["website"],
             "owner_name": owner,
             "website_text": text,
+            "email": email,
         })
     print(json.dumps(out, indent=2))
 
