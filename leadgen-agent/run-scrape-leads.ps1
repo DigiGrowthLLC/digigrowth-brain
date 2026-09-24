@@ -41,7 +41,7 @@ $dailyLeadTarget = $config.daily_lead_target
 # legitimate full run report).
 $backgroundingPattern = "waiting on the background|i'll\W+(\w+\W+){0,3}wait|i will\W+(\w+\W+){0,3}wait|will resume (once|when)|check back on the background|kicked this off and will check back|instead of polling"
 $maxAttemptsPerCity = 2
-$maxCitiesPerRun = 10
+$maxCitiesPerRun = if ($config.max_cities_per_run) { $config.max_cities_per_run } else { 10 }
 
 $prompt = "Run the scrape-leads skill (leadgen-agent/.claude/skills/scrape-leads/SKILL.md) for exactly one city, resuming from wherever leadgen-agent/city_coverage.json's cursor (via 'python lib.py city-next') says to. Follow it exactly, including pushing any qualified leads to the DigiGrowth OS. This is an unattended run with nobody available to answer questions. Finish all 4 search terms for this one city (per the skill's step 2), then stop -- do not move on to a second city yourself, this wrapper script decides that between processes."
 
