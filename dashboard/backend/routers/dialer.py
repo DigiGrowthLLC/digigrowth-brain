@@ -486,6 +486,99 @@ async def save_email_handoff_template(body: dict):
     return {"ok": True}
 
 
+@router.get("/dialer/email-handoff-active")
+async def list_email_handoff_active():
+    """Prospects still mid the Email Handoff sequence — backs the Outreach
+    Templates tab's 'View Active Prospects' queue (EmailHandoffQueueModal.jsx),
+    same idea as GET /dialer/dm-followup-active. Mirrors the send-side WHERE
+    in email_handoff_sequence.send_due_touches(), narrowed to prospects who
+    still have a touch left and haven't replied (real reply — auto-replies
+    excluded, same as _has_replied — or a manual Replied tick), so a
+    prospect drops off here automatically the moment the sequence stops."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT ehs.*, c.business, c.owner, c.email, s.mailbox_email
+            FROM email_handoff_state ehs
+            JOIN contacts c ON c.id = ehs.contact_id
+            LEFT JOIN email_send_identities s ON s.id = ehs.identity_id
+            WHERE c.status = $1 AND NOT c.email_opted_out AND ehs.stopped_at IS NULL
+              AND ehs.touch3_sent_at IS NULL
+              AND NOT (ehs.stage_replied AND ehs.stage_replied_manual)
+              AND NOT EXISTS (
+                  SELECT 1 FROM email_messages em
+                  WHERE em.contact_id = c.id AND em.direction = 'inbound' AND NOT em.is_auto_reply
+              )
+            ORDER BY ehs.enrolled_at ASC
+            """,
+            email_handoff_sequence.EMAIL_HANDOFF_STATUS,
+        )
+
+    touches = email_handoff_sequence._TOUCHES
+    total = len(touches)
+    results = []
+    for r in rows:
+        row = dict(r)
+        sent_count = sum(1 for _, col, _, _ in touches if row.get(col) is not None)
+        next_due = None
+        for _touch_num, sent_col, ref_col, delay in touches:
+            if row.get(sent_col) is not None:
+                continue
+            reference = row["enrolled_at"] if ref_col is None else row.get(ref_col)
+            if reference is not None:
+                next_due = reference + delay
+            break
+        results.append({
+            **row,
+            "touches_sent": sent_count,
+            "touches_total": total,
+            "step_label": f"Touch {sent_count} of {total} sent" if sent_count else "Countdown to Touch 1",
+            "next_touch_due_at": next_due,
+        })
+    return results
+
+
+@router.post("/dialer/email-handoff-active/{contact_id}")
+async def add_email_handoff_active(contact_id: str):
+    """Manually enroll (or restart) a prospect in the Email Handoff sequence.
+    Sets status to email-handoff and calls enroll() directly — a PATCH of
+    status alone wouldn't fire enrollment for a contact that's already in
+    email-handoff status but was never enrolled."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
+        if not contact:
+            raise HTTPException(status_code=404, detail="Contact not found")
+        if not (contact["email"] or "").strip():
+            raise HTTPException(status_code=400, detail="No email on file for this contact.")
+        if contact["email_opted_out"]:
+            raise HTTPException(status_code=400, detail="This contact unsubscribed from outreach email.")
+        await conn.execute(
+            "UPDATE contacts SET status = $2, updated_at = now() WHERE id = $1",
+            contact_id, email_handoff_sequence.EMAIL_HANDOFF_STATUS,
+        )
+    await email_handoff_sequence.enroll(dict(contact))
+    return {"ok": True}
+
+
+@router.delete("/dialer/email-handoff-active/{contact_id}")
+async def remove_email_handoff_active(contact_id: str):
+    """Pull a prospect out of the Email Handoff sequence — no further
+    touches. Leaves contacts.status alone (so the 3-day auto-trigger, which
+    skips anyone already in email-handoff, won't re-enroll them) and leaves
+    stage_replied alone (so reply analytics aren't corrupted)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE email_handoff_state SET stopped_at = now(), updated_at = now() WHERE contact_id = $1",
+            contact_id,
+        )
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Not enrolled in Email Handoff")
+    return {"ok": True}
+
+
 # ── "DM Follow-Up" 3-touch sequence templates (Business Resources → Outreach ─
 # Templates). Same key/value store as the editors above; dm_followup_sequence.
 # py's send_due_touches() reads these same keys fresh at send time via

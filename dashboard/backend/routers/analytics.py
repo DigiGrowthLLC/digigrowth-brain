@@ -853,8 +853,28 @@ async def _email_handoff_metrics(conn, since=None) -> dict:
         touch3    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch3_sent_at IS NOT NULL")
         replied   = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE stage_replied")
 
+    # Opens: per prospect, whether ANY tracked handoff touch was opened —
+    # same >2-minute rule as _email_metrics' confirmed_opened (filters Apple
+    # Mail Privacy Protection's instant pixel prefetch). Denominator is
+    # prospects with at least one tracked (pixel-carrying) touch, so sends
+    # from before tracking existed don't drag the rate down.
+    since_clause = "AND sent_at >= $1" if since else ""
+    open_row = await conn.fetchrow(
+        f"""
+        SELECT COUNT(DISTINCT contact_id) AS tracked,
+               COUNT(DISTINCT contact_id) FILTER (
+                   WHERE opened_at IS NOT NULL AND opened_at - sent_at > interval '2 minutes'
+               ) AS opened
+        FROM email_messages
+        WHERE direction = 'outbound' AND thread_id LIKE 'identity-%' AND tracking_token IS NOT NULL {since_clause}
+        """,
+        *([since] if since else []),
+    )
+
     return {
         "enrolled":     enrolled or 0,
+        "opened":       open_row["opened"] or 0,
+        "open_rate":    _pct(open_row["opened"], open_row["tracked"]),
         "touch1_sent":  touch1 or 0,
         "touch2_sent":  touch2 or 0,
         "touch3_sent":  touch3 or 0,

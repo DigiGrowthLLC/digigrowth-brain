@@ -76,6 +76,26 @@ function EmailOutreachCard({ outreach, tab }) {
   );
 }
 
+function EmailHandoffCard({ outreach, tab }) {
+  if (!outreach) return <div className="glass-card" style={{ padding: "20px 22px" }}><SecLabel>Email Handoff Sequence</SecLabel><LoadingRow /></div>;
+  const h = outreach.email_handoff?.[tab] ?? {};
+
+  return (
+    <div className="glass-card" style={{ padding: "20px 22px" }}>
+      <SecLabel>Email Handoff Sequence</SecLabel>
+      <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 10, marginTop: 4 }}>
+        <MiniStat label="Enrolled"     value={num(h.enrolled)}    color="#9b6bd8" />
+        <MiniStat label="Open Rate"    value={pct(h.open_rate)}   color="#9b6bd8" />
+        <MiniStat label="Touch 1 Sent" value={num(h.touch1_sent)} color="#9b6bd8" />
+        <MiniStat label="Touch 2 Sent" value={num(h.touch2_sent)} color="#9b6bd8" />
+        <MiniStat label="Touch 3 Sent" value={num(h.touch3_sent)} color="#9b6bd8" />
+        <MiniStat label="Replied"      value={num(h.replied)}     color="#14c882" />
+        <MiniStat label="Reply Rate"   value={pct(h.reply_rate)}  color="#14c882" />
+      </div>
+    </div>
+  );
+}
+
 function ColdCallingCard({ outreach, tab }) {
   if (!outreach) return <div className="glass-card" style={{ padding: "20px 22px" }}><SecLabel>Cold Calling</SecLabel><LoadingRow /></div>;
   const call = outreach.calling?.[tab] ?? {};
@@ -524,6 +544,7 @@ export default function AnalyticsPanel() {
           <ColdCallingCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
           <SmsOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
           <EmailOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
+          <EmailHandoffCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
         </div>
       </div>
 

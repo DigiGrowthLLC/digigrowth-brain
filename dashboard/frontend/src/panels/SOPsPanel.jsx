@@ -11,6 +11,7 @@ import TableCell from "@tiptap/extension-table-cell";
 import { marked } from "marked";
 import SequenceQueueModal from "./SequenceQueueModal";
 import DmFollowUpQueueModal from "./DmFollowUpQueueModal";
+import EmailHandoffQueueModal from "./EmailHandoffQueueModal";
 import IdentityWarmupModal from "./IdentityWarmupModal";
 
 function isMarkdown(str) {
@@ -940,6 +941,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const [showWarmup, setShowWarmup] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -1012,6 +1014,11 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
           style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
         >View Warm-Up Status</button>
         <button
+          onClick={() => setShowQueue(true)}
+          className="btn btn-secondary"
+          style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
+        >View Active Prospects</button>
+        <button
           onClick={save}
           disabled={saving || !dirty}
           style={{
@@ -1027,6 +1034,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
       </div>
 
       {showWarmup && <IdentityWarmupModal onClose={() => setShowWarmup(false)} />}
+      {showQueue && <EmailHandoffQueueModal onClose={() => setShowQueue(false)} />}
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         {EMAIL_HANDOFF_FIELDS.map((f, i) => {

@@ -22,6 +22,7 @@ import base64
 import os
 import re
 from datetime import datetime, timedelta, timezone as dt_timezone
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import integrations
@@ -135,11 +136,23 @@ def _identity_gmail_service(refresh_token: str):
     return build("gmail", "v1", credentials=_identity_google_creds(refresh_token), cache_discovery=False)
 
 
-def _send_via_gmail(identity: dict, to: str, subject: str, body: str) -> str:
+def _send_via_gmail(identity: dict, to: str, subject: str, body: str,
+                    html: str | None = None, reply_to: str | None = None, headers: dict | None = None) -> str:
     svc = _identity_gmail_service(identity["oauth_refresh_token"])
-    msg = MIMEText(body)
+    if html:
+        # multipart/alternative (plain + HTML) rather than HTML-only — the
+        # plain part keeps spam filters happier than a bare HTML body.
+        msg = MIMEMultipart("alternative")
+        msg.attach(MIMEText(body, "plain"))
+        msg.attach(MIMEText(html, "html"))
+    else:
+        msg = MIMEText(body)
     msg["to"] = to
     msg["subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
+    for name, value in (headers or {}).items():
+        msg[name] = value
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     sent = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
     return sent["id"]
@@ -172,21 +185,24 @@ def _graph_access_token(identity: dict) -> str:
     return result["access_token"]
 
 
-def _send_via_graph(identity: dict, to: str, subject: str, body: str) -> str:
+def _send_via_graph(identity: dict, to: str, subject: str, body: str,
+                    html: str | None = None, reply_to: str | None = None, headers: dict | None = None) -> str:
     import httpx
 
     token = _graph_access_token(identity)
+    message = {
+        "subject": subject,
+        "body": {"contentType": "HTML", "content": html} if html else {"contentType": "Text", "content": body},
+        "toRecipients": [{"emailAddress": {"address": to}}],
+    }
+    if reply_to:
+        message["replyTo"] = [{"emailAddress": {"address": reply_to}}]
+    # Graph only accepts custom "x-" headers (List-Unsubscribe is rejected),
+    # so `headers` is Gmail-only in practice.
     resp = httpx.post(
         "https://graph.microsoft.com/v1.0/me/sendMail",
         headers={"Authorization": f"Bearer {token}"},
-        json={
-            "message": {
-                "subject": subject,
-                "body": {"contentType": "Text", "content": body},
-                "toRecipients": [{"emailAddress": {"address": to}}],
-            },
-            "saveToSentItems": True,
-        },
+        json={"message": message, "saveToSentItems": True},
         timeout=20,
     )
     resp.raise_for_status()
@@ -196,15 +212,17 @@ def _send_via_graph(identity: dict, to: str, subject: str, body: str) -> str:
 
 # ── Unified send entrypoint ──────────────────────────────────────────────
 
-async def send_from_identity(identity: dict, to: str, subject: str, body: str) -> str:
+async def send_from_identity(identity: dict, to: str, subject: str, body: str,
+                             html: str | None = None, reply_to: str | None = None,
+                             headers: dict | None = None) -> str:
     """Sends through whichever provider `identity` belongs to. Returns the
     provider message id (empty string for Graph, which doesn't return one
     synchronously). Raises on failure — callers are expected to catch and
     log, same discipline as every other send helper in this codebase."""
     if identity["provider"] == "google":
-        return await asyncio.to_thread(_send_via_gmail, identity, to, subject, body)
+        return await asyncio.to_thread(_send_via_gmail, identity, to, subject, body, html, reply_to, headers)
     elif identity["provider"] == "microsoft":
-        return await asyncio.to_thread(_send_via_graph, identity, to, subject, body)
+        return await asyncio.to_thread(_send_via_graph, identity, to, subject, body, html, reply_to)
     raise RuntimeError(f"Unknown provider: {identity['provider']}")
 
 
@@ -214,6 +232,31 @@ def _extract_email(header_value: str) -> str:
 
 
 _SYNC_LOOKBACK_SEC = 120  # overlap window, matches client_email.py's sync
+
+_AUTO_REPLY_SUBJECT = re.compile(
+    r"^\s*(automatic reply|auto[- ]?reply|autoreply|auto:|out of (the )?office)", re.IGNORECASE,
+)
+_AUTO_REPLY_BODY = re.compile(
+    r"out of (the )?office|i am currently out|i'?m currently out|limited access to (my )?e-?mail"
+    r"|this is an automated|auto-?reply|away from (the office|my desk) until",
+    re.IGNORECASE,
+)
+
+
+def _is_auto_reply(headers: dict, subject: str, body: str) -> bool:
+    """Out-of-office / autoresponder detection, so an OOO bounce-back isn't
+    treated as a real lead reply (which would permanently stop the Email
+    Handoff sequence — see email_handoff_sequence._has_replied). Standard
+    headers first (RFC 3834 Auto-Submitted, Precedence, X-Autoreply), then
+    subject/body wording as a fallback for servers that set neither."""
+    h = {k.lower(): (v or "").lower() for k, v in (headers or {}).items()}
+    if h.get("auto-submitted", "no") not in ("", "no"):
+        return True
+    if h.get("precedence") in ("auto_reply", "bulk", "junk") or "x-autoreply" in h or "x-autorespond" in h:
+        return True
+    if _AUTO_REPLY_SUBJECT.search(subject or ""):
+        return True
+    return bool(_AUTO_REPLY_BODY.search((body or "")[:600]))
 
 
 # ── Inbox polling ──────────────────────────────────────────────────────
@@ -237,12 +280,15 @@ def _gmail_raw_messages(svc, query_after: int) -> list[dict]:
     for m in res.get("messages", []):
         full = svc.users().messages().get(userId="me", id=m["id"], format="full").execute()
         headers = {h["name"].lower(): h["value"] for h in full["payload"].get("headers", [])}
+        subject = headers.get("subject", "(no subject)")
+        body = integrations._extract_body(full["payload"]) or full.get("snippet", "")
         out.append({
             "message_id": m["id"],
             "from_addr": _extract_email(headers.get("from", "")),
-            "subject": headers.get("subject", "(no subject)"),
-            "body": integrations._extract_body(full["payload"]) or full.get("snippet", ""),
+            "subject": subject,
+            "body": body,
             "internal_ts": int(full.get("internalDate", "0")) // 1000,
+            "is_auto_reply": _is_auto_reply(headers, subject, body),
         })
     return out
 
@@ -257,7 +303,7 @@ def _graph_raw_messages(identity: dict, since_ts: int) -> list[dict]:
         headers={"Authorization": f"Bearer {token}"},
         params={
             "$filter": f"receivedDateTime ge {since_iso}",
-            "$select": "id,from,subject,bodyPreview,receivedDateTime",
+            "$select": "id,from,subject,bodyPreview,receivedDateTime,internetMessageHeaders",
             "$top": 50,
         },
         timeout=20,
@@ -270,14 +316,48 @@ def _graph_raw_messages(identity: dict, since_ts: int) -> list[dict]:
             ts = int(datetime.strptime(received, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt_timezone.utc).timestamp())
         except ValueError:
             ts = since_ts
+        headers = {h.get("name", ""): h.get("value", "") for h in (m.get("internetMessageHeaders") or [])}
+        subject = m.get("subject") or "(no subject)"
+        body = m.get("bodyPreview") or ""
         out.append({
             "message_id": m["id"],
             "from_addr": (m.get("from", {}).get("emailAddress", {}).get("address") or "").lower(),
-            "subject": m.get("subject") or "(no subject)",
-            "body": m.get("bodyPreview") or "",
+            "subject": subject,
+            "body": body,
             "internal_ts": ts,
+            "is_auto_reply": _is_auto_reply(headers, subject, body),
         })
     return out
+
+
+def _forward_address() -> str:
+    return os.environ.get("REPLY_FORWARD_EMAIL") or integrations.EXPECTED_SENDER_EMAIL
+
+
+async def forward_reply_to_main_inbox(identity: dict, contact: dict, msg: dict):
+    """Copies a real lead reply into Dylan's main DigiGrowth inbox so he
+    doesn't have to watch the dashboard. Sent FROM the identity mailbox
+    (not the business Gmail), so email_inbox.py's business-Gmail sync never
+    mistakes it for a prospect message — the From is an identity, which is
+    never a contact. Reply-To is the lead, so hitting Reply in Gmail answers
+    them directly (from the main address; the dashboard Inbox reply keeps
+    the same identity sender). Out-of-office replies are not forwarded.
+    Never raises — a failed forward must not break the inbox sync."""
+    lead_email = msg["from_addr"]
+    who = " / ".join(p for p in (contact.get("owner"), contact.get("business")) if p) or lead_email
+    body = (
+        f"Lead reply from {who} <{lead_email}>\n"
+        f"Received on {identity['mailbox_email']} (Email Handoff sequence).\n"
+        f"Hitting Reply here answers the lead directly. To keep the same sender, reply from the dashboard Inbox instead.\n"
+        f"{'-' * 40}\n\n"
+        f"{msg['body']}"
+    )
+    try:
+        await send_from_identity(
+            identity, _forward_address(), f"[Lead Reply] {who}: {msg['subject']}", body, reply_to=lead_email,
+        )
+    except Exception as e:
+        print(f"[email_identities] reply forward failed for {lead_email}: {e}")
 
 
 async def sync_identity_inbox(identity: dict) -> dict:
@@ -298,8 +378,11 @@ async def sync_identity_inbox(identity: dict) -> dict:
         return {"lead_replies": 0, "warmup_candidates": []}
 
     async with pool.acquire() as conn:
-        contacts = await conn.fetch("SELECT id, email FROM contacts WHERE email IS NOT NULL AND trim(email) != ''")
+        contacts = await conn.fetch(
+            "SELECT id, email, business, owner FROM contacts WHERE email IS NOT NULL AND trim(email) != ''"
+        )
         contact_by_email = {c["email"].strip().lower(): c["id"] for c in contacts if c["email"]}
+        contact_info = {c["id"]: dict(c) for c in contacts}
         identity_emails = {
             r["mailbox_email"].lower()
             for r in await conn.fetch("SELECT mailbox_email FROM email_send_identities WHERE id != $1", identity["id"])
@@ -336,12 +419,15 @@ async def sync_identity_inbox(identity: dict) -> dict:
                     thread_id, msg["subject"],
                 )
             await conn.execute(
-                """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at)
-                   VALUES ($1, $2, $3, 'inbound', $4, $5, $6, to_timestamp($7))
+                """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at, is_auto_reply)
+                   VALUES ($1, $2, $3, 'inbound', $4, $5, $6, to_timestamp($7), $8)
                    ON CONFLICT (gmail_message_id) DO NOTHING""",
                 contact_id, thread_id, from_addr, msg["subject"], msg["body"], msg["message_id"], msg["internal_ts"],
+                msg.get("is_auto_reply", False),
             )
             lead_replies += 1
+            if not msg.get("is_auto_reply"):
+                await forward_reply_to_main_inbox(identity, contact_info.get(contact_id, {}), msg)
 
         if newest_ts > last_ts:
             await conn.execute(

@@ -1253,6 +1253,23 @@ async def _create_schema(pool: asyncpg.Pool):
             -- just above in this same statement.
             ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS identity_id INTEGER REFERENCES email_send_identities(id) ON DELETE SET NULL;
 
+            -- Out-of-office/autoresponder inbound (see
+            -- email_identities._is_auto_reply) — excluded from the Email
+            -- Handoff reply-stop check so an OOO doesn't kill the sequence.
+            -- The backfill UPDATE catches OOOs stored before this column
+            -- existed; idempotent, cheap (inbound identity rows only).
+            ALTER TABLE email_messages ADD COLUMN IF NOT EXISTS is_auto_reply BOOLEAN NOT NULL DEFAULT false;
+            UPDATE email_messages SET is_auto_reply = true
+            WHERE direction = 'inbound' AND NOT is_auto_reply AND thread_id LIKE 'identity-%'
+              AND (subject ~* '^\\s*(automatic reply|auto[- ]?reply|autoreply|auto:|out of (the )?office)'
+                   OR left(body, 600) ~* 'out of (the )?office|i am currently out|limited access to (my )?e-?mail');
+
+            -- Set when a prospect is pulled out of the Email Handoff sequence
+            -- from the Outreach Templates "View Active Prospects" queue
+            -- (DELETE /api/dialer/email-handoff-active/{contact_id}).
+            -- Re-enrolling clears it. See email_handoff_sequence.enroll().
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS stopped_at TIMESTAMPTZ;
+
             -- Inbound/outbound SMS sent through the CLIENT's own provisioned
             -- Twilio number (client_marketing_config.twilio_number) — kept
             -- separate from sms_messages, which is DigiGrowth's own number.

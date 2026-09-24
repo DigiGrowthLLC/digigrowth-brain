@@ -28,6 +28,10 @@ send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
     fool this into sending to someone who genuinely replied. A reply at any
     point permanently stops all remaining touches (no restart — unlike
     DM Follow-Up, there's no "went quiet again" re-entry for this sequence).
+    Out-of-office autoresponders (email_messages.is_auto_reply) don't count
+    as a reply; a rep's manual Replied tick in the Inbox does stop sends.
+  - Sends are throttled per identity (one per poll, DAILY_CAP_PER_IDENTITY
+    per 24h) and skip contacts who clicked the unsubscribe footer link.
 
 Sending routes through email_identities.pick_identity() — MX-detects
 whether the lead's domain is Google- or Microsoft-hosted (cached on
@@ -44,6 +48,8 @@ Each touch's subject/body is independently editable from Business Resources
 {link} ({link} resolves to integrations.CALENDLY_URL), same convention as
 dm_followup_sequence.py.
 """
+import os
+import secrets
 from datetime import datetime, timedelta, timezone as dt_timezone
 
 import email_identities
@@ -80,6 +86,12 @@ _TOUCH3_BODY_DEFAULT = (
     "{first_name} — going to close this out unless I hear back. No hard feelings, "
     "just didn't want it to fall through the cracks: {link}"
 )
+
+# Deliverability throttle for the brand-new sending identities: at most one
+# handoff send per identity per 5-min poll (spreads a backlog out instead of
+# firing it all in the same few seconds) and at most this many per identity
+# per rolling 24h. Anything over just waits for a later poll.
+DAILY_CAP_PER_IDENTITY = 20
 
 # instance -> (subject default, body default). dialer.py's GET/PUT
 # /dialer/email-handoff-template iterates this dict generically, so
@@ -134,7 +146,7 @@ async def enroll(contact: dict):
             INSERT INTO email_handoff_state (contact_id, enrolled_at, updated_at)
             VALUES ($1, now(), now())
             ON CONFLICT (contact_id) DO UPDATE SET
-                enrolled_at = now(), touch1_sent_at = NULL, touch2_sent_at = NULL,
+                enrolled_at = now(), stopped_at = NULL, touch1_sent_at = NULL, touch2_sent_at = NULL,
                 touch3_sent_at = NULL, stage_replied = false, stage_replied_manual = false,
                 stage_replied_at = NULL, updated_at = now()
             """,
@@ -143,13 +155,30 @@ async def enroll(contact: dict):
 
 
 async def _has_replied(conn, contact_id: str) -> bool:
+    """Out-of-office/autoresponder messages don't count — see
+    email_identities._is_auto_reply."""
     return bool(await conn.fetchval(
-        "SELECT 1 FROM email_messages WHERE contact_id = $1 AND direction = 'inbound' LIMIT 1",
+        "SELECT 1 FROM email_messages WHERE contact_id = $1 AND direction = 'inbound' "
+        "AND NOT is_auto_reply LIMIT 1",
         contact_id,
     ))
 
 
-async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, subject: str, body: str, message_id: str):
+async def _sent_last_24h(conn, identity_id: int) -> int:
+    return await conn.fetchval(
+        "SELECT COUNT(*) FROM email_messages WHERE direction = 'outbound' AND thread_id LIKE $1 "
+        "AND sent_at > now() - interval '24 hours'",
+        f"identity-{identity_id}-%",
+    )
+
+
+def _unsubscribe_url(contact_id: str) -> str:
+    base = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/")
+    return f"{base}/api/email/unsubscribe/{contact_id}"
+
+
+async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, subject: str, body: str,
+                           message_id: str, tracking_token: str | None = None, is_automated: bool = True):
     """Mirrors email_identities.sync_identity_inbox's thread_id scheme
     (identity-{identity_id}-{contact_id}) so an inbound reply later lands in
     the same conversation this outbound touch created."""
@@ -168,14 +197,15 @@ async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, 
         import uuid
         message_id = f"graph-{uuid.uuid4().hex}"
     await conn.execute(
-        """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at)
-           VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now())
+        """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at,
+                                       tracking_token, is_automated)
+           VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7, $8)
            ON CONFLICT (gmail_message_id) DO NOTHING""",
-        contact_id, thread_id, email, subject, body, message_id,
+        contact_id, thread_id, email, subject, body, message_id, tracking_token, is_automated,
     )
 
 
-async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
+async def _send_touch(conn, row: dict, instance: str, templates: dict, used_identities: set) -> bool:
     email = (row.get("email") or "").strip()
     contact_id = row["contact_id"]
     if not email:
@@ -199,14 +229,34 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
     if not identity:
         print(f"[email_handoff_sequence] no active identity available for {email} — will retry next poll")
         return False
+    if identity["id"] in used_identities or await _sent_last_24h(conn, identity["id"]) >= DAILY_CAP_PER_IDENTITY:
+        return False  # throttled — retried on a later poll
 
+    used_identities.add(identity["id"])
+    # Open tracking: same /track/open pixel + unsubscribe link the business
+    # Gmail's outreach sends use (integrations._wrap_outreach_html), sent as
+    # multipart plain+HTML. List-Unsubscribe gives Gmail/Yahoo a one-click
+    # opt-out (Gmail identities only — Graph rejects that header).
+    tracking_token = secrets.token_urlsafe(16)
+    unsubscribe_url = _unsubscribe_url(contact_id)
     try:
-        message_id = await email_identities.send_from_identity(identity, email, subject, body)
+        message_id = await email_identities.send_from_identity(
+            identity, email, subject,
+            f"{body}\n\n--\nNot interested? Unsubscribe here: {unsubscribe_url}",
+            html=integrations._wrap_outreach_html(body, tracking_token, contact_id),
+            headers={"List-Unsubscribe": f"<{unsubscribe_url}>"},
+        )
     except Exception as e:
         print(f"[email_handoff_sequence] send failed for {email} via {identity['mailbox_email']}: {e}")
         return False
 
-    await _record_outbound(conn, contact_id, identity["id"], email, subject, body, message_id)
+    # Only Touch 1 is fresh outreach — it counts toward the Email Outreach
+    # card's Sent/Open Rate. Touches 2/3 are follow-ups (is_automated),
+    # reported in the Email Handoff funnel only.
+    await _record_outbound(
+        conn, contact_id, identity["id"], email, subject, body, message_id,
+        tracking_token=tracking_token, is_automated=(instance != "touch1"),
+    )
     if not row.get("identity_id"):
         await conn.execute(
             "UPDATE email_handoff_state SET identity_id = $2, updated_at = now() WHERE contact_id = $1",
@@ -227,7 +277,8 @@ async def send_due_touches():
                    c.email_provider, c.email_provider_checked_at
             FROM email_handoff_state ehs
             JOIN contacts c ON c.id = ehs.contact_id
-            WHERE c.status = $1
+            WHERE c.status = $1 AND NOT c.email_opted_out AND ehs.stopped_at IS NULL
+            ORDER BY ehs.enrolled_at
             """,
             EMAIL_HANDOFF_STATUS,
         )
@@ -235,6 +286,7 @@ async def send_due_touches():
             return
 
         templates = await _get_templates()
+        used_identities: set = set()
         for record in rows:
             row = dict(record)
             contact_id = row["contact_id"]
@@ -247,13 +299,23 @@ async def send_due_touches():
                         contact_id,
                     )
                 continue
+            if row["stage_replied"] and row["stage_replied_manual"]:
+                continue  # rep ticked Replied in the Inbox (e.g. they answered by phone) — stop sends
+            if row["stage_replied"]:
+                # Auto-flagged earlier on what turned out to be an
+                # out-of-office — clear it so the funnel stays accurate.
+                await conn.execute(
+                    "UPDATE email_handoff_state SET stage_replied = false, stage_replied_at = NULL, "
+                    "updated_at = now() WHERE contact_id = $1",
+                    contact_id,
+                )
 
             for touch_num, sent_col, ref_col, delay in _TOUCHES:
                 if row[sent_col] is not None:
                     continue
                 reference = row["enrolled_at"] if ref_col is None else row[ref_col]
                 if reference is not None and now >= reference + delay:
-                    sent = await _send_touch(conn, row, f"touch{touch_num}", templates)
+                    sent = await _send_touch(conn, row, f"touch{touch_num}", templates, used_identities)
                     if sent:
                         await conn.execute(
                             f"UPDATE email_handoff_state SET {sent_col} = now(), updated_at = now() "

@@ -25,6 +25,7 @@ every ~60s. It never raises — a bad poll just logs and waits for the next tick
 
 import asyncio
 import re
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -276,6 +277,53 @@ async def get_email_conversation(thread_id: str):
     }
 
 
+async def _send_on_identity_thread(thread_id: str, to: str, subject: str, body: str) -> dict:
+    """Inbox reply on an Email Handoff thread ("identity-{identity_id}-{contact_id}",
+    see email_handoff_sequence._record_outbound). The lead is talking to that
+    cold-outreach identity mailbox, not the business Gmail, so the reply
+    must go out from the same identity — the business Gmail has no such
+    thread (its API rejects the synthetic thread id) and a different From
+    address would break the conversation for the lead."""
+    import email_identities
+
+    try:
+        identity_id = int(thread_id.split("-", 2)[1])
+    except (IndexError, ValueError):
+        return {"ok": False, "error": f"malformed identity thread id: {thread_id}"}
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        identity = await conn.fetchrow("SELECT * FROM email_send_identities WHERE id = $1", identity_id)
+        contact_row = await conn.fetchrow(
+            "SELECT id, email_opted_out FROM contacts WHERE lower(email) = lower($1)", to,
+        )
+    if not identity:
+        return {"ok": False, "error": f"sending identity {identity_id} no longer exists"}
+    if contact_row and contact_row["email_opted_out"]:
+        return {"ok": False, "error": f"{to} has unsubscribed from outreach email."}
+
+    reply_subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+    try:
+        message_id = await email_identities.send_from_identity(dict(identity), to, reply_subject, body)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+    contact_id = contact_row["id"] if contact_row else None
+    if not message_id:
+        message_id = f"graph-{uuid.uuid4().hex}"  # Graph sendMail returns no id
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE email_conversations SET updated_at = now() WHERE thread_id = $1", thread_id,
+        )
+        await conn.execute(
+            """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at)
+               VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now())
+               ON CONFLICT (gmail_message_id) DO NOTHING""",
+            contact_id, thread_id, to, reply_subject, body, message_id,
+        )
+    return {"ok": True, "thread_id": thread_id, "contact_id": contact_id}
+
+
 @router.post("/email/send")
 async def manual_email_send(payload: dict):
     thread_id = (payload.get("thread_id") or "").strip()
@@ -284,6 +332,9 @@ async def manual_email_send(payload: dict):
     body      = (payload.get("body") or "").strip()
     if not to or not body:
         return {"ok": False, "error": "to and body required"}
+
+    if thread_id.startswith("identity-"):
+        return await _send_on_identity_thread(thread_id, to, subject, body)
 
     try:
         sent = await asyncio.to_thread(integrations.gmail_send_reply, to, subject, body, thread_id)
