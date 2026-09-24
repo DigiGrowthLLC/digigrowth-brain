@@ -112,8 +112,18 @@ async def complete_watch_video(body: CompleteRequest):
     or future generic uses — may not have a known recipient) but is what
     lets the Loom Outreach analytics funnel (see content_tracking.py) know
     this video was sent to a specific prospect at all."""
-    safe_slug = _safe_slug(body.slug)
-    contact_id = (body.contact_id or "").strip() or None
+    return await register_watch_video(
+        body.slug, body.title, body.r2_key, body.file_size, body.content_type, body.contact_id,
+    )
+
+
+async def register_watch_video(slug: str, title: str, r2_key: str, file_size: int,
+                               content_type: str = "video/mp4", contact_id: str | None = None) -> dict:
+    """Records the watch_videos row for an object already in R2 and returns
+    its public watch URL. Shared by the upload endpoint above and
+    outreach_video.py's server-side generator."""
+    safe_slug = _safe_slug(slug)
+    contact_id = (contact_id or "").strip() or None
     pool = await get_pool()
     async with pool.acquire() as conn:
         # Stamped once, at publish — this is the Loom Outreach funnel's
@@ -126,7 +136,7 @@ async def complete_watch_video(body: CompleteRequest):
                ON CONFLICT (slug) DO UPDATE
                  SET title = $2, github_path = NULL, r2_key = $3, file_type = $4, file_size = $5, contact_id = $6
                RETURNING slug, title, r2_key, file_type, file_size, contact_id, created_at""",
-            safe_slug, body.title.strip() or safe_slug, body.r2_key, body.content_type, body.file_size, contact_id, campaign_id,
+            safe_slug, (title or "").strip() or safe_slug, r2_key, content_type, file_size, contact_id, campaign_id,
         )
     _video_cache.pop(safe_slug, None)
     return {

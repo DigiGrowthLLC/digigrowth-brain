@@ -29,6 +29,7 @@ import client_appointment_sequence
 import dm_followup_sequence
 import email_handoff_sequence
 import email_followup_trigger
+import outreach_video
 import identity_warmup
 import meta_ads
 import no_show_sequence
@@ -428,6 +429,12 @@ async def lifespan(app: FastAPI):
         email_followup_trigger.send_due_touches,
         IntervalTrigger(minutes=5),
         id="email-followup-trigger",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        outreach_video.process_next,
+        IntervalTrigger(minutes=2),
+        id="email-handoff-loom-generator",
         replace_existing=True,
     )
     scheduler.add_job(

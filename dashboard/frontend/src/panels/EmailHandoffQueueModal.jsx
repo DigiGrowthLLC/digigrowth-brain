@@ -182,7 +182,7 @@ export default function EmailHandoffQueueModal({ onClose }) {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "0.5px solid #1a2540" }}>
-                  {["Prospect", "Business", "Email", "Sending From", "Step", "Next Touch Due", ""].map(h => (
+                  {["Prospect", "Business", "Email", "Sending From", "Video", "Step", "Next Touch Due", ""].map(h => (
                     <th key={h} style={{
                       padding: "6px 10px", textAlign: "left",
                       fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
@@ -198,6 +198,15 @@ export default function EmailHandoffQueueModal({ onClose }) {
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{r.business || "—"}</td>
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{r.email || "—"}</td>
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{r.mailbox_email || "Not picked yet"}</td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>
+                      {r.loom_url
+                        ? <a href={r.loom_url} target="_blank" rel="noreferrer" style={{ color: "#6ab0ff" }}>Watch</a>
+                        : r.loom_attempts >= 3
+                          ? <span title={r.loom_error || ""} style={{ color: "#e05555" }}>Failed</span>
+                          : r.loom_error
+                            ? <span title={r.loom_error} style={{ color: "#f0a028" }}>Retrying</span>
+                            : "—"}
+                    </td>
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{r.step_label}</td>
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{fmt(r.next_touch_due_at)}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right" }}>

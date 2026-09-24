@@ -27,6 +27,12 @@ Skills live in `.claude/skills/`. Load the relevant skill for the task:
   `reminder_engine.py`, `no_show_sequence.py`) so copy matches the actual touch counts, timing,
   channels, and merge fields the system supports. Use this any time Dylan or a client needs new
   or revised booking-lifecycle messaging.
+- `cold-email` — create and iterate cold email outreach campaigns whose job is booking a call:
+  new sequences, subject lines, A/B variants, and metric-driven rewrites of the live Email
+  Handoff sequence (3 touches; `{first_name}`, `{full_name}`, `{business}`, `{link}`, `{loom}`). Modeled on Dylan's
+  'On'/'Off' framework swipe file (`references/swipe-file.md`) with rules for adapting it
+  honestly and for cold-mailbox deliverability. Use this for first-touch cold email;
+  `outbound-sequences` covers the post-booking lifecycle.
 
 ## Output Files
 

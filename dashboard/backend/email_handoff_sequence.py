@@ -30,8 +30,12 @@ send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
     DM Follow-Up, there's no "went quiet again" re-entry for this sequence).
     Out-of-office autoresponders (email_messages.is_auto_reply) don't count
     as a reply; a rep's manual Replied tick in the Inbox does stop sends.
-  - Sends are throttled per identity (one per poll, DAILY_CAP_PER_IDENTITY
-    per 24h) and skip contacts who clicked the unsubscribe footer link.
+  - Sends are spaced campaign-wide (one touch at a time, MIN_SEND_SPACING
+    apart), capped per identity (DAILY_CAP_PER_IDENTITY per 24h), and skip
+    contacts who clicked the unsubscribe footer link.
+  - Merge fields: {first_name}, {full_name}, {business}, {link}, and {loom}
+    (the prospect's personalized video, built by outreach_video.py when
+    they enroll — a touch using {loom} waits until it's ready).
 
 Sending routes through email_identities.pick_identity() — MX-detects
 whether the lead's domain is Google- or Microsoft-hosted (cached on
@@ -87,11 +91,18 @@ _TOUCH3_BODY_DEFAULT = (
     "just didn't want it to fall through the cracks: {link}"
 )
 
-# Deliverability throttle for the brand-new sending identities: at most one
-# handoff send per identity per 5-min poll (spreads a backlog out instead of
-# firing it all in the same few seconds) and at most this many per identity
-# per rolling 24h. Anything over just waits for a later poll.
+# Deliverability throttle: the whole Email Handoff campaign sends at most one
+# touch every MIN_SEND_SPACING (across all identities/prospects — Dylan's
+# rule, 2026-09-24), and each identity at most DAILY_CAP_PER_IDENTITY per
+# rolling 24h. Anything over just waits for a later poll.
+MIN_SEND_SPACING = timedelta(minutes=10)
 DAILY_CAP_PER_IDENTITY = 20
+
+# {loom} is the prospect's personalized outreach video (outreach_video.py,
+# generated server-side at enrollment). A touch whose template uses {loom}
+# waits for the video; after LOOM_MAX_ATTEMPTS failed generations it sends
+# with the booking link in its place rather than stalling forever.
+LOOM_MAX_ATTEMPTS = 3
 
 # instance -> (subject default, body default). dialer.py's GET/PUT
 # /dialer/email-handoff-template iterates this dict generically, so
@@ -121,13 +132,31 @@ async def _get_templates() -> dict:
     return {key: values.get(key, default) for key, default in TEMPLATE_DEFAULTS.items()}
 
 
+def full_name(contact: dict) -> str:
+    """Prospect's full name for {full_name} — the contact's owner as stored
+    (e.g. "Blake Overmiller"), falling back to the business name when no
+    owner is on file (same fallback the cold-email swipe file's subject-line
+    formulas use)."""
+    return (contact.get("owner") or "").strip() or (contact.get("business") or "").strip() or "there"
+
+
 def _fill(template: str, contact: dict) -> str:
     first_name = first_name_from_owner(contact.get("owner"))
     return (
         template.replace("{first_name}", first_name)
+        .replace("{full_name}", full_name(contact))
         .replace("{business}", (contact.get("business") or "").strip())
+        .replace("{loom}", contact.get("loom_url") or integrations.CALENDLY_URL)
         .replace("{link}", integrations.CALENDLY_URL)
     )
+
+
+def _loom_pending(row: dict) -> bool:
+    """True while this prospect's video is still being generated (or queued)
+    and hasn't exhausted its retries — the touch should wait for it."""
+    if row.get("loom_url"):
+        return False
+    return (row.get("loom_attempts") or 0) < LOOM_MAX_ATTEMPTS
 
 
 async def enroll(contact: dict):
@@ -205,15 +234,19 @@ async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, 
     )
 
 
-async def _send_touch(conn, row: dict, instance: str, templates: dict, used_identities: set) -> bool:
+async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
     email = (row.get("email") or "").strip()
     contact_id = row["contact_id"]
     if not email:
         print(f"[email_handoff_sequence] no email on file for contact {contact_id} — skipping")
         return False
 
-    subject = _fill(templates[f"email_handoff_{instance}_subject"], row)
-    body = _fill(templates[f"email_handoff_{instance}_body"], row)
+    raw_subject = templates[f"email_handoff_{instance}_subject"]
+    raw_body = templates[f"email_handoff_{instance}_body"]
+    if "{loom}" in raw_subject + raw_body and _loom_pending(row):
+        return False  # video still generating — retried next poll
+    subject = _fill(raw_subject, row)
+    body = _fill(raw_body, row)
     if not subject.strip() or not body.strip():
         print(f"[email_handoff_sequence] {instance} template is blank — skipping")
         return False
@@ -229,10 +262,9 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict, used_iden
     if not identity:
         print(f"[email_handoff_sequence] no active identity available for {email} — will retry next poll")
         return False
-    if identity["id"] in used_identities or await _sent_last_24h(conn, identity["id"]) >= DAILY_CAP_PER_IDENTITY:
+    if await _sent_last_24h(conn, identity["id"]) >= DAILY_CAP_PER_IDENTITY:
         return False  # throttled — retried on a later poll
 
-    used_identities.add(identity["id"])
     # Open tracking: same /track/open pixel + unsubscribe link the business
     # Gmail's outreach sends use (integrations._wrap_outreach_html), sent as
     # multipart plain+HTML. List-Unsubscribe gives Gmail/Yahoo a one-click
@@ -286,7 +318,12 @@ async def send_due_touches():
             return
 
         templates = await _get_templates()
-        used_identities: set = set()
+        # Campaign-wide spacing: nothing sends if any touch went out within
+        # MIN_SEND_SPACING, and at most one touch sends per poll.
+        last_send = await conn.fetchval(
+            "SELECT MAX(GREATEST(touch1_sent_at, touch2_sent_at, touch3_sent_at)) FROM email_handoff_state"
+        )
+        spacing_blocked = last_send is not None and now - last_send < MIN_SEND_SPACING
         for record in rows:
             row = dict(record)
             contact_id = row["contact_id"]
@@ -314,12 +351,13 @@ async def send_due_touches():
                 if row[sent_col] is not None:
                     continue
                 reference = row["enrolled_at"] if ref_col is None else row[ref_col]
-                if reference is not None and now >= reference + delay:
-                    sent = await _send_touch(conn, row, f"touch{touch_num}", templates, used_identities)
+                if reference is not None and now >= reference + delay and not spacing_blocked:
+                    sent = await _send_touch(conn, row, f"touch{touch_num}", templates)
                     if sent:
                         await conn.execute(
                             f"UPDATE email_handoff_state SET {sent_col} = now(), updated_at = now() "
                             "WHERE contact_id = $1",
                             contact_id,
                         )
+                        spacing_blocked = True  # one send per poll, next one 10+ min later
                 break

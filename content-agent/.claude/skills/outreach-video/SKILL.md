@@ -216,3 +216,23 @@ container. This mode drains that queue, one entry at a time, and is what
    - On any failure (site unreachable, composite/verify error, publish error), instead report `POST {DASHBOARD_URL}/api/send-info-queue/{id}/fail {"error": "<what went wrong>"}` and move to the next row — don't retry the same row in this run.
 3. Report each row's result (sent / failed + why) as it finishes, not batched to the end.
 4. If the queue is empty, say so and stop — nothing else to do.
+
+---
+
+## SERVER-SIDE MODE (Email Handoff `{loom}`), runs without Dylan's PC
+
+The Email Handoff email sequence's `{loom}` merge field is filled by an always-on port of this
+skill inside the Railway backend: `dashboard/backend/outreach_video.py` (APScheduler job
+`email-handoff-loom-generator`, every 2 min, one video at a time). It screenshots the prospect's
+site top-of-page (same result as this skill's locked static background), composites the same
+circle bubble with ffmpeg, uploads to R2, and registers a `/watch/<slug>` page tied to the contact.
+No website, or a render failure, falls back to the headcam clip alone. Nothing runs locally for
+this flow.
+
+- The headcam master it uses is a copy in R2 at `assets/headcam-master.mp4`. **If Dylan re-records
+  `content-agent/raw/headcam-master.mp4`, re-upload it to that key** (and redeploy/restart so the
+  container's cached copy refreshes), or email videos keep using the old clip.
+- `CROP_X_SHIFT` is duplicated in `outreach_video.py`; keep it in sync with
+  `compose_outreach_video.py` if the bubble framing is re-tuned.
+- Send Info Queue Mode above still runs locally; it could move onto the same server path later.
+

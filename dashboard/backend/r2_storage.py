@@ -118,3 +118,18 @@ def iter_object_chunks(key: str, chunk_size: int = 1024 * 1024):
     body = _client().get_object(Bucket=bucket, Key=key)["Body"]
     for chunk in body.iter_chunks(chunk_size=chunk_size):
         yield chunk
+
+
+def upload_file(path: str, key: str, content_type: str) -> None:
+    """Streams a local file to R2 (multipart under the hood for big files) —
+    used by outreach_video.py to publish server-generated videos without
+    ever reading the whole file into memory."""
+    bucket = os.environ["R2_BUCKET_NAME"]
+    _client().upload_file(path, bucket, key, ExtraArgs={"ContentType": content_type})
+
+
+def download_file(key: str, path: str) -> None:
+    """Streams one object from R2 to a local path (outreach_video.py's
+    headcam master clip cache)."""
+    bucket = os.environ["R2_BUCKET_NAME"]
+    _client().download_file(bucket, key, path)

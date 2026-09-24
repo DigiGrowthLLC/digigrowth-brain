@@ -530,7 +530,11 @@ async def get_email_sequence(contact_id: str):
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        contact = await conn.fetchrow("SELECT owner, business FROM contacts WHERE id = $1", contact_id)
+        contact = await conn.fetchrow(
+            """SELECT c.owner, c.business, ehs.loom_url FROM contacts c
+               LEFT JOIN email_handoff_state ehs ON ehs.contact_id = c.id WHERE c.id = $1""",
+            contact_id,
+        )
 
     contact_dict = dict(contact) if contact else {}
     templates = await email_handoff_sequence._get_templates()

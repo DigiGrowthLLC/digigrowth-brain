@@ -1270,6 +1270,15 @@ async def _create_schema(pool: asyncpg.Pool):
             -- Re-enrolling clears it. See email_handoff_sequence.enroll().
             ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS stopped_at TIMESTAMPTZ;
 
+            -- Personalized outreach video for the {loom} merge field, built
+            -- server-side by outreach_video.py (site screenshot + headcam
+            -- bubble -> R2 -> /watch/<slug>). loom_started_at doubles as a
+            -- claim so a crashed run is retried after a timeout.
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS loom_url TEXT;
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS loom_attempts INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS loom_error TEXT;
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS loom_started_at TIMESTAMPTZ;
+
             -- Inbound/outbound SMS sent through the CLIENT's own provisioned
             -- Twilio number (client_marketing_config.twilio_number) — kept
             -- separate from sms_messages, which is DigiGrowth's own number.
