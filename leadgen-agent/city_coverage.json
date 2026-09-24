@@ -669,10 +669,10 @@
       "last_scraped_date": "2026-09-24"
     },
     "Gilbert, AZ": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 363,
-      "qualified_count": 14,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 484,
+      "qualified_count": 17,
       "last_scraped_date": "2026-09-24"
     },
     "Anchorage, AK": {
