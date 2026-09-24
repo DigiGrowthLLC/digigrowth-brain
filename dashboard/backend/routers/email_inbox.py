@@ -697,6 +697,14 @@ async def get_contact_thread(contact_id: str):
                FROM email_handoff_state WHERE contact_id = $1""",
             contact_id,
         )
+        email_stages = await conn.fetchrow(
+            "SELECT stage_replied, stage_engaged, stage_interested FROM email_contact_stages WHERE contact_id = $1",
+            contact_id,
+        )
+        has_real_email_reply = bool(await conn.fetchval(
+            "SELECT 1 FROM email_messages WHERE contact_id = $1 AND direction = 'inbound' AND NOT is_auto_reply LIMIT 1",
+            contact_id,
+        ))
 
         await conn.execute("UPDATE sms_conversations SET last_read_at = now() WHERE contact_id = $1", contact_id)
         await conn.execute("UPDATE email_conversations SET last_read_at = now() WHERE contact_id = $1", contact_id)
@@ -709,6 +717,13 @@ async def get_contact_thread(contact_id: str):
         for m in email_msgs
     ]
     messages.sort(key=lambda m: m["sent_at"])
+
+    # Email Replied: a rep's explicit tick wins; otherwise automatic (a real
+    # inbound email, or the handoff sequence having flagged a reply).
+    if email_stages and email_stages["stage_replied"] is not None:
+        email_replied = email_stages["stage_replied"]
+    else:
+        email_replied = has_real_email_reply or bool(email_handoff and email_handoff["stage_replied"])
 
     sms_active = sms_conv and sms_conv["status"] != "closed"
     email_active = email_conv and email_conv["status"] != "closed"
@@ -752,8 +767,13 @@ async def get_contact_thread(contact_id: str):
         "email_handoff_touch1_sent_at": email_handoff["touch1_sent_at"] if email_handoff else None,
         "email_handoff_touch2_sent_at": email_handoff["touch2_sent_at"] if email_handoff else None,
         "email_handoff_touch3_sent_at": email_handoff["touch3_sent_at"] if email_handoff else None,
-        "email_stage_replied": email_handoff["stage_replied"] if email_handoff else False,
+        "email_stage_replied": email_replied,
         "email_stage_replied_at": email_handoff["stage_replied_at"] if email_handoff else None,
+        # Email-channel stages (email_contact_stages) — shown in the Inbox's
+        # stage menu while the Email reply channel is selected.
+        "email_handoff_enrolled": email_handoff is not None,
+        "email_stage_engaged": bool(email_stages and email_stages["stage_engaged"]),
+        "email_stage_interested": bool(email_stages and email_stages["stage_interested"]),
         "messages": messages,
     }
 
@@ -821,13 +841,39 @@ async def set_contact_stage(contact_id: str, payload: dict):
             )
         return {"ok": True, "stage": stage, "checked": checked}
 
-    if stage == "email_replied":
-        # Email Handoff's manual-override equivalent of "replied" — lives on
-        # email_handoff_state, not sms_conversations, since a contact in
-        # "email-handoff" status is tracked by the 3-touch email sequence
-        # instead of the SMS funnel. See email_handoff_sequence.py.
+    if stage in ("email_engaged", "email_interested"):
+        # Email-channel funnel stages (email_contact_stages). Engaged or
+        # Interested = a positive reply in Email analytics.
+        col = stage.removeprefix("email_")
         pool = await get_pool()
         async with pool.acquire() as conn:
+            await conn.execute(
+                f"""
+                INSERT INTO email_contact_stages (contact_id, stage_{col}, stage_{col}_at, updated_at)
+                VALUES ($1, $2, CASE WHEN $2 THEN now() END, now())
+                ON CONFLICT (contact_id) DO UPDATE SET
+                    stage_{col} = $2, stage_{col}_at = CASE WHEN $2 THEN now() END, updated_at = now()
+                """,
+                contact_id, checked,
+            )
+        return {"ok": True, "stage": stage, "checked": checked}
+
+    if stage == "email_replied":
+        # Email-channel Replied. Stored on email_contact_stages (explicit
+        # override of the automatic real-reply detection) AND, for a contact
+        # in the Email Handoff sequence, on email_handoff_state as a manual
+        # override — which is what stops the sequence's remaining touches.
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO email_contact_stages (contact_id, stage_replied, stage_replied_at, updated_at)
+                VALUES ($1, $2, CASE WHEN $2 THEN now() END, now())
+                ON CONFLICT (contact_id) DO UPDATE SET
+                    stage_replied = $2, stage_replied_at = CASE WHEN $2 THEN now() END, updated_at = now()
+                """,
+                contact_id, checked,
+            )
             await conn.execute(
                 """
                 UPDATE email_handoff_state
@@ -840,7 +886,7 @@ async def set_contact_stage(contact_id: str, payload: dict):
         return {"ok": True, "stage": stage, "checked": checked}
 
     if stage not in _STAGE_COLUMNS:
-        return {"ok": False, "error": "stage must be one of initial_outreach/replied/dm_reached/primed/engaged/interested/not_interested/email_replied"}
+        return {"ok": False, "error": "stage must be one of initial_outreach/replied/dm_reached/primed/engaged/interested/not_interested/email_replied/email_engaged/email_interested"}
 
     pool = await get_pool()
     async with pool.acquire() as conn:

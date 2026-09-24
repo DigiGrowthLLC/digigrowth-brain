@@ -782,13 +782,17 @@ export default function InboxPanel({ initialTarget }) {
                       <button onClick={() => setStageMenuOpen(o => !o)} className="btn btn-ghost"
                         style={{
                           fontSize: 10,
-                          borderColor: (thread?.is_email_handoff ? thread?.email_stage_replied : thread?.stage_interested) ? "rgba(240,160,40,0.6)" : "rgba(240,160,40,0.35)",
+                          borderColor: (replyChannel === "email" ? thread?.email_stage_interested : thread?.stage_interested) ? "rgba(240,160,40,0.6)" : "rgba(240,160,40,0.35)",
                           color: "#f0a028",
-                          background: (thread?.is_email_handoff ? thread?.email_stage_replied : thread?.stage_interested) ? "rgba(240,160,40,0.12)" : "transparent",
+                          background: (replyChannel === "email" ? thread?.email_stage_interested : thread?.stage_interested) ? "rgba(240,160,40,0.12)" : "transparent",
                         }}>
-                        {thread?.is_email_handoff
-                          ? (thread?.email_stage_replied ? "★ REPLIED" : "EMAIL HANDOFF ▾")
-                          : (thread?.stage_interested ? "★ INTERESTED" : "STAGE ▾")}
+                        {/* Stages are per channel and follow the reply-channel
+                            toggle by the compose box: SMS stages live on
+                            sms_conversations, Email stages on
+                            email_contact_stages (+ handoff touches). */}
+                        {(replyChannel === "email" ? thread?.email_stage_interested : thread?.stage_interested)
+                          ? `★ ${replyChannel === "email" ? "EMAIL" : "SMS"} INTERESTED`
+                          : `${replyChannel === "email" ? "EMAIL" : "SMS"} STAGE ▾`}
                       </button>
                       {stageMenuOpen && (
                         <div className="dg-menu" style={{
@@ -797,18 +801,20 @@ export default function InboxPanel({ initialTarget }) {
                           padding: "8px 10px", minWidth: 150, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
                           display: "flex", flexDirection: "column", gap: 6,
                         }}>
-                          {(thread?.is_email_handoff ? [
-                            // Email Handoff sequence progress — replaces the SMS
-                            // funnel checkboxes above while the contact is in
-                            // "email-handoff" status (see email_handoff_sequence.py).
-                            // Touch 1/2/3 are automatic progress markers (disabled,
-                            // reflect email_handoff_state.touchN_sent_at) — only
-                            // Replied/Not Interested are rep-editable.
-                            { key: "touch1", label: "Touch 1 Sent", checked: !!thread?.email_handoff_touch1_sent_at, disabled: true },
-                            { key: "touch2", label: "Touch 2 Sent", checked: !!thread?.email_handoff_touch2_sent_at, disabled: true },
-                            { key: "touch3", label: "Touch 3 Sent", checked: !!thread?.email_handoff_touch3_sent_at, disabled: true },
-                            { key: "email_replied", label: "Replied", checked: !!thread?.email_stage_replied },
-                            { key: "not_interested", label: "Not Interested", checked: thread?.disposition === "not_interested" },
+                          {(replyChannel === "email" ? [
+                            // Email-channel stages. Touch 1/2/3 are automatic
+                            // Email Handoff progress markers (disabled), shown only
+                            // for enrolled contacts. Engaged/Interested count as a
+                            // positive reply in Email analytics.
+                            ...(thread?.email_handoff_enrolled ? [
+                              { key: "touch1", label: "Touch 1 Sent", checked: !!thread?.email_handoff_touch1_sent_at, disabled: true },
+                              { key: "touch2", label: "Touch 2 Sent", checked: !!thread?.email_handoff_touch2_sent_at, disabled: true },
+                              { key: "touch3", label: "Touch 3 Sent", checked: !!thread?.email_handoff_touch3_sent_at, disabled: true },
+                            ] : []),
+                            { key: "email_replied",    label: "Replied",    checked: !!thread?.email_stage_replied },
+                            { key: "email_engaged",    label: "Engaged",    checked: !!thread?.email_stage_engaged },
+                            { key: "email_interested", label: "Interested", checked: !!thread?.email_stage_interested },
+                            { key: "not_interested",   label: "Not Interested", checked: thread?.disposition === "not_interested" },
                           ] : [
                             { key: "initial_outreach", label: "Initial Outreach", checked: !!thread?.stage_initial_outreach },
                             { key: "replied",     label: "Replied",    checked: !!thread?.stage_replied },

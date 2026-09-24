@@ -662,6 +662,19 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     }
 
 
+# Contacts with a positive email reply: Email-channel stage Engaged or
+# Interested, or an email conversation that booked / was marked Interested.
+_POSITIVE_EMAIL_CONTACTS_SQL = """
+    SELECT COUNT(*) FROM contacts c
+    WHERE (
+        EXISTS (SELECT 1 FROM email_contact_stages s
+                WHERE s.contact_id = c.id AND (s.stage_engaged OR s.stage_interested))
+        OR EXISTS (SELECT 1 FROM email_conversations ec
+                   WHERE ec.contact_id = c.id AND (ec.disposition = 'interested' OR ec.booked_at IS NOT NULL))
+    )
+"""
+
+
 async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     """
     Email funnel metrics — sent / reply rate / booked.
@@ -752,19 +765,17 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         replied_threads = {r["thread_id"] for r in reply_rows}
         replied = sum(1 for r in initial_rows if r["thread_id"] in replied_threads)
 
-    # Positive replies: of the prospects who replied, how many have an email
-    # conversation Dylan marked Interested in the Inbox, or that booked.
-    # Counted per prospect (contact), since the positive outcome can land on a
-    # different thread than the initial message (e.g. Email Handoff replies).
-    # Replaced open rate 2026-09-24 when the tracking pixel was dropped.
+    # Positive replies: prospects Dylan has ticked Engaged or Interested on
+    # the Email channel's Inbox stages (email_contact_stages), or who booked
+    # from an email conversation. Counted per prospect (contact), out of this
+    # same initial-send population. Replaced open rate 2026-09-24 when the
+    # tracking pixel was dropped.
     positive = 0
-    replied_contacts = [r["contact_id"] for r in initial_rows
-                        if r["contact_id"] and r["thread_id"] in replied_threads]
-    if replied_contacts:
+    initial_contacts = [r["contact_id"] for r in initial_rows if r["contact_id"]]
+    if initial_contacts:
         positive = await conn.fetchval(
-            """SELECT COUNT(DISTINCT contact_id) FROM email_conversations
-               WHERE contact_id = ANY($1::text[]) AND (disposition = 'interested' OR booked_at IS NOT NULL)""",
-            replied_contacts,
+            _POSITIVE_EMAIL_CONTACTS_SQL + " AND c.id = ANY($1::text[])",
+            initial_contacts,
         )
 
     # Booked is windowed by email_conversations.booked_at — stamped once
@@ -865,15 +876,12 @@ async def _email_handoff_metrics(conn, since=None) -> dict:
         touch3    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch3_sent_at IS NOT NULL")
         replied   = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE stage_replied")
 
-    # Positive: replied prospects whose conversation Dylan marked Interested
-    # in the Inbox, or that booked (same definition as _email_metrics).
+    # Positive: enrolled prospects with a positive email reply (same
+    # definition as _email_metrics — Email stage Engaged/Interested, or booked).
     positive = await conn.fetchval(
-        f"""
-        SELECT COUNT(*) FROM email_handoff_state ehs
-        WHERE ehs.stage_replied {"AND ehs.stage_replied_at >= $1" if since else ""}
-          AND EXISTS (SELECT 1 FROM email_conversations ec WHERE ec.contact_id = ehs.contact_id
-                      AND (ec.disposition = 'interested' OR ec.booked_at IS NOT NULL))
-        """,
+        _POSITIVE_EMAIL_CONTACTS_SQL
+        + " AND EXISTS (SELECT 1 FROM email_handoff_state ehs WHERE ehs.contact_id = c.id"
+        + (" AND ehs.enrolled_at >= $1)" if since else ")"),
         *([since] if since else []),
     )
 

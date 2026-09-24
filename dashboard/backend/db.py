@@ -1279,6 +1279,23 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS loom_error TEXT;
             ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS loom_started_at TIMESTAMPTZ;
 
+            -- Email-channel funnel stages, per contact — the Inbox's stage
+            -- menu shows these (instead of the SMS stage_* columns on
+            -- sms_conversations) while the Email reply channel is selected.
+            -- stage_replied NULL = automatic (a real, non-auto-reply inbound
+            -- email exists); true/false = a rep's explicit tick. Engaged or
+            -- Interested counts as a positive reply in Email analytics.
+            CREATE TABLE IF NOT EXISTS email_contact_stages (
+                contact_id           TEXT PRIMARY KEY REFERENCES contacts(id) ON DELETE CASCADE,
+                stage_replied        BOOLEAN,
+                stage_replied_at     TIMESTAMPTZ,
+                stage_engaged        BOOLEAN NOT NULL DEFAULT false,
+                stage_engaged_at     TIMESTAMPTZ,
+                stage_interested     BOOLEAN NOT NULL DEFAULT false,
+                stage_interested_at  TIMESTAMPTZ,
+                updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
             -- Inbound/outbound SMS sent through the CLIENT's own provisioned
             -- Twilio number (client_marketing_config.twilio_number) — kept
             -- separate from sms_messages, which is DigiGrowth's own number.
