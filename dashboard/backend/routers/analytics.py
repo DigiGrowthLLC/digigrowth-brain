@@ -722,7 +722,7 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     campaign_params  = [campaign_id] if campaign_id is not None else []
     initial_rows = await conn.fetch(
         f"""
-        SELECT DISTINCT ON (email) email, thread_id, sent_at, opened_at, bounced_at
+        SELECT DISTINCT ON (email) email, contact_id, thread_id, sent_at, bounced_at
         FROM email_messages
         WHERE direction='outbound' AND NOT is_test AND NOT is_automated {campaign_clause}
         ORDER BY email, sent_at ASC
@@ -734,10 +734,6 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
 
     total_sent = initial_sent = total_outreach = len(initial_rows)
 
-    confirmed_opened = sum(
-        1 for r in initial_rows
-        if r["opened_at"] and (r["opened_at"] - r["sent_at"]) > timedelta(minutes=2)
-    )
     bounced = sum(1 for r in initial_rows if r["bounced_at"])
 
     # Replied: of those initial messages, how many threads got an inbound
@@ -746,6 +742,7 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     # within the window, so this can't pick up an unrelated historical
     # reply the way the old (pre-2026-09-01) all-outbound-rows version could.
     replied = 0
+    replied_threads: set = set()
     thread_ids = [r["thread_id"] for r in initial_rows]
     if thread_ids:
         reply_rows = await conn.fetch(
@@ -754,6 +751,21 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         )
         replied_threads = {r["thread_id"] for r in reply_rows}
         replied = sum(1 for r in initial_rows if r["thread_id"] in replied_threads)
+
+    # Positive replies: of the prospects who replied, how many have an email
+    # conversation Dylan marked Interested in the Inbox, or that booked.
+    # Counted per prospect (contact), since the positive outcome can land on a
+    # different thread than the initial message (e.g. Email Handoff replies).
+    # Replaced open rate 2026-09-24 when the tracking pixel was dropped.
+    positive = 0
+    replied_contacts = [r["contact_id"] for r in initial_rows
+                        if r["contact_id"] and r["thread_id"] in replied_threads]
+    if replied_contacts:
+        positive = await conn.fetchval(
+            """SELECT COUNT(DISTINCT contact_id) FROM email_conversations
+               WHERE contact_id = ANY($1::text[]) AND (disposition = 'interested' OR booked_at IS NOT NULL)""",
+            replied_contacts,
+        )
 
     # Booked is windowed by email_conversations.booked_at — stamped once
     # when a booking happens and never cleared, so a later disposition
@@ -808,12 +820,12 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         "total_outreach":   total_outreach or 0,
         "replied":          replied or 0,
         "reply_rate":       _pct(replied, initial_sent),
+        "positive_replied":     positive or 0,
+        "positive_reply_rate":  _pct(positive, initial_sent),
         "abr":              _pct(booked_total, initial_sent),
         "booked":           booked_total or 0,
         "not_interested":      not_interested or 0,
         "not_interested_rate": _pct(not_interested, initial_sent),
-        "opened":           confirmed_opened or 0,
-        "open_rate":        _pct(confirmed_opened, initial_sent),
         "bounced":          bounced or 0,
         "bounce_rate":      _pct(bounced, total_sent),
         "unsubscribed":     unsubscribed or 0,
@@ -853,28 +865,22 @@ async def _email_handoff_metrics(conn, since=None) -> dict:
         touch3    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch3_sent_at IS NOT NULL")
         replied   = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE stage_replied")
 
-    # Opens: per prospect, whether ANY tracked handoff touch was opened —
-    # same >2-minute rule as _email_metrics' confirmed_opened (filters Apple
-    # Mail Privacy Protection's instant pixel prefetch). Denominator is
-    # prospects with at least one tracked (pixel-carrying) touch, so sends
-    # from before tracking existed don't drag the rate down.
-    since_clause = "AND sent_at >= $1" if since else ""
-    open_row = await conn.fetchrow(
+    # Positive: replied prospects whose conversation Dylan marked Interested
+    # in the Inbox, or that booked (same definition as _email_metrics).
+    positive = await conn.fetchval(
         f"""
-        SELECT COUNT(DISTINCT contact_id) AS tracked,
-               COUNT(DISTINCT contact_id) FILTER (
-                   WHERE opened_at IS NOT NULL AND opened_at - sent_at > interval '2 minutes'
-               ) AS opened
-        FROM email_messages
-        WHERE direction = 'outbound' AND thread_id LIKE 'identity-%' AND tracking_token IS NOT NULL {since_clause}
+        SELECT COUNT(*) FROM email_handoff_state ehs
+        WHERE ehs.stage_replied {"AND ehs.stage_replied_at >= $1" if since else ""}
+          AND EXISTS (SELECT 1 FROM email_conversations ec WHERE ec.contact_id = ehs.contact_id
+                      AND (ec.disposition = 'interested' OR ec.booked_at IS NOT NULL))
         """,
         *([since] if since else []),
     )
 
     return {
         "enrolled":     enrolled or 0,
-        "opened":       open_row["opened"] or 0,
-        "open_rate":    _pct(open_row["opened"], open_row["tracked"]),
+        "positive_replied":    positive or 0,
+        "positive_reply_rate": _pct(positive, contacted),
         "touch1_sent":  touch1 or 0,
         "touch2_sent":  touch2 or 0,
         "touch3_sent":  touch3 or 0,

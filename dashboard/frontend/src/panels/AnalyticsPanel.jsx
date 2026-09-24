@@ -58,40 +58,37 @@ function SmsOutreachCard({ outreach, tab }) {
 function EmailOutreachCard({ outreach, tab }) {
   if (!outreach) return <div className="glass-card" style={{ padding: "20px 22px" }}><SecLabel>Email Outreach</SecLabel><LoadingRow /></div>;
   const email = outreach.email?.[tab] ?? {};
+  // Email Handoff sequence breakdown — only on the Outreach tab (campaign
+  // views don't carry it).
+  const h = outreach.email_handoff?.[tab];
 
   return (
     <div className="glass-card" style={{ padding: "20px 22px" }}>
       <SecLabel>Email Outreach</SecLabel>
       <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 10, marginTop: 4 }}>
         <MiniStat label="Sent"                  value={num(email.total_sent)}          color="#9b6bd8" />
-        <MiniStat label="Open Rate"              value={pct(email.open_rate)}           color="#9b6bd8" />
         <MiniStat label="Reply Rate"             value={pct(email.reply_rate)}          color="#9b6bd8" />
+        <MiniStat label="Positive Reply Rate"    value={pct(email.positive_reply_rate)} color="#14c882" />
         <MiniStat label="Bounce Rate"            value={pct(email.bounce_rate)}         color={email.bounce_rate > 5 ? "#dc3c3c" : "#c4d0e8"} />
         <MiniStat label="Unsubscribe Rate"       value={pct(email.unsubscribe_rate)}    color={email.unsubscribe_rate > 2 ? "#dc3c3c" : "#c4d0e8"} />
         <MiniStat label="ABR"                    value={pct(email.abr)}                 color="#14c882" />
         <MiniStat label="Total Booked"           value={num(email.booked)}              color="#14c882" />
         <MiniStat label="Not Interested Rate"    value={pct(email.not_interested_rate)} color="#dc3c3c" />
       </div>
-    </div>
-  );
-}
-
-function EmailHandoffCard({ outreach, tab }) {
-  if (!outreach) return <div className="glass-card" style={{ padding: "20px 22px" }}><SecLabel>Email Handoff Sequence</SecLabel><LoadingRow /></div>;
-  const h = outreach.email_handoff?.[tab] ?? {};
-
-  return (
-    <div className="glass-card" style={{ padding: "20px 22px" }}>
-      <SecLabel>Email Handoff Sequence</SecLabel>
-      <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 10, marginTop: 4 }}>
-        <MiniStat label="Enrolled"     value={num(h.enrolled)}    color="#9b6bd8" />
-        <MiniStat label="Open Rate"    value={pct(h.open_rate)}   color="#9b6bd8" />
-        <MiniStat label="Touch 1 Sent" value={num(h.touch1_sent)} color="#9b6bd8" />
-        <MiniStat label="Touch 2 Sent" value={num(h.touch2_sent)} color="#9b6bd8" />
-        <MiniStat label="Touch 3 Sent" value={num(h.touch3_sent)} color="#9b6bd8" />
-        <MiniStat label="Replied"      value={num(h.replied)}     color="#14c882" />
-        <MiniStat label="Reply Rate"   value={pct(h.reply_rate)}  color="#14c882" />
-      </div>
+      {h && (
+        <>
+          <div className="sec-label" style={{ marginTop: 18, fontSize: 9 }}>Email Handoff Sequence</div>
+          <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 10, marginTop: 4 }}>
+            <MiniStat label="Enrolled"            value={num(h.enrolled)}               color="#9b6bd8" />
+            <MiniStat label="Touch 1 Sent"        value={num(h.touch1_sent)}            color="#9b6bd8" />
+            <MiniStat label="Touch 2 Sent"        value={num(h.touch2_sent)}            color="#9b6bd8" />
+            <MiniStat label="Touch 3 Sent"        value={num(h.touch3_sent)}            color="#9b6bd8" />
+            <MiniStat label="Replied"             value={num(h.replied)}                color="#14c882" />
+            <MiniStat label="Reply Rate"          value={pct(h.reply_rate)}             color="#14c882" />
+            <MiniStat label="Positive Reply Rate" value={pct(h.positive_reply_rate)}    color="#14c882" />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -544,7 +541,6 @@ export default function AnalyticsPanel() {
           <ColdCallingCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
           <SmsOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
           <EmailOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
-          <EmailHandoffCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
         </div>
       </div>
 

@@ -57,7 +57,6 @@ dm_followup_sequence.py.
 """
 import os
 import re
-import secrets
 from datetime import datetime, timedelta, timezone as dt_timezone
 
 import email_identities
@@ -278,18 +277,18 @@ async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, 
 
 async def _deliver(conn, identity: dict, contact_id: str, email: str, subject: str, body: str,
                    is_automated: bool, is_test: bool = False) -> bool:
-    """Sends one handoff email from `identity` and records it. Open tracking:
-    same /track/open pixel + unsubscribe link the business Gmail's outreach
-    sends use (integrations._wrap_outreach_html), sent as multipart
-    plain+HTML. List-Unsubscribe gives Gmail/Yahoo a one-click opt-out
-    (Gmail identities only — Graph rejects that header)."""
-    tracking_token = secrets.token_urlsafe(16)
+    """Sends one handoff email from `identity` and records it. Plain text
+    only, no open-tracking pixel or HTML part (dropped 2026-09-24 — HTML +
+    pixel was landing test sends in Gmail's Promotions tab; the campaign is
+    judged on reply / positive-reply rate instead). Unsubscribe line in the
+    body, plus List-Unsubscribe for Gmail/Yahoo's one-click opt-out (Gmail
+    identities only — Graph rejects that header)."""
+    tracking_token = None
     unsubscribe_url = _unsubscribe_url(contact_id)
     try:
         message_id = await email_identities.send_from_identity(
             identity, email, subject,
             f"{body}\n\n--\nNot interested? Unsubscribe here: {unsubscribe_url}",
-            html=integrations._wrap_outreach_html(body, tracking_token, contact_id),
             headers={"List-Unsubscribe": f"<{unsubscribe_url}>"},
         )
     except Exception as e:

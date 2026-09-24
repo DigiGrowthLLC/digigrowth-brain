@@ -327,7 +327,10 @@ def _wrap_outreach_html(body: str, tracking_token: str, contact_id: str | None) 
             f'<p style="font-size:11px;color:#999;margin-top:20px;">'
             f'<a href="{base}/email/unsubscribe/{contact_id}" style="color:#999;">Unsubscribe</a></p>'
         )
-    parts.append(f'<img src="{base}/track/open/{tracking_token}.gif" width="1" height="1" style="display:none" alt="">')
+    # No open-tracking pixel since 2026-09-24 — open rate was dropped from
+    # analytics (reply / positive-reply rate instead) and the pixel pushed
+    # mail toward Gmail's Promotions tab. tracking_token is still stored but
+    # nothing fires it.
     return "".join(parts)
 
 
