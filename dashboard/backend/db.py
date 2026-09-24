@@ -1278,6 +1278,10 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS loom_attempts INTEGER NOT NULL DEFAULT 0;
             ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS loom_error TEXT;
             ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS loom_started_at TIMESTAMPTZ;
+            -- Email campaign this prospect's Touch 1 was sent under (the
+            -- Email Outreach campaign view reads this) — stamped at Touch 1
+            -- send via campaigns.resolve_send_campaign.
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
 
             -- Email-channel funnel stages, per contact — the Inbox's stage
             -- menu shows these (instead of the SMS stage_* columns on

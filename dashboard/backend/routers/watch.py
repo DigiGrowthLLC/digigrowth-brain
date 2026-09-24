@@ -181,7 +181,6 @@ async def _log_view_event(source: str, content_key: str, contact_id: str | None,
 
 @router.get("/watch/{slug}", response_class=HTMLResponse, include_in_schema=False)
 async def watch_page(slug: str, request: Request):
-    import integrations
     from merge_fields import first_name_from_owner
 
     pool = await get_pool()
@@ -203,14 +202,13 @@ async def watch_page(slug: str, request: Request):
         video_url, page_url = f"{PUBLIC_VIDEO_BASE}/{slug}/file", f"{PUBLIC_VIDEO_BASE}/{slug}"
     else:
         video_url, page_url = f"{_DASHBOARD_URL}/watch/{slug}/file", f"{_DASHBOARD_URL}/watch/{slug}"
-    # Personalized header + booking button (only when the video is tied to a
-    # contact — generic uploads keep the bare player).
+    # Personalized header (only when the video is tied to a contact —
+    # generic uploads keep the bare player).
     heading = ""
     if row["contact_id"] and (row["owner"] or row["business"]):
         first = html.escape(first_name_from_owner(row["owner"])) if row["owner"] else "there"
         biz = html.escape(row["business"] or "your practice")
         heading = f'<h1>Hey {first}, I made this for {biz}</h1>'
-    book_url = html.escape(integrations.CALENDLY_URL)
 
     return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en">
@@ -236,14 +234,11 @@ async def watch_page(slug: str, request: Request):
           font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #f0f4ff; }}
   h1 {{ font-size: clamp(20px, 3.2vw, 30px); font-weight: 600; margin: 0; text-align: center; }}
   video {{ width: 100%; max-width: 1100px; max-height: 70vh; border-radius: 10px; background: #000; }}
-  .book {{ display: inline-block; padding: 14px 28px; border-radius: 8px; font-weight: 600; font-size: 16px;
-           color: #fff; text-decoration: none; background: linear-gradient(90deg, #2857a0, #3a7bd5); }}
 </style>
 </head>
 <body>
 {heading}
 <video id="v" src="{video_url}" controls playsinline></video>
-<a class="book" id="book" href="{book_url}" target="_blank" rel="noopener">Book a call</a>
 <script>
 (function() {{
   // Beacons play/25%/50%/75%/complete for this outreach video — same
@@ -271,7 +266,6 @@ async def watch_page(slug: str, request: Request):
     else if (pct >= 0.25) track('progress_25');
   }});
   video.addEventListener('ended', function() {{ track('complete'); }});
-  document.getElementById('book').addEventListener('click', function() {{ track('book_click'); }});
 }})();
 </script>
 </body>

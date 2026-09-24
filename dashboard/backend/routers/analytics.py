@@ -210,11 +210,20 @@ async def _os_sales_stats(conn, days: int) -> dict:
         """,
         since,
     ) or 0
+    # All-time: shows/closes window on the APPOINTMENT's created_at vs the
+    # baseline cutoff, not on when the outcome was marked. Appointments
+    # booked before the cutoff are already inside the frozen sheet
+    # baseline, even if their show/close got (re-)marked in the OS later —
+    # windowing on outcome_*_at double-counted exactly those (Austin
+    # Treadwell's and Brandon Crosdale's shows + Brandon's close, fixed
+    # 2026-09-24). Period windows (days>0) still use when the outcome was
+    # marked, since there's no baseline to overlap with.
+    show_col, close_col = ("ar.created_at", "ar.created_at") if not days else ("ar.outcome_show_at", "ar.outcome_close_at")
     shows = await conn.fetchval(
         f"""
         SELECT COUNT(*) FROM appointment_reminders ar {join}
         WHERE {where} AND ar.outcome_show = 'show'
-        AND ($1::timestamptz IS NULL OR ar.outcome_show_at >= $1)
+        AND ($1::timestamptz IS NULL OR {show_col} >= $1)
         """,
         since,
     ) or 0
@@ -223,7 +232,7 @@ async def _os_sales_stats(conn, days: int) -> dict:
         SELECT COUNT(*) AS closes, COALESCE(SUM(ar.pricing), 0) AS revenue
         FROM appointment_reminders ar {join}
         WHERE {where} AND ar.outcome_close = 'closed'
-        AND ($1::timestamptz IS NULL OR ar.outcome_close_at >= $1)
+        AND ($1::timestamptz IS NULL OR {close_col} >= $1)
         """,
         since,
     )
@@ -662,260 +671,93 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     }
 
 
-# Contacts with a positive email reply: Email-channel stage Engaged or
-# Interested, or an email conversation that booked / was marked Interested.
-_POSITIVE_EMAIL_CONTACTS_SQL = """
-    SELECT COUNT(*) FROM contacts c
-    WHERE (
-        EXISTS (SELECT 1 FROM email_contact_stages s
-                WHERE s.contact_id = c.id AND (s.stage_engaged OR s.stage_interested))
-        OR EXISTS (SELECT 1 FROM email_conversations ec
-                   WHERE ec.contact_id = c.id AND (ec.disposition = 'interested' OR ec.booked_at IS NOT NULL))
-    )
-"""
-
-
 async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     """
-    Email funnel metrics — sent / reply rate / booked.
-    Unlike SMS, email has no stage sequence (no equivalent of auto_opener →
-    curiosity_opener → ... → cta), so this only tracks what the data
-    actually supports: outbound sends, whether the contact replied, and
-    conversations marked booked.
+    Email Outreach analytics = the Email Handoff sequence ONLY (Dylan,
+    2026-09-24). Every other email the account sends (Inbox replies,
+    reminders, newsletters, manual sends) is excluded. One prospect = one
+    "sent": Touch 1 is the outreach, Touches 2/3 are follow-ups and never
+    add to Sent.
 
-    Sent/opened/bounced/replied are all scoped to each recipient's ORIGINAL
-    initial outbound message only (MIN(sent_at) per email address) —
-    requested 2026-09-01 so a follow-up or later re-send in the same thread
-    never counts as a second "sent", and an open/bounce/reply is only
-    counted against that first message, not anything sent afterward. This
-    replaced an earlier design where total_sent counted every outbound row
-    and initial_sent/total_outreach were separate, looser figures — those
-    three fields are now the same number by construction and kept for
-    backward compatibility with existing callers.
-
-    `since` is also clamped to the 'email_stats_reset_at' dialer_settings
-    value (see db.py's one-time seed) — historical email data before that
-    date is unreliable, so "All Time" here effectively means "since that
-    date" now, not true all-time.
-
-    If campaign_id is given, a campaign is already its own time boundary,
-    same as _sms_metrics — since further narrows within it (the Analytics
-    tab's Today/7D/30D/All Time toggle, applied on top of the campaign's own
-    date range). Booked/not-interested stay scoped by the conversation-level
-    tag (email_conversations.campaign_id/updated_at), same as SMS.
+    Population: email_handoff_state rows whose Touch 1 has gone out
+    (windowed on touch1_sent_at; campaign view = rows tagged with that
+    campaign at Touch 1 send — see email_handoff_sequence._send_touch and
+    campaigns.py's backfill-history). Test-status contacts excluded.
+    Per prospect:
+      - replied: a real inbound email (not an out-of-office auto-reply)
+        after Touch 1
+      - positive: Email stage Engaged or Interested ticked in the Inbox
+        (email_contact_stages), the conversation marked Interested, or booked
+      - video play: pressed play on their {loom} video (watch page 'play'
+        beacon — email link scanners that only fetch the page don't count);
+        rate is out of prospects who were sent a video
+      - booked: an appointment (not canceled) created after Touch 1, or the
+        email conversation marked booked
     """
-    reset_at_raw = await conn.fetchval(
-        "SELECT value FROM dialer_settings WHERE key = 'email_stats_reset_at'"
-    )
-    if reset_at_raw:
-        reset_at = datetime.fromisoformat(reset_at_raw.replace("Z", "+00:00"))
-        since = max(since, reset_at) if since else reset_at
-
+    clauses, args = ["ehs.touch1_sent_at IS NOT NULL", "c.status IS DISTINCT FROM 'test'"], []
+    if since:
+        args.append(since)
+        clauses.append(f"ehs.touch1_sent_at >= ${len(args)}")
     if campaign_id is not None:
-        params = [campaign_id, since] if since else [campaign_id]
-        booked_filter = "AND campaign_id = $1" + (" AND booked_at >= $2" if since else "")
-        not_interested_filter = "AND campaign_id = $1" + (" AND updated_at >= $2" if since else "")
-        unsub_filter = ""  # unsubscribes are tracked on contacts, not per-conversation — no clean campaign scope
-        unsub_params = []
-    else:
-        params = [since] if since else []
-        booked_filter = "AND booked_at >= $1" if since else ""
-        not_interested_filter = "AND updated_at >= $1" if since else ""
-        unsub_filter = "AND opted_out_at >= $1" if since else ""
-        unsub_params = params
+        args.append(campaign_id)
+        clauses.append(f"ehs.campaign_id = ${len(args)}")
 
-    # Each recipient's ORIGINAL initial outbound message only — the earliest
-    # non-test, non-automated outbound row per email address, full stop.
-    # Fetched once and filtered/aggregated in Python rather than repeating a
-    # near-identical CTE five times: sent/opened/bounced/replied all derive
-    # from this same fixed population, so a follow-up or later re-send in
-    # the same thread can never be counted as a fresh "sent", nor can an
-    # open/bounce/reply on a follow-up message count toward these rates.
-    campaign_clause  = "AND campaign_id = $1" if campaign_id is not None else ""
-    campaign_params  = [campaign_id] if campaign_id is not None else []
-    initial_rows = await conn.fetch(
+    row = await conn.fetchrow(
         f"""
-        SELECT DISTINCT ON (email) email, contact_id, thread_id, sent_at, bounced_at
-        FROM email_messages
-        WHERE direction='outbound' AND NOT is_test AND NOT is_automated {campaign_clause}
-        ORDER BY email, sent_at ASC
-        """,
-        *campaign_params,
-    )
-    if since:
-        initial_rows = [r for r in initial_rows if r["sent_at"] >= since]
-
-    total_sent = initial_sent = total_outreach = len(initial_rows)
-
-    bounced = sum(1 for r in initial_rows if r["bounced_at"])
-
-    # Replied: of those initial messages, how many threads got an inbound
-    # reply at all. No separate date bound needed on the inbound side — a
-    # reply necessarily comes after its initial message, which is already
-    # within the window, so this can't pick up an unrelated historical
-    # reply the way the old (pre-2026-09-01) all-outbound-rows version could.
-    replied = 0
-    replied_threads: set = set()
-    thread_ids = [r["thread_id"] for r in initial_rows]
-    if thread_ids:
-        reply_rows = await conn.fetch(
-            "SELECT DISTINCT thread_id FROM email_messages WHERE direction='inbound' AND thread_id = ANY($1)",
-            thread_ids,
+        WITH pop AS (
+            SELECT ehs.contact_id, ehs.touch1_sent_at, ehs.loom_url, c.email_opted_out, c.status,
+                   EXISTS (SELECT 1 FROM appointment_reminders ar
+                           WHERE ar.contact_id = ehs.contact_id AND ar.status != 'canceled'
+                             AND ar.created_at >= ehs.touch1_sent_at)
+                   OR EXISTS (SELECT 1 FROM email_conversations ec
+                              WHERE ec.contact_id = ehs.contact_id AND ec.booked_at IS NOT NULL) AS is_booked
+            FROM email_handoff_state ehs
+            JOIN contacts c ON c.id = ehs.contact_id
+            WHERE {" AND ".join(clauses)}
         )
-        replied_threads = {r["thread_id"] for r in reply_rows}
-        replied = sum(1 for r in initial_rows if r["thread_id"] in replied_threads)
-
-    # Positive replies: prospects Dylan has ticked Engaged or Interested on
-    # the Email channel's Inbox stages (email_contact_stages), or who booked
-    # from an email conversation. Counted per prospect (contact), out of this
-    # same initial-send population. Replaced open rate 2026-09-24 when the
-    # tracking pixel was dropped.
-    positive = 0
-    initial_contacts = [r["contact_id"] for r in initial_rows if r["contact_id"]]
-    if initial_contacts:
-        positive = await conn.fetchval(
-            _POSITIVE_EMAIL_CONTACTS_SQL + " AND c.id = ANY($1::text[])",
-            initial_contacts,
-        )
-
-    # Booked is windowed by email_conversations.booked_at — stamped once
-    # when a booking happens and never cleared, so a later disposition
-    # change (e.g. closing the thread as not_interested) can't erase the
-    # booked credit (same fix as _sms_metrics — see its docstring). Not
-    # Interested still windows on updated_at (bumped when disposition is
-    # set — see email_inbox.py's close-conversation handler), not
-    # created_at (when the thread first started), so a disposition change
-    # that lands in this period shows up even if the contact was first
-    # emailed before the window started.
-    booked_total = await conn.fetchval(
-        f"SELECT COUNT(*) FROM email_conversations WHERE booked_at IS NOT NULL {booked_filter}",
-        *params,
-    )
-
-    not_interested = await conn.fetchval(
-        f"SELECT COUNT(*) FROM email_conversations WHERE disposition='not_interested' {not_interested_filter}",
-        *params,
-    )
-
-    # confirmed_opened/bounced are computed above from initial_rows —
-    # "Opened" only counts a pixel fire more than 2 minutes after send
-    # (Apple Mail Privacy Protection fetches every tracking pixel within
-    # seconds of delivery regardless of whether a human ever reads the
-    # email, so a very fast open is far more likely an auto-prefetch than a
-    # real read — heuristic, not a guarantee, but meaningfully better than
-    # the raw pixel-fired count alone). "Bounced" counts a delivery-failure
-    # notice detected by the inbox sync (mailer-daemon pattern match — see
-    # email_inbox.py) on that same initial message.
-
-    # Unsubscribed: contacts who clicked either unsubscribe link — the 1:1
-    # outreach one (email_opted_out) or the newsletter one (contacts.newsletter
-    # going false, tracked via newsletter_opted_out_at) — counted by when they
-    # opted out (not when they were originally emailed). The two opt-out lists
-    # stay independent for send-blocking purposes (see email_tracking.py), but
-    # for this all-up "email channel" rate a click on either link counts.
-    unsubscribed = await conn.fetchval(
-        f"""
-        SELECT COUNT(*) FROM (
-            SELECT GREATEST(email_opted_out_at, newsletter_opted_out_at) AS opted_out_at
-            FROM contacts
-            WHERE email_opted_out = true OR newsletter_opted_out_at IS NOT NULL
-        ) opted_out
-        WHERE opted_out_at IS NOT NULL {unsub_filter}
+        SELECT
+            COUNT(*) AS sent,
+            COUNT(*) FILTER (WHERE EXISTS (
+                SELECT 1 FROM email_messages em
+                WHERE em.contact_id = pop.contact_id AND em.direction = 'inbound'
+                  AND NOT em.is_auto_reply AND em.sent_at >= pop.touch1_sent_at)) AS replied,
+            COUNT(*) FILTER (WHERE pop.is_booked
+                OR EXISTS (SELECT 1 FROM email_contact_stages s
+                           WHERE s.contact_id = pop.contact_id AND (s.stage_engaged OR s.stage_interested))
+                OR EXISTS (SELECT 1 FROM email_conversations ec
+                           WHERE ec.contact_id = pop.contact_id AND ec.disposition = 'interested')) AS positive,
+            COUNT(*) FILTER (WHERE pop.loom_url IS NOT NULL) AS videos_sent,
+            COUNT(*) FILTER (WHERE pop.loom_url IS NOT NULL AND EXISTS (
+                SELECT 1 FROM content_view_events v JOIN watch_videos w ON w.slug = v.content_key
+                WHERE v.source = 'outreach_video' AND v.event_type = 'play'
+                  AND w.contact_id = pop.contact_id)) AS video_plays,
+            COUNT(*) FILTER (WHERE pop.email_opted_out) AS unsubscribed,
+            COUNT(*) FILTER (WHERE pop.is_booked) AS booked,
+            COUNT(*) FILTER (WHERE pop.status = 'not-interested' OR EXISTS (
+                SELECT 1 FROM email_conversations ec
+                WHERE ec.contact_id = pop.contact_id AND ec.disposition = 'not_interested')) AS not_interested
+        FROM pop
         """,
-        *unsub_params,
+        *args,
     )
-
+    sent = row["sent"] or 0
     return {
-        "total_sent":       total_sent   or 0,
-        "initial_sent":     initial_sent or 0,
-        "total_outreach":   total_outreach or 0,
-        "replied":          replied or 0,
-        "reply_rate":       _pct(replied, initial_sent),
-        "positive_replied":     positive or 0,
-        "positive_reply_rate":  _pct(positive, initial_sent),
-        "abr":              _pct(booked_total, initial_sent),
-        "booked":           booked_total or 0,
-        "not_interested":      not_interested or 0,
-        "not_interested_rate": _pct(not_interested, initial_sent),
-        "bounced":          bounced or 0,
-        "bounce_rate":      _pct(bounced, total_sent),
-        "unsubscribed":     unsubscribed or 0,
-        "unsubscribe_rate": _pct(unsubscribed, initial_sent),
-    }
-
-
-async def _email_handoff_metrics(conn, since=None) -> dict:
-    """
-    Email Handoff sequence funnel — enrolled / touch1-3 sent / replied, for
-    contacts currently in "email-handoff" status. This is the stage
-    breakdown a contact's Inbox checkboxes show INSTEAD of the SMS
-    stage_primed/engaged/interested funnel once their status flips to
-    "email-handoff" (see routers/email_inbox.py's set_contact_stage/
-    get_contact_thread) — see email_handoff_sequence.py for the 3-touch
-    engine itself. _email_metrics above already covers general email-channel
-    volume (sent/opened/bounced/replied across ALL email activity, Email
-    Handoff included); this is specifically the touch-by-touch progression,
-    the email equivalent of _sms_metrics' stage funnel.
-
-    Narrowed by each touch's own sent_at column, no activity-fallback
-    needed (unlike _sms_metrics' stage columns) — Email Handoff is a
-    one-shot sequence with no restart/re-enrollment cycle, so a touch's
-    sent_at is always the complete, accurate history of when it happened.
-    """
-    contacted = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state")
-    if since:
-        enrolled  = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE enrolled_at >= $1", since)
-        touch1    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch1_sent_at >= $1", since)
-        touch2    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch2_sent_at >= $1", since)
-        touch3    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch3_sent_at >= $1", since)
-        replied   = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE stage_replied AND stage_replied_at >= $1", since)
-    else:
-        enrolled  = contacted
-        touch1    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch1_sent_at IS NOT NULL")
-        touch2    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch2_sent_at IS NOT NULL")
-        touch3    = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE touch3_sent_at IS NOT NULL")
-        replied   = await conn.fetchval("SELECT COUNT(*) FROM email_handoff_state WHERE stage_replied")
-
-    # Positive: enrolled prospects with a positive email reply (same
-    # definition as _email_metrics — Email stage Engaged/Interested, or booked).
-    positive = await conn.fetchval(
-        _POSITIVE_EMAIL_CONTACTS_SQL
-        + " AND EXISTS (SELECT 1 FROM email_handoff_state ehs WHERE ehs.contact_id = c.id"
-        + (" AND ehs.enrolled_at >= $1)" if since else ")"),
-        *([since] if since else []),
-    )
-
-    # Video plays: enrolled prospects who pressed play on their {loom} video
-    # (the watch page's 'play' beacon — a real click in a browser, so email
-    # link scanners that merely fetch the page don't count), out of those
-    # who have a video and have been sent at least one touch.
-    video_row = await conn.fetchrow(
-        f"""
-        SELECT COUNT(*) AS sent,
-               COUNT(*) FILTER (WHERE EXISTS (
-                   SELECT 1 FROM content_view_events v
-                   JOIN watch_videos w ON w.slug = v.content_key
-                   WHERE v.source = 'outreach_video' AND v.event_type = 'play'
-                     AND w.contact_id = ehs.contact_id)) AS played
-        FROM email_handoff_state ehs
-        WHERE ehs.loom_url IS NOT NULL AND ehs.touch1_sent_at IS NOT NULL
-          {"AND ehs.touch1_sent_at >= $1" if since else ""}
-        """,
-        *([since] if since else []),
-    )
-
-    return {
-        "enrolled":     enrolled or 0,
-        "videos_sent":      video_row["sent"] or 0,
-        "video_plays":      video_row["played"] or 0,
-        "video_play_rate":  _pct(video_row["played"], video_row["sent"]),
-        "positive_replied":    positive or 0,
-        "positive_reply_rate": _pct(positive, contacted),
-        "touch1_sent":  touch1 or 0,
-        "touch2_sent":  touch2 or 0,
-        "touch3_sent":  touch3 or 0,
-        "replied":      replied or 0,
-        "reply_rate":   _pct(replied, contacted),
+        "total_sent":          sent,
+        "initial_sent":        sent,
+        "total_outreach":      sent,
+        "replied":             row["replied"] or 0,
+        "reply_rate":          _pct(row["replied"], sent),
+        "positive_replied":    row["positive"] or 0,
+        "positive_reply_rate": _pct(row["positive"], sent),
+        "videos_sent":         row["videos_sent"] or 0,
+        "video_plays":         row["video_plays"] or 0,
+        "video_play_rate":     _pct(row["video_plays"], row["videos_sent"]),
+        "unsubscribed":        row["unsubscribed"] or 0,
+        "unsubscribe_rate":    _pct(row["unsubscribed"], sent),
+        "booked":              row["booked"] or 0,
+        "abr":                 _pct(row["booked"], sent),
+        "not_interested":      row["not_interested"] or 0,
+        "not_interested_rate": _pct(row["not_interested"], sent),
     }
 
 
@@ -933,8 +775,6 @@ async def outreach(days: int = 30):
         sms_period     = await _sms_metrics(conn, since)
         email_all      = await _email_metrics(conn)
         email_period   = await _email_metrics(conn, since)
-        email_handoff_all    = await _email_handoff_metrics(conn)
-        email_handoff_period = await _email_handoff_metrics(conn, since)
 
     return {
         "period_days": days,
@@ -949,10 +789,6 @@ async def outreach(days: int = 30):
         "email": {
             "all_time": email_all,
             "period":   email_period,
-        },
-        "email_handoff": {
-            "all_time": email_handoff_all,
-            "period":   email_handoff_period,
         },
         "content": {
             "all_time": _content_metrics(cs, 0),
@@ -1033,8 +869,8 @@ async def pipeline(days: int = 0):
     #
     # "Pitched" (the reached stage) sums calls reached + SMS's own DM
     # Reached stage — not the later Engaged stage, which undercounts what
-    # "reached" means — + confirmed email opens. Same fix as
-    # dashboard.py::summary's total_reached.
+    # "reached" means — + Email Handoff prospects who played their video
+    # pitch (email opens were dropped 2026-09-24 with the tracking pixel).
     #
     # "Booked" is OS-native now — appointment_reminders (Dylan's own
     # sales-pipeline bookings, any source: Inbox/CRM/Dialer/DM/etc.) is the
@@ -1053,7 +889,7 @@ async def pipeline(days: int = 0):
     # contact aren't new prospects reached.
     dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["total_outreach"] + email["total_outreach"]
     answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]      + email["replied"]
-    pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["dm_reached"] + email["opened"]
+    pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["dm_reached"] + email["video_plays"]
     booked   = os_sales["discovery_calls"]
 
     return {

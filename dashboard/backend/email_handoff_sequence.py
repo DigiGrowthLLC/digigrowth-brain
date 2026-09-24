@@ -432,6 +432,16 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
     # reported in the Email Handoff funnel only.
     if not await _deliver(conn, identity, contact_id, email, subject, body, is_automated=(instance != "touch1")):
         return False
+    if instance == "touch1":
+        # Email Outreach campaign attribution (analytics.py::_email_metrics'
+        # campaign view): whichever email campaign is active right now, or
+        # a CRM-assigned pending one for this contact.
+        from routers.campaigns import resolve_send_campaign
+        campaign_id = await resolve_send_campaign(conn, "email", contact_id)
+        if campaign_id:
+            await conn.execute(
+                "UPDATE email_handoff_state SET campaign_id = $2 WHERE contact_id = $1", contact_id, campaign_id,
+            )
     if not row.get("identity_id"):
         await conn.execute(
             "UPDATE email_handoff_state SET identity_id = $2, updated_at = now() WHERE contact_id = $1",

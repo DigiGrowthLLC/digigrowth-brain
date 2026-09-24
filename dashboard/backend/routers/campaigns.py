@@ -225,9 +225,10 @@ async def backfill_campaign_history(campaign_id: int):
     predates campaign tagging (campaign_id IS NULL) to this campaign, and
     backdates its currently-open period to the earliest such row's
     timestamp so the period range reflects real history instead of just
-    "today". Only meaningful for vsl (content_view_events) and loom
-    (watch_videos) — sms/email are tagged at send time with no backlog to
-    backfill, and calling has no per-row campaign_id at all."""
+    "today". Supported for vsl (content_view_events), loom (watch_videos)
+    and email (email_handoff_state — Email Handoff prospects whose Touch 1
+    went out before the campaign existed). sms is tagged at send time with
+    no backlog to backfill, and calling has no per-row campaign_id at all."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         campaign = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
@@ -252,8 +253,20 @@ async def backfill_campaign_history(campaign_id: int):
                 "WHERE campaign_id IS NULL RETURNING 1) SELECT count(*) FROM u",
                 campaign_id,
             )
+        elif channel == "email":
+            # Email Outreach = the Email Handoff sequence: attribute every
+            # prospect whose Touch 1 already went out untagged.
+            earliest = await conn.fetchval(
+                "SELECT min(touch1_sent_at) FROM email_handoff_state "
+                "WHERE campaign_id IS NULL AND touch1_sent_at IS NOT NULL"
+            )
+            n = await conn.fetchval(
+                "WITH u AS (UPDATE email_handoff_state SET campaign_id = $1 "
+                "WHERE campaign_id IS NULL AND touch1_sent_at IS NOT NULL RETURNING 1) SELECT count(*) FROM u",
+                campaign_id,
+            )
         else:
-            raise HTTPException(status_code=400, detail="backfill only supported for vsl/loom")
+            raise HTTPException(status_code=400, detail="backfill only supported for vsl/loom/email")
         if earliest:
             await conn.execute(
                 "UPDATE campaign_periods SET started_at = $1 WHERE campaign_id = $2 AND ended_at IS NULL",
