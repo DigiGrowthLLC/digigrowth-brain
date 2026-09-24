@@ -34,6 +34,22 @@ admin_router = APIRouter()    # authenticated: /watch-videos (upload)
 _GITHUB_REPO = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
 _DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/")
 
+# Branded video domain (e.g. https://watch.digigrowthllc.com) — a Railway
+# custom domain on this same service. When set, watch links are
+# <base>/<slug> (main.py's watch_host_router maps that host's /<slug> onto
+# /watch/<slug>). Unset = links stay on DASHBOARD_URL/watch/<slug>.
+PUBLIC_VIDEO_BASE = os.environ.get("PUBLIC_VIDEO_BASE", "").strip().rstrip("/")
+WATCH_HOST = PUBLIC_VIDEO_BASE.split("://", 1)[-1].split("/", 1)[0].lower() if PUBLIC_VIDEO_BASE else ""
+
+
+def public_watch_url(slug: str) -> str:
+    return f"{PUBLIC_VIDEO_BASE}/{slug}" if PUBLIC_VIDEO_BASE else f"{_DASHBOARD_URL}/watch/{slug}"
+
+
+def _is_watch_host(request: Request) -> bool:
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(":")[0].lower()
+    return bool(WATCH_HOST) and host == WATCH_HOST
+
 # In-memory cache of fetched video bytes, keyed by slug — only ever populated
 # for legacy GitHub-backed rows (see _gh_fetch below); video players issue
 # many Range requests while seeking and without this every seek would re-hit
@@ -141,7 +157,7 @@ async def register_watch_video(slug: str, title: str, r2_key: str, file_size: in
     _video_cache.pop(safe_slug, None)
     return {
         "slug": row["slug"],
-        "watch_url": f"{_DASHBOARD_URL}/watch/{row['slug']}",
+        "watch_url": public_watch_url(row["slug"]),
         "file_url": f"{_DASHBOARD_URL}/watch/{row['slug']}/file",
     }
 
@@ -164,24 +180,44 @@ async def _log_view_event(source: str, content_key: str, contact_id: str | None,
 
 
 @router.get("/watch/{slug}", response_class=HTMLResponse, include_in_schema=False)
-async def watch_page(slug: str):
+async def watch_page(slug: str, request: Request):
+    import integrations
+    from merge_fields import first_name_from_owner
+
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT title, contact_id FROM watch_videos WHERE slug = $1", slug)
+        row = await conn.fetchrow(
+            """SELECT w.title, w.contact_id, c.owner, c.business
+               FROM watch_videos w LEFT JOIN contacts c ON c.id = w.contact_id
+               WHERE w.slug = $1""",
+            slug,
+        )
     if not row:
         raise HTTPException(status_code=404, detail="Video not found")
 
     await _log_view_event("outreach_video", slug, row["contact_id"], "view")
 
     title = html.escape(row["title"] or "A video for you")
-    video_url = f"{_DASHBOARD_URL}/watch/{slug}/file"
-    page_url = f"{_DASHBOARD_URL}/watch/{slug}"
+    # Links on the page stay on whichever domain the prospect arrived on.
+    if _is_watch_host(request):
+        video_url, page_url = f"{PUBLIC_VIDEO_BASE}/{slug}/file", f"{PUBLIC_VIDEO_BASE}/{slug}"
+    else:
+        video_url, page_url = f"{_DASHBOARD_URL}/watch/{slug}/file", f"{_DASHBOARD_URL}/watch/{slug}"
+    # Personalized header + booking button (only when the video is tied to a
+    # contact — generic uploads keep the bare player).
+    heading = ""
+    if row["contact_id"] and (row["owner"] or row["business"]):
+        first = html.escape(first_name_from_owner(row["owner"])) if row["owner"] else "there"
+        biz = html.escape(row["business"] or "your practice")
+        heading = f'<h1>Hey {first}, I made this for {biz}</h1>'
+    book_url = html.escape(integrations.CALENDLY_URL)
 
     return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>{title}</title>
 <meta property="og:type" content="video.other">
 <meta property="og:title" content="{title}">
@@ -194,13 +230,20 @@ async def watch_page(slug: str):
 <meta name="twitter:card" content="player">
 <meta name="twitter:player:stream" content="{video_url}">
 <style>
-  html, body {{ margin: 0; padding: 0; background: #090f26; height: 100%; }}
-  body {{ display: flex; align-items: center; justify-content: center; }}
-  video {{ max-width: 100vw; max-height: 100vh; width: 100%; }}
+  html, body {{ margin: 0; padding: 0; background: #090f26; min-height: 100%; }}
+  body {{ display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 18px; padding: 24px 16px; box-sizing: border-box; min-height: 100vh;
+          font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; color: #f0f4ff; }}
+  h1 {{ font-size: clamp(20px, 3.2vw, 30px); font-weight: 600; margin: 0; text-align: center; }}
+  video {{ width: 100%; max-width: 1100px; max-height: 70vh; border-radius: 10px; background: #000; }}
+  .book {{ display: inline-block; padding: 14px 28px; border-radius: 8px; font-weight: 600; font-size: 16px;
+           color: #fff; text-decoration: none; background: linear-gradient(90deg, #2857a0, #3a7bd5); }}
 </style>
 </head>
 <body>
+{heading}
 <video id="v" src="{video_url}" controls playsinline></video>
+<a class="book" id="book" href="{book_url}" target="_blank" rel="noopener">Book a call</a>
 <script>
 (function() {{
   // Beacons play/25%/50%/75%/complete for this outreach video — same
@@ -228,6 +271,7 @@ async def watch_page(slug: str):
     else if (pct >= 0.25) track('progress_25');
   }});
   video.addEventListener('ended', function() {{ track('complete'); }});
+  document.getElementById('book').addEventListener('click', function() {{ track('book_click'); }});
 }})();
 </script>
 </body>

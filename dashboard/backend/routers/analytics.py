@@ -885,8 +885,30 @@ async def _email_handoff_metrics(conn, since=None) -> dict:
         *([since] if since else []),
     )
 
+    # Video plays: enrolled prospects who pressed play on their {loom} video
+    # (the watch page's 'play' beacon — a real click in a browser, so email
+    # link scanners that merely fetch the page don't count), out of those
+    # who have a video and have been sent at least one touch.
+    video_row = await conn.fetchrow(
+        f"""
+        SELECT COUNT(*) AS sent,
+               COUNT(*) FILTER (WHERE EXISTS (
+                   SELECT 1 FROM content_view_events v
+                   JOIN watch_videos w ON w.slug = v.content_key
+                   WHERE v.source = 'outreach_video' AND v.event_type = 'play'
+                     AND w.contact_id = ehs.contact_id)) AS played
+        FROM email_handoff_state ehs
+        WHERE ehs.loom_url IS NOT NULL AND ehs.touch1_sent_at IS NOT NULL
+          {"AND ehs.touch1_sent_at >= $1" if since else ""}
+        """,
+        *([since] if since else []),
+    )
+
     return {
         "enrolled":     enrolled or 0,
+        "videos_sent":      video_row["sent"] or 0,
+        "video_plays":      video_row["played"] or 0,
+        "video_play_rate":  _pct(video_row["played"], video_row["sent"]),
         "positive_replied":    positive or 0,
         "positive_reply_rate": _pct(positive, contacted),
         "touch1_sent":  touch1 or 0,

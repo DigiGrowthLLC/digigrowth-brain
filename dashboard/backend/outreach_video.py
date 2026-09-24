@@ -140,8 +140,10 @@ async def generate(contact: dict, track: bool = True) -> tuple[str, str]:
     mode is "site" (composited over their website) or "headcam-only" (no
     site on file, or the site capture/composite failed).
     Raises only if even the headcam-only fallback can't be published.
-    track=False (test sends) skips tying the video to the contact, keeping
-    it out of the Loom Outreach analytics funnel."""
+    track=False (test sends) gives the video a "-test" link so it never
+    takes a real prospect's slug; it's still tied to the contact (for the
+    personalized page), and test-status contacts are excluded from the Loom
+    Outreach funnel (content_tracking.py)."""
     from routers.watch import register_watch_video
 
     headcam = await _ensure_headcam()
@@ -159,16 +161,44 @@ async def generate(contact: dict, track: bool = True) -> tuple[str, str]:
             except Exception as e:
                 print(f"[outreach_video] site composite failed for {website} ({e}) — using headcam-only fallback")
 
-        slug = f"{_slugify(contact.get('business'))}-{str(contact['id'])[:6]}-{date.today():%Y%m%d}"
+        slug = await _pick_slug(contact, track)
         r2_key = f"watch/{slug}.mp4"
         await asyncio.to_thread(r2_storage.upload_file, str(video), r2_key, "video/mp4")
         registered = await register_watch_video(
             slug, contact.get("business") or slug, r2_key, video.stat().st_size, "video/mp4",
-            str(contact["id"]) if track else None,
+            str(contact["id"]),
         )
         return registered["watch_url"], mode
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
+
+
+# Paths the watch subdomain uses itself — never handed out as a prospect slug.
+_RESERVED_SLUGS = {"track", "watch", "api", "assets", "robots-txt", "favicon-ico", "test"}
+
+
+async def _pick_slug(contact: dict, track: bool) -> str:
+    """Prospect-name link: watch.digigrowthllc.com/janice-bacak. Falls back
+    to the business name when no owner is on file; on a clash with a
+    different contact's video, adds the business, then a number. A contact
+    re-generating keeps (overwrites) their own slug. Test sends get a
+    "-test" suffix so they never take a real prospect's link."""
+    import email_handoff_sequence as ehs_mod
+
+    base = _slugify(ehs_mod.full_name(contact))
+    if track is False:
+        return f"{base}-test"
+    candidates = [base, f"{base}-{_slugify(contact.get('business'))}"[:80]]
+    candidates += [f"{base}-{n}" for n in range(2, 50)]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for slug in candidates:
+            if slug in _RESERVED_SLUGS:
+                continue
+            owner = await conn.fetchrow("SELECT contact_id FROM watch_videos WHERE slug = $1", slug)
+            if owner is None or owner["contact_id"] == str(contact["id"]):
+                return slug
+    return f"{base}-{str(contact['id'])[:8]}"
 
 
 def _needs_loom(row: dict, templates: dict) -> bool:

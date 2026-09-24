@@ -31,7 +31,7 @@ router = APIRouter()          # public — mounted with no auth
 admin_router = APIRouter()    # authenticated — mounted under /api
 
 _VALID_SOURCES = {"vsl", "outreach_video", "landing_page", "client_website"}
-_VALID_EVENTS = {"view", "play", "progress_25", "progress_50", "progress_75", "complete", "conversion"}
+_VALID_EVENTS = {"view", "play", "progress_25", "progress_50", "progress_75", "complete", "conversion", "book_click"}
 
 _EXCLUDED_IPS_KEY = "tracking_excluded_ips"
 
@@ -305,6 +305,8 @@ async def loom_outreach_funnel(days: int = 0, campaign_id: int | None = None, si
             WITH cohort AS (
                 SELECT DISTINCT contact_id FROM watch_videos wv
                 WHERE contact_id IS NOT NULL {sent_since} {camp}
+                  -- test-status contacts (e.g. Dylan's own) never count
+                  AND contact_id NOT IN (SELECT id FROM contacts WHERE status = 'test')
             ),
             viewed AS (
                 SELECT DISTINCT contact_id FROM content_view_events

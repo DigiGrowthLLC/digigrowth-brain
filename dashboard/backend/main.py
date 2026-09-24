@@ -470,6 +470,34 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DigiGrowth OS", lifespan=lifespan)
 
+@app.middleware("http")
+async def watch_host_router(request, call_next):
+    """watch.<domain> (routers/watch.py PUBLIC_VIDEO_BASE) only serves
+    outreach videos: /<slug> -> /watch/<slug>, /<slug>/file -> the file,
+    /track/view-event for the page's beacons, and a no-index robots.txt.
+    Everything else on that host (dashboard, /api) is a 404, so the branded
+    video domain never exposes the internal app."""
+    from fastapi.responses import PlainTextResponse
+    from routers.watch import WATCH_HOST
+
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(":")[0].lower()
+    if not WATCH_HOST or host != WATCH_HOST:
+        return await call_next(request)
+
+    path = request.url.path
+    if path == "/robots.txt":
+        return PlainTextResponse("User-agent: *\nDisallow: /\n")
+    if path == "/track/view-event":
+        return await call_next(request)
+    parts = [p for p in path.split("/") if p]
+    if len(parts) == 1 or (len(parts) == 2 and parts[1] == "file"):
+        new_path = "/watch/" + "/".join(parts)
+        request.scope["path"] = new_path
+        request.scope["raw_path"] = new_path.encode()
+        return await call_next(request)
+    return PlainTextResponse("Not found", status_code=404)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
