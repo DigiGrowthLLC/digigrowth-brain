@@ -135,15 +135,19 @@ async def _compose(headcam: Path, background_png: Path, out: Path) -> None:
     )
 
 
-async def generate(contact: dict) -> str:
-    """Builds + publishes one prospect's video; returns its watch URL.
-    Raises only if even the headcam-only fallback can't be published."""
+async def generate(contact: dict, track: bool = True) -> tuple[str, str]:
+    """Builds + publishes one prospect's video; returns (watch URL, mode) —
+    mode is "site" (composited over their website) or "headcam-only" (no
+    site on file, or the site capture/composite failed).
+    Raises only if even the headcam-only fallback can't be published.
+    track=False (test sends) skips tying the video to the contact, keeping
+    it out of the Loom Outreach analytics funnel."""
     from routers.watch import register_watch_video
 
     headcam = await _ensure_headcam()
     workdir = Path(tempfile.mkdtemp(prefix="loom-"))
     try:
-        video = headcam  # fallback: headcam clip alone
+        video, mode = headcam, "headcam-only"  # fallback: headcam clip alone
         website = (contact.get("website") or "").strip()
         if website:
             try:
@@ -151,7 +155,7 @@ async def generate(contact: dict) -> str:
                 await _screenshot(website, png)
                 composed = workdir / "video.mp4"
                 await _compose(headcam, png, composed)
-                video = composed
+                video, mode = composed, "site"
             except Exception as e:
                 print(f"[outreach_video] site composite failed for {website} ({e}) — using headcam-only fallback")
 
@@ -159,9 +163,10 @@ async def generate(contact: dict) -> str:
         r2_key = f"watch/{slug}.mp4"
         await asyncio.to_thread(r2_storage.upload_file, str(video), r2_key, "video/mp4")
         registered = await register_watch_video(
-            slug, contact.get("business") or slug, r2_key, video.stat().st_size, "video/mp4", str(contact["id"]),
+            slug, contact.get("business") or slug, r2_key, video.stat().st_size, "video/mp4",
+            str(contact["id"]) if track else None,
         )
-        return registered["watch_url"]
+        return registered["watch_url"], mode
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 
@@ -216,7 +221,7 @@ async def process_next() -> None:
                 )
 
             try:
-                watch_url = await generate(row)
+                watch_url, mode = await generate(row)
             except Exception as e:
                 async with pool.acquire() as conn:
                     await conn.execute(
@@ -232,6 +237,6 @@ async def process_next() -> None:
                     "UPDATE email_handoff_state SET loom_url = $2, loom_error = NULL WHERE contact_id = $1",
                     row["contact_id"], watch_url,
                 )
-            print(f"[outreach_video] ready for {row.get('business')}: {watch_url}")
+            print(f"[outreach_video] ready ({mode}) for {row.get('business')}: {watch_url}")
         except Exception as e:
             print(f"[outreach_video] process_next error: {e}")

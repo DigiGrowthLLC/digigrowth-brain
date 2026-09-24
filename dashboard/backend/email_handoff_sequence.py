@@ -207,7 +207,8 @@ def _unsubscribe_url(contact_id: str) -> str:
 
 
 async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, subject: str, body: str,
-                           message_id: str, tracking_token: str | None = None, is_automated: bool = True):
+                           message_id: str, tracking_token: str | None = None, is_automated: bool = True,
+                           is_test: bool = False):
     """Mirrors email_identities.sync_identity_inbox's thread_id scheme
     (identity-{identity_id}-{contact_id}) so an inbound reply later lands in
     the same conversation this outbound touch created."""
@@ -227,11 +228,88 @@ async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, 
         message_id = f"graph-{uuid.uuid4().hex}"
     await conn.execute(
         """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at,
-                                       tracking_token, is_automated)
-           VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7, $8)
+                                       tracking_token, is_automated, is_test)
+           VALUES ($1, $2, $3, 'outbound', $4, $5, $6, now(), $7, $8, $9)
            ON CONFLICT (gmail_message_id) DO NOTHING""",
-        contact_id, thread_id, email, subject, body, message_id, tracking_token, is_automated,
+        contact_id, thread_id, email, subject, body, message_id, tracking_token, is_automated, is_test,
     )
+
+
+async def _deliver(conn, identity: dict, contact_id: str, email: str, subject: str, body: str,
+                   is_automated: bool, is_test: bool = False) -> bool:
+    """Sends one handoff email from `identity` and records it. Open tracking:
+    same /track/open pixel + unsubscribe link the business Gmail's outreach
+    sends use (integrations._wrap_outreach_html), sent as multipart
+    plain+HTML. List-Unsubscribe gives Gmail/Yahoo a one-click opt-out
+    (Gmail identities only — Graph rejects that header)."""
+    tracking_token = secrets.token_urlsafe(16)
+    unsubscribe_url = _unsubscribe_url(contact_id)
+    try:
+        message_id = await email_identities.send_from_identity(
+            identity, email, subject,
+            f"{body}\n\n--\nNot interested? Unsubscribe here: {unsubscribe_url}",
+            html=integrations._wrap_outreach_html(body, tracking_token, contact_id),
+            headers={"List-Unsubscribe": f"<{unsubscribe_url}>"},
+        )
+    except Exception as e:
+        print(f"[email_handoff_sequence] send failed for {email} via {identity['mailbox_email']}: {e}")
+        return False
+    await _record_outbound(
+        conn, contact_id, identity["id"], email, subject, body, message_id,
+        tracking_token=tracking_token, is_automated=is_automated, is_test=is_test,
+    )
+    return True
+
+
+async def send_test(contact_id: str, instance: str = "touch1",
+                    subject_override: str | None = None, body_override: str | None = None) -> dict:
+    """Sends one Email Handoff touch to a contact RIGHT NOW as a test —
+    backs POST /api/dialer/email-handoff-test/{contact_id}. Builds the
+    contact's {loom} video on the spot if the text uses it (reusing one
+    already made), then sends through the real path (_deliver: live identity
+    mailbox, pixel, unsubscribe footer). Deliberately does NOT enroll the
+    contact, change their status, stamp any touch, or apply the 10-minute
+    spacing; the message is recorded is_test so analytics ignore it.
+    Overrides let a draft be previewed before it's saved to the template."""
+    import outreach_video
+
+    if instance not in TEMPLATE_INSTANCES:
+        raise ValueError(f"touch must be one of {list(TEMPLATE_INSTANCES)}")
+    templates = await _get_templates()
+    raw_subject = subject_override or templates[f"email_handoff_{instance}_subject"]
+    raw_body = body_override or templates[f"email_handoff_{instance}_body"]
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        c = await conn.fetchrow(
+            """SELECT c.*, ehs.loom_url FROM contacts c
+               LEFT JOIN email_handoff_state ehs ON ehs.contact_id = c.id WHERE c.id = $1""",
+            contact_id,
+        )
+    if not c:
+        raise ValueError("contact not found")
+    contact = dict(c)
+    email = (contact.get("email") or "").strip()
+    if not email:
+        raise ValueError("contact has no email on file")
+
+    loom_seconds, loom_mode = None, None
+    if "{loom}" in raw_subject + raw_body and not contact.get("loom_url"):
+        started = datetime.now(dt_timezone.utc)
+        contact["loom_url"], loom_mode = await outreach_video.generate(contact, track=False)
+        loom_seconds = round((datetime.now(dt_timezone.utc) - started).total_seconds(), 1)
+
+    subject, body = _fill(raw_subject, contact), _fill(raw_body, contact)
+    async with pool.acquire() as conn:
+        provider = await email_identities.get_cached_provider(conn, contact)
+        identity = await email_identities.pick_identity(conn, provider)
+        if not identity:
+            raise RuntimeError("no active sending identity")
+        ok = await _deliver(conn, identity, contact_id, email, subject, body, is_automated=True, is_test=True)
+    return {
+        "sent": ok, "to": email, "from": identity["mailbox_email"], "subject": subject, "body": body,
+        "loom_url": contact.get("loom_url"), "loom_mode": loom_mode, "loom_generation_seconds": loom_seconds,
+    }
 
 
 async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
@@ -265,30 +343,11 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
     if await _sent_last_24h(conn, identity["id"]) >= DAILY_CAP_PER_IDENTITY:
         return False  # throttled — retried on a later poll
 
-    # Open tracking: same /track/open pixel + unsubscribe link the business
-    # Gmail's outreach sends use (integrations._wrap_outreach_html), sent as
-    # multipart plain+HTML. List-Unsubscribe gives Gmail/Yahoo a one-click
-    # opt-out (Gmail identities only — Graph rejects that header).
-    tracking_token = secrets.token_urlsafe(16)
-    unsubscribe_url = _unsubscribe_url(contact_id)
-    try:
-        message_id = await email_identities.send_from_identity(
-            identity, email, subject,
-            f"{body}\n\n--\nNot interested? Unsubscribe here: {unsubscribe_url}",
-            html=integrations._wrap_outreach_html(body, tracking_token, contact_id),
-            headers={"List-Unsubscribe": f"<{unsubscribe_url}>"},
-        )
-    except Exception as e:
-        print(f"[email_handoff_sequence] send failed for {email} via {identity['mailbox_email']}: {e}")
-        return False
-
     # Only Touch 1 is fresh outreach — it counts toward the Email Outreach
     # card's Sent/Open Rate. Touches 2/3 are follow-ups (is_automated),
     # reported in the Email Handoff funnel only.
-    await _record_outbound(
-        conn, contact_id, identity["id"], email, subject, body, message_id,
-        tracking_token=tracking_token, is_automated=(instance != "touch1"),
-    )
+    if not await _deliver(conn, identity, contact_id, email, subject, body, is_automated=(instance != "touch1")):
+        return False
     if not row.get("identity_id"):
         await conn.execute(
             "UPDATE email_handoff_state SET identity_id = $2, updated_at = now() WHERE contact_id = $1",
