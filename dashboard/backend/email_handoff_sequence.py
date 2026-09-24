@@ -33,7 +33,10 @@ send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
   - Sends are spaced campaign-wide (one touch at a time, MIN_SEND_SPACING
     apart), capped per identity (DAILY_CAP_PER_IDENTITY per 24h), and skip
     contacts who clicked the unsubscribe footer link.
-  - Merge fields: {first_name}, {full_name}, {business}, {link}, and {loom}
+  - Merge fields: {first_name}, {full_name}, {business} (alias {company}),
+    {opener}, {link}, and {loom} (alias {loom_link}); single or double
+    braces, any case. A touch with an unrecognised {token} is never sent.
+    Also: {loom}
     (the prospect's personalized video, built by outreach_video.py when
     they enroll — a touch using {loom} waits until it's ready).
 
@@ -53,6 +56,7 @@ Each touch's subject/body is independently editable from Business Resources
 dm_followup_sequence.py.
 """
 import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone as dt_timezone
 
@@ -140,15 +144,52 @@ def full_name(contact: dict) -> str:
     return (contact.get("owner") or "").strip() or (contact.get("business") or "").strip() or "there"
 
 
+# Merge tokens: {x} or {{x}}, any case, spaces/underscores ignored — so
+# {Loom_link}, {{company}}, {First Name} all resolve. Alias -> canonical field.
+_TOKEN_RE = re.compile(r"\{\{?\s*([A-Za-z][A-Za-z _]{0,30}?)\s*\}?\}")
+_TOKEN_ALIASES = {
+    "firstname": "first_name",
+    "fullname": "full_name", "name": "full_name",
+    "business": "business", "businessname": "business", "company": "business", "companyname": "business",
+    "opener": "opener", "customopener": "opener",
+    "loom": "loom", "loomlink": "loom", "video": "loom", "videolink": "loom",
+    "link": "link", "bookinglink": "link", "calendly": "link", "calendlylink": "link",
+}
+# Unresolved-token guard: anything still brace-wrapped after filling means a
+# typo'd/unsupported field — never send that to a prospect.
+_LEFTOVER_RE = re.compile(r"\{[^{}\n]{1,40}\}")
+
+
+def _canonical(token: str) -> str | None:
+    return _TOKEN_ALIASES.get(re.sub(r"[\s_]", "", token).lower())
+
+
+def uses_loom(text: str) -> bool:
+    return any(_canonical(m.group(1)) == "loom" for m in _TOKEN_RE.finditer(text or ""))
+
+
+def unknown_tokens(text: str) -> list[str]:
+    """Brace tokens in a template that don't map to any supported field."""
+    return sorted({m.group(0) for m in _TOKEN_RE.finditer(text or "") if not _canonical(m.group(1))})
+
+
 def _fill(template: str, contact: dict) -> str:
-    first_name = first_name_from_owner(contact.get("owner"))
-    return (
-        template.replace("{first_name}", first_name)
-        .replace("{full_name}", full_name(contact))
-        .replace("{business}", (contact.get("business") or "").strip())
-        .replace("{loom}", contact.get("loom_url") or integrations.CALENDLY_URL)
-        .replace("{link}", integrations.CALENDLY_URL)
-    )
+    values = {
+        "first_name": first_name_from_owner(contact.get("owner")),
+        "full_name": full_name(contact),
+        "business": (contact.get("business") or "").strip(),
+        # Every current prospect has one; the fallback just keeps the
+        # sentence readable if one ever doesn't.
+        "opener": (contact.get("opener") or "").strip() or "what you've built there",
+        "loom": contact.get("loom_url") or integrations.CALENDLY_URL,
+        "link": integrations.CALENDLY_URL,
+    }
+
+    def sub(m):
+        field = _canonical(m.group(1))
+        return values[field] if field else m.group(0)
+
+    return _TOKEN_RE.sub(sub, template)
 
 
 def _loom_pending(row: dict) -> bool:
@@ -294,12 +335,15 @@ async def send_test(contact_id: str, instance: str = "touch1",
         raise ValueError("contact has no email on file")
 
     loom_seconds, loom_mode = None, None
-    if "{loom}" in raw_subject + raw_body and not contact.get("loom_url"):
+    if uses_loom(raw_subject + raw_body) and not contact.get("loom_url"):
         started = datetime.now(dt_timezone.utc)
         contact["loom_url"], loom_mode = await outreach_video.generate(contact, track=False)
         loom_seconds = round((datetime.now(dt_timezone.utc) - started).total_seconds(), 1)
 
     subject, body = _fill(raw_subject, contact), _fill(raw_body, contact)
+    leftover = _LEFTOVER_RE.findall(subject + body)
+    if leftover:
+        raise ValueError(f"unsupported merge field(s): {', '.join(leftover)}")
     async with pool.acquire() as conn:
         provider = await email_identities.get_cached_provider(conn, contact)
         identity = await email_identities.pick_identity(conn, provider)
@@ -321,12 +365,16 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
 
     raw_subject = templates[f"email_handoff_{instance}_subject"]
     raw_body = templates[f"email_handoff_{instance}_body"]
-    if "{loom}" in raw_subject + raw_body and _loom_pending(row):
+    if uses_loom(raw_subject + raw_body) and _loom_pending(row):
         return False  # video still generating — retried next poll
     subject = _fill(raw_subject, row)
     body = _fill(raw_body, row)
     if not subject.strip() or not body.strip():
         print(f"[email_handoff_sequence] {instance} template is blank — skipping")
+        return False
+    leftover = _LEFTOVER_RE.findall(subject + body)
+    if leftover:
+        print(f"[email_handoff_sequence] {instance} has unsupported merge field(s) {leftover} — NOT sending; fix the template")
         return False
 
     identity_id = row.get("identity_id")
@@ -364,7 +412,7 @@ async def send_due_touches():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT ehs.*, c.id, c.email, c.owner, c.business, c.status,
+            SELECT ehs.*, c.id, c.email, c.owner, c.business, c.opener, c.status,
                    c.email_provider, c.email_provider_checked_at
             FROM email_handoff_state ehs
             JOIN contacts c ON c.id = ehs.contact_id

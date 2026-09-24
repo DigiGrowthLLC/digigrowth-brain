@@ -463,6 +463,16 @@ async def get_email_handoff_template():
 
 @router.put("/dialer/email-handoff-template")
 async def save_email_handoff_template(body: dict):
+    bad = sorted({
+        tok for key in email_handoff_sequence.TEMPLATE_DEFAULTS if key in body
+        for tok in email_handoff_sequence.unknown_tokens(body[key] or "")
+    })
+    if bad:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported merge field(s): {', '.join(bad)}. Use {{first_name}}, {{full_name}}, "
+                   f"{{business}}, {{opener}}, {{link}}, or {{loom}}.",
+        )
     pool = await get_pool()
     async with pool.acquire() as conn:
         for key in email_handoff_sequence.TEMPLATE_DEFAULTS:

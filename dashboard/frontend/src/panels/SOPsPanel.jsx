@@ -975,6 +975,9 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
         onCategoryChange?.(values.category || "General");
         setSavedFlash(true);
         setTimeout(() => setSavedFlash(false), 2500);
+      } else {
+        const d = await r.json().catch(() => ({}));
+        window.alert(d.detail || "Save failed.");
       }
     } finally {
       setSaving(false);
@@ -1063,7 +1066,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
             />
 
             <div style={sequenceHintStyle}>
-              Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{full_name}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{business}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{link}"}</code> for the booking link, or <code style={{ color: "#6ab0ff" }}>{"{loom}"}</code> for the prospect's personalized video (made automatically on enrollment; a touch using it waits until the video is ready). Works in subjects too.
+              Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{full_name}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{business}"}</code>, <code style={{ color: "#6ab0ff" }}>{"{opener}"}</code> (their custom opener), <code style={{ color: "#6ab0ff" }}>{"{link}"}</code> for the booking link, or <code style={{ color: "#6ab0ff" }}>{"{loom}"}</code> for the prospect's personalized video (made automatically on enrollment; a touch using it waits until the video is ready). Works in subjects too.
             </div>
           </div>
           );

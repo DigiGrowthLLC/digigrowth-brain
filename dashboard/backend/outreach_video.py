@@ -172,13 +172,15 @@ async def generate(contact: dict, track: bool = True) -> tuple[str, str]:
 
 
 def _needs_loom(row: dict, templates: dict) -> bool:
+    import email_handoff_sequence as ehs_mod
+
     """Only build a video when a touch this prospect hasn't received yet
     actually uses {loom} — no point rendering for someone whose remaining
     touches never show it."""
     for instance, sent_col in (("touch1", "touch1_sent_at"), ("touch2", "touch2_sent_at"), ("touch3", "touch3_sent_at")):
         if row.get(sent_col) is None:
             text = templates[f"email_handoff_{instance}_subject"] + templates[f"email_handoff_{instance}_body"]
-            if "{loom}" in text:
+            if ehs_mod.uses_loom(text):
                 return True
     return False
 
@@ -193,7 +195,7 @@ async def process_next() -> None:
     async with _lock:
         try:
             templates = await ehs_mod._get_templates()
-            if not any("{loom}" in v for v in templates.values()):
+            if not any(ehs_mod.uses_loom(v) for v in templates.values()):
                 return
             pool = await get_pool()
             async with pool.acquire() as conn:
