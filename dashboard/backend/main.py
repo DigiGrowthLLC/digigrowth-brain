@@ -490,6 +490,12 @@ async def watch_host_router(request, call_next):
     if path == "/track/view-event":
         return await call_next(request)
     parts = [p for p in path.split("/") if p]
+    if len(parts) == 2 and parts[0] == "unsubscribe":
+        # Outreach opt-out link (email_handoff_sequence._unsubscribe_url)
+        new_path = f"/api/email/unsubscribe/{parts[1]}"
+        request.scope["path"] = new_path
+        request.scope["raw_path"] = new_path.encode()
+        return await call_next(request)
     if len(parts) == 1 or (len(parts) == 2 and parts[1] == "file"):
         new_path = "/watch/" + "/".join(parts)
         request.scope["path"] = new_path

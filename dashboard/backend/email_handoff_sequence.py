@@ -242,8 +242,34 @@ async def _sent_last_24h(conn, identity_id: int) -> int:
 
 
 def _unsubscribe_url(contact_id: str) -> str:
+    """On the branded video domain when it's configured (main.py's
+    watch_host_router maps /unsubscribe/<id> there), so every link in the
+    email is on digigrowthllc.com — otherwise the dashboard's own URL."""
+    public = os.environ.get("PUBLIC_VIDEO_BASE", "").strip().rstrip("/")
+    if public:
+        return f"{public}/unsubscribe/{contact_id}"
     base = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/")
     return f"{base}/api/email/unsubscribe/{contact_id}"
+
+
+_URL_RE = re.compile(r"(https?://[^\s<]+[^\s<.,;:!?)\]'\"])")
+
+
+def _to_html(body: str, unsubscribe_url: str) -> str:
+    """Minimal HTML twin of the plain-text body, shaped like a message typed
+    in Gmail (<div dir="ltr">, <br> line breaks, links as <a>) — no styling,
+    images, or tracking. Exists because Gmail hard-wraps text/plain-only
+    mail at ~70 chars (the narrow column Dylan saw), and so "Unsubscribe"
+    can be a linked word instead of a long raw URL."""
+    import html as html_lib
+
+    escaped = html_lib.escape(body)
+    linked = _URL_RE.sub(lambda m: f'<a href="{m.group(1)}">{m.group(1)}</a>', escaped)
+    unsub = html_lib.escape(unsubscribe_url, quote=True)
+    return (
+        '<div dir="ltr">' + linked.replace("\n", "<br>\n")
+        + f'<br>\n<br>\n--<br>\nNot interested? <a href="{unsub}">Unsubscribe</a></div>'
+    )
 
 
 async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, subject: str, body: str,
@@ -277,18 +303,19 @@ async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, 
 
 async def _deliver(conn, identity: dict, contact_id: str, email: str, subject: str, body: str,
                    is_automated: bool, is_test: bool = False) -> bool:
-    """Sends one handoff email from `identity` and records it. Plain text
-    only, no open-tracking pixel or HTML part (dropped 2026-09-24 — HTML +
-    pixel was landing test sends in Gmail's Promotions tab; the campaign is
-    judged on reply / positive-reply rate instead). Unsubscribe line in the
-    body, plus List-Unsubscribe for Gmail/Yahoo's one-click opt-out (Gmail
-    identities only — Graph rejects that header)."""
+    """Sends one handoff email from `identity` and records it: plain text +
+    a bare Gmail-style HTML twin (_to_html) — no open-tracking pixel
+    (dropped 2026-09-24; the campaign is judged on reply / positive-reply
+    rate). Unsubscribe link in the footer, plus List-Unsubscribe for
+    Gmail/Yahoo's one-click opt-out (Gmail identities only — Graph rejects
+    that header)."""
     tracking_token = None
     unsubscribe_url = _unsubscribe_url(contact_id)
     try:
         message_id = await email_identities.send_from_identity(
             identity, email, subject,
-            f"{body}\n\n--\nNot interested? Unsubscribe here: {unsubscribe_url}",
+            f"{body}\n\n--\nNot interested? Unsubscribe: {unsubscribe_url}",
+            html=_to_html(body, unsubscribe_url),
             headers={"List-Unsubscribe": f"<{unsubscribe_url}>"},
         )
     except Exception as e:

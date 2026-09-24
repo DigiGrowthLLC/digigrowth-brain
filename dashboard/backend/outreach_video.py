@@ -174,7 +174,7 @@ async def generate(contact: dict, track: bool = True) -> tuple[str, str]:
 
 
 # Paths the watch subdomain uses itself — never handed out as a prospect slug.
-_RESERVED_SLUGS = {"track", "watch", "api", "assets", "robots-txt", "favicon-ico", "test"}
+_RESERVED_SLUGS = {"track", "watch", "api", "assets", "robots-txt", "favicon-ico", "test", "unsubscribe"}
 
 
 async def _pick_slug(contact: dict, track: bool) -> str:
