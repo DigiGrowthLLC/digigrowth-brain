@@ -98,8 +98,8 @@ async def summary(period: str = "day"):
     # reflected patch (see analytics.py::_os_sales_stats).
     # Reached = calls reached (dms_reached) + SMS DM Reached stage (the
     # "reached" equivalent for SMS, not the later Engaged stage) + email
-    # opened (confirmed opens, not counting the tracking pixel's own
-    # self-open — see analytics.py::_email_metrics).
+    # replied (open tracking was removed, so a reply is the only confirmed
+    # signal an email reached a real person — see analytics.py::_email_metrics).
     # Outreach uses total_outreach (each prospect's first-ever message
     # only), not contacted/initial_sent (every distinct recipient touched
     # this window, including follow-ups) — same fix as
@@ -107,7 +107,7 @@ async def summary(period: str = "day"):
     # said "calling + SMS + email" but the email term was missing entirely.
     total_outreach     = calls_made + sms_funnel["total_outreach"] + email_funnel["total_outreach"]
     total_answered      = calls_answered + sms_funnel["replied"]
-    total_reached       = dms_reached + sms_funnel["dm_reached"] + email_funnel["opened"]
+    total_reached       = dms_reached + sms_funnel["dm_reached"] + email_funnel["replied"]
     total_appointments  = os_sales["discovery_calls"]
     total_abr           = round(total_appointments / total_outreach * 100, 1) if total_outreach else 0
 
