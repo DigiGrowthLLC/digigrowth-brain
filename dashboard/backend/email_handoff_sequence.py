@@ -252,6 +252,14 @@ def _unsubscribe_url(contact_id: str) -> str:
     return f"{base}/api/email/unsubscribe/{contact_id}"
 
 
+# **bold** in a template -> <b> in the HTML part, plain text in the text part.
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.S)
+
+
+def _strip_bold(text: str) -> str:
+    return _BOLD_RE.sub(r"\1", text)
+
+
 _URL_RE = re.compile(r"(https?://[^\s<]+[^\s<.,;:!?)\]'\"])")
 
 
@@ -265,6 +273,7 @@ def _to_html(body: str, unsubscribe_url: str) -> str:
 
     escaped = html_lib.escape(body)
     linked = _URL_RE.sub(lambda m: f'<a href="{m.group(1)}">{m.group(1)}</a>', escaped)
+    linked = _BOLD_RE.sub(r"<b>\1</b>", linked)
     unsub = html_lib.escape(unsubscribe_url, quote=True)
     return (
         '<div dir="ltr">' + linked.replace("\n", "<br>\n")
@@ -311,10 +320,11 @@ async def _deliver(conn, identity: dict, contact_id: str, email: str, subject: s
     that header)."""
     tracking_token = None
     unsubscribe_url = _unsubscribe_url(contact_id)
+    plain = _strip_bold(body)
     try:
         message_id = await email_identities.send_from_identity(
-            identity, email, subject,
-            f"{body}\n\n--\nNot interested? Unsubscribe: {unsubscribe_url}",
+            identity, email, _strip_bold(subject),
+            f"{plain}\n\n--\nNot interested? Unsubscribe: {unsubscribe_url}",
             html=_to_html(body, unsubscribe_url),
             headers={"List-Unsubscribe": f"<{unsubscribe_url}>"},
         )
@@ -322,7 +332,7 @@ async def _deliver(conn, identity: dict, contact_id: str, email: str, subject: s
         print(f"[email_handoff_sequence] send failed for {email} via {identity['mailbox_email']}: {e}")
         return False
     await _record_outbound(
-        conn, contact_id, identity["id"], email, subject, body, message_id,
+        conn, contact_id, identity["id"], email, _strip_bold(subject), plain, message_id,
         tracking_token=tracking_token, is_automated=is_automated, is_test=is_test,
     )
     return True
