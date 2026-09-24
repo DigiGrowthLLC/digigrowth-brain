@@ -178,7 +178,7 @@ _RESERVED_SLUGS = {"track", "watch", "api", "assets", "robots-txt", "favicon-ico
 
 
 async def _pick_slug(contact: dict, track: bool) -> str:
-    """Prospect-name link: watch.digigrowthllc.com/janice-bacak. Falls back
+    """Prospect-name link: loom.digigrowthllc.com/janice-bacak. Falls back
     to the business name when no owner is on file; on a clash with a
     different contact's video, adds the business, then a number. A contact
     re-generating keeps (overwrites) their own slug. Test sends get a

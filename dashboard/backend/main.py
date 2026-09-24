@@ -472,7 +472,7 @@ app = FastAPI(title="DigiGrowth OS", lifespan=lifespan)
 
 @app.middleware("http")
 async def watch_host_router(request, call_next):
-    """watch.<domain> (routers/watch.py PUBLIC_VIDEO_BASE) only serves
+    """The branded video host (loom.<domain>, routers/watch.py PUBLIC_VIDEO_BASE) only serves
     outreach videos: /<slug> -> /watch/<slug>, /<slug>/file -> the file,
     /track/view-event for the page's beacons, and a no-index robots.txt.
     Everything else on that host (dashboard, /api) is a 404, so the branded

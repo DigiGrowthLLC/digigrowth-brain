@@ -34,7 +34,7 @@ admin_router = APIRouter()    # authenticated: /watch-videos (upload)
 _GITHUB_REPO = os.environ.get("GITHUB_REPO", "DigiGrowthLLC/digigrowth-brain")
 _DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/")
 
-# Branded video domain (e.g. https://watch.digigrowthllc.com) — a Railway
+# Branded video domain (e.g. https://loom.digigrowthllc.com) — a Railway
 # custom domain on this same service. When set, watch links are
 # <base>/<slug> (main.py's watch_host_router maps that host's /<slug> onto
 # /watch/<slug>). Unset = links stay on DASHBOARD_URL/watch/<slug>.
