@@ -694,7 +694,9 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
       - booked: an appointment (not canceled) created after Touch 1, or the
         email conversation marked booked
     """
-    clauses, args = ["ehs.touch1_sent_at IS NOT NULL", "c.status IS DISTINCT FROM 'test'"], []
+    clauses, args = [
+        "ehs.touch1_sent_at IS NOT NULL", "NOT ehs.exclude_from_analytics", "c.status IS DISTINCT FROM 'test'",
+    ], []
     if since:
         args.append(since)
         clauses.append(f"ehs.touch1_sent_at >= ${len(args)}")

@@ -1282,6 +1282,10 @@ async def _create_schema(pool: asyncpg.Pool):
             -- Email Outreach campaign view reads this) — stamped at Touch 1
             -- send via campaigns.resolve_send_campaign.
             ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
+            -- Sends Dylan doesn't want in Email Outreach analytics or any
+            -- campaign (set by hand; first used for the 18 video-less Touch 1s
+            -- that went out 2026-09-24 before {loom} existed).
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS exclude_from_analytics BOOLEAN NOT NULL DEFAULT false;
 
             -- Email-channel funnel stages, per contact — the Inbox's stage
             -- menu shows these (instead of the SMS stage_* columns on

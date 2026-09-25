@@ -258,11 +258,12 @@ async def backfill_campaign_history(campaign_id: int):
             # prospect whose Touch 1 already went out untagged.
             earliest = await conn.fetchval(
                 "SELECT min(touch1_sent_at) FROM email_handoff_state "
-                "WHERE campaign_id IS NULL AND touch1_sent_at IS NOT NULL"
+                "WHERE campaign_id IS NULL AND touch1_sent_at IS NOT NULL AND NOT exclude_from_analytics"
             )
             n = await conn.fetchval(
                 "WITH u AS (UPDATE email_handoff_state SET campaign_id = $1 "
-                "WHERE campaign_id IS NULL AND touch1_sent_at IS NOT NULL RETURNING 1) SELECT count(*) FROM u",
+                "WHERE campaign_id IS NULL AND touch1_sent_at IS NOT NULL AND NOT exclude_from_analytics "
+                "RETURNING 1) SELECT count(*) FROM u",
                 campaign_id,
             )
         else:
