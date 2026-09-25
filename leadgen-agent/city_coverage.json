@@ -719,9 +719,9 @@
     },
     "Fort Wayne, IN": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 95,
-      "qualified_count": 7,
+      "term_index": 2,
+      "reviewed_count": 121,
+      "qualified_count": 8,
       "last_scraped_date": "2026-09-24"
     },
     "Buffalo, NY": {
