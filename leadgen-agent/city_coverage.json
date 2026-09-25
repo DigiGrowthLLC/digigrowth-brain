@@ -711,11 +711,11 @@
       "last_scraped_date": "2026-09-24"
     },
     "Chula Vista, CA": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 121,
+      "qualified_count": 3,
+      "last_scraped_date": "2026-09-24"
     },
     "Fort Wayne, IN": {
       "status": "not_started",
