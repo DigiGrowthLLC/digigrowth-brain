@@ -568,7 +568,7 @@ async def add_email_handoff_active(contact_id: str):
             "UPDATE contacts SET status = $2, updated_at = now() WHERE id = $1",
             contact_id, email_handoff_sequence.EMAIL_HANDOFF_STATUS,
         )
-    await email_handoff_sequence.enroll(dict(contact))
+    await email_handoff_sequence.enroll(dict(contact), immediate=True)
     return {"ok": True}
 
 

@@ -66,13 +66,13 @@ async def _fire_handoff(contact: dict):
         print(f"sms-handoff opener failed for {contact.get('phone')}: {e}")
 
 
-async def _fire_email_handoff(contact: dict):
+async def _fire_email_handoff(contact: dict, immediate: bool = True):
     """Enroll into the 3-touch email-handoff sequence (status ==
     EMAIL_HANDOFF_STATUS) — see email_handoff_sequence.py. Swallow errors so
     a DB hiccup never breaks the caller's request; the actual sends happen
     later from email_handoff_sequence.send_due_touches()."""
     try:
-        await email_handoff_sequence.enroll(contact)
+        await email_handoff_sequence.enroll(contact, immediate=immediate)
     except Exception as e:
         print(f"email-handoff enroll failed for {contact.get('email')}: {e}")
 
@@ -437,6 +437,8 @@ async def bulk_action(body: BulkAction):
                 body.value, ids,
             )
             affected = int(result.split()[-1])
+            if _is_email_handoff_tag(body.value):
+                await _enroll_from_tag(conn, ids)
 
         elif body.action == "remove_tag":
             if not body.value:
@@ -492,6 +494,38 @@ async def add_note(contact_id: str, body: NoteAdd):
     return {"id": row["id"], "notes": row["notes"]}
 
 
+# Applying this tag enrolls the contact in the Email Handoff sequence (same
+# as setting their status to email-handoff by hand): status flips to
+# email-handoff and Touch 1 (with their {loom} video) goes out right away.
+# Matched loosely — "Email Handoff", "email-handoff", "email_handoff".
+EMAIL_HANDOFF_TAG = "Email Handoff"
+
+
+def _is_email_handoff_tag(tag: str | None) -> bool:
+    return "".join(ch for ch in (tag or "").lower() if ch.isalnum()) == "emailhandoff"
+
+
+async def _enroll_from_tag(conn, contact_ids: list[str]):
+    """Enroll tagged contacts, skipping anyone already mid-sequence (a live,
+    unstopped enrollment in email-handoff status) so re-tagging never
+    restarts someone's touches."""
+    rows = await conn.fetch(
+        """
+        SELECT c.* FROM contacts c
+        WHERE c.id = ANY($1::text[])
+          AND NOT (c.status = $2 AND EXISTS (
+              SELECT 1 FROM email_handoff_state ehs
+              WHERE ehs.contact_id = c.id AND ehs.stopped_at IS NULL))
+        """,
+        contact_ids, EMAIL_HANDOFF_STATUS,
+    )
+    for r in rows:
+        await conn.execute(
+            "UPDATE contacts SET status = $2, updated_at = now() WHERE id = $1", r["id"], EMAIL_HANDOFF_STATUS,
+        )
+        await _fire_email_handoff(dict(r))
+
+
 @router.post("/contacts/{contact_id}/tags")
 async def add_contact_tag(contact_id: str, body: TagAssign):
     tag = body.tag.strip()
@@ -505,6 +539,9 @@ async def add_contact_tag(contact_id: str, body: TagAssign):
             contact_id, tag,
         )
         if not row:
+            row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
+        if row and _is_email_handoff_tag(tag):
+            await _enroll_from_tag(conn, [contact_id])
             row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
     if not row:
         raise HTTPException(status_code=404, detail="Contact not found")

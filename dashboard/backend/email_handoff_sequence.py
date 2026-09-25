@@ -16,7 +16,10 @@ dm_followup_sequence's cadence. This is an intentional behavior change from
 "send instantly" for the manual gatekeeper-flip case too.
 
 send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
-  - Touch 1 fires 24h after enrolled_at.
+  - Touch 1 fires 24h after enrolled_at for the automatic 3-day trigger,
+    or right away (send_immediately) for a manual enrollment — status or
+    "Email Handoff" tag set by hand, or + Add Prospect. Still waits for the
+    prospect's {loom} video and the 10-minute campaign spacing.
   - Touch 2 fires 48h after touch1_sent_at (not the anchor) — chaining off
     the previous touch's real send, same reasoning as dm_followup_sequence.py
     (a touch that's slightly late due to poll cadence doesn't compress the
@@ -199,7 +202,7 @@ def _loom_pending(row: dict) -> bool:
     return (row.get("loom_attempts") or 0) < LOOM_MAX_ATTEMPTS
 
 
-async def enroll(contact: dict):
+async def enroll(contact: dict, immediate: bool = False):
     """Called from routers/crm.py's _fire_email_handoff the moment a
     contact's status transitions to "email-handoff". Upserts the sequence
     state row and (re)stamps enrolled_at — a contact re-flipped to
@@ -212,14 +215,15 @@ async def enroll(contact: dict):
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO email_handoff_state (contact_id, enrolled_at, updated_at)
-            VALUES ($1, now(), now())
+            INSERT INTO email_handoff_state (contact_id, enrolled_at, send_immediately, updated_at)
+            VALUES ($1, now(), $2, now())
             ON CONFLICT (contact_id) DO UPDATE SET
-                enrolled_at = now(), stopped_at = NULL, touch1_sent_at = NULL, touch2_sent_at = NULL,
+                enrolled_at = now(), send_immediately = $2, stopped_at = NULL,
+                touch1_sent_at = NULL, touch2_sent_at = NULL,
                 touch3_sent_at = NULL, stage_replied = false, stage_replied_manual = false,
                 stage_replied_at = NULL, updated_at = now()
             """,
-            contact_id,
+            contact_id, immediate,
         )
 
 
@@ -504,6 +508,8 @@ async def send_due_touches():
                 if row[sent_col] is not None:
                     continue
                 reference = row["enrolled_at"] if ref_col is None else row[ref_col]
+                if touch_num == 1 and row.get("send_immediately"):
+                    delay = timedelta(0)  # manual enrollment — Touch 1 goes out right away
                 if reference is not None and now >= reference + delay and not spacing_blocked:
                     sent = await _send_touch(conn, row, f"touch{touch_num}", templates)
                     if sent:

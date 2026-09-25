@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { easternToday } from "../easternTime.js";
 import { API } from "../api.js";
 
 const RECURRENCE_LABELS = {
@@ -16,7 +17,7 @@ const RECURRENCE_COLORS = {
 };
 
 function groupTodos(todos) {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = easternToday();
   const overdue = [], today = [], upcoming = [], undated = [];
   for (const t of todos) {
     if (!t.due_date) { undated.push(t); continue; }

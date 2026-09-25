@@ -67,6 +67,6 @@ async def send_due_touches():
                     "UPDATE contacts SET status = 'email-handoff', updated_at = now() WHERE id = $1",
                     contact_id,
                 )
-                await _fire_email_handoff(row)
+                await _fire_email_handoff(row, immediate=False)
             except Exception as e:
                 print(f"[email_followup_trigger] failed to enroll contact {contact_id}: {e}")

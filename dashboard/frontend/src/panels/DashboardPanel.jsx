@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { easternToday, isTodoDue } from "../easternTime.js";
 import {
   LineChart, Line,
   BarChart, Bar,
@@ -166,7 +167,7 @@ function TodoWidgetRow({ t, overdue, onComplete, onRemove, onSaveDescription }) 
 function TodoList() {
   const [todos, setTodos] = useState([]);
   const [draft, setDraft] = useState("");
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = easternToday();
 
   const load = async () => {
     const r = await fetch(API("/dashboard/todos"));
@@ -205,7 +206,7 @@ function TodoList() {
   };
 
   const visible = todos
-    .filter(t => !t.due_date || t.due_date.slice(0, 10) <= todayStr)
+    .filter(isTodoDue)
     .slice(0, 6);
 
   return (
@@ -246,7 +247,7 @@ function TodoList() {
 // ── Calendar widget ───────────────────────────────────────────────────────────
 
 function CalendarWidget({ events, loading, error }) {
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = easternToday();
   const todayEvents = events.filter(ev => ev.start.slice(0, 10) === todayKey);
 
   const fmtTime = (start, end, allDay) => {

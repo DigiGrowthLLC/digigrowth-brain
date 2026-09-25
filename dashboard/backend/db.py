@@ -1286,6 +1286,13 @@ async def _create_schema(pool: asyncpg.Pool):
             -- campaign (set by hand; first used for the 18 video-less Touch 1s
             -- that went out 2026-09-24 before {loom} existed).
             ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS exclude_from_analytics BOOLEAN NOT NULL DEFAULT false;
+            -- Manual enrollments (status/tag set by hand, + Add Prospect) send
+            -- Touch 1 right away; the automatic 3-day-no-SMS-reply trigger
+            -- keeps the 24h delay. See email_handoff_sequence.enroll().
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS send_immediately BOOLEAN NOT NULL DEFAULT false;
+            -- Tag that enrolls a contact in Email Handoff when applied
+            -- (routers/crm.py, EMAIL_HANDOFF_TAG).
+            INSERT INTO tags (name, color) VALUES ('Email Handoff', '#9b6bd8') ON CONFLICT (name) DO NOTHING;
 
             -- Email-channel funnel stages, per contact — the Inbox's stage
             -- menu shows these (instead of the SMS stage_* columns on
