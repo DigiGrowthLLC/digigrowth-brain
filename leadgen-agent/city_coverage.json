@@ -683,10 +683,10 @@
       "last_scraped_date": "2026-09-24"
     },
     "Madison, WI": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 360,
-      "qualified_count": 5,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 480,
+      "qualified_count": 6,
       "last_scraped_date": "2026-09-24"
     },
     "Reno, NV": {
