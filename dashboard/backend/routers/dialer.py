@@ -42,7 +42,7 @@ import os
 import pathlib
 import time as _time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 
@@ -536,6 +536,8 @@ async def list_email_handoff_active():
             if row.get(sent_col) is not None:
                 continue
             reference = row["enrolled_at"] if ref_col is None else row.get(ref_col)
+            if _touch_num == 1 and row.get("send_immediately"):
+                delay = timedelta(0)  # manual enrollment — see email_handoff_sequence.py
             if reference is not None:
                 next_due = reference + delay
             break
