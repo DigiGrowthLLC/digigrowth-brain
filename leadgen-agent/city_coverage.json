@@ -704,9 +704,9 @@
       "last_scraped_date": "2026-09-24"
     },
     "St. Louis, MO": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 352,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 452,
       "qualified_count": 16,
       "last_scraped_date": "2026-09-24"
     },
