@@ -747,9 +747,9 @@
     },
     "Port St. Lucie, FL": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 114,
-      "qualified_count": 5,
+      "term_index": 2,
+      "reviewed_count": 158,
+      "qualified_count": 12,
       "last_scraped_date": "2026-09-25"
     },
     "St. Petersburg, FL": {
