@@ -781,9 +781,9 @@
       "last_scraped_date": "2026-09-25"
     },
     "Irving, TX": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 303,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 423,
       "qualified_count": 5,
       "last_scraped_date": "2026-09-25"
     },
