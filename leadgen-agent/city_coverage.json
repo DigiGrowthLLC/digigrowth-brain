@@ -732,9 +732,9 @@
       "last_scraped_date": "2026-09-24"
     },
     "Lubbock, TX": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 273,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 301,
       "qualified_count": 6,
       "last_scraped_date": "2026-09-25"
     },
