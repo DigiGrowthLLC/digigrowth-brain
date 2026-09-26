@@ -739,11 +739,11 @@
       "last_scraped_date": "2026-09-25"
     },
     "Laredo, TX": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 115,
+      "qualified_count": 2,
+      "last_scraped_date": "2026-09-25"
     },
     "Port St. Lucie, FL": {
       "status": "not_started",
