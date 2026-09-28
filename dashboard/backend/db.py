@@ -1247,6 +1247,31 @@ async def _create_schema(pool: asyncpg.Pool):
             CREATE INDEX IF NOT EXISTS idx_identity_warmup_log_from ON identity_warmup_log(from_identity_id, sent_at DESC);
             CREATE INDEX IF NOT EXISTS idx_identity_warmup_log_thread ON identity_warmup_log(thread_key);
 
+            -- DMARC report summaries for the outreach domains, parsed by the
+            -- EA Daily Briefing out of the DMARC emails landing in
+            -- dylanrg@digigrowthllc.com and relayed in via GitHub (see
+            -- domain_health.py). One row per (domain, reporter, report
+            -- window); re-ingesting the same report upserts.
+            CREATE TABLE IF NOT EXISTS domain_health_reports (
+                id              SERIAL PRIMARY KEY,
+                domain          TEXT NOT NULL,
+                reporter        TEXT NOT NULL,             -- e.g. 'Postmark', 'google.com', 'Outlook.com'
+                period_start    DATE NOT NULL,
+                period_end      DATE NOT NULL,
+                total_messages  INTEGER,
+                dmarc_pass      INTEGER,
+                dmarc_fail      INTEGER,
+                spf_pass        INTEGER,
+                dkim_pass       INTEGER,
+                sources         JSONB NOT NULL DEFAULT '[]',  -- [{source, count, spf, dkim, dmarc}]
+                notes           TEXT,
+                email_subject   TEXT,
+                received_at     TIMESTAMPTZ,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE(domain, reporter, period_start, period_end)
+            );
+            CREATE INDEX IF NOT EXISTS idx_domain_health_reports_domain ON domain_health_reports(domain, period_end DESC);
+
             -- Which identity touch1 sent from, so touch2/3 reuse it for
             -- thread continuity. Added here (not in the earlier ALTER
             -- block) since it references email_send_identities, created

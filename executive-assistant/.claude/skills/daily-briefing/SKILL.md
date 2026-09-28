@@ -11,7 +11,7 @@ Generates Dylan's daily morning briefing, saves it as a dated archive file, and 
 ## What This Skill Does
 
 1. Reads yesterday's brief and saves any new info Dylan added to his context files
-2. Surfaces business-relevant emails from the last 24 hours (both inboxes)
+2. Surfaces business-relevant emails from the last 24 hours (both inboxes), and hands any DMARC reports to the OS's Domain Health view
 3. Lists today's Google Calendar events
 4. Pulls cold calling data from Google Drive and live SMS outreach stats from the DigiGrowth OS
 5. Pulls this week's sales numbers (shows, closes, discovery calls, revenue) from the Sales Performance Tracker
@@ -66,6 +66,32 @@ Format each item as:
 - **Sender Name** *(inbox)* — Subject · Summary. **[ACTION]** / **[URGENT]** if applicable.
 
 If nothing relevant: "Inbox clear — no business emails in the last 24 hours."
+
+### Step 1.5 — DMARC Reports → OS Domain Health
+
+The DMARC `rua` for digigrowthllc.com (and its outreach subdomains `info.` and `mail.`, which inherit it) points at Postmark's DMARC digest service, which emails its digests to `dylanrg@digigrowthllc.com`. Raw aggregate reports from Google/Microsoft/Yahoo may land there too. The OS's Email Identities → **Domain Health** view shows these, but Railway can't read that inbox. This step hands them over.
+
+Search `dylanrg@digigrowthllc.com` with: `newer_than:3d (dmarc OR "Report domain" OR from:postmarkapp.com)`. These are usually filed under Updates, so **don't** apply Step 1's category exclusions here. Also, don't list these emails in the Emails section.
+
+For each DMARC email found, extract one report object per domain it covers. If it breaks results out per header-from domain (e.g. `info.digigrowthllc.com` vs `mail.digigrowthllc.com`), make one object per domain:
+
+- `domain` — the reported domain, lowercase
+- `reporter` — who produced it (`Postmark` for the digest, else the submitting org, e.g. `google.com`)
+- `period_start`, `period_end` — the report window, `YYYY-MM-DD`
+- `total_messages`, `dmarc_pass`, `dmarc_fail`, `spf_pass`, `dkim_pass` — integer message counts. If the email shows percentages instead, convert them to counts using the total. Use `null` for any value the email doesn't give. Never guess.
+- `sources` — up to 10 sending sources: `{"source": "<org or IP>", "count": N, "spf": "pass|fail", "dkim": "pass|fail", "dmarc": "pass|fail"}`
+- `notes` — one short factual line, only if something stands out (e.g. an unknown source sending as the domain), otherwise omit
+- `email_subject`, `received_at` (ISO timestamp)
+
+If a report only exists as a zipped/gzipped XML attachment you can't read, still include it with the counts as `null` and `notes: "attachment not readable"`.
+
+If at least one report was found, write `domain_health/pending/dmarc-YYYY-MM-DD.json` (today's date) with `write_file`, in this shape, and push it to GitHub exactly the same way as the briefing report itself:
+
+```json
+{"reports": [ {report object}, ... ]}
+```
+
+A Railway job (`dashboard/backend/domain_health.py`, 6:45am ET) loads it into the Domain Health view and deletes the file. Re-sending a report is harmless, because rows upsert on domain + reporter + window. If no DMARC email was found, write nothing and skip the brief section below.
 
 ### Step 2 — Fetch Today's Calendar
 
@@ -249,6 +275,12 @@ Formatting rules that apply throughout:
 
 [Step 1 output]
 
+[ONLY IF STEP 1.5 FOUND DMARC REPORTS — omit entirely otherwise]
+
+## Domain Health
+
+[One line per domain: `domain` — DMARC pass `X%` of `N` msgs (*reporter, window*). Add a **bold** flag for any domain under 98% pass or any unknown source. End with: *Full detail in OS → Email Identities → Domain Health.*]
+
 ## Schedule
 
 [Step 2 output]
@@ -294,6 +326,7 @@ Formatting rules that apply throughout:
 ## Edge Cases
 
 - **Gmail returns no results:** Write "Inbox clear" and continue.
+- **No DMARC emails in the last 3 days (normal — Postmark digests are weekly):** Skip Step 1.5's file and the Domain Health section silently.
 - **Calendar unavailable:** Write "Calendar unavailable — check manually" and continue.
 - **No cold calling tracker in Drive:** Write the Step 3A fallback message and continue. Still attempt to read the Daily Input Tracker for Step 3.5.
 - **Tool unavailable in this session:** Don't write "unreachable"/"no activity" — try the GitHub snapshot next, then the curl fallback, per Step 3A-SMS, since the tool being absent says nothing about whether data exists.

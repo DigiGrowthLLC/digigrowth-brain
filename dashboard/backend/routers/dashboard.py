@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone, date
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
-from routers.analytics import _sms_metrics, _email_metrics, _os_sales_stats, _sheet_stat
+from routers.analytics import _sms_metrics, _email_metrics, _os_sales_stats, _sheet_stat, _since
 
 _SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")  # HH:MM, 24-hour
@@ -39,6 +39,8 @@ PERIOD_DELTA = {
 
 
 def _period_start(period: str) -> datetime:
+    if period == "day":
+        return _since(1)  # Eastern calendar day since midnight, not rolling 24h
     delta = PERIOD_DELTA.get(period, timedelta(days=1))
     return datetime.now(timezone.utc) - delta
 

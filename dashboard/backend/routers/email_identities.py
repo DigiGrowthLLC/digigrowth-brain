@@ -12,9 +12,12 @@ section and the IdentityWarmupModal.jsx sequence view.
   POST   /api/email-identities/{id}/pause         — pause (excluded from sends + warm-up)
   POST   /api/email-identities/{id}/activate      — promote warming -> active
   GET    /api/email-identities/warmup-sequence    — sequence-view data
+  GET    /api/email-identities/domain-health      — DNS checks + DMARC reports per sending domain
+  POST   /api/email-identities/domain-health/sync — pull pending DMARC summaries from GitHub now
 """
 from fastapi import APIRouter, HTTPException
 
+import domain_health
 import identity_warmup
 from db import get_pool
 
@@ -180,3 +183,15 @@ async def warmup_sequence():
         row["total_days"] = len(schedule)
         result.append(row)
     return result
+
+
+@router.get("/email-identities/domain-health")
+async def get_domain_health():
+    return await domain_health.domain_health_overview()
+
+
+@router.post("/email-identities/domain-health/sync")
+async def sync_domain_health():
+    """Same ingest the 6:45am cron runs, for when the briefing ran late or
+    was re-run by hand."""
+    return {"result": await domain_health.ingest_pending()}

@@ -27,6 +27,7 @@ import cancel_sequence
 import client_appointment_reminders
 import client_appointment_sequence
 import daily_sms_handoff
+import domain_health
 import dm_followup_sequence
 import email_handoff_sequence
 import email_followup_trigger
@@ -244,6 +245,17 @@ async def _process_newsletter_queue() -> None:
         print(f"[cron] newsletter-queue: failed: {e}", flush=True)
 
 
+async def _ingest_domain_health_job() -> None:
+    """Loads the DMARC summaries the EA Daily Briefing parsed out of
+    dylanrg@digigrowthllc.com and committed to GitHub (see domain_health.py)
+    into domain_health_reports. No-ops on days no DMARC email arrived."""
+    try:
+        result = await domain_health.ingest_pending()
+        print(f"[cron] {result}", flush=True)
+    except Exception as e:
+        print(f"[cron] domain-health ingest failed: {e}", flush=True)
+
+
 async def _process_pending_approvals_job() -> None:
     """Picks up newsletter/blog draft JSON files the daily-briefing/weekly-ai-blog
     cloud routines committed to GitHub (see pending_approvals_relay.py for why —
@@ -340,6 +352,12 @@ async def lifespan(app: FastAPI):
         _process_pending_approvals_job,
         CronTrigger(hour=6, minute=40, timezone=eastern),
         id="pending-approvals-relay",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _ingest_domain_health_job,
+        CronTrigger(hour=6, minute=45, timezone=eastern),
+        id="domain-health-ingest",
         replace_existing=True,
     )
     scheduler.add_job(

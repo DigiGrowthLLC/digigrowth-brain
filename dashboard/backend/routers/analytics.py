@@ -9,6 +9,7 @@ GET /analytics/sales              — sales statistics (reads sales_stats.json +
 import json
 import pathlib
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter
 from db import get_pool
@@ -20,7 +21,20 @@ _SALES_STATS_PATH   = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 _CONTENT_STATS_PATH = pathlib.Path(__file__).parent.parent / "content_stats.json"
 
 
+_ET = ZoneInfo("America/New_York")
+
+
+def _et_today():
+    """Today's date in Dylan's working timezone (Eastern), not UTC."""
+    return datetime.now(_ET).date()
+
+
 def _since(days: int) -> datetime:
+    # "Today" (days=1) is the current Eastern calendar day starting at
+    # midnight, not a rolling 24h — a rolling window bled yesterday
+    # evening's outreach into this morning's Today numbers.
+    if days == 1:
+        return datetime.now(_ET).replace(hour=0, minute=0, second=0, microsecond=0)
     return datetime.now(timezone.utc) - timedelta(days=days)
 
 
@@ -74,7 +88,7 @@ def _sheet_stat(stats: dict, base_key: str, days: int) -> int:
     if days == 0:
         return stats.get(base_key, 0) or 0
     if days == 1 and base_key in _DAILY_FIELD_MAP:
-        today_key = datetime.now(timezone.utc).date().isoformat()
+        today_key = _et_today().isoformat()
         day_fields = (stats.get("daily") or {}).get(today_key) or {}
         return day_fields.get(_DAILY_FIELD_MAP[base_key], 0) or 0
     if base_key.startswith("sheet_"):
@@ -328,7 +342,7 @@ def _calling_metrics_for_campaign(stats: dict, periods: list, since=None) -> dic
     accuracy gap here.
     """
     daily = stats.get("daily") or {}
-    today = datetime.now(timezone.utc).date()
+    today = _et_today()
     since_date = since.date() if since else None
 
     def _in_any_period(day) -> bool:

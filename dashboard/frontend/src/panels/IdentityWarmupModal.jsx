@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import DomainHealthModal from "./DomainHealthModal";
 
 // ── Cold-outreach email identity roster + warm-up sequence view ─────────────
 // Same modal-chrome pattern as DmFollowUpQueueModal.jsx, but identity-shaped
@@ -188,6 +189,7 @@ export default function IdentityWarmupModal({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editingIdentity, setEditingIdentity] = useState(null);
+  const [showHealth, setShowHealth] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [err, setErr] = useState("");
 
@@ -250,6 +252,9 @@ export default function IdentityWarmupModal({ onClose }) {
             </div>
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            <button onClick={() => setShowHealth(true)} className="btn btn-secondary" style={{ whiteSpace: "nowrap" }}>
+              Domain Health
+            </button>
             <button onClick={() => setShowAdd(true)} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>
               + Add Identity
             </button>
@@ -342,6 +347,7 @@ export default function IdentityWarmupModal({ onClose }) {
       {showAdd && (
         <AddIdentityModal onClose={() => setShowAdd(false)} onAdded={fetchRows} />
       )}
+      {showHealth && <DomainHealthModal onClose={() => setShowHealth(false)} />}
       {editingIdentity && (
         <EditIdentityModal identity={editingIdentity} onClose={() => setEditingIdentity(null)} onSaved={fetchRows} />
       )}
