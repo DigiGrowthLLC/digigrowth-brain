@@ -5,6 +5,7 @@ Inbox:
   GET  /api/sms-setter/draft?phone=...      — latest pending draft for a thread (or null)
   POST /api/sms-setter/draft/regenerate     — {"phone": ...} ask the worker for a fresh draft
   POST /api/sms-setter/draft/{id}/dismiss   — Dylan rejected it
+  POST /api/sms-setter/draft/{id}/book      — BOOK IT: Meet invite + appointment for a "book" draft
   GET  /api/sms-setter/mode                 — {"mode", "worker_online", "worker_last_seen"}
   POST /api/sms-setter/mode                 — {"mode": "off" | "draft" | "auto"}
   GET  /api/sms-setter/stats                — per-action sent-unedited / edited / dismissed / auto-sent
@@ -87,6 +88,19 @@ async def dismiss_draft(draft_id: int):
             "UPDATE sms_ai_drafts SET status = 'dismissed', decided_at = now() WHERE id = $1 AND status = 'pending'",
             draft_id,
         )
+    return {"ok": True}
+
+
+@router.post("/sms-setter/draft/{draft_id}/book")
+async def book_draft(draft_id: int):
+    """Draft mode's BOOK IT: creates the Google Meet invite (emailed to the
+    prospect) and the appointment row (reminders + Booked stage). Dylan
+    still sends the confirmation text himself with USE."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await sms_setter_ai.book_draft(conn, draft_id)
+    if result != "booked":
+        raise HTTPException(422, result)
     return {"ok": True}
 
 
@@ -177,4 +191,4 @@ async def worker_submit(payload: dict):
 async def worker_flush():
     pool = await get_pool()
     async with pool.acquire() as conn:
-        return {"sent": await sms_setter_ai.flush_held(conn)}
+        return {"sent": await sms_setter_ai.flush_pending(conn)}

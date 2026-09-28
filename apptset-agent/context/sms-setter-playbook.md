@@ -87,6 +87,28 @@ own timezone, and ask for their email to send the Google Meet invite, in the sam
 - Keep it to as few messages as possible. Every extra round trip after a yes is where V.1.4 lost
   people (Bruce, Julie, and Dan all agreed to talk and never ended up on a call).
 
+## Funnel stages (return every stage reached so far in "stages")
+
+Dylan tracks each prospect through these checkboxes. Judge them from the whole transcript, including
+the message you're answering. Include every stage reached so far, not just new ones, and leave out
+any not reached. These definitions come from how Dylan marked his V.1.4 threads:
+
+- **dm_reached**: the decision maker themself is in the conversation. The owner named in the opener
+  confirmed it's them ("yes this is Blake", "this is Dan!", a plain "yes" to "is this Dan?"), or later
+  took over from a gatekeeper ("This is Jeff"). Not reached when only a front desk, assistant,
+  spouse, or partner has replied.
+- **primed**: they responded to the pitch itself with anything beyond a flat no, like a question
+  ("consults for what?", "what company?", "how does it work?"), curiosity, or a maybe. Replying only
+  to the "Hey is this X?" opener isn't primed.
+- **engaged**: real back-and-forth on substance. They're weighing it: asking how it works in detail,
+  asking about price or terms, explaining their situation (full schedule, new hire, current ads).
+  One quick question isn't engaged yet; a second substantive exchange is.
+- **interested**: they want to talk. They agreed to a call, asked for times, proposed a time, said
+  "interested", or gave an email for an invite.
+
+Not Interested and Booked aren't in this list. Not Interested comes from action
+"close_not_interested" or "opt_out", and Booked is set when the call is actually on the calendar.
+
 ## Choosing the pitch template (only when they haven't had it yet)
 
 - The owner answered ("yes", "this is Dan", "who is this?", "how can I help?" from the person named

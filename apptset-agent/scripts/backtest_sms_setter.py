@@ -122,6 +122,9 @@ def render(results: list[dict]) -> str:
         details = ", ".join(f"{k}={d.get(k)}" for k in ("booking_date", "booking_time", "email", "follow_up_date") if d.get(k))
         out.append(f"**Setter draft [{d['action']}]{' (' + details + ')' if details else ''}:** {d.get('reply') or '(empty)'}")
         out.append("")
+        out.append(f"*Stages:* {', '.join(d.get('stages') or []) or '(none)'}  "
+                   f"(Dylan's final flags: {', '.join(k[6:] for k in ('stage_dm_reached', 'stage_primed', 'stage_engaged', 'stage_interested') if c.get(k)) or 'none'})")
+        out.append("")
         out.append(f"*Why:* {d.get('rationale', '')}")
         out.append("")
     return "\n".join(out)

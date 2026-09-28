@@ -310,7 +310,12 @@ function SetterModeBar() {
   );
 }
 
-function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate }) {
+const STAGE_LABELS = {
+  dm_reached: "DM Reached", primed: "Primed", engaged: "Engaged",
+  interested: "Interested", not_interested: "Not Interested",
+};
+
+function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate, onBook }) {
   const meta = AI_ACTION_META[draft.action] || AI_ACTION_META.reply;
   const d = draft.details || {};
   const detail =
@@ -338,6 +343,13 @@ function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate }) {
         <button onClick={onDismiss} disabled={busy} className="btn btn-ghost" style={{ fontSize: 9, padding: "2px 8px" }}>
           DISMISS
         </button>
+        {draft.action === "book" && !d.booked && (
+          <button onClick={onBook} disabled={busy} className="btn btn-ghost"
+            title="Create the Google Meet invite (emailed to them) and the appointment"
+            style={{ fontSize: 9, padding: "2px 8px", color: "#14c882", borderColor: "#14c88266" }}>
+            BOOK IT
+          </button>
+        )}
         {draft.reply && (
           <button onClick={onUse} disabled={busy} className="btn btn-primary" style={{ fontSize: 9, padding: "2px 10px" }}>
             USE
@@ -348,7 +360,13 @@ function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate }) {
         ? <div style={{ fontSize: 13, color: "#c4d0e8", whiteSpace: "pre-wrap", fontFamily: "'Space Grotesk', sans-serif" }}>{draft.reply}</div>
         : <div style={{ fontSize: 12, color: "#5a6f8f", fontStyle: "italic" }}>No text to send.</div>}
       {detail && <div style={{ ...mono, color: meta.color, marginTop: 6 }}>{detail}</div>}
+      {d.booked && <div style={{ ...mono, color: "#14c882", marginTop: 6 }}>BOOKED · MEET INVITE SENT, NOW SEND THE CONFIRMATION</div>}
       {d.auto_note && <div style={{ ...mono, color: "#e0a030", marginTop: 6 }}>AUTO: {d.auto_note}</div>}
+      {d.stages_marked?.length > 0 && (
+        <div style={{ ...mono, color: "#5a6f8f", marginTop: 6 }}>
+          MARKED: {d.stages_marked.map(s => STAGE_LABELS[s] || s).join(" · ")}
+        </div>
+      )}
       {draft.rationale && <div style={{ fontSize: 11, color: "#5a6f8f", marginTop: 4 }}>{draft.rationale}</div>}
     </div>
   );
@@ -512,6 +530,21 @@ export default function InboxPanel({ initialTarget }) {
     try { await fetch(API(`/sms-setter/draft/${aiDraft.id}/dismiss`), { method: "POST" }); } catch {}
     setAiDraft(null);
     setUsedDraftId(null);
+    setAiDraftBusy(false);
+  };
+
+  const bookAiDraft = async () => {
+    if (!aiDraft || !thread?.phone) return;
+    setAiDraftBusy(true);
+    try {
+      const r = await fetch(API(`/sms-setter/draft/${aiDraft.id}/book`), { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        window.alert(`Couldn't book: ${err.detail || r.status}`);
+      }
+      await loadAiDraft(thread.phone);
+      if (selected) await refreshThread(selected);
+    } catch {}
     setAiDraftBusy(false);
   };
 
@@ -1226,6 +1259,7 @@ export default function InboxPanel({ initialTarget }) {
                 {aiDraft && !aiRegenerating && <AiDraftCard
                   draft={aiDraft} busy={aiDraftBusy} used={usedDraftId === aiDraft.id}
                   onUse={useAiDraft} onDismiss={dismissAiDraft} onRegenerate={regenerateAiDraft}
+                  onBook={bookAiDraft}
                 />}
                 {aiRegenerating && (
                   <div style={{ marginBottom: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em",

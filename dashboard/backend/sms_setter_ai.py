@@ -13,10 +13,14 @@ the server half:
                     slots), for the worker to pull
   submit_draft()  — the worker posts the model's structured result back; it's
                     stored as a draft, and in auto mode also sent
+  apply_stages()  — every mode: ticks the Inbox funnel checkboxes (DM Reached,
+                    Primed, Engaged, Interested, Not Interested) the model
+                    judged reached; never overrides one Dylan set by hand
   try_auto_send() — auto mode: sends the text (and for "book", creates the
                     Google Meet invite + appointment row), with guardrails —
-                    business hours only, a per-thread daily cap, never for
-                    handoff/none, and a fall-back to a draft on any failure
+                    business hours only, prospect texted within 24h, a
+                    per-thread daily cap, never for handoff/none, and a
+                    fall-back to a draft on any failure
 
 Mode lives in dialer_settings[MODE_KEY]: "off" | "draft" (default) | "auto".
 The worker's last check-in is dialer_settings[HEARTBEAT_KEY]; the Inbox
@@ -80,11 +84,20 @@ DRAFT_SCHEMA = {
         "booking_time": {"type": "string", "description": "action=book: HH:MM 24h, prospect's local time. Otherwise empty."},
         "email": {"type": "string", "description": "book/capture_email: the email given. Otherwise empty."},
         "follow_up_date": {"type": "string", "description": "follow_up: YYYY-MM-DD. Otherwise empty."},
+        "stages": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["dm_reached", "primed", "engaged", "interested"]},
+            "description": "Every funnel stage this prospect has reached so far, per the playbook's stage definitions.",
+        },
         "rationale": {"type": "string", "description": "One short line for Dylan on why this is the right move."},
     },
-    "required": ["action", "reply", "booking_date", "booking_time", "email", "follow_up_date", "rationale"],
+    "required": ["action", "reply", "booking_date", "booking_time", "email", "follow_up_date", "stages", "rationale"],
     "additionalProperties": False,
 }
+
+SMS_STAGES = ("dm_reached", "primed", "engaged", "interested")
+NOT_INTERESTED_ACTIONS = {"close_not_interested", "opt_out"}
+AUTO_MAX_AGE_HOURS = 24   # auto mode only answers prospects who texted within this window
 
 _SYSTEM_PREAMBLE = """You draft the next SMS in a cold outreach conversation for Dylan at \
 DigiGrowth. Read the whole transcript, decide what should happen next, and return it in the \
@@ -212,9 +225,18 @@ def build_user_message(contact: dict, messages: list[dict], tz_name: str, now: d
 
 
 def normalize_draft(result: dict) -> dict:
-    draft = {k: (result.get(k) or "") for k in DRAFT_SCHEMA["properties"]}
+    draft = {k: (result.get(k) or "") for k in DRAFT_SCHEMA["properties"] if k != "stages"}
     if draft["action"] not in ACTIONS:
         draft["action"] = "handoff"
+    # Funnel stages are cumulative: anyone Interested was also Primed and
+    # Engaged, so a later-stage mark fills in the earlier ones (DM Reached
+    # is separate — a front desk can be primed, the owner never reached).
+    stages = {s for s in (result.get("stages") or []) if s in SMS_STAGES}
+    if "interested" in stages:
+        stages |= {"engaged", "primed"}
+    if "engaged" in stages:
+        stages.add("primed")
+    draft["stages"] = [s for s in SMS_STAGES if s in stages]
     return draft
 
 
@@ -367,6 +389,53 @@ async def _template_text(conn, action: str, contact: dict) -> str:
     return apply_merge_fields(body, contact) if body else ""
 
 
+async def apply_stages(conn, phone: str, contact_id: str | None, draft: dict) -> list[str]:
+    """Ticks the Inbox's SMS funnel checkboxes the agent judged reached —
+    in every mode, since it's bookkeeping, not an outbound action. Only ever
+    checks (never unchecks), and never touches a stage Dylan set by hand
+    (stage_*_manual), same lock the Inbox checkboxes use. Not Interested
+    mirrors the Inbox checkbox (email_inbox.py's set_contact_stage): sets
+    the disposition + contact status and stops DM follow-ups, but does NOT
+    close the thread — a closed thread silently drops any later reply.
+    Booked is set by create_appointment_row when the call is actually
+    booked, never guessed here. Returns what was newly marked."""
+    marked = []
+    for stage in draft.get("stages") or []:
+        changed = await conn.fetchval(
+            f"""
+            UPDATE sms_conversations
+            SET stage_{stage} = true, stage_{stage}_at = COALESCE(stage_{stage}_at, now()), updated_at = now()
+            WHERE phone = $1 AND NOT COALESCE(stage_{stage}, false) AND NOT COALESCE(stage_{stage}_manual, false)
+            RETURNING 1
+            """,
+            phone,
+        )
+        if changed:
+            marked.append(stage)
+
+    if draft["action"] in NOT_INTERESTED_ACTIONS:
+        changed = await conn.fetchval(
+            """
+            UPDATE sms_conversations SET disposition = 'not_interested', updated_at = now(),
+                dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
+                dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL,
+                dm_followup_touch3_sent_at = NULL
+            WHERE phone = $1 AND disposition IS NULL
+            RETURNING 1
+            """,
+            phone,
+        )
+        if changed:
+            marked.append("not_interested")
+            if contact_id:
+                await conn.execute(
+                    "UPDATE contacts SET status = 'not-interested', updated_at = now() "
+                    "WHERE id = $1 AND status <> 'appointment-booked'",
+                    contact_id,
+                )
+    return marked
+
+
 async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: dict, model: str | None) -> dict:
     """Stores the worker's result as the thread's pending draft (superseding
     any older one), then — in auto mode — tries to send it. A result for a
@@ -387,6 +456,7 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
     if draft["action"] in ("send_pitch", "send_gatekeeper_pitch"):
         draft["reply"] = await _template_text(conn, draft["action"], contact) or draft["reply"]
     details = {k: draft[k] for k in ("booking_date", "booking_time", "email", "follow_up_date")}
+    details["stages_marked"] = await apply_stages(conn, conv["phone"], conv["contact_id"], draft)
 
     async with conn.transaction():
         await conn.execute(
@@ -437,6 +507,10 @@ async def try_auto_send(conn, draft_id: int) -> str:
     msgs = await _thread_messages(conn, d["phone"])
     if not msgs or msgs[-1]["direction"] != "inbound" or (d["last_inbound_at"] and msgs[-1]["sent_at"] > d["last_inbound_at"]):
         return await _note(conn, draft_id, "thread changed since draft")
+    if msgs[-1]["sent_at"] < datetime.now(timezone.utc) - timedelta(hours=AUTO_MAX_AGE_HOURS):
+        # A days-late "all good, have a great one" or pitch reads badly —
+        # old backlog stays a draft for Dylan to judge.
+        return await _note(conn, draft_id, f"not auto-sent: prospect's last text is over {AUTO_MAX_AGE_HOURS}h old")
 
     tz_name = guess_timezone(d["phone"])
     local_hour = datetime.now(ZoneInfo(tz_name)).hour
@@ -450,8 +524,8 @@ async def try_auto_send(conn, draft_id: int) -> str:
     if sent_today >= AUTO_MAX_SENDS_PER_DAY:
         return await _note(conn, draft_id, f"daily auto-send cap ({AUTO_MAX_SENDS_PER_DAY}) reached for this thread")
 
-    if d["action"] == "book":
-        booked = await _auto_book(conn, d, details, dict(conv), tz_name)
+    if d["action"] == "book" and not details.get("booked"):
+        booked = await book_draft(conn, draft_id)
         if booked != "booked":
             return await _note(conn, draft_id, booked)
 
@@ -468,9 +542,31 @@ async def try_auto_send(conn, draft_id: int) -> str:
         "UPDATE sms_ai_drafts SET status = 'auto_sent', sent_body = $2, decided_at = now() WHERE id = $1",
         d["id"], reply,
     )
-    if d["action"] in ("close_not_interested", "opt_out"):
-        await sms_router.close_conversation(d["phone"], {"disposition": "not_interested"})
+    # Not Interested was already marked by apply_stages at submit time —
+    # the thread deliberately stays open so a later reply still lands.
     return "sent"
+
+
+async def book_draft(conn, draft_id: int) -> str:
+    """Books a "book" draft's call — auto mode calls this before texting the
+    confirmation; in draft mode it's the Inbox card's BOOK IT button. Marks
+    the draft booked so the same call can never be booked twice."""
+    d = await conn.fetchrow("SELECT * FROM sms_ai_drafts WHERE id = $1", draft_id)
+    if not d or d["action"] != "book":
+        return "book: not a booking draft"
+    details = json.loads(d["details"]) if isinstance(d["details"], str) else dict(d["details"] or {})
+    if details.get("booked"):
+        return "booked"
+    conv = await conn.fetchrow(_CONV_SELECT + " WHERE sc.phone = $1", d["phone"])
+    if not conv:
+        return "book: thread not found"
+    result = await _auto_book(conn, d, details, dict(conv), guess_timezone(d["phone"]))
+    if result == "booked":
+        await conn.execute(
+            "UPDATE sms_ai_drafts SET details = details || jsonb_build_object('booked', true) WHERE id = $1",
+            draft_id,
+        )
+    return result
 
 
 async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str:
@@ -530,14 +626,23 @@ async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str
     return "booked"
 
 
-async def flush_held(conn) -> int:
-    """Retries auto-sends that were held (outside business hours). Called
-    by the worker each loop, so held drafts go out once hours open — but
-    only while the worker is running, same as everything else here."""
+async def flush_pending(conn) -> int:
+    """Auto mode, called by the worker each loop: tries every pending draft
+    that auto mode hasn't looked at yet — drafts made while in Draft mode
+    (so flipping to Auto picks up recent ones instead of only acting on the
+    next new reply) — plus ones held for business hours. Anything that
+    already failed a check for another reason (handoff, stale, thread
+    changed) isn't retried every minute. Only while the worker is running,
+    same as everything else here."""
     if await get_mode(conn) != "auto":
         return 0
     rows = await conn.fetch(
-        "SELECT id FROM sms_ai_drafts WHERE status = 'pending' AND details->>'auto_note' LIKE 'held:%'",
+        """
+        SELECT id FROM sms_ai_drafts
+        WHERE status = 'pending'
+          AND (details->>'auto_note' IS NULL OR details->>'auto_note' LIKE 'held:%')
+        ORDER BY created_at
+        """,
     )
     sent = 0
     for r in rows:
