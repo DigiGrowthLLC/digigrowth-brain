@@ -26,6 +26,7 @@ import call_reminders
 import cancel_sequence
 import client_appointment_reminders
 import client_appointment_sequence
+import daily_sms_handoff
 import dm_followup_sequence
 import email_handoff_sequence
 import email_followup_trigger
@@ -376,6 +377,23 @@ async def lifespan(app: FastAPI):
         CronTrigger(minute="*/10", hour="9-17", day_of_week="mon-fri", timezone=eastern),
         id="newsletter-queue-processor",
         replace_existing=True,
+    )
+    # Weekday 8am ET: "new" prospects -> sms-handoff. Openers then go out
+    # paced, 8am+ in each prospect's own time (hour 8-23 ET covers through
+    # 8pm Pacific). See daily_sms_handoff.py.
+    scheduler.add_job(
+        daily_sms_handoff.move_new_to_handoff,
+        CronTrigger(hour=8, minute=0, day_of_week="mon-fri", timezone=eastern),
+        id="daily-sms-handoff",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        daily_sms_handoff.send_due_openers,
+        CronTrigger(minute="*/2", hour="8-23", timezone=eastern),
+        id="daily-sms-handoff-openers",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     scheduler.add_job(
         reminder_engine.send_due_reminders,

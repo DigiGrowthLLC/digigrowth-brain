@@ -50,7 +50,9 @@ MODE_KEY = "sms_ai_setter_mode"                 # "off" | "draft" | "auto"
 HEARTBEAT_KEY = "sms_ai_setter_worker_seen"     # ISO timestamp of the worker's last check-in
 WORKER_ONLINE_SECONDS = 180
 
-DEBOUNCE_SECONDS = 45          # wait for a burst of texts to finish before drafting
+DEBOUNCE_SECONDS = 60          # wait for a burst of texts to finish before drafting
+MIN_REPLY_SECONDS = 60         # auto mode never replies sooner than this after their last text
+SECOND_TEXT_GAP = (10, 15)     # seconds between Dylan-style back-to-back texts
 QUEUE_LOOKBACK_DAYS = 14       # older unanswered threads aren't auto-drafted
 _HISTORY_LIMIT = 40
 _SLOT_DAYS = 10
@@ -734,6 +736,17 @@ async def try_auto_send(conn, draft_id: int) -> str:
     if not (AUTO_SEND_HOURS[0] <= local_hour < AUTO_SEND_HOURS[1]):
         return await _note(conn, draft_id, "held: outside 8am-8pm prospect time, will send in hours")
 
+    # Never answer faster than a person would: at least MIN_REPLY_SECONDS
+    # after their last text. DEBOUNCE_SECONDS already covers the usual path;
+    # this catches regenerates and anything else that got here early.
+    elapsed = (datetime.now(timezone.utc) - msgs[-1]["sent_at"]).total_seconds()
+    if elapsed < MIN_REPLY_SECONDS:
+        import asyncio
+        await asyncio.sleep(MIN_REPLY_SECONDS - elapsed)
+        msgs = await _thread_messages(conn, d["phone"])
+        if msgs[-1]["direction"] != "inbound" or (d["last_inbound_at"] and msgs[-1]["sent_at"] > d["last_inbound_at"]):
+            return await _note(conn, draft_id, "thread changed since draft")
+
     sent_today = await conn.fetchval(
         "SELECT COUNT(*) FROM sms_ai_drafts WHERE phone = $1 AND status = 'auto_sent' AND decided_at > now() - interval '1 day'",
         d["phone"],
@@ -764,7 +777,8 @@ async def try_auto_send(conn, draft_id: int) -> str:
             # A beat between texts, the way a person types a follow-up —
             # two texts landing the same second reads automated.
             import asyncio
-            await asyncio.sleep(8)
+            import random
+            await asyncio.sleep(random.uniform(*SECOND_TEXT_GAP))
             await sms_router.manual_send({"phone": d["phone"], "body": second, "stage": "ai_setter"})
             reply = f"{reply}\n\n{second}"
     await conn.execute(

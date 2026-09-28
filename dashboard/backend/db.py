@@ -1339,6 +1339,14 @@ async def _create_schema(pool: asyncpg.Pool):
             -- manual_send), and auto mode stays off that thread meanwhile.
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS sms_reply_phone TEXT;
 
+            -- Daily 8am-ET "new" -> sms-handoff move (daily_sms_handoff.py).
+            -- auto_handoff_at marks contacts moved by that job; its opener
+            -- goes out later, paced and at 8am+ in the prospect's own time,
+            -- and auto_handoff_opener_at records that it did — so a redeploy
+            -- mid-morning can't drop or double-send an opener.
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS auto_handoff_at TIMESTAMPTZ;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS auto_handoff_opener_at TIMESTAMPTZ;
+
             -- Inbound/outbound SMS sent through the CLIENT's own provisioned
             -- Twilio number (client_marketing_config.twilio_number) — kept
             -- separate from sms_messages, which is DigiGrowth's own number.
