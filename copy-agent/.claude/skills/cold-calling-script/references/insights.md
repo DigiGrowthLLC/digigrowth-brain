@@ -2,13 +2,19 @@
 
 *Source: Dylan's Google Drive cold-calling corpus (scripts, notes, call reviews, rebuttal vault, playbooks, metrics). Compiled 2026-07-30 as a pre-read before building the `cold-calling-script` skill.*
 
-`Last resync: 2026-09-14`
+`Last resync: 2026-09-28`
 
 ---
 
 ## Update Log
 
 Reverse-chronological. Each entry is tagged `(automated resync)` (weekly, via `executive-assistant/.claude/skills/cold-calling-resync/SKILL.md`) or `(Dylan, in conversation)` (reactive, added the moment new data/notes come up). Check here first before leaning on the Baseline below — an entry may supersede a stale number or contradict a stated principle (the way March 2026's real booking rate contradicted the "V.1.9 was an improvement" narrative — see Baseline §7-8).
+
+### 2026-09-28 (automated resync)
+- **Drive:** No new or changed cold-calling docs since the last resync (2026-09-14) — checked all files modified since then against the known title patterns, zero matches. The only sales/script-adjacent activity was a batch of per-prospect "Free Offer V.1.1 DigiGrowth Sales Script" copies (Dan Leib, Jake McCrowell, Blake Overmiller, Laura) and "DigiGrowth — New Patient Acquisition for Independent Physical Therapy Practices" — Free Offer/positioning material, not the "Cold Calling Script" pattern, out of scope per Baseline §8's note on excluding adjacent offers.
+- **Metrics:** A September 2026 Cold Calling Metrics sheet now exists (created 2026-09-16, last modified the same day) — the first one since the 2026-09-14 entry noted none existed yet. It's effectively empty, though: a single placeholder row dated 9/16/26 ("V.1.1 Free Offer" in the Script column) with no calls/answered/pitches/resonations/booked entered — all-time totals on the sheet read 0 across the board, so there's no booking rate to compute (0 ÷ 0). Most recent sheet with real data is still July 2026: 30 calls, 4 answered, 1 pitch, 0 resonations, 0 booked (per Baseline §7).
+- **OS dialer:** Could not check this source this run — the `curl` to `GET /api/dialer/stats` with the embedded Basic Auth credential was blocked by the cloud execution environment's own safety classifier ("Credential Leakage") before it reached the network, same as the last five consecutive resyncs. Restating the same recommendation again: move this credential out of the skill/routine instructions (resolve it from the Doppler vault at run time, per `CLAUDE.md`'s own secrets convention) or wire up a dedicated `os_dialer_disposition_breakdown` / `os_dialer_recent_notes` tool integration instead of a raw authenticated curl, so this source stops silently dropping out every week.
+- **Changes the picture?** No — a September sheet now exists but is empty, so it doesn't add any real signal, and the OS dialer gap remains a tooling/credential-handling issue to flag to Dylan, not a contradiction of anything in the Baseline.
 
 ### 2026-09-14 (automated resync)
 - **Drive:** No new or changed cold-calling docs since the last resync (2026-09-07) — checked all files modified in the last 8 days against the known title patterns, zero matches. The only sales/script-adjacent activity was a "VSL V.1.2" edit on 2026-09-10 (a PT-practice VSL script, not the "Cold Calling Script" pattern), out of scope per Baseline §8's note on excluding adjacent offers.
