@@ -129,13 +129,19 @@ async def stats():
         rows = await conn.fetch(
             """
             SELECT action,
-                   COUNT(*) FILTER (WHERE status = 'sent' AND sent_body = reply) AS sent_unedited,
-                   COUNT(*) FILTER (WHERE status = 'sent' AND sent_body <> reply) AS sent_edited,
+                   COUNT(*) FILTER (WHERE status = 'sent' AND sent_body IN (reply, _with_second)) AS sent_unedited,
+                   COUNT(*) FILTER (WHERE status = 'sent' AND sent_body NOT IN (reply, _with_second)) AS sent_edited,
                    COUNT(*) FILTER (WHERE status = 'dismissed')                  AS dismissed,
                    COUNT(*) FILTER (WHERE status = 'auto_sent')                  AS auto_sent,
                    COUNT(*) FILTER (WHERE status = 'pending')                    AS pending,
                    COUNT(*) FILTER (WHERE status = 'superseded')                 AS superseded
-            FROM sms_ai_drafts GROUP BY action ORDER BY action
+            FROM (
+                -- A draft used with its second text (the Inbox's USE puts both
+                -- in the reply box) still counts as unedited.
+                SELECT *, reply || E'\n\n' || COALESCE(details->>'second_text', '') AS _with_second
+                FROM sms_ai_drafts
+            ) d
+            GROUP BY action ORDER BY action
             """
         )
     return {"by_action": [dict(r) for r in rows]}

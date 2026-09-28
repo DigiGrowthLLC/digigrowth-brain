@@ -85,6 +85,7 @@ DRAFT_SCHEMA = {
             "description": "action=send_template: which sequence step. Otherwise empty.",
         },
         "reply": {"type": "string", "description": "Exact SMS text to send. For send_template, the step's text (for the ask step, with [Day]/[time] filled in). Empty when the playbook says to leave it empty."},
+        "second_text": {"type": "string", "description": "Optional second text sent a few seconds after reply, the way Dylan often splits an answer and the ask. Usually empty."},
         "booking_date": {"type": "string", "description": "action=book: YYYY-MM-DD. Otherwise empty."},
         "booking_time": {"type": "string", "description": "action=book: HH:MM 24h, prospect's local time. Otherwise empty."},
         "email": {"type": "string", "description": "book/capture_email: the email given. Otherwise empty."},
@@ -96,7 +97,7 @@ DRAFT_SCHEMA = {
         },
         "rationale": {"type": "string", "description": "One short line for Dylan on why this is the right move."},
     },
-    "required": ["action", "template", "reply", "booking_date", "booking_time", "email", "follow_up_date", "stages", "rationale"],
+    "required": ["action", "template", "reply", "second_text", "booking_date", "booking_time", "email", "follow_up_date", "stages", "rationale"],
     "additionalProperties": False,
 }
 
@@ -237,12 +238,12 @@ def build_user_message(contact: dict, messages: list[dict], tz_name: str, now: d
                        templates: dict | None = None) -> str:
     tz = ZoneInfo(tz_name)
     local_now = now.astimezone(tz)
-    abbrev = tz_abbrev(tz_name, now)
     info = [
         f"Practice: {contact.get('business') or 'unknown'}",
         f"Owner on file: {contact.get('owner') or 'unknown'}",
         f"Location: {', '.join(p for p in (contact.get('city'), contact.get('state')) if p) or 'unknown'}",
-        f"Prospect's timezone: {abbrev} ({tz_name}). Say \"{abbrev}\" or \"your time\" when you state times.",
+        f"Prospect's timezone: {tz_name}. The open slots below are already in their time; say them like a "
+        "person would (\"Tuesday at 10am or 2pm\"), never with timezone codes or parentheses.",
     ]
     if contact.get("email"):
         info.append(f"Email on file: {contact['email']}")
@@ -252,8 +253,8 @@ def build_user_message(contact: dict, messages: list[dict], tz_name: str, now: d
         "Contact info:\n" + "\n".join(f"- {line}" for line in info)
         + "\n\nDylan's SMS sequence for this prospect (use it by default, see 'Stick to the sequence'):\n"
         + _render_sequence(templates or {}, messages)
-        + f"\nIt's now {local_now.strftime('%A, %B')} {local_now.day}, {local_now.year}, {_clock(local_now)} {abbrev}."
-        + f"\n\nDylan's open discovery-call slots ({abbrev}, 20 min on Google Meet):\n{open_slots}"
+        + f"\nIt's now {local_now.strftime('%A, %B')} {local_now.day}, {local_now.year}, {_clock(local_now)} their time."
+        + f"\n\nDylan's open discovery-call slots, in their time (20 min on Google Meet):\n{open_slots}"
         + "\n\nConversation so far:\n" + render_transcript(messages, tz)
         + "\n\nDraft Dylan's next move."
     )
@@ -617,7 +618,7 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
     draft = normalize_draft(result)
     contact = dict(conv)
     await _resolve_template(conn, draft, contact)
-    details = {k: draft[k] for k in ("template", "booking_date", "booking_time", "email", "follow_up_date")}
+    details = {k: draft[k] for k in ("template", "second_text", "booking_date", "booking_time", "email", "follow_up_date")}
     details["stages_marked"] = await apply_stages(conn, conv["phone"], conv["contact_id"], draft)
 
     async with conn.transaction():
@@ -708,6 +709,14 @@ async def try_auto_send(conn, draft_id: int) -> str:
         if not result.get("ok"):
             await ensure_reply_todo(conn, d["phone"], dict(conv), f"Auto-send failed ({result.get('error')}). The drafted reply is in the Inbox.")
             return await _note(conn, draft_id, f"send failed: {result.get('error')}")
+        second = (details.get("second_text") or "").strip()
+        if second:
+            # A beat between texts, the way a person types a follow-up —
+            # two texts landing the same second reads automated.
+            import asyncio
+            await asyncio.sleep(8)
+            await sms_router.manual_send({"phone": d["phone"], "body": second, "stage": "ai_setter"})
+            reply = f"{reply}\n\n{second}"
     await conn.execute(
         "UPDATE sms_ai_drafts SET status = 'auto_sent', sent_body = $2, decided_at = now() WHERE id = $1",
         d["id"], reply,

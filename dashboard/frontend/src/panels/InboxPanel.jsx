@@ -370,7 +370,15 @@ function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate, onBook
         )}
       </div>
       {draft.reply
-        ? <div style={{ fontSize: 13, color: "#c4d0e8", whiteSpace: "pre-wrap", fontFamily: "'Space Grotesk', sans-serif" }}>{draft.reply}</div>
+        ? <>
+            <div style={{ fontSize: 13, color: "#c4d0e8", whiteSpace: "pre-wrap", fontFamily: "'Space Grotesk', sans-serif" }}>{draft.reply}</div>
+            {d.second_text && (
+              <div style={{ fontSize: 13, color: "#c4d0e8", whiteSpace: "pre-wrap", fontFamily: "'Space Grotesk', sans-serif",
+                            marginTop: 6, paddingTop: 6, borderTop: "0.5px dashed #1a2f52" }}>
+                <span style={{ ...mono, color: "#5a6f8f", marginRight: 6 }}>2ND TEXT</span>{d.second_text}
+              </div>
+            )}
+          </>
         : <div style={{ fontSize: 12, color: "#5a6f8f", fontStyle: "italic" }}>No text to send.</div>}
       {detail && <div style={{ ...mono, color: meta.color, marginTop: 6 }}>{detail}</div>}
       {d.booked && <div style={{ ...mono, color: "#14c882", marginTop: 6 }}>BOOKED · MEET INVITE SENT, NOW SEND THE CONFIRMATION</div>}
@@ -530,7 +538,8 @@ export default function InboxPanel({ initialTarget }) {
   const useAiDraft = () => {
     if (!aiDraft) return;
     setReplyChannel("sms");
-    setReplyText(aiDraft.reply || "");
+    const second = aiDraft.details?.second_text;
+    setReplyText((aiDraft.reply || "") + (second ? `\n\n${second}` : ""));
     setUsedDraftId(aiDraft.id);
     const templateStage = draftTemplateKey(aiDraft);
     setAppliedStage(templateStage || null);
