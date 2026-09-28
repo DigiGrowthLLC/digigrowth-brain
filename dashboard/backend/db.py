@@ -1333,6 +1333,11 @@ async def _create_schema(pool: asyncpg.Pool):
                 decided_at      TIMESTAMPTZ
             );
             CREATE INDEX IF NOT EXISTS idx_sms_ai_drafts_phone_status ON sms_ai_drafts(phone, status);
+            -- "Reply to X" to-dos the SMS setter creates when a prospect
+            -- needs Dylan personally. Linked by phone so the to-do clears
+            -- itself the moment Dylan texts that prospect (routers/sms.py's
+            -- manual_send), and auto mode stays off that thread meanwhile.
+            ALTER TABLE todos ADD COLUMN IF NOT EXISTS sms_reply_phone TEXT;
 
             -- Inbound/outbound SMS sent through the CLIENT's own provisioned
             -- Twilio number (client_marketing_config.twilio_number) — kept

@@ -157,6 +157,7 @@ async def worker_queue(limit: int = 5):
     async with pool.acquire() as conn:
         await sms_setter_ai.record_heartbeat(conn)
         mode = await sms_setter_ai.get_mode(conn)
+        await sms_setter_ai.handoff_todos(conn)
         items = []
         # Explicit REGENERATE requests first — they work even in "off" mode
         # (Dylan clicked the button himself).

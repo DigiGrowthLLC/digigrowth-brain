@@ -389,6 +389,63 @@ async def _template_text(conn, action: str, contact: dict) -> str:
     return apply_merge_fields(body, contact) if body else ""
 
 
+async def _open_reply_todo(conn, phone: str) -> int | None:
+    return await conn.fetchval(
+        "SELECT id FROM todos WHERE NOT done AND right(regexp_replace(sms_reply_phone, '\\D', '', 'g'), 10) = $1 LIMIT 1",
+        _digits(phone),
+    )
+
+
+async def ensure_reply_todo(conn, phone: str, contact: dict, reason: str) -> int:
+    """Puts a "Reply to <prospect>" task on Dylan's To-Do list (the OS's
+    todos table) when a thread needs him personally — at most one open per
+    prospect; a repeat just appends the newest reason to its notes. Cleared
+    automatically when Dylan texts that prospect (routers/sms.py's
+    manual_send). While it's open, auto mode won't answer the thread."""
+    existing = await _open_reply_todo(conn, phone)
+    stamp = datetime.now(ZoneInfo("America/New_York")).strftime("%b %d %I:%M %p")
+    if existing:
+        await conn.execute(
+            "UPDATE todos SET description = COALESCE(description, '') || $2 WHERE id = $1",
+            existing, f"\n\n{stamp}: {reason}",
+        )
+        return existing
+    who = contact.get("owner") or "prospect"
+    business = contact.get("business")
+    msgs = await _thread_messages(conn, phone)
+    last_inbound = next((m["body"] for m in reversed(msgs) if m["direction"] == "inbound"), "")
+    description = (
+        f"{reason}\n\nTheir last text: \"{last_inbound.strip()[:300]}\"\n\n"
+        f"{phone} · open their thread in the Inbox. This clears itself when you text them."
+    )
+    return await conn.fetchval(
+        "INSERT INTO todos (text, description, due_date, sms_reply_phone) VALUES ($1, $2, $3, $4) RETURNING id",
+        f"Reply to {who}" + (f" ({business})" if business else "") + " by text",
+        description, datetime.now(ZoneInfo("America/New_York")).date(), phone,
+    )
+
+
+async def handoff_todos(conn) -> int:
+    """Makes sure every pending handoff draft has its "Reply to" to-do —
+    run on each new handoff and on every worker poll, which also covers
+    handoffs drafted before to-dos existed. Flagged per draft so a to-do
+    Dylan deletes by hand isn't recreated for that same handoff."""
+    rows = await conn.fetch(
+        f"""
+        SELECT d.id, d.phone, d.rationale FROM sms_ai_drafts d
+        WHERE d.status = 'pending' AND d.action = 'handoff' AND d.details->>'todo_created' IS NULL
+        """,
+    )
+    for r in rows:
+        conv = await conn.fetchrow(_CONV_SELECT + " WHERE sc.phone = $1", r["phone"])
+        await ensure_reply_todo(conn, r["phone"], dict(conv) if conv else {}, f"AI setter handed this to you: {r['rationale']}")
+        await conn.execute(
+            "UPDATE sms_ai_drafts SET details = details || jsonb_build_object('todo_created', true) WHERE id = $1",
+            r["id"],
+        )
+    return len(rows)
+
+
 async def apply_stages(conn, phone: str, contact_id: str | None, draft: dict) -> list[str]:
     """Ticks the Inbox's SMS funnel checkboxes the agent judged reached —
     in every mode, since it's bookkeeping, not an outbound action. Only ever
@@ -472,6 +529,9 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
             draft["rationale"], model, current_inbound,
         )
 
+    if draft["action"] == "handoff":
+        await handoff_todos(conn)
+
     outcome = None
     if await get_mode(conn) == "auto":
         outcome = await try_auto_send(conn, row["id"])
@@ -498,6 +558,8 @@ async def try_auto_send(conn, draft_id: int) -> str:
     details = json.loads(d["details"]) if isinstance(d["details"], str) else dict(d["details"] or {})
     if d["action"] not in AUTO_ACTIONS:
         return await _note(conn, draft_id, "needs Dylan (handoff/none are never auto-sent)")
+    if await _open_reply_todo(conn, d["phone"]):
+        return await _note(conn, draft_id, "waiting on your reply (open to-do for this prospect)")
 
     conv = await conn.fetchrow(
         _CONV_SELECT + " WHERE sc.phone = $1", d["phone"],
@@ -527,6 +589,8 @@ async def try_auto_send(conn, draft_id: int) -> str:
     if d["action"] == "book" and not details.get("booked"):
         booked = await book_draft(conn, draft_id)
         if booked != "booked":
+            # The prospect said yes to a time — they can't be left hanging.
+            await ensure_reply_todo(conn, d["phone"], dict(conv), f"Auto-booking failed ({booked}). They agreed to a call, confirm a time with them.")
             return await _note(conn, draft_id, booked)
 
     reply = (d["reply"] or "").strip()
@@ -537,6 +601,7 @@ async def try_auto_send(conn, draft_id: int) -> str:
         stage = {"send_pitch": "curiosity_opener", "send_gatekeeper_pitch": "gatekeeper"}.get(d["action"], "ai_setter")
         result = await sms_router.manual_send({"phone": d["phone"], "body": reply, "stage": stage, "ai_draft_id": d["id"]})
         if not result.get("ok"):
+            await ensure_reply_todo(conn, d["phone"], dict(conv), f"Auto-send failed ({result.get('error')}). The drafted reply is in the Inbox.")
             return await _note(conn, draft_id, f"send failed: {result.get('error')}")
     await conn.execute(
         "UPDATE sms_ai_drafts SET status = 'auto_sent', sent_body = $2, decided_at = now() WHERE id = $1",

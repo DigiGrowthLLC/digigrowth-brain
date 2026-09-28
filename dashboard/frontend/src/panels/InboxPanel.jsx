@@ -321,7 +321,7 @@ function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate, onBook
   const detail =
     draft.action === "book" ? `Send Meet invite: ${d.booking_date} ${d.booking_time} → ${d.email || "(no email yet)"}`
     : draft.action === "capture_email" ? `Email: ${d.email}`
-    : draft.action === "handoff" ? "Handle this one yourself"
+    : draft.action === "handoff" ? (d.todo_created ? "Handle this one yourself · added to your To-Do list" : "Handle this one yourself")
     : draft.action === "follow_up" ? `Reach back out ${d.follow_up_date}`
     : null;
   const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em" };

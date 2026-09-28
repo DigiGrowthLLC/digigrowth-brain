@@ -506,6 +506,13 @@ async def manual_send(payload: dict):
             f"WHERE {_phone_match('phone', '$1')} AND status = 'pending'",
             phone,
         )
+        # Replying IS the "Reply to X" to-do the SMS setter created for
+        # this prospect — complete it (the To-Do tab completes by deleting).
+        await conn.execute(
+            f"DELETE FROM todos WHERE NOT done AND sms_reply_phone IS NOT NULL "
+            f"AND {_phone_match('sms_reply_phone', '$1')}",
+            phone,
+        )
 
     return {"ok": True, "contact_id": conv.get("contact_id")}
 
