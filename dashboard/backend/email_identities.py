@@ -401,6 +401,9 @@ async def sync_identity_inbox(identity: dict) -> dict:
                 warmup_candidates.append(msg)
                 continue
 
+            if identity["status"] == "partner":
+                continue  # a partner is a personal inbox — only warm-up mail is ours to touch
+
             if from_addr not in contact_by_email:
                 continue  # not a known prospect and not a sibling identity — skip
 

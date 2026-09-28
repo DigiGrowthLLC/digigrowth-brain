@@ -48,6 +48,9 @@ async def create_identity(body: dict):
     domain = (body.get("domain") or "").strip()
     if not mailbox_email or not domain:
         raise HTTPException(status_code=400, detail="mailbox_email and domain are required")
+    status = body.get("status") or "warming"
+    if status not in ("warming", "partner"):
+        raise HTTPException(status_code=400, detail="status must be 'warming' or 'partner'")
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -55,14 +58,15 @@ async def create_identity(body: dict):
             row = await conn.fetchrow(
                 """
                 INSERT INTO email_send_identities
-                    (provider, domain, mailbox_email, display_name, oauth_refresh_token, ms_tenant_id)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                    (provider, domain, mailbox_email, display_name, oauth_refresh_token, ms_tenant_id, status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING *
                 """,
                 provider, domain, mailbox_email,
                 (body.get("display_name") or "").strip() or None,
                 (body.get("oauth_refresh_token") or "").strip() or None,
                 (body.get("ms_tenant_id") or "").strip() or None,
+                status,
             )
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Could not create identity: {e}")
@@ -78,8 +82,8 @@ async def update_identity(identity_id: int, body: dict):
             fields.append(f"{key} = ${len(params)}")
     if not fields:
         raise HTTPException(status_code=400, detail="no fields to update")
-    if "status" in body and body["status"] not in ("warming", "active", "paused"):
-        raise HTTPException(status_code=400, detail="status must be 'warming', 'active', or 'paused'")
+    if "status" in body and body["status"] not in ("warming", "active", "paused", "partner"):
+        raise HTTPException(status_code=400, detail="status must be 'warming', 'active', 'paused', or 'partner'")
 
     params.append(identity_id)
     pool = await get_pool()
@@ -108,9 +112,11 @@ async def delete_identity(identity_id: int):
 async def start_warmup(identity_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        exists = await conn.fetchval("SELECT 1 FROM email_send_identities WHERE id = $1", identity_id)
-    if not exists:
+        status = await conn.fetchval("SELECT status FROM email_send_identities WHERE id = $1", identity_id)
+    if status is None:
         raise HTTPException(status_code=404, detail="identity not found")
+    if status == "partner":
+        raise HTTPException(status_code=400, detail="warm-up partner mailboxes only receive and reply — no ramp to start")
     await identity_warmup.start_warmup(identity_id)
     return {"ok": True}
 
@@ -136,6 +142,8 @@ async def activate_identity(identity_id: int):
     docstring for why this stays a judgment call."""
     pool = await get_pool()
     async with pool.acquire() as conn:
+        if await conn.fetchval("SELECT status FROM email_send_identities WHERE id = $1", identity_id) == "partner":
+            raise HTTPException(status_code=400, detail="warm-up partner mailboxes can't be activated for outreach")
         row = await conn.fetchrow(
             "UPDATE email_send_identities SET status = 'active', activated_at = now(), updated_at = now() "
             "WHERE id = $1 RETURNING *",

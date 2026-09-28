@@ -49,7 +49,12 @@ from db import get_pool
 # provider: with few partners, all traffic is a narrow A<->B pattern, so
 # keeping absolute volume conservative matters more, not less, until more
 # identities exist to spread partner variety across.
-_DEFAULT_SCHEDULE = [2, 3, 5, 8, 11, 15, 20, 25, 31, 40]
+# Stretched 2026-09-27 from 10 to 15 sending days (3 business weeks — the
+# ramp only advances on days it actually sends, i.e. weekdays): the first
+# two identities went to cold outreach on day 4/6 and got 0 replies from 27.
+# Restarted then with this schedule so both finish Fri 2026-10-16 and flip
+# to 'complete' Mon 10/19. Starts at 8, not 2 — both had ~5 days of history.
+_DEFAULT_SCHEDULE = [8, 11, 15, 20, 25, 30, 35, 40, 40, 40, 40, 40, 40, 40, 40]
 
 # How many backlog replies a single identity may send in ONE poll tick.
 # Without this cap, a long outage (like the Graph auth bug that blocked
@@ -116,7 +121,8 @@ async def start_warmup(identity_id: int):
             VALUES ($1, 'running', now(), 1, 0, now())
             ON CONFLICT (identity_id) DO UPDATE SET
                 status = 'running', started_at = now(), completed_at = NULL,
-                current_day = 1, sent_today = 0, replied_today = 0, updated_at = now()
+                current_day = 1, sent_today = 0, replied_today = 0,
+                last_sent_date = NULL, updated_at = now()
             """,
             identity_id,
         )

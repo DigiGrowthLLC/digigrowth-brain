@@ -18,6 +18,7 @@ const STATUS_COLOR = {
   warming: "#f0a028",
   active: "#14c882",
   paused: "#5a6f8f",
+  partner: "#3a7bd5",
 };
 
 // ── Add identity sub-modal ────────────────────────────────────────────────
@@ -26,6 +27,7 @@ function AddIdentityModal({ onClose, onAdded }) {
   const [provider, setProvider] = useState("google");
   const [domain, setDomain] = useState("");
   const [mailboxEmail, setMailboxEmail] = useState("");
+  const [partnerOnly, setPartnerOnly] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [refreshToken, setRefreshToken] = useState("");
   const [tenantId, setTenantId] = useState("");
@@ -46,7 +48,7 @@ function AddIdentityModal({ onClose, onAdded }) {
         body: JSON.stringify({
           provider, domain: domain.trim(), mailbox_email: mailboxEmail.trim(),
           display_name: displayName.trim(), oauth_refresh_token: refreshToken.trim(),
-          ms_tenant_id: tenantId.trim(),
+          ms_tenant_id: tenantId.trim(), status: partnerOnly ? "partner" : "warming",
         }),
       });
       if (res.ok) {
@@ -98,6 +100,10 @@ function AddIdentityModal({ onClose, onAdded }) {
         {provider === "microsoft" && (
           <input value={tenantId} onChange={e => setTenantId(e.target.value)} placeholder="Azure AD tenant id" className="dg-input" />
         )}
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#7a94b8", cursor: "pointer" }}>
+          <input type="checkbox" checked={partnerOnly} onChange={e => setPartnerOnly(e.target.checked)} />
+          Warm-up partner only (receives + replies to warm-up mail, never sends cold outreach)
+        </label>
 
         {err && <div style={{ fontSize: 11, color: "#e05555" }}>{err}</div>}
 
@@ -299,13 +305,13 @@ export default function IdentityWarmupModal({ onClose }) {
                     </td>
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{fmt(r.last_sent_at)}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right", whiteSpace: "nowrap" }}>
-                      {!r.warmup_status && (
+                      {!r.warmup_status && r.identity_status !== "partner" && (
                         <button onClick={() => startWarmup(r)} disabled={busyId === r.id}
                           className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", marginRight: 6 }}>
                           {busyId === r.id ? "…" : "Start Warm-Up"}
                         </button>
                       )}
-                      {r.identity_status !== "active" ? (
+                      {r.identity_status === "partner" ? null : r.identity_status !== "active" ? (
                         <button onClick={() => setStatus(r, "active")} disabled={busyId === r.id}
                           className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", color: "#14c882", marginRight: 6 }}>
                           Activate

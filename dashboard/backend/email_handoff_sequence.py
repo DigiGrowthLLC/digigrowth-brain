@@ -267,22 +267,26 @@ def _strip_bold(text: str) -> str:
 _URL_RE = re.compile(r"(https?://[^\s<]+[^\s<.,;:!?)\]'\"])")
 
 
-def _to_html(body: str, unsubscribe_url: str) -> str:
+# Opt-out line appended to every touch in place of a visible unsubscribe
+# link (removed 2026-09-27 — a link in a first cold email is a spam signal,
+# and at this volume Gmail/Yahoo's bulk-sender one-click rule doesn't
+# apply). A reply is a valid CAN-SPAM opt-out, and any real reply already
+# stops the sequence (send_due_touches' _has_replied check). The
+# List-Unsubscribe header stays — it's invisible and only helps.
+_OPT_OUT_LINE = "P.S. If this isn't relevant, just reply \"no\" and I won't follow up."
+
+
+def _to_html(body: str) -> str:
     """Minimal HTML twin of the plain-text body, shaped like a message typed
     in Gmail (<div dir="ltr">, <br> line breaks, links as <a>) — no styling,
     images, or tracking. Exists because Gmail hard-wraps text/plain-only
-    mail at ~70 chars (the narrow column Dylan saw), and so "Unsubscribe"
-    can be a linked word instead of a long raw URL."""
+    mail at ~70 chars (the narrow column Dylan saw)."""
     import html as html_lib
 
     escaped = html_lib.escape(body)
     linked = _URL_RE.sub(lambda m: f'<a href="{m.group(1)}">{m.group(1)}</a>', escaped)
     linked = _BOLD_RE.sub(r"<b>\1</b>", linked)
-    unsub = html_lib.escape(unsubscribe_url, quote=True)
-    return (
-        '<div dir="ltr">' + linked.replace("\n", "<br>\n")
-        + f'<br>\n<br>\n--<br>\nNot interested? <a href="{unsub}">Unsubscribe</a></div>'
-    )
+    return '<div dir="ltr">' + linked.replace("\n", "<br>\n") + "</div>"
 
 
 async def _record_outbound(conn, contact_id: str, identity_id: int, email: str, subject: str, body: str,
@@ -319,17 +323,17 @@ async def _deliver(conn, identity: dict, contact_id: str, email: str, subject: s
     """Sends one handoff email from `identity` and records it: plain text +
     a bare Gmail-style HTML twin (_to_html) — no open-tracking pixel
     (dropped 2026-09-24; the campaign is judged on reply / positive-reply
-    rate). Unsubscribe link in the footer, plus List-Unsubscribe for
-    Gmail/Yahoo's one-click opt-out (Gmail identities only — Graph rejects
-    that header)."""
+    rate). Reply-to-opt-out line (_OPT_OUT_LINE) instead of a visible
+    unsubscribe link, plus List-Unsubscribe for Gmail/Yahoo's one-click
+    opt-out (Gmail identities only — Graph rejects that header)."""
     tracking_token = None
     unsubscribe_url = _unsubscribe_url(contact_id)
     plain = _strip_bold(body)
     try:
         message_id = await email_identities.send_from_identity(
             identity, email, _strip_bold(subject),
-            f"{plain}\n\n--\nNot interested? Unsubscribe: {unsubscribe_url}",
-            html=_to_html(body, unsubscribe_url),
+            f"{plain}\n\n{_OPT_OUT_LINE}",
+            html=_to_html(f"{body}\n\n{_OPT_OUT_LINE}"),
             headers={"List-Unsubscribe": f"<{unsubscribe_url}>"},
         )
     except Exception as e:
@@ -421,6 +425,10 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
     if identity_id:
         identity = await conn.fetchrow("SELECT * FROM email_send_identities WHERE id = $1", identity_id)
         identity = dict(identity) if identity else None
+        if identity and identity["status"] != "active":
+            # Sticky identity was demoted (back to warming, or paused) —
+            # hold its Touch 2/3 follow-ups too, not just new Touch 1s.
+            return False
     else:
         provider = await email_identities.get_cached_provider(conn, row)
         identity = await email_identities.pick_identity(conn, provider)
