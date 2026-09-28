@@ -132,9 +132,21 @@ function panelFromLocation() {
   return VALID_PANELS.has(p) ? p : "home";
 }
 
+// Deep link into a specific Inbox thread, e.g. the "Open in Inbox" links the
+// SMS setter puts on prospect to-dos: ?panel=inbox&contact=<id> (or &phone=).
+function navContextFromLocation() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("panel") !== "inbox") return null;
+  const contactId = params.get("contact");
+  const phone = params.get("phone");
+  if (contactId) return { contactId };
+  if (phone) return { phone };
+  return null;
+}
+
 export default function App() {
   const [active, setActive] = useState(panelFromLocation);
-  const [navContext, setNavContext] = useState(null);
+  const [navContext, setNavContext] = useState(navContextFromLocation);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const prevActiveRef = useRef("home");
 
@@ -144,13 +156,18 @@ export default function App() {
     if (VALID_PANELS.has(panel)) {
       const url = new URL(window.location.href);
       url.searchParams.set("panel", panel);
+      url.searchParams.delete("contact");
+      url.searchParams.delete("phone");
       window.history.pushState({ panel }, "", url);
     }
   };
 
   // Back/forward browser navigation between panels
   useEffect(() => {
-    const onPopState = () => setActive(panelFromLocation());
+    const onPopState = () => {
+      setNavContext(navContextFromLocation());
+      setActive(panelFromLocation());
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);

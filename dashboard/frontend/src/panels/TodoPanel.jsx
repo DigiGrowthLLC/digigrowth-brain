@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { easternToday } from "../easternTime.js";
 import { API } from "../api.js";
+import { linkify, inboxLinkFrom, InboxLinkButton } from "../linkify.jsx";
 
 const RECURRENCE_LABELS = {
   daily:    "↻ daily",
@@ -38,18 +39,6 @@ function fmtTime(hhmm) {
   const [h, m] = hhmm.split(":").map(Number);
   const d = new Date(2000, 0, 1, h, m);
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-
-// Turns bare URLs in plain text into clickable links, leaving everything
-// else as-is — descriptions are just freeform notes, not markdown.
-function linkify(text) {
-  const parts = text.split(/(https?:\/\/[^\s]+)/g);
-  return parts.map((part, i) =>
-    /^https?:\/\//.test(part)
-      ? <a key={i} href={part} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-          style={{ color: "#3a7bd5", wordBreak: "break-all" }}>{part}</a>
-      : <React.Fragment key={i}>{part}</React.Fragment>
-  );
 }
 
 function TodoItem({ todo, onComplete, onDelete, onSaveDescription }) {
@@ -104,6 +93,7 @@ function TodoItem({ todo, onComplete, onDelete, onSaveDescription }) {
             }} />
           )}
         </span>
+        <InboxLinkButton href={inboxLinkFrom(todo.description)} />
 
         {/* Recurrence badge */}
         {todo.recurrence && (

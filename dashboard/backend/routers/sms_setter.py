@@ -164,6 +164,7 @@ async def worker_queue(limit: int = 5):
         await sms_setter_ai.record_heartbeat(conn)
         mode = await sms_setter_ai.get_mode(conn)
         await sms_setter_ai.task_todos(conn)
+        await sms_setter_ai.backfill_todo_links(conn)
         items = []
         # Explicit REGENERATE requests first — they work even in "off" mode
         # (Dylan clicked the button himself).

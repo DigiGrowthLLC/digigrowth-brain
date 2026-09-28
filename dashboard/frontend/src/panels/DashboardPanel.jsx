@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { API } from "../api.js";
+import { linkify, inboxLinkFrom, InboxLinkButton } from "../linkify.jsx";
 
 function timeAgo(ts) {
   if (!ts) return "";
@@ -86,18 +87,6 @@ function ChartTooltip({ active, payload, label }) {
 
 // ── To-Do (dashboard widget — today + overdue only) ──────────────────────────
 
-// Turns bare URLs in plain text into clickable links, leaving everything
-// else as-is — descriptions are just freeform notes, not markdown.
-function linkifyText(text) {
-  const parts = text.split(/(https?:\/\/[^\s]+)/g);
-  return parts.map((part, i) =>
-    /^https?:\/\//.test(part)
-      ? <a key={i} href={part} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
-          style={{ color: "#3a7bd5", wordBreak: "break-all" }}>{part}</a>
-      : <React.Fragment key={i}>{part}</React.Fragment>
-  );
-}
-
 function TodoWidgetRow({ t, overdue, onComplete, onRemove, onSaveDescription }) {
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(t.description || "");
@@ -130,6 +119,7 @@ function TodoWidgetRow({ t, overdue, onComplete, onRemove, onSaveDescription }) 
             <span title="Has notes" style={{ width: 5, height: 5, borderRadius: "50%", flexShrink: 0, background: "#3a7bd5" }} />
           )}
         </span>
+        <InboxLinkButton href={inboxLinkFrom(t.description)} />
         {t.due_date && (
           <span style={{
             fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
@@ -156,7 +146,7 @@ function TodoWidgetRow({ t, overdue, onComplete, onRemove, onSaveDescription }) 
             style={{ width: "100%", fontSize: 12, resize: "vertical", boxSizing: "border-box" }}
           />
           {draft.trim() && (
-            <div style={{ fontSize: 11, lineHeight: 1.5, color: "#5a7faa" }}>{linkifyText(draft)}</div>
+            <div style={{ fontSize: 11, lineHeight: 1.5, color: "#5a7faa" }}>{linkify(draft)}</div>
           )}
         </div>
       )}

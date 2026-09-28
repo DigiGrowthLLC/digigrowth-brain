@@ -447,6 +447,52 @@ async def _resolve_template(conn, draft: dict, contact: dict) -> None:
         draft["rationale"] = "Call To Action step came back with unfilled [Day]/[time]. " + draft["rationale"]
 
 
+def inbox_link(contact_id: str | None, phone: str) -> str:
+    """A link that opens this prospect's thread in the OS Inbox (App.jsx
+    reads ?panel=inbox&contact=/&phone=). The To-Do list renders it as a
+    clickable "Open in Inbox" link and an INBOX button on the row."""
+    from urllib.parse import urlencode
+
+    import dialer_engine
+
+    base = (os.environ.get("DASHBOARD_URL") or dialer_engine.base_url() or "").rstrip("/")
+    query = {"panel": "inbox", **({"contact": contact_id} if contact_id else {"phone": phone})}
+    return f"{base}/?{urlencode(query)}"
+
+
+_PHONE_IN_TEXT = re.compile(r"\(\d{3}\) \d{3}-\d{4}|\+?1?\d{10}")
+
+
+async def backfill_todo_links(conn) -> int:
+    """One-time-per-to-do upgrade for prospect to-dos created before they
+    carried an Inbox link: swaps the old "…in the Inbox" wording for the
+    link. Runs on each worker poll; a no-op once none are left."""
+    rows = await conn.fetch(
+        """
+        SELECT id, description, sms_reply_phone FROM todos
+        WHERE NOT done
+          AND (description LIKE '%· open their thread in the Inbox.%' OR description LIKE '%· full thread in the Inbox.%')
+        """
+    )
+    for r in rows:
+        phone = r["sms_reply_phone"]
+        if not phone:
+            m = _PHONE_IN_TEXT.search(r["description"] or "")
+            phone = m.group(0) if m else None
+        if not phone:
+            continue
+        contact_id = await conn.fetchval(
+            "SELECT contact_id FROM sms_conversations WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1",
+            _digits(phone),
+        )
+        link = f"Open in Inbox: {inbox_link(contact_id, phone)}"
+        desc = (r["description"]
+                .replace("open their thread in the Inbox. This clears itself", f"{link}\n\nThis clears itself")
+                .replace("full thread in the Inbox.", link))
+        await conn.execute("UPDATE todos SET description = $2 WHERE id = $1", r["id"], desc)
+    return len(rows)
+
+
 async def _open_reply_todo(conn, phone: str) -> int | None:
     return await conn.fetchval(
         "SELECT id FROM todos WHERE NOT done AND right(regexp_replace(sms_reply_phone, '\\D', '', 'g'), 10) = $1 LIMIT 1",
@@ -474,7 +520,8 @@ async def ensure_reply_todo(conn, phone: str, contact: dict, reason: str) -> int
     last_inbound = next((m["body"] for m in reversed(msgs) if m["direction"] == "inbound"), "")
     description = (
         f"{reason}\n\nTheir last text: \"{last_inbound.strip()[:300]}\"\n\n"
-        f"{phone} · open their thread in the Inbox. This clears itself when you text them."
+        f"{phone} · Open in Inbox: {inbox_link(contact.get('contact_id'), phone)}\n\n"
+        "This clears itself when you text them."
     )
     return await conn.fetchval(
         "INSERT INTO todos (text, description, due_date, sms_reply_phone) VALUES ($1, $2, $3, $4) RETURNING id",
@@ -520,7 +567,10 @@ async def task_todos(conn) -> int:
         at = f" ({contact['business']})" if contact.get("business") else ""
         msgs = await _thread_messages(conn, r["phone"])
         last_inbound = next((m["body"] for m in reversed(msgs) if m["direction"] == "inbound"), "").strip()[:300]
-        context = f"Their last text: \"{last_inbound}\"\n\n{r['phone']} · full thread in the Inbox."
+        context = (
+            f"Their last text: \"{last_inbound}\"\n\n"
+            f"{r['phone']} · Open in Inbox: {inbox_link(contact.get('contact_id'), r['phone'])}"
+        )
 
         if r["action"] == "handoff":
             await ensure_reply_todo(conn, r["phone"], contact, f"AI setter handed this to you: {r['rationale']}")
