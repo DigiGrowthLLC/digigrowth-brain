@@ -233,6 +233,7 @@ function ComposeModal({ onClose, onSent }) {
 const AI_ACTION_META = {
   reply:                 { label: "REPLY",            color: "#3a7bd5" },
   book:                  { label: "BOOK CALL",        color: "#14c882" },
+  send_template:         { label: "SEQUENCE",         color: "#3a7bd5" },
   send_pitch:            { label: "SEND PITCH",       color: "#3a7bd5" },
   send_gatekeeper_pitch: { label: "GATEKEEPER PITCH", color: "#3a7bd5" },
   capture_email:         { label: "CAPTURE EMAIL",    color: "#e0a030" },
@@ -310,6 +311,18 @@ function SetterModeBar() {
   );
 }
 
+// Sequence step key -> the Inbox SEQUENCE menu's label (routers/sms.py SEQUENCE_STEPS)
+const SEQUENCE_STEP_LABELS = {
+  gatekeeper: "0. Gatekeeper Message", curiosity_opener: "1. Initial Message", relevance: "2. Primed Message",
+  guarantee: "3. Engaged Message", ask: "4. Call To Action", cta: "5. Booking Link",
+};
+
+// Which sequence step a draft is (new send_template drafts, plus pre-rename pitch drafts)
+function draftTemplateKey(draft) {
+  if (draft.action === "send_template") return draft.details?.template || null;
+  return { send_pitch: "curiosity_opener", send_gatekeeper_pitch: "gatekeeper" }[draft.action] || null;
+}
+
 const STAGE_LABELS = {
   dm_reached: "DM Reached", primed: "Primed", engaged: "Engaged",
   interested: "Interested", not_interested: "Not Interested",
@@ -333,7 +346,7 @@ function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate, onBook
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
         <span style={{ ...mono, color: "#5a6f8f" }}>AI DRAFT</span>
         <span style={{ ...mono, color: meta.color, border: `1px solid ${meta.color}66`, borderRadius: 4, padding: "1px 6px" }}>
-          {meta.label}
+          {meta.label}{draftTemplateKey(draft) ? ` · ${SEQUENCE_STEP_LABELS[draftTemplateKey(draft)].toUpperCase()}` : ""}
         </span>
         {used && <span style={{ ...mono, color: "#14c882" }}>IN REPLY BOX</span>}
         <div style={{ flex: 1 }} />
@@ -519,9 +532,9 @@ export default function InboxPanel({ initialTarget }) {
     setReplyChannel("sms");
     setReplyText(aiDraft.reply || "");
     setUsedDraftId(aiDraft.id);
-    const templateStage = { send_pitch: "curiosity_opener", send_gatekeeper_pitch: "gatekeeper" }[aiDraft.action];
+    const templateStage = draftTemplateKey(aiDraft);
     setAppliedStage(templateStage || null);
-    setAppliedStageLabel(templateStage ? (aiDraft.action === "send_pitch" ? "1. Initial Message" : "0. Gatekeeper Message") : null);
+    setAppliedStageLabel(templateStage ? SEQUENCE_STEP_LABELS[templateStage] : null);
   };
 
   const dismissAiDraft = async () => {

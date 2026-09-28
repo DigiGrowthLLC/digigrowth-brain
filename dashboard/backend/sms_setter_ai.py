@@ -59,15 +59,15 @@ _MIN_LEAD_HOURS = 3            # never offer/accept a call sooner than this
 # Auto-mode guardrails
 AUTO_SEND_HOURS = (8, 20)      # prospect's local time, [start, end)
 AUTO_MAX_SENDS_PER_DAY = 4     # per thread — stops an auto-reply ping-pong loop
-AUTO_ACTIONS = {"reply", "book", "send_pitch", "send_gatekeeper_pitch", "capture_email",
-                "follow_up", "close_not_interested", "opt_out"}
+AUTO_ACTIONS = {"reply", "book", "send_template", "capture_email",
+                "gatekeeper_relay", "follow_up", "close_not_interested", "opt_out"}
 
 ACTIONS = [
     "reply",                  # ordinary next message in the conversation
     "book",                   # agreed time + email — auto mode books it; draft mode, Dylan does
-    "send_pitch",             # unpitched owner — Dylan's curiosity_opener template
-    "send_gatekeeper_pitch",  # unpitched front desk/assistant — the gatekeeper template
-    "capture_email",          # they asked for info by email / gave the owner's email
+    "send_template",          # send one of Dylan's SMS sequence steps (the default whenever one fits)
+    "capture_email",          # they asked for info by email / gave the owner's email (to-do: email them)
+    "gatekeeper_relay",       # front desk will pass the message along (to-do: follow up with the owner)
     "follow_up",              # asked to be contacted later
     "close_not_interested",
     "opt_out",
@@ -79,7 +79,12 @@ DRAFT_SCHEMA = {
     "type": "object",
     "properties": {
         "action": {"type": "string", "enum": ACTIONS},
-        "reply": {"type": "string", "description": "Exact SMS text to send. Empty when the playbook says to leave it empty."},
+        "template": {
+            "type": "string",
+            "enum": ["", "gatekeeper", "curiosity_opener", "relevance", "guarantee", "ask", "cta"],
+            "description": "action=send_template: which sequence step. Otherwise empty.",
+        },
+        "reply": {"type": "string", "description": "Exact SMS text to send. For send_template, the step's text (for the ask step, with [Day]/[time] filled in). Empty when the playbook says to leave it empty."},
         "booking_date": {"type": "string", "description": "action=book: YYYY-MM-DD. Otherwise empty."},
         "booking_time": {"type": "string", "description": "action=book: HH:MM 24h, prospect's local time. Otherwise empty."},
         "email": {"type": "string", "description": "book/capture_email: the email given. Otherwise empty."},
@@ -91,7 +96,7 @@ DRAFT_SCHEMA = {
         },
         "rationale": {"type": "string", "description": "One short line for Dylan on why this is the right move."},
     },
-    "required": ["action", "reply", "booking_date", "booking_time", "email", "follow_up_date", "stages", "rationale"],
+    "required": ["action", "template", "reply", "booking_date", "booking_time", "email", "follow_up_date", "stages", "rationale"],
     "additionalProperties": False,
 }
 
@@ -199,7 +204,37 @@ def format_open_slots(slots_utc: list[datetime] | None, tz_name: str, now: datet
     return "\n".join(f"- {day}: {', '.join(times)}" for day, times in days.items())
 
 
-def build_user_message(contact: dict, messages: list[dict], tz_name: str, now: datetime, open_slots: str) -> str:
+SEQUENCE_KEYS = ("gatekeeper", "curiosity_opener", "relevance", "guarantee", "ask", "cta")
+VERBATIM_TEMPLATES = {"gatekeeper", "curiosity_opener", "relevance", "guarantee", "cta"}
+_SEQUENCE_LABELS = {"gatekeeper": "0. Gatekeeper", "curiosity_opener": "1. Initial", "relevance": "2. Primed",
+                    "guarantee": "3. Engaged", "ask": "4. Call To Action", "cta": "5. Booking Link"}
+
+
+def merge_sequence(sequence_row: dict | None, contact: dict) -> dict:
+    """Dylan's default SMS sequence (Outreach Templates) with merge fields
+    filled for this contact — key -> text, empty steps dropped."""
+    from merge_fields import apply_merge_fields
+
+    if not sequence_row:
+        return {}
+    return {
+        k: apply_merge_fields(sequence_row[k].strip(), contact)
+        for k in SEQUENCE_KEYS if (sequence_row.get(k) or "").strip()
+    }
+
+
+def _render_sequence(templates: dict, messages: list[dict]) -> str:
+    if not templates:
+        return "(no sequence configured)"
+    sent = {m.get("stage") for m in messages if m.get("direction") == "outbound"}
+    return "\n".join(
+        f"[{k}] {_SEQUENCE_LABELS[k]}{' (ALREADY SENT in this thread)' if k in sent else ''}:\n{text}"
+        for k, text in templates.items()
+    )
+
+
+def build_user_message(contact: dict, messages: list[dict], tz_name: str, now: datetime, open_slots: str,
+                       templates: dict | None = None) -> str:
     tz = ZoneInfo(tz_name)
     local_now = now.astimezone(tz)
     abbrev = tz_abbrev(tz_name, now)
@@ -213,10 +248,10 @@ def build_user_message(contact: dict, messages: list[dict], tz_name: str, now: d
         info.append(f"Email on file: {contact['email']}")
     if contact.get("opener"):
         info.append(f"What we noted about the practice: {contact['opener']}")
-    pitched = "yes" if has_been_pitched(messages) else "no (see 'Choosing the pitch template')"
     return (
         "Contact info:\n" + "\n".join(f"- {line}" for line in info)
-        + f"\n\nAlready received Dylan's pitch template: {pitched}"
+        + "\n\nDylan's SMS sequence for this prospect (use it by default, see 'Stick to the sequence'):\n"
+        + _render_sequence(templates or {}, messages)
         + f"\nIt's now {local_now.strftime('%A, %B')} {local_now.day}, {local_now.year}, {_clock(local_now)} {abbrev}."
         + f"\n\nDylan's open discovery-call slots ({abbrev}, 20 min on Google Meet):\n{open_slots}"
         + "\n\nConversation so far:\n" + render_transcript(messages, tz)
@@ -226,8 +261,15 @@ def build_user_message(contact: dict, messages: list[dict], tz_name: str, now: d
 
 def normalize_draft(result: dict) -> dict:
     draft = {k: (result.get(k) or "") for k in DRAFT_SCHEMA["properties"] if k != "stages"}
+    legacy = {"send_pitch": "curiosity_opener", "send_gatekeeper_pitch": "gatekeeper"}
+    if draft["action"] in legacy:
+        draft["action"], draft["template"] = "send_template", legacy[draft["action"]]
     if draft["action"] not in ACTIONS:
         draft["action"] = "handoff"
+    if draft["action"] == "send_template" and draft["template"] not in SEQUENCE_KEYS:
+        draft["action"] = "reply"
+    if draft["action"] != "send_template":
+        draft["template"] = ""
     # Funnel stages are cumulative: anyone Interested was also Primed and
     # Engaged, so a later-stage mark fills in the earlier ones (DM Reached
     # is separate — a front desk can be primed, the owner never reached).
@@ -360,6 +402,7 @@ async def build_queue(conn, limit: int = 5, phone: str | None = None) -> list[di
         return []
 
     slots = await open_slots_utc(conn)
+    sequence = await _default_sequence(conn)
     now = datetime.now(timezone.utc)
     items = []
     for r in rows:
@@ -372,21 +415,35 @@ async def build_queue(conn, limit: int = 5, phone: str | None = None) -> list[di
             "phone": r["phone"],
             "business": r["business"],
             "last_inbound_at": last_inbound.isoformat() if last_inbound else None,
-            "prompt": build_user_message(dict(r), msgs, tz_name, now, format_open_slots(slots, tz_name, now)),
+            "prompt": build_user_message(
+                dict(r), msgs, tz_name, now, format_open_slots(slots, tz_name, now),
+                merge_sequence(sequence, dict(r)),
+            ),
         })
     return items
 
 
-async def _template_text(conn, action: str, contact: dict) -> str:
-    """Dylan's own pitch templates (Outreach Templates → default SMS
-    sequence), merged for this contact — the AI picks which one, never
-    rewrites it."""
-    from merge_fields import apply_merge_fields
+async def _default_sequence(conn) -> dict | None:
+    """The sequence the Inbox's SEQUENCE button serves (is_default)."""
+    row = await conn.fetchrow("SELECT * FROM sms_sequences WHERE is_default = true LIMIT 1")
+    return dict(row) if row else None
 
-    column = "curiosity_opener" if action == "send_pitch" else "gatekeeper"
-    row = await conn.fetchrow(f"SELECT {column} AS body FROM sms_sequences WHERE is_default = true LIMIT 1")
-    body = (row["body"] or "").strip() if row else ""
-    return apply_merge_fields(body, contact) if body else ""
+
+async def _resolve_template(conn, draft: dict, contact: dict) -> None:
+    """For send_template: the sent text is Dylan's template word for word —
+    the model only picks WHICH step. The one exception is the Call To
+    Action step, whose [Day]/[time] placeholders the model fills from real
+    open slots; if it left any unfilled, it becomes a handoff rather than
+    texting a prospect "[Day] at [time]"."""
+    if draft["action"] != "send_template":
+        return
+    templates = merge_sequence(await _default_sequence(conn), contact)
+    key = draft["template"]
+    if key in VERBATIM_TEMPLATES and templates.get(key):
+        draft["reply"] = templates[key]
+    elif key == "ask" and ("[" in draft["reply"] or not draft["reply"].strip()):
+        draft["action"], draft["template"] = "handoff", ""
+        draft["rationale"] = "Call To Action step came back with unfilled [Day]/[time]. " + draft["rationale"]
 
 
 async def _open_reply_todo(conn, phone: str) -> int | None:
@@ -425,20 +482,69 @@ async def ensure_reply_todo(conn, phone: str, contact: dict, reason: str) -> int
     )
 
 
-async def handoff_todos(conn) -> int:
-    """Makes sure every pending handoff draft has its "Reply to" to-do —
-    run on each new handoff and on every worker poll, which also covers
-    handoffs drafted before to-dos existed. Flagged per draft so a to-do
-    Dylan deletes by hand isn't recreated for that same handoff."""
+async def _task_todo(conn, phone: str, contact: dict, text: str, description: str, due) -> None:
+    """A to-do that ISN'T cleared by texting the prospect (the task is an
+    email or a later follow-up, not a text reply) and doesn't pause auto
+    mode. Skipped if the same task is already open."""
+    if await conn.fetchval("SELECT 1 FROM todos WHERE NOT done AND text = $1", text):
+        return
+    await conn.execute(
+        "INSERT INTO todos (text, description, due_date) VALUES ($1, $2, $3)", text, description, due,
+    )
+
+
+async def task_todos(conn) -> int:
+    """Puts a to-do on Dylan's list for every draft that needs him outside
+    the text thread — run on each new draft and on every worker poll (which
+    also backfills pending drafts from before this existed). Flagged per
+    draft so a to-do Dylan deletes by hand isn't recreated.
+      handoff           "Reply to X by text" (clears when he texts them)
+      capture_email     "Email X at <email>"
+      gatekeeper_relay  "Follow up with X" (front desk said they'd pass it on), due tomorrow
+      follow_up         "Follow up with X", due on the date they gave"""
     rows = await conn.fetch(
-        f"""
-        SELECT d.id, d.phone, d.rationale FROM sms_ai_drafts d
-        WHERE d.status = 'pending' AND d.action = 'handoff' AND d.details->>'todo_created' IS NULL
+        """
+        SELECT id, phone, action, rationale, details FROM sms_ai_drafts
+        WHERE action IN ('handoff', 'capture_email', 'gatekeeper_relay', 'follow_up')
+          AND details->>'todo_created' IS NULL
+          AND (status = 'pending' OR (status IN ('sent', 'auto_sent') AND created_at > now() - interval '14 days'))
         """,
     )
+    today = datetime.now(ZoneInfo("America/New_York")).date()
     for r in rows:
         conv = await conn.fetchrow(_CONV_SELECT + " WHERE sc.phone = $1", r["phone"])
-        await ensure_reply_todo(conn, r["phone"], dict(conv) if conv else {}, f"AI setter handed this to you: {r['rationale']}")
+        contact = dict(conv) if conv else {}
+        details = json.loads(r["details"]) if isinstance(r["details"], str) else dict(r["details"] or {})
+        who = contact.get("owner") or "the owner"
+        at = f" ({contact['business']})" if contact.get("business") else ""
+        msgs = await _thread_messages(conn, r["phone"])
+        last_inbound = next((m["body"] for m in reversed(msgs) if m["direction"] == "inbound"), "").strip()[:300]
+        context = f"Their last text: \"{last_inbound}\"\n\n{r['phone']} · full thread in the Inbox."
+
+        if r["action"] == "handoff":
+            await ensure_reply_todo(conn, r["phone"], contact, f"AI setter handed this to you: {r['rationale']}")
+        elif r["action"] == "capture_email":
+            email = details.get("email") or contact.get("email") or "(email in thread)"
+            await _task_todo(
+                conn, r["phone"], contact, f"Email {who}{at} at {email}",
+                f"They asked for info by email (or the front desk gave the owner's email). Send it and pitch "
+                f"the 20-min call.\n\n{context}", today,
+            )
+        elif r["action"] == "gatekeeper_relay":
+            await _task_todo(
+                conn, r["phone"], contact, f"Follow up with {who}{at}",
+                f"The front desk said they'd pass your message along. If {who} hasn't reached out, call the "
+                f"office or try them directly.\n\n{context}", today + timedelta(days=1),
+            )
+        elif r["action"] == "follow_up":
+            try:
+                due = datetime.strptime(details.get("follow_up_date") or "", "%Y-%m-%d").date()
+            except ValueError:
+                due = today + timedelta(days=7)
+            await _task_todo(
+                conn, r["phone"], contact, f"Follow up with {who}{at}",
+                f"They asked you to reach back out around now. {r['rationale']}\n\n{context}", due,
+            )
         await conn.execute(
             "UPDATE sms_ai_drafts SET details = details || jsonb_build_object('todo_created', true) WHERE id = $1",
             r["id"],
@@ -510,9 +616,8 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
 
     draft = normalize_draft(result)
     contact = dict(conv)
-    if draft["action"] in ("send_pitch", "send_gatekeeper_pitch"):
-        draft["reply"] = await _template_text(conn, draft["action"], contact) or draft["reply"]
-    details = {k: draft[k] for k in ("booking_date", "booking_time", "email", "follow_up_date")}
+    await _resolve_template(conn, draft, contact)
+    details = {k: draft[k] for k in ("template", "booking_date", "booking_time", "email", "follow_up_date")}
     details["stages_marked"] = await apply_stages(conn, conv["phone"], conv["contact_id"], draft)
 
     async with conn.transaction():
@@ -529,8 +634,7 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
             draft["rationale"], model, current_inbound,
         )
 
-    if draft["action"] == "handoff":
-        await handoff_todos(conn)
+    await task_todos(conn)
 
     outcome = None
     if await get_mode(conn) == "auto":
@@ -595,10 +699,11 @@ async def try_auto_send(conn, draft_id: int) -> str:
 
     reply = (d["reply"] or "").strip()
     if reply:
-        # Pitch templates keep their sequence stage (has_been_pitched and
-        # the funnel analytics key off it); everything else is tagged
+        # Sequence steps keep their sequence stage tag, same as sending
+        # them from the Inbox's SEQUENCE menu (has_been_pitched and the
+        # funnel analytics key off it); everything else is tagged
         # ai_setter so AI-sent vs. hand-sent can be compared later.
-        stage = {"send_pitch": "curiosity_opener", "send_gatekeeper_pitch": "gatekeeper"}.get(d["action"], "ai_setter")
+        stage = details.get("template") if d["action"] == "send_template" and details.get("template") else "ai_setter"
         result = await sms_router.manual_send({"phone": d["phone"], "body": reply, "stage": stage, "ai_draft_id": d["id"]})
         if not result.get("ok"):
             await ensure_reply_todo(conn, d["phone"], dict(conv), f"Auto-send failed ({result.get('error')}). The drafted reply is in the Inbox.")
