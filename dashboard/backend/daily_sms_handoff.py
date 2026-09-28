@@ -20,6 +20,10 @@ spam (and would bring every reply back at once). Pacing them through
 send_opening_message() — the same function the CRM's own sms-handoff status
 change calls — keeps each one identical to a manual handoff, just spread out.
 
+Openers only go out while the AI setter worker on Dylan's PC is online
+(sms_setter_ai.worker_status), so replies get answered right away; with the
+PC off, stamped contacts just wait and go out once it's back on.
+
 contacts.auto_handoff_opener_at records each opener attempt, so a Railway
 redeploy mid-morning resumes where it left off instead of dropping or
 double-sending anyone. A contact moved out of sms-handoff by hand before its
@@ -72,7 +76,7 @@ async def move_new_to_handoff() -> int:
                 "INSERT INTO agent_messages (agent, message) VALUES ($1, $2)",
                 "sms-handoff",
                 f"Moved {len(rows)} new prospect(s) to SMS Handoff. Openers go out through the morning, "
-                f"8am+ in each prospect's own time."
+                f"8am+ in each prospect's own time, while your PC's AI setter is online."
                 + (f" {skipped} new prospect(s) have no phone number and were left as new." if skipped else ""),
             )
     print(f"[daily-sms-handoff] moved {len(rows)} new -> sms-handoff ({skipped} left without phone)", flush=True)
@@ -90,8 +94,16 @@ async def send_due_openers() -> int:
     # imports).
     from routers import sms as sms_router
 
+    import sms_setter_ai
+
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # Only while the AI setter on Dylan's PC is online, so every reply
+        # to an opener gets answered in about a minute instead of sitting
+        # unanswered all day. The 8am status move still happens regardless;
+        # waiting openers go out once the PC is back.
+        if not (await sms_setter_ai.worker_status(conn))["worker_online"]:
+            return 0
         rows = await conn.fetch(
             """
             SELECT id, phone, owner, email, business FROM contacts
