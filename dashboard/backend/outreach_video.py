@@ -28,11 +28,9 @@ at a time; email_handoff_sequence.py holds any touch that uses {loom} until
 the prospect's loom_url is set (or LOOM_MAX_ATTEMPTS generations fail).
 """
 import asyncio
-import os
 import re
 import shutil
 import tempfile
-from datetime import date
 from pathlib import Path
 
 import r2_storage
