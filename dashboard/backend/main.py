@@ -21,7 +21,7 @@ import email_warmup
 import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
-from routers import crm, sms, sms_sequences, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin
+from routers import crm, sms, sms_sequences, sms_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin
 import call_reminders
 import cancel_sequence
 import client_appointment_reminders
@@ -520,6 +520,7 @@ app.include_router(email_identities.router, prefix="/api", dependencies=[Depends
 app.include_router(dialer_webhooks.router)     # public — Twilio voice webhooks
 app.include_router(dialer.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms_sequences.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(sms_setter.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(cold_call_scripts.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(dashboard.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(agents.router, prefix="/api", dependencies=[Depends(require_auth)])

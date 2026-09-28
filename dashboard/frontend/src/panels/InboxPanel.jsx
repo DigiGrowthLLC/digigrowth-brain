@@ -230,6 +230,130 @@ function ComposeModal({ onClose, onSent }) {
 
 // ── Main panel ────────────────────────────────────────────────────────────────
 
+const AI_ACTION_META = {
+  reply:                 { label: "REPLY",            color: "#3a7bd5" },
+  book:                  { label: "BOOK CALL",        color: "#14c882" },
+  send_pitch:            { label: "SEND PITCH",       color: "#3a7bd5" },
+  send_gatekeeper_pitch: { label: "GATEKEEPER PITCH", color: "#3a7bd5" },
+  capture_email:         { label: "CAPTURE EMAIL",    color: "#e0a030" },
+  follow_up:             { label: "FOLLOW UP LATER",  color: "#e0a030" },
+  close_not_interested:  { label: "CLOSE · NOT INTERESTED", color: "#dc3c3c" },
+  opt_out:               { label: "OPT OUT",          color: "#dc3c3c" },
+  handoff:               { label: "HANDLE PERSONALLY", color: "#e0a030" },
+  none:                  { label: "NO REPLY NEEDED",  color: "#5a6f8f" },
+};
+
+// AI setter mode switch (see sms_setter_ai.py). The drafting itself runs on
+// Dylan's PC (apptset-agent/sms_setter_worker.py), so the dot shows whether
+// that worker has checked in recently — offline means nothing drafts or
+// sends, whatever the mode says.
+function SetterModeBar() {
+  const [state, setState] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(API("/sms-setter/mode"));
+      if (r.ok) setState(await r.json());
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const setMode = async (mode) => {
+    if (!state || mode === state.mode || saving) return;
+    if (mode === "auto" && !window.confirm(
+      "Turn on AUTO mode? The AI setter will text prospects and book Google Meet calls on its own " +
+      "(8am-8pm their time, max 4 texts per thread per day). Handoffs still wait for you."
+    )) return;
+    setSaving(true);
+    try {
+      const r = await fetch(API("/sms-setter/mode"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      if (r.ok) setState(await r.json());
+    } catch {}
+    setSaving(false);
+  };
+
+  if (!state) return null;
+  const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em" };
+  const modeColor = { off: "#5a6f8f", draft: "#3a7bd5", auto: "#14c882" };
+  return (
+    <div style={{ padding: "8px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ ...mono, color: "#5a6f8f" }}>AI SETTER</span>
+      <span
+        title={state.worker_last_seen ? `Last check-in ${new Date(state.worker_last_seen).toLocaleString()}` : "Never checked in"}
+        style={{ ...mono, color: state.worker_online ? "#14c882" : "#dc3c3c", display: "flex", alignItems: "center", gap: 4 }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: 3, background: state.worker_online ? "#14c882" : "#dc3c3c" }} />
+        {state.worker_online ? "PC ONLINE" : "PC OFFLINE"}
+      </span>
+      <div style={{ flex: 1 }} />
+      {["off", "draft", "auto"].map(m => (
+        <button key={m} onClick={() => setMode(m)} disabled={saving}
+          style={{
+            ...mono, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
+            border: `1px solid ${state.mode === m ? modeColor[m] : "rgba(58,123,213,0.2)"}`,
+            background: state.mode === m ? `${modeColor[m]}22` : "transparent",
+            color: state.mode === m ? modeColor[m] : "#5a6f8f",
+          }}>
+          {m.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate }) {
+  const meta = AI_ACTION_META[draft.action] || AI_ACTION_META.reply;
+  const d = draft.details || {};
+  const detail =
+    draft.action === "book" ? `Send Meet invite: ${d.booking_date} ${d.booking_time} → ${d.email || "(no email yet)"}`
+    : draft.action === "capture_email" ? `Email: ${d.email}`
+    : draft.action === "handoff" ? "Handle this one yourself"
+    : draft.action === "follow_up" ? `Reach back out ${d.follow_up_date}`
+    : null;
+  const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em" };
+  return (
+    <div className="glass-card-sm" style={{
+      marginBottom: 10, padding: "10px 12px", border: `1px solid ${meta.color}55`,
+      background: "rgba(58,123,213,0.06)", borderRadius: 10,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ ...mono, color: "#5a6f8f" }}>AI DRAFT</span>
+        <span style={{ ...mono, color: meta.color, border: `1px solid ${meta.color}66`, borderRadius: 4, padding: "1px 6px" }}>
+          {meta.label}
+        </span>
+        {used && <span style={{ ...mono, color: "#14c882" }}>IN REPLY BOX</span>}
+        <div style={{ flex: 1 }} />
+        <button onClick={onRegenerate} disabled={busy} className="btn btn-ghost" style={{ fontSize: 9, padding: "2px 8px" }}>
+          {busy ? "..." : "REGENERATE"}
+        </button>
+        <button onClick={onDismiss} disabled={busy} className="btn btn-ghost" style={{ fontSize: 9, padding: "2px 8px" }}>
+          DISMISS
+        </button>
+        {draft.reply && (
+          <button onClick={onUse} disabled={busy} className="btn btn-primary" style={{ fontSize: 9, padding: "2px 10px" }}>
+            USE
+          </button>
+        )}
+      </div>
+      {draft.reply
+        ? <div style={{ fontSize: 13, color: "#c4d0e8", whiteSpace: "pre-wrap", fontFamily: "'Space Grotesk', sans-serif" }}>{draft.reply}</div>
+        : <div style={{ fontSize: 12, color: "#5a6f8f", fontStyle: "italic" }}>No text to send.</div>}
+      {detail && <div style={{ ...mono, color: meta.color, marginTop: 6 }}>{detail}</div>}
+      {d.auto_note && <div style={{ ...mono, color: "#e0a030", marginTop: 6 }}>AUTO: {d.auto_note}</div>}
+      {draft.rationale && <div style={{ fontSize: 11, color: "#5a6f8f", marginTop: 4 }}>{draft.rationale}</div>}
+    </div>
+  );
+}
+
 export default function InboxPanel({ initialTarget }) {
   const [convos, setConvos]       = useState([]);
   const [selected, setSelected]   = useState(null); // contact_id
@@ -255,6 +379,11 @@ export default function InboxPanel({ initialTarget }) {
   const [seqSteps, setSeqSteps]     = useState([]);
   const [seqTitle, setSeqTitle]     = useState("");
   const [seqError, setSeqError]     = useState(null);
+  const [aiDraft, setAiDraft]       = useState(null);
+  const [aiDraftBusy, setAiDraftBusy] = useState(false);
+  const [usedDraftId, setUsedDraftId] = useState(null);
+  const [aiRegenerating, setAiRegenerating] = useState(false);
+  const [aiWorkerOffline, setAiWorkerOffline] = useState(false);
 
   const [channelFilter, setChannelFilter] = useState("all");
   const [timeFilter, setTimeFilter]       = useState("all");
@@ -341,6 +470,71 @@ export default function InboxPanel({ initialTarget }) {
     return () => clearInterval(id);
   }, [selected]);
 
+  // AI setter draft (sms_setter_ai.py) — polled alongside the thread so a
+  // draft generated ~45s after an inbound reply shows up without a reload.
+  const loadAiDraft = useCallback(async (phone) => {
+    if (!phone) { setAiDraft(null); return; }
+    try {
+      const r = await fetch(API(`/sms-setter/draft?phone=${encodeURIComponent(phone)}`));
+      if (r.ok) {
+        const data = await r.json();
+        setAiDraft(data.draft);
+        setAiRegenerating(!!data.regenerating);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    setAiDraft(null);
+    setUsedDraftId(null);
+    setAiRegenerating(false);
+    setAiWorkerOffline(false);
+    const phone = thread?.phone;
+    if (!phone) return;
+    loadAiDraft(phone);
+    const id = setInterval(() => loadAiDraft(phone), 8000);
+    return () => clearInterval(id);
+  }, [thread?.contact_id, thread?.phone, loadAiDraft]);
+
+  const useAiDraft = () => {
+    if (!aiDraft) return;
+    setReplyChannel("sms");
+    setReplyText(aiDraft.reply || "");
+    setUsedDraftId(aiDraft.id);
+    const templateStage = { send_pitch: "curiosity_opener", send_gatekeeper_pitch: "gatekeeper" }[aiDraft.action];
+    setAppliedStage(templateStage || null);
+    setAppliedStageLabel(templateStage ? (aiDraft.action === "send_pitch" ? "1. Initial Message" : "0. Gatekeeper Message") : null);
+  };
+
+  const dismissAiDraft = async () => {
+    if (!aiDraft) return;
+    setAiDraftBusy(true);
+    try { await fetch(API(`/sms-setter/draft/${aiDraft.id}/dismiss`), { method: "POST" }); } catch {}
+    setAiDraft(null);
+    setUsedDraftId(null);
+    setAiDraftBusy(false);
+  };
+
+  // Drafting runs on Dylan's PC — this just queues the request; the new
+  // draft appears on a later poll (within ~a minute if the worker is online).
+  const regenerateAiDraft = async () => {
+    if (!thread?.phone) return;
+    setAiDraftBusy(true);
+    try {
+      const r = await fetch(API("/sms-setter/draft/regenerate"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: thread.phone }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setAiRegenerating(true);
+        setAiWorkerOffline(!data.worker_online);
+      }
+    } catch {}
+    setUsedDraftId(null);
+    setAiDraftBusy(false);
+  };
+
   // Default the reply channel to whichever channel this contact most
   // recently used — a fresh contact card falls back to whichever channel
   // has a usable address.
@@ -375,8 +569,11 @@ export default function InboxPanel({ initialTarget }) {
             phone: thread.phone,
             body: replyText.trim(),
             ...(appliedStage ? { stage: appliedStage } : {}),
+            ...(usedDraftId ? { ai_draft_id: usedDraftId } : {}),
           }),
         });
+        setAiDraft(null);
+        setUsedDraftId(null);
       } else {
         await fetch(API("/email/send"), {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -560,6 +757,8 @@ export default function InboxPanel({ initialTarget }) {
             </button>
           </div>
         </div>
+
+        <SetterModeBar />
 
         {/* Filter bar */}
         <div style={{ padding: "10px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1024,6 +1223,18 @@ export default function InboxPanel({ initialTarget }) {
             {/* Reply box */}
             {thread?.status !== "closed" ? (
               <div style={{ position: "relative", padding: "12px 20px", borderTop: "0.5px solid #1a2540", flexShrink: 0 }}>
+                {aiDraft && !aiRegenerating && <AiDraftCard
+                  draft={aiDraft} busy={aiDraftBusy} used={usedDraftId === aiDraft.id}
+                  onUse={useAiDraft} onDismiss={dismissAiDraft} onRegenerate={regenerateAiDraft}
+                />}
+                {aiRegenerating && (
+                  <div style={{ marginBottom: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em",
+                                color: aiWorkerOffline ? "#dc3c3c" : "#3a7bd5" }}>
+                    {aiWorkerOffline
+                      ? "AI DRAFT QUEUED · PC OFFLINE, WILL DRAFT WHEN YOUR COMPUTER IS ON"
+                      : "AI SETTER IS DRAFTING..."}
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                   {["sms", "email"].map(ch => {
                     const available = ch === "sms" ? !!thread?.phone : !!thread?.email;
@@ -1061,6 +1272,12 @@ export default function InboxPanel({ initialTarget }) {
                   <button onClick={openSequence} className="btn btn-ghost" style={{ fontSize: 10, alignSelf: "flex-end" }}>
                     SEQUENCE
                   </button>
+                  {replyChannel === "sms" && !aiDraft && !aiRegenerating && (
+                    <button onClick={regenerateAiDraft} disabled={aiDraftBusy} className="btn btn-ghost"
+                      style={{ fontSize: 10, alignSelf: "flex-end" }} title="Ask the AI setter to draft a reply">
+                      ASK AI
+                    </button>
+                  )}
                   {appliedStageLabel && (
                     <div style={{
                       alignSelf: "flex-end", fontFamily: "'Share Tech Mono', monospace", fontSize: 9,

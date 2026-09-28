@@ -17,6 +17,8 @@ import base64
 import html as html_lib
 import os
 import secrets
+import uuid
+from datetime import datetime
 from email.mime.text import MIMEText
 
 import httpx
@@ -606,6 +608,33 @@ def calendar_create_event(
         return str(e)
     except Exception as e:
         return f"Calendar error: {e}"
+
+
+def calendar_create_meet_event(
+    title: str, start: datetime, end: datetime, attendee_email: str, description: str = "",
+) -> dict:
+    """Creates a calendar event WITH a Google Meet link and emails the
+    invite to the attendee (sendUpdates=all) — what the SMS setter's auto
+    mode books a discovery call with. Same calendar find_appointment_
+    meeting_link() searches, so the 24h/6h/1h reminders pick up the Meet
+    link on their own. Raises on failure (the caller falls back to leaving
+    a draft for Dylan)."""
+    svc = _calendar_service()
+    body = {
+        "summary": title,
+        "description": description,
+        "start": {"dateTime": start.isoformat()},
+        "end": {"dateTime": end.isoformat()},
+        "attendees": [{"email": attendee_email}],
+        "conferenceData": {"createRequest": {
+            "requestId": uuid.uuid4().hex,
+            "conferenceSolutionKey": {"type": "hangoutsMeet"},
+        }},
+    }
+    ev = svc.events().insert(
+        calendarId="primary", body=body, conferenceDataVersion=1, sendUpdates="all",
+    ).execute()
+    return {"id": ev["id"], "meet_link": _extract_meeting_link(ev), "html_link": ev.get("htmlLink")}
 
 
 def calendar_update_event(

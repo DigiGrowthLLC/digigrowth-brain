@@ -1311,6 +1311,29 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            -- AI setter drafts for Dylan's own cold SMS threads (see
+            -- sms_setter_ai.py). One pending draft per phone at a time — a
+            -- newer inbound supersedes the old one. status: pending | sent |
+            -- dismissed | superseded. sent_body is what Dylan actually sent,
+            -- so sent_body = reply means "used unedited" (the edit-rate
+            -- signal for moving from draft mode to auto-send).
+            CREATE TABLE IF NOT EXISTS sms_ai_drafts (
+                id              SERIAL PRIMARY KEY,
+                phone           TEXT NOT NULL,
+                contact_id      TEXT REFERENCES contacts(id) ON DELETE CASCADE,
+                action          TEXT NOT NULL,
+                reply           TEXT NOT NULL DEFAULT '',
+                details         JSONB NOT NULL DEFAULT '{}',
+                rationale       TEXT,
+                model           TEXT,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                sent_body       TEXT,
+                last_inbound_at TIMESTAMPTZ,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                decided_at      TIMESTAMPTZ
+            );
+            CREATE INDEX IF NOT EXISTS idx_sms_ai_drafts_phone_status ON sms_ai_drafts(phone, status);
+
             -- Inbound/outbound SMS sent through the CLIENT's own provisioned
             -- Twilio number (client_marketing_config.twilio_number) — kept
             -- separate from sms_messages, which is DigiGrowth's own number.

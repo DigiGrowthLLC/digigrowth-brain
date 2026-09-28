@@ -19,7 +19,9 @@ overrides (including Replied, if a rep wants to correct it) come through
 POST /inbox/contact/{contact_id}/stage in email_inbox.py.
 
 No AI auto-reply: once a contact enters "sms-handoff" status, send_opening_message()
-sends a single opener. All further replies land in the inbox for manual response only.
+sends a single opener. All further replies land in the inbox for manual response —
+except on campaign threads while Dylan's local SMS setter worker is running, which
+drafts replies (or, in auto mode, sends them). See sms_setter_ai.py.
 """
 
 import json
@@ -476,7 +478,8 @@ async def manual_send(payload: dict):
         return {"ok": False, "error": "phone and body required"}
 
     stage = payload.get("stage")
-    if stage not in {key for key, _ in SEQUENCE_STEPS}:
+    # "ai_setter" marks an auto-mode send from sms_setter_ai.py.
+    if stage not in {key for key, _ in SEQUENCE_STEPS} | {"ai_setter"}:
         stage = None
 
     try:
@@ -488,6 +491,21 @@ async def manual_send(payload: dict):
     async with pool.acquire() as conn:
         conv = await _get_or_create_conversation(conn, phone)
         await _store_message(conn, phone, "assistant", body, stage=stage)
+        # Record what happened to any pending AI setter draft: used (sent_body
+        # kept so the edit rate is measurable) or, if Dylan replied without
+        # it, counted as dismissed.
+        ai_draft_id = payload.get("ai_draft_id")
+        if ai_draft_id:
+            await conn.execute(
+                "UPDATE sms_ai_drafts SET status = 'sent', sent_body = $2, decided_at = now() "
+                "WHERE id = $1 AND status = 'pending'",
+                int(ai_draft_id), gsm7_safe(body),
+            )
+        await conn.execute(
+            f"UPDATE sms_ai_drafts SET status = 'dismissed', decided_at = now() "
+            f"WHERE {_phone_match('phone', '$1')} AND status = 'pending'",
+            phone,
+        )
 
     return {"ok": True, "contact_id": conv.get("contact_id")}
 

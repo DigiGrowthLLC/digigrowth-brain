@@ -274,6 +274,38 @@ async def find_earliest_available_times(
         return []
 
 
+async def list_available_times(token: str, scheduling_url: str, start: datetime, days: int) -> list[dict]:
+    """Every open slot from `start` through `days` days out (Calendly's raw
+    slot objects, start_time in UTC). Unlike find_earliest_available_times,
+    doesn't stop at the first day with openings — sms_setter_ai.py hands the
+    whole spread to the model up front so it can both offer times and check
+    a prospect-proposed time without a tool round trip."""
+    async with httpx.AsyncClient(timeout=10) as http:
+        event_type = await _get_matching_event_type(http, token, scheduling_url)
+        if not event_type:
+            return []
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=timezone.utc)
+        horizon = start + timedelta(days=days)
+        out: list[dict] = []
+        window_start = start
+        while window_start < horizon:
+            window_end = min(window_start + timedelta(days=_CHUNK_DAYS), horizon)
+            resp = await http.get(
+                f"{_API_BASE}/event_type_available_times",
+                headers=_headers(token),
+                params={
+                    "event_type": event_type["uri"],
+                    "start_time": window_start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "end_time": window_end.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                },
+            )
+            _raise_with_context(resp)
+            out.extend(s for s in resp.json().get("collection", []) if s.get("status", "available") == "available")
+            window_start = window_end
+        return out
+
+
 async def find_slot_scheduling_url(
     token: str, scheduling_url: str, date_str: str, time_str: str, tz,
 ) -> str | None:
