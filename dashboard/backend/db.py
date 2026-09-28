@@ -1207,7 +1207,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 display_name        TEXT,
                 oauth_refresh_token TEXT,
                 ms_tenant_id        TEXT,                        -- Microsoft-only
-                status              TEXT NOT NULL DEFAULT 'warming',  -- 'warming' | 'active' | 'paused'
+                status              TEXT NOT NULL DEFAULT 'warming',  -- 'warming' | 'active' | 'paused' | 'partner' (warm-up receive/reply only, never cold-sends)
                 activated_at        TIMESTAMPTZ,
                 send_cursor         INTEGER NOT NULL DEFAULT 0,
                 email_sync_last_ts  INTEGER NOT NULL DEFAULT 0,  -- inbox-poll cursor, mirrors client_marketing_config.email_sync_last_ts
