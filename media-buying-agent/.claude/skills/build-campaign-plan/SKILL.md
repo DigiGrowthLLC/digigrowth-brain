@@ -88,42 +88,33 @@ checklist + closing CTA card, via `talking-head-recut` or `embedded-captions`) b
 
 ### 2. Research the live Meta Ad Library for the vertical
 
-Don't rely on secondhand blog guidance alone — browse the actual library with the `playwright` MCP
-tools:
+Run the `research-competitors` skill for this client's vertical + geo (pass the client so it can
+cross-check findings against their `onboarding.differentiation_voice` rules). It browses the live Ad
+Library via `playwright`, cross-checks with `WebSearch`, and separates structural patterns worth
+borrowing from tone that needs to match the client — don't duplicate that process here.
 
-```
-mcp__playwright__browser_navigate → 
-https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=US&media_type=all&q=<vertical keywords>&search_type=keyword_unordered&sort_data[mode]=total_impressions&sort_data[direction]=desc
-```
+### 3. Findings are already appended to `context/ad-creative-principles.md`
 
-Sorting by `total_impressions` surfaces the ads competitors are actually spending the most on —
-combined with "Started running on <date>" (many run a year+), this is a real signal of what's
-working, not a guess. `browser_snapshot` on this page is large (100k+ tokens) — it gets saved to a
-file automatically; read that file in chunks via `Read`/`Grep` rather than requesting it inline.
-Look for repeated structural patterns across *unrelated* advertisers (that's the signal, not any
-single ad). Cross-check with 2-3 `WebSearch` queries for published best-practice guides on the same
-vertical to catch anything the live sample missed (budget/CPL benchmarks, follow-up-speed stats).
-
-**Judgment call, every time:** a pattern that's proven to convert (e.g. urgency/scarcity, a discount
-voucher) can still be wrong for a specific client if it contradicts that client's own stated
-positioning (e.g. "individualized, no-pressure" care shouldn't borrow a "$49, only 30 spots left"
-mechanic). Separate the *structure* (what to borrow) from the *tone* (match to the client) explicitly
-in the plan — don't just paste the winning template.
-
-### 3. Append findings to `context/ad-creative-principles.md`
-
-Per this agent's existing convention — add a new dated `## Source: ...` section, never overwrite
-prior research. Note it's vertical-specific, not universal, if that's the case.
+`research-competitors` handles this as part of its own step 4 — confirm the new dated section landed
+before moving on, don't re-append.
 
 ### 4. Write the plan
 
-Save to `outputs/campaign-<client-slug>-<YYYY-MM-DD>/campaign-plan.md`. Structure that's worked:
+Save to `outputs/campaign-<client-slug>-<YYYY-MM-DD>/campaign-plan.md` while drafting/revising.
+**Once Dylan approves the plan**, copy it to `clients/<client-slug>/campaign-plan.md` (overwrite in
+place — this is the one current plan, not a version history) and delete the working
+`outputs/campaign-<client-slug>-<YYYY-MM-DD>/` folder. See `CLAUDE.md`'s "Output Files" section — the
+same finalize-then-delete convention `generate-ad` uses for creative applies here. Structure that's
+worked:
 
 1. What's in the portal (asset inventory — this changes what's possible, e.g. real video means no
    AI-image fallback is needed).
 2. What the full source material adds beyond what was already known (richer avatar segments).
 3. Ad Library findings and how they apply (with the tone/structure caveat from step 2).
-4. Blockers to clear before spending anything (undeployed landing page, missing pixel, geo unknown).
+4. Blockers to clear before spending anything (undeployed landing page, missing Meta Pixel, missing
+   Conversions API, no Meta Business Portfolio set up, geo unknown) — see the "Meta Ads Beginner
+   Fundamentals" source in `ad-creative-principles.md` for why each of these has to be confirmed
+   before the first ad, not fixed after spend has already started.
 5. Budget-reality math: check the requested budget/timeframe against this agent's own
    `ad-creative-principles.md` minimums (10-15 concepts, $10+/day/ad). If the budget is far under
    that (a common case), say so explicitly and scale down concept count / judgment windows rather
@@ -131,6 +122,10 @@ Save to `outputs/campaign-<client-slug>-<YYYY-MM-DD>/campaign-plan.md`. Structur
    CPL ÷ assumed lead→result conversion rate) to show whether the stated goal is realistic, tight, or
    a stretch on the stated budget.
 6. Campaign settings table (objective, budget type, ad sets, daily budget, audience, geo, placements).
+   For a typical DigiGrowth local-service budget (~$30-35/day), default to the "ad set trio" structure
+   from the "$30 A Day" source in `ad-creative-principles.md`: one ad set per creative **format**
+   (static/UGC-video/carousel), 3 active ads per ad set, kept broad on audience/geo rather than
+   segmented by demographic — note it explicitly as the default rather than assuming Dylan knows why.
 7. Ad concepts — as many as real assets support, each naming which actual client file it uses
    (video/photo filename, specific testimonial), not a hypothetical asset. Check every line of copy
    against the client's own brand-voice rules from `onboarding.differentiation_voice` before

@@ -379,6 +379,280 @@ generation — skipped here to keep this file scoped to what actually changes a 
 
 ---
 
+## Source: Meta Ads Beginner Fundamentals — "What You NEED To Know To Get Started With Meta Ads" (2026-09-22)
+
+Transcribed from a YouTube beginner's walkthrough of Meta Ads Manager. Unlike the sources above (which
+assume an existing account and focus on creative/scaling strategy), this one covers account-setup and
+account-structure fundamentals — directly relevant to `build-campaign-plan`'s "campaign settings table"
+and "blockers to clear before spending anything" sections, not just creative generation.
+
+### The three-layer mental model (campaign → ad set → ad)
+
+- **Campaign** = the objective layer. Decide here: sales, leads, website traffic, video views, etc.
+- **Ad set** = the audience + placement layer. Decide here: who sees the ad (targeting) and where
+  (Facebook/Instagram feed, Stories, Reels, etc.).
+- **Ad** = the creative layer. The actual image/video/copy/CTA button a real person sees while
+  scrolling.
+- Nearly every setting in Ads Manager belongs to exactly one of these three layers — framing a
+  client's dashboard confusion in these terms ("that's an ad-set decision, not a campaign decision")
+  is a useful explanatory tool for `build-campaign-plan` output, not just a mental model for Dylan.
+
+### Account setup — do these BEFORE the first ad goes live, not after
+
+Directly maps to the "Blockers to clear before spending anything" section of the campaign-plan template:
+
+- **Set up a proper Meta Business Portfolio (Business Manager) before creating any ads.** Advertising
+  directly from an Instagram profile is the tempting shortcut but costs ~30% more for the same results
+  and has materially fewer options. Flag as a blocker if a prospective client's account isn't set up
+  this way yet.
+- **Install the Meta Pixel on the client's site before the first ad launches**, not after. Without it,
+  Meta can't tell whether people who click through actually do anything on the site — "advertising
+  blind." This is a concrete, checkable blocker: confirm pixel presence when reviewing a client's
+  `landing_page_url` / marketing-config, don't assume it's there.
+- **Install the Conversions API (CAPI) alongside the pixel, not instead of it.** Since Apple's ATT
+  privacy changes, pixel-only tracking misses a meaningful share of conversion events — pixel + CAPI
+  together is the accurate baseline, not an advanced optional step.
+- **Starting daily budget should be sized to what the business can actually afford to pay per
+  acquired customer** — not an arbitrarily small "safe to test" number. A too-small budget doesn't
+  protect against waste; it starves Meta's delivery algorithm of enough activity to learn who
+  responds, producing unreliable results either way. This is the same underlying logic as this file's
+  existing "$10+/day/ad" minimum above — reinforces it from a different angle (learning-phase data
+  volume, not just per-ad signal).
+
+### Targeting — the beginner-safe default
+
+- Two audience types worth naming in a plan: **cold** (never interacted with the business) and
+  **warm** (visited the site, purchased before, engaged on FB/IG). Warm audiences are the easiest
+  place to show a new/small client their first results, precondition being that a warm audience
+  (pixel data, page followers, past customers) actually exists yet.
+- **Don't over-narrow targeting by stacking many interests hoping to hand-pick the "perfect"
+  audience.** A broader, simpler audience is usually the safer starting point — it gives Meta's
+  delivery algorithm more room to find the right people itself. Consistent with the existing
+  Andromeda-era guidance above (broad Advantage+ audience, minimal demographic restriction) — this
+  source independently arrives at the same recommendation from a beginner-account angle rather than a
+  scaling angle, which is a second, unrelated source corroborating "go broad."
+
+### Creative basics for a FIRST ad (pre-testing-framework stage)
+
+- The opening image/line has one job: interrupt the scroll within well under a second. This is the
+  same "scroll-stopping hook" principle already in this file's Working Checklist, restated for a
+  brand-new account with zero data yet.
+- **One clear message beats cramming every feature/benefit into a single ad.** Pick the single most
+  important thing and lead with only that.
+- For a genuinely first launch (not an established account), **2-3 simple variations is enough** —
+  framed here not as rigorous testing but as acknowledging you don't yet know what will resonate, and
+  as a hedge against early ad fatigue. Lower-volume framing than the "10-15 new concepts" launch
+  guidance elsewhere in this file — reconcile by scale: this source is for a client's very first ads
+  ever, the 10-15 figure is for an account/creative batch with some budget behind it already. For a
+  brand-new, low-budget client, default toward this source's 2-3-to-start guidance and note it
+  explicitly in the plan rather than silently applying the larger number.
+
+### Reading results without panicking
+
+- As a beginner account, there are really only one or two numbers worth watching: **ROAS** (revenue
+  generated from ads) if trackable, otherwise **cost per conversion**. Ignore the rest of the
+  dashboard early on — it's noise relative to whether the ad is actually profitable.
+- **Give a new ad several days before judging it** — Meta's delivery system needs real accumulated
+  activity to learn who responds; judging after a few hours or one day is unreliable. This matches
+  the existing "7+ days, zoom out" evaluation-window guidance above — a second independent source
+  landing on roughly the same minimum judgment window.
+- Distinguish a **normal early fluctuation** (one high-cost day) from a **genuine bad sign** (cost
+  that stays high and keeps climbing over 4+ weeks) — this is the specific beginner failure mode to
+  flag in a plan's "weekly checkpoint questions": don't recommend killing an ad off a single bad day.
+
+### What this source adds beyond what was already in this file
+
+Prior sources here (Hormozi/Andromeda, the Moonlighters, the Ad Library scan) all assume an account
+that already exists and has some spend history — they're about scaling and creative strategy. This
+source is the missing "day zero" layer: the literal account-setup checklist and the beginner-safe
+defaults for a client's very first campaign, which is exactly the gap `build-campaign-plan` step 4
+("blockers to clear before spending anything") needs concrete, checkable items for (Business
+Portfolio set up? Pixel installed? CAPI installed? Budget sized to real CAC math, not an arbitrary
+small test number?).
+
+---
+
+## Source: "Maximise META Leads With Only $30 A Day" — Sam / Local-Business Testing Strategy (2026-09-22)
+
+Transcribed from a YouTube video by a media buyer who specializes in **local, brick-and-mortar lead-gen
+clients** — the closest match in tone/budget to DigiGrowth's actual client base (e.g. CrosaCore) of any
+source in this file so far. Framed explicitly around the most common real client budget: **$30-35/day,
+~$1,000/month** — not an e-commerce/$1k-per-day testing budget. Directly actionable for
+`build-campaign-plan`'s campaign-structure and budget sections.
+
+### Two-sided test, not just ad performance
+
+- Local lead-gen has a manual conversion step ads don't capture: someone fills a form, then gets
+  contacted, then scheduled, then converts to a customer. So every test has **two sides**: (1) the ad
+  test — lowest cost-per-lead (CPL), and (2) the back-end test — actual lead *quality*, tracked after
+  the fact. A cheap CPL that produces low-quality leads isn't a win; it may require front-end
+  adjustments (targeting, ad angle, qualifying language in the ad itself) once the back-end signal
+  comes in. **The measurement plan section of a campaign plan should explicitly track lead quality,
+  not just CPL**, when the client's funnel has a manual follow-up/booking step (true for essentially
+  all of DigiGrowth's current clients).
+
+### Post-Andromeda targeting philosophy (corroborates existing guidance, different angle)
+
+- Old model: each ad set = a different audience segment/demographic, with ads written to speak
+  specifically to that segment. If the ad set underperformed, that whole audience was judged "didn't
+  work."
+- New (Andromeda) model: the algorithm operates at the **campaign** level, reading signals from the
+  ads themselves to route each individual ad to whichever users are most likely to respond —
+  independent of how the ad sets are structured. Practical result: **you don't need to
+  audience-segment your ad sets anymore; the creative itself is what gets matched to the right
+  person.** This independently corroborates the "content is targeting" principle already documented
+  above (Hormozi/Andromeda source) — a second, unrelated source arriving at the same conclusion from
+  a local-lead-gen angle rather than an e-commerce/DTC angle.
+
+### The "ad set trio" structure — the core tactical recommendation
+
+For a $30-35/day local-business budget, don't run one flat ad set with everything mixed in (Meta will
+unevenly overspend on early leaders and starve the rest), and don't fragment into many small ad sets
+either (unmanageable, spreads budget too thin to reach real signal). The middle path:
+
+- **Group ads into ad sets by format, not by audience/demographic** — e.g. Ad Set 1 = static images
+  only, Ad Set 2 = UGC-style talking-head videos only, Ad Set 3 = carousel/slider ads only.
+- **Reason for grouping by format specifically:** Meta's delivery algorithm has a built-in placement
+  bias by media type — mix a video, an image, and a carousel in the same ad set and Meta will often
+  just dump most of the budget on the video and starve the other formats of a fair test, regardless of
+  which would actually perform best. Segmenting by format removes that bias and lets each format
+  genuinely compete on its own merits.
+- **Run exactly 3 active ads per ad set at a time** ("trios") — different hooks/styles/angles within
+  the same format. This gives Meta's within-ad-set creative competition room to find a within-format
+  winner while still capping total ad count to something a $30-35/day budget can actually fund a real
+  test on.
+- When a format/ad set isn't producing results after a fair test, **kill the whole ad set and swap in
+  a different format** (e.g. drop carousels, try AI-generated UGC-style talking-head instead) — don't
+  keep limping along with a format that's already shown it doesn't work for this client/vertical.
+- When a specific ad within a trio wins, **duplicate that winning ad and iterate variations of it
+  within the same ad set** (new headline, new benefit angle, same underlying format/style) — this is
+  the same "iterate on a winner, don't hunt for a new one" principle already documented under the
+  Hormozi/Andromeda source above, applied concretely at the ad-set level.
+- Once a format/ad set is clearly winning, **scale its daily budget gradually** (e.g. $45/day → wait
+  3-4 days → $60/day) rather than jumping it sharply — avoids resetting the ad set's learning phase.
+
+### Minimum spend before judging an ad — a concrete number, not just "wait a few days"
+
+- **Let an ad spend 1-3x the target CPL before judging it a failure.** E.g. if the target CPL is $30,
+  an ad that's only spent $15 hasn't even reached the target cost yet — there's no real signal either
+  way. An ad that's spent $60 (2x target) with a low click-through rate and zero leads has had a fair
+  shot and can be confidently turned off.
+- This is a more precise, budget-relative version of this file's existing "$10+/day/ad" and "7+ days"
+  evaluation-window guidance above — use **whichever threshold is stricter** for a given client: the
+  1-3x-target-CPL rule scales correctly for both very cheap and very expensive target CPLs, where a
+  flat dollar/day minimum doesn't.
+
+### Applicability note
+
+This source explicitly frames itself as "not the one true testing strategy for everybody" — the
+grouping-by-format + trio structure is the author's current preferred approach post-Andromeda,
+replacing an older per-ad-set-per-audience-segment method they used to run. Treat as a strong,
+directly-applicable default for DigiGrowth's typical local-service client budget tier
+($30-35/day-ish), not a universal law — note in a plan if a client's real budget or vertical suggests
+a different structure fits better.
+
+---
+
+## Source: "Claude + Meta Ads Library = Unlimited Winning Ads" — The Moonlighters (2026-09-22)
+
+Same agency/channel as the earlier Andromeda and "2 Ad Creative Formats" sources. This one is
+specifically the **workflow** for turning Ad Library research into finished creative — splits cleanly
+into a `research-competitors` half and a `generate-ad` half. Skipped: promotion of "Super Scale" (a
+paid third-party tool not integrated at DigiGrowth) — the underlying workflow it automates is what's
+extracted below, not the tool itself.
+
+### For `research-competitors`
+
+- **Search by named competitor first, not just vertical keywords.** Type a specific known competitor
+  into the Ad Library, sort "all active ads" by impressions high-to-low — this surfaces which of
+  *that one brand's* ads are working, which is a sharper signal than a generic vertical keyword search
+  alone. Use both: named direct competitors *and* a broader vertical keyword search.
+- **Caveat to the existing "long-running ad = validated winner" rule:** run-duration alone can
+  mislead in the other direction too — an ad that started running "over a month ago" isn't
+  automatically still fresh; it can already be fatiguing by the time you find it. The strongest
+  signal isn't just "has this been running a long time" but "is it still actively running *and*
+  still getting real spend/impressions *now*" — check recency of activity, not just start date, when
+  ranking ads worth recreating.
+- **Ad Library images are often watermarked "Protected"** — this blocks most AI image tools from
+  doing anything useful with a direct copy/paste of the ad image (they'll refuse or ignore the
+  protected image). Flag this as a practical blocker when a finding recommends recreating a specific
+  competitor visual — the *structural pattern* (documented in words) is what's portable, not the raw
+  image file itself.
+- **Look outside the immediate vertical for structural trends too**, not just direct competitors —
+  cross-category patterns (e.g. "value stacking," "features into benefits," a specific lighting/photo
+  style) that are working broadly across many unrelated categories are often the earliest signal of
+  something worth testing, before it's common inside any one specific vertical. Worth a supplementary
+  WebSearch/Ad-Library pass beyond the client's exact niche when time allows.
+
+### For `generate-ad`
+
+- **New technique: recreate a specific competitor ad as an image-edit task, not a from-scratch
+  generation.** When Dylan (or `research-competitors`) points to one specific competitor ad worth
+  recreating: describe its structure in the image prompt (composition, layout, proof placement) and
+  explicitly instruct the image model to swap in the client's own branding/product/subject in that
+  same structure — this produces something closer to a validated, proven layout than a from-scratch
+  prompt does. Pair with a request for **3 alternate headline options**, not just one, so Dylan has a
+  real choice rather than a single take.
+- **Reinforces the existing iteration-mode framing above**: this source's own definition of "a winner
+  worth recreating" (spend concentrated in that one ad, sustained return over time) matches the
+  ratio-flip principle already in this file — iterate on proven winners, don't hunt for brand-new
+  angles once something's working. This agent has no live Meta ad-account API access (see
+  `CLAUDE.md`), so "define the winner automatically from ad-account data" isn't something this skill
+  can do itself — Dylan has to tell it which concept won, same as the existing iteration-mode trigger.
+
+---
+
+## Source: "How To Make AI Ads With Claude x Meta [MCP]" (2026-09-22)
+
+A promotional walkthrough for a Meta-MCP + Arcads (third-party UGC video generator) workflow: connect
+Claude directly to a live Meta ad account, research winning ads, generate UGC actor videos, then
+**upload and launch the campaign and pull live performance data, all via MCP, never opening Ads
+Manager**. Most of this is explicitly out of scope for this agent — see `CLAUDE.md`'s "What You Do
+NOT Do": DigiGrowth has no `ads_management` API access, so the Meta-MCP research/upload/launch/track
+loop this video demonstrates isn't something `research-competitors`, `generate-ad`, or
+`build-campaign-plan` can do. What's extracted below is the transferable part — the research prompt
+structure and the script/creative discipline — not the account-connected automation.
+
+### For `research-competitors` — a sharper research-prompt structure
+
+Even without live ad-account access, the *shape* of the research ask is reusable via WebSearch alone:
+when researching a vertical/product category, explicitly ask for (and organize findings by) these
+four things, not just "what's working":
+1. Which **creative formats** are getting the highest impressions/engagement (UGC talking-head vs.
+   static vs. carousel vs. produced video).
+2. Which **hooks** (opening lines/frames) are driving the highest engagement.
+3. Which **audience segments** are responding best (age/gender/interest clusters, where stated).
+4. **Repeated creative patterns** showing up across multiple winning ads (this is the same
+   "repeated structural patterns across unrelated advertisers" principle already in this file, just a
+   cleaner checklist framing of it).
+
+### For `generate-ad` — script timing structure and a self-scoring gate
+
+- **Explicit timing breakdown for a short (18-20s) UGC-style script**, useful as a reference if a
+  video-script version of a concept is ever requested (video generation itself stays out of scope for
+  this skill, delegated to `content-agent`): hook 0-3s, problem 3-8s, solution 8-15s, proof 15-18s,
+  CTA 18-20s. This is the same hook → problem → solution → proof → CTA framework this skill already
+  uses for stills, with concrete second-by-second pacing — worth citing if Dylan asks for a script to
+  hand to `content-agent` or a human UGC creator.
+- **Self-scoring gate before delivering concepts:** the source's workflow generates 5 scripts, scores
+  each out of 10, and only keeps ones scoring 9.5+ before moving to production. Adapt this as a
+  discipline for this skill: after drafting multiple concepts, briefly self-assess each against the
+  Working Checklist below before presenting them, and flag (don't silently drop) any concept that
+  doesn't clearly pass rather than delivering everything generated as if uniformly ready.
+- **Actor/avatar spec per angle** (age, gender, setting, emotion) generated alongside each script
+  reinforces the existing "avatar + angle = one concept" framework already in this file — nothing new
+  here, but confirms the pattern from a third independent source.
+
+### What NOT to pull from this source
+
+The Meta-MCP connection, live account research pull, campaign creation/launch prompts, targeting
+prompts, and performance-pull/iteration loop are all live campaign management via API — out of scope
+per `CLAUDE.md` regardless of how convenient the demonstrated workflow looks. If Dylan ever wants this
+capability, it's a separate initiative gated on Meta API access, not something to quietly fold into
+these skills.
+
+---
+
 ## Working Checklist (apply to every generated ad)
 
 - [ ] Is there ONE clear avatar this specific ad is for — visually and verbally unmistakable?

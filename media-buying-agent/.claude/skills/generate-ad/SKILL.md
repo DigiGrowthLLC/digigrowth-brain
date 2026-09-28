@@ -45,6 +45,14 @@ Ask if not already given:
    testimonial/UGC-style still) rather than making every concept visually the same template with a
    different subject. Video creative is out of scope for this skill (delegate to `content-agent`'s
    `outreach-video`/`video-production` skills if a video ad is wanted — this skill is stills-first).
+5. **Recreating a specific competitor ad?** If Dylan or `research-competitors` points to one specific
+   validated competitor ad to base a concept on (rather than building from scratch), treat this as an
+   image-*edit* task, not a blank-canvas generation: describe that ad's actual structure (composition,
+   layout, proof placement) in the image prompt and instruct the model to swap in the client's own
+   branding/product/subject within that same structure, rather than just referencing it loosely. Note
+   the raw Ad Library image usually can't be used directly as an input asset (it's typically
+   watermarked "Protected") — work from the structural description, not the file itself. Always
+   generate at least 3 alternate headline options for a recreated concept, not just one.
 
 ---
 
@@ -67,6 +75,11 @@ Ask if not already given:
      and/or different archetype), not the same ad with a swapped headline.
    - If in **iteration mode** (only once Dylan has confirmed a concept is a winner): write 1 primary
      + 1-2 alternate hooks on that same concept.
+   - **If Dylan wants a short-form UGC video script** instead of/alongside a still (to hand off to
+     `content-agent` or a human UGC creator — this skill itself stays stills-first, no video
+     generation): map the same hook → problem → solution → proof → CTA beats onto an 18-20 second
+     timed structure — hook 0-3s, problem 3-8s, solution 8-15s, proof 15-18s, CTA 18-20s — rather than
+     leaving pacing unstated.
 
 3. **Generate the image(s).** Build an image prompt from the hook/avatar/format of each concept (the
    visual should make the avatar unmistakable at a glance — literally show the avatar or a strong
@@ -81,16 +94,29 @@ Ask if not already given:
      Stories/Reels — ask if unclear which placement this is for.
    - This writes `image.png` and a `image.png.meta.json` provenance sidecar automatically.
 
-4. **Save each concept's pairing** to its own `media-buying-agent/outputs/ad-<slug>-<YYYY-MM-DD>/`:
+4. **Save each concept's pairing while iterating** to its own
+   `media-buying-agent/outputs/ad-<slug>-<YYYY-MM-DD>/`:
    - `copy.md` — avatar/angle, format, the copy, placement notes (mirrors `content-agent`'s
      `ad-copy` skill output format).
    - `image.png` + `image.png.meta.json` (from step 3).
    - When producing multiple new concepts in one request, use a distinct `<slug>` per concept so
      they land in separate folders — never merge distinct concepts into one folder.
+   - This is scratch space — base photos, rejected attempts, and revision history all belong here
+     while a concept is still being judged, same as before.
 
 5. **Report** all output folder paths and run the Working Checklist from `context/ad-creative-
    principles.md` against what was produced — flag anything that doesn't clearly pass (e.g. no
    proof point available yet, or a "new concept" batch that's actually just iterations in disguise).
+   Do this explicitly per concept, not as one blanket pass over the batch — when producing multiple
+   concepts, call out which ones are strongest and which are weaker/borderline rather than presenting
+   the whole batch as uniformly ready.
+
+6. **Once Dylan approves a concept**, finalize it (see `CLAUDE.md`'s "Output Files" section): copy
+   just the final image + a clean `copy.md` into
+   `media-buying-agent/clients/<client-slug>/creatives/<concept-slug>/`, then delete the working
+   `outputs/ad-<slug>-<YYYY-MM-DD>/` folder (and any sibling folders for rejected/superseded attempts
+   on the same concept) so drafts don't pile up in the repo. Don't finalize a concept Dylan hasn't
+   actually approved — a still-in-review concept stays in `outputs/` until it's a yes.
 
 ---
 
