@@ -274,12 +274,18 @@ async def make_leadgen_inbound(request: Request):
 
     Body: {"page_id", "leadgen_id", "field_data": [{"name", "values"}]} in
     Meta's own shape, or the same fields flat ({"full_name": ..., "phone_number":
-    ..., "email": ...}) — whichever Make's mapping produces."""
+    ..., "email": ...}), as JSON or form-encoded — whichever Make's mapping
+    produces."""
     secret = os.environ.get("MAKE_LEADGEN_SECRET")
     if not secret or not hmac.compare_digest(request.headers.get("X-Webhook-Secret", ""), secret):
         return Response(status_code=403)
 
-    body = await request.json()
+    # Form-encoded is what the scenario actually sends — Make escapes each
+    # value itself, unlike a hand-templated JSON body a quote in a name breaks.
+    if "application/json" in request.headers.get("content-type", ""):
+        body = await request.json()
+    else:
+        body = dict(await request.form())
     page_id = str(body.get("page_id") or "")
     leadgen_id = str(body.get("leadgen_id") or body.get("id") or "")
     field_data = body.get("field_data")
