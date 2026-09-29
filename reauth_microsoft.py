@@ -34,6 +34,12 @@ from urllib.parse import urlparse, parse_qs
 CLIENT_ID = os.environ.get("MS_CLIENT_ID", "")
 CLIENT_SECRET = os.environ.get("MS_CLIENT_SECRET", "")
 TENANT_ID = os.environ.get("MS_TENANT_ID", "")
+# --personal: a free Outlook.com/Hotmail account (warm-up partner) instead
+# of an M365 mailbox — signs in via the "consumers" endpoint. Needs the app
+# registration's signInAudience set to AzureADandPersonalMicrosoftAccount.
+# Enter "consumers" as the identity's tenant id in the Add Identity form.
+if "--personal" in __import__("sys").argv:
+    TENANT_ID = "consumers"
 REDIRECT_PORT = 8765
 REDIRECT_URI = f"http://localhost:{REDIRECT_PORT}"
 
@@ -61,7 +67,9 @@ app = msal.ConfidentialClientApplication(
     authority=f"https://login.microsoftonline.com/{TENANT_ID}",
 )
 
-flow = app.initiate_auth_code_flow(scopes=SCOPES, redirect_uri=REDIRECT_URI)
+# prompt=select_account so a Microsoft account already signed in in the
+# browser doesn't get silently reused instead of the mailbox being added.
+flow = app.initiate_auth_code_flow(scopes=SCOPES, redirect_uri=REDIRECT_URI, prompt="select_account")
 
 _captured = {}
 

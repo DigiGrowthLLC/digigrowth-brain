@@ -217,8 +217,13 @@ export default function IdentityWarmupModal({ onClose }) {
   async function setStatus(row, status) {
     setBusyId(row.id);
     setErr("");
-    const path = status === "active" ? "activate" : "pause";
-    const res = await fetch(`/api/email-identities/${row.id}/${path}`, { method: "POST" });
+    // Resume goes back to 'warming' (not straight to active outreach) via
+    // PATCH; activate/pause have dedicated endpoints.
+    const res = status === "warming"
+      ? await fetch(`/api/email-identities/${row.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+        })
+      : await fetch(`/api/email-identities/${row.id}/${status === "active" ? "activate" : "pause"}`, { method: "POST" });
     if (res.ok) fetchRows();
     else { const d = await res.json().catch(() => ({})); setErr(d.detail || "Failed to update status."); }
     setBusyId(null);
@@ -316,15 +321,22 @@ export default function IdentityWarmupModal({ onClose }) {
                           {busyId === r.id ? "…" : "Start Warm-Up"}
                         </button>
                       )}
-                      {r.identity_status === "partner" ? null : r.identity_status !== "active" ? (
+                      {r.identity_status === "warming" && (
                         <button onClick={() => setStatus(r, "active")} disabled={busyId === r.id}
                           className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", color: "#14c882", marginRight: 6 }}>
                           Activate
                         </button>
-                      ) : (
+                      )}
+                      {(r.identity_status === "warming" || r.identity_status === "active") && (
                         <button onClick={() => setStatus(r, "paused")} disabled={busyId === r.id}
                           className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", color: "#e05555", marginRight: 6 }}>
                           Pause
+                        </button>
+                      )}
+                      {r.identity_status === "paused" && (
+                        <button onClick={() => setStatus(r, "warming")} disabled={busyId === r.id}
+                          className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px", color: "#f0a028", marginRight: 6 }}>
+                          Resume Warm-Up
                         </button>
                       )}
                       <button onClick={() => setEditingIdentity(r)} disabled={busyId === r.id}
