@@ -63,7 +63,8 @@ async def send_due_reminders():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT ar.*, c.client_id AS lead_client_id, cl.name AS client_name
+            SELECT ar.*, c.client_id AS lead_client_id, cl.name AS client_name,
+                   c.phone AS contact_phone, c.email AS contact_email
             FROM appointment_reminders ar
             JOIN contacts c ON c.id = ar.contact_id
             JOIN clients cl ON cl.id = c.client_id
@@ -115,8 +116,11 @@ async def send_due_reminders():
             text = _fill(body, row, row["client_name"])
             sent_ok = False
 
+            # A Calendly booking's own phone/email can be blank (its form may
+            # not ask for a phone) even when the linked lead has one on file
+            # from their Meta form — fall back to the contact's.
             if step["channel"] == "sms":
-                phone = (row.get("prospect_phone") or "").strip()
+                phone = (row.get("prospect_phone") or row.get("contact_phone") or "").strip()
                 if not phone:
                     continue
                 if not (config and config["twilio_number"]):
@@ -128,7 +132,7 @@ async def send_due_reminders():
                 except Exception as e:
                     print(f"[client_appointment_reminders] SMS failed for client {client_id} ({phone}): {e}")
             elif step["channel"] == "email":
-                email = (row.get("prospect_email") or "").strip()
+                email = (row.get("prospect_email") or row.get("contact_email") or "").strip()
                 if not email:
                     continue
                 if not (config and config["gmail_refresh_token"]):

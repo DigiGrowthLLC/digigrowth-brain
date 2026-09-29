@@ -699,22 +699,26 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             contact_id = contact["id"] if contact else None
             tz_name = guess_timezone(from_phone)
             tz = ZoneInfo(tz_name)
-            # create_appointment_row acquires its own connection internally
-            # (it's shared with the manual-booking HTTP route) — don't hold
-            # one open across this call, just for the contact lookup above
-            # and the status update below.
-            row = await create_appointment_row({
-                "contact_id": contact_id,
-                "prospect_phone": from_phone,
-                "date": tool_input.get("date"),
-                "time": tool_input.get("time"),
-                "timezone": tz_name,
-            })
+
+            async def _mark_booked():
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE client_lead_conversations SET status = 'booked' WHERE client_id = $1 AND phone = $2",
+                        client_id, from_phone,
+                    )
+
+            async def _log_internally():
+                # create_appointment_row acquires its own connection (it's
+                # shared with the manual-booking HTTP route) — none held here.
+                return await create_appointment_row({
+                    "contact_id": contact_id,
+                    "prospect_phone": from_phone,
+                    "date": tool_input.get("date"),
+                    "time": tool_input.get("time"),
+                    "timezone": tz_name,
+                })
+
             async with pool.acquire() as conn:
-                await conn.execute(
-                    "UPDATE client_lead_conversations SET status = 'booked' WHERE client_id = $1 AND phone = $2",
-                    client_id, from_phone,
-                )
                 cal_row = await conn.fetchrow(
                     "SELECT calendly_api_token, calendly_event_type_url FROM client_marketing_config "
                     "WHERE client_id = $1", client_id,
@@ -737,16 +741,22 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             # (missing pieces, an unrecognized required question on the
             # event type, the slot getting taken) falls through to the
             # tap-to-confirm link exactly as before this existed.
+            # With Calendly connected, Calendly is the source of truth: its
+            # invitee.created webhook (routers/calendly_webhooks.py) creates
+            # the appointment row — reminders, the client's booking alert —
+            # once the booking is real. Logging one here too would duplicate
+            # it, or, on the tap-link path, leave a phantom appointment
+            # (reminders + "you got a booking" alert) if the lead never taps.
             if token and event_type_url and name and email and reason:
                 try:
                     await calendly_integration.create_booking(
                         token, event_type_url, tool_input.get("date"), tool_input.get("time"), tz,
                         name, email, from_phone, reason,
                     )
+                    await _mark_booked()
                     return (
-                        f"Confirmed on the calendar — appointment id={row['id']} for "
-                        f"{tool_input.get('date')} {tool_input.get('time')} ({tz_name}), no further "
-                        f"action needed from the lead. Tell them they're all set."
+                        f"Confirmed on the calendar for {tool_input.get('date')} {tool_input.get('time')} "
+                        f"({tz_name}), no further action needed from the lead. Tell them they're all set."
                     )
                 except Exception as e:
                     print(f"[response_ai] create_booking failed for client={client_id}: {e}", flush=True)
@@ -774,15 +784,18 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                     sep = "&" if "?" in slot_url else "?"
                     slot_url = f"{slot_url}{sep}{urlencode(prefill)}"
                 return (
-                    f"Logged internally as appointment id={row['id']}. This time isn't actually "
-                    f"confirmed on the calendar yet — Calendly requires the lead to tap through "
-                    f"themselves. Send them this exact link in your reply so they can lock it in "
+                    f"This time isn't confirmed on the calendar yet — Calendly requires the lead to tap "
+                    f"through themselves. Send them this exact link in your reply so they can lock it in "
                     f"with one tap: {slot_url} — tell them it's their {tool_input.get('date')} "
                     f"{tool_input.get('time')} slot, already picked"
                     + (", name/email pre-filled" if prefill else "")
                     + ", just confirm on Calendly's page to finish. Do not tell them they're "
                     "fully booked until that."
                 )
+            # No Calendly connected (or its slot lookup failed): the internal
+            # log IS the booking, same as a rep noting a booked time.
+            row = await _log_internally()
+            await _mark_booked()
             return f"Booked appointment id={row['id']} for {tool_input.get('date')} {tool_input.get('time')} ({tz_name})."
         except ValueError as e:
             return f"Booking failed: {e}"

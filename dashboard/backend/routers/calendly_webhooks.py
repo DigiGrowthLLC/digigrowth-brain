@@ -353,16 +353,42 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
             # leave contact_id unset rather than misattributing it, same
             # non-claiming rule as the client branch above.
 
-    appt_row = await create_appointment_row({
-        "contact_id": contact_id,
-        "prospect_name": name,
-        "prospect_phone": phone,
-        "prospect_email": email,
-        "date": local.strftime("%Y-%m-%d"),
-        "time": local.strftime("%H:%M"),
-        "timezone": tz_name,
-        "calendly_event_uri": payload.get("event"),
-    })
+    # response_ai.py's propose_appointment logs its booking internally FIRST
+    # and then books the same slot on Calendly (or texts the lead a one-tap
+    # link to it) — so this webhook arrives for an appointment that already
+    # exists. Adopt that row instead of inserting a duplicate, which would
+    # double every reminder, the client's booking alert, and the booked count.
+    async with pool.acquire() as conn:
+        digits = "".join(c for c in (phone or "") if c.isdigit())[-10:]
+        existing_appt = await conn.fetchrow(
+            r"""
+            UPDATE appointment_reminders SET calendly_event_uri = $1::text,
+                prospect_name = COALESCE(prospect_name, $4::text), prospect_email = COALESCE(prospect_email, $5::text)
+            WHERE id = (
+                SELECT id FROM appointment_reminders
+                WHERE status = 'scheduled' AND calendly_event_uri IS NULL
+                  AND abs(extract(epoch FROM appointment_at - $2::timestamptz)) < 60
+                  AND (contact_id = $3::text
+                       OR ($6::text <> '' AND right(regexp_replace(coalesce(prospect_phone, ''), '\D', '', 'g'), 10) = $6::text))
+                ORDER BY created_at DESC LIMIT 1
+            )
+            RETURNING *
+            """,
+            payload.get("event"), start_utc, contact_id, name, email, digits,
+        )
+    if existing_appt:
+        appt_row = dict(existing_appt)
+    else:
+        appt_row = await create_appointment_row({
+            "contact_id": contact_id,
+            "prospect_name": name,
+            "prospect_phone": phone,
+            "prospect_email": email,
+            "date": local.strftime("%Y-%m-%d"),
+            "time": local.strftime("%H:%M"),
+            "timezone": tz_name,
+            "calendly_event_uri": payload.get("event"),
+        })
 
     # "Booked Consultations" on a client's portal Website tab (see
     # client_portal.py's portal_websites()) now means a REAL booking, not

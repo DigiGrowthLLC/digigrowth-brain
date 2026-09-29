@@ -126,6 +126,14 @@ async def _send_steps(conn_pool, client: dict, config, steps, row: dict, stage_p
 
     phone = (row.get("prospect_phone") or "").strip()
     email = (row.get("prospect_email") or "").strip()
+    if (not phone or not email) and row.get("contact_id"):
+        # Same fallback as client_appointment_reminders.py: a Calendly
+        # booking can carry no phone even when the lead has one on file.
+        async with conn_pool.acquire() as conn:
+            contact = await conn.fetchrow("SELECT phone, email FROM contacts WHERE id = $1", row["contact_id"])
+        if contact:
+            phone = phone or (contact["phone"] or "").strip()
+            email = email or (contact["email"] or "").strip()
     attempted = False
 
     for step in steps:

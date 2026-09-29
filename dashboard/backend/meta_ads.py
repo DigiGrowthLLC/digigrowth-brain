@@ -64,13 +64,20 @@ _LEAD_ACTION_TYPES = {
 
 
 def _extract_lead_count(actions: list[dict] | None) -> int:
+    """These aliases OVERLAP — Meta reports one Instant Form lead as both
+    "lead" (its all-sources total) and "onsite_conversion.lead_grouped", so
+    summing them double-counted every form lead. Prefer the "lead" total;
+    otherwise add the two genuinely distinct sources (form + Pixel)."""
     if not actions:
         return 0
-    return sum(
-        int(float(a.get("value", 0)))
-        for a in actions
-        if a.get("action_type") in _LEAD_ACTION_TYPES
-    )
+    values = {
+        a.get("action_type"): int(float(a.get("value", 0)))
+        for a in actions if a.get("action_type") in _LEAD_ACTION_TYPES
+    }
+    if "lead" in values:
+        return values["lead"]
+    distinct = values.get("onsite_conversion.lead_grouped", 0) + values.get("offsite_conversion.fb_pixel_lead", 0)
+    return distinct or values.get("leadgen.other", 0)
 
 
 async def _fetch_insights(http: httpx.AsyncClient, ad_account_id: str, token: str, since: date, until: date) -> list[dict]:
