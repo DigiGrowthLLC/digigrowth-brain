@@ -254,7 +254,7 @@ async def connect_client_calendly_webhook(client_id: int):
 
     base = dialer_engine.base_url()
     if not base:
-        raise HTTPException(400, "RAILWAY_PUBLIC_DOMAIN not set — can't build a callback URL.")
+        raise HTTPException(400, "DASHBOARD_URL not set — can't build a callback URL.")
     callback_url = f"{base}/webhooks/calendly/client/{client_id}"
 
     try:

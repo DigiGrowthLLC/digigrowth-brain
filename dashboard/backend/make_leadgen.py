@@ -80,10 +80,7 @@ async def _fb_connection_id(http: httpx.AsyncClient, team_id: str) -> int:
 
 
 def _blueprint(hook_id: int, client_name: str) -> dict:
-    # Not dialer_engine.base_url() first: RAILWAY_PUBLIC_DOMAIN can be the
-    # branded video host (loom.<domain>), which main.py's watch_host_router
-    # 404s for everything but outreach videos — leads sent there are lost.
-    base = (os.environ.get("DASHBOARD_URL") or dialer_engine.base_url()).rstrip("/")
+    base = dialer_engine.base_url()
     if not base:
         raise RuntimeError("DASHBOARD_URL not set — can't build the relay URL.")
     fields = [{"key": "page_id", "value": "{{1.pageId}}"}, {"key": "leadgen_id", "value": "{{1.leadgenId}}"}]

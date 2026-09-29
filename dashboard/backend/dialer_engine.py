@@ -112,7 +112,7 @@ def _dial_lead_sync(phone: str, session_id: str, base_url: str, config: dict):
     from_num = os.environ.get("TWILIO_PHONE_NUMBER") or config.get("twilio_phone_number", "")
     base = base_url.rstrip("/")
     if not base:
-        err = "base_url is empty — RAILWAY_PUBLIC_DOMAIN not set?"
+        err = "base_url is empty — DASHBOARD_URL not set?"
         print(f"  dialer: {err}")
         return (phone, None, err)
     if not from_num:
@@ -243,8 +243,12 @@ def close_session() -> None:
 
 
 def base_url() -> str:
-    """Derive the public Railway URL for Twilio callback construction."""
+    """Public app URL for callback construction (Twilio, Calendly, Make).
+    DASHBOARD_URL first: RAILWAY_PUBLIC_DOMAIN can resolve to the branded
+    video host (loom.<domain>), which main.py's watch_host_router 404s for
+    everything but outreach videos — callbacks sent there are silently lost."""
+    for url in (os.environ.get("DASHBOARD_URL"), os.environ.get("WEBHOOK_BASE_URL")):
+        if url:
+            return url.rstrip("/")
     domain = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")
-    if domain:
-        return f"https://{domain}"
-    return os.environ.get("WEBHOOK_BASE_URL", "")
+    return f"https://{domain}" if domain else ""

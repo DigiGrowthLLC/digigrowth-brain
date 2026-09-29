@@ -1778,6 +1778,28 @@ async def _create_schema(pool: asyncpg.Pool):
         await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS lead_ads_connected_page_id TEXT")
         await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS lead_ads_error TEXT")
 
+        # Queued first texts for new Meta leads (response_ai.initiate_conversation
+        # -> send_due_openers). Durable instead of an in-memory APScheduler job
+        # so a deploy/restart inside the booking grace period can't drop one.
+        # status: pending -> sending -> sent | skipped_booked | skipped_disabled
+        # | no_reply | failed | expired.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS meta_lead_openers (
+                id           SERIAL PRIMARY KEY,
+                client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                phone        TEXT NOT NULL,
+                lead_name    TEXT,
+                lead_email   TEXT,
+                run_at       TIMESTAMPTZ NOT NULL,
+                status       TEXT NOT NULL DEFAULT 'pending',
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                processed_at TIMESTAMPTZ
+            )
+        """)
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_meta_lead_openers_due ON meta_lead_openers(run_at) WHERE status = 'pending'"
+        )
+
         # Seed the two auto-applied lead-source tags calendly_webhooks.py
         # stamps onto a client's leads (ads-lead vs organic-lead, based on
         # the ?utm_source=paid_ad marker on the ad-funnel page's Calendly

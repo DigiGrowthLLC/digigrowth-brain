@@ -37,6 +37,7 @@ import meta_ads
 import no_show_sequence
 import onboarding_sequence
 import reminder_engine
+import response_ai
 
 security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
@@ -383,6 +384,13 @@ async def lifespan(app: FastAPI):
         IntervalTrigger(seconds=120),
         id="client-email-sync",
         replace_existing=True,
+    )
+    scheduler.add_job(
+        response_ai.send_due_openers,
+        IntervalTrigger(seconds=20),
+        id="meta-lead-openers",
+        replace_existing=True,
+        max_instances=1,
     )
     scheduler.add_job(
         email_warmup.send_due_touches,

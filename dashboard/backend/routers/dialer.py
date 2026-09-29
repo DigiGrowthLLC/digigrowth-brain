@@ -1044,7 +1044,7 @@ async def dial_batch():
     if not base:
         return {
             "ok": False, "dialed": 0, "done": False, "errors":
-            ["RAILWAY_PUBLIC_DOMAIN not set — Twilio callback URLs cannot be built. Set this env var on Railway."],
+            ["DASHBOARD_URL not set — Twilio callback URLs cannot be built. Set this env var on Railway."],
             "phones": [],
         }
 
@@ -1329,7 +1329,7 @@ async def debug_config():
         sess_active = engine._session.get("active", False)
         sess_leads  = len(engine._session.get("eligible_leads", []))
     return {
-        "base_url":        base or "(EMPTY — RAILWAY_PUBLIC_DOMAIN and WEBHOOK_BASE_URL both unset)",
+        "base_url":        base or "(EMPTY — DASHBOARD_URL, WEBHOOK_BASE_URL and RAILWAY_PUBLIC_DOMAIN all unset)",
         "twilio_phone":    twilio_phone or "(EMPTY — TWILIO_PHONE_NUMBER not set and not in config.json)",
         "account_sid_set": bool(account_sid),
         "twiml_app_set":   bool(twiml_app),

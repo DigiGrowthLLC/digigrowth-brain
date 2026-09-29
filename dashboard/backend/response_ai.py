@@ -264,6 +264,12 @@ def _split_into_sms_segments(text: str, max_words: int | None) -> list[str]:
     return segments or [text]
 
 
+def _today_str(tz_name: str) -> str:
+    """"Tuesday, September 29, 2026" in the lead's timezone (portable — no %-d)."""
+    now = datetime.now(ZoneInfo(tz_name))
+    return f"{now:%A, %B} {now.day}, {now.year}"
+
+
 def _build_system_prompt(
     business_name: str, context: str, sequence: list[str], max_words: int | None, rules: str,
     today_str: str, booked_for: str | None = None,
@@ -365,7 +371,7 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
         max_words = row["response_ai_max_words"]
 
         tz_name = guess_timezone(from_phone)
-        today_str = datetime.now(ZoneInfo(tz_name)).strftime("%A, %B %-d, %Y")
+        today_str = _today_str(tz_name)
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
@@ -419,7 +425,7 @@ _PROACTIVE_PREAMBLE_ADDITION = (
 
 # A Meta lead form can send the prospect straight on to the client's
 # Calendly from its completion screen. The opener waits this long to give
-# them time to book, then is skipped if they did (see _has_upcoming_booking).
+# them time to book, then is skipped if they did (see _upcoming_booking).
 META_LEAD_BOOKING_GRACE_SECONDS = 180
 
 
@@ -454,25 +460,84 @@ def _format_booking(booking) -> str:
     return f"{local:%A, %B} {local.day} at {local:%I:%M %p}".replace(" 0", " ") + f" {local:%Z}"
 
 
+# Queued openers older than this are dropped rather than sent — after a long
+# outage, a "thanks for reaching out" text half a day late does more harm
+# than good.
+_OPENER_MAX_AGE = timedelta(hours=12)
+
+
 async def initiate_conversation(
     client_id: int, phone: str, lead_name: str | None = None, lead_email: str | None = None,
 ) -> None:
     """Proactive entry point — the only caller is routers/meta_lead_webhooks.py, for a fresh Meta
-    Lead Ads submission. Unlike handle_inbound_sms, there's no real inbound message to react to, so
-    a small preamble tells the model it's opening the thread, and a single synthetic system-note
-    turn stands in for message history. Never raises — same contract as handle_inbound_sms."""
+    Lead Ads submission. Queues the opener in meta_lead_openers instead of an in-memory APScheduler
+    job, so a deploy or restart during the booking grace period can't silently drop it;
+    send_due_openers (main.py, every 20s) sends it once due. Never raises — same contract as
+    handle_inbound_sms."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT response_ai_enabled, response_ai_min_delay_seconds "
+                "FROM client_marketing_config WHERE client_id = $1",
+                client_id,
+            )
+            if not row or not row["response_ai_enabled"]:
+                return  # agent disabled for this client — Meta lead falls back to manual, same as SMS
+            # Always deferred — a text landing the same second someone submits a
+            # Facebook form reads unmistakably as a bot, and the form's booking
+            # step needs time to finish (META_LEAD_BOOKING_GRACE_SECONDS).
+            delay = max(row["response_ai_min_delay_seconds"] or 0, META_LEAD_BOOKING_GRACE_SECONDS)
+            await conn.execute(
+                "INSERT INTO meta_lead_openers (client_id, phone, lead_name, lead_email, run_at) "
+                "VALUES ($1, $2, $3, $4, now() + make_interval(secs => $5))",
+                client_id, phone, lead_name, lead_email, delay,
+            )
+    except Exception as e:
+        print(f"[response_ai] initiate_conversation failed for client={client_id} phone={phone}: {e}")
+
+
+async def send_due_openers() -> None:
+    """Scheduler job: claims due meta_lead_openers rows (SKIP LOCKED, so an
+    overlapping run can't double-send) and opens each conversation."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            UPDATE meta_lead_openers SET status = 'sending', processed_at = now()
+            WHERE id IN (
+                SELECT id FROM meta_lead_openers
+                WHERE status = 'pending' AND run_at <= now()
+                ORDER BY run_at LIMIT 10 FOR UPDATE SKIP LOCKED
+            )
+            RETURNING *
+            """
+        )
+    for r in rows:
+        if datetime.now(timezone.utc) - r["run_at"] > _OPENER_MAX_AGE:
+            status = "expired"
+        else:
+            status = await _open_conversation(r["client_id"], r["phone"], r["lead_name"], r["lead_email"])
+        async with pool.acquire() as conn:
+            await conn.execute("UPDATE meta_lead_openers SET status = $2 WHERE id = $1", r["id"], status)
+
+
+async def _open_conversation(client_id: int, phone: str, lead_name: str | None, lead_email: str | None) -> str:
+    """Builds the opener prompt from the client's CURRENT agent config (so an
+    edit made during the grace period applies) and sends it. Returns the
+    final meta_lead_openers status."""
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 "SELECT cmc.response_ai_enabled, cmc.response_ai_context, cmc.response_ai_sequence, "
-                "cmc.response_ai_max_words, cmc.response_ai_rules, cmc.response_ai_min_delay_seconds, "
+                "cmc.response_ai_max_words, cmc.response_ai_rules, "
                 "c.name FROM client_marketing_config cmc JOIN clients c ON c.id = cmc.client_id "
                 "WHERE cmc.client_id = $1",
                 client_id,
             )
         if not row or not row["response_ai_enabled"]:
-            return  # agent disabled for this client — Meta lead falls back to manual, same as SMS
+            return "skipped_disabled"
 
         sequence = row["response_ai_sequence"]
         if isinstance(sequence, str):
@@ -480,7 +545,7 @@ async def initiate_conversation(
         max_words = row["response_ai_max_words"]
 
         tz_name = guess_timezone(phone)
-        today_str = datetime.now(ZoneInfo(tz_name)).strftime("%A, %B %-d, %Y")
+        today_str = _today_str(tz_name)
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
@@ -492,36 +557,22 @@ async def initiate_conversation(
             "business's Facebook/Instagram lead form and hasn't heard from you yet. Send the opening text.]"
         )
         messages = [{"role": "user", "content": note}]
-
-        # Always deferred — a text landing the same second someone submits a
-        # Facebook form reads unmistakably as a bot, and the form's booking
-        # step needs time to finish (META_LEAD_BOOKING_GRACE_SECONDS).
-        delay = max(row["response_ai_min_delay_seconds"] or 0, META_LEAD_BOOKING_GRACE_SECONDS)
-        run_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
-        sched = scheduler_registry.get_scheduler()
-        if sched:
-            sched.add_job(
-                _send_initial_message, "date", run_date=run_at,
-                args=[client_id, phone, system_prompt, messages, max_words, lead_email],
-                id=f"meta-lead-opener-{client_id}-{phone}-{run_at.timestamp()}",
-                replace_existing=True,
-            )
-        else:
-            await _send_initial_message(client_id, phone, system_prompt, messages, max_words, lead_email)
+        return await _send_initial_message(client_id, phone, system_prompt, messages, max_words, lead_email)
     except Exception as e:
-        print(f"[response_ai] initiate_conversation failed for client={client_id} phone={phone}: {e}")
+        print(f"[response_ai] _open_conversation failed for client={client_id} phone={phone}: {e}")
+        return "failed"
 
 
 async def _send_initial_message(
     client_id: int, phone: str, system_prompt: str, messages: list[dict], max_words: int | None,
     lead_email: str | None = None,
-) -> None:
+) -> str:
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
             if await _upcoming_booking(conn, phone, lead_email):
                 print(f"[response_ai] meta lead {phone} (client={client_id}) already booked — skipping opener")
-                return
+                return "skipped_booked"
             # Creates the client_lead_conversations row right before the
             # first text goes out, so the thread shows up in the portal
             # inbox from message one, same as handle_inbound_sms does for
@@ -530,15 +581,17 @@ async def _send_initial_message(
 
         reply_text = await _run_agent_turn(client_id, phone, system_prompt, messages)
         if not reply_text:
-            return
+            return "no_reply"
         reply_text = gsm7_safe(reply_text)
         segments = _split_into_sms_segments(reply_text, max_words)
         for i, segment in enumerate(segments):
             if i > 0:
                 await asyncio.sleep(10)
             await client_sms.send_client_sms(client_id, phone, segment, stage="meta_lead_opener")
+        return "sent"
     except Exception as e:
         print(f"[response_ai] _send_initial_message failed for client={client_id} phone={phone}: {e}")
+        return "failed"
 
 
 async def _run_agent_turn(client_id: int, from_phone: str, system_prompt: str, messages: list[dict]) -> str | None:
