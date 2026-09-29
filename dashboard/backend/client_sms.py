@@ -85,6 +85,15 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
         else:
             phone_number = config["twilio_number"]
 
+        # Leads call this number back after the AI agent texts them —
+        # forward those calls (routers/client_voice_webhooks.py). Re-applied
+        # on every run so re-clicking Buy Number fixes an older number too.
+        for number in subaccount_client.incoming_phone_numbers.list(phone_number=phone_number, limit=1):
+            number.update(
+                voice_url=f"{os.environ.get('DASHBOARD_URL', '').rstrip('/')}/webhooks/client-voice/{client_id}/incoming",
+                voice_method="POST",
+            )
+
         voice_fields = {}
         if not (config and config["twilio_twiml_app_sid"]):
             dashboard_url = os.environ.get("DASHBOARD_URL", "").rstrip("/")

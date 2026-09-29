@@ -1778,6 +1778,11 @@ async def _create_schema(pool: asyncpg.Pool):
         await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS lead_ads_connected_page_id TEXT")
         await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS lead_ads_error TEXT")
 
+        # Where calls to the client's Twilio number are forwarded
+        # (routers/client_voice_webhooks.py incoming_call); NULL falls back
+        # to clients.phone.
+        await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS call_forward_number TEXT")
+
         # Queued first texts for new Meta leads (response_ai.initiate_conversation
         # -> send_due_openers). Durable instead of an in-memory APScheduler job
         # so a deploy/restart inside the booking grace period can't drop one.

@@ -1768,6 +1768,9 @@ const MARKETING_GUIDES = {
       { text: "Send yourself a test text to/from the new number and confirm it lands in the message log." },
       { text: "Once Response AI is connected below, confirm it's using this same number, not one of its own." },
       { text: "Automated — nothing to do here: every message sent/received through this number is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test text." },
+      // Appended, not inserted — guide_progress is keyed by step index.
+      { text: "Leads call this number back after the AI agent texts them. Those calls forward to the number below (leave blank to use the client's own phone from their profile), showing the lead's number as caller ID. Buy Number wires this up automatically; for a number bought before this existed, click Buy Number again. Test by calling the client's number from your phone.",
+        fields: [{ key: "call_forward_number", label: "Forward calls to", placeholder: "(737) 555-0123" }] },
     ],
   },
   email: {
