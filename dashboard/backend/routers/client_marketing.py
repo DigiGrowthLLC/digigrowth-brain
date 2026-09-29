@@ -101,6 +101,14 @@ async def update_marketing_config(client_id: int, body: ClientMarketingConfigUpd
         await _connect_lead_ads(client_id)
         async with pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM client_marketing_config WHERE client_id = $1", client_id)
+    # Same for a newly saved Calendly token: register the booking webhook
+    # right away (booking alerts, reminders, and the Meta opener's
+    # already-booked skip all depend on it). Failure lands in
+    # calendly_webhook_error; the CONNECT WEBHOOK button retries.
+    if fields.get("calendly_api_token"):
+        await _connect_calendly_webhook(client_id)
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM client_marketing_config WHERE client_id = $1", client_id)
     return _decode_config(row)
 
 
@@ -243,33 +251,52 @@ async def connect_client_calendly_webhook(client_id: int):
     manually. Requires calendly_api_token already saved (Marketing Setup's
     Response AI step). See routers/calendly_webhooks.py for the receiving
     side."""
+    error = await _connect_calendly_webhook(client_id)
+    if error:
+        raise HTTPException(400, error)
+    return {"ok": True}
+
+
+async def _connect_calendly_webhook(client_id: int) -> str | None:
+    """Registers the client's Calendly webhook and records the outcome
+    (calendly_webhook_uri/signing_key, or calendly_webhook_error). Returns
+    the error message, or None on success."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         config = await conn.fetchrow(
             "SELECT calendly_api_token FROM client_marketing_config WHERE client_id = $1", client_id,
         )
     token = config["calendly_api_token"] if config else None
+    error = None
     if not token:
-        raise HTTPException(400, "No Calendly API token saved for this client yet — add one first.")
-
+        error = "No Calendly API token saved for this client yet — add one first."
     base = dialer_engine.base_url()
-    if not base:
-        raise HTTPException(400, "DASHBOARD_URL not set — can't build a callback URL.")
-    callback_url = f"{base}/webhooks/calendly/client/{client_id}"
-
-    try:
-        org_uri = await calendly_integration.get_organization_uri(token)
-        result = await calendly_integration.register_webhook(token, callback_url, org_uri)
-    except Exception as e:
-        raise HTTPException(400, str(e))
+    if not error and not base:
+        error = "DASHBOARD_URL not set — can't build a callback URL."
+    result = None
+    if not error:
+        try:
+            org_uri = await calendly_integration.get_organization_uri(token)
+            result = await calendly_integration.register_webhook(
+                token, f"{base}/webhooks/calendly/client/{client_id}", org_uri,
+            )
+        except Exception as e:
+            error = str(e)
 
     async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE client_marketing_config SET calendly_webhook_uri = $2, "
-            "calendly_webhook_signing_key = $3, updated_at = now() WHERE client_id = $1",
-            client_id, result["uri"], result["signing_key"],
-        )
-    return {"ok": True}
+        if result:
+            await conn.execute(
+                "UPDATE client_marketing_config SET calendly_webhook_uri = $2, "
+                "calendly_webhook_signing_key = $3, calendly_webhook_error = NULL, updated_at = now() "
+                "WHERE client_id = $1",
+                client_id, result["uri"], result["signing_key"],
+            )
+        else:
+            await conn.execute(
+                "UPDATE client_marketing_config SET calendly_webhook_error = $2, updated_at = now() WHERE client_id = $1",
+                client_id, error,
+            )
+    return error
 
 
 @router.post("/clients/{client_id}/marketing-config/start-warmup")

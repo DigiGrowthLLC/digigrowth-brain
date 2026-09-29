@@ -787,7 +787,7 @@ async def _create_schema(pool: asyncpg.Pool):
             WHERE NOT EXISTS (SELECT 1 FROM launch_checklist_items)
             """
         )
-        # Seed default PT-oriented sequence copy for any client that has
+        # Seed default consultation sequence copy for any client that has
         # none yet — covers both existing clients (first run after this
         # table shipped) and, going forward, routers/clients.py's
         # create_client() calls the same seed inline for brand-new ones.
@@ -800,17 +800,17 @@ async def _create_schema(pool: asyncpg.Pool):
             FROM clients c
             CROSS JOIN (VALUES
                 ('appointment_reminder', 0, '24 Hour Reminder', 'sms', NULL,
-                 'Hi {first_name}, this is a friendly reminder about your physical therapy appointment tomorrow, {date} at {time}, with {business}. Reply CONFIRM to confirm or call us if you need to reschedule.'),
+                 'Hi {first_name}, a friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. We''ll call you at this number. Reply CONFIRM to confirm, or let us know if you need to reschedule.'),
                 ('appointment_reminder', 1, 'Day-Of Reminder', 'sms', NULL,
-                 'Hi {first_name}, just a reminder — your appointment at {business} is today at {time}. We look forward to seeing you!'),
+                 'Hi {first_name}, just a reminder, your consultation with {business} is today at {time}. We''ll give you a call at this number. Talk soon!'),
                 ('no_show', 0, 'Touch 1 (SMS)', 'sms', NULL,
-                 'Hi {first_name}, we missed you at your appointment today at {business}. No worries — these things happen! Reply here or give us a call to get you rescheduled so we can keep your recovery on track.'),
+                 'Hi {first_name}, sorry we missed you for your consultation with {business} today. No worries, these things happen! Reply here or give us a call and we''ll find a new time that works for you.'),
                 ('no_show', 1, 'Touch 1 (Email)', 'email', 'We missed you today',
-                 E'Hi {first_name},\n\nWe noticed you weren''t able to make your physical therapy appointment today. Consistency is a big part of recovery, so we''d love to get you back on the schedule as soon as possible.\n\nReply to this email or give us a call whenever works for you.\n\nTalk soon,\n{business}'),
+                 E'Hi {first_name},\n\nWe weren''t able to connect for your consultation today. No problem at all, we''d love to find a new time that works for you.\n\nReply to this email or give us a call whenever works.\n\nTalk soon,\n{business}'),
                 ('cancellation', 0, 'Touch 1 (SMS)', 'sms', NULL,
-                 'Hi {first_name}, we''ve canceled your appointment as requested. Whenever you''re ready to get back to feeling better, just reply here or give us a call to grab a new time.'),
-                ('cancellation', 1, 'Touch 1 (Email)', 'email', 'Your appointment has been canceled',
-                 E'Hi {first_name},\n\nThis confirms your upcoming appointment with {business} has been canceled.\n\nIf you''d like to reschedule, just reply to this email or call us — we''re happy to find a time that works for you.\n\nTake care,\n{business}')
+                 'Hi {first_name}, we''ve canceled your consultation as requested. Whenever you''re ready, just reply here or give us a call to grab a new time.'),
+                ('cancellation', 1, 'Touch 1 (Email)', 'email', 'Your consultation has been canceled',
+                 E'Hi {first_name},\n\nThis confirms your upcoming consultation with {business} has been canceled.\n\nIf you''d like to reschedule, just reply to this email or call us, and we''ll find a time that works for you.\n\nTake care,\n{business}')
             ) AS s(sequence_key, step_order, label, channel, subject, body)
             WHERE NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id)
             """
@@ -1782,6 +1782,9 @@ async def _create_schema(pool: asyncpg.Pool):
         # (routers/client_voice_webhooks.py incoming_call); NULL falls back
         # to clients.phone.
         await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS call_forward_number TEXT")
+        # Last failed automatic Calendly webhook registration (on saving
+        # calendly_api_token) — shown next to the CONNECT WEBHOOK button.
+        await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS calendly_webhook_error TEXT")
 
         # Queued first texts for new Meta leads (response_ai.initiate_conversation
         # -> send_due_openers). Durable instead of an in-memory APScheduler job

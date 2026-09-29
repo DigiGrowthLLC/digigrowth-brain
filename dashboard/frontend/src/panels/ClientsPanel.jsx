@@ -1805,7 +1805,7 @@ const MARKETING_GUIDES = {
       { text: "Enable the agent, then write its context (business info, offer, tone, hours, FAQs, what to escalate) — or click GENERATE CONTEXT to draft one from this client's onboarding answers, linked contact info, and any uploaded PDFs/docx, then review and edit it." },
       { text: "Fill in the SMS Sequence — 5 short stage goals (first text through fifth text) the agent tries to progress a conversation through. It doesn't follow this rigidly: it always answers whatever the lead actually asks first, then steers back toward the next stage." },
       { text: "Set Rules — a minimum reply delay and a max words-per-text are actually enforced, not just suggested. Add any other freeform rules (tone quirks, things to never say, etc.) in the big text box; the agent reads it before every reply." },
-      { text: "Optional: connect the client's Calendly under \"Calendar (Calendly)\" — a Personal Access Token (Calendly account → Integrations & Apps → API & Webhooks → Generate New Token) lets the agent check real open times before proposing one, instead of asking blind. Without it, the agent just asks the lead for their preferred day/time." },
+      { text: "Connect the client's Calendly under \"Calendar (Calendly)\" (needed for direct booking, the client's booking alerts/reminders, and the Meta lead already-booked check). (1) Their Calendly must be a PAID plan (Standard or higher) so the agent can book straight onto it. (2) Use ONE event type for the consult, with location set to \"Phone call — I will call my invitee\" (the agent can only direct-book phone consults), and at most ONE required question besides phone number (e.g. \"What brings you to this call?\") — more required questions and direct booking fails. (3) Generate a Personal Access Token (Calendly → Integrations & Apps → API & Webhooks → Generate New Token) and paste it, then paste that event type's booking link as the event link. Saving the token registers the booking webhook automatically — confirm the webhook shows CONNECTED (use CONNECT WEBHOOK to retry if it shows an error)." },
       { text: "Text the client's number from your own phone and have a real back-and-forth. Confirm: replies sound on-brand and follow the sequence loosely, agreeing to a time actually creates an appointment (check the Appointments tab), and asking for a human stops the AI from replying further to that thread. Use the Agents tab's Facebook Leads Agent row's \"Testing\" section to reset that number's conversation state between test runs." },
       // Facebook Lead Ads auto-text (make_leadgen.py). Appended, not inserted —
       // guide_progress is keyed by step index.
@@ -1815,8 +1815,10 @@ const MARKETING_GUIDES = {
         link: "https://us2.make.com/2119565/connections", linkLabel: "Make → Credentials" },
       { text: "Allow Make to read leads: in the client's Business Settings → Integrations → Leads Access → their Page → CRMs, make sure Make (may show as \"Integromat\") is allowed. Only blocks anything if the client restricted lead access, but a blocked Make delivers leads with no name/phone.",
         link: "https://business.facebook.com/settings/leads-accesses", linkLabel: "Business Settings → Leads Access" },
-      { text: "Automated: saving the client's Meta Page ID (Paid Ad Creatives step) builds and switches on their Make relay by itself — every new lead lands in this client's CRM, and ~3 minutes later gets a first text from this agent — skipped automatically if they booked through the client's Calendly in the meantime (the lead form's booking step), so connect Calendly in the step above for that check to work. If it failed (usually because the two steps above weren't done yet), fix that and click CONNECT.",
+      { text: "Automated: saving the client's Meta Page ID (Paid Ad Creatives step) builds and switches on their Make relay by itself — every new lead lands in this client's CRM, and ~3 minutes later gets a first text from this agent — skipped automatically if they booked through the client's Calendly in the meantime (the lead form's booking step), so connect Calendly in the step above for that check to work. If it failed (usually because the two steps above weren't done yet), fix that and click CONNECT. Make's free plan runs only 2 scenarios at once (one per client) — upgrade Make before connecting a third client, or the scenario builds but can't switch on.",
         leadAdsAction: true },
+      { text: "Build the client's Meta Instant Form (Business Suite → All tools → Instant Forms → Create form, on the CLIENT's Page): use Meta's standard prefill questions Full name, Phone number, and Email (custom questions are NOT forwarded — a phone asked as a custom question means no text goes out); add a custom disclaimer saying they agree to receive texts from the business; and if the completion screen offers booking, link it to the SAME Calendly event link saved above (not Meta's built-in appointment booking, which the system can't see, so the agent would text people who already booked). The Page must have accepted Meta's Lead Ads terms (facebook.com/ads/leadgen/tos) before a lead ad can run.",
+        link: "https://business.facebook.com/latest/instant_forms", linkLabel: "Meta Business Suite → Instant Forms" },
       { text: "Test it: in Meta's Lead Ads Testing Tool pick the client's Page and form, delete any old test lead, and create one with your own phone number. About 3 minutes later you should get the agent's first text (none if you booked through Calendly — test that path too), and the lead should show up in the client's portal Leads tab (tagged meta_lead).",
         link: "https://developers.facebook.com/tools/lead-ads-testing", linkLabel: "Meta Lead Ads Testing Tool" },
     ],
@@ -1838,7 +1840,7 @@ const MARKETING_GUIDES = {
       { text: "Set up the Meta Pixel before running anything: create (or open) the client's pixel in Business Manager → Events Manager, then install the pixel base code plus Lead/Purchase standard events on their landing page. Do this before spending any budget — without it, none of the ad spend is trackable and Analytics' ad-spend fields have nothing to attribute to.", link: "https://business.facebook.com/events_manager2/list/pixel/", linkLabel: "Meta Events Manager",
         fields: [{ key: "meta_pixel_id", label: "Pixel ID", placeholder: "1234567890123456" }] },
       { text: "Verify the pixel is actually firing (base PageView + the Lead/Purchase events) using the Meta Pixel Helper browser extension on the live landing page before moving on." },
-      { text: "Enter this client's Meta ad account ID and Page ID (Business Manager → Business Settings → Accounts) so ad-spend sync and Facebook Lead Ads auto-follow-up can find this client's data.",
+      { text: "Get the client's ad account and Page into DigiGrowth's Business Manager (they add DigiGrowth as a Partner, or share the assets), then in DigiGrowth's Business Settings → Users → System Users, assign the client's ad account to the system user (View performance is enough) — ad-spend sync reads through that system user and skips accounts it can't see. Then enter the Meta ad account ID and Page ID below. Saving the Page ID also auto-builds the Facebook Lead Ads relay (see Set Up Response AI). Click SYNC NOW to confirm spend comes through.",
         link: "https://business.facebook.com/settings/ad-accounts", linkLabel: "Business Settings → Ad Accounts",
         fields: [
           { key: "meta_ad_account_id", label: "Meta Ad Account ID", placeholder: "123456789012345" },
@@ -1852,7 +1854,7 @@ const MARKETING_GUIDES = {
     title: "Set Up SMS/Email Automations",
     steps: [
       { text: "Confirm SMS Marketing and Email Marketing above are both done first — this reuses the client's own Twilio number and Gmail mailbox, it doesn't bring its own." },
-      { text: "Open this client's Sequences tab and fill in the No Show and Cancellation SMS + email copy (seeded with PT-oriented language on client creation — rewrite it for their actual industry)." },
+      { text: "Open this client's Sequences tab and review the Appointment Reminder, No Show, and Cancellation SMS + email copy (seeded on client creation with a free-phone-consultation template, e.g. \"We'll call you at this number\" — edit it if the client's consult is in person or they use different wording)." },
       { text: "That's it to go live — automated, nothing else to click: the moment a lead tied to this client goes No Show or gets Canceled (marked from the internal Appointments tab, or by the client themselves once self-service booking is turned on for them), the matching SMS/email fires automatically from the client's own number/mailbox. No scheduler or extra wiring needed (client_appointment_sequence.py)." },
       { text: "Test: mark a test appointment No Show (or Cancel it) from the Appointments tab and confirm the message lands from the client's own number/inbox, not DigiGrowth's." },
       { text: "Real limitation, not automatable from here: this only covers leads DigiGrowth booked for this client through this OS. A client's EXISTING patient base lives in their own booking software/EHR, which this system has no connection to — the same automation for their whole existing patient list needs that specific system integrated (a real per-client dev task) or the client running it through their own tool." },
@@ -1867,7 +1869,7 @@ const MARKETING_GUIDES = {
       { text: "Open this client's portal Analytics tab (use their portal link) and sanity-check Total Leads and SMS/Email Sent+Replies against what you already know is true." },
       { text: "Appointments Booked / Show Rate / Close Rate compute live from the internal Appointments tab's outcome marking (outcome_show/outcome_close) for this client's leads — nothing to connect, just make sure reps are actually marking outcomes for this client's appointments instead of leaving them blank." },
       { text: "\"Your Number\"/\"Your Mailbox\" SMS + email counts only populate once real sends go through the client's own Twilio number / Gmail mailbox (portal replies, the automations above, or the Response AI agent once enabled) — if those read zero, that's accurate, not broken, until one of those is live." },
-      { text: "Ad Spend / Impressions / Clicks / CTR / CPC / Cost per Lead are NOT wired up yet — there's no Meta or Google Ads API integration in this codebase (meta_ads.py is a stub), so the portal correctly shows \"Coming Soon\" for every client. Building that needs a real Meta Marketing API / Google Ads API integration plus each client's own ad-account access — flag to Dylan as a separate build, don't expect it from this step." },
+      { text: "Ad Spend / Impressions / Clicks / CTR / CPC / Cost per Lead sync automatically every morning (meta_ads.py) once the Paid Ad Creatives step is done (ad account ID saved + shared with DigiGrowth's system user). If the portal still shows no ad data after a day of spend, click SYNC NOW in that step to see the exact error." },
     ],
   },
 };
@@ -1878,10 +1880,10 @@ const MARKETING_GUIDES = {
 // Setup tab so it's obvious which steps are worth building automation for.
 const AUTOMATION_CANDIDATES = [
   { step: "Landing Page", note: "Automatable: a content-agent skill could take the client's onboarding answers (offer, guarantee, CTA, brand) and generate the page's copy + layout automatically, matching the existing digigrowth-website design system. Still needs a human to review before it goes live and to push the Vercel deploy." },
-  { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automatable without picking an image-gen provider and building the Meta Ads API integration (currently a stub)." },
+  { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automated here yet. Automated already: once the Page ID is saved, Instant Form leads flow into the client's CRM and get texted by their agent (Make relay, built automatically)." },
   { step: "SMS / Email / Response AI", note: "SMS and Email still need a one-time human setup step outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent) that no API lets us do on someone's behalf. Response AI is fully self-built and automated once enabled — response_ai.py replies to inbound SMS itself, no third-party account needed, just per-client context/sequence/rules written on the Agent tab. What's already automated across all three: the number/mailbox setup itself, every send/receive once connected, and the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats)." },
   { step: "SMS/Email Automations", note: "As of 2026-09-13, fully automated once the copy's filled in: writing the No Show/Cancellation SMS+email copy on the Sequences tab is the only manual step — the actual send (client_appointment_sequence.py) fires on its own the moment a lead's appointment is marked No Show/Canceled, no scheduler or extra connection needed. Not automatable: onboarding a client's EXISTING patient base, which lives in their own booking/EHR system outside this app." },
-  { step: "Analytics", note: "Mostly already automatic: Leads/SMS/Email/Appointment stats compute live once contacts are linked to the client — no integration needed, just a data-hygiene check. Ad spend/CTR/CPC/etc. are the one real gap: no Meta or Google Ads API integration exists in this codebase yet, so those stay \"Coming Soon\" until that's built as its own project." },
+  { step: "Analytics", note: "Mostly already automatic: Leads/SMS/Email/Appointment stats compute live once contacts are linked to the client — no integration needed, just a data-hygiene check. Meta ad spend/CTR/CPC/cost per lead sync automatically every morning once the client's ad account is shared with DigiGrowth's system user. Google Ads isn't integrated." },
 ];
 
 // Per-client resource hub: three single-value platform fields (Ads Manager,
@@ -2295,11 +2297,14 @@ function AgentResetTest({ clientId }) {
 // Calendly's API can't create a confirmed booking on someone's behalf, so
 // this is availability-checking only; the actual booking still gets logged
 // the same way it always has.
-function CalendlyWebhookConnect({ clientId, connected }) {
+// Registered automatically when the token is saved (client_marketing.py);
+// autoError is that attempt's failure, the button is the retry.
+function CalendlyWebhookConnect({ clientId, connected, autoError }) {
   const [webhookConnected, setWebhookConnected] = useState(Boolean(connected));
   const [connecting, setConnecting] = useState(false);
   const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const [err, setErr] = useState(autoError || "");
+  useEffect(() => { setWebhookConnected(Boolean(connected)); setErr(autoError || ""); }, [connected, autoError]);
 
   const connect = async () => {
     setConnecting(true); setMsg(""); setErr("");
@@ -2390,7 +2395,7 @@ function AgentCalendlyConnect({ config, onSaveFields, clientId }) {
       )}
       <AgentCalendlyEventType config={config} onSaveFields={onSaveFields} />
       {connected && (
-        <CalendlyWebhookConnect clientId={clientId} connected={Boolean(config?.calendly_webhook_uri)} />
+        <CalendlyWebhookConnect clientId={clientId} connected={Boolean(config?.calendly_webhook_uri)} autoError={config?.calendly_webhook_error} />
       )}
     </div>
   );

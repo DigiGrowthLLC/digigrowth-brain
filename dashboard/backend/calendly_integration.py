@@ -26,6 +26,7 @@ import hmac
 import secrets
 import time
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -89,8 +90,12 @@ async def register_webhook(token: str, callback_url: str, org_uri: str) -> dict:
             params={"organization": org_uri, "scope": "organization"},
         )
         _raise_with_context(existing)
+        # Match on the path, not the full URL: the app has been reachable on
+        # more than one domain, and a leftover subscription on an old host
+        # would keep delivering, signed with a key we no longer have.
+        callback_path = urlsplit(callback_url).path
         for item in existing.json().get("collection", []):
-            if item.get("callback_url") == callback_url:
+            if urlsplit(item.get("callback_url") or "").path == callback_path:
                 # An existing subscription at this URL was signed with
                 # whatever key we generated when IT was created — that key
                 # is gone (never persisted past that one register_webhook
@@ -100,7 +105,6 @@ async def register_webhook(token: str, callback_url: str, org_uri: str) -> dict:
                 del_resp = await http.delete(item["uri"], headers=_headers(token))
                 if del_resp.status_code not in (200, 204, 404):
                     _raise_with_context(del_resp)
-                break
 
         resp = await http.post(
             f"{_API_BASE}/webhook_subscriptions",

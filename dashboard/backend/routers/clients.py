@@ -27,23 +27,23 @@ from models import (
 
 router = APIRouter()
 
-# Default PT-oriented sequence copy — same values as db.py's one-time
+# Default consultation sequence copy (free phone consult — tailor per client on the Sequences tab) — same values as db.py's one-time
 # backfill migration, duplicated here (not imported from db.py) so a
 # brand-new client gets seeded immediately at creation instead of waiting
 # for the next app restart's migration pass.
 _DEFAULT_SEQUENCE_STEPS = [
     ("appointment_reminder", 0, "24 Hour Reminder", "sms", None,
-     "Hi {first_name}, this is a friendly reminder about your physical therapy appointment tomorrow, {date} at {time}, with {business}. Reply CONFIRM to confirm or call us if you need to reschedule."),
+     "Hi {first_name}, a friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. We'll call you at this number. Reply CONFIRM to confirm, or let us know if you need to reschedule."),
     ("appointment_reminder", 1, "Day-Of Reminder", "sms", None,
-     "Hi {first_name}, just a reminder — your appointment at {business} is today at {time}. We look forward to seeing you!"),
+     "Hi {first_name}, just a reminder, your consultation with {business} is today at {time}. We'll give you a call at this number. Talk soon!"),
     ("no_show", 0, "Touch 1 (SMS)", "sms", None,
-     "Hi {first_name}, we missed you at your appointment today at {business}. No worries — these things happen! Reply here or give us a call to get you rescheduled so we can keep your recovery on track."),
+     "Hi {first_name}, sorry we missed you for your consultation with {business} today. No worries, these things happen! Reply here or give us a call and we'll find a new time that works for you."),
     ("no_show", 1, "Touch 1 (Email)", "email", "We missed you today",
-     "Hi {first_name},\n\nWe noticed you weren't able to make your physical therapy appointment today. Consistency is a big part of recovery, so we'd love to get you back on the schedule as soon as possible.\n\nReply to this email or give us a call whenever works for you.\n\nTalk soon,\n{business}"),
+     "Hi {first_name},\n\nWe weren't able to connect for your consultation today. No problem at all, we'd love to find a new time that works for you.\n\nReply to this email or give us a call whenever works.\n\nTalk soon,\n{business}"),
     ("cancellation", 0, "Touch 1 (SMS)", "sms", None,
-     "Hi {first_name}, we've canceled your appointment as requested. Whenever you're ready to get back to feeling better, just reply here or give us a call to grab a new time."),
-    ("cancellation", 1, "Touch 1 (Email)", "email", "Your appointment has been canceled",
-     "Hi {first_name},\n\nThis confirms your upcoming appointment with {business} has been canceled.\n\nIf you'd like to reschedule, just reply to this email or call us — we're happy to find a time that works for you.\n\nTake care,\n{business}"),
+     "Hi {first_name}, we've canceled your consultation as requested. Whenever you're ready, just reply here or give us a call to grab a new time."),
+    ("cancellation", 1, "Touch 1 (Email)", "email", "Your consultation has been canceled",
+     "Hi {first_name},\n\nThis confirms your upcoming consultation with {business} has been canceled.\n\nIf you'd like to reschedule, just reply to this email or call us, and we'll find a time that works for you.\n\nTake care,\n{business}"),
     # Touch 3 (24h) / Touch 4 (72h) — real 3-touch drips as of the client
     # sequence-management build, matching Dylan's own no_show_sequence.py/
     # cancel_sequence.py cadence (client_appointment_sequence.py's
