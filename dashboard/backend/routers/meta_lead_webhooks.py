@@ -39,6 +39,11 @@ Manager. So until App Review for leads_retrieval is submitted and
 approved, this endpoint is correctly wired end-to-end but will only ever
 receive Meta's "Test Lead" submissions (sent to Page admins/app
 testers/developers only), never a real public lead from a live campaign.
+
+Workaround (2026-09-29): POST /webhooks/make-leadgen below takes the same
+leads relayed by a Make.com scenario, which reads them through Make's own
+App-Reviewed Meta app. Everything after the Graph API fetch (_ingest_lead)
+is shared between the two entry points.
 """
 import hashlib
 import hmac
@@ -127,23 +132,32 @@ async def _fetch_lead_fields(leadgen_id: str, page_id: str, system_user_token: s
 
 
 async def _process_lead(client_id: int | None, leadgen_id: str, page_id: str, token: str) -> None:
-    """client_id=None means this form belongs to Dylan's OWN Facebook Page
-    (see dylan_meta_page_id in the caller below), not a client's — mirrors
-    routers/calendly_webhooks.py's Dylan's-own-pipeline branch: still
-    creates/claims a contacts row from the submitted form data so the lead
-    lands in the internal CRM, it just never touches client_marketing_config
-    or fires response_ai (a client-only SMS auto-response feature — there's
-    no equivalent for DigiGrowth's own inbound leads here)."""
     try:
         field_data = await _fetch_lead_fields(leadgen_id, page_id, token)
     except Exception as e:
         print(f"[meta_lead_webhooks] failed to fetch lead {leadgen_id} for client={client_id}: {e}")
         return
+    await _ingest_lead(client_id, leadgen_id, field_data)
 
+
+async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[dict]) -> str:
+    """Shared by both entry points — Meta's own webhook (after the Graph API
+    fetch above) and the Make.com relay below (which hands over field_data
+    already resolved). Returns a short status string for the Make relay's
+    response body; Meta's webhook ignores it.
+
+    client_id=None means this form belongs to Dylan's OWN Facebook Page, not a
+    client's — mirrors routers/calendly_webhooks.py's Dylan's-own-pipeline
+    branch: still creates/claims a contacts row from the submitted form data
+    so the lead lands in the internal CRM, it just never touches
+    client_marketing_config or fires response_ai (a client-only SMS
+    auto-response feature — sms_setter_ai.py only drafts replies on
+    campaign-tagged cold threads, so it has no path to open a thread with
+    DigiGrowth's own inbound leads yet)."""
     phone = _extract_field(field_data, _PHONE_FIELD_NAMES)
     if not phone:
         print(f"[meta_lead_webhooks] lead {leadgen_id} for client={client_id} has no phone — skipping")
-        return
+        return "skipped: no phone"
     email = _extract_field(field_data, _EMAIL_FIELD_NAMES)
     name = _extract_field(field_data, _NAME_FIELD_NAMES)
 
@@ -160,10 +174,10 @@ async def _process_lead(client_id: int | None, leadgen_id: str, page_id: str, to
         )
         if existing and existing["is_client_anchor"] and client_id is not None:
             print(f"[meta_lead_webhooks] lead {leadgen_id} phone matches the anchor contact — skipping")
-            return
+            return "skipped: anchor contact"
         if existing and existing["client_id"] is not None and existing["client_id"] != client_id:
             print(f"[meta_lead_webhooks] lead {leadgen_id} phone already belongs to another client — skipping")
-            return
+            return "skipped: owned by another client"
         is_new_or_claimed = not existing or existing["client_id"] is None
 
         row = await conn.fetchrow(
@@ -199,6 +213,22 @@ async def _process_lead(client_id: int | None, leadgen_id: str, page_id: str, to
 
     if is_new_or_claimed and client_id is not None:
         await response_ai.initiate_conversation(client_id, row["phone"], lead_name=name)
+        return "ok: saved, opener queued"
+    return "ok: saved"
+
+
+async def _page_owner(conn, page_id: str) -> tuple[bool, int | None]:
+    """(is_known, client_id) — a client's Page resolves via
+    client_marketing_config.meta_page_id; Dylan's own Page via dialer_settings
+    key 'dylan_meta_page_id' (set the same way as his own Calendly token —
+    see calendly_admin.py), which resolves to client_id=None."""
+    mapped = await conn.fetchrow(
+        "SELECT client_id FROM client_marketing_config WHERE meta_page_id = $1", page_id,
+    )
+    if mapped:
+        return True, mapped["client_id"]
+    dylan_page = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = 'dylan_meta_page_id'")
+    return bool(dylan_page and dylan_page["value"] == page_id), None
 
 
 @router.post("/webhooks/meta-leadgen")
@@ -221,24 +251,50 @@ async def meta_leadgen_inbound(request: Request):
             if not leadgen_id or not page_id:
                 continue
             async with pool.acquire() as conn:
-                mapped = await conn.fetchrow(
-                    "SELECT client_id FROM client_marketing_config WHERE meta_page_id = $1", str(page_id),
-                )
-                resolved_client_id = mapped["client_id"] if mapped else None
-                if not mapped:
-                    # Not a client's page — check whether it's Dylan's own
-                    # (dialer_settings key 'dylan_meta_page_id', set the same
-                    # way as his own Calendly token — see calendly_admin.py).
-                    dylan_page = await conn.fetchrow(
-                        "SELECT value FROM dialer_settings WHERE key = 'dylan_meta_page_id'",
-                    )
-                    if not dylan_page or dylan_page["value"] != str(page_id):
-                        print(f"[meta_lead_webhooks] no client or Dylan's own page mapped to page_id={page_id} — skipping lead {leadgen_id}")
-                        continue
-                    resolved_client_id = None
+                known, resolved_client_id = await _page_owner(conn, str(page_id))
+            if not known:
+                print(f"[meta_lead_webhooks] no client or Dylan's own page mapped to page_id={page_id} — skipping lead {leadgen_id}")
+                continue
             if not token:
                 print(f"[meta_lead_webhooks] META_SYSTEM_USER_TOKEN not set — skipping lead {leadgen_id}")
                 continue
             await _process_lead(resolved_client_id, leadgen_id, str(page_id), token)
 
     return Response(content="", media_type="text/plain")
+
+
+@router.post("/webhooks/make-leadgen")
+async def make_leadgen_inbound(request: Request):
+    """Make.com relay — a Make scenario ("Facebook Lead Ads → New Lead", then
+    an HTTP POST here) reads leads through Make's own App-Reviewed Meta app,
+    which sidesteps the leads_retrieval App Review blocker described in the
+    module docstring. Authenticated by a shared secret in the
+    X-Webhook-Secret header (MAKE_LEADGEN_SECRET), not the dashboard
+    password, so a leaked scenario blueprint can't unlock /api.
+
+    Body: {"page_id", "leadgen_id", "field_data": [{"name", "values"}]} in
+    Meta's own shape, or the same fields flat ({"full_name": ..., "phone_number":
+    ..., "email": ...}) — whichever Make's mapping produces."""
+    secret = os.environ.get("MAKE_LEADGEN_SECRET")
+    if not secret or not hmac.compare_digest(request.headers.get("X-Webhook-Secret", ""), secret):
+        return Response(status_code=403)
+
+    body = await request.json()
+    page_id = str(body.get("page_id") or "")
+    leadgen_id = str(body.get("leadgen_id") or body.get("id") or "")
+    field_data = body.get("field_data")
+    if not isinstance(field_data, list):
+        field_data = [{"name": k, "values": [v]} for k, v in body.items() if isinstance(v, (str, int))]
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        known, client_id = await _page_owner(conn, page_id)
+    if not known:
+        # Never guess an owner — a client's lead must not land in Dylan's own
+        # CRM (or vice versa). Set the Page's meta_page_id in the client's
+        # marketing config first.
+        print(f"[meta_lead_webhooks] make relay: page_id={page_id!r} not mapped — skipping lead {leadgen_id}")
+        return {"status": "skipped: page not mapped"}
+
+    status = await _ingest_lead(client_id, leadgen_id, field_data)
+    return {"status": status}
