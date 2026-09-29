@@ -48,7 +48,8 @@ creative/plan for Dylan to enter manually, rather than improvising a workaround.
   plan, not a version history).
 - `creatives/<concept-slug>/` — one folder per finished, approved ad concept: `image.jpg` (or
   `image.png`) + a short `copy.md` (avatar, funnel stage, format, the actual on-image copy/quote,
-  CTA). No draft/base photos, no superseded versions, no `.meta.json` provenance files — this folder
+  CTA). Final images are **exactly 1080x1350 (4:5, Meta Feed)** by default (1080x1920 only for
+  Stories/Reels, 1080x1080 only if square is explicitly asked for). No draft/base photos, no superseded versions, no `.meta.json` provenance files — this folder
   is what Dylan looks at, not a working directory.
 
 **Work in `outputs/ad-<slug>-YYYY-MM-DD/` while iterating** (base photos, `.meta.json` provenance,

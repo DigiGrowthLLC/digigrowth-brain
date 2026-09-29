@@ -88,10 +88,16 @@ Ask if not already given:
    "screenshot-like" high-curiosity still — not the same visual template restated). For each concept,
    run from `content-agent/`:
    ```
-   python tools/generate_creative.py image "<prompt>" --aspect 1:1 --out "../media-buying-agent/outputs/<slug>/image.png"
+   python tools/generate_creative.py image "<prompt>" --aspect 4:5 --out "../media-buying-agent/outputs/<slug>/image.png"
    ```
-   - Default `--aspect 1:1` for Feed; use `4:5` for a taller Feed/Reel-friendly crop, `9:16` for
-     Stories/Reels — ask if unclear which placement this is for.
+   - Default `--aspect 4:5` (Meta's recommended Feed size). Use `9:16` only when Dylan asks for
+     Stories/Reels placements, or `1:1` when he explicitly asks for square.
+   - **Final ad size: every finished ad image (base photo + text overlays/CTA, i.e. what goes into
+     `clients/<slug>/creatives/`) must be exactly 1080x1350 (4:5).** Build the overlay canvas at
+     1080x1350 from the start, not a custom height, and lay out the text/CTA to fit inside it. The
+     fal.ai base photo comes back at 1088x1360, so scale/crop it to cover the 1080x1350 canvas. If
+     Dylan asks for Stories/Reels, the final size is 1080x1920 (9:16). For square, it's 1080x1080. Check
+     the final file's pixel dimensions before calling a concept done.
    - This writes `image.png` and a `image.png.meta.json` provenance sidecar automatically.
 
 4. **Save each concept's pairing while iterating** to its own

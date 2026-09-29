@@ -45,7 +45,7 @@ clinic/home-office room with visible clutter, mixed indoor lighting with slight 
 skin texture, slight motion blur, grainy low-contrast amateur photography (deliberately
 less-polished than a professional photoshoot), no text, no logos.
 
-**Layout:** 1080x1400 — photo now only the top ~40% (down from ~62% in v2) so it reads less like a
+**Layout:** 1080x1350 (Meta 4:5 feed) — photo now only the top ~40% (down from ~62% in v2) so it reads less like a
 staged AI photoshoot and more like an incidental candid; forest-green panel below, vertically
 balanced (no dead space) with:
 - Eyebrow: "CROSACORE · AUSTIN, TX"
