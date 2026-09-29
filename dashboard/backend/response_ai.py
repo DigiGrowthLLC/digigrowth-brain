@@ -405,7 +405,35 @@ _PROACTIVE_PREAMBLE_ADDITION = (
 )
 
 
-async def initiate_conversation(client_id: int, phone: str, lead_name: str | None = None) -> None:
+# A Meta lead form can send the prospect straight on to the client's
+# Calendly from its completion screen. The opener waits this long to give
+# them time to book, then is skipped if they did (see _has_upcoming_booking).
+META_LEAD_BOOKING_GRACE_SECONDS = 180
+
+
+async def _has_upcoming_booking(conn, phone: str, email: str | None) -> bool:
+    """A booking made through Calendly lands as an appointment_reminders row
+    (routers/calendly_webhooks.py), linked to the same contact by phone,
+    email, or name — so match the contact's phone as well as the booking's
+    own phone/email, since Calendly's form may not ask for a phone at all."""
+    digits = re.sub(r"\D", "", phone)[-10:]
+    return await conn.fetchval(
+        r"""
+        SELECT EXISTS (
+            SELECT 1 FROM appointment_reminders a LEFT JOIN contacts c ON c.id = a.contact_id
+            WHERE a.status = 'scheduled' AND a.appointment_at > now()
+              AND (right(regexp_replace(coalesce(c.phone, ''), '\D', '', 'g'), 10) = $1
+                   OR right(regexp_replace(coalesce(a.prospect_phone, ''), '\D', '', 'g'), 10) = $1
+                   OR ($2::text IS NOT NULL AND lower(a.prospect_email) = lower($2)))
+        )
+        """,
+        digits, email,
+    )
+
+
+async def initiate_conversation(
+    client_id: int, phone: str, lead_name: str | None = None, lead_email: str | None = None,
+) -> None:
     """Proactive entry point — the only caller is routers/meta_lead_webhooks.py, for a fresh Meta
     Lead Ads submission. Unlike handle_inbound_sms, there's no real inbound message to react to, so
     a small preamble tells the model it's opening the thread, and a single synthetic system-note
@@ -442,32 +470,35 @@ async def initiate_conversation(client_id: int, phone: str, lead_name: str | Non
         )
         messages = [{"role": "user", "content": note}]
 
-        # A text landing the same second someone submits a Facebook form
-        # reads unmistakably as a bot — always deferred, unlike
-        # handle_inbound_sms's inline fallback for a 0-second delay, which
-        # is fine for an active back-and-forth but not for a cold open.
-        delay = max(row["response_ai_min_delay_seconds"] or 0, 30)
+        # Always deferred — a text landing the same second someone submits a
+        # Facebook form reads unmistakably as a bot, and the form's booking
+        # step needs time to finish (META_LEAD_BOOKING_GRACE_SECONDS).
+        delay = max(row["response_ai_min_delay_seconds"] or 0, META_LEAD_BOOKING_GRACE_SECONDS)
         run_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
         sched = scheduler_registry.get_scheduler()
         if sched:
             sched.add_job(
                 _send_initial_message, "date", run_date=run_at,
-                args=[client_id, phone, system_prompt, messages, max_words],
+                args=[client_id, phone, system_prompt, messages, max_words, lead_email],
                 id=f"meta-lead-opener-{client_id}-{phone}-{run_at.timestamp()}",
                 replace_existing=True,
             )
         else:
-            await _send_initial_message(client_id, phone, system_prompt, messages, max_words)
+            await _send_initial_message(client_id, phone, system_prompt, messages, max_words, lead_email)
     except Exception as e:
         print(f"[response_ai] initiate_conversation failed for client={client_id} phone={phone}: {e}")
 
 
 async def _send_initial_message(
     client_id: int, phone: str, system_prompt: str, messages: list[dict], max_words: int | None,
+    lead_email: str | None = None,
 ) -> None:
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
+            if await _has_upcoming_booking(conn, phone, lead_email):
+                print(f"[response_ai] meta lead {phone} (client={client_id}) already booked — skipping opener")
+                return
             # Creates the client_lead_conversations row right before the
             # first text goes out, so the thread shows up in the portal
             # inbox from message one, same as handle_inbound_sms does for

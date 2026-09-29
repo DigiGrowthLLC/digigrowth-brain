@@ -212,7 +212,7 @@ async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[
             )
 
     if is_new_or_claimed and client_id is not None:
-        await response_ai.initiate_conversation(client_id, row["phone"], lead_name=name)
+        await response_ai.initiate_conversation(client_id, row["phone"], lead_name=name, lead_email=email)
         return "ok: saved, opener queued"
     return "ok: saved"
 
