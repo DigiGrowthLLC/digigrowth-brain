@@ -99,13 +99,18 @@ def _blueprint(hook_id: int, client_name: str) -> dict:
             {
                 "id": 2, "module": "http:ActionSendData", "version": 3,
                 "parameters": {"handleErrors": False, "useNewZLibDeCompress": True},
+                # Key names copied from a module saved by Make's own editor
+                # (2026-09-29) — the form body is "formFields"; an unknown key
+                # is silently dropped and fails the run with BundleValidationError.
                 "mapper": {
-                    "url": f"{base}/webhooks/make-leadgen", "serializeUrl": False, "method": "post",
+                    "ca": "", "qs": [], "url": f"{base}/webhooks/make-leadgen", "gzip": True,
+                    "method": "post",
                     "headers": [{"name": "X-Webhook-Secret", "value": _env("MAKE_LEADGEN_SECRET")}],
-                    "qs": [], "bodyType": "x_www_form_urlencoded", "fields": fields,
-                    "parseResponse": True, "allowRedirects": True, "stopOnHttpError": True,
-                    "shareCookies": False, "rejectUnauthorized": True, "followRedirect": True,
-                    "useQuerystring": False, "gzip": True, "useMtls": False, "timeout": "",
+                    "timeout": "", "useMtls": False, "authPass": "", "authUser": "",
+                    "bodyType": "x_www_form_urlencoded", "formFields": fields,
+                    "serializeUrl": False, "shareCookies": False, "parseResponse": True,
+                    "followRedirect": True, "useQuerystring": False, "followAllRedirects": False,
+                    "rejectUnauthorized": True,
                 },
                 "metadata": {"designer": {"x": 300, "y": 0}},
             },
