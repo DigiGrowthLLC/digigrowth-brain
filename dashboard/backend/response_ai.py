@@ -55,7 +55,6 @@ import asyncio
 import json
 import os
 import re
-from urllib.parse import urlencode
 import uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -91,19 +90,17 @@ open times on the earliest available day, which may be a while out — offer exa
 you as a simple either/or (or just the one time, on a day with only one opening), never a \
 day/time you made up yourself and never more than what you were given. If it says the calendar \
 isn't connected, ask for their preferred day and time instead. Once they agree to a specific time, \
-confirm it back in one message and call propose_appointment — never ask them for their name or \
-email, that's looked up automatically from their info already on file. Pass the reason for their \
-call too if you already know it from earlier in the conversation.
+call propose_appointment to book it, then confirm it back — never ask for their name or email \
+up front, that's looked up automatically from their info on file (only ask if propose_appointment \
+says one is missing). Pass the reason for their call too if you already know it.
 - If the lead can't make the time(s) you offered, call check_availability again with after_date \
 set to the day AFTER the day you just offered — never re-offer the same day, and never repeat the \
 exact same times you already gave them.
 - If the lead asks for something outside what you were told, seems upset, asks for a refund or \
 files a complaint, or you're not confident how to respond, call escalate_to_human and let them \
 know a team member will follow up.
-- Never claim an appointment is booked unless you actually called propose_appointment \
-successfully in this same turn. If its result includes a link, the booking ISN'T confirmed yet — \
-you must include that exact link in your reply and tell the lead to tap it to lock the time in, \
-never say they're all set until they've done that.
+- Never claim an appointment is booked unless propose_appointment confirmed it in this same turn. \
+Never send the lead a booking link — you book it for them.
 """
 
 _TOOLS = [
@@ -129,12 +126,12 @@ _TOOLS = [
     {
         "name": "propose_appointment",
         "description": (
-            "Book this lead's appointment once they've agreed to a specific day and time. Never ask "
-            "the lead for their name or email — their name/email (if already on file for this phone "
-            "number) is looked up automatically. If the business has a connected calendar and that "
-            "lookup finds both, plus a reason for the call, this creates a REAL confirmed booking on "
-            "the calendar with no further action needed from the lead. Missing any of those falls "
-            "back to texting the lead a direct link to finish it themselves in one tap."
+            "Book this lead's appointment once they've agreed to one of the specific times you "
+            "offered. Their name/email are looked up automatically from their info on file — never "
+            "ask for them up front. With a connected calendar this books a REAL confirmed "
+            "appointment straight onto it, no link and no further action from the lead. Only if this "
+            "tool's result says their name or email is missing, ask for just that and call it again "
+            "with lead_name/lead_email."
         ),
         "input_schema": {
             "type": "object",
@@ -143,6 +140,8 @@ _TOOLS = [
                 "time": {"type": "string", "description": "HH:MM in 24h format"},
                 "reason": {"type": "string", "description": "One short line on why they're reaching out, from earlier in this conversation."},
                 "notes": {"type": "string", "description": "Anything worth noting for the business, e.g. what the lead is coming in for."},
+                "lead_name": {"type": "string", "description": "ONLY when a previous propose_appointment result said the name is missing — the name the lead just gave you."},
+                "lead_email": {"type": "string", "description": "ONLY when a previous propose_appointment result said the email is missing — the email the lead just gave you."},
             },
             "required": ["date", "time"],
         },
@@ -726,74 +725,56 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             token = cal_row["calendly_api_token"] if cal_row else None
             event_type_url = cal_row["calendly_event_type_url"] if cal_row else None
 
-            # Name/email come ONLY from the matched CRM contact, never from
-            # the model — the lead should never be asked for info that's
-            # already on file, and this also means the model can't work
-            # around that instruction by just inventing/asking for it
-            # through the tool call instead.
-            name = contact.get("owner") if contact else None
-            email = contact.get("email") if contact else None
-            reason = tool_input.get("reason")
+            # Name/email come from the matched CRM contact (a Meta lead has
+            # both from the form). Only when one is genuinely missing does
+            # the model collect it and pass it back in — saved onto the
+            # contact so it's on file from then on.
+            name = (contact.get("owner") if contact else None) or (tool_input.get("lead_name") or "").strip() or None
+            email = (contact.get("email") if contact else None) or (tool_input.get("lead_email") or "").strip() or None
+            reason = (tool_input.get("reason") or "").strip() or "Consultation"
+            if contact_id and (tool_input.get("lead_name") or tool_input.get("lead_email")):
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE contacts SET owner = COALESCE(owner, $2), email = COALESCE(email, $3), "
+                        "updated_at = now() WHERE id = $1",
+                        contact_id, name, email,
+                    )
 
-            # Try a real, immediately-confirmed booking first (Calendly's
-            # Scheduling API, live as of 2026-09-14) — only possible when
-            # we actually have name/email/reason to submit. Any failure
-            # (missing pieces, an unrecognized required question on the
-            # event type, the slot getting taken) falls through to the
-            # tap-to-confirm link exactly as before this existed.
-            # With Calendly connected, Calendly is the source of truth: its
-            # invitee.created webhook (routers/calendly_webhooks.py) creates
-            # the appointment row — reminders, the client's booking alert —
-            # once the booking is real. Logging one here too would duplicate
-            # it, or, on the tap-link path, leave a phantom appointment
-            # (reminders + "you got a booking" alert) if the lead never taps.
-            if token and event_type_url and name and email and reason:
+            if token and event_type_url:
+                # Calendar connected: book straight onto it, never a tap-to-
+                # confirm link. Calendly is the source of truth — its
+                # invitee.created webhook (routers/calendly_webhooks.py)
+                # creates the appointment row (reminders, the client's
+                # booking alert), so nothing is logged internally here;
+                # doing so duplicated every booking.
+                missing = [label for label, value in (("name", name), ("email", email)) if not value]
+                if missing:
+                    return (
+                        f"Not booked yet — the calendar needs the lead's {' and '.join(missing)}, which "
+                        "isn't on file. Ask them for just that in one short message (keep the time they "
+                        "picked), then call propose_appointment again with the same date/time plus "
+                        + " and ".join(f"lead_{m}" for m in missing) + "."
+                    )
                 try:
                     await calendly_integration.create_booking(
                         token, event_type_url, tool_input.get("date"), tool_input.get("time"), tz,
                         name, email, from_phone, reason,
                     )
-                    await _mark_booked()
-                    return (
-                        f"Confirmed on the calendar for {tool_input.get('date')} {tool_input.get('time')} "
-                        f"({tz_name}), no further action needed from the lead. Tell them they're all set."
-                    )
                 except Exception as e:
                     print(f"[response_ai] create_booking failed for client={client_id}: {e}", flush=True)
-
-            slot_url = None
-            if token and event_type_url:
-                try:
-                    slot_url = await calendly_integration.find_slot_scheduling_url(
-                        token, event_type_url, tool_input.get("date"), tool_input.get("time"), tz,
+                    return (
+                        f"Couldn't book {tool_input.get('date')} {tool_input.get('time')} — the calendar "
+                        "rejected it (most likely that slot was just taken). Don't tell them they're booked. "
+                        "Call check_availability again and offer them the next open times instead."
                     )
-                except Exception as e:
-                    print(f"[response_ai] find_slot_scheduling_url failed for client={client_id}: {e}", flush=True)
-            if slot_url:
-                # Pre-fill Calendly's name/email fields from whatever's
-                # known (what the model just collected, or already on
-                # file for this contact) so the lead isn't retyping info
-                # that's already available — Calendly reads these as
-                # ordinary query params on any of its booking pages.
-                prefill = {}
-                if name:
-                    prefill["name"] = name
-                if email:
-                    prefill["email"] = email
-                if prefill:
-                    sep = "&" if "?" in slot_url else "?"
-                    slot_url = f"{slot_url}{sep}{urlencode(prefill)}"
+                await _mark_booked()
                 return (
-                    f"This time isn't confirmed on the calendar yet — Calendly requires the lead to tap "
-                    f"through themselves. Send them this exact link in your reply so they can lock it in "
-                    f"with one tap: {slot_url} — tell them it's their {tool_input.get('date')} "
-                    f"{tool_input.get('time')} slot, already picked"
-                    + (", name/email pre-filled" if prefill else "")
-                    + ", just confirm on Calendly's page to finish. Do not tell them they're "
-                    "fully booked until that."
+                    f"Confirmed on the calendar for {tool_input.get('date')} {tool_input.get('time')} "
+                    f"({tz_name}) — they'll get a calendar confirmation by email. Tell them they're all set."
                 )
-            # No Calendly connected (or its slot lookup failed): the internal
-            # log IS the booking, same as a rep noting a booked time.
+
+            # No calendar connected: the internal log IS the booking, same as
+            # a rep noting a booked time.
             row = await _log_internally()
             await _mark_booked()
             return f"Booked appointment id={row['id']} for {tool_input.get('date')} {tool_input.get('time')} ({tz_name})."
