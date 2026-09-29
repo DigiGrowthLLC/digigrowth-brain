@@ -1804,6 +1804,18 @@ const MARKETING_GUIDES = {
       { text: "Set Rules — a minimum reply delay and a max words-per-text are actually enforced, not just suggested. Add any other freeform rules (tone quirks, things to never say, etc.) in the big text box; the agent reads it before every reply." },
       { text: "Optional: connect the client's Calendly under \"Calendar (Calendly)\" — a Personal Access Token (Calendly account → Integrations & Apps → API & Webhooks → Generate New Token) lets the agent check real open times before proposing one, instead of asking blind. Without it, the agent just asks the lead for their preferred day/time." },
       { text: "Text the client's number from your own phone and have a real back-and-forth. Confirm: replies sound on-brand and follow the sequence loosely, agreeing to a time actually creates an appointment (check the Appointments tab), and asking for a human stops the AI from replying further to that thread. Use the Agents tab's Facebook Leads Agent row's \"Testing\" section to reset that number's conversation state between test runs." },
+      // Facebook Lead Ads auto-text (make_leadgen.py). Appended, not inserted —
+      // guide_progress is keyed by step index.
+      { text: "Facebook Lead Ads: get access to the client's Facebook Page. Ask the client to add DigiGrowth as a Partner in their Business portfolio (Business Settings → Partners → Give a partner access → Pages → their Page, with Full control or at least the Leads task), or add your Facebook profile to the Page directly. Nothing downstream works until your profile can manage this Page's leads.",
+        link: "https://business.facebook.com/settings/partners", linkLabel: "Client's Business Settings → Partners" },
+      { text: "Let Make see the Page: in Make → Credentials → \"DigiGrowth FB\" → Reauthorize, and on Facebook's Pages screen tick this client's Page (skip if you already chose \"all current and future Pages\").",
+        link: "https://us2.make.com/2119565/connections", linkLabel: "Make → Credentials" },
+      { text: "Allow Make to read leads: in the client's Business Settings → Integrations → Leads Access → their Page → CRMs, make sure Make (may show as \"Integromat\") is allowed. Only blocks anything if the client restricted lead access, but a blocked Make delivers leads with no name/phone.",
+        link: "https://business.facebook.com/settings/leads-accesses", linkLabel: "Business Settings → Leads Access" },
+      { text: "Automated: saving the client's Meta Page ID (Paid Ad Creatives step) builds and switches on their Make relay by itself — every new lead lands in this client's CRM and gets a first text from this agent within a minute. If it failed (usually because the two steps above weren't done yet), fix that and click CONNECT.",
+        leadAdsAction: true },
+      { text: "Test it: in Meta's Lead Ads Testing Tool pick the client's Page and form, delete any old test lead, and create one with your own phone number. Within a minute you should get the agent's first text, and the lead should show up in the client's portal Leads tab (tagged meta_lead).",
+        link: "https://developers.facebook.com/tools/lead-ads-testing", linkLabel: "Meta Lead Ads Testing Tool" },
     ],
   },
   landing_page: {
@@ -1890,7 +1902,7 @@ const MARKETING_STEPS = [
     key: "response_ai", label: "Response AI",
     status: (cfg) => (cfg?.response_ai_enabled
       ? (cfg?.response_ai_context ? "Enabled — context set" : "Enabled — no context written yet")
-      : "Not enabled"),
+      : "Not enabled") + (cfg?.make_scenario_id && !cfg?.lead_ads_error ? " · Lead Ads connected" : ""),
     done: (cfg) => Boolean(cfg?.response_ai_enabled && cfg?.response_ai_context),
   },
   {
@@ -2642,6 +2654,7 @@ function GuideModal({
   syncEmailNow, syncingEmail,
   syncMetaAdsNow, syncingMeta, metaSyncResult, metaSyncError,
   warmupStatus, warmupLoading, warmupError, startWarmup, refreshWarmupStatus,
+  connectLeadAds, connectingLeadAds,
   onClose,
 }) {
   useEffect(() => {
@@ -2789,6 +2802,27 @@ function GuideModal({
                           {metaSyncError}
                         </div>
                       )}
+                    </div>
+                  )}
+                  {s.leadAdsAction && (
+                    <div style={{ marginTop: 8 }}>
+                      <button
+                        className="btn btn-primary" style={{ fontSize: 10 }}
+                        onClick={async () => { if (await connectLeadAds()) onToggleStep(i, true); }}
+                        disabled={connectingLeadAds || !config?.meta_page_id}
+                      >
+                        {connectingLeadAds ? "CONNECTING…" : config?.make_scenario_id ? "RECONNECT" : "CONNECT"}
+                      </button>
+                      <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
+                        color: config?.lead_ads_error ? "#e05c5c" : config?.make_scenario_id ? "#4ade80" : "#5a7aa0" }}>
+                        {!config?.meta_page_id
+                          ? "No Meta Page ID saved yet — add it in the Paid Ad Creatives step."
+                          : config?.lead_ads_error
+                            ? config.lead_ads_error
+                            : config?.make_scenario_id
+                              ? `Connected ✓ — Page ${config.lead_ads_connected_page_id}, Make scenario ${config.make_scenario_id}`
+                              : "Not connected yet."}
+                      </div>
                     </div>
                   )}
                   {s.warmupAction && (
@@ -3024,6 +3058,20 @@ function ClientMarketingSetup({ clientId }) {
     }
   };
 
+  // Error text comes back on the config itself (lead_ads_error), so a failed
+  // automatic attempt from saving meta_page_id shows the same way.
+  const [connectingLeadAds, setConnectingLeadAds] = useState(false);
+  const connectLeadAds = async () => {
+    setConnectingLeadAds(true);
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/connect-lead-ads`), { method: "POST" });
+      return r.ok;
+    } finally {
+      await load();
+      setConnectingLeadAds(false);
+    }
+  };
+
   const [warmupStatus, setWarmupStatus] = useState(null);
   const [warmupLoading, setWarmupLoading] = useState(false);
   const [warmupError, setWarmupError] = useState("");
@@ -3181,6 +3229,8 @@ function ClientMarketingSetup({ clientId }) {
         syncEmailNow={syncEmailNow}
         syncingEmail={syncingEmail}
         syncMetaAdsNow={syncMetaAdsNow}
+        connectLeadAds={connectLeadAds}
+        connectingLeadAds={connectingLeadAds}
         syncingMeta={syncingMeta}
         metaSyncResult={metaSyncResult}
         metaSyncError={metaSyncError}

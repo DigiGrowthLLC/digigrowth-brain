@@ -25,6 +25,7 @@ import client_sms
 import context_gen
 import dialer_engine
 import email_warmup
+import make_leadgen
 import meta_ads
 from db import get_pool
 from models import ClientMarketingConfigUpdate, ClientSmsSequenceUpdate, ClientTestEmail
@@ -91,7 +92,64 @@ async def update_marketing_config(client_id: int, body: ClientMarketingConfigUpd
             f"WHERE client_id = ${len(values)} RETURNING *"
         )
         row = await conn.fetchrow(query, *values)
-        return _decode_config(row)
+
+    # Saving a new Meta Page ID wires up its Lead Ads relay automatically.
+    # A failure here (usually Page access not granted yet) never fails the
+    # save — it lands in lead_ads_error for the guide to show, with a
+    # Connect button to retry once the manual steps are done.
+    if fields.get("meta_page_id") and fields["meta_page_id"] != row["lead_ads_connected_page_id"]:
+        await _connect_lead_ads(client_id)
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM client_marketing_config WHERE client_id = $1", client_id)
+    return _decode_config(row)
+
+
+async def _connect_lead_ads(client_id: int) -> str | None:
+    """Runs make_leadgen.connect_page for this client's saved Page and records
+    the outcome. Returns the error message, or None on success."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT cmc.meta_page_id, c.name FROM client_marketing_config cmc "
+            "JOIN clients c ON c.id = cmc.client_id WHERE cmc.client_id = $1",
+            client_id,
+        )
+    page_id = (row["meta_page_id"] or "").strip() if row else ""
+    if not page_id:
+        return "No Meta Page ID saved for this client yet — add it in the Paid Ad Creatives step."
+    try:
+        result = await make_leadgen.connect_page(page_id, row["name"])
+    except Exception as e:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE client_marketing_config SET lead_ads_error = $2, updated_at = now() WHERE client_id = $1",
+                client_id, str(e),
+            )
+        return str(e)
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE client_marketing_config SET make_hook_id = $2, make_scenario_id = $3, "
+            "lead_ads_connected_page_id = $4, lead_ads_error = NULL, updated_at = now() WHERE client_id = $1",
+            client_id, result["hook_id"], result["scenario_id"], page_id,
+        )
+    return None
+
+
+@router.post("/clients/{client_id}/marketing-config/connect-lead-ads")
+async def connect_client_lead_ads(client_id: int):
+    """Builds (or refreshes) this client's Make.com Facebook Lead Ads relay —
+    see make_leadgen.py. Safe to re-click: an existing webhook/scenario for
+    the Page is reused, never duplicated."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(404, "Client not found")
+        await _get_or_create_config(conn, client_id)
+    error = await _connect_lead_ads(client_id)
+    if error:
+        raise HTTPException(400, error)
+    return {"ok": True}
 
 
 @router.post("/clients/{client_id}/marketing-config/provision-sms")

@@ -1768,6 +1768,16 @@ async def _create_schema(pool: asyncpg.Pool):
         await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS calendly_webhook_uri TEXT")
         await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS calendly_webhook_signing_key TEXT")
 
+        # Make.com Lead Ads relay per client (make_leadgen.py) — ids of the
+        # Make webhook + scenario that forward this client's Page's leads to
+        # /webhooks/make-leadgen, and the last connect failure (shown in the
+        # Response AI guide) so an automatic connect attempt on saving
+        # meta_page_id never fails silently.
+        await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS make_hook_id BIGINT")
+        await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS make_scenario_id BIGINT")
+        await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS lead_ads_connected_page_id TEXT")
+        await conn.execute("ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS lead_ads_error TEXT")
+
         # Seed the two auto-applied lead-source tags calendly_webhooks.py
         # stamps onto a client's leads (ads-lead vs organic-lead, based on
         # the ?utm_source=paid_ad marker on the ad-funnel page's Calendly
