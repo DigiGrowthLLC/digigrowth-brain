@@ -266,7 +266,7 @@ def _split_into_sms_segments(text: str, max_words: int | None) -> list[str]:
 
 def _build_system_prompt(
     business_name: str, context: str, sequence: list[str], max_words: int | None, rules: str,
-    today_str: str,
+    today_str: str, booked_for: str | None = None,
 ) -> str:
     # Order matters here: business context and the conversation arc come
     # first (background the model reasons with), and the mandatory rules
@@ -293,6 +293,17 @@ def _build_system_prompt(
             "checklist to work through at once — pick the single most natural one for THIS text and "
             "save the rest for a later message. Two things joined with \"and\" is still two "
             "questions in one text, whether or not each one ends in a question mark.\n"
+        )
+
+    if booked_for:
+        # The lead booked on the client's Calendly themselves (e.g. from the
+        # Meta lead form's booking step) — without this the arc above keeps
+        # pushing them to book a call they already have.
+        parts.append(
+            f"\n--- This lead is ALREADY BOOKED ---\nThey have an appointment on {booked_for}. "
+            "Skip the conversation arc's booking steps entirely: never offer or propose another time "
+            "unless they ask to reschedule. Confirm the appointment if it's relevant, answer their "
+            "questions, and help them show up prepared.\n"
         )
 
     if max_words or (rules and rules.strip()):
@@ -339,11 +350,12 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
             # escalation) was invisible in the portal even though the AI
             # was actively replying. Create it up front instead, for every
             # message, not just a booked one.
-            await _get_or_create_contact(conn, client_id, from_phone)
+            contact = await _get_or_create_contact(conn, client_id, from_phone)
             if conversation["status"] == "escalated":
                 return  # a human has taken over this thread — stay silent
 
             messages = await _load_recent_messages(conn, client_id, from_phone)
+            booking = await _upcoming_booking(conn, from_phone, (contact or {}).get("email"))
 
         # asyncpg has no JSONB codec registered on this pool (matches
         # client_marketing.py's _decode_config) — comes back as a raw string.
@@ -357,7 +369,7 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
-            today_str,
+            today_str, booked_for=_format_booking(booking) if booking else None,
         )
         reply_text = await _run_agent_turn(client_id, from_phone, system_prompt, messages)
         if reply_text:
@@ -411,24 +423,35 @@ _PROACTIVE_PREAMBLE_ADDITION = (
 META_LEAD_BOOKING_GRACE_SECONDS = 180
 
 
-async def _has_upcoming_booking(conn, phone: str, email: str | None) -> bool:
-    """A booking made through Calendly lands as an appointment_reminders row
-    (routers/calendly_webhooks.py), linked to the same contact by phone,
-    email, or name — so match the contact's phone as well as the booking's
-    own phone/email, since Calendly's form may not ask for a phone at all."""
+async def _upcoming_booking(conn, phone: str, email: str | None):
+    """The lead's next scheduled appointment, or None. A booking made through
+    Calendly lands as an appointment_reminders row (routers/calendly_webhooks.py),
+    linked to the same contact by phone, email, or name — so match the
+    contact's phone as well as the booking's own phone/email, since
+    Calendly's form may not ask for a phone at all."""
     digits = re.sub(r"\D", "", phone)[-10:]
-    return await conn.fetchval(
+    return await conn.fetchrow(
         r"""
-        SELECT EXISTS (
-            SELECT 1 FROM appointment_reminders a LEFT JOIN contacts c ON c.id = a.contact_id
-            WHERE a.status = 'scheduled' AND a.appointment_at > now()
-              AND (right(regexp_replace(coalesce(c.phone, ''), '\D', '', 'g'), 10) = $1
-                   OR right(regexp_replace(coalesce(a.prospect_phone, ''), '\D', '', 'g'), 10) = $1
-                   OR ($2::text IS NOT NULL AND lower(a.prospect_email) = lower($2)))
-        )
+        SELECT a.appointment_at, a.prospect_timezone
+        FROM appointment_reminders a LEFT JOIN contacts c ON c.id = a.contact_id
+        WHERE a.status = 'scheduled' AND a.appointment_at > now()
+          AND (right(regexp_replace(coalesce(c.phone, ''), '\D', '', 'g'), 10) = $1
+               OR right(regexp_replace(coalesce(a.prospect_phone, ''), '\D', '', 'g'), 10) = $1
+               OR ($2::text IS NOT NULL AND lower(a.prospect_email) = lower($2)))
+        ORDER BY a.appointment_at LIMIT 1
         """,
         digits, email,
     )
+
+
+def _format_booking(booking) -> str:
+    """e.g. "Thursday, October 2 at 2:00 PM CDT" in the lead's own timezone."""
+    try:
+        tz = ZoneInfo(booking["prospect_timezone"])
+    except Exception:
+        tz = ZoneInfo("UTC")
+    local = booking["appointment_at"].astimezone(tz)
+    return f"{local:%A, %B} {local.day} at {local:%I:%M %p}".replace(" 0", " ") + f" {local:%Z}"
 
 
 async def initiate_conversation(
@@ -496,7 +519,7 @@ async def _send_initial_message(
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
-            if await _has_upcoming_booking(conn, phone, lead_email):
+            if await _upcoming_booking(conn, phone, lead_email):
                 print(f"[response_ai] meta lead {phone} (client={client_id}) already booked — skipping opener")
                 return
             # Creates the client_lead_conversations row right before the
