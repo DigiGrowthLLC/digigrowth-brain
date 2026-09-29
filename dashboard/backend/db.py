@@ -815,13 +815,13 @@ async def _create_schema(pool: asyncpg.Pool):
             WHERE NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id)
             """
         )
-        # Backfill Touch 3/Touch 4 steps (step_order 2-5) for existing
+        # Backfill Touch 2/Touch 3 steps (step_order 2-5) for existing
         # clients whose no_show/cancellation sequences were seeded before
         # this build, back when they were one-shot (Touch 1 only). The
         # blanket seed above only fires for a client with zero rows, so it
         # never reaches these — this backfill is scoped per sequence_key
         # instead (WHERE NOT EXISTS a step_order=2 row for that specific
-        # sequence), and never touches a client who already has Touch 3/4
+        # sequence), and never touches a client who already has Touch 2/3
         # rows (e.g. from an admin edit or a re-run).
         await conn.execute(
             """
@@ -829,25 +829,39 @@ async def _create_schema(pool: asyncpg.Pool):
             SELECT c.id, s.sequence_key, s.step_order, s.label, s.channel, s.subject, s.body
             FROM clients c
             CROSS JOIN (VALUES
-                ('no_show', 2, 'Touch 3 (SMS)', 'sms', NULL,
+                ('no_show', 2, 'Touch 2 (SMS)', 'sms', NULL,
                  'Hi {first_name}, still happy to get you back on the schedule at {business} whenever works for you — just reply here or give us a call.'),
-                ('no_show', 3, 'Touch 3 (Email)', 'email', 'Still here when you''re ready',
+                ('no_show', 3, 'Touch 2 (Email)', 'email', 'Still here when you''re ready',
                  E'Hi {first_name},\n\nThings come up — no worries at all. Whenever you''re ready to get back on track, just reply to this email or give {business} a call and we''ll find a time that fits.\n\nTalk soon,\n{business}'),
-                ('no_show', 4, 'Touch 4 (SMS)', 'sms', NULL,
+                ('no_show', 4, 'Touch 3 (SMS)', 'sms', NULL,
                  '{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know.'),
-                ('no_show', 5, 'Touch 4 (Email)', 'email', 'Closing your file',
+                ('no_show', 5, 'Touch 3 (Email)', 'email', 'Closing your file',
                  E'Hi {first_name},\n\nHaven''t heard back, so we''ll close this out on our end unless we hear from you. If timing''s just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}'),
-                ('cancellation', 2, 'Touch 3 (SMS)', 'sms', NULL,
+                ('cancellation', 2, 'Touch 2 (SMS)', 'sms', NULL,
                  'Hi {first_name}, if timing''s better now, still happy to get you a new time at {business} — just reply here or give us a call.'),
-                ('cancellation', 3, 'Touch 3 (Email)', 'email', 'Still worth getting back on the schedule?',
+                ('cancellation', 3, 'Touch 2 (Email)', 'email', 'Still worth getting back on the schedule?',
                  E'Hi {first_name},\n\nPlans change, that''s normal. If it''s still worth getting back on the schedule at {business}, just reply to this email or give us a call.\n\nTalk soon,\n{business}'),
-                ('cancellation', 4, 'Touch 4 (SMS)', 'sms', NULL,
+                ('cancellation', 4, 'Touch 3 (SMS)', 'sms', NULL,
                  '{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know.'),
-                ('cancellation', 5, 'Touch 4 (Email)', 'email', 'Closing your file',
+                ('cancellation', 5, 'Touch 3 (Email)', 'email', 'Closing your file',
                  E'Hi {first_name},\n\nHaven''t heard back, so we''ll close this out on our end unless we hear from you. If timing''s just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}')
             ) AS s(sequence_key, step_order, label, channel, subject, body)
             WHERE EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key)
             AND NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key AND step_order = s.step_order)
+            """
+        )
+        # Client no-show/cancellation touches were labeled Touch 1/3/4 (copied
+        # from Dylan's own drips), which reads as a missing Touch 2 in the
+        # client portal. Relabel from step_order (0-1 -> 1, 2-3 -> 2, 4-5 -> 3)
+        # so it's idempotent; only touches labels still in the default
+        # "Touch N (SMS|Email)" shape, never a custom label an admin wrote.
+        await conn.execute(
+            r"""
+            UPDATE client_sequence_steps
+            SET label = 'Touch ' || (step_order / 2 + 1) || CASE WHEN channel = 'sms' THEN ' (SMS)' ELSE ' (Email)' END
+            WHERE sequence_key IN ('no_show', 'cancellation')
+              AND label ~ '^Touch [0-9]+ \((SMS|Email)\)$'
+              AND label <> 'Touch ' || (step_order / 2 + 1) || CASE WHEN channel = 'sms' THEN ' (SMS)' ELSE ' (Email)' END
             """
         )
         # Real clients' portals must never touch DigiGrowth's own shared

@@ -6,7 +6,7 @@ cancel_sequence.py copy (that copy is signed "Dylan" and links to Dylan's own
 Calendly, which is wrong for a client's own patient).
 
 Same touch cadence and step-pair-per-touch shape as no_show_sequence.py/
-cancel_sequence.py (step_order 0-1 = Touch 1, 2-3 = Touch 3, 4-5 = Touch 4 —
+cancel_sequence.py (step_order 0-1 = Touch 1, 2-3 = Touch 2, 4-5 = Touch 3 —
 each pair is one SMS step + one email step; see routers/clients.py's
 _DEFAULT_SEQUENCE_STEPS), but progress is tracked generically via a JSONB map
 (client_no_show_steps_sent / client_cancel_steps_sent on appointment_reminders,
@@ -17,7 +17,7 @@ client could in principle have a different number of steps.
 Touch 1 fires synchronously the moment the outcome is recorded (send_first_touch,
 called from routers/appointments.py's PATCH handler and cancel_appointment(),
 routers/client_portal.py's portal_update_appointment_outcome()/
-portal_cancel_appointment()) — never left to wait for the next poll. Touch 3/4
+portal_cancel_appointment()) — never left to wait for the next poll. Touches 2-3
 go out via send_due_touches(), scheduled from main.py on the same 5-minute
 cadence as every other drip in this codebase.
 
@@ -62,7 +62,7 @@ _SEQUENCE_KEYS = {
 # cancel_sequence.py (kept for historical stage-tag continuity, see those
 # modules' docstrings).
 _TOUCH_DELAYS = [timedelta(hours=0), timedelta(hours=24), timedelta(hours=72)]
-_TOUCH_LABELS = ["Touch 1", "Touch 3", "Touch 4"]
+_TOUCH_LABELS = ["Touch 1", "Touch 2", "Touch 3"]
 
 _ANCHOR_COL = {"no_show": "outcome_show_at", "cancellation": "canceled_at"}
 _ACTIVE_WHERE = {

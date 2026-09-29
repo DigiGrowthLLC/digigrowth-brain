@@ -625,12 +625,36 @@ const SEQUENCE_LABELS = {
 };
 const SEQUENCE_ORDER = ["appointment_reminder", "no_show", "cancellation"];
 
-function SequenceStepCard({ step }) {
+// Send timing per column — mirrors client_appointment_reminders.py's
+// _WINDOW_HOURS_BY_STEP (24h, 2h before) and client_appointment_sequence.py's
+// _TOUCH_DELAYS (0h, 24h, 72h after).
+const REMINDER_TIMING = ["24 hours before", "2 hours before"];
+const TOUCH_TIMING = ["Right away", "After 24 hours", "After 72 hours"];
+
+// One column per send: reminders are one step each; no-show/cancellation
+// touches are an SMS + email pair (step_order 0-1 = Touch 1, 2-3 = Touch 2…),
+// grouped from step_order rather than the label so a renamed step still lands
+// in the right column.
+function sequenceColumns(key, group) {
+  const sorted = [...group].sort((a, b) => a.step_order - b.step_order);
+  if (key === "appointment_reminder") {
+    return sorted.map((s) => ({ title: s.label, timing: REMINDER_TIMING[s.step_order], steps: [s] }));
+  }
+  const cols = [];
+  for (const s of sorted) {
+    const i = Math.floor(s.step_order / 2);
+    if (!cols[i]) cols[i] = { title: `Touch ${i + 1}`, timing: TOUCH_TIMING[i], steps: [] };
+    cols[i].steps.push(s);
+  }
+  return cols.filter(Boolean);
+}
+
+function SequenceStepCard({ step, hideLabel }) {
   return (
     <div className="glass-card-sm" style={{ padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff", flex: 1 }}>
-          {step.label}
+          {hideLabel ? "" : step.label}
         </span>
         <span style={{
           fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
@@ -948,9 +972,30 @@ function SequencesTab({ token }) {
                 </button>
               )}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
-              {group.map((step) => <SequenceStepCard key={step.id} step={step} />)}
-            </div>
+            {(() => {
+              const cols = sequenceColumns(key, group);
+              return (
+                <div style={{ overflowX: "auto" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols.length}, minmax(260px, 1fr))`, gap: 14 }}>
+                    {cols.map((col) => (
+                      <div key={col.title} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "0 2px" }}>
+                          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13.5, color: "#e8f0ff" }}>
+                            {col.title}
+                          </span>
+                          {col.timing && (
+                            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.04em" }}>
+                              {col.timing.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        {col.steps.map((step) => <SequenceStepCard key={step.id} step={step} hideLabel />)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         );
       })}
