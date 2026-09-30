@@ -33,6 +33,7 @@ from models import (
 import cancel_sequence
 import client_appointment_reminders
 import client_appointment_sequence
+import client_followup_sequence
 import client_dialer
 import client_email
 import client_sms
@@ -971,6 +972,35 @@ _CLIENT_SEQUENCE_MODULES = {
     "cancel": client_appointment_sequence,
 }
 _CLIENT_SEQUENCE_KEY = {"no_show": "no_show", "cancel": "cancellation"}
+
+
+# Prospect follow-up (client_followup_sequence.py) — its own routes rather
+# than a fourth _CLIENT_SEQUENCE_MODULES key, since it's keyed by lead
+# (contact_id), not by appointment. Registered before the
+# /sequences/{sequence}/{appointment_id}/... routes below so "followup"
+# is never parsed as a sequence name.
+
+@router.get("/{token}/followup/active")
+async def portal_list_followup_active(token: str):
+    client = await get_client_from_token(token)
+    return await client_followup_sequence.list_active(client["id"])
+
+
+@router.post("/{token}/followup/{contact_id}/add")
+async def portal_add_to_followup(token: str, contact_id: str):
+    client = await get_client_from_token(token)
+    error = await client_followup_sequence.add(client["id"], contact_id)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    return {"ok": True}
+
+
+@router.post("/{token}/followup/{contact_id}/remove")
+async def portal_remove_from_followup(token: str, contact_id: str):
+    client = await get_client_from_token(token)
+    if not await client_followup_sequence.remove(client["id"], contact_id):
+        raise HTTPException(status_code=404, detail="Lead not found or not currently in the follow-up sequence")
+    return {"ok": True}
 
 
 def _validate_client_sequence(sequence: str):

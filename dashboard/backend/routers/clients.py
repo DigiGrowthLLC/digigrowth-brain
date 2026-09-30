@@ -67,6 +67,14 @@ _DEFAULT_SEQUENCE_STEPS = [
      "{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know."),
     ("cancellation", 5, "Touch 3 (Email)", "email", "Closing your file",
      "Hi {first_name},\n\nHaven't heard back, so we'll close this out on our end unless we hear from you. If timing's just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}"),
+    # Prospect follow-up (client_followup_sequence.py) — one SMS per touch,
+    # sent 24h / +48h / +4d into a silence. Same values as db.py's seed.
+    ("prospect_followup", 0, "Touch 1 (SMS)", "sms", None,
+     "Hey {first_name}, just following up, checking you got that last message?"),
+    ("prospect_followup", 1, "Touch 2 (SMS)", "sms", None,
+     "{first_name}, still got a couple slots for our free consultation this month. You got 15 minutes?"),
+    ("prospect_followup", 2, "Touch 3 (SMS)", "sms", None,
+     "{first_name}, last one from me. Not sure if there'll be any slots left, but feel free to check in whenever you're free: {link}"),
 ]
 
 

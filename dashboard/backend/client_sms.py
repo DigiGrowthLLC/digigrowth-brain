@@ -158,3 +158,11 @@ async def send_client_sms(client_id: int, to_number: str, body: str, stage: str 
             """,
             client_id, config["twilio_number"], to_number, body, message.sid, stage,
         )
+
+    # A conversational text (a response AI reply — stage None — the Meta
+    # lead opener, or a manual portal reply, also stage None) enrolls the
+    # lead in the 3-touch prospect follow-up. Automated sequence sends carry
+    # their own stage and never enroll anyone.
+    if stage is None or stage == "meta_lead_opener":
+        import client_followup_sequence
+        await client_followup_sequence.maybe_enroll(client_id, to_number)

@@ -26,6 +26,7 @@ import call_reminders
 import cancel_sequence
 import client_appointment_reminders
 import client_appointment_sequence
+import client_followup_sequence
 import daily_sms_handoff
 import domain_health
 import dm_followup_sequence
@@ -449,6 +450,12 @@ async def lifespan(app: FastAPI):
         client_appointment_sequence.send_due_touches,
         IntervalTrigger(minutes=5),
         id="client-appointment-sequence",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        client_followup_sequence.send_due_touches,
+        IntervalTrigger(minutes=5),
+        id="client-followup-sequence",
         replace_existing=True,
     )
     scheduler.add_job(

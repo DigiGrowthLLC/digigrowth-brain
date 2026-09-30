@@ -619,17 +619,20 @@ function OnboardingTab({ token, onGoToTab }) {
 // client_sequence_steps in db.py); the client just sees a preview of what
 // their messaging will look like once it's live.
 const SEQUENCE_LABELS = {
+  prospect_followup: "Prospect Follow-Up",
   appointment_reminder: "Appointment Reminders",
   no_show: "No Show Follow-Up",
   cancellation: "Cancellation Follow-Up",
 };
-const SEQUENCE_ORDER = ["appointment_reminder", "no_show", "cancellation"];
+const SEQUENCE_ORDER = ["prospect_followup", "appointment_reminder", "no_show", "cancellation"];
 
 // Send timing per column — mirrors client_appointment_reminders.py's
 // _WINDOW_HOURS_BY_STEP (24h, 2h before) and client_appointment_sequence.py's
 // _TOUCH_DELAYS (0h, 24h, 72h after).
 const REMINDER_TIMING = ["24 hours before", "2 hours before"];
 const TOUCH_TIMING = ["Right away", "After 24 hours", "After 72 hours"];
+// client_followup_sequence.py's _TOUCHES — chained off the previous touch.
+const FOLLOWUP_TIMING = ["24 hours without a reply", "2 days later", "4 days later"];
 
 // One column per send: reminders are one step each; no-show/cancellation
 // touches are an SMS + email pair (step_order 0-1 = Touch 1, 2-3 = Touch 2…),
@@ -639,6 +642,10 @@ function sequenceColumns(key, group) {
   const sorted = [...group].sort((a, b) => a.step_order - b.step_order);
   if (key === "appointment_reminder") {
     return sorted.map((s) => ({ title: s.label, timing: REMINDER_TIMING[s.step_order], steps: [s] }));
+  }
+  if (key === "prospect_followup") {
+    // One SMS per touch (step_order 0/1/2), no email pair.
+    return sorted.map((s) => ({ title: `Touch ${s.step_order + 1}`, timing: FOLLOWUP_TIMING[s.step_order], steps: [s] }));
   }
   const cols = [];
   for (const s of sorted) {
@@ -683,6 +690,15 @@ function SequenceStepCard({ step, hideLabel }) {
 // this one client's own leads.
 
 const CLIENT_SEQUENCE_COPY = {
+  followup: {
+    title: "Prospect Follow-Up — Active Prospects",
+    emptyLabel: "NOBODY CURRENTLY IN THE FOLLOW-UP SEQUENCE",
+    removeLabel: "Stop Sequence",
+    removeConfirm: (name) => `Stop the follow-up sequence for ${name}? They'll get no more follow-up texts unless you or your assistant text them again.`,
+    addTitle: "Add Prospect to Follow-Up",
+    addHint: "Booked leads (Appointment Booked status or tag) can't be added. The 3 texts go out 24 hours, 3 days, and 7 days after your last unanswered message, and stop the moment they reply.",
+    addLabel: "+ Add Prospect",
+  },
   no_show: {
     title: "No Show Follow-Up — Active Patients",
     emptyLabel: "NOBODY CURRENTLY IN THE NO-SHOW SEQUENCE",
@@ -690,6 +706,7 @@ const CLIENT_SEQUENCE_COPY = {
     removeConfirm: (name) => `Stop the no-show sequence for ${name}? They'll receive no further messages unless re-added.`,
     addTitle: "Add Patient to No-Show Sequence",
     addHint: "Only appointments not already mid no-show-sequence are shown. Adding restarts the 3-touch sequence from Touch 1.",
+    addLabel: "+ Add Patient",
   },
   cancel: {
     title: "Cancellation Follow-Up — Active Patients",
@@ -698,6 +715,7 @@ const CLIENT_SEQUENCE_COPY = {
     removeConfirm: (name) => `Stop the cancellation sequence for ${name}? They'll receive no further messages unless re-added.`,
     addTitle: "Add Patient to Cancellation Sequence",
     addHint: "Only appointments not already mid cancellation-sequence are shown. Adding restarts the 3-touch sequence from Touch 1 and marks the appointment canceled.",
+    addLabel: "+ Add Patient",
   },
   reminder: {
     title: "Appointment Reminders — Upcoming",
@@ -706,8 +724,17 @@ const CLIENT_SEQUENCE_COPY = {
     removeConfirm: (name) => `Stop future reminders for ${name}? The appointment itself is unaffected.`,
     addTitle: "Re-Arm Reminders for an Appointment",
     addHint: "Only future, scheduled appointments are shown. Adding resets the reminder windows as if just booked.",
+    addLabel: "+ Add Patient",
   },
 };
+
+// The prospect follow-up is keyed by lead (contact id), not appointment, so
+// it has its own routes (client_portal.py's /followup/...) and picks from
+// the Leads list instead of appointments.
+function sequenceUrl(token, sequence, id, action) {
+  const base = sequence === "followup" ? `/portal-api/${token}/followup` : `/portal-api/${token}/sequences/${sequence}`;
+  return id ? `${base}/${id}/${action}` : `${base}/active`;
+}
 
 function fmtSeqDate(iso) {
   if (!iso) return "—";
@@ -727,7 +754,7 @@ function AddToClientSequenceModal({ token, sequence, activeIds, onClose, onAdded
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/portal-api/${token}/appointments?status=all`);
+        const res = await fetch(sequence === "followup" ? `/portal-api/${token}/leads` : `/portal-api/${token}/appointments?status=all`);
         const data = await res.json();
         setAll(Array.isArray(data) ? data : []);
       } catch { setAll([]); }
@@ -738,16 +765,17 @@ function AddToClientSequenceModal({ token, sequence, activeIds, onClose, onAdded
   const now = Date.now();
   const candidates = all.filter(a => {
     if (activeIds.has(a.id)) return false;
+    if (sequence === "followup" && !(a.phone || "").trim()) return false;
     if (sequence === "reminder" && (a.status !== "scheduled" || new Date(a.appointment_at).getTime() <= now)) return false;
     if (!q.trim()) return true;
-    const hay = `${a.prospect_name || ""} ${a.owner || ""}`.toLowerCase();
+    const hay = `${a.prospect_name || ""} ${a.owner || ""} ${a.business || ""} ${a.phone || ""}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
   });
 
   async function add(appt) {
     setAddingId(appt.id);
     setErr("");
-    const res = await fetch(`/portal-api/${token}/sequences/${sequence}/${appt.id}/add`, { method: "POST" });
+    const res = await fetch(sequenceUrl(token, sequence, appt.id, "add"), { method: "POST" });
     if (res.ok) {
       onAdded();
       onClose();
@@ -773,7 +801,7 @@ function AddToClientSequenceModal({ token, sequence, activeIds, onClose, onAdded
         <input
           value={q}
           onChange={e => setQ(e.target.value)}
-          placeholder="Search patient…"
+          placeholder={sequence === "followup" ? "Search lead…" : "Search patient…"}
           className="dg-input"
           autoFocus
         />
@@ -783,14 +811,14 @@ function AddToClientSequenceModal({ token, sequence, activeIds, onClose, onAdded
         <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
           {loading && <div style={{ fontSize: 11, color: "#3a5a80" }}>Loading…</div>}
           {!loading && candidates.length === 0 && (
-            <div style={{ fontSize: 11, color: "#3a5a80" }}>No matching appointments.</div>
+            <div style={{ fontSize: 11, color: "#3a5a80" }}>{sequence === "followup" ? "No matching leads." : "No matching appointments."}</div>
           )}
           {candidates.map(a => (
             <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
                                       background: "#060a14", border: "0.5px solid #121e36", borderRadius: 6 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: "#f0f4ff", fontWeight: 600 }}>{a.prospect_name || a.owner || "—"}</div>
-                <div style={{ fontSize: 11, color: "#7a94b8" }}>{fmtSeqDate(a.appointment_at)}</div>
+                <div style={{ fontSize: 12, color: "#f0f4ff", fontWeight: 600 }}>{a.prospect_name || a.owner || a.business || a.phone || "—"}</div>
+                <div style={{ fontSize: 11, color: "#7a94b8" }}>{sequence === "followup" ? a.phone : fmtSeqDate(a.appointment_at)}</div>
               </div>
               <button
                 onClick={() => add(a)}
@@ -819,7 +847,7 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
   const fetchRows = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/portal-api/${token}/sequences/${sequence}/active`);
+      const res = await fetch(sequenceUrl(token, sequence));
       const data = await res.json();
       setRows(Array.isArray(data) ? data : []);
     } catch { setRows([]); }
@@ -833,7 +861,7 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
     if (!window.confirm(copy.removeConfirm(name))) return;
     setBusyId(row.id);
     setErr("");
-    const res = await fetch(`/portal-api/${token}/sequences/${sequence}/${row.id}/remove`, { method: "POST" });
+    const res = await fetch(sequenceUrl(token, sequence, row.id, "remove"), { method: "POST" });
     if (res.ok) fetchRows();
     else { const d = await res.json().catch(() => ({})); setErr(d.detail || "Failed to remove."); }
     setBusyId(null);
@@ -858,7 +886,7 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
             <button onClick={() => setShowAdd(true)} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>
-              + Add Patient
+              {copy.addLabel}
             </button>
             <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 16 }}>✕</button>
           </div>
@@ -880,7 +908,7 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "0.5px solid #1a2540" }}>
-                  {["Patient", "Step", "Next Message Due", ""].map(h => (
+                  {[sequence === "followup" ? "Prospect" : "Patient", "Step", "Next Message Due", ""].map(h => (
                     <th key={h} style={{
                       padding: "6px 10px", textAlign: "left",
                       fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
@@ -926,7 +954,7 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
   );
 }
 
-const SEQUENCE_MODAL_KEY = { appointment_reminder: "reminder", no_show: "no_show", cancellation: "cancel" };
+const SEQUENCE_MODAL_KEY = { prospect_followup: "followup", appointment_reminder: "reminder", no_show: "no_show", cancellation: "cancel" };
 
 function SequencesTab({ token }) {
   const [steps, setSteps] = useState([]);
@@ -968,7 +996,7 @@ function SequencesTab({ token }) {
                   className="btn btn-secondary"
                   style={{ fontSize: 10.5, padding: "6px 12px", whiteSpace: "nowrap" }}
                 >
-                  View Active Patients
+                  {key === "prospect_followup" ? "View Active Prospects" : "View Active Patients"}
                 </button>
               )}
             </div>

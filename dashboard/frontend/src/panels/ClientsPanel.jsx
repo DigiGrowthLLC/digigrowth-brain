@@ -865,11 +865,12 @@ function ClientLaunchChecklist({ clientId }) {
 // Cancellation, previewed read-only in the client's own portal (Sequences
 // tab). Not wired to any real send yet; this is just content editing.
 const SEQUENCE_GROUP_LABELS = {
+  prospect_followup: "Prospect Follow-Up (24h / +2d / +4d after no reply)",
   appointment_reminder: "Appointment Reminders",
   no_show: "No Show Follow-Up",
   cancellation: "Cancellation Follow-Up",
 };
-const SEQUENCE_GROUP_ORDER = ["appointment_reminder", "no_show", "cancellation"];
+const SEQUENCE_GROUP_ORDER = ["prospect_followup", "appointment_reminder", "no_show", "cancellation"];
 
 function SequenceStepEditor({ step, onSaved }) {
   const [subject, setSubject] = useState(step.subject || "");

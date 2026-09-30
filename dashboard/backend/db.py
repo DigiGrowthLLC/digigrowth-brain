@@ -1831,6 +1831,42 @@ async def _create_schema(pool: asyncpg.Pool):
             "CREATE INDEX IF NOT EXISTS idx_meta_lead_openers_due ON meta_lead_openers(run_at) WHERE status = 'pending'"
         )
 
+        # Client prospect follow-up (client_followup_sequence.py) — the
+        # client-portal port of dm_followup_sequence.py's 3-touch "gone quiet"
+        # nudge, for a CLIENT's own leads on the client's own Twilio number.
+        # State lives on the lead's contacts row (client leads have no
+        # sms_conversations row). Same column shape as sms_conversations'
+        # dm_followup_* columns; see that module for the algorithm.
+        await conn.execute("""
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_enrolled_at TIMESTAMPTZ;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_anchor_at TIMESTAMPTZ;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_touch1_sent_at TIMESTAMPTZ;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_touch2_sent_at TIMESTAMPTZ;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_touch3_sent_at TIMESTAMPTZ;
+            CREATE INDEX IF NOT EXISTS idx_contacts_client_followup
+                ON contacts(client_id) WHERE client_followup_enrolled_at IS NOT NULL;
+        """)
+        # Default copy for it — one SMS per touch (step_order 0/1/2). Seeded
+        # per sequence_key, so it reaches existing clients without touching
+        # any copy they already have. Same values as routers/clients.py's
+        # _DEFAULT_SEQUENCE_STEPS (duplicated there for brand-new clients).
+        await conn.execute(
+            """
+            INSERT INTO client_sequence_steps (client_id, sequence_key, step_order, label, channel, subject, body)
+            SELECT c.id, s.sequence_key, s.step_order, s.label, s.channel, s.subject, s.body
+            FROM clients c
+            CROSS JOIN (VALUES
+                ('prospect_followup', 0, 'Touch 1 (SMS)', 'sms', NULL,
+                 'Hey {first_name}, just following up, checking you got that last message?'),
+                ('prospect_followup', 1, 'Touch 2 (SMS)', 'sms', NULL,
+                 '{first_name}, still got a couple slots for our free consultation this month. You got 15 minutes?'),
+                ('prospect_followup', 2, 'Touch 3 (SMS)', 'sms', NULL,
+                 '{first_name}, last one from me. Not sure if there''ll be any slots left, but feel free to check in whenever you''re free: {link}')
+            ) AS s(sequence_key, step_order, label, channel, subject, body)
+            WHERE NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key)
+            """
+        )
+
         # Seed the two auto-applied lead-source tags calendly_webhooks.py
         # stamps onto a client's leads (ads-lead vs organic-lead, based on
         # the ?utm_source=paid_ad marker on the ad-funnel page's Calendly
