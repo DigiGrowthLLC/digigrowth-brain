@@ -19,7 +19,12 @@ AI-generated image — on your own once given an offer and an avatar/angle to wo
   Ads Manager, using the creative and plan this agent produces.
 
 If asked to actually launch/edit a live campaign, say so plainly and hand back the finished
-creative/plan for Dylan to enter manually, rather than improvising a workaround.
+creative/plan for Dylan to enter manually, rather than improvising a workaround. **One exception
+(2026-09-29):** when Dylan explicitly asks, in that conversation, for the connector to set up an ad
+it can create the campaign/ad set/ad **PAUSED**, for him to review and switch on in Ads Manager
+(step 6 of `generate-ad`'s "AI UGC Video Ads" loop). Never activate anything, change budgets on live
+ads, or launch unpaused. Creative upload via the connector isn't enabled on client accounts yet
+("gradually rolled out"), so in practice uploads are still manual.
 
 ## What You Do
 
@@ -30,7 +35,9 @@ creative/plan for Dylan to enter manually, rather than improvising a workaround.
   `content-agent/`, it auto-finds files in `~/Downloads`).
 - **Generate finished ad creative** — copy + a matching AI-generated image for a given offer/avatar,
   via the `generate-ad` skill. Image generation reuses `content-agent/tools/generate_creative.py`
-  (fal.ai) directly rather than duplicating it.
+  (fal.ai) directly rather than duplicating it. The same tool makes AI video (Kling silent B-roll,
+  Veo 3.1 talking actors) and music beds. `tools/assemble_ugc_ad.py` turns talking-actor takes into
+  finished captioned 9:16 + 4:5 video ads from a `spec.json` (see the skill's "AI UGC Video Ads" loop).
 - **Research competitors** — scan the live Meta Ad Library for a vertical to see what's actually
   performing (structure competitors are spending the most on, sustained over time) and worth
   replicating, via the `research-competitors` skill. Standalone, or as the research step inside

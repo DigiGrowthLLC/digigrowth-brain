@@ -43,8 +43,9 @@ Ask if not already given:
 4. **Format** — static image ad (default) vs. logo. When producing multiple new concepts, vary
    format across them where sensible (e.g. one native/advertorial-style still, one more
    testimonial/UGC-style still) rather than making every concept visually the same template with a
-   different subject. Video creative is out of scope for this skill (delegate to `content-agent`'s
-   `outreach-video`/`video-production` skills if a video ad is wanted — this skill is stills-first).
+   different subject. Stills are the default. For **video ad variations** (scripts + shot briefs),
+   follow the "Video Ad Variations" section below. Final editing/rendering of a video is still
+   delegated to `content-agent`'s `video-production` skill.
 5. **Recreating a specific competitor ad?** If Dylan or `research-competitors` points to one specific
    validated competitor ad to base a concept on (rather than building from scratch), treat this as an
    image-*edit* task, not a blank-canvas generation: describe that ad's actual structure (composition,
@@ -123,6 +124,129 @@ Ask if not already given:
    `outputs/ad-<slug>-<YYYY-MM-DD>/` folder (and any sibling folders for rejected/superseded attempts
    on the same concept) so drafts don't pile up in the repo. Don't finalize a concept Dylan hasn't
    actually approved — a still-in-review concept stays in `outputs/` until it's a yes.
+
+---
+
+## Video Ad Variations
+
+Use when Dylan asks for more video ads, or variations on an existing video ad. Source: "How To Make AI
+Ads With Claude x Meta" (see `context/ad-creative-principles.md`, 2026-09-22 source + 2026-09-29
+update).
+
+1. **Start from the existing video.** Ask for (or read) the current video ad's script, speaker,
+   setting and format. A *variation* keeps the same speaker/format/setting and changes the **script:
+   a new hook and angle**. If the speaker, format, and angle all change, it's a new concept, not a
+   variation. Say which one you're producing.
+2. **Write 4-5 scripts, keep the best 2.** Each 18-20s, natural spoken language, written for a cold
+   audience: hook 0-3s, problem 3-8s, solution 8-15s, proof 15-18s, CTA 18-20s. Score each out of 10
+   against the Working Checklist in `context/ad-creative-principles.md`. Present only 9.5+ scripts
+   as ready, and list the rest as weaker instead of silently dropping them.
+3. **Per script, write a shot brief:** speaker (age, gender, setting, emotion), vertical, handheld,
+   candid feel; the on-screen hook text for the first 3 seconds; burned-in captions (most viewers
+   watch muted); the end card with the offer + CTA.
+4. **Who can say what (healthcare/service clients):**
+   - Proof must come from real people. Real Google reviews go **on screen as text quotes**,
+     first-name attribution, same as the statics.
+   - The practitioner (e.g. Brandon's real footage from the client portal) can speak as himself.
+   - An AI-generated or hired actor may voice the *problem* as a relatable scenario ("Nine hours at a
+     desk, and my shoulders are wrecked by 3pm") but must **never** present themselves as a patient,
+     or read a real review as their own story. A fabricated patient testimonial breaks FTC
+     endorsement rules and Meta's ad policies.
+   - Don't write hooks that assert the viewer's condition ("Your back pain…", "Are you suffering from
+     sciatica?"). Meta's personal-attributes policy rejects them. Describe the situation or the
+     service instead.
+5. **If generating AI footage:** generate and get approval on the speaker/scene **still first**
+   (cheap to fix), then turn the approved still into video (image-to-video, "vertical 9:16, handheld
+   feel, candid and authentic") with `generate_creative.py video "<motion prompt>" --image <still>
+   --duration 5 --out <clip>.mp4` (fal.ai Kling image-to-video, ~2-4 min per clip). Kling can't
+   lip-sync, so AI shots are silent: use text-on-video (POV) or the practitioner's real voice.
+   Shoot AI people from behind in follow-up shots so one face doesn't have to stay consistent
+   across separate generations. No "Dramatization"/AI disclaimer label on screen: Dylan had them
+   removed (2026-09-29).
+   Worked example (2026-09-29, approved): `clients/crosacore/creatives/video-3pm-desk/` (AI desk
+   shots + real portal photos + music bed). A re-cut of the practitioner's own educational footage
+   ("Better on Vacation") was made the same day and **rejected** by Dylan.
+6. **Deliver two sizes:** 4:5 (1080x1350) for Feed and 9:16 (1080x1920) for Reels/Stories, both
+   uploaded to the same ad.
+7. **Save** each variation's `script.md` (script, shot brief, score) to
+   `media-buying-agent/outputs/ad-<slug>-video-<YYYY-MM-DD>/`; finalize approved ones into
+   `clients/<client-slug>/creatives/<concept-slug>/` (`video.mp4` + `copy.md`) like stills.
+8. **Account placement:** videos run in their **own ad set**, separate from statics (see "Segment by
+   Creative Type" in the principles file). Meta skews spend by media type when they're mixed.
+
+For a **talking AI actor** (UGC selfie-style), use the full loop below instead of step 5.
+
+---
+
+## AI UGC Video Ads (the "Claude x Meta" loop)
+
+Use when Dylan asks for an AI UGC ad, a "completely original" AI video ad, or to "run the Arcads
+process." This replicates the workflow from "How To Make AI Ads With Claude x Meta" (research → scripts
+→ actor stills → talking video → launch → read results → double down) with our own stack. Arcads
+isn't needed: it resells the same models (Seedance, Veo, Nano Banana) at $77-110+/mo. We call them
+pay-per-use on fal.ai (~$7-8 per finished 15s ad). What Arcads adds is a library of *licensed real
+actors*, which matters only if the Seedance face block (step 4) becomes a real bottleneck. Worked
+example (approved): `clients/crosacore/creatives/video-no-time-for-pt/` (finished ads, `actor.png`
+and `copy.md` with the reusable voice/lighting lines).
+
+1. **Research, before writing anything** (the step "most people skip"). Save as `brief.md`:
+   - **Own account:** `ads_get_ad_entities` at `level: "ad"`, `date_preset: "last_30d"` (or
+     `maximum` for a young account): spend, CTR, CPC, CPM, results per ad. Which angle and format
+     is already winning? Is lead tracking actually firing?
+   - **Category (Meta Ad Library):** `ads_library_search` with category keywords, `countries: ["US"]`,
+     `ad_active_status: "ACTIVE"`, `limit: 50`. Tally repeated headline patterns and offers,
+     advertisers running many variants, and **what nobody is saying** (white space).
+   - **Web:** WebSearch "best performing UGC video ad hooks <category> Meta <year>" for current
+     formats, hooks and benchmarks.
+   - **Client proof:** mine the client's real reviews/testimonials (portal uploads) for a quote that
+     proves the chosen angle, and verify every factual claim against the client's own materials
+     (e.g. CrosaCore is "in-clinic & in-home", **not** office; that wording error was caught in
+     this step).
+   - End with a one-paragraph brief: avatar, winning angle, format, proof.
+2. **Scripts (senior performance-marketer pass):** top 3 pain points → **5 scripts**, one per angle,
+   written for a cold audience in natural spoken language. **One Veo take = 8s max**, so write each
+   script as ~2 takes of ≤8s: hook 0-3s, problem 3-7s, solution 7-12s, CTA 12-15s spoken, then
+   proof card + end card added in the edit (≈20s total). Score each /10 against the Working
+   Checklist, keep only **9.5+**, and list the rest with the reason (don't drop silently). Give each
+   kept script an **actor spec**: age, gender, setting, emotion, wardrobe. Apply the "Who can say
+   what" guardrails above: the actor voices the situation and the offer's facts, **never** a
+   results claim or a patient story.
+3. **Actor still (Nano Banana Pro), then approval:**
+   `generate_creative.py image "<actor spec + setting + 'vertical front-camera selfie frame,
+   natural skin texture, realistic smartphone quality, no text'>" --model nano-banana-pro
+   --aspect 9:16 --out work/actor-<x>.png` (~$0.15). Add `--ref <file>` to hold a product, place or
+   outfit exactly. **Review the still before any video**: hands, face, wardrobe, background text.
+   Fix with a new prompt now, because fixing a still is much cheaper than a video. Dylan approves it,
+   unless he's said to run it end to end.
+4. **Talking video (Veo 3.1):** one call per take, all from the **same approved still**:
+   `generate_creative.py video "<Handheld front-camera selfie video, vertical 9:16, candid UGC. The
+   woman talks straight into the camera, <voice description, identical in every take>... She says:
+   \"<exact line>\" Quiet <setting> ambience, no music, no subtitles, no on-screen text.>"
+   --model veo31 --image work/actor-<x>.png --duration 8 --out work/take<n>.mp4` ($0.40/s ≈ $3.20
+   per take). **Don't use `seedance2` for AI actors:** its partner filter rejects photoreal faces as
+   "likenesses of real people" (422 content_policy_violation). It's fine for scenes without a face.
+   Then **verify**: transcribe each take (words must match the script), sample frames for glitches,
+   and ask Dylan to listen to the cut between takes, since the voice can drift slightly across
+   generations.
+5. **Assemble:** write `spec.json` (takes with in/out trim points, hook text, real-review proof card,
+   end card, music, and an optional corner `label`) and run
+   `python media-buying-agent/tools/assemble_ugc_ad.py <folder>/spec.json`. It transcribes the takes
+   for word-timed captions, keeps text out of the Reels bottom-35% zone, and renders `<slug>-9x16.mp4`
+   + `<slug>-4x5.mp4`. For a music bed under the cards:
+   `generate_creative.py music "<style>, no vocals" --duration 12 --out work/bed.wav`. Check frames
+   from both formats before calling it done.
+6. **Launch:** Meta's upload tools (`ads_creative_upload_media`) are still "being gradually rolled
+   out" for the client accounts as of 2026-09-29, so Dylan uploads in Ads Manager. Hand over the
+   files, primary text, headline and button, and name the ad set it belongs in (videos get their own
+   ad set). Launching via the Meta connector stays off unless Dylan explicitly asks for it in that
+   conversation. Even then, create everything **PAUSED** for him to review and switch on (see
+   `CLAUDE.md`).
+7. **Read results (after 5-7 days of spend):** `ads_get_ad_entities` at `level: "ad"` for the ad set:
+   spend, CTR, CPC, 3-second view rate (hook rate: 25-40% is strong, under 20% means a hook problem),
+   leads, cost per lead. Report the winner in plain English.
+8. **Double down on the winner:** "same actor, different scripts." Reuse the winning actor still and
+   voice description, write 5 new scripts on the winning angle, and repeat steps 2 → 5. Changing the
+   actor or format makes it a new concept, not an iteration.
 
 ---
 

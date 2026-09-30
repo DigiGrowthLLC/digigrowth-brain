@@ -651,6 +651,60 @@ per `CLAUDE.md` regardless of how convenient the demonstrated workflow looks. If
 capability, it's a separate initiative gated on Meta API access, not something to quietly fold into
 these skills.
 
+### Update 2026-09-29: the video-production half now applies
+
+Re-reviewed when Dylan asked for video ad variations for CrosaCore. The parts skipped above as out of
+scope that now matter (written into `generate-ad`'s "Video Ad Variations" section):
+- **Image-first, then video:** generate each actor/scene still, review and fix it, and only then turn
+  it into video. Fixing a still is much cheaper and faster than regenerating a video.
+- **Video prompt style:** "vertical format, handheld feel, candid and authentic", speaking the
+  approved script. Casual UGC framing, not polished production.
+- **Iterate on a winner = same actor, different scripts.** Once one video wins, the next variations
+  keep the speaker/setting and swap the script (hook/angle).
+- **Guardrail the source doesn't mention:** its example is a pajama brand, where an actor "loving the
+  product" is ordinary UGC. For a healthcare practice, an AI actor presenting as a patient is a fake
+  testimonial. Keep real reviews as on-screen text, and let actors voice only the relatable problem.
+
+Also, the Meta MCP connector *is* live now (2026-09-22), but on 2026-09-29 both of its media-upload
+tools returned "being gradually rolled out" for CrosaCore's account. Uploads still go through Ads
+Manager by hand until Meta enables them.
+
+### Update 2026-09-29 (later): full replication of the loop, and what it taught
+
+Dylan asked for the whole process replicated, so it's now `generate-ad`'s "AI UGC Video Ads" section
+(8 steps), first run on CrosaCore (approved: `clients/crosacore/creatives/video-no-time-for-pt/`). Lessons:
+- **Arcads vs. fal.ai:** Arcads ($77-110+/mo, prices hidden until signup) is a front end for the
+  same models the video uses (Seedance 2.0, Veo, Nano Banana, Kling, Sora) plus an actor library and
+  an MCP connector. fal.ai sells those same models pay-per-use with the key we already have, and one
+  finished 15s talking ad costs ~$7-8. We don't need Arcads at our volume. Its one real advantage is
+  **licensed real-person actors**, which sidestep the face filter below.
+- **Seedance 2.0 rejects photoreal AI actors as input images** ("likenesses of real people", 422
+  content_policy_violation, partner validation). The better the actor still, the more likely the
+  block. **Veo 3.1 accepted the same still** and lip-synced quoted dialogue accurately (verified by
+  transcript), but caps at 8s per take, so scripts are written as 2 takes cut together (a native
+  UGC jump cut).
+- **The research step changed the ad.** The account data confirmed the desk/corporate angle. The Ad
+  Library showed every competitor on "root cause / nothing else worked / $49 offer" and **nobody on
+  time or convenience**. The client's own reviews had the proof ("concierge care at your home"). The
+  resulting angle, "No time for PT? A PT who comes to your house", came from research, not guessing.
+- **The research step also caught a false claim.** Earlier creative said "home **or office**". The
+  client's landing page only says "in-clinic & in-home". Verify every offer detail against the
+  client's own materials before it goes into a script.
+- **What the video skips for healthcare:** its example actor praises a product she "owns." For a
+  clinic, an AI actor claiming results or patient status is a fake testimonial. Actors voice the
+  situation and the offer's facts, and real reviews go on screen.
+- **Actor label: Dylan's call, and he chose none.** The first cut carried an "AI-generated actor
+  portrayal" tag. Dylan had it removed from the CrosaCore ad after being told the FTC endorsement
+  guides expect a note when an ad implies someone is a real customer. Default to no label for his
+  clients unless he asks for one. What stays non-negotiable is the script: no results or patient
+  claims from an actor.
+- **Lighting: try it, but show Dylan both.** He first said the soft, evenly lit actor looked "a
+  little unnatural." A darker, uneven relight (Nano Banana Pro `--ref` edit + matching Veo prompt)
+  was made, and after watching both he **preferred the original**. Don't assume "grittier = more
+  real". When he flags a look, keep the original files and show the alternative side by side
+  before replacing anything.
+- **Disclaimer labels: none.** He also had the 3PM Desk ad's "Dramatization" tag removed.
+
 ---
 
 ## Working Checklist (apply to every generated ad)

@@ -1,0 +1,110 @@
+UGC ads are everywhere, but if you've ever tried to get the mage, you know how difficult and
+time consuming it can be. In this video, I'm going to show you how to research, generate, and test
+them just by chatting with Claude, no creative tools, no agency, no switching between apps,
+the whole workflow runs inside a single claw conversation using two MCP connectors,
+Meta and Arcats. Meta's MCP handles the research and the launch. Arcats MCP generates the actual
+UGC assets. Together, they give you an end-to-end AI ad workflow that anyone could run.
+Let me walk you through exactly how it works, I'll give you every prompt along the way,
+because getting those right is where most people struggle. First things first, we need to connect
+Meta's MCP to Claude, and this is genuinely about 30 seconds of setup, and once you've done it,
+Claude can see your entire Meta ad account. No more ads manager, no more tam switching,
+here's how. Add a new connector inside Claude, and paste Meta's MCP server URL, which is going to
+be put on screen, you can pause and grab it right now. Grant access when prompted, that's it,
+you're connected. Now, before we generate anything, we want Claude to do some research and analyse the
+current Meta ad landscape for our product category, in this case, Women's Pajamas. Here's the prompt.
+Using Meta MCP, pull the top performing ads in my account from the last 30 days. Then search the web
+for the highest performing Meta UGC ads for, in this case, Women's Pajamas right now. Identify which
+creative formats are getting the highest impressions, which hooks are generating the highest engagement
+rates, which audience segments are responding best, any creative patterns showing up repeatedly in
+winning ads. Give me a summary I can use to brief my new creatives before I launch. Most people
+launch blind, but this step means you'll campaign to start with signals, not guesswork, and your first
+test is already informed by what's converting right now. And this is actually the step that most
+people skip entirely, and it's the reason most AI generated ads don't perform. Now we take that
+research and turn it into scripts, and this is where Arcads MCP comes in, which is the generative AI
+platform for marketing teams. It has access to all the best AI models in one easy-to-use platform.
+So you've got VO3.1, Klingmotion Control, Nano Banana, Sora 2 Pro, and Seedance 2.0. These top
+AI tools, but you don't need to have subscriptions for all of them, just one Arcads subscription.
+So what is Arcads MCP? MCP stands for model context protocol. It's an open standard that lets Claude
+connect directly to external tools and services. So instead of switching between apps, Claude could
+control them through conversation. Arcads MCP is Arcads implementation of this. It gives Claude
+access to the actors' library, video model, and generation tool inside Arcads, all from a single chat
+window. Pretty neat stuff. This means you save time where most creators are tool switching,
+briefing in one tab, prompting in another, generating in a third, then downloading, uploading,
+et cetera, et cetera. Arcads cuts all of this movement and Claude manages it all for you.
+Now how do we connect it? Easy. Open Claude, go to settings, connectors, or the MCP section
+depending on your version. Click add connector or add custom MCP and paste this URL.
+You can pause the video, it'll be on screen. Sign in with your Arcads account, and that's it.
+Claude now has full access to your Arcads studio. How fast was that? So let's hand Arcads
+the research and let it do the work. Here's the prompt. You are a senior performance
+marketer and UGC ad script writer. In this case, my product is women's pajamas, what it does,
+stylish and comfortable pajamas that keeps up with current trends and fits better than other
+pajama brands. Target audience, 18 to 29-year-old females that love comfy, cozy pajamas.
+Platform, Meta, TikTok, Instagram Reels. Do the following. One, identify the top three
+pain points this product solves. Two, write five UGC ad scripts, one per pain point angle.
+Each script, 18 to 20 seconds, natural spoken language, cold audience, structure,
+hook, naught to three seconds, problem, three to eight seconds, solution, eight to 15 seconds,
+proof, 15 to 18 seconds, CTA, 18 to 20 seconds. Three, score each script out of 10, only keep scripts
+scoring 9.5 or above. Four, suggest the ideal actor type for each script, age, gender, setting,
+emotion. So Claude will output your scripts and actor descriptions in minutes. These go
+directly into your archives, MCP commands, copy, paste and run. Now let's build the ads,
+type one prompt per actor into Claude, like this. Using Nana Banana Pro, generate an image of a woman
+in her mid-twenties, long-ground hair, wearing the product in the attached reference image,
+bedroom background. Keep the product exactly as shown, no changes. So make sure you attach the product
+reference image each time and then repeat this for all five actors. And here we can see them being
+generated at the same time, which is really impressive. Now it's very important to approve each
+image before we turn them into videos. You want to review each generated actor image in Claude.
+And if anything is off like, you know, the pajamas look weird, I'm then going to write a simple
+prompt to fix what's wrong. It's much cheaper and faster to do it that way and fix it now,
+as opposed to after the video has been generated. And then once all five actor images are approved,
+you can generate the videos. So you need to type one prompt per actor and it'd be like this.
+Using the approved image of actor one, create a 10 to 12 second UGC video using sedance 2.0.
+And of course, sedance 2.0 will be used through archives MCP.
+You should speak naturally and say, and this is where you'd insert Claude's script for this actor
+that we did in the previous step. Handheld feel, vertical format, candid and authentic. So each video
+would take three to five minutes. You want to repeat this for all five of your actors. And then once
+he's already typed, give me the download links for all five videos into Claude. Now let's have a
+look at our output. Okay, so spring is finally here and I am obsessed with this set. The print, the fit,
+everything. This is generally my dream spring collection. What I want to highlight here isn't just
+that these look good. It's what they represent. So every one of these ads was built directly from the
+research we ran at the start. The hooks, pain points, the actor types, all of it came from data
+on what's actually converting right now. That means when we go to test these, we're not guessing.
+We're putting spend behind creative. We already have good reason to believe will work. And if something
+doesn't perform, we can iterate immediately. Same workflow, but new script, back in minutes. The speed
+and cost of doing this versus briefing an actor or an agency is incomparable. Now it's time to launch
+them and track them on matter. This is the step that takes the workflow from impressive to complete.
+You've made the ads inside Claude. Now launch them and track them without ever leaving Claude.
+So let's get back into settings and then connectors inside Claude. You've already connected Meta's MCP
+so Claude already had access to your accounts, campaigns, ad sets, creatives, etc. No more ad manager
+required, no more manual uploads. This certainly will save me a lot of time over the last 10 years.
+And once your videos are ready, type this into Claude. Upload these five videos to my Meta ad account
+as new creatives and then make sure you paste the five download links that we created earlier. Claude
+will then upload all five videos directly to your media library in Meta. Then tell Claude exactly
+what you want to do. For example, create a new Meta ad campaign for girl uniform, objective, sales,
+budget, $30 a day. Of course, you could change that if you wanted to. Run it for five days starting
+tomorrow. And this will get things rolling without you needing to touch ads manager. And then you
+need to set your targeting and you can use a prompt like target women aged 18 to 29 in the UK,
+interested in fashion and lifestyle content, wellness and sustainable products. Use broad targeting
+for the first test. So your objective there is what you're telling Claude to optimize for.
+Like you could optimize for video views or links, but often that's going to optimize the people
+that are less likely to convert. It's not going to deliver the outcome that you really want,
+which in this case is going to be to sell more products. And you don't want to waste budget with a
+campaign that is trying to get you more of what you don't want, especially if we're only operating
+with a $30 a day budget. And then after five to seven days, come back to Claude and ask which of
+my five ads is performing the best. Show me a breakdown. Claude will then pull the live data from
+Meta and give you the answer in plain English. No, spreadsheets, no pivoting, no logging into ads manager.
+And this allows you to implement the final step, which is to double down on the winner.
+And once you know which app was the best performer, tell Claude this. Take the top performing ad and
+generate five more variations of it using Arcades MCP, same actor, different scripts. And this is how
+you repeat the loop and you keep creating winning ads. Use Arcades, new scripts, back to Meta, loop,
+every time it gets smarter. So why does this matter? Most people stop at generation. They make the ad,
+they download it, they distribute it manually. And then they'll spend ages manually setting up the
+campaign tinkering with it. This process eliminates those pain points, gives the campaign the time and
+the space they need to thrive while still studying the results so it can be high performing with low
+effort required. So now we've established how it works and more importantly that it works well.
+Let's go over the economics here. So as you can see here, the Claude Plus Arcades combo can be a
+traditional agency structure. Certainly does on cost, setup time, potentially volume of creative.
+And if you're a business that's not operating at a scale where working with an agency makes sense,
+this could be a fantastic way to go. You also don't need to have the hard skills required. Like
+this is going to automate a lot of that process for you. You can get a lot of volume, which we know is
+really important post-Andromeda. So if you want to try Arcades yourself, click the link in the
+description below.

@@ -1,0 +1,170 @@
+A lot of the time when I'm browsing on YouTube I see these meta ad testing videos and usually
+the testing strategy includes some form of e-commerce products and a crazy budget of like
+$1,000 per day. Well, what about the most common advertising budget out there? 90% of the time
+when someone sends me a question about the best testing strategy for their budget,
+theirs or their client's budget is between 30 and $35 per day, around $1,000 per month.
+That is a nice round number that most businesses are happy to dedicate to testing to see
+if meta ads are going to work for their business. Perhaps you watching this
+have a budget of $1,000 and that's why you clicked on the video or maybe the most common
+budget your clients have is $1,000. That's the budget that 90% of local brick and mortar
+businesses will have per month at least to get started. So what is the best testing process
+for that budget? And we certainly can't go ahead and split tests a whole bunch of different headlines
+and primary test combos and ad-created combos because we're simply going to burn through our budget
+and we're not going to have any information at the end of it to understand what truly worked.
+But we also need to test, we need to figure out what creators works best in that local market,
+we need to know if it's images, if it's videos, what hooks work best. So what is the best testing
+process? Well that is what I'm going to cover in this video. So grab your cafe in a choice,
+sit back, relax, get your payment paper ready and let's get on with the video.
+But first, just before we do, I almost forgot. If you clicked on this video, you're probably asking
+yourself, Sam, this is great content, but what if I want a step-by-step process that teaches me all
+of this as well as many other of your incredible advertising strategies all in one
+place? Well today is your lucky day. On the 28th of January in just a couple of days, ad club
+is launching. Ad club is my new community, for anybody who wants to get incredible results with
+their meta campaigns for local businesses. It's going to be hosted on school, it's going to include
+a 12 module course as well as access to myself via Q&A sessions. It's also going to be at a
+affordable price point. So if you want to be one of the first few people to join, he's going to get
+an exclusive discount when they join, then I've left a link down in the description box down below
+where you can join the wait list and get first access when it launches. Okay, now back to the
+video. So the first thing we need to understand is why do we test? Well, we test because ultimately we have
+no idea what ads are going to resonate with our audience. We have some idea, but really we have no idea,
+right? So what are we trying to achieve? Well, ultimately we're trying to achieve low cost per
+lead whilst maintaining high quality of lead. So let's have two phases of our testing. We're testing
+the Facebook ad to see what we can do to bring in the lowest cost per lead possible. And then we're
+tracking on the back end to see what is the quality of those leads like and depending on that quality,
+you might have to make adjustments on the front end. There's kind of two sides of the test. And this
+is especially prevalent with local businesses, right? Because there's a lot. So it's not like we're
+selling an e-commerce product on the internet where we can just drive customers and once person
+comes customer art job is done, we're generating leads and the leads are getting contacted, they're
+getting scheduled and then there is a manual process to convert that lead into a customer. So there's
+two sides to it. Also, we need to understand the algorithm. Obviously, since the Android update,
+there's been a few changes. So Android is met as new achiever engine, if retrieval engine sorry,
+if you don't know what that is, don't worry too much about it, but what it does is it takes millions
+of ads and now is down to a few thousand candidates and it does certain way meta claims as far as
+much smarter and more personal than before. Best way of explaining that all it's doing is it's going
+to take micro data from your ad to contain micro data from the customers and they're going to try and
+match two things together. Ultimately, you don't have to try and be really specific with your audiences
+and who you're targeting. What you really want to do is you want your ads to really cool out the type
+of person that you're trying to target and then let meta figure out who to place that ad in front of.
+That is the nuts and bots what we try and do. So the old way of advertising was to have different
+ad sets where you would maybe target different pockets of people and you might have different interests,
+you might have different audience segments, you might have different targeting, right? And you used to
+run ads to those people and try and if each one of these is a customer demographic, you used to run
+specific ads to that customer demographic and you used to Facebook used to then kind of
+effects of your ad set would become the brain and your different ad sets would be targeting different
+sub-setters of pockets of your audience and therefore the ads need to really speak to those people.
+If it didn't perform that ad set, that audience didn't perform that didn't work. Whereas the new way of
+doing it is each ad set kind of, you know, whereas the new way of doing it is to not think of each ad set
+as a specific brain instead to think of the brain being at the campaign level and that campaign can see
+inside of your ad set, you can see inside of your ads and it can do so and it can match one ad, one
+particular user can also match another ad to another particular user and it's the signals that meta
+gets from your ads that is going to help it to target the right type of user to see that particular ad.
+So meta user signals sent from your ad to try and find pockets of its audience who it believes is most
+like to convert in that moment. So meta AI now figures out who each ad works for so that we can put
+multiple hooks and messages for different niches inside one ad set and the system automatically shows
+created to people that are most likely to respond to that ad. Okay, ultimately we used to segment
+audiences ourselves, now meta segments, the audience based upon the created that we give it.
+Sounds very complicated, it's really not very complicated. If I'm losing you please give me 30
+seconds then we get into more detail. Okay, so while do we test because if we just throw all of our ads
+into one ad set, right, we'd get this problem where we'd have loads of budget going towards some ads
+and barely any budget going towards other ads and if you've seen my one campaign meta campaign strategy
+you'll see that yes this can work sometimes but there's one downside which is that meta will overspend
+in certain areas and underspend in certain areas. So one way to deal with this is to go through this
+and manually turn off ads that aren't performing and allow for a spend on ads that you know haven't had
+a chance to spend any money and we can go through this process but we still it's just not the most
+effective way of doing it and in my experience this works better for campaigns where you already
+kind of know what works, you've always done your testing stages already and you kind of know what works,
+you can just share everything into one campaign because ultimately it's much easier to be able to
+manage one campaign than it is to have to manage three four five or six you kind of get the idea.
+So what is the alternative to doing that? Well my alternative to doing that is to set up what I would
+like to call ad set groupings right or trios right. So that's where each ad set that you select has
+three active ads running at any one time. Like so in this ad set we have three ads and each one of
+those ads is targeting you know it has three different hooks and three different formats and three
+different styles and we're effective to be grouping them in here and what this allows us to do is of course
+Facebook is still going to prioritize certain ad creatives and you know it's going to maybe give more
+budget to one ad and the other ad but it still gives us some element of control so we can choose what type
+of ads we want to what so we can choose where our budget is going. What I also like to do with this is
+I like to group these based upon ad formats. I want to say ad formats I basically say mean
+type of ad that we're running. So let's say for example ad set one what ad set one might be images
+right it might be statics okay so we put image here. Ad set two might be UGC creatives and I'm going
+to show an example of this in a second might be UGC creatives and explain why we do this and maybe
+ad set three might be I don't know slider ads or carousel ads as most people know them by right.
+So why do we do this right? Well the reason we do this is because Facebook how to kind of build
+in bias as to how it places your budget. So you might have noticed when you launch an ad campaign
+sometimes Facebook says always a video here I'm going to go ahead and spend all of your budget
+on this one video and we can completely ignore this image is because it kind of has almost like a
+again I don't know if I don't know if it's true but it kind of has like a different kind of prioritization
+method for images for carousels for videos and so if you've got for example an image a UGC video
+and a carousel all in one ad set you're not really giving them a full chance to properly test right
+and so what we can do here is we can say okay all of our images are here so we can imp these image
+styles are full testing but then eat inside here we can then turn some off and we can prioritize
+others and we can introduce more ads like we can try more ads until we figure out which ones were at
+the best and you know once we've you know figured out for example that these images are actually
+crushing it where we can go ahead and increase our budget of $45 per day and maybe maybe after three
+or four days we can increase it again by to $60 per day and so what we can do is we can gradually
+increase the budget within these ad sets and it gives us a certain level of control but we're also
+you know we are combining things together and we're keeping everything inside of one campaign right
+and you're probably thinking Sam yet another testing strategy that you're just saying and you're
+not using so let me show you a live example of this inaction and if you guys who has been following me
+for a long period of time knows that I'm a firm believer that there's not one ad testing strategy
+that is perfect for everybody right every business is a little bit different every testing strategy
+works for different types of budgets and all those sorts of things right ultimately all you're trying
+to figure out is let's give each of these ads a chance to scale ultimately all you're trying to
+figure out is let's give each of these different ad creatives a chance to perform let's give them
+their best chance and you need an ad to spend I would say approximately one to three times your target
+cost per lead before you can ultimately say that ad is no longer working so if you've got a target
+cost per leave lead that you want to achieve of let's say 30 pounds if you were to only spend 15 pounds
+on an ad you don't know if that ad is going to perform because you haven't even spent your top end
+cost per lead target to determine that that ad is not going to perform whereas that ad spends 60 pounds
+and has a low click to rate has no leads well you can say I think that ad is not going to perform very well
+and therefore you can turn it off so all we need to do is we need to give our ads the best chance of
+success so let's have a little look into this campaign you can kind of see a little bit of what's
+going on you can see here that I've been doing this exact same testing process for a little while now
+I've had different formats of style so inside of each one of these I either have images or I have
+videos and then I have different types of videos so for example I might have UGC videos I might have AI
+talking head videos and in this one I have static call out videos and you can see here that I'm
+getting ranging results from these ads but if you look at this one in particular these are my statics
+you can see I've had 21 leads 8 pounds 99 so it's a really really good cost per leave my target
+cost per leave is around the 15 to 16 pound marker so we go in here you can see that I've got
+currently four active ads I actually had three active ads and I've recently launched a fourth
+based on the ones that were already working so inside of each of those ads has kind of got the moment
+micro test going on I've got my own ads kind of competing to perform inside of that ad set and so
+I wouldn't go and duplicate this and create a new ad that was a UGC ad right that would be completely
+against everything it's in so the ad set but if I had another static ad that if I had for example
+let's say in fact I'll just show you so we can see that this static ad performed really well it's a
+text based ad and I thought okay well why don't we try that and why and so that's what I did I simply
+duplicated it and now I'm testing that exact same ad in white now I might take this same concept and
+then might change the headlines I might have different benefits I might try a different style
+but ultimately it's all gonna be a text based static right so if I then wanted to go ahead and test
+different headlines I could but they're all within that same ad set grouping and that ad set grouping
+for me is static text based images okay and before we go any further one thing I'd like to say is if
+you're enjoying this video and you run Facebook ads or you want to run Facebook ads for your business
+subscribe to the channel it's free takes you less than five seconds to do so and it just lets you
+know when I upload future videos and I've also got hundreds of videos on my channel which you can
+go back and I've even created a playlist called Facebook ads so you can go through that playlist and
+you can watch all of my content there's a whole bunch of it there that I've been working on over
+the last few years you can go through that enjoy that content and if you do make sure you subscribe
+drop a like on the video so that it helps me with the algorithm okay back to the video and
+ultimately what we can also do with this is that you know if we find that one format just isn't
+working for us and we've tried multiple different styles we can just bin that format off and we can say
+hey how about we try some I don't know let's try some carousels or let's try some
+AIUGC videos great let's try that and maybe we say oh you know they didn't work either let's try some
+talking head videos and we try those talking head videos and each one of these talking heads could be
+a different hook or style that's why I've done these different colors you know orange would be hook one
+yellow hook two blue hook three just to give you some ideas should have mentioned that earlier on
+and you can just keep on running this kind of trio of tests stages and keep doing it and you know
+there's no limit you might have one asset which has two ads and you might have one that has three ads
+and then one has four ads in it but ultimately you're segmenting them out so you've got a better
+understanding of what's performing and it gives you a chance to actually get some spend okay to see if
+they're going to perform so I want you to go away and I want you to try this for yourself the next
+client that you launch give this testing strategy a little go and see if it works if it does work
+combat this video jump a comment down below and tell me that I'm the best that I'm incredible
+and that the best meta adds me to buy that's ever existed to on this planet earth I'm really joking
+but I do really want to test out I think this is a strategy which I've recently been adopting
+and it's been working really well for me remember it's constantly changing and shifting but I've been
+finding this one to be working really really well before the andromeda update this wouldn't work
+as well for me because I tend to base things in different hooks so each ad set would be a different
+kind of demographic that I was targeting whereas now I'm finding that actually this method is working
+quite well for me so I've been testing it and I'm beginning some great success but if I test something
+else out in the future and that works better I'll be sure to update you guys as well so don't forget
+add club launching on the 28th of January if you want to get access to that join the way
+let's down below otherwise I'll see you guys in the next video

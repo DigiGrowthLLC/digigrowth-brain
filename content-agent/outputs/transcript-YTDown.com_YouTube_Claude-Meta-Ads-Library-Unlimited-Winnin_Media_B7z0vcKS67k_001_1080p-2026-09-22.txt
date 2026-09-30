@@ -1,0 +1,158 @@
+Every single ad that your biggest competitor is running is actively open for you to see
+in the Facebook ads library. Every image, every piece of copy, every video, the exact time
+that they launch it, even inactive and active ads are available for you to see 100% for free.
+The main problem is you can't actually see which of these ads are driving real revenue for the business
+and therefore you don't know what to recreate for your own brand. Also, it's really hard to recreate
+competitor ads. See, across the brands that we run, competitive research is critical. Without it,
+we would be falling way behind. It lets us stay ahead of the curve, jump into critical moments and
+trends that are hot right now to make sure we're always creating ads that are relevant. So in this
+video, I'm going to take you through the exact workflow that we use right now at the Moonlighters
+to actively do competitive research and take that competitive research and actually create ads with AI.
+You could use Claude, you could use ChatGPT or you could use the tool that I'm going to use
+throughout this entire video because this is the actual flow that we use for our brands.
+Okay, so for this example, let's say we are the brand Skims. This is Kim Kardashian's brand. They sell
+ATHLEASURE wear, they sell shape wear, both men and women across the board. So if we went into the
+Skims Facebook ad library, first off, we'd be able to see over 500 active ads, we'd be able to see
+all their launches from any time. And when we're in here, one of the problems that we run into is that
+everything says protected. See, if we zoom in on any of these ads, it has the clear protected.
+So it's very hard for us to take this image and actually pop it into AI. In fact, Claude and
+ChatGPT will often see this ad and not do anything with it because it clearly has the protected
+watermark. So the actual use of Facebook ad library has declined a little bit in just the last few
+weeks. But before I get into the solution for this, I want to show you the actual step by step that I
+would do if I was Skims to figure out what creative I need to reproduce. First thing I do
+is I go into a new Facebook ads library and I would type in my number one competitor. Now in this
+case, Honey Love, they're a shapewear and bra brand, which goes right in play with Skims. And I would
+just go into here, I'd sort by all active ads and I would sort by impressions from high to low.
+This would show me across their 710 active ads, which ads have been active the longest. This is a very
+strong indication of the ads working because let's keep it real. Every single time we have a high
+performing ad, we don't pause that ad. So let's say I really liked this ad right here and I
+decided that I wanted to recreate it. Well, first off, I can go manually recreate this. We all know
+how this workflow goes or I could literally copy this ad and I could throw it into ChatGPT, Claude,
+or whatever AI creator you like to use. And for example, we could just take this image, drop it into
+ChatGPT, drop it into Nano Banana, drop it into Claude, or whatever platform you like to use,
+and then we could just have a very simple prompt. I like this image. It's from a competitor. I
+took it from the Facebook ads library and I just want you to replace their branding and the bra that's
+on here with the one that I'm going to send in the second image. Also, make sure all the branding is
+swapped out and can you also return to me three different headlines instead of the current headline
+that's on this ad. So we could drop this in. So we can go to bras here on Skims. We could then drop
+this bra in and we can go ahead and send the prompt. Now, this will really just take a few minutes.
+We'll get an idea of what's going to work here. But this is extremely inefficient. See, the problem
+with this is I need to have a gut feeling on what ads actually work. I also need to know my exact
+competitive set. And one of the problems that winds up happening is you wind up recreating ads that are
+already fatiguing for the brand. This is the number one issue that we see. For example, this ad
+here started running over a month ago. We know how ads work. These ads could easily be fatigued at
+this point and they might not be relevant anymore. So after a little back and forth with Chatchee PT
+here, which would basically be the same as nano banana or Claude or really any AI tool, we get a very
+okay ad. But this is what I technically asked for. The problem is this has no flavor. This has no
+love to it. And this is very off brand for Skims. While we can use the Facebook ads library, it is
+effectively a free way to do this. It's going to take so much time. I don't know about you guys,
+but I really care about my time and I want to be able to produce a lot of ads. And the reason why I
+want to produce a lot of ads is not because we need a lot of ads, because a lot of ads increases my
+chance of actually hitting a home run. So let me show you the real workflow that we are using right now
+that I have found to be the best. So there are two things we are doing to be way ahead of all of our
+competitors. The first thing that we're doing is we're looking at our competitors to make sure
+that we are not falling behind. We're actually doing this inside the program super scale. There's a
+competitive research tab that we always use. So you can see I've created a dummy account for Skims here.
+And we can click manage our competitors. And then we can add any competitors that are relevant for
+our business. For example, we know good American is actually pretty solid, airy, victorious secret. We
+could save these competitors and we can actually see the ads that they are running right now. And the very
+efficient part of this is I could just click this button right here, create this ad for me. And then
+it's going to replicate this ad for my product. I could select my exact product. So for example,
+let's say it was our cotton rib leggings. And I can just go ahead and generate that ad. It's going to
+create a new chat. It's going to go through the process of making sure everything is perfectly on
+brand for my own brand in this case, Skims. And what I've created is a board with all of our top ads.
+There's around 300 ads in this board right here. We'll click into it. And you could see a bunch
+of different ads from all different kinds of businesses, all different shapes and sizes, different
+categories, everything from Legion to Ecom to fashion to clothing to supplements. You can get this board
+for free down in the description. There's a link that says get the creative boards. Just click that
+link and you'll get access to this right now. So you can either recreate these on your own in whatever
+way you like, or you could use the platform that I'm using that we use for all the brands that we work
+with. With that said, let me show you the second piece to this workflow that allows us to stay on trend
+with what's hot right now in the market across every single category. We use this new feature called
+ad trends. Now we literally built this function with super scale to make sure it works for the businesses
+that we are working with at scale. And what this basically does is first, it takes a look at all of our
+competitors in the market and trends that are working for our competitors. For example, let's just say
+features into benefits is a trend that we know is working in the market. So we could see across our
+competitors, the actual mix of features and benefits that are working. Also, something I love to do is
+not just take inspiration from competitors, but actually look at what's working across the market as
+a whole. I love to get inspiration from completely different categories and then apply them to our
+business. This is one of the best ways to stay a few steps ahead of the competition. And the way that we
+do this so far is by looking at the new this week trending. These are trends that are working for
+dozens and dozens, if not hundreds and hundreds of advertisers, that super scale is aggregating. Now,
+they've analyzed 924,000 ads. And you can see, great example, value stacking. I love value stacking ads.
+This is now a full list of trends that are working for a bunch of different businesses in all different
+categories that we could copy the format of. Now, to be clear, this could be really, really,
+simple. Like, we could take this exact format, which is very organic, very natural, and we could
+recreate this ad for our brand. We could do the same thing with something that's like kind of AI-driven,
+looking like this. We could do it for any category. It doesn't matter. And just to show you the last
+few parts of the ad trends, this is how we are truly staying ahead of things in every category. There's
+always different things that are hot in the moment. We want to be taking advantage of what's rising,
+not what is fatiguing. And probably one of my favorite parts of this is sometimes you just don't
+know exactly what you want to create, but you do want to hop on a trend because it could really work.
+So let's take this, for example, moody cinematic lighting. We can recreate this trend. It'll pull the
+full prompt for us. We'll choose the products that we want to recreate, which in this case, I will just
+say let's just do brand level. And in a few minutes, it's going to develop a full pack of creative
+for us based on this moody cinematic lighting that we're seeing as a trend work right now.
+Okay, so just a quick recap of what we've done so far. We've recreated our top competitor ads. We did
+it manually through the Facebook ads library. And then you could recreate those on your own in whatever AI
+platform you like. I again, like to use super scale for this. The second thing we did is we looked at
+marketplace trends. Again, I didn't show you the manual way to do this because it just takes so much
+time, but we use super scale here to actually find the trends and then recreate those by clicking
+basically one or two buttons. The third and final thing we're going to do, which is going to give you
+the biggest impact in your own ad account is we are going to iterate on top performing ads. So the
+way that we're going to do this is the first thing we need to do is tell whatever AI we're using
+to define the winners for our ad account. So if we just take a look at this ad account right here,
+we're driving a 2.36 return on ad spend with $670,000 in spend. Basically means we're doing like a
+million and a half in revenue across this ad account. So what we want to do is actually identify which ads
+are most critical for us to recreate. Now you could do this manually. It's actually quite simple.
+Just go to all the ads in your ad account, sort by total amount spent. And really what we're looking
+for is any ad that has driven a good chunk of total amount spent. If you need to define this,
+think of it as a total of five percent of the campaign value coming out of this single ad.
+Now I know this ad number one right here has spent a whole lot over a long period of time. It has
+driven a sustainable return on ad spend for this business. And this is one that we've recreated
+already. And we're going to recreate again. So what I would do is I would take this individual asset,
+which let's say we have in a drive somewhere. And then simply I'm going to recreate iterations
+of it in whatever AI tool I want. But if we want this to happen a little bit more on autopilot,
+then what we can do is we can go into any AI tool of our liking. And we can create a very simple prompt.
+Now we could say something like using the Facebook ads, MCP, I want you to locate the top five
+percent of ads in my ad account that specifically are over my average return on ad spend. To be very
+clear, I'm looking for any ads that are over a 2.1 return on ad spend that have spent greater than
+$5,000. All of these ads I want delivered to me every single day on a regular schedule. And you
+could just send me the Facebook ad library link so that I can go ahead and reproduce this elsewhere.
+With a very simple prompt like this, I'm going to get spit back a list of ads on a regular basis
+that are actually winners here. We need to focus on our winners. To save us some time here, I'm just
+going to show you what we do after this locates the winners for us. So once we get that top ad,
+we're going to go into whatever AI platform we like, chat, GPT, Claude, Gemini, it doesn't matter
+wherever you can create the best images historically. Literally any platform doesn't matter. You're
+going to drop that image here. And then you're going to focus on the iteration elements that you want.
+Again, the struggle with this is that you need to know what to iterate, which is often very hard,
+which again is why me and my team like to do all of this inside super scale. So I'll show you what
+this looks like inside super scale. I'm just going to start a brand new prompt. And we're just going to
+use a very simple prompt where we actually define the winners. Just like I mentioned before, like we
+should with any AI platform. And we're going to tell it to recreate the images for us automatically.
+This way we basically just wake up to a new round of assets whenever we need to. So the way that we're
+going to say this is the definition of a winner in my add account is above a two X return on ad spend
+and has spent more than $5,000 over the last 30 days. I want you to find the winning ads in my add
+account. Only the image ads for this example. And I want you to recreate two versions of every single
+winner that you can find. Feel free to be as creative as you want. I'm going for kind of a bold
+look in this case because I want to hop on one of the bold trends that I saw in the ad trend
+category. Okay, so we are going to enter this prompt. We're then going to just change and pick
+our actual product. So I'm just going to pick our number one product here. And then we're going to go
+ahead and ship this. And so what this is doing for us in real time is it's actively looking inside the
+actual ad account. It's looking at all of the creators that are active in the ad account. And it's
+finding the winners so that it could actually produce real iterations of what it thinks can work
+against the trends that are actively working across the entire meta Facebook ads library. And
+just about five minutes later, we have six variations of the top performing ads in our ad account
+based on the trends that are hot in the market and based on the actual winners in the ad account.
+Everything we just went through in this creative workflow document recreating competitor ads,
+recreating marketplace trends and iterating on top performing ads can be done effectively,
+free or extremely, extremely cheap. You've never been able to recreate ads at this level,
+at this scale, with this much public information ever before. And just like I mentioned before,
+if you want my 300 top performing ads that we're seeing, the trends that we are copying,
+what we are inspired by at the moonliters, then click the link down below to get this creative
+board 100% for free. We are updating this basically all of the time. That is all for today's video.
+I hope you got a lot of value out of this. This is the real workflow that we are using right now
+across all of our brands. By the way, if you want to see how we implement this workflow into an ad
+account, how we actually take our top performing ads, structure it into our ad account, then click
+this video right here where I go through everything A to Z on the best account setup and strategy.
+That's all for today. I hope you got a lot of value out of this and I'll see you in the next one.

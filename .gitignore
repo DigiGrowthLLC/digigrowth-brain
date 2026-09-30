@@ -28,6 +28,7 @@ content-agent/.agents/
 # leadgen-agent scrape run logs/intermediates
 leadgen-agent/logs/
 apptset-agent/logs/
+content-agent/logs/
 
 # Stray screenshots/scratch images dropped at repo root by agent tool use
 # (browser screenshots, visual QA checks, etc.) — these belong in the

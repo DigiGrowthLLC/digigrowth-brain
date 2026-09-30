@@ -1,5 +1,5 @@
 # CrosaCore (Brandon Crosdale) — Campaign Revision v3
-**As of:** 2026-09-22 · **Remaining budget:** $411.19 of the original $500 · **Deadline:** 2026-10-11 (19 days left)
+**As of:** 2026-09-22 · **Remaining budget:** $411.19 of the original $500 · **Deadline:** 2026-10-18 (corrected by Dylan 2026-09-29; was listed as 10-11)
 **Source:** live Meta Ads data pulled directly from the account via the Meta Ads MCP connector (now
 wired up — see note at the bottom), not estimated. `media-buying-agent/CLAUDE.md` is corrected to
 reflect this.

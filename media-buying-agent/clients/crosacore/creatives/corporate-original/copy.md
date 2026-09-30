@@ -80,3 +80,18 @@ of a tight close-up — close framing was what made the AI generation most notic
 detail scrutinized at full frame). New prompt keeps the actual PT action clearly visible (therapist
 mobilizing the shoulder) while de-emphasizing facial closeup detail. Output: `base5.jpg` (raw AI
 photo, medium-distance) + `image.jpg` (final composited ad).
+
+## Meta ad text (2026-09-29) — "Corporate · Male"
+**Primary text:**
+> Hey Austin 👋 Long days at a desk and back-to-back meetings leave little time for the neck, back and shoulder tension that builds up.
+>
+> Dr. Brandon Crosdale, DPT, OCS builds one individualized plan around what's actually going on, not a generic program, and fits it around a schedule that doesn't stop.
+>
+> ✅ 60+ real Google reviews
+> ✅ Trusted by busy professionals
+> ✅ DPT, OCS, Certified Pain Specialist
+>
+> In-clinic or in your home. Private pay, superbills available. Book a free 15-minute consult.
+
+**Headline:** PT Built for Busy Professionals · alt: Free 15-Min Consult · Austin
+**Description:** In-clinic or in-home · **Button:** Book Now
