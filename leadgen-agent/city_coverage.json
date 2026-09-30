@@ -830,10 +830,10 @@
       "last_scraped_date": "2026-09-30"
     },
     "Cape Coral, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 157,
-      "qualified_count": 3,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 204,
+      "qualified_count": 5,
       "last_scraped_date": "2026-09-30"
     },
     "McKinney, TX": {
