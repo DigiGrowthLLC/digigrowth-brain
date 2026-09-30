@@ -880,8 +880,8 @@
     },
     "Santa Clarita, CA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 113,
+      "term_index": 2,
+      "reviewed_count": 152,
       "qualified_count": 5,
       "last_scraped_date": "2026-09-30"
     },
