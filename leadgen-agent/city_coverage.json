@@ -865,10 +865,10 @@
       "last_scraped_date": "2026-09-30"
     },
     "Spokane, WA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 166,
-      "qualified_count": 17,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 185,
+      "qualified_count": 18,
       "last_scraped_date": "2026-09-30"
     },
     "Tacoma, WA": {
