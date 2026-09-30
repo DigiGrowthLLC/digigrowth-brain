@@ -240,7 +240,9 @@ def _progress(row: dict) -> dict:
         reference = row["client_followup_anchor_at"] if ref_col is None else row.get(ref_col)
         next_due = reference + delay if reference else None
     if row.get("client_followup_anchor_at") is None:
-        label = "Waiting (they replied last)"
+        # Either they replied last, or they were just enrolled and the next
+        # poll hasn't anchored the cycle yet — same state either way.
+        label = "Waiting for an unanswered text"
     elif sent == 3:
         label = "All 3 touches sent"
     elif sent:

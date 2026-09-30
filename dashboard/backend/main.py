@@ -6,6 +6,8 @@ import secrets
 from contextlib import asynccontextmanager
 
 import httpx
+from datetime import datetime, timedelta, timezone
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -457,6 +459,10 @@ async def lifespan(app: FastAPI):
         IntervalTrigger(minutes=5),
         id="client-followup-sequence",
         replace_existing=True,
+        # First run shortly after startup, not 5 minutes in: data-file
+        # commits (leadgen scrapes) can redeploy this container every
+        # minute or two, and a plain interval job never fires in between.
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=20),
     )
     scheduler.add_job(
         call_reminders.check_all,
