@@ -255,8 +255,17 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
             # same upsert shape as client_portal.py's portal_create_lead.
             existing = None
             if phone:
+                # Normalized (last 10 digits), not exact: Meta leads store
+                # E.164 ("+14058227427") while Calendly's text_reminder_number
+                # comes formatted ("+1 405-822-7427"), so an exact match
+                # missed the lead and created a duplicate contact — the
+                # original lead never got 'appointment-booked'. Prefers this
+                # client's own real lead if more than one row matches.
+                from routers.sms import _phone_match
                 existing = await conn.fetchrow(
-                    "SELECT id, client_id FROM contacts WHERE phone = $1", phone,
+                    f"SELECT id, client_id FROM contacts WHERE {_phone_match('phone', '$1')} "
+                    "ORDER BY (client_id = $2 AND NOT is_client_anchor) DESC NULLS LAST LIMIT 1",
+                    phone, client_id,
                 )
             if not existing and email:
                 existing = await conn.fetchrow(
