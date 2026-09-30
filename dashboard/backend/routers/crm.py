@@ -650,14 +650,15 @@ async def create_contact(body: Contact):
             """
             INSERT INTO contacts
                 (id, business, owner, phone, email, website, city, state,
-                 grade, opener, status, notes, newsletter)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                 grade, opener, status, notes, newsletter, tags)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
             ON CONFLICT (phone) DO UPDATE SET
                 business = COALESCE(EXCLUDED.business, contacts.business),
                 owner = COALESCE(EXCLUDED.owner, contacts.owner),
                 email = COALESCE(EXCLUDED.email, contacts.email),
                 grade = COALESCE(EXCLUDED.grade, contacts.grade),
                 opener = COALESCE(EXCLUDED.opener, contacts.opener),
+                tags = ARRAY(SELECT DISTINCT unnest(contacts.tags || EXCLUDED.tags)),
                 updated_at = now()
             RETURNING *, (xmax = 0) AS was_inserted
             """,
@@ -670,6 +671,7 @@ async def create_contact(body: Contact):
             (body.grade or "").strip().upper() or None,
             (body.opener or "").strip() or None,
             body.status, body.notes, body.newsletter,
+            [t.strip() for t in body.tags if t and t.strip()],
         )
 
     result = dict(row)

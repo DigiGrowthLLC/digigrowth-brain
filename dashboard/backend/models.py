@@ -20,6 +20,7 @@ class Contact(BaseModel):
     last_disposition: Optional[str] = None
     notes: Optional[str] = None
     newsletter: bool = False
+    tags: list[str] = []
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
