@@ -1,5 +1,10 @@
 [build]
 dockerfilePath = "dashboard/Dockerfile"
+# Deploy on any change EXCEPT the leadgen scraper's progress files, which it
+# commits every minute or so mid-scrape. Redeploying on those restarted the
+# app faster than its 5-minute scheduler jobs (reminders, follow-ups) could
+# fire. The dashboard never reads them; the next real deploy picks them up.
+watchPatterns = ["**", "!/leadgen-agent/scraped_ids.json", "!/leadgen-agent/city_coverage.json"]
 
 [deploy]
 restartPolicyType = "on_failure"
