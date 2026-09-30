@@ -817,10 +817,10 @@
     },
     "Richmond, VA": {
       "status": "in_progress",
-      "term_index": 2,
-      "reviewed_count": 97,
-      "qualified_count": 23,
-      "last_scraped_date": "2026-09-28"
+      "term_index": 3,
+      "reviewed_count": 118,
+      "qualified_count": 24,
+      "last_scraped_date": "2026-09-30"
     },
     "Frisco, TX": {
       "status": "not_started",
