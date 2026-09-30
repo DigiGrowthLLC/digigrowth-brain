@@ -14,7 +14,9 @@ CLI usage (invoked by the scrape-leads skill via Bash):
     python lib.py daily-tally [<YYYY-MM-DD>]        # -> JSON {date, reviewed, qualified, cities} across everything touched that day (persists across process restarts -- use this for the daily_lead_target check, never an in-session counter)
     python lib.py scraped-add <place_id_or_key>    # add an id to scraped_ids.json
     python lib.py scraped-has <place_id_or_key>    # exit 0 if already scraped, 1 if not
-    python lib.py push <leads.json path>           # POST leads to DigiGrowth OS
+    python lib.py crm-filter <listings.json> <out.json>  # drop Maps listings already in the OS CRM (phone/website match); -> JSON {kept, already_in_crm, ...}
+    python lib.py crm-has <phone> [<website>]      # exit 0 if that business is already in the OS CRM, 1 if not
+    python lib.py push <leads.json path>           # POST leads to DigiGrowth OS, skipping CRM duplicates; -> JSON {pushed_new, skipped_existing, failed}
     python lib.py post-chat <message.md path>      # post a message into the leadgen-agent OS chat
 """
 
@@ -366,16 +368,114 @@ def save_scraped_ids(ids: set):
 #  DIGIGROWTH OS PUSH
 # ════════════════════════════════════════════════════════════════════════════
 
-def push_to_os(leads: list, lead_status: str = "new"):
+# ════════════════════════════════════════════════════════════════════════════
+#  CRM DEDUP — "is this business already in the DigiGrowth OS?"
+# ════════════════════════════════════════════════════════════════════════════
+# scraped_ids.json keys on name+city, so the same clinic surfacing in a
+# neighboring city's search (a Miami clinic in a Hialeah search, an Allen
+# clinic in a McKinney search) slipped past it, got re-qualified, and was
+# counted as a new lead even though POST /api/contacts just merged it into
+# the existing row by phone. The CRM itself is the source of truth: match on
+# phone (last 10 digits) and website domain, which are stable across
+# searches, before spending any qualification work on a listing.
+
+CRM_INDEX_FILE = os.path.join(BASE_DIR, "crm_index.json")
+CRM_INDEX_TTL_SECONDS = 30 * 60
+
+# Hosting/social domains many unrelated businesses share — never a dedup signal.
+_SHARED_DOMAINS = {
+    "facebook.com", "instagram.com", "google.com", "g.page", "business.site",
+    "linktr.ee", "yelp.com", "wixsite.com", "squarespace.com", "godaddysites.com",
+    "sites.google.com", "square.site", "janeapp.com", "linkedin.com",
+}
+
+
+def normalize_phone(phone: str) -> str:
+    digits = re.sub(r"\D", "", phone or "")
+    return digits[-10:] if len(digits) >= 10 else ""
+
+
+def normalize_domain(url: str) -> str:
+    host = re.sub(r"^[a-z]+://", "", (url or "").strip().lower()).split("/")[0].split("?")[0]
+    host = host.split(":")[0]
+    if host.startswith("www."):
+        host = host[4:]
+    if not host or host in _SHARED_DOMAINS or any(host.endswith("." + d) for d in _SHARED_DOMAINS):
+        return ""
+    return host
+
+
+def crm_index(refresh: bool = False) -> dict:
+    """{"phones": set, "domains": set} for every contact in the OS CRM.
+    Cached to crm_index.json for 30 min so a run makes ~7 paged GETs per
+    half hour instead of one per listing."""
+    if not refresh and os.path.exists(CRM_INDEX_FILE):
+        with open(CRM_INDEX_FILE, "r", encoding="utf-8") as f:
+            cached = json.load(f)
+        if time.time() - cached.get("fetched_at", 0) < CRM_INDEX_TTL_SECONDS:
+            return {"phones": set(cached["phones"]), "domains": set(cached["domains"])}
+
+    base_url = os.environ.get("DASHBOARD_URL", "").rstrip("/")
+    auth = ("admin", os.environ.get("DASHBOARD_PASSWORD", ""))
+    phones, domains = set(), set()
+    offset = 0
+    while True:
+        r = requests.get(f"{base_url}/api/contacts", auth=auth,
+                         params={"limit": 200, "offset": offset}, timeout=60)
+        r.raise_for_status()
+        page = r.json().get("contacts", [])
+        for c in page:
+            if p := normalize_phone(c.get("phone")):
+                phones.add(p)
+            if d := normalize_domain(c.get("website")):
+                domains.add(d)
+        if len(page) < 200:
+            break
+        offset += 200
+
+    index = {"phones": phones, "domains": domains}
+    _save_crm_index(index)
+    return index
+
+
+def _save_crm_index(index: dict):
+    with open(CRM_INDEX_FILE, "w", encoding="utf-8") as f:
+        json.dump({"fetched_at": time.time(), "phones": sorted(index["phones"]),
+                   "domains": sorted(index["domains"])}, f)
+
+
+def crm_has(index: dict, phone: str, website: str) -> bool:
+    p, d = normalize_phone(phone), normalize_domain(website)
+    return bool((p and p in index["phones"]) or (d and d in index["domains"]))
+
+
+def crm_filter(listings: list) -> tuple:
+    """Split Maps listings into (not_in_crm, already_in_crm)."""
+    index = crm_index()
+    fresh, existing = [], []
+    for l in listings:
+        (existing if crm_has(index, l.get("phone"), l.get("website")) else fresh).append(l)
+    return fresh, existing
+
+
+def push_to_os(leads: list, lead_status: str = "new") -> dict:
+    """POST qualified leads, skipping any already in the CRM (re-checked
+    against a fresh index right before pushing). Prints and returns
+    {"pushed_new": n, "skipped_existing": [...], "failed": [...]}.
+    pushed_new — not len(leads) — is the qualified count to record."""
+    result = {"pushed_new": 0, "skipped_existing": [], "failed": []}
     if not leads:
-        print("No qualified leads to push.")
-        return
+        print(json.dumps(result))
+        return result
     base_url = os.environ.get("DASHBOARD_URL", "").rstrip("/")
     password = os.environ.get("DASHBOARD_PASSWORD", "")
     auth = ("admin", password)
+    index = crm_index(refresh=True)
     grade_order = {"A": 0, "B": 1, "C": 2, "D": 3}
-    pushed = 0
     for lead in sorted(leads, key=lambda r: grade_order.get(r.get("Grade", "D"), 3)):
+        if crm_has(index, lead.get("Phone"), lead.get("Website")):
+            result["skipped_existing"].append(lead["Business Name"])
+            continue
         body = {
             "business": lead["Business Name"],
             "owner":    lead["Owner Name"],
@@ -393,11 +493,18 @@ def push_to_os(leads: list, lead_status: str = "new"):
         try:
             r = requests.post(f"{base_url}/api/contacts", auth=auth, json=body, timeout=10)
             r.raise_for_status()
-            pushed += 1
+            result["pushed_new"] += 1
+            if p := normalize_phone(lead.get("Phone")):
+                index["phones"].add(p)
+            if d := normalize_domain(lead.get("Website")):
+                index["domains"].add(d)
             time.sleep(0.3)
         except Exception as e:
             print(f"  WARNING push failed for {lead['Business Name']}: {e}")
-    print(f"{pushed}/{len(leads)} leads pushed to DigiGrowth OS (status={lead_status}).")
+            result["failed"].append(lead["Business Name"])
+    _save_crm_index(index)
+    print(json.dumps(result))
+    return result
 
 
 def post_chat_message(content: str):
@@ -459,6 +566,20 @@ def _cli():
     elif cmd == "scraped-has":
         ids = load_scraped_ids()
         sys.exit(0 if normalize_scraped_id(sys.argv[2]) in ids else 1)
+
+    elif cmd == "crm-filter":
+        # crm-filter <listings.json> <out.json>: drop listings already in the CRM
+        with open(sys.argv[2], "r", encoding="utf-8") as f:
+            listings = json.load(f)
+        fresh, existing = crm_filter(listings)
+        with open(sys.argv[3], "w", encoding="utf-8") as f:
+            json.dump(fresh, f, indent=1)
+        print(json.dumps({"kept": len(fresh), "already_in_crm": len(existing),
+                          "already_in_crm_names": [l.get("name") for l in existing]}))
+
+    elif cmd == "crm-has":
+        # crm-has "<phone>" "<website>": exit 0 if already in the CRM, 1 if not
+        sys.exit(0 if crm_has(crm_index(), sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "") else 1)
 
     elif cmd == "push":
         leads_path = sys.argv[2]
