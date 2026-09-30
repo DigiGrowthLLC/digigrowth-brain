@@ -335,7 +335,9 @@ function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate, onBook
     draft.action === "book" ? `Send Meet invite: ${d.booking_date} ${d.booking_time} → ${d.email || "(no email yet)"}`
     : draft.action === "capture_email" ? `Email: ${d.email}`
     : draft.action === "handoff" ? (d.todo_created ? "Handle this one yourself · added to your To-Do list" : "Handle this one yourself")
-    : draft.action === "follow_up" ? `Reach back out ${d.follow_up_date}`
+    : draft.action === "follow_up"
+      ? `Auto check-in scheduled: ${d.follow_up_at ? new Date(d.follow_up_at).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : d.follow_up_date}`
+    : d.scheduled_followup ? "Scheduled check-in (they asked you to follow up later)"
     : null;
   const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em" };
   return (

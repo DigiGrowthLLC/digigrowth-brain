@@ -1377,6 +1377,15 @@ async def _create_schema(pool: asyncpg.Pool):
             -- itself the moment Dylan texts that prospect (routers/sms.py's
             -- manual_send), and auto mode stays off that thread meanwhile.
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS sms_reply_phone TEXT;
+            -- SMS setter's scheduled check-in: when a prospect says "busy,
+            -- check back later" the agent picks a time (theirs, or 24h by
+            -- default) and the worker drafts/sends the check-in once it's
+            -- due. While one is set the thread is kept out of the DM
+            -- Follow-Up sequence. Cleared the moment the thread moves on.
+            -- See sms_setter_ai.py's schedule_follow_up().
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_due_at TIMESTAMPTZ;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_set_at TIMESTAMPTZ;
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_note TEXT;
 
             -- Daily 8am-ET "new" -> sms-handoff move (daily_sms_handoff.py).
             -- auto_handoff_at marks contacts moved by that job; its opener

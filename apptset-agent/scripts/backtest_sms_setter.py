@@ -126,7 +126,7 @@ def render(results: list[dict]) -> str:
         out.append("")
         out.append(f"**Dylan actually sent:** {msgs[i + 1]['body']}")
         out.append("")
-        details = ", ".join(f"{k}={d.get(k)}" for k in ("booking_date", "booking_time", "email", "follow_up_date") if d.get(k))
+        details = ", ".join(f"{k}={d.get(k)}" for k in ("booking_date", "booking_time", "email", "follow_up_date", "follow_up_time") if d.get(k))
         step = f" {d['template']}" if d.get("template") else ""
         out.append(f"**Setter draft [{d['action']}{step}]{' (' + details + ')' if details else ''}:** {d.get('reply') or '(empty)'}")
         out.append("")

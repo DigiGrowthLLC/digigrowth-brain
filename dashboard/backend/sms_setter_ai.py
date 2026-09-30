@@ -21,6 +21,11 @@ the server half:
                     business hours only, prospect texted within 24h, a
                     per-thread daily cap, never for handoff/none, and a
                     fall-back to a draft on any failure
+  schedule_follow_up() — a "follow_up" draft ("busy, check back later")
+                    books a check-in on the thread (their time, or 24h by
+                    default) and keeps it out of the DM Follow-Up sequence;
+                    once due, build_queue() hands the thread back to the
+                    worker to write the check-in, which auto mode sends
 
 Mode lives in dialer_settings[MODE_KEY]: "off" | "draft" (default) | "auto".
 The worker's last check-in is dialer_settings[HEARTBEAT_KEY]; the Inbox
@@ -91,7 +96,8 @@ DRAFT_SCHEMA = {
         "booking_date": {"type": "string", "description": "action=book: YYYY-MM-DD. Otherwise empty."},
         "booking_time": {"type": "string", "description": "action=book: HH:MM 24h, prospect's local time. Otherwise empty."},
         "email": {"type": "string", "description": "book/capture_email: the email given. Otherwise empty."},
-        "follow_up_date": {"type": "string", "description": "follow_up: YYYY-MM-DD. Otherwise empty."},
+        "follow_up_date": {"type": "string", "description": "follow_up: YYYY-MM-DD in the prospect's time, when to check back in. Empty for the default (24 hours from now). Otherwise empty."},
+        "follow_up_time": {"type": "string", "description": "follow_up: HH:MM 24h, prospect's local time, if a time of day matters. Otherwise empty."},
         "stages": {
             "type": "array",
             "items": {"type": "string", "enum": ["dm_reached", "primed", "engaged", "interested"]},
@@ -99,13 +105,17 @@ DRAFT_SCHEMA = {
         },
         "rationale": {"type": "string", "description": "One short line for Dylan on why this is the right move."},
     },
-    "required": ["action", "template", "reply", "second_text", "booking_date", "booking_time", "email", "follow_up_date", "stages", "rationale"],
+    "required": ["action", "template", "reply", "second_text", "booking_date", "booking_time", "email", "follow_up_date", "follow_up_time", "stages", "rationale"],
     "additionalProperties": False,
 }
 
 SMS_STAGES = ("dm_reached", "primed", "engaged", "interested")
 NOT_INTERESTED_ACTIONS = {"close_not_interested", "opt_out"}
 AUTO_MAX_AGE_HOURS = 24   # auto mode only answers prospects who texted within this window
+FOLLOW_UP_DEFAULT_HOURS = 24   # "check back later" with no time given
+FOLLOW_UP_MIN_HOURS = 1
+FOLLOW_UP_MAX_DAYS = 120
+_FOLLOW_UP_DEFAULT_CLOCK = "10:00"   # a date with no time of day
 
 _SYSTEM_PREAMBLE = """You draft the next SMS in a cold outreach conversation for Dylan at \
 DigiGrowth. Read the whole transcript, decide what should happen next, and return it in the \
@@ -237,7 +247,7 @@ def _render_sequence(templates: dict, messages: list[dict]) -> str:
 
 
 def build_user_message(contact: dict, messages: list[dict], tz_name: str, now: datetime, open_slots: str,
-                       templates: dict | None = None) -> str:
+                       templates: dict | None = None, follow_up_note: str | None = None) -> str:
     tz = ZoneInfo(tz_name)
     local_now = now.astimezone(tz)
     info = [
@@ -258,8 +268,31 @@ def build_user_message(contact: dict, messages: list[dict], tz_name: str, now: d
         + f"\nIt's now {local_now.strftime('%A, %B')} {local_now.day}, {local_now.year}, {_clock(local_now)} their time."
         + f"\n\nDylan's open discovery-call slots, in their time (20 min on Google Meet):\n{open_slots}"
         + "\n\nConversation so far:\n" + render_transcript(messages, tz)
-        + "\n\nDraft Dylan's next move."
+        + ("\n\nSCHEDULED CHECK-IN: earlier they asked to be contacted later, and you said you'd check back in"
+           + (f" ({follow_up_note.strip()})" if (follow_up_note or "").strip() else "")
+           + ". That time is now and they haven't texted since. Write the check-in text, per the playbook's "
+           "'Scheduled check-ins' section."
+           if follow_up_note is not None else "\n\nDraft Dylan's next move.")
     )
+
+
+def follow_up_due(draft: dict, tz_name: str, now: datetime) -> datetime:
+    """When a "follow_up" draft's check-in should go out: the date/time the
+    agent picked (prospect's local time; a bare date means mid-morning),
+    else FOLLOW_UP_DEFAULT_HOURS from now. Never sooner than an hour and
+    never absurdly far out, whatever the model returned."""
+    tz = ZoneInfo(tz_name)
+    due = None
+    date_str = (draft.get("follow_up_date") or "").strip()
+    time_str = (draft.get("follow_up_time") or "").strip()
+    if date_str:
+        try:
+            due = datetime.strptime(f"{date_str} {time_str or _FOLLOW_UP_DEFAULT_CLOCK}", "%Y-%m-%d %H:%M").replace(tzinfo=tz)
+        except ValueError:
+            due = None
+    if due is None:
+        due = now + timedelta(hours=FOLLOW_UP_DEFAULT_HOURS)
+    return min(max(due, now + timedelta(hours=FOLLOW_UP_MIN_HOURS)), now + timedelta(days=FOLLOW_UP_MAX_DAYS))
 
 
 def normalize_draft(result: dict) -> dict:
@@ -401,6 +434,7 @@ async def build_queue(conn, limit: int = 5, phone: str | None = None) -> list[di
             """,
             DEBOUNCE_SECONDS, QUEUE_LOOKBACK_DAYS, limit,
         )
+        rows = list(rows) + list(await _due_follow_ups(conn, limit))
     if not rows:
         return []
 
@@ -408,7 +442,7 @@ async def build_queue(conn, limit: int = 5, phone: str | None = None) -> list[di
     sequence = await _default_sequence(conn)
     now = datetime.now(timezone.utc)
     items = []
-    for r in rows:
+    for r in map(dict, rows):
         msgs = await _thread_messages(conn, r["phone"])
         if not msgs:
             continue
@@ -419,11 +453,78 @@ async def build_queue(conn, limit: int = 5, phone: str | None = None) -> list[di
             "business": r["business"],
             "last_inbound_at": last_inbound.isoformat() if last_inbound else None,
             "prompt": build_user_message(
-                dict(r), msgs, tz_name, now, format_open_slots(slots, tz_name, now),
-                merge_sequence(sequence, dict(r)),
+                r, msgs, tz_name, now, format_open_slots(slots, tz_name, now),
+                merge_sequence(sequence, r),
+                # Only _due_follow_ups() rows carry this column: those are check-ins.
+                follow_up_note=(r["ai_followup_note"] or "") if "ai_followup_note" in r else None,
             ),
         })
     return items
+
+
+async def _due_follow_ups(conn, limit: int):
+    """Threads whose scheduled check-in is due and still wanted: the
+    prospect hasn't texted since it was scheduled (a reply supersedes it —
+    submit_draft clears it then anyway) and the thread is still open with
+    no booked/not-interested disposition."""
+    return await conn.fetch(
+        """
+        SELECT sc.phone, sc.status, sc.campaign_id, sc.contact_id, sc.ai_followup_note,
+               c.business, c.owner, c.city, c.state, c.email, c.opener
+        FROM sms_conversations sc
+        LEFT JOIN contacts c ON c.id = sc.contact_id
+        WHERE sc.ai_followup_due_at IS NOT NULL AND sc.ai_followup_due_at <= now()
+          AND sc.status <> 'closed' AND sc.disposition IS NULL
+          AND (c.client_id IS NULL OR c.is_client_anchor)
+          AND NOT EXISTS (
+              SELECT 1 FROM sms_messages m
+              WHERE m.phone = sc.phone AND m.direction = 'inbound' AND m.sent_at > sc.ai_followup_set_at
+          )
+        ORDER BY sc.ai_followup_due_at
+        LIMIT $1
+        """,
+        limit,
+    )
+
+
+async def _is_follow_up_turn(conn, phone: str, current_inbound: datetime | None) -> dict | None:
+    """The thread's scheduled check-in, if the draft being submitted is it:
+    one is due and the prospect hasn't texted since it was scheduled."""
+    fu = await conn.fetchrow(
+        "SELECT ai_followup_due_at, ai_followup_set_at, ai_followup_note FROM sms_conversations WHERE phone = $1",
+        phone,
+    )
+    if not fu or fu["ai_followup_due_at"] is None or fu["ai_followup_due_at"] > datetime.now(timezone.utc):
+        return None
+    if current_inbound is not None and fu["ai_followup_set_at"] and current_inbound > fu["ai_followup_set_at"]:
+        return None
+    return dict(fu)
+
+
+async def schedule_follow_up(conn, phone: str, due: datetime | None, note: str | None = None) -> None:
+    """Sets (due given) or clears (None) the thread's scheduled check-in.
+    Setting one also takes the thread out of the DM Follow-Up sequence:
+    the prospect told us when to come back, so the generic 24h/72h/7d
+    nudges would just talk over that (dm_followup_sequence.py also skips
+    any thread with a check-in set, and routers/sms.py won't re-enroll it)."""
+    if due is None:
+        await conn.execute(
+            "UPDATE sms_conversations SET ai_followup_due_at = NULL, ai_followup_set_at = NULL, "
+            "ai_followup_note = NULL WHERE phone = $1 AND ai_followup_due_at IS NOT NULL",
+            phone,
+        )
+        return
+    await conn.execute(
+        """
+        UPDATE sms_conversations
+        SET ai_followup_due_at = $2, ai_followup_set_at = now(), ai_followup_note = $3,
+            dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
+            dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL,
+            dm_followup_touch3_sent_at = NULL, updated_at = now()
+        WHERE phone = $1
+        """,
+        phone, due, note,
+    )
 
 
 async def _default_sequence(conn) -> dict | None:
@@ -551,11 +652,12 @@ async def task_todos(conn) -> int:
       handoff           "Reply to X by text" (clears when he texts them)
       capture_email     "Email X at <email>"
       gatekeeper_relay  "Follow up with X" (front desk said they'd pass it on), due tomorrow
-      follow_up         "Follow up with X", due on the date they gave"""
+    follow_up gets no to-do: the setter schedules and sends that check-in
+    itself (schedule_follow_up)."""
     rows = await conn.fetch(
         """
         SELECT id, phone, action, rationale, details FROM sms_ai_drafts
-        WHERE action IN ('handoff', 'capture_email', 'gatekeeper_relay', 'follow_up')
+        WHERE action IN ('handoff', 'capture_email', 'gatekeeper_relay')
           AND details->>'todo_created' IS NULL
           AND (status = 'pending' OR (status IN ('sent', 'auto_sent') AND created_at > now() - interval '14 days'))
         """,
@@ -588,15 +690,6 @@ async def task_todos(conn) -> int:
                 conn, r["phone"], contact, f"Follow up with {who}{at}",
                 f"The front desk said they'd pass your message along. If {who} hasn't reached out, call the "
                 f"office or try them directly.\n\n{context}", today + timedelta(days=1),
-            )
-        elif r["action"] == "follow_up":
-            try:
-                due = datetime.strptime(details.get("follow_up_date") or "", "%Y-%m-%d").date()
-            except ValueError:
-                due = today + timedelta(days=7)
-            await _task_todo(
-                conn, r["phone"], contact, f"Follow up with {who}{at}",
-                f"They asked you to reach back out around now. {r['rationale']}\n\n{context}", due,
             )
         await conn.execute(
             "UPDATE sms_ai_drafts SET details = details || jsonb_build_object('todo_created', true) WHERE id = $1",
@@ -635,7 +728,8 @@ async def apply_stages(conn, phone: str, contact_id: str | None, draft: dict) ->
             UPDATE sms_conversations SET disposition = 'not_interested', updated_at = now(),
                 dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
                 dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL,
-                dm_followup_touch3_sent_at = NULL
+                dm_followup_touch3_sent_at = NULL,
+                ai_followup_due_at = NULL, ai_followup_set_at = NULL, ai_followup_note = NULL
             WHERE phone = $1 AND disposition IS NULL
             RETURNING 1
             """,
@@ -670,8 +764,24 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
     draft = normalize_draft(result)
     contact = dict(conv)
     await _resolve_template(conn, draft, contact)
-    details = {k: draft[k] for k in ("template", "second_text", "booking_date", "booking_time", "email", "follow_up_date")}
+    details = {k: draft[k] for k in ("template", "second_text", "booking_date", "booking_time", "email",
+                                     "follow_up_date", "follow_up_time")}
+    is_check_in = await _is_follow_up_turn(conn, conv["phone"], current_inbound)
+    if is_check_in:
+        details["scheduled_followup"] = True
     details["stages_marked"] = await apply_stages(conn, conv["phone"], conv["contact_id"], draft)
+
+    # Every draft settles the thread's scheduled check-in: a "follow_up"
+    # (re)schedules it, anything else means the thread moved on (they
+    # replied, or this draft IS the check-in) so it's cleared. Done before
+    # the auto-send below so routers/sms.py sees it and doesn't enroll the
+    # thread in the DM Follow-Up sequence.
+    if draft["action"] == "follow_up":
+        due = follow_up_due(draft, guess_timezone(conv["phone"]), datetime.now(timezone.utc))
+        details["follow_up_at"] = due.isoformat()
+        await schedule_follow_up(conn, conv["phone"], due, draft["rationale"])
+    else:
+        await schedule_follow_up(conn, conv["phone"], None)
 
     async with conn.transaction():
         await conn.execute(
@@ -724,9 +834,26 @@ async def try_auto_send(conn, draft_id: int) -> str:
     if not conv or conv["status"] == "closed":
         return await _note(conn, draft_id, "thread closed")
     msgs = await _thread_messages(conn, d["phone"])
-    if not msgs or msgs[-1]["direction"] != "inbound" or (d["last_inbound_at"] and msgs[-1]["sent_at"] > d["last_inbound_at"]):
+    check_in = bool(details.get("scheduled_followup"))
+
+    def _thread_changed() -> bool:
+        if check_in:
+            # A scheduled check-in goes out after OUR last text, so the
+            # thread is unchanged if nothing new arrived since the draft:
+            # no reply from them and no text from Dylan.
+            last_in = max((m["sent_at"] for m in msgs if m["direction"] == "inbound"), default=None)
+            return (
+                not msgs
+                or (last_in is not None and (d["last_inbound_at"] is None or last_in > d["last_inbound_at"]))
+                or msgs[-1]["sent_at"] > d["created_at"]
+            )
+        return not msgs or msgs[-1]["direction"] != "inbound" or bool(
+            d["last_inbound_at"] and msgs[-1]["sent_at"] > d["last_inbound_at"]
+        )
+
+    if _thread_changed():
         return await _note(conn, draft_id, "thread changed since draft")
-    if msgs[-1]["sent_at"] < datetime.now(timezone.utc) - timedelta(hours=AUTO_MAX_AGE_HOURS):
+    if not check_in and msgs[-1]["sent_at"] < datetime.now(timezone.utc) - timedelta(hours=AUTO_MAX_AGE_HOURS):
         # A days-late "all good, have a great one" or pitch reads badly —
         # old backlog stays a draft for Dylan to judge.
         return await _note(conn, draft_id, f"not auto-sent: prospect's last text is over {AUTO_MAX_AGE_HOURS}h old")
@@ -744,7 +871,7 @@ async def try_auto_send(conn, draft_id: int) -> str:
         import asyncio
         await asyncio.sleep(MIN_REPLY_SECONDS - elapsed)
         msgs = await _thread_messages(conn, d["phone"])
-        if msgs[-1]["direction"] != "inbound" or (d["last_inbound_at"] and msgs[-1]["sent_at"] > d["last_inbound_at"]):
+        if _thread_changed():
             return await _note(conn, draft_id, "thread changed since draft")
 
     sent_today = await conn.fetchval(

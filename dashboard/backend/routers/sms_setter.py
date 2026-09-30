@@ -84,10 +84,14 @@ async def regenerate_draft(payload: dict):
 async def dismiss_draft(draft_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
-            "UPDATE sms_ai_drafts SET status = 'dismissed', decided_at = now() WHERE id = $1 AND status = 'pending'",
+        row = await conn.fetchrow(
+            "UPDATE sms_ai_drafts SET status = 'dismissed', decided_at = now() WHERE id = $1 AND status = 'pending' "
+            "RETURNING phone, action",
             draft_id,
         )
+        # Rejecting a "check back later" draft rejects the check-in it scheduled.
+        if row and row["action"] == "follow_up":
+            await sms_setter_ai.schedule_follow_up(conn, row["phone"], None)
     return {"ok": True}
 
 

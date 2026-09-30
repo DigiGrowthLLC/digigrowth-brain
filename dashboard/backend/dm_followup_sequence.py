@@ -2,7 +2,12 @@
 
 Nudges a prospect who's gone quiet mid-conversation after being manually
 enrolled from the Inbox (POST /inbox/contact/{contact_id}/dm-followup — see
-that endpoint's docstring). SMS-only: there's no email equivalent today.
+that endpoint's docstring), or automatically the moment an AI setter reply
+is sent on the thread (routers/sms.py's manual_send). Never while the SMS
+setter has its own check-in scheduled on the thread (ai_followup_due_at —
+the prospect said "check back later"; see sms_setter_ai.schedule_follow_up):
+that replaces this sequence rather than running alongside it. SMS-only:
+there's no email equivalent today.
 
 Enrollment (dm_followup_enrolled_at) is INTENTIONALLY independent of
 sms_conversations.stage_dm_reached, the "DM Reached" analytics checkbox —
@@ -175,6 +180,9 @@ async def send_due_touches():
             LEFT JOIN contacts c ON c.id = sc.contact_id
             WHERE sc.status != 'closed' AND sc.disposition IS NULL
             AND sc.dm_followup_enrolled_at IS NOT NULL
+            -- The SMS setter's own scheduled check-in (the prospect said
+            -- when to come back) replaces this sequence while it's set.
+            AND sc.ai_followup_due_at IS NULL
             """
         )
         if not rows:

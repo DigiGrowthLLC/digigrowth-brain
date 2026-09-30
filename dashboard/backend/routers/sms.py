@@ -501,6 +501,30 @@ async def manual_send(payload: dict):
                 "WHERE id = $1 AND status = 'pending'",
                 int(ai_draft_id), gsm7_safe(body),
             )
+        # An AI setter reply (auto-sent, or its draft sent from the Inbox)
+        # means this is a live DM conversation — enroll it in DM Follow-Up
+        # so a prospect who goes quiet after the AI's message still gets
+        # nudged. Previously only the Inbox's manual enroll did this, so
+        # AI-handled threads silently never followed up. Same guard as the
+        # manual enroll (email_inbox.py's set_dm_followup_active): never a
+        # dispositioned (booked/not interested) thread, and COALESCE keeps
+        # an existing enrollment's timestamp. Nor a thread with a scheduled
+        # check-in (the prospect said when to come back — see
+        # sms_setter_ai.schedule_follow_up), so the two never run together.
+        if ai_draft_id or stage == "ai_setter":
+            await conn.execute(
+                f"UPDATE sms_conversations SET dm_followup_enrolled_at = COALESCE(dm_followup_enrolled_at, now()) "
+                f"WHERE {_phone_match('phone', '$1')} AND disposition IS NULL AND ai_followup_due_at IS NULL",
+                phone,
+            )
+        else:
+            # Dylan texting them himself supersedes any check-in the setter
+            # had scheduled.
+            await conn.execute(
+                f"UPDATE sms_conversations SET ai_followup_due_at = NULL, ai_followup_set_at = NULL, "
+                f"ai_followup_note = NULL WHERE {_phone_match('phone', '$1')} AND ai_followup_due_at IS NOT NULL",
+                phone,
+            )
         await conn.execute(
             f"UPDATE sms_ai_drafts SET status = 'dismissed', decided_at = now() "
             f"WHERE {_phone_match('phone', '$1')} AND status = 'pending'",

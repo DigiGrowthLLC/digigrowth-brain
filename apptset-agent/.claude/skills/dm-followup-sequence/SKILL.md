@@ -5,6 +5,17 @@ stage in the Inbox (`sms_conversations.stage_dm_reached`, a manual checkbox
 — see `dashboard/backend/routers/sms.py`'s module docstring) but has gone
 quiet mid-conversation. SMS-only — DM Reach has no email equivalent today.
 
+> **Current enrollment rules (2026-09-29) — these supersede the checkbox
+> description below.** Since 2026-09-22 the DM Reached checkbox no longer
+> enrolls anyone; `dm_followup_enrolled_at` is set by (a) the Inbox's
+> SEQUENCES panel, or (b) automatically whenever an SMS setter (AI) reply is
+> sent on the thread (`routers/sms.py`'s `manual_send`). A thread with an SMS
+> setter check-in scheduled (`sms_conversations.ai_followup_due_at`, set when a
+> prospect says "busy, check back later" — see
+> `dashboard/backend/sms_setter_ai.py`'s `schedule_follow_up`) is taken out of
+> this sequence and skipped by the poller: the check-in replaces it rather
+> than running alongside it.
+
 ---
 
 ## How It Works End-to-End
