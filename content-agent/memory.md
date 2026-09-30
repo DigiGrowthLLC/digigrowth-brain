@@ -73,3 +73,8 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   case study — 150% increase in trial bookings switching from a booking-link follow-up to an AI
   agent booking live on the call) — 2026-09-23 — pending approval (draft pushed to
   `content-agent/pending_approvals/blog-2026-09-23.json` on `main`)
+- "The AI Tool That Writes Every Follow-Up So You Never Have To" (slug:
+  ai-writes-every-follow-up-message) — pillar: Lead Follow-Up & Automation — topic: rotation #06
+  (the AI tool that writes every follow-up message), research cache stale (dated 2026-09-28,
+  empty findings), own web search (single-email vs 3-step sequence reply-rate benchmarks) —
+  2026-09-30 — pending approval (draft pushed to `content-agent/pending_approvals/blog-2026-09-30.json` on `main`)
