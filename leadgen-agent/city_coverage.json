@@ -879,10 +879,10 @@
       "last_scraped_date": "2026-09-30"
     },
     "Santa Clarita, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 156,
-      "qualified_count": 5,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 159,
+      "qualified_count": 6,
       "last_scraped_date": "2026-09-30"
     },
     "Fremont, CA": {
