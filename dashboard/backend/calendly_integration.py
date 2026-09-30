@@ -332,12 +332,19 @@ async def find_slot_scheduling_url(
 
         local_day_start = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tz)
         local_day_end = local_day_start + timedelta(days=1)
+        # Calendly rejects a start_time in the past (400 "start_time must be
+        # in the future"), so for a same-day slot the window starts from now
+        # rather than local midnight — otherwise every same-day booking
+        # failed verification.
+        window_start = max(local_day_start, datetime.now(timezone.utc) + timedelta(minutes=1))
+        if window_start >= local_day_end:
+            return None
         resp = await http.get(
             f"{_API_BASE}/event_type_available_times",
             headers=_headers(token),
             params={
                 "event_type": event_type["uri"],
-                "start_time": local_day_start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "start_time": window_start.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "end_time": local_day_end.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             },
         )

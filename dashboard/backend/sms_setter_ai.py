@@ -550,6 +550,41 @@ async def _resolve_template(conn, draft: dict, contact: dict) -> None:
         draft["rationale"] = "Call To Action step came back with unfilled [Day]/[time]. " + draft["rationale"]
 
 
+def slot_is_open(draft: dict, slots_utc: list[datetime] | None, tz_name: str, now: datetime) -> bool:
+    """Whether a "book" draft's date/time is one of Dylan's real open
+    slots (and far enough out). None slots = calendar unavailable, which
+    can't be checked here; _auto_book re-verifies with Calendly anyway."""
+    if slots_utc is None:
+        return True
+    try:
+        start = datetime.strptime(f"{draft['booking_date']} {draft['booking_time']}", "%Y-%m-%d %H:%M").replace(
+            tzinfo=ZoneInfo(tz_name))
+    except ValueError:
+        return False
+    if start < now + timedelta(hours=_MIN_LEAD_HOURS - 1):
+        return False
+    return any(abs((s - start).total_seconds()) < 60 for s in slots_utc)
+
+
+async def _guard_booking(conn, draft: dict, tz_name: str) -> None:
+    """The model is told to accept only times from the open-slot list, but
+    a prospect proposing their own time ("5:30 works") can still get a
+    confident "all set" back for a time Dylan isn't free. Anything not in
+    the list becomes a handoff with the text withheld, so it can't be
+    auto-sent or sent from the Inbox with one click."""
+    if draft["action"] != "book":
+        return
+    now = datetime.now(timezone.utc)
+    if slot_is_open(draft, await open_slots_utc(conn), tz_name, now):
+        return
+    local = f"{draft['booking_date']} {draft['booking_time']} {tz_abbrev(tz_name)}"
+    draft["rationale"] = (
+        f"Agent tried to book {local}, which isn't one of your open slots. Offer them real times. "
+        f"Its text was: \"{draft['reply']}\". " + draft["rationale"]
+    )
+    draft["action"], draft["reply"], draft["second_text"] = "handoff", "", ""
+
+
 def inbox_link(contact_id: str | None, phone: str) -> str:
     """A link that opens this prospect's thread in the OS Inbox (App.jsx
     reads ?panel=inbox&contact=/&phone=). The To-Do list renders it as a
@@ -764,6 +799,7 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
     draft = normalize_draft(result)
     contact = dict(conv)
     await _resolve_template(conn, draft, contact)
+    await _guard_booking(conn, draft, guess_timezone(conv["phone"]))
     details = {k: draft[k] for k in ("template", "second_text", "booking_date", "booking_time", "email",
                                      "follow_up_date", "follow_up_time")}
     is_check_in = await _is_follow_up_turn(conn, conv["phone"], current_inbound)
