@@ -366,6 +366,12 @@ class RequiredQuestionUnrecognized(Exception):
     or made-up answer to Calendly's booking form."""
 
 
+_CONFERENCE_KINDS = {
+    "google_conference", "zoom_conference", "microsoft_teams_conference",
+    "webex_conference", "gotomeeting_conference",
+}
+
+
 async def create_booking(
     token: str, scheduling_url: str, date_str: str, time_str: str, tz,
     name: str, email: str, phone: str, reason: str,
@@ -376,11 +382,13 @@ async def create_booking(
     a paid Calendly plan and the token have scheduled_events:write scope
     (verified live against a real event 2026-09-14, then canceled).
 
-    Only supports the "outbound_call" and "inbound_call" location kinds
-    (a phone consult, the common case for this system's clients) — any
-    other kind (in-person, a conferencing app) raises, since building the
+    Supports the "outbound_call" and "inbound_call" location kinds (a
+    phone consult, the common case for this system's clients) and video
+    conferencing kinds (_CONFERENCE_KINDS — Calendly makes the meeting link
+    itself; used by sms_setter_ai.py for Dylan's own Google Meet discovery
+    calls). Any other kind (in-person, custom) raises, since building the
     right location payload for those isn't implemented, and the caller
-    should fall back to the tap-to-confirm link instead of guessing.
+    should fall back instead of guessing.
 
     Every REQUIRED custom question on the event type must be answered or
     Calendly rejects the whole booking — a phone-number-looking one gets
@@ -400,15 +408,25 @@ async def create_booking(
             location = {"kind": "outbound_call", "location": phone}
         elif kind == "inbound_call":
             location = {"kind": "inbound_call"}
+        elif kind in _CONFERENCE_KINDS:
+            # Video call (Dylan's own Discovery Call is google_conference):
+            # Calendly generates the meeting link itself and puts it in the
+            # invite it emails the invitee — nothing else to supply.
+            location = {"kind": kind}
         else:
             raise RequiredQuestionUnrecognized(f"unsupported location kind: {kind}")
 
         questions_and_answers = []
         reason_used = False
         for q in event_type.get("custom_questions", []):
-            if not q.get("required"):
-                continue
             qname = (q.get("name") or "").lower()
+            if not q.get("required"):
+                # An optional phone question is still worth filling: the
+                # invitee.created webhook matches the booking back to the
+                # existing contact/appointment by that phone.
+                if "phone" in qname and phone:
+                    questions_and_answers.append({"question": q["name"], "answer": phone, "position": q["position"]})
+                continue
             if "phone" in qname:
                 answer = phone
             elif not reason_used:

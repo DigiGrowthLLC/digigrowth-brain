@@ -976,9 +976,10 @@ async def book_draft(conn, draft_id: int) -> str:
 
 
 async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str:
-    """Re-checks the slot is still open, creates the Google Meet invite
-    (emailed to the prospect), and the appointment row that drives the
-    24h/6h/1h reminders — the same two things Dylan does by hand today."""
+    """Re-checks the slot is still open, creates the appointment row that
+    drives the 24h/6h/1h reminders, then books the slot on Dylan's Calendly
+    (Calendly emails the Google Meet invite and notifies Dylan). Falls back
+    to a direct Google Calendar Meet invite if Calendly can't take it."""
     import asyncio
 
     import calendly_integration
@@ -1005,15 +1006,10 @@ async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str
         except Exception as e:
             return f"book: couldn't verify slot ({e})"
 
-    business = contact.get("business") or "discovery call"
-    try:
-        await asyncio.to_thread(
-            integrations.calendar_create_meet_event,
-            f"DigiGrowth x {business}", start, start + timedelta(minutes=20), email,
-            f"Discovery call with {contact.get('owner') or business} ({d['phone']}). Booked by the SMS setter.",
-        )
-    except Exception as e:
-        return f"book: calendar invite failed ({e})"
+    # The appointment row goes in FIRST: Calendly's invitee.created webhook
+    # (routers/calendly_webhooks.py) adopts an existing row at the same time
+    # for the same contact/phone instead of inserting a duplicate, and this
+    # way the reminders exist even if that webhook is slow or missing.
     try:
         await create_appointment_row({
             "contact_id": contact.get("contact_id"),
@@ -1026,9 +1022,35 @@ async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str
             "channel": "sms",
         })
     except Exception as e:
-        # The invite already went out — still send the confirmation text,
-        # but flag it so Dylan adds the reminder row by hand.
-        print(f"[sms_setter_ai] appointment row failed after invite for {d['phone']}: {e}", flush=True)
+        # Still book the call — flag it so Dylan adds the reminder row by hand.
+        print(f"[sms_setter_ai] appointment row failed for {d['phone']}: {e}", flush=True)
+
+    # A real Calendly booking, so it shows in Calendly's Scheduled Events,
+    # Dylan gets Calendly's booking notification, and Calendly emails the
+    # prospect the Google Meet invite itself.
+    business = contact.get("business") or "discovery call"
+    digits = _digits(d["phone"])
+    if token:
+        try:
+            await calendly_integration.create_booking(
+                token, integrations.CALENDLY_URL, date_str, time_str, tz,
+                contact.get("owner") or business, email, f"+1{digits}" if len(digits) == 10 else d["phone"],
+                f"{business}. Booked by the SMS setter from a text conversation.",
+            )
+            return "booked"
+        except Exception as e:
+            print(f"[sms_setter_ai] Calendly booking failed for {d['phone']}, falling back to a direct invite: {e}", flush=True)
+
+    # Fallback (no Calendly token, or Calendly rejected it): the direct
+    # Google Calendar invite, so the prospect who said yes is still booked.
+    try:
+        await asyncio.to_thread(
+            integrations.calendar_create_meet_event,
+            f"DigiGrowth x {business}", start, start + timedelta(minutes=20), email,
+            f"Discovery call with {contact.get('owner') or business} ({d['phone']}). Booked by the SMS setter.",
+        )
+    except Exception as e:
+        return f"book: calendar invite failed ({e})"
     return "booked"
 
 
