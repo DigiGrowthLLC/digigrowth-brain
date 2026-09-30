@@ -816,10 +816,10 @@
       "last_scraped_date": "2026-09-28"
     },
     "Richmond, VA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 118,
-      "qualified_count": 24,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 145,
+      "qualified_count": 26,
       "last_scraped_date": "2026-09-30"
     },
     "Frisco, TX": {
