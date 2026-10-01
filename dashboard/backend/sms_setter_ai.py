@@ -702,7 +702,8 @@ async def revive_threads(conn, items: list[dict]) -> list[dict]:
     that sat unsent until the prospect's text was too old for auto mode
     (AUTO_MAX_AGE_HOURS), or a "back on the 12th" promise made before
     check-ins existed. Each item: {"phone", "note" (why — the agent reads
-    it), "due" (ISO, optional; default now)}. Supersedes the thread's stale
+    it), "due" (ISO, optional; default now), "reopen" (optional, see
+    below)}. Supersedes the thread's stale
     pending draft. Skips threads that are closed or already booked/not
     interested. The check-in path is exempt from the 24h age rule, so auto
     mode sends what the agent writes (in business hours)."""
@@ -714,6 +715,16 @@ async def revive_threads(conn, items: list[dict]) -> list[dict]:
             "WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1",
             _digits(it.get("phone") or ""),
         )
+        # "reopen": a prospect marked Not Interested who actually gave a
+        # timeframe ("booked through October", "not a priority right now")
+        # — clears that disposition so the check-in can go out. Never
+        # reopens a booked thread.
+        if conv and it.get("reopen") and conv["disposition"] == "not_interested":
+            await conn.execute(
+                "UPDATE sms_conversations SET disposition = NULL, status = 'active', updated_at = now() WHERE phone = $1",
+                conv["phone"],
+            )
+            conv = dict(conv) | {"disposition": None, "status": "active"}
         if not conv or conv["status"] == "closed" or conv["disposition"]:
             out.append({"phone": it.get("phone"), "ok": False, "skipped": "closed or dispositioned" if conv else "unknown thread"})
             continue
