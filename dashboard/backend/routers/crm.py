@@ -18,6 +18,7 @@ router = APIRouter()
 HANDOFF_STATUS = "sms-handoff"
 EMAIL_HANDOFF_STATUS = "email-handoff"
 SEND_INFO_STATUS = "send-info"
+GATEKEEPER_DEFERRAL_STATUS = "gatekeeper-deferral"
 NEWSLETTER_TAG = "Newsletter"
 NEWSLETTER_TAG_DISPOSITIONS = {"Follow Up 30 Day", "Follow Up 90 Day"}
 
@@ -88,6 +89,15 @@ async def _fire_send_info(contact: dict):
         await send_info_queue.enqueue(contact)
     except Exception as e:
         print(f"send-info enqueue failed for contact {contact.get('id')}: {e}")
+
+
+async def _fire_gatekeeper_deferral(contact: dict):
+    """Gatekeeper Deferral: same personalized video as Send Info, emailed
+    to the address on the contact once it's ready — see send_info_queue.py."""
+    try:
+        await send_info_queue.enqueue(contact, kind=send_info_queue.GATEKEEPER_DEFERRAL)
+    except Exception as e:
+        print(f"gatekeeper-deferral enqueue failed for contact {contact.get('id')}: {e}")
 
 
 @router.get("/contacts")
@@ -216,6 +226,8 @@ async def update_contact(contact_id: str, body: ContactUpdate):
         await _fire_email_handoff(dict(row))
     if updates.get("status") == SEND_INFO_STATUS and (not prev or prev["status"] != SEND_INFO_STATUS):
         await _fire_send_info(dict(row))
+    if updates.get("status") == GATEKEEPER_DEFERRAL_STATUS and (not prev or prev["status"] != GATEKEEPER_DEFERRAL_STATUS):
+        await _fire_gatekeeper_deferral(dict(row))
 
     return dict(row)
 
@@ -611,6 +623,8 @@ async def log_disposition(contact_id: str, body: DispositionUpdate):
         await _fire_email_handoff(dict(contact))
     if body.disposition == "Send Info":
         await _fire_send_info(dict(contact))
+    if body.disposition == "Gatekeeper Deferral":
+        await _fire_gatekeeper_deferral(dict(contact))
 
     return {"ok": True, "new_status": new_status}
 

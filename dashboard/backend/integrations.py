@@ -504,6 +504,44 @@ async def send_info_email(to: str, owner: str | None, business: str | None, loom
     return await asyncio.to_thread(gmail_send, to, subject, body, True)
 
 
+GK_DEFERRAL_EMAIL_SUBJECT = "Quick video on new patient acquisition for your practice"
+
+GK_DEFERRAL_EMAIL_BODY = """Hey {first_name}, {receptionist} mentioned email was the best way to reach you, so I just made you a quick video explaining everything so you didn't have to read a whole essays worth of information lol
+{loom_link}
+
+Any questions, just reply here or reach me directly at dylanrg@digigrowthllc.com.
+
+Dylan
+DigiGrowth
+"""
+
+
+async def gatekeeper_deferral_email(
+    to: str, owner: str | None, business: str | None, receptionist: str | None, loom_url: str | None,
+) -> str:
+    """The "Gatekeeper Deferral" status's email — a front desk said to reach
+    the owner by email, so the owner gets the same personalized Loom as Send
+    Info, framed as following up on what their receptionist said. Editable
+    from Business Resources → Outreach Templates (dialer_settings gk_deferral_*
+    keys). {receptionist} is "your receptionist Sophie" when the text thread
+    or call notes named them, else just "your receptionist"."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key IN ('gk_deferral_email_subject', 'gk_deferral_email_body')"
+        )
+    values = {r["key"]: r["value"] for r in rows if r["value"]}
+    subject_template = values.get("gk_deferral_email_subject", GK_DEFERRAL_EMAIL_SUBJECT)
+    body_template = values.get("gk_deferral_email_body", GK_DEFERRAL_EMAIL_BODY)
+
+    subject = f"{subject_template} — {business}" if business else subject_template
+    body = (body_template
+            .replace("{first_name}", first_name_from_owner(owner))
+            .replace("{receptionist}", f"your receptionist {receptionist}" if receptionist else "your receptionist")
+            .replace("{loom_link}", loom_url or ""))
+    return await asyncio.to_thread(gmail_send, to, subject, body, True)
+
+
 def gmail_send_reply(to: str, subject: str, body: str, thread_id: str) -> dict:
     """Send a reply that threads correctly in Gmail (keyed by `thread_id`).
     Always an outreach send (this is the Inbox reply box's only call path) —

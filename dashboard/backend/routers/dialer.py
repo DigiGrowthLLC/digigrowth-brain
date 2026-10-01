@@ -15,6 +15,7 @@ Dialer router — auth-protected endpoints for the DialerPanel UI.
   GET  /api/dialer/script        — the default Call Script's text (read-only; see below)
   GET  /api/dialer/info-template — "Send Info" SMS/email templates
   PUT  /api/dialer/info-template — save "Send Info" SMS/email templates
+  GET/PUT /api/dialer/gatekeeper-deferral-template — "Gatekeeper Deferral" email template
   GET  /api/send-info-queue      — pending Send Info Loom queue entries
   POST /api/send-info-queue/{id}/complete — report a generated video, sends the SMS/email
   POST /api/send-info-queue/{id}/fail     — report generation failure
@@ -200,6 +201,44 @@ async def save_info_template(body: dict):
     return {"ok": True}
 
 
+# ── "Gatekeeper Deferral" email template (Business Resources → Outreach ─────
+# Templates). Read by integrations.gatekeeper_deferral_email() at send time.
+
+@router.get("/dialer/gatekeeper-deferral-template")
+async def get_gatekeeper_deferral_template():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT key, value FROM dialer_settings WHERE key IN "
+            "('gk_deferral_email_subject', 'gk_deferral_email_body', 'gk_deferral_category')"
+        )
+    values = {r["key"]: r["value"] for r in rows}
+    return {
+        "email_subject": values.get("gk_deferral_email_subject") or integrations.GK_DEFERRAL_EMAIL_SUBJECT,
+        "email_body":    values.get("gk_deferral_email_body") or integrations.GK_DEFERRAL_EMAIL_BODY,
+        "category":      values.get("gk_deferral_category") or "General",
+    }
+
+
+@router.put("/dialer/gatekeeper-deferral-template")
+async def save_gatekeeper_deferral_template(body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        for key, value in (
+            ("gk_deferral_email_subject", body.get("email_subject", "")),
+            ("gk_deferral_email_body", body.get("email_body", "")),
+            ("gk_deferral_category", body.get("category", "General")),
+        ):
+            await conn.execute(
+                """
+                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
+                """,
+                key, value,
+            )
+    return {"ok": True}
+
+
 # ── Send Info Loom queue (drained by a scheduled local Claude Code run — ────
 # see send_info_queue.py's module docstring for why generation can't happen
 # synchronously here). GET lists pending work for the outreach-video skill's
@@ -210,7 +249,7 @@ async def list_send_info_queue(status: str = "pending"):
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT q.id, q.status, q.watch_url, q.error, q.created_at, "
+            "SELECT q.id, q.kind, q.status, q.watch_url, q.error, q.created_at, "
             "c.id AS contact_id, c.business, c.owner, c.phone, c.email, c.website "
             "FROM send_info_loom_queue q JOIN contacts c ON c.id = q.contact_id "
             "WHERE q.status = $1 ORDER BY q.created_at",
@@ -1169,6 +1208,14 @@ async def classify(body: dict):
                         await send_info_queue.enqueue(dict(updated))
                     except Exception as e:
                         print(f"send-info enqueue failed for contact {updated.get('id')}: {e}")
+
+                # Gatekeeper Deferral: same video, emailed to the address the
+                # front desk gave (whatever's on the contact by then).
+                if disposition == "Gatekeeper Deferral" and updated:
+                    try:
+                        await send_info_queue.enqueue(dict(updated), kind=send_info_queue.GATEKEEPER_DEFERRAL)
+                    except Exception as e:
+                        print(f"gatekeeper-deferral enqueue failed for contact {updated.get('id')}: {e}")
 
                 # Append call notes to the contact card (visible in CRM/dialer/SMS
                 # panels), timestamped and tagged with the disposition for context.

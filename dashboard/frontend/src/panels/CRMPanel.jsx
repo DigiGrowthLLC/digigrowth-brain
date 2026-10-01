@@ -14,6 +14,7 @@ const STATUSES = [
   { value: "send-info",          label: "SEND INFO" },
   { value: "voicemail",          label: "VOICEMAIL" },
   { value: "gatekeeper-blocked", label: "GATEKEEPER" },
+  { value: "gatekeeper-deferral", label: "GK DEFERRAL" },
   { value: "manual-followup",    label: "MANUAL F/U" },
 ];
 
@@ -27,6 +28,7 @@ const STATUS_BADGE = {
   "send-info":          "badge-amber",
   "voicemail":          "badge-amber",
   "gatekeeper-blocked": "badge-orange",
+  "gatekeeper-deferral": "badge-purple",
   "manual-followup":    "badge-amber",
 };
 

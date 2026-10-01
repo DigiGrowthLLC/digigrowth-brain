@@ -94,7 +94,7 @@ class DispositionUpdate(BaseModel):
 VALID_STATUSES = {
     "new", "dialer-lead", "sms-handoff", "email-handoff",
     "appointment-booked", "not-interested", "send-info", "voicemail",
-    "gatekeeper-blocked", "manual-followup",
+    "gatekeeper-blocked", "manual-followup", "gatekeeper-deferral",
 }
 
 
@@ -125,6 +125,9 @@ DISPOSITION_TO_STATUS = {
     # Gatekeeper is terminal — never re-enters the dialer queue, unlike a
     # plain no-answer/voicemail. Distinct from "not-interested" for reporting.
     "Gatekeeper":         "gatekeeper-blocked",
+    # Gatekeeper said to reach the owner by email: the owner gets the Send
+    # Info video by email, framed around their receptionist (send_info_queue.py).
+    "Gatekeeper Deferral": "gatekeeper-deferral",
     # Manual follow-up is terminal from the dialer's perspective — not in
     # _ELIGIBLE_WHERE's status list, so it never gets auto re-dialed. Dylan
     # follows up himself rather than the system re-queueing it.

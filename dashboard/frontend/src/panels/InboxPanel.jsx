@@ -54,6 +54,7 @@ const CONTACT_STATUSES = [
   { value: "send-info",          label: "SEND INFO" },
   { value: "voicemail",          label: "VOICEMAIL" },
   { value: "gatekeeper-blocked", label: "GATEKEEPER" },
+  { value: "gatekeeper-deferral", label: "GK DEFERRAL" },
   { value: "manual-followup",    label: "MANUAL F/U" },
 ];
 

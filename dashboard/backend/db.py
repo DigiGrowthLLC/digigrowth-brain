@@ -1927,6 +1927,11 @@ async def _create_schema(pool: asyncpg.Pool):
             )
             """
         )
+        # 'send_info' | 'gatekeeper_deferral' — which email complete() sends
+        # once the video's ready (send_info_queue.py).
+        await conn.execute(
+            "ALTER TABLE send_info_loom_queue ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'send_info'"
+        )
         await conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_send_info_loom_queue_pending "
             "ON send_info_loom_queue(created_at) WHERE status = 'pending'"
