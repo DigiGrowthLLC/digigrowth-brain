@@ -52,8 +52,11 @@ where the human can go over specifics.
 
 Also cover, where the information below actually supports it: what the business does, tone/voice, \
 hours, common questions and how to answer them (steering back toward the primary CTA), and what \
-should always be escalated to a human (e.g. billing/insurance questions, complaints, anything not \
-covered here). Write it as clear prose/bullet points, not a form. Aim for roughly 400-700 words —
+should always be escalated to a human (e.g. billing disputes, complaints, anything not covered \
+here). If the information says whether the business takes insurance (e.g. cash-pay only), the \
+assistant must answer "do you take insurance?" / "do you accept [plan]?" ITSELF with that fact and \
+steer back to the CTA — never list those basic questions as escalations, or the two instructions \
+will contradict each other. Write it as clear prose/bullet points, not a form. Aim for roughly 400-700 words —
 thorough enough to be useful, not exhaustive.
 
 Critical rule: NEVER invent or guess at a fact, number, price, or claim that isn't actually present \
