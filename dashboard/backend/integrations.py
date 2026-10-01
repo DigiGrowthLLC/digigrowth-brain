@@ -629,8 +629,10 @@ async def gatekeeper_deferral_email(
     the owner by email, so the owner gets the same personalized Loom as Send
     Info, framed as following up on what their receptionist said. Editable
     from Business Resources → Outreach Templates (dialer_settings gk_deferral_*
-    keys). {receptionist} is "your receptionist Sophie" when the text thread
-    or call notes named them, else just "your receptionist"."""
+    keys). {receptionist} is just their name ("Sophie") when the text thread
+    or call notes named them, since the person who answered isn't always a
+    receptionist (a partner or spouse, say) and the label could read as
+    rude; only with no name does it fall back to "your receptionist"."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -642,7 +644,7 @@ async def gatekeeper_deferral_email(
 
     def fill(t: str) -> str:
         return (t.replace("{first_name}", first_name_from_owner(owner))
-                .replace("{receptionist}", f"your receptionist {receptionist}" if receptionist else "your receptionist")
+                .replace("{receptionist}", receptionist or "your receptionist")
                 .replace("{loom_link}", loom_url or ""))
 
     subject = fill(f"{subject_template} — {business}" if business else subject_template)

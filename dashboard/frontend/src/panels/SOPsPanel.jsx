@@ -727,7 +727,7 @@ function GatekeeperDeferralEditor({ categories, onCategoryChange }) {
           />
           <div style={hintStyle}>
             {code("{receptionist}")} and {code("{first_name}")} work here too. The business name is appended automatically
-            (e.g. "Following up on my chat with your receptionist Sophie — Acme PT").
+            (e.g. "Following up on my chat with Sophie — Acme PT").
           </div>
         </div>
 
@@ -741,8 +741,8 @@ function GatekeeperDeferralEditor({ categories, onCategoryChange }) {
           />
           <div style={hintStyle}>
             {code("{first_name}")} the owner's first name · {code("{loom_link}")} their personalized video ·{" "}
-            {code("{receptionist}")} becomes "your receptionist Sophie" when the text thread or your call notes name the
-            person (e.g. "this is Sophie", "-Sophie", or a note like "receptionist Sophie"), otherwise just "your receptionist".
+            {code("{receptionist}")} becomes just their name ("Sophie") when the text thread or your call notes name the
+            person (e.g. "this is Sophie", "-Sophie", or a note like "receptionist Sophie"), otherwise "your receptionist".
           </div>
         </div>
       </div>
