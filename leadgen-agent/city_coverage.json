@@ -921,10 +921,10 @@
       "last_scraped_date": "2026-09-30"
     },
     "Salt Lake City, UT": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 346,
-      "qualified_count": 11,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 457,
+      "qualified_count": 15,
       "last_scraped_date": "2026-09-30"
     },
     "Moreno Valley, CA": {
