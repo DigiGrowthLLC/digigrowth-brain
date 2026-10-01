@@ -11,9 +11,9 @@
   "shows_7d": 0,
   "total_revenue": 0,
   "avg_deal_size": 0,
-  "last_sheet_sync": "2026-09-28T09:58:11.000Z",
+  "last_sheet_sync": "2026-10-01T09:57:46.000Z",
   "sheet_data_last_changed": "2026-09-17T09:58:11.000Z",
-  "last_sheet_sync_note": "No cold calling metrics file modified in the last 24h (September 2026 DigiGrowth Cold Calling Metrics last touched 2026-09-16T14:50Z) — no new data to report today. Figures below unchanged from previous sync.",
+  "last_sheet_sync_note": "No cold calling metrics file modified in the last 24h (no 'DigiGrowth Cold Calling Metrics' file appears in Drive recents; September 2026 file last touched 2026-09-16T14:50Z) \u2014 no new data to report today. Figures below unchanged from previous sync.",
   "sheet_calls_made": 3757,
   "sheet_calls_made_banked": 3757,
   "sheet_calls_made_month_raw": 0,
@@ -55,5 +55,5 @@
   "sheet_baseline_closes": 1,
   "sheet_baseline_total_revenue": 0,
   "sheet_baseline_captured_at": "2026-09-14T09:59:05.000Z",
-  "sheet_baseline_note": "Frozen carry-forward from the last Sales Performance Tracker sync before sales KPIs went OS-native (appointment_reminders) in commit e067afee. Added to all-time totals only in analytics.py::_os_sales_stats — see _os_sales_baseline."
+  "sheet_baseline_note": "Frozen carry-forward from the last Sales Performance Tracker sync before sales KPIs went OS-native (appointment_reminders) in commit e067afee. Added to all-time totals only in analytics.py::_os_sales_stats \u2014 see _os_sales_baseline."
 }
