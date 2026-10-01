@@ -1,5 +1,5 @@
 {
-  "daily_lead_target": 100,
+  "lead_target_per_run": 100,
   "max_website_text_words": 300,
   "enabled": true,
   "max_cities_per_run": 10

@@ -8,10 +8,12 @@ for Maps and its own reasoning (instead of a metered API) for qualification.
 CLI usage (invoked by the scrape-leads skill via Bash):
     python lib.py scrape-site <url>                # -> JSON {owner_name, website_text, email}
     python lib.py city-next                        # -> JSON {city, state, term_index} for the next city to work, or {"done": true}
-    python lib.py city-record-progress <city> <state> <term_index> <reviewed_delta> <qualified_delta>
-                                                     # updates city_coverage.json after finishing a search term
+    python lib.py run-start [manual|scheduled]      # -> JSON {run_id} -- call once at the start of every run; the lead target is per run
+    python lib.py city-record-progress <city> <state> <term_index> <reviewed_delta> <qualified_delta> [<run_id>]
+                                                     # updates city_coverage.json (and the run's tally in runs.json) after finishing a search term
+    python lib.py run-tally <run_id>                # -> JSON {run_id, reviewed, qualified, cities, target} for one run -- use this for the lead_target_per_run check, never an in-session counter
     python lib.py city-status [<city>, <state>]     # -> JSON coverage summary (all cities, or one)
-    python lib.py daily-tally [<YYYY-MM-DD>]        # -> JSON {date, reviewed, qualified, cities} across everything touched that day (persists across process restarts -- use this for the daily_lead_target check, never an in-session counter)
+    python lib.py daily-tally [<YYYY-MM-DD>]        # -> JSON {date, reviewed, qualified, cities} across everything touched that day (informational only -- the target is per run, see run-tally)
     python lib.py scraped-add <place_id_or_key>    # add an id to scraped_ids.json
     python lib.py scraped-has <place_id_or_key>    # exit 0 if already scraped, 1 if not
     python lib.py crm-filter <listings.json> <out.json>  # drop Maps listings already in the OS CRM (phone/website match); -> JSON {kept, already_in_crm, ...}
@@ -43,6 +45,7 @@ BASE_DIR           = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE        = os.path.join(BASE_DIR, "config.json")
 CITY_COVERAGE_FILE = os.path.join(BASE_DIR, "city_coverage.json")
 SCRAPED_FILE        = os.path.join(BASE_DIR, "scraped_ids.json")
+RUNS_FILE          = os.path.join(BASE_DIR, "runs.json")
 
 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
     config = json.load(f)
@@ -293,7 +296,10 @@ def city_next() -> dict:
     return {"done": True}
 
 
-def city_record_progress(city: str, state: str, term_index: int, reviewed_delta: int, qualified_delta: int):
+def city_record_progress(city: str, state: str, term_index: int, reviewed_delta: int, qualified_delta: int,
+                         run_id: str = None):
+    if run_id:
+        _run_record_term(run_id, city, state, term_index, reviewed_delta, qualified_delta)
     coverage = load_city_coverage()
     key = _city_key(city, state)
     rec = coverage["cities"][key]
@@ -335,6 +341,69 @@ def daily_tally(date_str: str = None) -> dict:
             qualified += rec["qualified_count"]
             cities.append(key)
     return {"date": date_str, "reviewed": reviewed, "qualified": qualified, "cities": cities}
+
+
+# ── Per-run tally ─────────────────────────────────────────────────────────
+# The lead target is per run, not per day: a manual skill run and the nightly
+# scheduled run each get their own lead_target_per_run, however many other runs
+# happened that day. A run spans several `claude -p` processes (the wrapper
+# launches one per city, and a session-limit resume is a fresh process), so the
+# tally lives on disk keyed by run_id rather than in any one process's memory.
+# Counts are logged per search term, so a city started in an earlier run (e.g.
+# Richmond, begun 9/28 and finished 9/30) only credits each run with the terms
+# it actually ran -- unlike daily_tally, which sums whole-city totals.
+# Local-only state (not pushed to GitHub): runs only ever execute on this PC.
+
+def lead_target_per_run() -> int:
+    return config.get("lead_target_per_run", config.get("daily_lead_target", 100))
+
+
+def _load_runs() -> dict:
+    if os.path.exists(RUNS_FILE):
+        with open(RUNS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"runs": {}}
+
+
+def _save_runs(runs: dict):
+    with open(RUNS_FILE, "w", encoding="utf-8") as f:
+        json.dump(runs, f, indent=1)
+
+
+def run_start(source: str = "manual") -> dict:
+    runs = _load_runs()
+    now = datetime.datetime.now()
+    run_id = f"{now.strftime('%Y-%m-%d_%H-%M-%S')}_{source}"
+    runs["runs"][run_id] = {"source": source, "started": now.isoformat(timespec="seconds"), "terms": []}
+    # Keep the file small: only the 60 most recent runs matter.
+    for old in sorted(runs["runs"])[:-60]:
+        del runs["runs"][old]
+    _save_runs(runs)
+    return {"run_id": run_id, "target": lead_target_per_run()}
+
+
+def _run_record_term(run_id: str, city: str, state: str, term_index: int, reviewed: int, qualified: int):
+    runs = _load_runs()
+    run = runs["runs"].setdefault(run_id, {"source": "unknown",
+                                           "started": datetime.datetime.now().isoformat(timespec="seconds"),
+                                           "terms": []})
+    run["terms"].append({"city": f"{city}, {state}", "term_index": term_index,
+                         "reviewed": reviewed, "qualified": qualified,
+                         "at": datetime.datetime.now().isoformat(timespec="seconds")})
+    _save_runs(runs)
+
+
+def run_tally(run_id: str) -> dict:
+    run = _load_runs()["runs"].get(run_id, {"terms": []})
+    cities = []
+    for t in run["terms"]:
+        if t["city"] not in cities:
+            cities.append(t["city"])
+    return {"run_id": run_id,
+            "reviewed": sum(t["reviewed"] for t in run["terms"]),
+            "qualified": sum(t["qualified"] for t in run["terms"]),
+            "cities": cities,
+            "target": lead_target_per_run()}
 
 
 def normalize_scraped_id(raw: str) -> str:
@@ -544,7 +613,8 @@ def _cli():
 
     elif cmd == "city-record-progress":
         city, state, term_index, reviewed_delta, qualified_delta = sys.argv[2:7]
-        rec = city_record_progress(city, state, int(term_index), int(reviewed_delta), int(qualified_delta))
+        run_id = sys.argv[7] if len(sys.argv) > 7 else None
+        rec = city_record_progress(city, state, int(term_index), int(reviewed_delta), int(qualified_delta), run_id)
         print(json.dumps(rec))
 
     elif cmd == "city-status":
@@ -552,6 +622,12 @@ def _cli():
             print(json.dumps(city_status(sys.argv[2], sys.argv[3])))
         else:
             print(json.dumps(city_status()))
+
+    elif cmd == "run-start":
+        print(json.dumps(run_start(sys.argv[2] if len(sys.argv) > 2 else "manual")))
+
+    elif cmd == "run-tally":
+        print(json.dumps(run_tally(sys.argv[2])))
 
     elif cmd == "daily-tally":
         date_str = sys.argv[2] if len(sys.argv) > 2 else None

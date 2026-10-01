@@ -38,3 +38,6 @@ content-agent/logs/
 /*.png
 /*.jpg
 /*.jpeg
+
+# Per-run lead gen tally (local state, see leadgen-agent/lib.py run_tally)
+leadgen-agent/runs.json

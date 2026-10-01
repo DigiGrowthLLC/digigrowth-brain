@@ -9,6 +9,8 @@
 # context budget each time, since city_coverage.json/scraped_ids.json already carry
 # all the state that matters across processes.
 
+param([string]$Source = "scheduled")   # "manual" when launched by hand, so runs.json labels it correctly
+
 $repoRoot    = "C:\Users\dylan\Videos\Business\AI Agents\DigiGrowth-Brain"
 $leadgenDir  = Join-Path $repoRoot "leadgen-agent"
 $logDir      = Join-Path $leadgenDir "logs"
@@ -24,7 +26,14 @@ if (-not $config.enabled) {
     Add-Content -Path $logFile -Value "leadgen disabled in config.json -- exiting."
     exit 0
 }
-$dailyLeadTarget = $config.daily_lead_target
+# The lead target is per run (each scheduled run gets its own lead_target_per_run,
+# regardless of manual runs earlier that day), tallied on disk by run_id so it
+# survives the one-process-per-city restarts below.
+$runJson = python (Join-Path $leadgenDir "lib.py") run-start $Source 2>$null
+$run = $runJson | ConvertFrom-Json
+$runId = $run.run_id
+$leadTarget = $run.target
+Add-Content -Path $logFile -Value "run_id: $runId (target: $leadTarget qualified leads this run)"
 
 # Watchdog: the skill has, three times now, ignored its own "never background this
 # work" instruction and responded with some phrasing of "I'll wait for the
@@ -43,13 +52,13 @@ $backgroundingPattern = "waiting on the background|i'll\W+(\w+\W+){0,3}wait|i wi
 $maxAttemptsPerCity = 2
 $maxCitiesPerRun = if ($config.max_cities_per_run) { $config.max_cities_per_run } else { 10 }
 
-$prompt = "Run the scrape-leads skill (leadgen-agent/.claude/skills/scrape-leads/SKILL.md) for exactly one city, resuming from wherever leadgen-agent/city_coverage.json's cursor (via 'python lib.py city-next') says to. Follow it exactly, including pushing any qualified leads to the DigiGrowth OS. This is an unattended run with nobody available to answer questions. Finish all 4 search terms for this one city (per the skill's step 2), then stop -- do not move on to a second city yourself, this wrapper script decides that between processes."
+$prompt = "Run the scrape-leads skill (leadgen-agent/.claude/skills/scrape-leads/SKILL.md) for exactly one city, resuming from wherever leadgen-agent/city_coverage.json's cursor (via 'python lib.py city-next') says to. Follow it exactly, including pushing any qualified leads to the DigiGrowth OS. This is an unattended run with nobody available to answer questions. Finish all 4 search terms for this one city (per the skill's step 2), then stop -- do not move on to a second city yourself, this wrapper script decides that between processes. This run's run_id is $runId -- do NOT call run-start; pass this run_id to every city-record-progress call and use it for run-tally."
 
 for ($cityCount = 1; $cityCount -le $maxCitiesPerRun; $cityCount++) {
-    $tallyJson = python (Join-Path $leadgenDir "lib.py") daily-tally 2>$null
+    $tallyJson = python (Join-Path $leadgenDir "lib.py") run-tally $runId 2>$null
     $tally = $tallyJson | ConvertFrom-Json
-    if ($tally.qualified -ge $dailyLeadTarget) {
-        Add-Content -Path $logFile -Value "`n--- daily_lead_target ($dailyLeadTarget) already met (today's qualified: $($tally.qualified)) -- stopping before city $cityCount. ---`n"
+    if ($tally.qualified -ge $leadTarget) {
+        Add-Content -Path $logFile -Value "`n--- lead_target_per_run ($leadTarget) met (this run's qualified: $($tally.qualified)) -- stopping before city $cityCount. ---`n"
         break
     }
 
