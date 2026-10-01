@@ -32,6 +32,7 @@ import client_followup_sequence
 import daily_sms_handoff
 import domain_health
 import dm_followup_sequence
+import sms_setter_ai
 import email_handoff_sequence
 import email_followup_trigger
 import outreach_video
@@ -474,6 +475,12 @@ async def lifespan(app: FastAPI):
         dm_followup_sequence.send_due_touches,
         IntervalTrigger(minutes=5),
         id="dm-followup-sequence",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        sms_setter_ai.release_expired_holds_job,
+        IntervalTrigger(minutes=5),
+        id="sms-setter-slot-holds",
         replace_existing=True,
     )
     scheduler.add_job(

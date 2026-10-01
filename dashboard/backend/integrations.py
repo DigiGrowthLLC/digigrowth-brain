@@ -637,6 +637,22 @@ def calendar_create_meet_event(
     return {"id": ev["id"], "meet_link": _extract_meeting_link(ev), "html_link": ev.get("htmlLink")}
 
 
+def calendar_create_hold(title: str, start: datetime, end: datetime, description: str = "") -> str:
+    """A busy, attendee-less block on the primary calendar — how the SMS
+    setter holds a call slot it just offered a prospect, so Calendly (which
+    reads this calendar's busy times) can't hand it to someone else before
+    they answer. Returns the event id; raises on failure."""
+    svc = _calendar_service()
+    ev = svc.events().insert(calendarId="primary", body={
+        "summary": title,
+        "description": description,
+        "start": {"dateTime": start.isoformat()},
+        "end": {"dateTime": end.isoformat()},
+        "transparency": "opaque",
+    }).execute()
+    return ev["id"]
+
+
 def calendar_update_event(
     event_id: str,
     title: str | None = None,

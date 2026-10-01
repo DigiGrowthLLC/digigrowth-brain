@@ -3,10 +3,15 @@
 Nudges a prospect who's gone quiet mid-conversation after being manually
 enrolled from the Inbox (POST /inbox/contact/{contact_id}/dm-followup — see
 that endpoint's docstring), or automatically the moment an AI setter reply
-is sent on the thread (routers/sms.py's manual_send). Never while the SMS
+is sent on the thread (routers/sms.py's manual_send), or by this module's
+own auto_enroll() each poll for any quiet campaign thread whose last text
+was waiting on an answer (see enroll_eligible). Never while the SMS
 setter has its own check-in scheduled on the thread (ai_followup_due_at —
 the prospect said "check back later"; see sms_setter_ai.schedule_follow_up):
-that replaces this sequence rather than running alongside it. SMS-only:
+that replaces this sequence rather than running alongside it. Nor after a
+front desk said they'd pass the message on, or gave an email for the owner
+(those are to-dos for Dylan, not nudges to the front desk). Touches go out
+only 9am-7pm prospect time, at most MAX_SENDS_PER_POLL per poll. SMS-only:
 there's no email equivalent today.
 
 Enrollment (dm_followup_enrolled_at) is INTENTIONALLY independent of
@@ -90,11 +95,38 @@ Outreach Templates → DM Follow-Up. Templates support {first_name} and
 {link} — {link} always resolves to integrations.CALENDLY_URL.
 """
 
+import re
 from datetime import datetime, timedelta, timezone as dt_timezone
+from zoneinfo import ZoneInfo
 
 import integrations
 from db import get_pool
 from merge_fields import first_name_from_owner
+from timezone_lookup import guess_timezone
+
+# Touches only go out in the prospect's daytime, and at most this many per
+# 5-minute poll — enrolling a backlog would otherwise fire every overdue
+# Touch 1 in the same minute.
+SEND_HOURS = (9, 19)          # prospect's local time, [start, end)
+MAX_SENDS_PER_POLL = 12
+
+# Auto-enroll (see auto_enroll): a thread where the prospect has replied at
+# least once and our text is the last word gets the sequence, as long as
+# that last text was actually waiting on an answer.
+_PITCH_STAGES = {"gatekeeper", "curiosity_opener", "relevance", "guarantee", "ask", "cta"}
+_BOILERPLATE = re.compile(r"(reply|text)\s+stop\s+to\s+\w+(\s+\w+)?", re.I)
+_OPTED_OUT = re.compile(
+    r"\b(stop|unsubscribe|remove (me|us|this)|take (me|us) off|not interested|no thanks?|no thank you|"
+    r"(don'?t|do not|please don'?t) (text|message|contact)|wrong number)\b",
+    re.I,
+)
+# One of Dylan's own texts that closes the exchange rather than waiting on
+# an answer: a thanks, a sign-off, a promise to come back later, a typo fix.
+_SIGN_OFF = re.compile(
+    r"^\s*(thank|thanks|thx|appreciate|i appreciate|all good|sounds good|no worries|sorry|you too|have a)\b"
+    r"|close this out|reach out in|check back|let me know if you change",
+    re.I,
+)
 
 # (touch number, sent-at column, reference column to count the delay from —
 # None means "the anchor"; otherwise the previous touch's own sent-at column
@@ -166,6 +198,93 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict, stage: st
             print(f"[dm_followup_sequence] SMS failed for {phone}: {e}")
 
 
+def enroll_eligible(row: dict) -> bool:
+    """Whether a quiet thread (prospect replied before, our text is last)
+    should be auto-enrolled. Only when that last text was waiting on an
+    answer: a sequence pitch step, an AI setter reply that isn't a hand-off
+    (relay / email / check-in / close), or one of Dylan's own texts that
+    isn't a sign-off or a thank-you. Never when the sequence already ran
+    on this silence, or the prospect has ever said stop / not interested."""
+    import sms_setter_ai
+
+    stage = row.get("last_stage") or ""
+    inbound = _BOILERPLATE.sub(" ", row.get("inbound_text") or "")
+    if _OPTED_OUT.search(inbound):
+        return False
+    if stage.startswith("dm_followup"):
+        return False
+    if stage in _PITCH_STAGES:
+        return True
+    if stage == "ai_setter":
+        return row.get("last_ai_action") not in sms_setter_ai.NO_DM_FOLLOWUP_ACTIONS
+    if not stage:
+        body = (row.get("last_body") or "").strip()
+        return len(body) >= 15 and not _SIGN_OFF.search(body)
+    return False
+
+
+async def auto_enroll(conn) -> int:
+    """Puts every eligible quiet campaign thread into the sequence. AI
+    setter sends have enrolled their thread since 2026-09-29, but threads
+    Dylan worked by hand, and everything the setter touched before that,
+    never were — so prospects went quiet with no follow-up at all. Runs
+    each poll; a thread Dylan switched off in the Inbox
+    (dm_followup_stopped_at) is never re-added."""
+    rows = await conn.fetch(
+        """
+        SELECT sc.id, lo.stage AS last_stage, lo.body AS last_body,
+               (SELECT action FROM sms_ai_drafts d WHERE d.phone = sc.phone AND d.status IN ('sent', 'auto_sent')
+                ORDER BY d.decided_at DESC NULLS LAST, d.created_at DESC LIMIT 1) AS last_ai_action,
+               (SELECT string_agg(body, ' || ') FROM sms_messages m
+                WHERE m.phone = sc.phone AND m.direction = 'inbound') AS inbound_text
+        FROM sms_conversations sc
+        LEFT JOIN contacts c ON c.id = sc.contact_id
+        CROSS JOIN LATERAL (
+            SELECT stage, body, sent_at FROM sms_messages m
+            WHERE m.phone = sc.phone AND m.direction = 'outbound' ORDER BY m.sent_at DESC LIMIT 1
+        ) lo
+        CROSS JOIN LATERAL (
+            SELECT max(sent_at) AS sent_at FROM sms_messages m WHERE m.phone = sc.phone AND m.direction = 'inbound'
+        ) li
+        WHERE sc.campaign_id IS NOT NULL AND sc.status <> 'closed' AND sc.disposition IS NULL
+          AND sc.dm_followup_enrolled_at IS NULL AND sc.dm_followup_stopped_at IS NULL
+          AND sc.ai_followup_due_at IS NULL
+          AND c.client_id IS NULL
+          AND li.sent_at IS NOT NULL AND lo.sent_at > li.sent_at
+        """
+    )
+    ids = [r["id"] for r in rows if enroll_eligible(dict(r))]
+    if ids:
+        await conn.execute(
+            "UPDATE sms_conversations SET dm_followup_enrolled_at = now() WHERE id = ANY($1::int[])", ids,
+        )
+    return len(ids)
+
+
+async def _setter_judgment(conn, phone: str, last_inbound_at) -> str | None:
+    """The SMS setter's action for the prospect's latest text, or None if it
+    hasn't drafted one (yet). "none" means it read the text and decided it
+    needs no answer — an auto-reply ("we'll get back to you shortly") or a
+    bare reaction. That isn't the prospect responding, so it doesn't stop
+    the sequence the way a real reply does."""
+    return await conn.fetchval(
+        """
+        SELECT action FROM sms_ai_drafts
+        WHERE phone = $1 AND last_inbound_at >= $2 - interval '1 second'
+        ORDER BY created_at DESC LIMIT 1
+        """,
+        phone, last_inbound_at,
+    )
+
+
+def _in_send_hours(phone: str, now: datetime) -> bool:
+    try:
+        hour = now.astimezone(ZoneInfo(guess_timezone(phone))).hour
+    except Exception:
+        hour = now.astimezone(ZoneInfo("America/New_York")).hour
+    return SEND_HOURS[0] <= hour < SEND_HOURS[1]
+
+
 async def send_due_touches():
     """Poll DM-Reached conversations and, per conversation, either reset for
     a new silence cycle, clear because the ball's back in Dylan's court, or
@@ -173,7 +292,9 @@ async def send_due_touches():
     poll. See module docstring for the full algorithm."""
     pool = await get_pool()
     now = datetime.now(dt_timezone.utc)
+    sent_this_poll = 0
     async with pool.acquire() as conn:
+        await auto_enroll(conn)
         rows = await conn.fetch(
             """
             SELECT sc.*, c.owner FROM sms_conversations sc
@@ -203,10 +324,18 @@ async def send_due_touches():
             if last_outbound_at is None:
                 continue
 
+            judgment = None
             if last_inbound_at is not None and last_inbound_at >= last_outbound_at:
+                judgment = await _setter_judgment(conn, phone, last_inbound_at)
+            if last_inbound_at is not None and last_inbound_at >= last_outbound_at and judgment != "none":
                 # Ball in Dylan's court — they just replied. Clear any active
-                # cycle so nothing sends until he messages again.
-                if row["dm_followup_anchor_at"] is not None:
+                # cycle so nothing sends until he messages again. Not until
+                # the setter has looked at the text, though: an auto-reply
+                # landing seconds after a touch would otherwise wipe the
+                # cycle and the same touch would go out again tomorrow.
+                # (Uncleared is harmless — nothing sends while the ball is
+                # in Dylan's court, and his next text starts a new cycle.)
+                if judgment is not None and row["dm_followup_anchor_at"] is not None:
                     await conn.execute(
                         "UPDATE sms_conversations SET dm_followup_anchor_at = NULL, "
                         "dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL, "
@@ -268,9 +397,11 @@ async def send_due_touches():
                 reference = anchor if ref_col is None else row[ref_col]
                 # reference is None here only if the previous touch hasn't
                 # sent yet — nothing to do this poll, wait for it.
-                if reference is not None and now >= reference + delay:
+                if (reference is not None and now >= reference + delay
+                        and sent_this_poll < MAX_SENDS_PER_POLL and _in_send_hours(phone, now)):
                     await _send_touch(conn, row, f"touch{touch_num}", templates, f"dm_followup_touch{touch_num}")
                     await conn.execute(
                         f"UPDATE sms_conversations SET {sent_col} = now() WHERE id = $1", row["id"],
                     )
+                    sent_this_poll += 1
                 break

@@ -511,12 +511,32 @@ async def manual_send(payload: dict):
         # an existing enrollment's timestamp. Nor a thread with a scheduled
         # check-in (the prospect said when to come back — see
         # sms_setter_ai.schedule_follow_up), so the two never run together.
+        # Except a draft that hands the next step to someone else: a front
+        # desk relaying the message, an owner email to send, a check-in, a
+        # close. Generic "did you get my message?" nudges to a front desk
+        # that just said they'd pass it on read as a bot (Leo got "Hey
+        # Becca..." after handing over her number), so those threads come
+        # out of the sequence until the conversation moves again.
         if ai_draft_id or stage == "ai_setter":
-            await conn.execute(
-                f"UPDATE sms_conversations SET dm_followup_enrolled_at = COALESCE(dm_followup_enrolled_at, now()) "
-                f"WHERE {_phone_match('phone', '$1')} AND disposition IS NULL AND ai_followup_due_at IS NULL",
-                phone,
-            )
+            import sms_setter_ai
+
+            action = await sms_setter_ai.last_sent_action(conn, phone, ai_draft_id)
+            if action in sms_setter_ai.NO_DM_FOLLOWUP_ACTIONS:
+                await conn.execute(
+                    f"UPDATE sms_conversations SET dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL, "
+                    f"dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL, "
+                    f"dm_followup_touch3_sent_at = NULL WHERE {_phone_match('phone', '$1')}",
+                    phone,
+                )
+            else:
+                await conn.execute(
+                    f"UPDATE sms_conversations SET dm_followup_enrolled_at = COALESCE(dm_followup_enrolled_at, now()) "
+                    f"WHERE {_phone_match('phone', '$1')} AND disposition IS NULL AND ai_followup_due_at IS NULL",
+                    phone,
+                )
+            if ai_draft_id:
+                # Times this text offered stay held for this prospect.
+                await sms_setter_ai.hold_offered_slots(conn, int(ai_draft_id))
         else:
             # Dylan texting them himself supersedes any check-in the setter
             # had scheduled.

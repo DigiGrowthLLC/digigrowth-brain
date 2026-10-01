@@ -9,6 +9,7 @@ Inbox:
   GET  /api/sms-setter/mode                 — {"mode", "worker_online", "worker_last_seen"}
   POST /api/sms-setter/mode                 — {"mode": "off" | "draft" | "auto"}
   GET  /api/sms-setter/stats                — per-action sent-unedited / edited / dismissed / auto-sent
+  POST /api/sms-setter/revive               — {"threads": [{"phone", "note", "due"?}]} dropped threads → agent check-ins
 
 Local worker (apptset-agent/sms_setter_worker.py, on Dylan's PC):
   POST /api/sms-setter/worker/heartbeat
@@ -106,6 +107,18 @@ async def book_draft(draft_id: int):
     if result != "booked":
         raise HTTPException(422, result)
     return {"ok": True}
+
+
+@router.post("/sms-setter/revive")
+async def revive(payload: dict):
+    """{"threads": [{"phone", "note", "due"?}]} — hand dropped threads back to
+    the agent as scheduled check-ins (see sms_setter_ai.revive_threads)."""
+    threads = payload.get("threads")
+    if not isinstance(threads, list) or not threads:
+        raise HTTPException(400, "threads required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return {"results": await sms_setter_ai.revive_threads(conn, threads)}
 
 
 @router.get("/sms-setter/mode")

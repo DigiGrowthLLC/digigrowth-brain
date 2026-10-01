@@ -973,16 +973,18 @@ async def set_dm_followup_active(contact_id: str, payload: dict):
                 )
             await conn.execute(
                 "UPDATE sms_conversations SET dm_followup_enrolled_at = COALESCE(dm_followup_enrolled_at, now()), "
-                "updated_at = now() WHERE contact_id = $1",
+                "dm_followup_stopped_at = NULL, updated_at = now() WHERE contact_id = $1",
                 contact_id,
             )
         else:
+            # dm_followup_stopped_at keeps dm_followup_sequence's auto-enroll
+            # from putting the thread straight back in.
             await conn.execute(
                 """
                 UPDATE sms_conversations
                 SET dm_followup_enrolled_at = NULL, dm_followup_anchor_at = NULL,
                     dm_followup_touch1_sent_at = NULL, dm_followup_touch2_sent_at = NULL,
-                    dm_followup_touch3_sent_at = NULL, updated_at = now()
+                    dm_followup_touch3_sent_at = NULL, dm_followup_stopped_at = now(), updated_at = now()
                 WHERE contact_id = $1
                 """,
                 contact_id,

@@ -1386,6 +1386,10 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_due_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_set_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_note TEXT;
+            -- Set when Dylan turns DM Follow-Up off for a thread from the
+            -- Inbox, cleared when he turns it back on. dm_followup_sequence's
+            -- auto-enroll never re-adds a thread with this set.
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS dm_followup_stopped_at TIMESTAMPTZ;
 
             -- Daily 8am-ET "new" -> sms-handoff move (daily_sms_handoff.py).
             -- auto_handoff_at marks contacts moved by that job; its opener
