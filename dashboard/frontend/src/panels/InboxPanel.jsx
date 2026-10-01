@@ -248,7 +248,7 @@ const AI_ACTION_META = {
 // Dylan's PC (apptset-agent/sms_setter_worker.py), so the dot shows whether
 // that worker has checked in recently — offline means nothing drafts or
 // sends, whatever the mode says.
-function SetterModeBar() {
+function SetterModeBar({ followUpCount, onOpenFollowUps }) {
   const [state, setState] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -295,6 +295,13 @@ function SetterModeBar() {
         <span style={{ width: 6, height: 6, borderRadius: 3, background: state.worker_online ? "#14c882" : "#dc3c3c" }} />
         {state.worker_online ? "PC ONLINE" : "PC OFFLINE"}
       </span>
+      <button onClick={onOpenFollowUps} title="Check-ins the agent scheduled"
+        style={{
+          ...mono, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
+          border: "1px solid rgba(224,160,48,0.4)", background: "rgba(224,160,48,0.08)", color: "#e0a030",
+        }}>
+        FOLLOW-UPS{followUpCount ? ` · ${followUpCount}` : ""}
+      </button>
       <div style={{ flex: 1 }} />
       {["off", "draft", "auto"].map(m => (
         <button key={m} onClick={() => setMode(m)} disabled={saving}
@@ -307,6 +314,176 @@ function SetterModeBar() {
           {m.toUpperCase()}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ── Scheduled check-ins ("busy, text me tomorrow") ───────────────────────────
+// The AI setter's follow_up action books a check-in on the thread
+// (sms_conversations.ai_followup_due_at); once due, the worker writes it and
+// auto mode sends it. GET /sms-setter/follow-ups lists them all.
+
+const phoneDigits = (p) => (p || "").replace(/\D/g, "").slice(-10);
+
+function fmtInZone(iso, timeZone) {
+  try {
+    return new Date(iso).toLocaleString("en-US", {
+      timeZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    });
+  } catch { return new Date(iso).toLocaleString(); }
+}
+
+function fmtRelative(iso) {
+  const ms = new Date(iso) - Date.now();
+  if (ms <= 0) return "due now";
+  const h = ms / 3600000;
+  if (h < 1) return `in ${Math.max(1, Math.round(ms / 60000))} min`;
+  if (h < 24) return `in ${Math.round(h)}h`;
+  return `in ${Math.round(h / 24)} day${Math.round(h / 24) === 1 ? "" : "s"}`;
+}
+
+// "YYYY-MM-DD" / "HH:MM" of an instant in a given zone, to prefill the editor.
+function partsInZone(iso, timeZone) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(iso)).map(x => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+}
+
+function FollowUpRow({ f, workerOnline, onOpen, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em" };
+  const due = new Date(f.due_at) <= new Date();
+  const btn = (color) => ({
+    ...mono, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
+    border: `1px solid ${color}55`, background: `${color}14`, color,
+  });
+
+  const startEdit = () => {
+    const p = partsInZone(f.due_at, f.timezone);
+    setDate(p.date); setTime(p.time); setError(null); setEditing(true);
+  };
+  const save = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await fetch(API("/sms-setter/follow-ups/reschedule"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: f.phone, date, time }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { setError(data.detail || "Couldn't reschedule"); setBusy(false); return; }
+      setEditing(false);
+      onChanged();
+    } catch (e) { setError(e.message); }
+    setBusy(false);
+  };
+  const cancel = async () => {
+    if (!window.confirm(`Cancel the check-in with ${f.owner || f.phone}? The agent won't text them unless they reply.`)) return;
+    setBusy(true);
+    try { await fetch(API("/sms-setter/follow-ups/cancel"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: f.phone }) }); } catch {}
+    setBusy(false);
+    onChanged();
+  };
+
+  return (
+    <div className="glass-card-sm" style={{ padding: "12px 14px", marginBottom: 10, border: `1px solid ${due ? "#e0a03055" : "rgba(58,123,213,0.2)"}` }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: "#f0f4ff" }}>
+          {f.owner || f.phone}
+        </div>
+        {f.business && <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, color: "#5a6f8f" }}>{f.business}</div>}
+        <div style={{ flex: 1 }} />
+        <span style={{ ...mono, color: due ? "#e0a030" : "#14c882" }}>{fmtRelative(f.due_at).toUpperCase()}</span>
+      </div>
+
+      <div style={{ marginTop: 6, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#c8d4ec" }}>
+        Agent texts them <b>{fmtInZone(f.due_at, f.timezone)}</b>
+        <span style={{ color: "#5a6f8f" }}> · their time</span>
+      </div>
+      <div style={{ ...mono, color: "#5a6f8f", marginTop: 2 }}>
+        YOUR TIME: {new Date(f.due_at).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+      </div>
+      {due && !workerOnline && (
+        <div style={{ ...mono, color: "#dc3c3c", marginTop: 4 }}>DUE, BUT YOUR PC IS OFFLINE · IT SENDS ONCE THE WORKER IS BACK</div>
+      )}
+
+      {f.last_inbound && (
+        <div style={{ marginTop: 8, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#8fa3c4" }}>
+          <span style={{ ...mono, color: "#3a7bd5" }}>THEY SAID </span>"{f.last_inbound.trim().slice(0, 200)}"
+        </div>
+      )}
+      {f.note && (
+        <div style={{ marginTop: 4, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#8fa3c4" }}>
+          <span style={{ ...mono, color: "#3a7bd5" }}>WHY </span>{f.note}
+        </div>
+      )}
+
+      {editing ? (
+        <div style={{ marginTop: 10, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <input className="dg-input" type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 150 }} />
+          <input className="dg-input" type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: 120 }} />
+          <span style={{ ...mono, color: "#5a6f8f" }}>THEIR TIME</span>
+          <button onClick={save} disabled={busy || !date} style={btn("#14c882")}>SAVE</button>
+          <button onClick={() => setEditing(false)} disabled={busy} style={btn("#5a6f8f")}>BACK</button>
+        </div>
+      ) : (
+        <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
+          <button onClick={() => onOpen(f)} style={btn("#3a7bd5")}>OPEN THREAD</button>
+          <button onClick={startEdit} disabled={busy} style={btn("#e0a030")}>CHANGE TIME</button>
+          <button onClick={cancel} disabled={busy} style={btn("#dc3c3c")}>CANCEL</button>
+        </div>
+      )}
+      {error && <div style={{ ...mono, color: "#dc3c3c", marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
+
+function FollowUpsModal({ data, onClose, onOpen, onChanged }) {
+  const list = data?.follow_ups || [];
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
+        backdropFilter: "blur(6px)", zIndex: 1000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="glass-card"
+        style={{ width: "100%", maxWidth: 560, maxHeight: "85vh", padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ padding: "18px 22px 14px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>
+              Scheduled Follow-Ups
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a6f8f", letterSpacing: "0.06em", marginTop: 3 }}>
+              CHECK-INS THE AI SETTER BOOKED WHEN A PROSPECT ASKED TO BE CONTACTED LATER · SOONEST FIRST
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px" }}>×</button>
+        </div>
+        <div style={{ padding: "16px 22px", overflowY: "auto" }}>
+          {list.length === 0 ? (
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#5a6f8f", textAlign: "center", padding: "24px 0" }}>
+              No follow-ups scheduled right now.
+            </div>
+          ) : list.map(f => (
+            <FollowUpRow key={f.phone} f={f} workerOnline={data.worker_online} onOpen={onOpen} onChanged={onChanged} />
+          ))}
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.06em", marginTop: 6, lineHeight: 1.6 }}>
+            IF THEY TEXT BEFORE THEN, THE CHECK-IN IS DROPPED AND THE AGENT ANSWERS THEIR TEXT INSTEAD.
+            AUTO MODE SENDS IT 8AM-8PM THEIR TIME; IN DRAFT MODE IT WAITS IN THE INBOX FOR YOU.
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -425,6 +602,21 @@ export default function InboxPanel({ initialTarget }) {
   const [usedDraftId, setUsedDraftId] = useState(null);
   const [aiRegenerating, setAiRegenerating] = useState(false);
   const [aiWorkerOffline, setAiWorkerOffline] = useState(false);
+  const [followUps, setFollowUps] = useState(null);
+  const [followUpsOpen, setFollowUpsOpen] = useState(false);
+
+  const loadFollowUps = useCallback(async () => {
+    try {
+      const r = await fetch(API("/sms-setter/follow-ups"));
+      if (r.ok) setFollowUps(await r.json());
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadFollowUps();
+    const id = setInterval(loadFollowUps, 60000);
+    return () => clearInterval(id);
+  }, [loadFollowUps]);
 
   const [channelFilter, setChannelFilter] = useState("all");
   const [timeFilter, setTimeFilter]       = useState("all");
@@ -815,7 +1007,22 @@ export default function InboxPanel({ initialTarget }) {
           </div>
         </div>
 
-        <SetterModeBar />
+        <SetterModeBar
+          followUpCount={followUps?.follow_ups?.length || 0}
+          onOpenFollowUps={() => { loadFollowUps(); setFollowUpsOpen(true); }}
+        />
+        {followUpsOpen && (
+          <FollowUpsModal
+            data={followUps}
+            onClose={() => setFollowUpsOpen(false)}
+            onChanged={loadFollowUps}
+            onOpen={(f) => {
+              setFollowUpsOpen(false);
+              const match = f.contact_id || convos.find(c => phoneDigits(c.phone) === phoneDigits(f.phone))?.contact_id;
+              if (match) openThread(match);
+            }}
+          />
+        )}
 
         {/* Filter bar */}
         <div style={{ padding: "10px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1280,6 +1487,20 @@ export default function InboxPanel({ initialTarget }) {
             {/* Reply box */}
             {thread?.status !== "closed" ? (
               <div style={{ position: "relative", padding: "12px 20px", borderTop: "0.5px solid #1a2540", flexShrink: 0 }}>
+                {(() => {
+                  const fu = thread?.phone && followUps?.follow_ups?.find(f => phoneDigits(f.phone) === phoneDigits(thread.phone));
+                  if (!fu) return null;
+                  return (
+                    <div onClick={() => setFollowUpsOpen(true)} title="Open Scheduled Follow-Ups"
+                      style={{
+                        marginBottom: 10, padding: "7px 12px", borderRadius: 8, cursor: "pointer",
+                        border: "1px solid rgba(224,160,48,0.35)", background: "rgba(224,160,48,0.07)",
+                        fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#e0a030",
+                      }}>
+                      Agent follows up {fmtInZone(fu.due_at, fu.timezone)} their time ({fmtRelative(fu.due_at)})
+                    </div>
+                  );
+                })()}
                 {aiDraft && !aiRegenerating && <AiDraftCard
                   draft={aiDraft} busy={aiDraftBusy} used={usedDraftId === aiDraft.id}
                   onUse={useAiDraft} onDismiss={dismissAiDraft} onRegenerate={regenerateAiDraft}

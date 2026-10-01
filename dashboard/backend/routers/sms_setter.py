@@ -10,6 +10,9 @@ Inbox:
   POST /api/sms-setter/mode                 — {"mode": "off" | "draft" | "auto"}
   GET  /api/sms-setter/stats                — per-action sent-unedited / edited / dismissed / auto-sent
   POST /api/sms-setter/revive               — {"threads": [{"phone", "note", "due"?}]} dropped threads → agent check-ins
+  GET  /api/sms-setter/follow-ups           — every scheduled check-in, soonest first (Inbox FOLLOW-UPS view)
+  POST /api/sms-setter/follow-ups/reschedule — {"phone", "date", "time"} prospect's local time
+  POST /api/sms-setter/follow-ups/cancel    — {"phone"}
 
 Local worker (apptset-agent/sms_setter_worker.py, on Dylan's PC):
   POST /api/sms-setter/worker/heartbeat
@@ -119,6 +122,73 @@ async def revive(payload: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
         return {"results": await sms_setter_ai.revive_threads(conn, threads)}
+
+
+@router.get("/sms-setter/follow-ups")
+async def list_follow_ups():
+    """Every check-in the agent has scheduled ("busy, text me tomorrow"),
+    soonest first: when it goes out (UTC + the prospect's timezone, so the
+    Inbox can show both), the agent's reasoning, and their last text."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT sc.phone, sc.contact_id, sc.ai_followup_due_at, sc.ai_followup_set_at, sc.ai_followup_note,
+                   c.owner, c.business,
+                   (SELECT body FROM sms_messages m WHERE m.phone = sc.phone AND m.direction = 'inbound'
+                    ORDER BY m.sent_at DESC LIMIT 1) AS last_inbound
+            FROM sms_conversations sc LEFT JOIN contacts c ON c.id = sc.contact_id
+            WHERE sc.ai_followup_due_at IS NOT NULL AND sc.status <> 'closed' AND sc.disposition IS NULL
+            ORDER BY sc.ai_followup_due_at
+            """
+        )
+        status = await sms_setter_ai.worker_status(conn)
+    return {
+        "follow_ups": [
+            {
+                "phone": r["phone"], "contact_id": r["contact_id"], "owner": r["owner"], "business": r["business"],
+                "due_at": r["ai_followup_due_at"].isoformat(),
+                "set_at": r["ai_followup_set_at"].isoformat() if r["ai_followup_set_at"] else None,
+                "timezone": sms_setter_ai.guess_timezone(r["phone"]),
+                "note": r["ai_followup_note"], "last_inbound": r["last_inbound"],
+            }
+            for r in rows
+        ],
+        **status,
+    }
+
+
+@router.post("/sms-setter/follow-ups/reschedule")
+async def reschedule_follow_up(payload: dict):
+    """{"phone", "date": "YYYY-MM-DD", "time": "HH:MM"} in the PROSPECT's
+    local time — the same way the agent picks it. Keeps the agent's note."""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
+    phone = (payload.get("phone") or "").strip()
+    try:
+        due = datetime.strptime(f"{payload.get('date')} {payload.get('time') or '10:00'}", "%Y-%m-%d %H:%M").replace(
+            tzinfo=ZoneInfo(sms_setter_ai.guess_timezone(phone)))
+    except (ValueError, TypeError):
+        raise HTTPException(400, "date (YYYY-MM-DD) and time (HH:MM) required")
+    if due <= datetime.now(timezone.utc):
+        raise HTTPException(400, "pick a time in the future")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        note = await conn.fetchval("SELECT ai_followup_note FROM sms_conversations WHERE phone = $1", phone)
+        await sms_setter_ai.schedule_follow_up(conn, phone, due, note)
+    return {"ok": True, "due_at": due.isoformat()}
+
+
+@router.post("/sms-setter/follow-ups/cancel")
+async def cancel_follow_up(payload: dict):
+    phone = (payload.get("phone") or "").strip()
+    if not phone:
+        raise HTTPException(400, "phone required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await sms_setter_ai.schedule_follow_up(conn, phone, None)
+    return {"ok": True}
 
 
 @router.get("/sms-setter/mode")
