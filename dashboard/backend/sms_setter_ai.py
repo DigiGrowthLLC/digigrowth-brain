@@ -1186,7 +1186,42 @@ async def book_draft(conn, draft_id: int) -> str:
             "UPDATE sms_ai_drafts SET details = details || jsonb_build_object('booked', true) WHERE id = $1",
             draft_id,
         )
+        await notify_dylan_booking(conn, d["phone"], dict(conv), details)
     return result
+
+
+# Dylan's own phone for "new call booked" alerts. Calendly texts him when a
+# prospect books from the Calendly page, but calls the setter books through
+# the API (or the Google Calendar fallback) weren't reaching his phone, so
+# the setter texts him itself. Override with dialer_settings[ALERT_PHONE_KEY].
+ALERT_PHONE_KEY = "dylan_alert_phone"
+_DEFAULT_ALERT_PHONE = "+17542485326"
+
+
+async def notify_dylan_booking(conn, phone: str, contact: dict, details: dict) -> None:
+    """Texts Dylan that the setter just booked a call. Never raises — the
+    booking itself already succeeded."""
+    import asyncio
+
+    from routers import sms as sms_router
+
+    try:
+        to = await _setting(conn, ALERT_PHONE_KEY) or os.environ.get("DYLAN_ALERT_PHONE") or _DEFAULT_ALERT_PHONE
+        tz_name = guess_timezone(phone)
+        start = datetime.strptime(f"{details['booking_date']} {details['booking_time']}", "%Y-%m-%d %H:%M").replace(
+            tzinfo=ZoneInfo(tz_name))
+        theirs = start.strftime("%a %b %d, %I:%M %p").replace(" 0", " ")
+        yours = start.astimezone(ZoneInfo("America/New_York")).strftime("%I:%M %p").lstrip("0")
+        who = contact.get("owner") or phone
+        business = f" ({contact['business']})" if contact.get("business") else ""
+        email = details.get("email") or contact.get("email") or ""
+        body = (
+            f"New call booked by the AI setter: {who}{business}, {theirs} {tz_abbrev(tz_name, start)} "
+            f"({yours} ET). {email}\n{inbox_link(contact.get('contact_id'), phone)}"
+        )
+        await asyncio.to_thread(sms_router._send_twilio, to, body)
+    except Exception as e:
+        print(f"[sms_setter_ai] booking alert to Dylan failed for {phone}: {e}", flush=True)
 
 
 async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str:
