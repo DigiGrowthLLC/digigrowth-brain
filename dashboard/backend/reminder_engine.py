@@ -144,7 +144,7 @@ async def _send_instance(row: dict, instance: str, templates: dict, stage: str) 
     email = (row.get("prospect_email") or "").strip()
     if email:
         try:
-            result = await asyncio.to_thread(integrations.gmail_send, email, subject, email_body, is_automated=True)
+            result = await asyncio.to_thread(integrations.gmail_send, email, subject, email_body, is_automated=True, urgent=True)
             if not result.startswith("Sent email"):
                 print(f"[reminder_engine] email SEND FAILED for {email} (window will retry next poll): {result}")
                 ok = False

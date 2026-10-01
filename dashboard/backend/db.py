@@ -1927,6 +1927,31 @@ async def _create_schema(pool: asyncpg.Pool):
             )
             """
         )
+        # Outbox for Dylan's own Gmail: automated sends queue here and go out
+        # at least 10 minutes apart (integrations.process_email_outbox).
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS email_outbox (
+                id             SERIAL PRIMARY KEY,
+                to_email       TEXT NOT NULL,
+                subject        TEXT NOT NULL,
+                body           TEXT NOT NULL,
+                is_html        BOOLEAN NOT NULL DEFAULT false,
+                track          BOOLEAN NOT NULL DEFAULT false,
+                is_automated   BOOLEAN NOT NULL DEFAULT false,
+                tracking_token TEXT,
+                priority       INTEGER NOT NULL DEFAULT 1,
+                status         TEXT NOT NULL DEFAULT 'queued',
+                result         TEXT,
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+                sent_at        TIMESTAMPTZ
+            )
+            """
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_email_outbox_queued ON email_outbox(priority, id) WHERE status = 'queued'"
+        )
+
         # 'send_info' | 'gatekeeper_deferral' — which email complete() sends
         # once the video's ready (send_info_queue.py).
         await conn.execute(

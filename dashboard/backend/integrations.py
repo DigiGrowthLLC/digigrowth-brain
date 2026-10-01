@@ -336,7 +336,105 @@ def _wrap_outreach_html(body: str, tracking_token: str, contact_id: str | None) 
     return "".join(parts)
 
 
-def gmail_send(to: str, subject: str, body: str, track: bool = False, is_automated: bool = False) -> str:
+# ── Outbox: automated email spacing ───────────────────────────────────────────
+# Every automated email from Dylan's own Gmail (Send Info, Gatekeeper
+# Deferral, appointment reminders, no-show/cancel/onboarding sequences,
+# newsletter, agent-composed mail) goes through gmail_send/gmail_send_html,
+# which QUEUE it in email_outbox instead of sending it. main.py's 1-minute
+# job (process_email_outbox) sends the next one only once the last one went
+# out at least EMAIL_SPACING_MINUTES ago, so no two leave the mailbox closer
+# together than that — a burst of sends from one mailbox is what hurts
+# deliverability. Appointment reminders (urgent=True) jump the line.
+# Not queued: Dylan's own replies from the Inbox (gmail_send_reply) and
+# newsletter test sends. The cold-email identities (email_handoff_sequence)
+# are separate mailboxes with their own 10-minute spacing already.
+# Callers still get a "Sent email to ..." string back, so the existing
+# `result.startswith("Sent email")` checks treat a queued send as done.
+
+EMAIL_SPACING_MINUTES = 10
+
+
+async def _enqueue_email(to: str, subject: str, body: str, is_html: bool, track: bool,
+                         is_automated: bool, tracking_token: str | None, priority: int) -> int:
+    """Own short-lived connection — same reasoning as _lookup_contact_for_send
+    (gmail_send runs on a worker thread, off the main event loop). Returns
+    how many queued emails are ahead of this one."""
+    import asyncpg
+    conn = await asyncpg.connect(os.environ["DATABASE_URL"])
+    try:
+        row_id = await conn.fetchval(
+            """INSERT INTO email_outbox (to_email, subject, body, is_html, track, is_automated, tracking_token, priority)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id""",
+            to, subject, body, is_html, track, is_automated, tracking_token, priority,
+        )
+        ahead = await conn.fetchval(
+            "SELECT COUNT(*) FROM email_outbox WHERE status = 'queued' AND (priority, id) < ($1, $2)",
+            priority, row_id,
+        )
+        return int(ahead)
+    finally:
+        await conn.close()
+
+
+def _queue_email(to: str, subject: str, body: str, *, is_html: bool = False, track: bool = False,
+                 is_automated: bool = False, tracking_token: str | None = None, urgent: bool = False) -> str:
+    try:
+        ahead = asyncio.run(_enqueue_email(to, subject, body, is_html, track, is_automated, tracking_token,
+                                           0 if urgent else 1))
+    except Exception as e:
+        return f"Gmail error: couldn't queue email ({e})"
+    return f"Sent email to {to}: {subject} (queued, {ahead} ahead, sends {EMAIL_SPACING_MINUTES}+ min apart)"
+
+
+async def process_email_outbox() -> str:
+    """main.py's 1-minute job: sends the next queued email if the last one
+    went out at least EMAIL_SPACING_MINUTES ago."""
+    from db import get_pool
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        too_soon = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM email_outbox WHERE status IN ('sent', 'failed', 'sending') "
+            "AND COALESCE(sent_at, now()) > now() - make_interval(mins => $1))",
+            EMAIL_SPACING_MINUTES,
+        )
+        if too_soon:
+            return "spacing: waiting"
+        # Claim the next one atomically so an overlapping run can't double-send.
+        row = await conn.fetchrow(
+            """UPDATE email_outbox SET status = 'sending', sent_at = now()
+               WHERE id = (SELECT id FROM email_outbox WHERE status = 'queued'
+                           ORDER BY priority, id LIMIT 1 FOR UPDATE SKIP LOCKED)
+               RETURNING *"""
+        )
+        if not row:
+            return "outbox empty"
+    if row["is_html"]:
+        result = await asyncio.to_thread(_gmail_send_html_now, row["to_email"], row["subject"], row["body"],
+                                         row["tracking_token"])
+    else:
+        result = await asyncio.to_thread(_gmail_send_now, row["to_email"], row["subject"], row["body"],
+                                         row["track"], row["is_automated"])
+    ok = result.startswith("Sent email") or result.startswith("Skipped")
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE email_outbox SET status = $2, result = $3, sent_at = now() WHERE id = $1",
+            row["id"], "sent" if ok else "failed", result,
+        )
+    if not ok:
+        print(f"[email_outbox] send failed for {row['to_email']}: {result}", flush=True)
+    return result
+
+
+def gmail_send(to: str, subject: str, body: str, track: bool = False, is_automated: bool = False,
+               urgent: bool = False) -> str:
+    """Queues the email in the outbox (see above); process_email_outbox sends
+    it via _gmail_send_now. urgent=True (appointment reminders) goes to the
+    front of the line."""
+    return _queue_email(to, subject, body, track=track, is_automated=is_automated, urgent=urgent)
+
+
+def _gmail_send_now(to: str, subject: str, body: str, track: bool = False, is_automated: bool = False) -> str:
     """track=True marks this as an outreach send: wraps the body as HTML with
     an open-tracking pixel and (for known contacts) an unsubscribe link, and
     is skipped outright if that contact has opted out. Transactional mail
@@ -431,6 +529,14 @@ async def process_newsletter_queue() -> str:
 
 
 def gmail_send_html(to: str, subject: str, html: str, tracking_token: str | None = None, is_test: bool = False) -> str:
+    """Queues an HTML email (newsletter) in the outbox; test sends go out
+    immediately."""
+    if is_test:
+        return _gmail_send_html_now(to, subject, html, tracking_token, is_test)
+    return _queue_email(to, subject, html, is_html=True, tracking_token=tracking_token)
+
+
+def _gmail_send_html_now(to: str, subject: str, html: str, tracking_token: str | None = None, is_test: bool = False) -> str:
     """Same as gmail_send but for an HTML body (newsletter sends) — MIMEText
     defaults to plain text, which would send the HTML tags as literal text.
     If tracking_token is given, an open-tracking pixel (same /track/open

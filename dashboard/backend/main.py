@@ -478,6 +478,13 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
+        integrations.process_email_outbox,
+        IntervalTrigger(minutes=1),
+        id="email-outbox",
+        replace_existing=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
         sms_setter_ai.release_expired_holds_job,
         IntervalTrigger(minutes=5),
         id="sms-setter-slot-holds",
