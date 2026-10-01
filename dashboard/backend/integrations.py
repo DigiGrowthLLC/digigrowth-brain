@@ -504,7 +504,7 @@ async def send_info_email(to: str, owner: str | None, business: str | None, loom
     return await asyncio.to_thread(gmail_send, to, subject, body, True)
 
 
-GK_DEFERRAL_EMAIL_SUBJECT = "Quick video on new patient acquisition for your practice"
+GK_DEFERRAL_EMAIL_SUBJECT = "Following up on my chat with {receptionist}"
 
 GK_DEFERRAL_EMAIL_BODY = """Hey {first_name}, {receptionist} mentioned email was the best way to reach you, so I just made you a quick video explaining everything so you didn't have to read a whole essays worth of information lol
 {loom_link}
@@ -534,11 +534,13 @@ async def gatekeeper_deferral_email(
     subject_template = values.get("gk_deferral_email_subject", GK_DEFERRAL_EMAIL_SUBJECT)
     body_template = values.get("gk_deferral_email_body", GK_DEFERRAL_EMAIL_BODY)
 
-    subject = f"{subject_template} — {business}" if business else subject_template
-    body = (body_template
-            .replace("{first_name}", first_name_from_owner(owner))
-            .replace("{receptionist}", f"your receptionist {receptionist}" if receptionist else "your receptionist")
-            .replace("{loom_link}", loom_url or ""))
+    def fill(t: str) -> str:
+        return (t.replace("{first_name}", first_name_from_owner(owner))
+                .replace("{receptionist}", f"your receptionist {receptionist}" if receptionist else "your receptionist")
+                .replace("{loom_link}", loom_url or ""))
+
+    subject = fill(f"{subject_template} — {business}" if business else subject_template)
+    body = fill(body_template)
     return await asyncio.to_thread(gmail_send, to, subject, body, True)
 
 

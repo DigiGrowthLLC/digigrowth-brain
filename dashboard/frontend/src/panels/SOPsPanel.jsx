@@ -725,7 +725,10 @@ function GatekeeperDeferralEditor({ categories, onCategoryChange }) {
             onChange={e => setEmailSubject(e.target.value)}
             style={fieldStyle}
           />
-          <div style={hintStyle}>The contact's business name is appended automatically (e.g. "... — Acme PT").</div>
+          <div style={hintStyle}>
+            {code("{receptionist}")} and {code("{first_name}")} work here too. The business name is appended automatically
+            (e.g. "Following up on my chat with your receptionist Sophie — Acme PT").
+          </div>
         </div>
 
         <div>
