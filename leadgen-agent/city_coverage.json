@@ -922,9 +922,9 @@
     },
     "Salt Lake City, UT": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 120,
-      "qualified_count": 9,
+      "term_index": 2,
+      "reviewed_count": 230,
+      "qualified_count": 10,
       "last_scraped_date": "2026-09-30"
     },
     "Moreno Valley, CA": {
