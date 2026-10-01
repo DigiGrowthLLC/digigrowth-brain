@@ -285,35 +285,42 @@ function SetterModeBar({ followUpCount, onOpenFollowUps }) {
   if (!state) return null;
   const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em" };
   const modeColor = { off: "#5a6f8f", draft: "#3a7bd5", auto: "#14c882" };
+  // Two quiet rows so nothing wraps in the narrow list column: status +
+  // mode switch, then (only when there are any) a follow-ups link.
+  const online = state.worker_online;
   return (
-    <div style={{ padding: "8px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ ...mono, color: "#5a6f8f" }}>AI SETTER</span>
-      <span
-        title={state.worker_last_seen ? `Last check-in ${new Date(state.worker_last_seen).toLocaleString()}` : "Never checked in"}
-        style={{ ...mono, color: state.worker_online ? "#14c882" : "#dc3c3c", display: "flex", alignItems: "center", gap: 4 }}
-      >
-        <span style={{ width: 6, height: 6, borderRadius: 3, background: state.worker_online ? "#14c882" : "#dc3c3c" }} />
-        {state.worker_online ? "PC ONLINE" : "PC OFFLINE"}
-      </span>
-      <button onClick={onOpenFollowUps} title="Check-ins the agent scheduled"
-        style={{
-          ...mono, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
-          border: "1px solid rgba(224,160,48,0.4)", background: "rgba(224,160,48,0.08)", color: "#e0a030",
-        }}>
-        FOLLOW-UPS{followUpCount ? ` · ${followUpCount}` : ""}
-      </button>
-      <div style={{ flex: 1 }} />
-      {["off", "draft", "auto"].map(m => (
-        <button key={m} onClick={() => setMode(m)} disabled={saving}
+    <div style={{ padding: "8px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          title={`${online ? "PC online" : "PC offline, nothing drafts or sends"} · ${state.worker_last_seen ? `last check-in ${new Date(state.worker_last_seen).toLocaleString()}` : "never checked in"}`}
+          style={{ ...mono, color: "#8fa3c4", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: online ? "#14c882" : "#dc3c3c" }} />
+          AI SETTER{online ? "" : " · OFFLINE"}
+        </span>
+        <div style={{ flex: 1 }} />
+        <div style={{ display: "flex", border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6, overflow: "hidden", flexShrink: 0 }}>
+          {["off", "draft", "auto"].map(m => (
+            <button key={m} onClick={() => setMode(m)} disabled={saving}
+              style={{
+                ...mono, padding: "3px 7px", cursor: "pointer", border: "none", whiteSpace: "nowrap",
+                background: state.mode === m ? `${modeColor[m]}26` : "transparent",
+                color: state.mode === m ? modeColor[m] : "#5a6f8f",
+              }}>
+              {m.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+      {followUpCount > 0 && (
+        <button onClick={onOpenFollowUps} title="Check-ins the agent scheduled"
           style={{
-            ...mono, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
-            border: `1px solid ${state.mode === m ? modeColor[m] : "rgba(58,123,213,0.2)"}`,
-            background: state.mode === m ? `${modeColor[m]}22` : "transparent",
-            color: state.mode === m ? modeColor[m] : "#5a6f8f",
+            ...mono, padding: 0, border: "none", background: "transparent", cursor: "pointer",
+            color: "#e0a030", textAlign: "left", whiteSpace: "nowrap",
           }}>
-          {m.toUpperCase()}
+          {followUpCount} FOLLOW-UP{followUpCount === 1 ? "" : "S"} SCHEDULED →
         </button>
-      ))}
+      )}
     </div>
   );
 }
