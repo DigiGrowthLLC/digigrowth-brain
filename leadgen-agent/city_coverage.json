@@ -977,9 +977,9 @@
       "last_scraped_date": "2026-10-01"
     },
     "Little Rock, AR": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 283,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 361,
       "qualified_count": 9,
       "last_scraped_date": "2026-10-01"
     },
