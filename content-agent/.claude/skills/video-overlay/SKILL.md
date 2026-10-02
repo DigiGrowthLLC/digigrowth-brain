@@ -409,6 +409,102 @@ Use for "here are the N things I'll cover" moments or major transitions.
 
 ---
 
+### Legibility rule (applies to every card below and above)
+Anything that sits over footage gets a **glass card or a scrim** behind it. Bare text over busy
+video only works for the Floating Bullet List (#10), and only with its heavy text-shadow. If a
+verify-loop frame shows text fighting the background, add a backing. Don't just shrink the font.
+
+### Media rule (cards 13, 15, 16)
+HyperFrames only decodes a `<video>` that is a **direct child of `#stage`**. Never put one inside a
+card div, or it renders black. Build a b-roll card as two siblings: a glass **backing** `.ch` div
+(frame, label) and the `<video class="clip">` positioned exactly inside it at a higher z-index.
+Animate the video from the main timeline at global time. Images (`<img>`) *can* live inside the
+card. Every b-roll `<video>` is `muted playsinline`, and the talking-head audio stays the only sound
+bed. Assets live in `public/assets/` (see Step 3.5).
+
+---
+
+### 13. Side Insert — `.lp` / `.rp` (b-roll, screenshot, or clip beside the face)
+Proof on screen: when Dylan names a tool, result, site, or dashboard, show it. Enters from its
+own side, 5–8s.
+
+```html
+<!-- backing card (track 2) -->
+<div class="ch clip" data-card-id="card-NN" data-start="T" data-duration="D" data-track-index="2"
+  style="visibility:hidden;opacity:0;position:absolute;right:60px;top:50%;transform:translateY(-50%);
+  width:400px;padding:14px;[glass base] border-right:3px solid rgba(58,123,213,0.70);">
+  <div class="kk">LIVE DASHBOARD</div>
+  <div style="width:372px;height:232px;border-radius:6px;overflow:hidden;">
+    <img src="assets/NN-shot.png" style="width:100%;height:100%;object-fit:cover;">  <!-- still -->
+  </div>
+</div>
+<!-- for a moving clip, leave the inner box empty and add a sibling video (track 3) -->
+<video id="bv-NN" class="clip" src="assets/NN-clip.mp4" muted playsinline
+  data-start="T" data-duration="D" data-track-index="3"
+  style="position:absolute;right:74px;top:calc(50% - 90px);width:372px;height:232px;
+  object-fit:cover;border-radius:6px;z-index:5;"></video>
+```
+GSAP: slide in from the edge it lives on. `tl.from('.ch[data-card-id="card-NN"]', {x:60, duration:0.45, ease:'power3.out'}, T)`,
+and the same `x` tween on `#bv-NN`. Position from the face safe zones: right cards start x ≥ 1500 and left cards end x ≤ 420.
+
+---
+
+### 14. Keyword Highlight Strip — bottom-center
+The 2–4 words that ARE the point sit at the bottom and light up one by one as they're spoken.
+Use for the thesis line or a key phrase, once or twice per video. It's not a caption track.
+
+```html
+<div class="ch clip" data-card-id="card-NN" data-start="T" data-duration="D" data-track-index="2"
+  style="visibility:hidden;opacity:0;position:absolute;left:50%;bottom:64px;transform:translateX(-50%);
+  padding:14px 30px;border-radius:12px;background:rgba(9,15,38,0.72);
+  backdrop-filter:blur(10px);border:1px solid rgba(58,123,213,0.28);white-space:nowrap;">
+  <span id="kw-NN-1" class="kw" style="font-size:54px;font-weight:700;color:rgba(255,255,255,0.35);">BEST</span>
+  <span id="kw-NN-2" class="kw" style="font-size:54px;font-weight:700;color:rgba(255,255,255,0.35);">OUTPUTS</span>
+  <span id="kw-NN-3" class="kw" style="font-size:54px;font-weight:700;color:rgba(255,255,255,0.35);">EVER</span>
+</div>
+```
+GSAP, one tween per word **at that word's transcript start time**:
+`tl.to('#kw-NN-1', {color:'#fff', textShadow:'0 0 24px rgba(58,123,213,0.9)', duration:0.15}, WORD_T)`.
+Put the last word in `#3a7bd5` for the payoff.
+
+---
+
+### 15. Face-Cam Push-In — animates `#a-roll`
+A subtle scale on the talking head for the hook and big emphasis moments. It isn't a card, so it
+takes no track-2 slot. Use at most 1 per ~30s, or it turns into seasickness.
+```js
+tl.to('#a-roll', {scale:1.06, transformOrigin:'50% 35%', duration:3.5, ease:'sine.inOut'}, T);
+tl.to('#a-roll', {scale:1.00, duration:0.35, ease:'power2.out'}, T_END);   // reset on a hard beat
+```
+A push-in changes the face safe zones for its duration. Keep side cards off that window, or
+nudge them outward by ~40px.
+
+---
+
+### 16. Full-Screen Takeover (b-roll / AI clip / screenshot)
+Cuts away from the face for 2–5s to show the thing. Talking-head audio keeps playing underneath.
+Use a `<video class="clip">` directly on `#stage` at track 3 with `inset:0; width:1920px; height:1080px; object-fit:cover;`,
+plus an optional glass kicker label card at track 2 in the upper-left. Enter with a 6-frame zoom
+punch (`scale:1.05→1`) and exit with a hard cut. For a still, use an `<img>` with a slow Ken Burns
+(`scale 1→1.08` over the clip).
+
+---
+
+### 17. Split Takeover — visual left / face right
+Teaching moments (the whiteboard/explainer look). `#a-roll` moves to the right half, and the visual
+fills the left half.
+```js
+// T: split in, T_END: back to full
+tl.to('#a-roll', {xPercent:25, scale:1.0, duration:0.5, ease:'power3.inOut'}, T);
+tl.to('#a-roll', {xPercent:0, duration:0.5, ease:'power3.inOut'}, T_END - 0.5);
+```
+The left panel is a `.ch` clip at `left:0;top:0;width:960px;height:1080px;` with a navy background
+(`#090f26`) and the visual inside. Images and HTML diagrams go inside; video goes as a sibling per
+the media rule. Check the verify-loop frame to confirm the face isn't cut at the new crop. Re-tune
+`xPercent` for each piece of footage.
+
+---
+
 ## GSAP TIMELINE TEMPLATE
 
 Always register on `window.__timelines['talking-head-recut']`.
@@ -461,28 +557,36 @@ Every `.ch.clip` wrapper needs:
 | Floating bullet list | 5–8s | Items stagger 0.4s apart |
 | Chapter lower third | 4–6s | Show at section start |
 | Full-screen chapter | 2–4s | Cut-away; back to talking head after |
+| Side insert (b-roll) | 5–8s | Show at the exact mention of the thing being proven |
+| Keyword highlight strip | 2–5s | Each word lights at its own transcript timestamp |
+| Face-cam push-in | 3–5s | Hook + big emphasis only, max ~1 per 30s, no track-2 slot |
+| Full-screen takeover | 2–5s | Cut away on the noun; cut back before the next point |
+| Split takeover | 6–20s | Whole teaching segment; enter/exit on sentence boundaries |
 
 **Universal rule:** Card appears when speaker starts that specific topic. Never before.
-Aim for ~1 card per 15–20s of content (10–14 cards for a 3–4 min video).
-Never let two track-2 elements overlap in time.
+Aim for ~1 card per 15–20s of content (10–14 cards for a 3–4 min video). With
+`creative` latitude, add b-roll inserts and push-ins on top of that for more visual change, but
+never stack two beats inside the same 2s.
+Never let two track-2 elements overlap in time (b-roll `<video>`s use track 3).
+**Content must be on screen when the card is.** A card that appears as an empty glass box and
+fills in later reads as a glitch. Stagger items in only when they're spoken, but show the kicker or
+first line at the card's own in-point.
 
 ---
 
 ## WORKFLOW
 
-### STEP 0 — OPTIONAL: Analyse reference video
-If a style reference `.mp4` is provided:
-```bash
-# Extract 20 frames evenly spaced
-$vid = "[reference.mp4]"
-$out = "C:\Users\dylan\AppData\Local\Temp\claude\ref-frames"
-New-Item -ItemType Directory -Force $out | Out-Null
-$ts = @(5,30,60,90,120,180,240,300,360,420,480,540,600,660,720,840,960,1080,1150,1180)
-foreach ($t in $ts) {
-  ffmpeg -y -ss $t -i $vid -frames:v 1 -update 1 "$out\f$($t.ToString('D4')).jpg" 2>$null
-}
-```
-Read all frames. Note card types, positions, colours, border styles. Adapt the brand system if needed.
+### STEP 0 — Style + lessons
+1. **Read the LESSONS LOG at the bottom of this file first.** Those rules come from Dylan's past
+   reviews and override the defaults above.
+2. Pick the style. The default is the house glass system above. If Dylan names a style skill from
+   **STYLES** below, read that skill and apply its tokens and motion vocabulary on top of the card
+   templates.
+3. If Dylan hands over a new inspiration video ("make it like this"), run `/style-from-reference`
+   first. It turns the reference into a reusable style skill, and you then use that.
+
+**STYLES** (added by `/style-from-reference`, one line each):
+- `house`: DigiGrowth navy glass (this file). The default.
 
 ### STEP 1 — Project setup
 ```bash
@@ -497,10 +601,30 @@ ffmpeg -i "[source].mp4" -crf 18 -g 30 -keyint_min 30 -pix_fmt yuv420p \
   -movflags +faststart -c:a aac \
   "content-agent/projects/[title]/public/input-video.mp4"
 ```
+`[source]` is the **rough cut** (`projects/[title]/cut.mp4`) when the footage is raw. See
+`/video-production` Step 2. Use the original file only if it's already a clean take.
 
 ### STEP 2 — Transcript
-If no `transcript.json` exists, run `/transcribe` with Whisper large-v3.
-The transcript must be **word-level** (each word has its own timestamp).
+If no `transcript.json` exists:
+```bash
+python content-agent/tools/transcribe.py "[source].mp4" --words --model large-v3 --out content-agent/projects/[title]
+```
+This writes a word-level `transcript.json` (`[{text,start,end}]`). If the source is a rough cut,
+use the `transcript.cut.json` that `rough_cut.py --apply` wrote instead; it's already remapped
+onto the cut timeline, so there's no need to re-transcribe.
+
+### STEP 2.5 — Director's Brief
+Before planning cards, collect Dylan's direction. If he already gave it in the request, extract it
+without asking again:
+- **Cues:** "when I say X → Y". Resolve each X to its word timestamp in the transcript. If a phrase
+  isn't found or appears more than once, **flag it in the plan**. Never guess a time.
+- **Vibe:** the emotion the video should create (e.g. "confident, fast, premium" or "calm,
+  friendly"). This drives card density, entrance eases, and whether push-ins and takeovers are used.
+- **Latitude:** `strict` means only the listed beats. `creative` means cues plus your own additions,
+  and every addition gets marked `(added)` in the plan so he can veto it. With no latitude given,
+  default to `creative` and say so.
+- **Proof moments:** anywhere he claims a tool or result, plan a Side Insert or Takeover showing
+  it (Step 3.5 sources it).
 
 ### STEP 3 — Card plan (present before coding)
 Read the transcript. Identify card moments. Output this table and **wait for approval**:
@@ -518,6 +642,32 @@ Rules:
 - Card hides within 1s of that topic ending (check word timestamps)
 - No track-2 time overlaps
 - List cards: start when first list item is spoken, not the lead-in sentence
+- Add a **Cue** column (the exact spoken words that trigger the beat) and an **Asset** column (for
+  b-roll beats: `screenshot of X` / `AI still → Kling` / `none`)
+
+Once approved, save the plan as `projects/[title]/beats.json` in the format `verify_render.py` reads:
+```json
+[{"id": "card-01", "type": "Hook", "start": 0.0, "end": 12.0, "label": "I CAN'T CODE.", "cue": "can't code", "track": 2}]
+```
+
+### STEP 3.5 — Source assets
+For every beat whose Asset column isn't `none`, produce a file in `projects/[title]/public/assets/`
+and record it in `public/assets/manifest.json` (`{"card-NN": {"file", "source", "cost_usd"}}`).
+Work in this order of preference, because real proof beats generated filler:
+1. **Real capture.** For screenshots or screen recordings of a site or the dashboard, use
+   `python content-agent/tools/record_site_scroll.py "<url>" <secs> <out.mp4>` or a Playwright
+   screenshot. Dylan's own screen recordings go first if he supplied any.
+2. **AI still.** `doppler run --project digigrowth --config prd -- python content-agent/tools/generate_creative.py image "<prompt>" --aspect 16:9 --out <file>.png`
+   (flux default; `--model nano-banana-pro --ref <img>` when it must match a real product, place, or person).
+3. **Motion b-roll.** Animate an *approved* still: `generate_creative.py video "<motion prompt>" --image <still>.png --duration 5 --out <file>.mp4`
+   (Kling, ~$0.25/5s).
+4. **Music/SFX** (optional, only when asked or when the vibe calls for it): `generate_creative.py music "<style>" --duration <s>`
+   or `/hyperframes-media` / `/media-use` for SFX. Keep music ducked under speech at about −18dB.
+   Put SFX hits on card entrances, not on every beat.
+
+Rules: show the total estimated cost before any paid generation. Show generated stills to Dylan
+inline in chat (Read the image) and get a yes before paying to animate them. Don't route that
+review through an artifact.
 
 ### STEP 4 — Write `public/index.html`
 Use templates above. Required on `#stage`:
@@ -546,16 +696,45 @@ ffmpeg -y -i "output-[v].mp4" -i "[original source].mp4" \
   -c:v copy -c:a copy -map 0:v:0 -map 1:a:0 "output-[v]-final.mp4"
 ```
 
-### STEP 7 — Verify
-Extract frames at 3–5 key card timestamps:
+If there's a music bed, mix it under the voice instead of copying the audio stream:
 ```bash
-ffmpeg -y -ss [T] -i "output-[v]-final.mp4" -frames:v 1 -update 1 "verify-[T].jpg"
+ffmpeg -y -i "output-[v].mp4" -i "[original source].mp4" -i "public/assets/music.wav" \
+  -filter_complex "[2:a]volume=-18dB,afade=t=out:st=[dur-2]:d=2[m];[1:a][m]amix=inputs=2:duration=first:normalize=0[a]" \
+  -map 0:v:0 -map "[a]" -c:v copy -c:a aac -b:a 192k "output-[v]-final.mp4"
 ```
-Read and visually confirm:
-- Hook card is below the chin, not overlapping the face
-- Bullet dots are visible and rendering correctly
-- No card looks like a caption bar (no full-width bars)
-- Audio plays correctly (check file has audio stream: `ffprobe output-[v]-final.mp4`)
+
+### STEP 7 — Verification loop (do NOT hand over iteration 1)
+Dylan should receive a draft the agent has already watched and fixed. Loop up to **3 times**:
+
+1. **Check.**
+   ```bash
+   python content-agent/tools/verify_render.py "output-[v]-final.mp4" beats.json \
+     --out "<session scratchpad>/verify-[title]" --source "[original source].mp4" \
+     --transcript transcript.json --iteration N --full
+   ```
+   Contact sheets and frames go to the **scratchpad, never the project or repo folder**.
+2. **Read every contact sheet** (in/mid/out per beat) and the full-res mid frames, then score each
+   beat against the rubric:
+   - [ ] **Face:** no card, insert, or split crop covers the face (safe zone x 468–1451, chin y≈706)
+   - [ ] **Legibility:** text readable at phone size, backed by glass or a scrim, no text fighting the footage
+   - [ ] **Filled at in-point:** no empty glass box at in+0.4s (content is visible when the card is)
+   - [ ] **Timing:** the automated cue check passes; the card leaves within ~1s of its topic ending
+   - [ ] **Copy:** no typos, and the copy matches what's said (proofread the full-res frames)
+   - [ ] **Brand:** house tokens (or the chosen style), no off-palette colors, no caption-bar-looking cards
+   - [ ] **Media:** b-roll videos aren't black or blank (black = the media rule was broken)
+   - [ ] **Audio:** the automated streams check passes; music (if any) sits under the voice
+3. **Fix** every failure in `index.html`, re-render, re-mux, and increment N.
+4. **Log** each iteration in `projects/[title]/review-log.md`: iteration number, what failed, and what changed.
+
+Stop when a full pass is clean, or after iteration 3. Then hand Dylan the final file **plus the
+review log**, and call out anything still unresolved rather than hiding it.
+For a quicker inner loop on a single beat, use `npx hyperframes snapshot` at that timestamp
+instead of a full re-render.
+
+### STEP 8 — Lessons
+After Dylan reviews, ask what he liked and didn't like, then **append each point as a rule** to
+the LESSONS LOG below (or to the style skill's own log if a style skill was used), with the date.
+If he's corrected the same thing twice, it's a rule. Don't wait for him to ask.
 
 ---
 
@@ -579,3 +758,15 @@ Or naturally:
 > "Add DigiGrowth branded graphics to this video — [path]"
 > "Brand my talking head video like the last one"
 > "Add overlays synced to the transcript"
+
+---
+
+## LESSONS LOG
+
+Rules learned from Dylan's reviews. Read before Step 3 and apply them over the defaults above.
+Append new ones at Step 8 in this format: `- YYYY-MM-DD: <rule> (why: <what he said>)`.
+When a rule is superseded, edit it in place instead of stacking a contradiction.
+
+- 2026-09-30: Cards must never appear as an empty glass box. Show the kicker or first line at the
+  card's in-point (why: the verify pass on `cant-code-video` v6 showed cards 09/11/12/13 blank for
+  ~1s after entering).

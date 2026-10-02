@@ -24,6 +24,6 @@ blocks: Morning Routine → Growth → MDR → Gym
 
 **`from` / `to`** — date range (YYYY-MM-DD, inclusive)  
 **`start`** — what time the first block begins (24h format)  
-**`blocks`** — ordered list of blocks to schedule, using canonical names: `Morning Routine`, `Admin`, `Outreach`, `MDR`, `Meal Prep`, `Growth`, `Gym`
+**`blocks`** — ordered list of blocks to schedule, using canonical names: `Morning Routine`, `Admin`, `Cold SMS & Email`, `Cold Calling`, `Content Creation`, `MDR`, `Meal Prep`, `Growth`, `Gym`
 
 Durations, minimums, and colors still follow the block reference table. Omitted blocks are simply not scheduled.

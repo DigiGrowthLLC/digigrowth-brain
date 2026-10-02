@@ -46,6 +46,22 @@ Any message containing a video/audio filename (`.mp4`, `.mov`, `.mkv`, `.avi`, `
 
 ---
 
+## Mode 3: Word-Level (for video editing)
+
+**Use when:** the transcript feeds an edit (`/video-production`, `/video-overlay`, `rough_cut.py`)
+or Dylan asks for timestamps.
+
+```
+python tools/transcribe.py "[filename]" --words --model large-v3 --out projects/[title]
+```
+- Writes `transcript.json` (flat `[{text,start,end}]` word list), `segments.json`, and a `.txt`
+  with a `[m:ss]` stamp on each line into `--out`
+- `large-v3` gives the most accurate word timing (slower on CPU). `base` is fine for notes or research.
+- `--language` defaults to `en`. Pass `auto` only for non-English clips, since detection misfires
+  on quiet footage.
+
+---
+
 ## After Transcribing
 
 1. Report: "Transcript saved to `outputs/transcript-[name].txt`"

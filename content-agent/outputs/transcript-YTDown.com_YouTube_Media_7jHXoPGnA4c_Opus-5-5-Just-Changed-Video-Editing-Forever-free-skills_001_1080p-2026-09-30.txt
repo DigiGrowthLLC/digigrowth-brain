@@ -1,0 +1,243 @@
+[0:00] So I've been experimenting with AI models editing videos for me for a long time.
+[0:03] Super powerful models like Fable 5.1 and GBD6 Astra.
+[0:07] But Opus 5.5 is giving me some of the best outputs ever.
+[0:10] Take a look at this example, which was just one popped.
+[0:26] Not only does this thing do the motion design and the sound design, but it also will go out and it will
+[0:31] grab the B-roll and it will grab screenshots or even generate images and videos for you
+[0:35] if it needs it. It has amazing taste and it does good with verification.
+[0:39] So today I'm just going to talk about how you actually get this set up because all you have
+[0:42] to do is use your natural language. And yes, of course, that entire intro that you just watched
+[0:46] was edited with Opus 5.5. This is the actual video. As you can see, all of these motion graphics
+[0:50] that it did were created right inside of here, inside of Claude. And what's cool about this is
+[0:54] I specified a lot of things that I wanted, but it got really creative here. And that's one of
+[0:58] the things about Opus 5.5 is that it has amazing, amazing taste. So let me show you what I actually
+[1:03] said in this prompt. So I gave it the original video and I said that I need you to edit this to be super
+[1:08] engaging and clean with hyper frames, which is the actual tool that we're using here. It's
+[1:12] completely free and we give Claude code this tool and it basically writes HTML and animates it.
+[1:16] So if you need to get set up with hyper frames and just go to Google type hyper frames,
+[1:20] you can go to the website here, but ultimately you're just going to want to go to this GitHub repo
+[1:23] for hyper frames. And then you just need to literally copy this link, the URL, give it to Claude code
+[1:28] and say, hey, set up hyper frames so that we can use it to animate videos. That's it. And then on top
+[1:32] of that, I have this free repo called hyper frames student kit. And in here, it has all of the skills and
+[1:36] examples that I actually have done with my pipeline of editing videos. And if you want to get this,
+[1:41] you can go to my free school community, the link for that is down in the description.
+[1:44] In here, you go to classroom and you can click on all YouTube resources or you can go to AI skills
+[1:47] and you can access that hyper frames student kit. Anyways, I said the first step is for you to transcribe
+[1:52] the video. So you can make sure that motion graphics and animations come in at the exact perfect time.
+[1:57] So it has to transcribe the video. You can do that using something like 11 labs API or you can do that
+[2:01] with something like whisper, which is more of a local model that can run and transcribe videos,
+[2:05] but 11 labs is a little bit quicker. So 11 labs you pay per usage and whisper is going to be free,
+[2:10] but it's just a little slower. So you can use either one and it's really simple to get that set up.
+[2:14] You just ask log code to help you set that up. I said, then you will build the animations based on
+[2:17] my instructions. When I say powerful models like Fable 5.1 and GBD6 Astra, I want you to have animations
+[2:22] come in where I'm pointing. So that was basically right here where I point and I have Fable 5.1 come in
+[2:27] right over here. And then I have GBD6 Astra come over here. And I told it that I wanted to have a
+[2:32] cloud logo and I wanted to have an opening I logo. I wanted to be animated. That's basically all I
+[2:37] said besides also saying, make sure there's some sort of liquid glass card behind the element as it's
+[2:41] animated. Otherwise, it will be hard to see. And as you saw right here, we got liquid glass right behind
+[2:46] it so that we could actually read the text and see the logo. So that was me using natural language as
+[2:51] you see. Then I said, when I say best outputs ever, I want you to have all three of those words at
+[2:55] the bottom and highlight them. And so that's what it did right down here. Opus 5.5 best outputs ever.
+[3:00] And you'll notice that it also put a little bit of an overlay under this text because once again,
+[3:05] I wanted to make sure that we could actually read it. So very, very well done there. Then I said,
+[3:09] for the rest of the video, when I'm talking about B-roll and screenshots and generating images and
+[3:12] videos, I want you to have things come in on the left and right side of the screen. Once again,
+[3:16] they should have some sort of overlay. And I want you to actually go off and get a B-roll screen
+[3:19] recording and get a screenshot and pull in stuff because I want you to prove to the viewers that you're
+[3:24] able to do all of this. The whole point is that I'm explaining what Opus is capable of when it comes
+[3:29] to animating and editing videos and I want you to prove it in real time. Now, that is basically my
+[3:33] entire prompt. And what's so cool about that is that it goes off and it does it, but it also puts
+[3:37] its own spin on things. Like you'll notice at the very beginning, it's doing this very subtle zoom
+[3:42] in effect. I didn't ask for that, but it just kind of knew to do that to make it more engaging. I didn't
+[3:47] ask for this either when I said the one prompt thing right there. It just did that by itself with a super
+[3:51] cool claw looking interface. I didn't ask for this either, but I absolutely love it. And then you'll see
+[3:55] what it interpreted when I said get the screen recording, get the screenshot, generate an image,
+[4:00] generate video. It did all of that on its own. Amazing taste. The verification. I thought this was a
+[4:05] super clean animation right here. The verification with like screenshots and checking. You guys will
+[4:10] notice in my prompt, I didn't actually ask for that at all. It just did it because it thought that it
+[4:14] would make the intro more engaging. And I would argue that it definitely did. And now you can see that's
+[4:18] all I said. I didn't ask another prompt. And what we got was that exact video right back here with all of
+[4:23] these things that we just saw. Now let's break down that other example that you guys saw inside
+[4:26] of the actual intro itself. This little YouTube show reel, which I was super, super impressed by.
+[4:31] This was also a one shot prompt, like I said, really, really impressive. There's so many things
+[4:36] that wanted to play here. It had to go get screenshots of so many of my thumbnails. And then it zoomed
+[4:40] in on the thank you one, which I think was amazing reasoning. It literally said, okay, this is Nate holding
+[4:45] up the play button saying thank you. This is the one that we're going to put in the center. And this
+[4:48] is the one that we're going to zoom in on because I think that highlights the branding and the culture
+[4:52] of YouTube, which was just insane. So anyways, it generated all of this stuff and the sound and the
+[4:57] music, all of that, right? Now here's what I did in this example. What's important is that you're clear
+[5:02] on what you want. And you'll notice in the previous version, I was like speaking very emotionally. And
+[5:07] that's what's cool about it is sometimes you don't always know exactly what you want, but you know
+[5:10] the emotions you want the video to create inside of you, right? So what I did is I downloaded an example
+[5:15] that I saw on X. I saw this example from Ken, amazing output here using hyper frames and using Opus. And
+[5:21] you'll notice there's a lot of similarities with this real and the one that we just looked at with YouTube.
+[5:25] So basically what I did is I used this inspiration. I downloaded this video. I then came into Cloud
+[5:30] Code and I gave it to Cloud Code and I said analyze this video, which was created by Opus 5.5 and figure
+[5:35] out why this is so good. So I liked this video and I wanted to do something similar and I had
+[5:40] Cloud Code figure out what that is. I had Opus figure out why it's so good. And then I said turn that
+[5:45] into a skill. So now we have the skill called motion reel or something and I'm going to give that to
+[5:49] you guys for free just a sec. And then I said, okay, use that skill. Create me my own show reel about
+[5:53] YouTube. I said, collect B-roll images and he asks, it's you need. Make sure the whole thing feels
+[5:58] branded to YouTube, typography, design, language, colors, branding, all that type of stuff that makes YouTube
+[6:02] YouTube, YouTube should be unmistakable in this show reel. And now we have our output. You can see here,
+[6:07] it wrote this skill called motion show reel. So if I go into my files real quick and I go to the skills
+[6:12] and we go all the way down to the M's, we go to the motion show reel, we now have this motion show
+[6:17] reel skill with all of this information like about how we actually design reels like this. So
+[6:21] I'm going to put this inside of my free school community once again. So if you guys want it,
+[6:26] hop into my free school community and you can grab it in the YouTube resources or inside of the AI
+[6:30] skills, it'll be in there. And now you can do reels just like that. What you'll also notice is that
+[6:35] it had to go generate these images. So you can see it created these images and then it sent them to
+[6:39] cling in order to turn those images into videos. And that's how we actually got these animations inside
+[6:44] of the video right about here where we see the actual play button sort of being animated. These two
+[6:49] scenes were because it created an image and then it created a video and then it sent it back to clawed
+[6:53] and then opus took all that stuff and put it into one consistent video. Now here's another show reel
+[6:59] style video, but this one didn't use that skill that we built at all and just to show you how cool
+[7:04] stuff can be made even with a show reel. So I said make a dynamic 15 second motion graphics video that
+[7:09] shows what an incredible motion designer you are. Like it's your show reel for a resume go all out.
+[7:14] I actually saw this from someone on X they made a demo and they said this is what they prompted it with.
+[7:17] So I tried it out. I said make it about our company AIS use real assets and logos from our products
+[7:22] when possible. You can also use key.ai to generate any assets you need and use hyper frames or any other
+[7:26] tools for motion design and music and sound effects. And with one shot prompt, this is what we got back
+[7:31] right here. So let's take a look.
+[7:48] You can see the similarities at the beginning with the little B that like drops and there's sound effects
+[7:52] but then with the motion graphics with the color schemes with the same sort of like spatial awareness
+[7:58] of doing things like this. I thought was so cool. It pulled pictures from our website. It knew
+[8:02] how many members we had. It had this 3D sort of image which I think was an image that was generated
+[8:07] and then it was turned into a video similar to that YouTube show reel. Anyways, this background image
+[8:12] is from our website as well. So just very, very well done real quick guys. I've got this completely
+[8:17] free website design skill that I'm giving away. I use this for every single website that I build including
+[8:21] our AI Automation Society site, which I think is pretty slick and I absolutely love this website.
+[8:26] It's called scroll craft and it understands things like scroll driven animations and layering but
+[8:31] also it has things in there like taste, typography, spacing, depth. It's just a really good website
+[8:37] design skill in general and it's completely free. So the link for this will be down in the description
+[8:40] but let's get back to the video. Now let me show you guys. This is one of my like new favorite benchmarks.
+[8:45] I basically give Cloud Code access to a folder which has 105 gigabytes of YouTube videos or sorry,
+[8:56] look through all this and create me a sizzle reel. Tell a story out of this and look what I got here.
+[9:01] Now this wasn't a one shot prompt. This was one prompt and then me giving one round of iteration
+[9:05] and then having it fix one thing. So technically three prompts. That's why it is V2.1. But let's take a
+[9:10] look at this output right here. Hello, hello, AIS live. I'm so so pumped. It was electric. Let's go.
+[9:19] Never even open VS Code. Sign the deal. The chat's going crazy.
+[9:25] Good be. Fantastic event. This was amazing. Such a fun two days.
+[9:32] I literally like logged off yesterday just pausing. I had goosebumps.
+[9:37] Can't wait for the next one.
+[9:41] Do you guys have any idea how complicated that process is? Just to tell a story out of an event when
+[9:48] you just are given a folder of resources and of course it's marketing for our next one which is
+[9:52] actually real coming up October 17th and 18th. So mark your calendars. If you guys want to show up,
+[9:56] more details will be in the description. But I know there were a few things that weren't great.
+[10:00] There were sometimes where there was like an awkward cut of the speech and a few things that we could
+[10:04] tweak right. But look at this. Look how it made like this tunnel of all the screens. Look at the
+[10:09] beginning. How it was zooming in on different screens like it was really aware of the spacing and
+[10:14] this is just really really cool. It was also pulling out specific moments in the transcripts
+[10:18] of these calls that were showing kind of like the vibe and the energy within the live event.
+[10:23] This is my favorite scene here at the end where it has all of these scenes come together
+[10:26] and it forms the actual as live logo even with the little red dot and then it zooms in on the red
+[10:31] dot and it says your seat is in the middle. I just thought that the way that it was able to actually
+[10:36] bring all of this to life is really really impressive to me. Now I also wanted to show you guys what
+[10:41] else is possible like a lot of times it's about thinking of the use case. So I recorded this really
+[10:46] simple video of me explaining how to make avocado toast and I perfected that by the way. My avocado
+[10:51] toast is so good. But anyways, I just wanted to show you I did three different edits with this avocado
+[10:55] toast video. This one I said, Hey, I want you to edit this using hyper frames. I'm looking for a
+[10:59] simple and clean whiteboard hand drawn style animation and it's really simple as if you're trying
+[11:04] to explain to a kid how to make off total coast simple graphics simple animations easy to understand.
+[11:09] If you need to generate any images like or sorry assets like images or videos you can use key.ai
+[11:14] I then said that some scenes should be a full screen whiteboard takeover and some scenes should just
+[11:19] be the left half as the whiteboard and the right half is my face. So it then went ahead and started
+[11:24] generating things. It started reasoning. It started testing things out and now we have this output
+[11:28] which I'll go ahead and play right now. All right, so here's how I make avocado toast. When you put
+[11:32] the toast in the toaster when you're letting it sit you don't set it flat on the plate because then
+[11:37] that bottom side gets a little soggy. You want that both sides to be crispy. Then you put the eggs on
+[11:42] the pan. You mash up the avocado you spread the avocado on the crispy bread. I put like everything
+[11:47] bagel seasoning on the avocado mash and then I do some balsamic vinegar and then you put the eggs
+[11:52] on top of the toast and that's how it's done. Now my main critique here is that the eggs are super tiny
+[11:57] and the balsamic glaze is only on one little piece of the toast so that wouldn't taste as good as if
+[12:02] it was everywhere. But anyways, look how good this was able to in one prompt just animate the
+[12:07] stuff in a very simple and engaging way. It's hand drawn. It is like I said, it's kind of friendly
+[12:11] and playful as if you wanted to show a kid. But this was literally just one prompt and it took care of
+[12:16] everything. Now when I first really started using AI to edit videos, it was for core style videos.
+[12:21] Things that were super easy, we just wanted them animated with like bullet points and super simple
+[12:26] images and graphics. So here's what I did in this one. I need you to edit a core style video for me
+[12:31] using hyper frames. My camera will start off full screen and then I want it to be around a crop.
+[12:35] The background is going to be super simple, super minimalistic and the style I'm looking for is
+[12:39] just bullet points with important takeaways, not too wordy and they should be big. And then visual
+[12:43] age should just be AI generated images, very simple, very light motion graphics to help illustrate
+[12:48] concepts. And here is what we got. This was once again a one shot prompt. Oh wait, that was just
+[12:52] an image. It was just doing verification. Here we go. All right. So here's how I make avocado toast.
+[12:57] When you put the toast in the toaster, when you're letting it sit, you don't set it flat on the plate
+[13:02] because then that bottom side gets a little soggy. You want that both sides to be crispy.
+[13:06] Then you put the eggs on the pan. You mash up the avocado. You spread the avocado on the crispy bread.
+[13:11] I put like everything bagel seasoning on the avocado mash and then I do some balsamic vinegar
+[13:15] and then you put the eggs on top of the toast. And that's how it's done. So all of the images and
+[13:20] videos in this video were AI generated. All of this was AI generated and you can see that it's going
+[13:25] to save you so much time because it can go get b-roll. It can take screenshots. It can you know
+[13:31] generate things if you need it to. It's just really cool because now you can film content
+[13:34] and editing doesn't have to be the bottleneck anymore, especially when you start to build skills around
+[13:39] stuff like your preferences and motion styles and all that kind of stuff, your brand guidelines.
+[13:44] And then the last one I did here was kind of a short form video. And this was using HyperFrame
+[13:48] Plants again. And you'll notice that I'm not really having this leverage other skills. So I wanted
+[13:52] to show you how easy it is to do a one shot prompt with OBS 5.5. Pretty much all these examples I've
+[13:57] been running on high by the way, high meaning the effort level. And I just said basically this,
+[14:01] generate the assets you need, have it be engaging, have it be fast paced, easy to understand. So let's see
+[14:06] what we got down here for this short. Here's how I make avocado toast. When you put the toast in the
+[14:11] toaster, when you're letting it sit, you don't set it flat on the plate because then that bottom
+[14:16] side gets a little soggy. You want that both sides to be crispy. Then you put the eggs on the pan,
+[14:20] you mash up the avocado, you spread the avocado on the crispy bread. I put like everything vagal
+[14:24] seasoning on the avocado mash. And then I do some balsamic vinegar. And then you put the eggs
+[14:28] on top of the toast. And that's how it's done. I mean, it's not perfect, right? But a one shot prompt
+[14:35] and it's just, it's really cool that it's able to switch between these different scenes. It definitely
+[14:39] keeps my attention because we have all this different sorts of b-roll going on in the background.
+[14:43] It is just a really, really decent output when you consider what this would have taken for a human
+[14:48] to do it for you. And now one shot prompt, you iterate, you iterate, you build skills. And I wanted
+[14:53] to show you guys one more example with Lulu Lemon because this is like a physical tangible product.
+[14:58] Look how good it did at making this video feel like Lulu Lemon.
+[15:30] So if you guys think about what it actually had to do there, all of these videos were obviously
+[15:34] AI-generated. But what I'm pretty sure it did is it went to Lulu Lemon and it found all these
+[15:38] actual pieces of clothing. It found them. It took pictures of the actual model here and then
+[15:44] generated videos of them running or jumping or whatever it is in the clothes. And then of course,
+[15:49] it brings it all together here with actual catalog images. It's just really cool to think
+[15:53] about how many little pieces would have had to go into this if you were editing this or creating this
+[15:57] as a human. But really as a human, all I did was I told it what I wanted and sort of the emotional
+[16:03] feeling I wanted it to carry throughout the vibe, high energy, fast paced, engaging, sync the music
+[16:09] to the beats, sound effects, things like that. So I just wanted to talk about the five things that
+[16:13] I'm constantly thinking about when I'm actually editing videos with AI. I'm just going to run through
+[16:17] these super simply because you just, you could basically give the transcript of this section to your AI
+[16:22] agent and it would be fine. So the first piece is to transcribe. If you're starting off with a clip
+[16:27] and you need it to be edited like a video or a course or whatever it is, you obviously want to transcribe
+[16:32] first so that the beats can come in at the right time. And so that the AI knows how to tell a story
+[16:36] out of it. Transcribe is essential. Whether you want to use whisper or 11 labs or some other tool,
+[16:42] transcribing is essential. From there, you're going to have it cut things out. So if it's mistakes,
+[16:48] cut off the mistakes. If it notices in the transcript that there's like 20 seconds of dead space,
+[16:51] cut off the dead space, things like that. You're cutting things up. And a lot of times I'll use AI
+[16:55] just to literally cut out mistakes and then I'll take the clip and do whatever I want with it. But it's
+[17:00] able to just clean out your content so much quicker than you could because you'd be in the editor
+[17:04] looking for the dead space and then, you know, snipping everything out. And then number three is to
+[17:08] plan the beats. A lot of times from there what I like to do is I like to be very specific about
+[17:12] what it is that I want. As you guys saw in this intro version, the intro for this video, I was basically
+[17:17] just planning out what I wanted. Now, obviously it went off the cuff a little bit and it was creative.
+[17:21] But if I would have said like, these are the only beats I want you to actually create nothing
+[17:24] else, it would have done that. But I let it be creative here. But I basically said, hey, at this point,
+[17:29] I want this to come in. I want this to come in. I want this to come in. And the better you can set
+[17:33] expectations of what you're looking for and what you would consider good, obviously the better or not
+[17:37] better, but the more aligned your output is going to be. Number four is to use skills. So build skills
+[17:42] around things. If you build a lot of reels, then build skills around reels. Use my hyperframe student
+[17:46] kit. Use resources and use inspiration. Like you guys saw me do. I took a video that I really liked
+[17:52] and I told it to build a skill. Now, guess what? Every time I run that skill, I will look at the
+[17:56] output and say, hey, in this version, I really liked this. And I really didn't like this update the
+[18:01] skill with that information. Run it again. And then I'll give you more feedback. And that way you're
+[18:05] actually building a reusable component where every single time you run the skill, it's getting better.
+[18:09] And you're able to just move faster and faster. You don't want to have to repeat yourself every time.
+[18:13] If you ever find yourself repeating something, just throw it in the skill. And then the fifth one,
+[18:17] probably the most important one is the verification loop. You'll notice how as it's going through a lot of
+[18:21] my videos, it's taking screenshots and looking at them and then making iterations. And that's how you
+[18:26] get in that loop where you're not just basically saying, okay, here is my output number one. You're getting
+[18:31] output number like five or six because the agent basically did this. It delivered output one. And then
+[18:36] it watched it. It realized there was some mistakes. And then it came back and it delivered output two.
+[18:41] And then it watched output two. And then it kept iterating on its outputs and tell it realized, okay,
+[18:46] this one is finally good enough where I'm going to give it to Nate. And here we go Nate. This is the
+[18:50] finished video. So now you're getting something that has already been checked by the AI and iterated on.
+[18:55] Then, you know, compared to if it just handed you this first version and then you're frustrated and
+[18:59] you have to make all these, you know, prompts. But anyways, guys, there are so many use cases when it comes
+[19:03] to using AI to help you edit things or add motion design because it's not really something that you had
+[19:08] to have previous video editing experience in order to take advantage of now. So don't let editing be
+[19:12] your bottleneck. But that's going to do it for today. If you enjoyed it, you learned something new.
+[19:16] Please give it a like. It helps me on a ton. And as always, I appreciate you guys making it to the end
+[19:18] of the video. And I'll see you on the next one. Thanks, everyone.

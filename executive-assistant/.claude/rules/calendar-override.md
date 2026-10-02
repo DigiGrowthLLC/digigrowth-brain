@@ -28,4 +28,4 @@ blocks: Block → Block → Block
 - `from`: today's date if no start date is given
 - `to`: the end date Dylan specified (convert relative like "until Friday" or "till June 9th" to an absolute date)
 - `start`: the start time Dylan specified, or the default (07:00) if not mentioned
-- `blocks`: the ordered list using canonical names — `Morning Routine`, `Admin`, `Outreach`, `MDR`, `Meal Prep`, `Growth`, `Gym`
+- `blocks`: the ordered list using canonical names — `Morning Routine`, `Admin`, `Cold SMS & Email`, `Cold Calling`, `Content Creation`, `MDR`, `Meal Prep`, `Growth`, `Gym`. If Dylan says "outreach", that means all three: `Cold SMS & Email → Cold Calling → Content Creation`
