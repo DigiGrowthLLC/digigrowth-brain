@@ -957,9 +957,9 @@
     },
     "Des Moines, IA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 120,
-      "qualified_count": 7,
+      "term_index": 2,
+      "reviewed_count": 145,
+      "qualified_count": 8,
       "last_scraped_date": "2026-10-01"
     },
     "Grand Prairie, TX": {
