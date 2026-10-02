@@ -28,6 +28,7 @@ content-agent/.agents/
 # leadgen-agent scrape run logs/intermediates
 leadgen-agent/logs/
 leadgen-agent/crm_index.json
+leadgen-agent/work/
 apptset-agent/logs/
 content-agent/logs/
 

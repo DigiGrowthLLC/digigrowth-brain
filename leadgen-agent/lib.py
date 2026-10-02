@@ -20,6 +20,15 @@ CLI usage (invoked by the scrape-leads skill via Bash):
     python lib.py crm-has <phone> [<website>]      # exit 0 if that business is already in the OS CRM, 1 if not
     python lib.py push <leads.json path>           # POST leads to DigiGrowth OS, skipping CRM duplicates; -> JSON {pushed_new, skipped_existing, failed}
     python lib.py post-chat <message.md path>      # post a message into the leadgen-agent OS chat
+
+  City pipeline (what the scrape-leads skill actually uses per city):
+    python lib.py city-prep <city> <state> <start_term_index> <prep.json> <term_file>...
+                                                     # merge term extractions, dedupe across terms, CRM/scraped/blacklist filters -> candidate list
+    python lib.py scrape-batch <prep.json> <sites.json> [--exclude "idx:reason;idx:reason"]
+                                                     # parallel scrape-site over candidates
+    python lib.py digest <prep.json> <sites.json> [start_idx] [count]   # print candidates' site data, a page at a time
+    python lib.py city-finish <prep.json> <leads.json> <run_id> [status]
+                                                     # push + mark scraped + record every term's progress + run tally, in one call
 """
 
 import json
@@ -71,6 +80,7 @@ _NAME_STOPWORDS = {
     "amazing", "award", "winning", "founded", "owned", "dr", "doctor",
     "practice", "wellness", "health", "healing", "comfort", "compassionate",
     "orthopedic", "sports", "geriatric", "specialist",
+    "our", "team", "staff", "meet", "the", "about", "contact",
 }
 
 
@@ -563,6 +573,8 @@ def push_to_os(leads: list, lead_status: str = "new") -> dict:
             r = requests.post(f"{base_url}/api/contacts", auth=auth, json=body, timeout=10)
             r.raise_for_status()
             result["pushed_new"] += 1
+            if "idx" in lead:
+                result.setdefault("pushed_idx", []).append(lead["idx"])
             if p := normalize_phone(lead.get("Phone")):
                 index["phones"].add(p)
             if d := normalize_domain(lead.get("Website")):
@@ -590,6 +602,204 @@ def post_chat_message(content: str):
     )
     r.raise_for_status()
     print("posted to leadgen-agent OS chat")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  CITY PIPELINE — city-prep / scrape-batch / digest / city-finish
+#
+#  Every deterministic step of a city lives here so the model only spends
+#  turns on the browser and on qualification. Before these existed, each
+#  `claude -p` city process re-read lib.py's source and hand-wrote its own
+#  batching/scraping/filter helpers (~70 turns per city on 2026-10-01, every
+#  turn re-reading a 100k-token context). The model now does: extract all
+#  terms -> city-prep -> scrape-batch -> digest pages -> write leads.json ->
+#  city-finish.
+# ════════════════════════════════════════════════════════════════════════════
+
+SEARCH_TERMS = ["physical therapy", "physical therapist", "outpatient physical therapy", "sports physical therapy"]
+
+_INSTITUTIONAL_KEYWORDS = [
+    "hospital", "home health", "nursing home", "skilled nursing", "hospice", "urgent care",
+    "behavioral health", "addiction", "mental health", "psychiatric", "chiropractic",
+    "chiropractor", "home care", "va medical", "rehabilitation hospital", "assisted living",
+    "senior living", "physical therapy school", "university",
+]
+
+
+def _chain_blacklist() -> list[str]:
+    """Names from memory.txt's CHAIN / FRANCHISE BLACKLIST line."""
+    with open(os.path.join(BASE_DIR, "memory.txt"), "r", encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    for i, line in enumerate(lines):
+        if line.strip().upper().startswith("CHAIN / FRANCHISE BLACKLIST"):
+            if i + 1 < len(lines):
+                return [n.strip().lower() for n in lines[i + 1].split(",") if n.strip()]
+    return []
+
+
+def _listing_key(l: dict) -> str:
+    return normalize_phone(l.get("phone")) or normalize_domain(l.get("website")) or (l.get("name") or "").strip().lower()
+
+
+def _load_listings(path: str) -> list:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if isinstance(data, dict):  # scroll+extract evaluate returns {end, counts, listings}
+        data = data.get("listings", [])
+    return [l for l in data if l.get("name")]
+
+
+def city_prep(city: str, state: str, start_term: int, term_files: list[str]) -> dict:
+    """Merge the term extractions for one city (term_files[i] is term
+    start_term+i+1), dedupe across terms, and run every free filter.
+
+    reviewed per term = listings first seen in this city on that term, not in
+    the CRM, and not already in scraped_ids.json -- each business counts once
+    per city. Writes nothing to scraped_ids.json; city-finish does that, so a
+    process that dies mid-city leaves the city cleanly redoable."""
+    index = crm_index()
+    scraped = load_scraped_ids()
+    blacklist = _chain_blacklist()
+    seen = set()
+    terms, skipped, candidates = [], [], []
+    for offset, path in enumerate(term_files):
+        term_no = start_term + offset + 1
+        listings = _load_listings(path)
+        t = {"term_index": term_no, "term": SEARCH_TERMS[term_no - 1], "raw": len(listings),
+             "dup_in_city": 0, "in_crm": 0, "already_scraped": 0, "reviewed": 0}
+        for l in listings:
+            key = _listing_key(l)
+            if key in seen:
+                t["dup_in_city"] += 1
+                continue
+            seen.add(key)
+            if crm_has(index, l.get("phone"), l.get("website")):
+                t["in_crm"] += 1
+                continue
+            sid = normalize_scraped_id(f"{l['name']}|{city}|{state}")
+            if sid in scraped:
+                t["already_scraped"] += 1
+                continue
+            t["reviewed"] += 1
+            entry = {"name": l["name"], "phone": l.get("phone", ""), "website": l.get("website", ""),
+                     "term_index": term_no}
+            low = l["name"].lower()
+            if not entry["phone"] or not entry["website"]:
+                entry["reason"] = "no phone or website"
+            elif hit := next((b for b in blacklist if b in low), None):
+                entry["reason"] = f"chain blacklist ({hit})"
+            elif hit := next((k for k in _INSTITUTIONAL_KEYWORDS if k in low), None):
+                entry["reason"] = f"institutional keyword ({hit})"
+            if "reason" in entry:
+                skipped.append(entry)
+            else:
+                entry["idx"] = len(candidates)
+                candidates.append(entry)
+        terms.append(t)
+    return {"city": city, "state": state, "start_term": start_term, "terms": terms,
+            "skipped": skipped, "candidates": candidates, "excluded": {}, "finished": False}
+
+
+def _print_prep_summary(prep: dict):
+    for t in prep["terms"]:
+        print(f"T{t['term_index']} {t['term']}: raw {t['raw']}, dup-in-city {t['dup_in_city']}, "
+              f"in CRM {t['in_crm']}, already scraped {t['already_scraped']}, reviewed {t['reviewed']}")
+    reasons = {}
+    for s in prep["skipped"]:
+        reasons.setdefault(s["reason"].split(" (")[0], []).append(s["name"])
+    for r, names in reasons.items():
+        print(f"skipped - {r}: {len(names)}" + ("" if r == "no phone or website" else f" ({'; '.join(names)})"))
+    print(f"\n{len(prep['candidates'])} candidates (idx | name | domain | term):")
+    for c in prep["candidates"]:
+        print(f"{c['idx']} | {c['name']} | {normalize_domain(c['website']) or c['website'][:50]} | T{c['term_index']}")
+
+
+def scrape_batch(prep: dict, exclude: dict, workers: int = 8) -> dict:
+    """scrape-site every non-excluded candidate in parallel -> {idx: {...}}."""
+    from concurrent.futures import ThreadPoolExecutor
+    max_words = config.get("max_website_text_words", 300)
+    todo = [c for c in prep["candidates"] if str(c["idx"]) not in exclude]
+
+    def one(c):
+        try:
+            owner, text, email = scrape_website_full(c["website"], max_words)
+        except Exception:
+            owner, text, email = "", "", ""
+        return str(c["idx"]), {"owner_name": owner, "website_text": text, "email": email}
+
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        return dict(ex.map(one, todo))
+
+
+def _print_digest(prep: dict, sites: dict, start: int, count: int):
+    shown = [c for c in prep["candidates"] if str(c["idx"]) in sites and c["idx"] >= start][:count]
+    for c in shown:
+        s = sites[str(c["idx"])]
+        print(f"[{c['idx']}] {c['name']} | {c['phone']} | {c['website']}")
+        print(f"owner(regex): {s['owner_name'] or '-'} | email: {s['email'] or '-'}")
+        print(f"text: {s['website_text'] or '(EMPTY - site returned no text)'}\n")
+    remaining = [c["idx"] for c in prep["candidates"] if str(c["idx"]) in sites and c["idx"] > (shown[-1]["idx"] if shown else start)]
+    print(f"--- next: digest ... {remaining[0]}" if remaining else "--- end of digest")
+
+
+def _opener_ok(opener: str) -> bool:
+    return bool(opener) and len(opener.split()) <= 15 and "?" not in opener
+
+
+def city_finish(prep: dict, leads: list, run_id: str, status: str = "new") -> dict:
+    """Push, mark every listing reviewed this city as scraped, record per-term
+    progress under run_id, and return the run tally. Re-applies run.py's
+    guardrails (valid owner name, opener <=15 words / no '?') as a backstop."""
+    by_idx = {c["idx"]: c for c in prep["candidates"]}
+    pushable, rejected = [], []
+    for lead in leads:
+        idx = lead.get("idx")
+        if idx not in by_idx:
+            rejected.append(f"{lead.get('Business Name')}: missing/unknown idx")
+        elif not valid_name(re.sub(r"^(dr|doctor)\.?\s+", "", lead.get("Owner Name", "").split(",")[0].strip(), flags=re.I)):
+            rejected.append(f"{lead.get('Business Name')}: owner name fails valid_name")
+        elif not _opener_ok(lead.get("Opener", "")):
+            rejected.append(f"{lead.get('Business Name')}: opener empty, >15 words, or has '?'")
+        else:
+            lead.setdefault("City", prep["city"])
+            lead.setdefault("State", prep["state"])
+            pushable.append(lead)
+
+    result = push_to_os(pushable, status)
+    qualified_by_term = {}
+    for idx in result.get("pushed_idx", []):
+        t = by_idx[idx]["term_index"]
+        qualified_by_term[t] = qualified_by_term.get(t, 0) + 1
+
+    ids = load_scraped_ids()
+    for l in prep["skipped"] + prep["candidates"]:
+        ids.add(normalize_scraped_id(f"{l['name']}|{prep['city']}|{prep['state']}"))
+    save_scraped_ids(ids)
+
+    for t in prep["terms"]:
+        city_record_progress(prep["city"], prep["state"], t["term_index"], t["reviewed"],
+                             qualified_by_term.get(t["term_index"], 0), run_id)
+
+    grades = {}
+    for lead in pushable:
+        if lead.get("idx") in result.get("pushed_idx", []):
+            grades[lead["Grade"]] = grades.get(lead["Grade"], 0) + 1
+    return {"push": result, "rejected_by_guardrails": rejected,
+            "city": {"reviewed": sum(t["reviewed"] for t in prep["terms"]),
+                     "qualified": result["pushed_new"], "grades": grades,
+                     "by_term": [{"term_index": t["term_index"], "reviewed": t["reviewed"],
+                                  "qualified": qualified_by_term.get(t["term_index"], 0)} for t in prep["terms"]]},
+            "run_tally": run_tally(run_id)}
+
+
+def _load_json(path: str):
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save_json(path: str, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -663,6 +873,47 @@ def _cli():
         with open(leads_path, "r", encoding="utf-8") as f:
             leads = json.load(f)
         push_to_os(leads, status)
+
+    elif cmd == "city-prep":
+        # city-prep <city> <state> <start_term_index> <prep_out.json> <term_file>...
+        city, state, start_term, out = sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5]
+        prep = city_prep(city, state, start_term, sys.argv[6:])
+        _save_json(out, prep)
+        _print_prep_summary(prep)
+
+    elif cmd == "scrape-batch":
+        # scrape-batch <prep.json> <sites_out.json> [--exclude idx:reason;idx:reason]
+        prep = _load_json(sys.argv[2])
+        exclude = {}
+        if "--exclude" in sys.argv:
+            raw = sys.argv[sys.argv.index("--exclude") + 1]
+            for part in filter(None, (p.strip() for p in raw.split(";"))):
+                idx, _, reason = part.partition(":")
+                exclude[idx.strip()] = reason.strip() or "excluded by name"
+        prep["excluded"] = exclude
+        _save_json(sys.argv[2], prep)
+        sites = scrape_batch(prep, exclude)
+        _save_json(sys.argv[3], sites)
+        empty = [k for k, v in sites.items() if not v["website_text"]]
+        print(json.dumps({"scraped": len(sites), "excluded": len(exclude), "empty_text_idx": empty}))
+
+    elif cmd == "digest":
+        # digest <prep.json> <sites.json> [start_idx] [count]
+        _print_digest(_load_json(sys.argv[2]), _load_json(sys.argv[3]),
+                      int(sys.argv[4]) if len(sys.argv) > 4 else 0,
+                      int(sys.argv[5]) if len(sys.argv) > 5 else 12)
+
+    elif cmd == "city-finish":
+        # city-finish <prep.json> <leads.json> <run_id> [status]
+        prep = _load_json(sys.argv[2])
+        if prep.get("finished"):
+            print("this prep.json was already finished -- not pushing/recording twice")
+            sys.exit(1)
+        leads = _load_json(sys.argv[3])
+        out = city_finish(prep, leads, sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else "new")
+        prep["finished"] = True
+        _save_json(sys.argv[2], prep)
+        print(json.dumps(out, indent=1))
 
     elif cmd == "post-chat":
         msg_path = sys.argv[2]

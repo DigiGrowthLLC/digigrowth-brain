@@ -13,15 +13,15 @@ Before starting, check `config.json` — if `"enabled": false`, stop and report 
 
 **Never background this work.** Do all scraping, qualification, and pushing synchronously in the current turn — never delegate any part of it to a background task/subagent, and never respond with something like "I'll wait for the background scrape to finish" or "I've kicked this off and will check back." This skill runs unattended via `claude -p` (see `run-scrape-leads.ps1`), which exits the instant a response is produced for the turn — a background task has no later turn to report back to, so backgrounding silently kills the whole run after only a few files get touched. If Playwright browser calls are slow, that's fine; just make them inline and keep going in the same turn until step 9's report is posted.
 
-**This invocation covers up to `max_cities_per_run` cities (default 10, from `config.json`), one after another — each city gets all 4 terms before the next one starts.** After each city is finished (step 8 recorded, step 9 report posted), run `python lib.py run-tally <run_id>`: if `qualified` has met `lead_target_per_run`, or you've now finished `max_cities_per_run` cities in this invocation, stop. Otherwise call `python lib.py city-next` for the next city and go back to step 1's output (skip re-reading the rules files — you already have them). **Keep context lean across cities:** write every Maps extraction and website-scrape result to a file (`browser_evaluate`'s `filename` param, redirected script output) and only print trimmed website text (~1,200 chars per site) for qualification — never dump full snapshots or raw feed JSON into the conversation, since 10 cities' worth of that would exhaust the session. **Exception — the unattended wrapper:** `run-scrape-leads.ps1` launches a fresh `claude -p` process per city (so each process starts with a clean context) and its prompt says to cover *exactly one city*. When the invoking prompt says one city, do exactly one city and stop; the wrapper decides between processes whether to launch another.
+**This invocation covers up to `max_cities_per_run` cities (default 10, from `config.json`), one after another — each city gets all 4 terms before the next one starts.** After each city is finished (step 7's `city-finish` done, step 9 report posted), check the `run_tally` that `city-finish` printed: if `qualified` has met `lead_target_per_run`, or you've now finished `max_cities_per_run` cities in this invocation, stop. Otherwise call `python lib.py city-next` for the next city and go back to step 1's output (skip re-reading the rules files — you already have them). **Keep context lean across cities:** Maps extractions and site scrapes go to files in `work/` (steps 3-5), and you only read the paged `digest`. Never dump snapshots or raw feed JSON into the conversation. **Exception — the unattended wrapper:** `run-scrape-leads.ps1` launches a fresh `claude -p` process per city (so each process starts with a clean context) and its prompt says to cover *exactly one city*. When the invoking prompt says one city, do exactly one city and stop; the wrapper decides between processes whether to launch another.
 
 ## 1. Load state
 
-**The lead target is per run, not per day.** Every invocation of this skill is one run with its own `lead_target_per_run` (default 100, from `config.json`): a manual run and the nightly scheduled run each aim for 100, regardless of how many leads other runs pushed earlier that day. At the very start, get a run ID: if the invoking prompt gives you a `run_id` (the unattended wrapper does), use that and do **not** call `run-start`; otherwise run `python lib.py run-start manual` once and keep the `run_id` it prints for the whole invocation. Pass it to every `city-record-progress` call (step 8) and to every `run-tally` check.
+**The lead target is per run, not per day.** Every invocation of this skill is one run with its own `lead_target_per_run` (default 100, from `config.json`): a manual run and the nightly scheduled run each aim for 100, regardless of how many leads other runs pushed earlier that day. At the very start, get a run ID: if the invoking prompt gives you a `run_id` (the unattended wrapper does), use that and do **not** call `run-start`; otherwise run `python lib.py run-start manual` once and keep the `run_id` it prints for the whole invocation. Pass it to `city-finish` (step 7).
 
 Run `python lib.py city-next` (from `leadgen-agent/`) — this is the **only** source of truth for which city to work on; don't reason about it yourself. It returns `{"city": ..., "state": ..., "term_index": N, "resuming": bool}`, or `{"done": true}` if nothing is due (extremely unlikely — the list covers 147 US cities plus a 90-day cooldown revisit cycle). `term_index` tells you which of the 4 search terms to start from (0 = first term; a nonzero value means this city was interrupted mid-run last time — `resuming: true`).
 
-Also read `scraped_ids.json` (or use `python lib.py scraped-has <id>`) for dedup — `<id>` is `"<business name>|<city>|<state>"` lowercased (no Places `place_id` available anymore).
+Never read `scraped_ids.json` (~1 MB) or `lib.py`'s source. Every command you need is listed below, and `city-prep` handles scraped-id dedup.
 
 ## 2. Markets and search terms
 
@@ -29,9 +29,8 @@ City selection is fully code-driven now (`city_coverage.json`, via `lib.py city-
 
 **Each city gets all 4 search terms, in order** (that's what "covering the city's TAM" means here: each term surfaces a different, overlapping slice of the market, and running all 4, each scrolled to exhaustion per step 3, is how you get to roughly 90%+ real coverage of what's actually out there). **A city, once started, is never abandoned mid-term-list — all 4 terms always run**, even if `lead_target_per_run` gets hit partway through.
 
-- After each search term's leads are qualified and pushed (steps 3-7), run `python lib.py run-tally <run_id>` and check its `qualified` count against its `target` (`lead_target_per_run`). **Always use this command — never track the target against your own in-session count.** One run spans several `claude -p` processes (the wrapper launches one per city; a session-limit resume is a fresh process), and an in-session tally would silently reset to zero and blow well past the target (this happened 2026-09-03: three resumes pushed 176 qualified leads against a target of 100). `run-tally` sums the per-term counts logged under this `run_id` in `runs.json`, so it's correct no matter how many processes this run has used. Don't use `daily-tally` for the target: it mixes in other runs from the same day (on 2026-09-30 a morning manual run made the 8pm scheduled run stop after one city).
-- If you've met or passed the target and more terms remain in this city, **keep going anyway** — finish this city's remaining terms before stopping. Note internally that the target's been met so your step 9 report can say so.
-- Once this city's 4 terms are exhausted, record progress (step 8) and report (step 9). Then apply the multi-city check from the top of this skill: stop if the target is met or you've hit `max_cities_per_run` (or if the invoking prompt said one city only); otherwise move on to the next city from `city-next`.
+- After each city's leads are pushed, check the `run_tally` that step 7's `city-finish` prints (or `python lib.py run-tally <run_id>`): compare its `qualified` count against its `target` (`lead_target_per_run`). **Always use this tally — never track the target against your own in-session count.** One run spans several `claude -p` processes (the wrapper launches one per city; a session-limit resume is a fresh process), and an in-session tally would silently reset to zero and blow well past the target (this happened 2026-09-03: three resumes pushed 176 qualified leads against a target of 100). `run-tally` sums the per-term counts logged under this `run_id` in `runs.json`, so it's correct no matter how many processes this run has used. Don't use `daily-tally` for the target: it mixes in other runs from the same day (on 2026-09-30 a morning manual run made the 8pm scheduled run stop after one city).
+- Once the city is finished, report (step 9). Then apply the multi-city check from the top of this skill: stop if the target is met or you've hit `max_cities_per_run` (or if the invoking prompt said one city only); otherwise move on to the next city from `city-next`.
 
 Search terms (run each per city):
 ```
@@ -41,75 +40,99 @@ outpatient physical therapy
 sports physical therapy
 ```
 
-## 3. Scrape Google Maps (Playwright MCP)
+## Working files and commands
 
-**Prefer `browser_evaluate` over `browser_snapshot` for everything in this step.** A full `browser_snapshot` of the results feed dumps the entire accessibility tree — every ARIA role, every nested node — and that tree only grows as more listings load, so snapshotting after every scroll tick was the single biggest token cost in the whole pipeline (it's what caused runs to exhaust their budget mid-city). A `browser_evaluate` call that reads the feed's DOM directly and returns just `{name, phone, website}[]` as JSON gets the same data for a fraction of the tokens. Only fall back to `browser_snapshot` if a `browser_evaluate` extraction comes back empty/malformed and you need to see the actual page structure to fix the selector.
+All of a city's intermediate files go in `leadgen-agent/work/` (gitignored; create it if missing), named `<cityslug>_*` (e.g. `work/overland-park_t1.json`). Run every `lib.py` command from `leadgen-agent/`. **Use only these commands. Don't write your own helper scripts or batching wrappers, and don't read `lib.py` to figure out how they work.** Each one already does the batching/parallelism a hand-written helper would.
 
-For each search term, for the current city:
+The flow per city: extract all remaining terms in the browser (step 3) → `city-prep` (step 4) → `scrape-batch` + `digest` (step 5) → qualify (step 6) → `city-finish` (step 7) → report (step 9).
+
+## 3. Scrape Google Maps (Playwright MCP): 2 calls per term
+
+For each remaining term of this city (from `term_index` to the 4th), in order:
 1. `browser_navigate` to `https://www.google.com/maps/search/<term url-encoded> in <city>, <state>`.
-2. Run one `browser_evaluate` that checks the feed rendered (e.g. `!!document.querySelector('[role="feed"]')`) — don't spend a full snapshot just to confirm the page loaded.
-3. Scroll the results feed to load **every** listing — this is what makes the 4-terms-per-city coverage actually hit ~90%+ of real TAM; stopping early here undermines the whole point of running 4 terms. Do this in batches, not one scroll-and-check per tick: use a single `browser_evaluate` that scrolls the feed (`document.querySelector('[role="feed"]').scrollTop = document.querySelector('[role="feed"]').scrollHeight`) 2-3 times in a row with a short pause between each (all inside the one JS call), *then* evaluate the current listing count/end-of-list text once. **Do not stop just because growth has slowed** — Google Maps loads results in batches and a pause between batches is normal, not the end of the list. Only stop once you get **three consecutive batched-scroll cycles with zero new listings**, or the page explicitly shows "You've reached the end of the list" / equivalent end-of-results text. If a batch is slow to load, wait longer before counting it toward the three-in-a-row — a slow batch is not a stalled one. Don't scroll the map itself.
-4. Once the feed is fully loaded, run one `browser_evaluate` extraction pass over the whole feed to pull every listing's business name, phone number, and website URL as JSON in a single call (address is a bonus, not required). Only click into an individual listing's detail pane as a fallback, when the feed panel itself doesn't expose the phone/website for that listing — clicking through every listing one at a time is far more expensive than one bulk DOM read.
-
-## 4. Free filters (no cost — do this before visiting any website)
-
-**First, drop everything already in the OS CRM:** write the step-3 extraction to a file and run `python lib.py crm-filter <listings.json> <fresh.json>` (needs `DASHBOARD_URL`/`DASHBOARD_PASSWORD`, so run it under `doppler run --project digigrowth --config prd --`). It matches every listing against every existing contact by phone (last 10 digits) and website domain, and writes only the not-yet-in-CRM listings to `<fresh.json>`. Work from `<fresh.json>` for the rest of this step. Listings it drops are existing leads, not new work: don't qualify, push, or count them anywhere (not in `reviewed_delta`, not in `qualified_delta`). This is the real dedup. `scraped_ids.json` keys on name+city, so the same clinic showing up in a neighboring city's search (a Miami clinic in a Hialeah search, an Allen clinic in a McKinney search) slips past it. On 2026-09-30 that caused 5 already-in-CRM leads to be re-qualified and counted toward the daily target. For a single listing, `python lib.py crm-has "<phone>" "<website>"` exits 0 if it's already in the CRM. If `crm-filter` errors (network or auth), retry it. Never continue without it, or already-in-CRM leads will get counted again.
-
-Then skip a listing immediately if any of these are true:
-- Already scraped: `python lib.py scraped-has "<name>|<city>|<state>"` exits 0
-- No phone number, or no website
-- The name matches a chain/franchise or an obviously non-PT business — check against `memory.txt`'s `CHAIN / FRANCHISE BLACKLIST` and these institutional keywords: hospital, home health, nursing home, skilled nursing, hospice, urgent care, behavioral health, addiction, mental health, psychiatric, chiropractic, chiropractor, home care, va medical, rehabilitation hospital, assisted living, senior living, physical therapy school, university
-
-For everything skipped, still run `python lib.py scraped-add "<name>|<city>|<state>"` so it isn't re-checked next run.
-
-## 5. Website scrape (free — no browser needed here)
-
-For each survivor: `python lib.py scrape-site <website_url>` — returns JSON `{owner_name, website_text, email}` (homepage + /about + /about-us + /contact + /contact-us, JSON-LD/regex owner extraction, mailto:/regex email extraction, already truncated to `max_website_text_words`). This is a plain HTTP fetch, not a Playwright call — no need to open it in the browser.
-
-`email` is picked in priority order: an address whose local part matches the verified owner's name (e.g. `sarah@...` for Sarah Jones) beats a generic `contact@`/`info@`/`hello@`/`office@`/`admin@` address, which beats whatever else was found on the page. Junk addresses (`noreply@`, image-file false-positives, page-builder placeholder domains) are filtered out before picking. It can come back empty — that's fine, it's a bonus field, not a disqualifier.
-
-## 6. Qualify, grade, verify owner, write opener — YOU do this now
-
-For each candidate, read and apply `role.txt`, `memory.txt`, and `prompt.txt` in full (they're unchanged from the old pipeline — same disqualification rules, same A–D grading, same owner-verification requirement, same opener rules and priority order). Fill in `prompt.txt`'s template fields with the scraped business name/phone/website/owner_name/website_text and reason through it exactly as instructed there, producing the same JSON shape: `qualified`, `grade`, `grade_reason`, `disqualify_reason`, `niche_confirmed`, `niche_notes`, `opener`, `verified_owner_name`.
-
-Then apply these post-check guardrails (same as the old `run.py`):
-- `verified_owner_name` must pass the "real 2-3 word person name, not a generic phrase" test described in `prompt.txt`'s OWNER VERIFICATION section — if it doesn't, disqualify.
-- Opener must be ≤15 words and contain no `?` — if either check fails, null it out.
-- **A lead with no usable opener does not get pushed** — drop it, don't hand off a generic/cold lead.
-
-Mark every candidate processed (qualified or not) with `python lib.py scraped-add "<name>|<city>|<state>"`.
-
-## 7. Push qualified leads
-
-Build a JSON list of qualified leads in this shape (one object per lead):
-```json
-{
-  "Business Name": "...", "Owner Name": "...", "Phone": "...", "Website": "...", "Email": "...",
-  "Grade": "A", "Grade Reason": "...", "Opener": "...", "City": "...", "State": "..."
-}
+2. One `browser_evaluate` with `filename: "leadgen-agent/work/<cityslug>_t<term number 1-4>.json"` and exactly this function. It scrolls the feed to the end and extracts every listing in the same call:
+```js
+async () => { const f = document.querySelector('[role="feed"]'); if (!f) return {feed:false, listings:[]}; let counts=[], stall=0, prev=-1, end=false; for (let i=0;i<40 && stall<3;i++){ for(let j=0;j<3;j++){ f.scrollTop=f.scrollHeight; await new Promise(r=>setTimeout(r,1500)); } const n=f.querySelectorAll('a.hfpxzc').length; counts.push(n); if(n===prev) stall++; else stall=0; prev=n; if(/reached the end of the list/i.test(f.innerText)){ end=true; break; } } const listings=[]; f.querySelectorAll('div.Nv2PK').forEach(c=>{ const a=c.querySelector('a.hfpxzc'); if(!a) return; const ph=c.querySelector('.UsdlK'); const w=c.querySelector('a[data-value="Website"]'); listings.push({name:a.getAttribute('aria-label'), phone: ph?ph.textContent.trim():'', website: w?w.href:''}); }); return {feed:true, end, counts, listings}; }
 ```
-`Email` is whatever step 5 found (owner-name match preferred, else contact/info/hello-style) — pass `""` if none was found, never fabricate one.
-Write it to a temp file and run `doppler run --project digigrowth --config prd -- python lib.py push <path> [status]` — `status` defaults to `new` (pass `sms-handoff` if the user says so). Sorts by grade and POSTs to `/api/contacts`, tagged `independent-pt`. As a safety net, push re-checks every lead against a fresh CRM index and **skips** any that already exist, leaving the existing contact and its status untouched. It prints `{"pushed_new": n, "skipped_existing": [...], "failed": [...]}`. **`pushed_new` is this term's qualified count**, not the number of leads you qualified. Use it as `qualified_delta` in step 8 and in the report. Existing leads never count toward `lead_target_per_run`.
+It stops only on the "end of the list" text or three consecutive scroll batches with no new listings, which is the full-coverage rule, so don't shorten it. Never use `browser_snapshot` unless this comes back `feed:false` or with 0 listings; then take one snapshot to see why (consent page, layout change), fix, and retry that term.
+
+## 4. Free filters: `city-prep`
+
+```
+doppler run --project digigrowth --config prd -- python lib.py city-prep "<city>" "<state>" <term_index from city-next> work/<cityslug>_prep.json work/<cityslug>_t<N>.json ...
+```
+List the term files in term order, starting at the first term this process ran. In one pass it:
+- dedupes listings across the city's terms
+- drops everything already in the OS CRM (phone/website match). This is the real dedup: `scraped_ids.json` keys on name+city, so a clinic from a neighboring city's search would slip past it alone.
+- drops already-scraped listings
+- skips no-phone/no-website listings, `memory.txt`'s chain blacklist, and institutional keywords (hospital, home health, chiropractic, university, …)
+
+It prints per-term counts, the skipped names, and the candidate list as `idx | name | domain | term`. It writes nothing to `scraped_ids.json`; `city-finish` does that. If it errors (network/auth on the CRM fetch), retry it. Never continue without it.
+
+**Reviewed count** (recorded automatically): each business counts **once per city**, on the term where it first appeared, if it wasn't already in the CRM or already scraped. Don't compute your own.
+
+## 5. Website scrape: `scrape-batch` + `digest`
+
+First, look at the candidate list's names and domains alone and pick the candidates that are *obviously* disqualified: a named hospital/health system, a known multi-location group or chain not on the blacklist, or clearly not PT (massage, gym, chiropractor, pediatric-only by name). Only exclude when the name makes it certain. Anything plausibly an independent PT practice gets scraped. Then:
+```
+python lib.py scrape-batch work/<cityslug>_prep.json work/<cityslug>_sites.json --exclude "3:Baptist Health system;7:massage;12:Athletico"
+```
+It runs `scrape-site` on every non-excluded candidate in parallel and prints a short summary, including `empty_text_idx`. (`scrape-site` fetches homepage + /about + /about-us + /contact + /contact-us, extracts the owner via regex/JSON-LD, picks the best email, and truncates text to `max_website_text_words`.) Then read the results a page at a time:
+```
+python lib.py digest work/<cityslug>_prep.json work/<cityslug>_sites.json <start_idx> 12
+```
+Each page ends with the `start_idx` for the next page. Read every page. If a site is in `empty_text_idx` and looks like a plausible independent PT, you may open it with `browser_navigate` + one `browser_evaluate` returning `document.body.innerText.slice(0,2500)` to find the owner. Never use a snapshot for this.
+
+`email` priority: owner-name match > `contact@`/`info@`/`hello@`/`office@`/`admin@` > anything else. Junk is pre-filtered. Empty is fine; never fabricate one.
+
+## 6. Qualify, grade, verify owner, write opener: YOU do this now
+
+For each candidate, apply `role.txt`, `memory.txt`, and `prompt.txt` in full: same disqualification rules, same A–D grading, same owner-verification requirement, same opener rules and priority order. Reason over the digest's business name/phone/website/owner/text exactly as `prompt.txt` instructs.
+
+Guardrails (city-finish re-checks the first two and rejects failures, so get them right here):
+- `Owner Name` must be a real 2-3 word person name verified on the practice's own site, otherwise disqualify. Titles like "Dr." and trailing credentials like ", DPT" are fine.
+- Opener ≤15 words, no `?`.
+- **No usable opener → don't push.**
+
+## 7. Push + record: `city-finish`
+
+Write the qualified leads to `work/<cityslug>_leads.json` as a list. Each lead must include the candidate's `idx` from the digest:
+```json
+{"idx": 4, "Business Name": "...", "Owner Name": "...", "Phone": "...", "Website": "...", "Email": "...",
+ "Grade": "A", "Grade Reason": "...", "Opener": "...", "City": "...", "State": "..."}
+```
+Then run, once:
+```
+doppler run --project digigrowth --config prd -- python lib.py city-finish work/<cityslug>_prep.json work/<cityslug>_leads.json <run_id> [status]
+```
+`status` defaults to `new`; pass `sms-handoff` only if the user says so. In one call it:
+- applies the guardrails
+- POSTs to `/api/contacts` tagged `independent-pt`, re-checking a fresh CRM index and skipping existing contacts
+- marks every listing this city reviewed as scraped
+- runs `city-record-progress` for every term this process covered under `run_id` (reaching term 4 marks the city `covered`)
+- prints the city's counts by term and grade, plus the `run_tally`
+
+**`pushed_new` is the qualified count**, not the number of leads you wrote. It refuses to run twice on the same prep file. If it reports `failed` pushes, retry those leads once with `doppler run ... python lib.py push <file>`. Those leads won't be in the run tally; mention that in the report.
+
+If you ever must stop mid-city (you shouldn't), don't call `city-finish` with partial data. The city stays at its previous `term_index` and gets redone cleanly by the next process.
 
 ## 8. Update state
 
-After **every search term** (not just at the end of a city), run `python lib.py city-record-progress "<city>" "<state>" <term_index_just_completed_plus_1> <reviewed_delta> <qualified_delta> <run_id>` — `term_index_just_completed_plus_1` is 1-4 (e.g. finishing the city's 2nd term reports `2`); `reviewed_delta`/`qualified_delta` are this term's counts (not running totals — the command accumulates them itself). `reviewed_delta` counts only listings that survived `crm-filter` (new-to-CRM listings reviewed). `qualified_delta` is `push`'s `pushed_new`. Do this even if you're about to continue in the same session — it keeps the record correct if the run stops right after this term (including because the target was just hit) or gets interrupted. Reaching `term_index` 4 automatically marks the city `covered` with today's date; anything less leaves it `in_progress` so `city-next` resumes it correctly next time. This call, `scraped-add`, and every `scraped-has` already push their files to GitHub via `shared/github_sync.py` — no separate sync step needed.
-
-Then apply the step 2 continuation check: finish this city's remaining terms regardless of target status. Once the 4th term wraps, report (step 9), then decide per the multi-city rule at the top whether to start the next city.
+Done by `city-finish`. The per-city flow no longer has a separate `scraped-add`/`city-record-progress` step. Those commands still exist for one-off manual fixes.
 
 ## 9. Report
 
-After each city, tell the user about **that city**: listings reviewed, disqualified (with a one-line reason breakdown), qualified with grades — all 4 terms covered (a city is never left partially covered by a single process; if it was interrupted, the next process resumes it via `term_index`).
+After the city, tell the user about **that city**: listings reviewed, disqualified (a one-line reason breakdown), qualified with grades, and anything a human should double-check (non-owner contact, odd email domain, near-misses). Keep it short. Take the numbers from `city-finish`'s output rather than counting yourself.
 
-**Also post this summary into the OS chat**, so results are visible from the dashboard even when this ran unattended (scheduled task) and nobody was watching. For the **totals line, run `python lib.py run-tally <run_id>`** rather than reporting just this city's numbers — the run's total includes every city any process in this run has finished, not just this one. At the end, write a short markdown message to a temp file with this shape:
+**Also post the summary into the OS chat**, so unattended results are visible from the dashboard. Write a short markdown file in `work/` with this shape and run `doppler run --project digigrowth --config prd -- python lib.py post-chat <path>` (dashboard → Agents → Lead Qualifier). Do this even if the target wasn't reached.
 
 ```
 ## Lead gen run — <date>
 
 **<City>, <ST>** (4/4 terms): <reviewed> reviewed → <qualified> qualified (<A count> A, <B count> B, <C count> C, <D count> D)
 
-**This run's total:** <run-tally reviewed> reviewed → <run-tally qualified> qualified — qualification rate <qualified/reviewed as %>
+**This run's total:** <run_tally reviewed> reviewed → <run_tally qualified> qualified — qualification rate <qualified/reviewed as %>
 Target: <lead_target_per_run> per run — <met/exceeded by N / fell short by N so far>
 ```
 
-Run `python lib.py post-chat <path>` to push it into the leadgen-agent's OS chat (dashboard → Agents → Lead Qualifier). Do this even if the target wasn't reached — the report should reflect what actually happened, not just successful runs.
+Leave `work/` alone. It's gitignored and the wrapper clears it, so don't spend turns deleting files.

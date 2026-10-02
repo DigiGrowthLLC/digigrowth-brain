@@ -21,6 +21,14 @@ $logFile   = Join-Path $logDir "scrape-leads_$timestamp.log"
 
 Set-Location $repoRoot
 
+$mcpConfig = Join-Path $leadgenDir "mcp-playwright.json"
+
+# Per-city intermediates (term extractions, prep/sites/leads JSON). Cleared per
+# run instead of having the model spend turns deleting them.
+$workDir = Join-Path $leadgenDir "work"
+if (Test-Path $workDir) { Remove-Item -Path (Join-Path $workDir "*") -Recurse -Force -ErrorAction SilentlyContinue }
+else { New-Item -ItemType Directory -Path $workDir | Out-Null }
+
 $config = Get-Content (Join-Path $leadgenDir "config.json") -Raw | ConvertFrom-Json
 if (-not $config.enabled) {
     Add-Content -Path $logFile -Value "leadgen disabled in config.json -- exiting."
@@ -50,6 +58,28 @@ Add-Content -Path $logFile -Value "run_id: $runId (target: $leadTarget qualified
 # legitimate full run report).
 $backgroundingPattern = "waiting on the background|i'll\W+(\w+\W+){0,3}wait|i will\W+(\w+\W+){0,3}wait|will resume (once|when)|check back on the background|kicked this off and will check back|instead of polling"
 $maxAttemptsPerCity = 2
+
+# claude prints "You've hit your session limit · resets 9:10pm (America/New_York)".
+# The reset is in Eastern time, same as this machine's clock.
+$sessionLimitPattern = "hit your (session|usage) limit"
+$maxSessionLimitWaits = 3
+$maxSessionLimitWaitHours = 4
+$sessionLimitWaits = 0
+$stopRun = $false
+
+function Get-SessionResetTime([string]$text) {
+    if ($text -notmatch "resets\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)") { return $null }
+    $hour = [int]$Matches[1] % 12
+    if ($Matches[3] -eq "pm") { $hour += 12 }
+    $minute = if ($Matches[2]) { [int]$Matches[2] } else { 0 }
+    $reset = (Get-Date).Date.AddHours($hour).AddMinutes($minute)
+    if ($reset -lt (Get-Date).AddMinutes(-5)) { $reset = $reset.AddDays(1) }
+    return $reset.AddMinutes(2)   # small buffer past the stated reset
+}
+
+# Decode claude's output as UTF-8 when capturing it, so arrows/dashes in its
+# reports don't come out as mojibake in the log.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $maxCitiesPerRun = if ($config.max_cities_per_run) { $config.max_cities_per_run } else { 10 }
 
 $prompt = "Run the scrape-leads skill (leadgen-agent/.claude/skills/scrape-leads/SKILL.md) for exactly one city, resuming from wherever leadgen-agent/city_coverage.json's cursor (via 'python lib.py city-next') says to. Follow it exactly, including pushing any qualified leads to the DigiGrowth OS. This is an unattended run with nobody available to answer questions. Finish all 4 search terms for this one city (per the skill's step 2), then stop -- do not move on to a second city yourself, this wrapper script decides that between processes. This run's run_id is $runId -- do NOT call run-start; pass this run_id to every city-record-progress call and use it for run-tally."
@@ -71,18 +101,45 @@ for ($cityCount = 1; $cityCount -le $maxCitiesPerRun; $cityCount++) {
 
     Add-Content -Path $logFile -Value "`n=== City $cityCount`: $($next.city), $($next.state) (term_index=$($next.term_index)) ===`n"
 
-    for ($attempt = 1; $attempt -le $maxAttemptsPerCity; $attempt++) {
+    $attempt = 1
+    while ($attempt -le $maxAttemptsPerCity) {
         if ($attempt -gt 1) {
-            Add-Content -Path $logFile -Value "`n--- RETRY ${attempt}: previous attempt appears to have backgrounded the scrape and died early. Resuming from city_coverage.json cursor. ---`n"
+            Add-Content -Path $logFile -Encoding UTF8 -Value "`n--- RETRY ${attempt}: previous attempt appears to have backgrounded the scrape and died early. Resuming from city_coverage.json cursor. ---`n"
         }
 
-        & claude -p $prompt --dangerously-skip-permissions *>> $logFile
+        # Capture this invocation's output and check it directly. The old version
+        # appended with *>> (which PowerShell 5.1 writes as UTF-16, interleaving
+        # null bytes into the UTF-8 log) and then re-read the log with
+        # Get-Content -Tail -Raw, a parameter combo that throws -- so the
+        # backgrounding watchdog above never actually fired.
+        # --strict-mcp-config: load only Playwright, not Meta Ads / Notion / Gmail
+        # etc., whose tool listings would otherwise ride along in every turn's context.
+        $out = & claude -p $prompt --dangerously-skip-permissions --strict-mcp-config --mcp-config $mcpConfig 2>&1 | Out-String
+        Add-Content -Path $logFile -Encoding UTF8 -Value $out
 
-        $logTail = Get-Content -Path $logFile -Tail 200 -ErrorAction SilentlyContinue -Raw
-        if ($logTail -notmatch $backgroundingPattern) {
+        # Subscription session limit: every later city would fail instantly too
+        # (9/28 and 9/29 burned cities 5-10 this way). Wait for the reset the
+        # message names and retry the same city -- the cursor makes resume safe.
+        # Doesn't consume a backgrounding attempt.
+        if ($out -match $sessionLimitPattern) {
+            $waitUntil = Get-SessionResetTime $out
+            if ($sessionLimitWaits -ge $maxSessionLimitWaits -or -not $waitUntil -or ($waitUntil - (Get-Date)).TotalHours -gt $maxSessionLimitWaitHours) {
+                Add-Content -Path $logFile -Encoding UTF8 -Value "`n--- Session limit hit and reset is unparseable, more than $maxSessionLimitWaitHours h away, or already waited $sessionLimitWaits time(s) -- stopping run. ---`n"
+                $stopRun = $true
+                break
+            }
+            $sessionLimitWaits++
+            Add-Content -Path $logFile -Encoding UTF8 -Value "`n--- Session limit hit -- sleeping until $($waitUntil.ToString('HH:mm')) then retrying $($next.city), $($next.state). ---`n"
+            Start-Sleep -Seconds ([math]::Max(0, [int]($waitUntil - (Get-Date)).TotalSeconds))
+            continue
+        }
+
+        if ($out -notmatch $backgroundingPattern) {
             break
         }
+        $attempt++
     }
+    if ($stopRun) { break }
 }
 
 # Keep only the 30 most recent log files
