@@ -998,9 +998,9 @@
       "last_scraped_date": "2026-10-01"
     },
     "Tallahassee, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 202,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 208,
       "qualified_count": 4,
       "last_scraped_date": "2026-10-01"
     },
