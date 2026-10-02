@@ -984,9 +984,9 @@
       "last_scraped_date": "2026-10-01"
     },
     "Rochester, NY": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 345,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 459,
       "qualified_count": 11,
       "last_scraped_date": "2026-10-01"
     },
