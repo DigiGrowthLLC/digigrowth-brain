@@ -537,6 +537,10 @@ async def manual_send(payload: dict):
             if ai_draft_id:
                 # Times this text offered stay held for this prospect.
                 await sms_setter_ai.hold_offered_slots(conn, int(ai_draft_id))
+                # A capture_email reply just went out ("I'll send it over"):
+                # queue the Send Info / Gatekeeper Deferral email now rather
+                # than on the local worker's next poll.
+                await sms_setter_ai.task_todos(conn)
         else:
             # Dylan texting them himself supersedes any check-in the setter
             # had scheduled.

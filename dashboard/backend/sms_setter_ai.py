@@ -73,8 +73,8 @@ ACTIONS = [
     "reply",                  # ordinary next message in the conversation
     "book",                   # agreed time + email — auto mode books it; draft mode, Dylan does
     "send_template",          # send one of Dylan's SMS sequence steps (the default whenever one fits)
-    "capture_email",          # they asked for info by email / gave the owner's email (to-do: email them)
-    "gatekeeper_relay",       # front desk will pass the message along (to-do: follow up with the owner)
+    "capture_email",          # they asked for info by email / gave the owner's email (queues the Send Info / Gatekeeper Deferral email)
+    "gatekeeper_relay",       # front desk will pass the message along (no to-do)
     "follow_up",              # asked to be contacted later
     "close_not_interested",
     "opt_out",
@@ -96,6 +96,11 @@ DRAFT_SCHEMA = {
         "booking_date": {"type": "string", "description": "action=book: YYYY-MM-DD. Otherwise empty."},
         "booking_time": {"type": "string", "description": "action=book: HH:MM 24h, prospect's local time. Otherwise empty."},
         "email": {"type": "string", "description": "book/capture_email: the email given. Otherwise empty."},
+        "email_from": {
+            "type": "string",
+            "enum": ["", "owner", "gatekeeper"],
+            "description": "capture_email: \"owner\" if the decision maker asked for the info by email, \"gatekeeper\" if a front desk/assistant/spouse pointed you to an email for the owner. Otherwise empty.",
+        },
         "follow_up_date": {"type": "string", "description": "follow_up: YYYY-MM-DD in the prospect's time, when to check back in. Empty for the default (24 hours from now). Otherwise empty."},
         "follow_up_time": {"type": "string", "description": "follow_up: HH:MM 24h, prospect's local time, if a time of day matters. Otherwise empty."},
         "offered_times": {
@@ -110,7 +115,7 @@ DRAFT_SCHEMA = {
         },
         "rationale": {"type": "string", "description": "One short line for Dylan on why this is the right move."},
     },
-    "required": ["action", "template", "reply", "second_text", "booking_date", "booking_time", "email", "follow_up_date", "follow_up_time", "offered_times", "stages", "rationale"],
+    "required": ["action", "template", "reply", "second_text", "booking_date", "booking_time", "email", "email_from", "follow_up_date", "follow_up_time", "offered_times", "stages", "rationale"],
     "additionalProperties": False,
 }
 
@@ -319,6 +324,8 @@ def normalize_draft(result: dict) -> dict:
         draft["action"] = "reply"
     if draft["action"] != "send_template":
         draft["template"] = ""
+    if draft["action"] != "capture_email" or draft["email_from"] not in ("owner", "gatekeeper"):
+        draft["email_from"] = ""
     # Funnel stages are cumulative: anyone Interested was also Primed and
     # Engaged, so a later-stage mark fills in the earlier ones (DM Reached
     # is separate — a front desk can be primed, the owner never reached).
@@ -891,22 +898,59 @@ async def _task_todo(conn, phone: str, contact: dict, text: str, description: st
     )
 
 
+async def _queue_info_email(conn, contact: dict, email: str, email_from: str) -> bool:
+    """capture_email, once the "I'll send it over" text has gone out: the
+    same thing as setting the contact's status by hand in the CRM. The
+    owner asking for info gets Send Info; a front desk pointing to the
+    owner's email gets Gatekeeper Deferral. Both queue the personalized
+    video and send once it's ready (send_info_queue.py). The given email
+    goes on the contact first, since that's where the queue sends it.
+    False if there's no contact or email to send to."""
+    import send_info_queue
+
+    contact_id = contact.get("contact_id")
+    email = (email or contact.get("email") or "").strip()
+    if not contact_id or "@" not in email:
+        return False
+    kind, status = (
+        (send_info_queue.GATEKEEPER_DEFERRAL, "gatekeeper-deferral") if email_from == "gatekeeper"
+        else (send_info_queue.SEND_INFO, "send-info")
+    )
+    await conn.execute(
+        "UPDATE contacts SET email = $2, updated_at = now(), "
+        "status = CASE WHEN status = 'appointment-booked' THEN status ELSE $3 END WHERE id = $1",
+        contact_id, email, status,
+    )
+    if not await conn.fetchval(
+        "SELECT 1 FROM send_info_loom_queue WHERE contact_id = $1 AND status = 'pending'", contact_id,
+    ):
+        await send_info_queue.enqueue({"id": contact_id}, kind=kind)
+    return True
+
+
 async def task_todos(conn) -> int:
-    """Puts a to-do on Dylan's list for every draft that needs him outside
-    the text thread — run on each new draft and on every worker poll (which
-    also backfills pending drafts from before this existed). Flagged per
-    draft so a to-do Dylan deletes by hand isn't recreated.
-      handoff           "Reply to X by text" (clears when he texts them)
-      capture_email     "Email X at <email>"
-      gatekeeper_relay  "Follow up with X" (front desk said they'd pass it on), due tomorrow
-    follow_up gets no to-do: the setter schedules and sends that check-in
-    itself (schedule_follow_up)."""
+    """Handles every draft that needs something done outside the text
+    thread — run on each new draft and on every worker poll (which also
+    backfills pending drafts from before this existed). Flagged per draft
+    so a to-do Dylan deletes by hand isn't recreated.
+      handoff           "Reply to X by text" to-do (clears when he texts them)
+      capture_email     once the reply is sent: queues the Send Info (owner
+                        asked) or Gatekeeper Deferral (front desk gave the
+                        owner's email) email. Only if that can't be queued
+                        (no contact/email) does it fall back to an
+                        "Email X at <email>" to-do.
+    Only things the setter can't do itself get a to-do. gatekeeper_relay and
+    follow_up get none: Dylan doesn't want "Follow up with X" tasks for
+    threads that are effectively closed, and follow_up check-ins are
+    scheduled and sent by the setter itself (schedule_follow_up)."""
     rows = await conn.fetch(
         """
         SELECT id, phone, action, rationale, details FROM sms_ai_drafts
-        WHERE action IN ('handoff', 'capture_email', 'gatekeeper_relay')
-          AND details->>'todo_created' IS NULL
-          AND (status = 'pending' OR (status IN ('sent', 'auto_sent') AND created_at > now() - interval '14 days'))
+        WHERE details->>'todo_created' IS NULL
+          AND ((action = 'handoff' AND (status = 'pending'
+                                        OR (status IN ('sent', 'auto_sent') AND created_at > now() - interval '14 days')))
+               OR (action = 'capture_email' AND status IN ('sent', 'auto_sent')
+                   AND created_at > now() - interval '14 days'))
         """,
     )
     today = datetime.now(ZoneInfo("America/New_York")).date()
@@ -925,18 +969,14 @@ async def task_todos(conn) -> int:
 
         if r["action"] == "handoff":
             await ensure_reply_todo(conn, r["phone"], contact, f"AI setter handed this to you: {r['rationale']}")
-        elif r["action"] == "capture_email":
+        elif r["action"] == "capture_email" and not await _queue_info_email(
+            conn, contact, details.get("email") or "", details.get("email_from") or "",
+        ):
             email = details.get("email") or contact.get("email") or "(email in thread)"
             await _task_todo(
                 conn, r["phone"], contact, f"Email {who}{at} at {email}",
                 f"They asked for info by email (or the front desk gave the owner's email). Send it and pitch "
                 f"the 20-min call.\n\n{context}", today,
-            )
-        elif r["action"] == "gatekeeper_relay":
-            await _task_todo(
-                conn, r["phone"], contact, f"Follow up with {who}{at}",
-                f"The front desk said they'd pass your message along. If {who} hasn't reached out, call the "
-                f"office or try them directly.\n\n{context}", today + timedelta(days=1),
             )
         await conn.execute(
             "UPDATE sms_ai_drafts SET details = details || jsonb_build_object('todo_created', true) WHERE id = $1",
@@ -1014,7 +1054,7 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
     tz_name = await prospect_timezone(conn, conv["phone"], conv if conv["contact_id"] else None)
     await _guard_booking(conn, draft, tz_name, conv["phone"])
     details = {k: draft[k] for k in ("template", "second_text", "booking_date", "booking_time", "email",
-                                     "follow_up_date", "follow_up_time", "offered_times")}
+                                     "email_from", "follow_up_date", "follow_up_time", "offered_times")}
     if draft["action"] in NOT_INTERESTED_ACTIONS:
         await release_holds(conn, conv["phone"])
     is_check_in = await _is_follow_up_turn(conn, conv["phone"], current_inbound)
