@@ -277,9 +277,9 @@ async def _setter_judgment(conn, phone: str, last_inbound_at) -> str | None:
     )
 
 
-def _in_send_hours(phone: str, now: datetime) -> bool:
+def _in_send_hours(phone: str, city: str | None, state: str | None, now: datetime) -> bool:
     try:
-        hour = now.astimezone(ZoneInfo(guess_timezone(phone))).hour
+        hour = now.astimezone(ZoneInfo(guess_timezone(phone, city, state))).hour
     except Exception:
         hour = now.astimezone(ZoneInfo("America/New_York")).hour
     return SEND_HOURS[0] <= hour < SEND_HOURS[1]
@@ -297,7 +297,7 @@ async def send_due_touches():
         await auto_enroll(conn)
         rows = await conn.fetch(
             """
-            SELECT sc.*, c.owner FROM sms_conversations sc
+            SELECT sc.*, c.owner, c.city, c.state FROM sms_conversations sc
             LEFT JOIN contacts c ON c.id = sc.contact_id
             WHERE sc.status != 'closed' AND sc.disposition IS NULL
             AND sc.dm_followup_enrolled_at IS NOT NULL
@@ -398,7 +398,7 @@ async def send_due_touches():
                 # reference is None here only if the previous touch hasn't
                 # sent yet — nothing to do this poll, wait for it.
                 if (reference is not None and now >= reference + delay
-                        and sent_this_poll < MAX_SENDS_PER_POLL and _in_send_hours(phone, now)):
+                        and sent_this_poll < MAX_SENDS_PER_POLL and _in_send_hours(phone, row["city"], row["state"], now)):
                     await _send_touch(conn, row, f"touch{touch_num}", templates, f"dm_followup_touch{touch_num}")
                     await conn.execute(
                         f"UPDATE sms_conversations SET {sent_col} = now() WHERE id = $1", row["id"],

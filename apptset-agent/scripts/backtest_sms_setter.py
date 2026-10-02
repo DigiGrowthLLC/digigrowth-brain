@@ -91,7 +91,7 @@ SEQUENCE: dict | None = None
 async def run_one(conv: dict, i: int, sem: asyncio.Semaphore) -> dict:
     msgs = conv["messages"][: i + 1]
     when = datetime.fromisoformat(msgs[-1]["sent_at"].replace("Z", "+00:00")) + timedelta(minutes=2)
-    tz_name = guess_timezone(conv["phone"])
+    tz_name = guess_timezone(conv["phone"], conv.get("city"), conv.get("state"))
     contact = {k: conv.get(k) for k in ("business", "owner", "state", "opener")}
     prompt = sms_setter_ai.build_user_message(
         contact, msgs, tz_name, when, sms_setter_ai.format_open_slots(stub_slots(tz_name, when), tz_name, when),

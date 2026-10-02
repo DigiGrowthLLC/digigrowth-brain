@@ -28,6 +28,8 @@ import json
 
 from fastapi import APIRouter, HTTPException
 
+from timezone_lookup import guess_timezone, prospect_timezone
+
 import sms_setter_ai
 from db import get_pool
 
@@ -134,7 +136,7 @@ async def list_follow_ups():
         rows = await conn.fetch(
             """
             SELECT sc.phone, sc.contact_id, sc.ai_followup_due_at, sc.ai_followup_set_at, sc.ai_followup_note,
-                   c.owner, c.business,
+                   c.owner, c.business, c.city, c.state,
                    (SELECT body FROM sms_messages m WHERE m.phone = sc.phone AND m.direction = 'inbound'
                     ORDER BY m.sent_at DESC LIMIT 1) AS last_inbound
             FROM sms_conversations sc LEFT JOIN contacts c ON c.id = sc.contact_id
@@ -149,7 +151,7 @@ async def list_follow_ups():
                 "phone": r["phone"], "contact_id": r["contact_id"], "owner": r["owner"], "business": r["business"],
                 "due_at": r["ai_followup_due_at"].isoformat(),
                 "set_at": r["ai_followup_set_at"].isoformat() if r["ai_followup_set_at"] else None,
-                "timezone": sms_setter_ai.guess_timezone(r["phone"]),
+                "timezone": guess_timezone(r["phone"], r["city"], r["state"]),
                 "note": r["ai_followup_note"], "last_inbound": r["last_inbound"],
             }
             for r in rows
@@ -166,15 +168,16 @@ async def reschedule_follow_up(payload: dict):
     from zoneinfo import ZoneInfo
 
     phone = (payload.get("phone") or "").strip()
-    try:
-        due = datetime.strptime(f"{payload.get('date')} {payload.get('time') or '10:00'}", "%Y-%m-%d %H:%M").replace(
-            tzinfo=ZoneInfo(sms_setter_ai.guess_timezone(phone)))
-    except (ValueError, TypeError):
-        raise HTTPException(400, "date (YYYY-MM-DD) and time (HH:MM) required")
-    if due <= datetime.now(timezone.utc):
-        raise HTTPException(400, "pick a time in the future")
     pool = await get_pool()
     async with pool.acquire() as conn:
+        tz_name = await prospect_timezone(conn, phone)
+        try:
+            due = datetime.strptime(f"{payload.get('date')} {payload.get('time') or '10:00'}", "%Y-%m-%d %H:%M").replace(
+                tzinfo=ZoneInfo(tz_name))
+        except (ValueError, TypeError):
+            raise HTTPException(400, "date (YYYY-MM-DD) and time (HH:MM) required")
+        if due <= datetime.now(timezone.utc):
+            raise HTTPException(400, "pick a time in the future")
         note = await conn.fetchval("SELECT ai_followup_note FROM sms_conversations WHERE phone = $1", phone)
         await sms_setter_ai.schedule_follow_up(conn, phone, due, note)
     return {"ok": True, "due_at": due.isoformat()}

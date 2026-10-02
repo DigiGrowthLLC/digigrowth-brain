@@ -83,8 +83,8 @@ async def move_new_to_handoff() -> int:
     return len(rows)
 
 
-def _in_local_window(phone: str) -> bool:
-    local = datetime.now(ZoneInfo(guess_timezone(phone)))
+def _in_local_window(phone: str, city: str | None, state: str | None) -> bool:
+    local = datetime.now(ZoneInfo(guess_timezone(phone, city, state)))
     return local.weekday() < 5 and LOCAL_SEND_HOURS[0] <= local.hour < LOCAL_SEND_HOURS[1]
 
 
@@ -106,13 +106,13 @@ async def send_due_openers() -> int:
             return 0
         rows = await conn.fetch(
             """
-            SELECT id, phone, owner, email, business FROM contacts
+            SELECT id, phone, owner, email, business, city, state FROM contacts
             WHERE status = 'sms-handoff' AND auto_handoff_at IS NOT NULL AND auto_handoff_opener_at IS NULL
             ORDER BY auto_handoff_at, id
             LIMIT 200
             """
         )
-    due = [dict(r) for r in rows if _in_local_window(r["phone"])][:OPENERS_PER_RUN]
+    due = [dict(r) for r in rows if _in_local_window(r["phone"], r["city"], r["state"])][:OPENERS_PER_RUN]
     sent = 0
     for i, contact in enumerate(due):
         if i:

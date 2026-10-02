@@ -53,11 +53,16 @@ function ProspectInfoPanel({ name, phone, email, contact }) {
 
   useEffect(() => {
     if (!phone) return;
-    fetch(API(`/appointment-reminders/guess-timezone?phone=${encodeURIComponent(phone)}`))
+    // The contact card's city/state wins over the area code; without them
+    // the backend looks the contact up by phone.
+    const params = new URLSearchParams({ phone });
+    if (contact?.city) params.set('city', contact.city);
+    if (contact?.state) params.set('state', contact.state);
+    fetch(API(`/appointment-reminders/guess-timezone?${params}`))
       .then(r => r.json())
       .then(d => setTimezone(d.timezone || null))
       .catch(() => {});
-  }, [phone]);
+  }, [phone, contact?.city, contact?.state]);
 
   const c = contact || {};
 

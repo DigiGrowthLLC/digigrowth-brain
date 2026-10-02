@@ -33,7 +33,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, HTTPException, Query
 
 from db import get_pool
-from timezone_lookup import guess_timezone, US_TIMEZONES
+from timezone_lookup import guess_timezone, prospect_timezone, US_TIMEZONES
 import cancel_sequence
 import client_appointment_sequence
 import client_booking_notification
@@ -123,8 +123,14 @@ async def list_timezones():
 
 
 @router.get("/appointment-reminders/guess-timezone")
-async def guess_timezone_for_phone(phone: str = Query(...)):
-    return {"timezone": guess_timezone(phone)}
+async def guess_timezone_for_phone(phone: str = Query(...), city: str | None = None, state: str | None = None):
+    """The contact card's city/state when given (or found by phone), else
+    the area code."""
+    if city or state:
+        return {"timezone": guess_timezone(phone, city, state)}
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return {"timezone": await prospect_timezone(conn, phone)}
 
 
 async def create_appointment_row(payload: dict) -> dict:

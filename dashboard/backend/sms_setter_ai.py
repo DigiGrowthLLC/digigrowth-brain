@@ -47,7 +47,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from timezone_lookup import guess_timezone
+from timezone_lookup import prospect_timezone
 
 PLAYBOOK_PATH = Path(__file__).parent.parent.parent / "apptset-agent" / "context" / "sms-setter-playbook.md"
 
@@ -505,7 +505,7 @@ async def hold_offered_slots(conn, draft_id: int) -> int:
         offered = (details or {}).get("offered_times") or []
         if not offered or details.get("holds"):
             return 0
-        tz_name = guess_timezone(d["phone"])
+        tz_name = await prospect_timezone(conn, d["phone"])
         holds = await active_holds(conn)
         open_now = slots_for_thread(await open_slots_utc(conn), holds, d["phone"])
         await release_holds(conn, d["phone"])
@@ -616,7 +616,7 @@ async def build_queue(conn, limit: int = 5, phone: str | None = None) -> list[di
         msgs = await _thread_messages(conn, r["phone"])
         if not msgs:
             continue
-        tz_name = guess_timezone(r["phone"])
+        tz_name = await prospect_timezone(conn, r["phone"])
         last_inbound = max((m["sent_at"] for m in msgs if m["direction"] == "inbound"), default=None)
         items.append({
             "phone": r["phone"],
@@ -1011,7 +1011,8 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
     draft = normalize_draft(result)
     contact = dict(conv)
     await _resolve_template(conn, draft, contact)
-    await _guard_booking(conn, draft, guess_timezone(conv["phone"]), conv["phone"])
+    tz_name = await prospect_timezone(conn, conv["phone"], conv if conv["contact_id"] else None)
+    await _guard_booking(conn, draft, tz_name, conv["phone"])
     details = {k: draft[k] for k in ("template", "second_text", "booking_date", "booking_time", "email",
                                      "follow_up_date", "follow_up_time", "offered_times")}
     if draft["action"] in NOT_INTERESTED_ACTIONS:
@@ -1027,7 +1028,7 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
     # the auto-send below so routers/sms.py sees it and doesn't enroll the
     # thread in the DM Follow-Up sequence.
     if draft["action"] == "follow_up":
-        due = follow_up_due(draft, guess_timezone(conv["phone"]), datetime.now(timezone.utc))
+        due = follow_up_due(draft, tz_name, datetime.now(timezone.utc))
         details["follow_up_at"] = due.isoformat()
         await schedule_follow_up(conn, conv["phone"], due, draft["rationale"])
     else:
@@ -1108,7 +1109,7 @@ async def try_auto_send(conn, draft_id: int) -> str:
         # old backlog stays a draft for Dylan to judge.
         return await _note(conn, draft_id, f"not auto-sent: prospect's last text is over {AUTO_MAX_AGE_HOURS}h old")
 
-    tz_name = guess_timezone(d["phone"])
+    tz_name = await prospect_timezone(conn, d["phone"])
     local_hour = datetime.now(ZoneInfo(tz_name)).hour
     if not (AUTO_SEND_HOURS[0] <= local_hour < AUTO_SEND_HOURS[1]):
         return await _note(conn, draft_id, "held: outside 8am-8pm prospect time, will send in hours")
@@ -1180,7 +1181,8 @@ async def book_draft(conn, draft_id: int) -> str:
     conv = await conn.fetchrow(_CONV_SELECT + " WHERE sc.phone = $1", d["phone"])
     if not conv:
         return "book: thread not found"
-    result = await _auto_book(conn, d, details, dict(conv), guess_timezone(d["phone"]))
+    tz_name = await prospect_timezone(conn, d["phone"], conv if conv["contact_id"] else None)
+    result = await _auto_book(conn, d, details, dict(conv), tz_name)
     if result == "booked":
         await conn.execute(
             "UPDATE sms_ai_drafts SET details = details || jsonb_build_object('booked', true) WHERE id = $1",
@@ -1207,7 +1209,7 @@ async def notify_dylan_booking(conn, phone: str, contact: dict, details: dict) -
 
     try:
         to = await _setting(conn, ALERT_PHONE_KEY) or os.environ.get("DYLAN_ALERT_PHONE") or _DEFAULT_ALERT_PHONE
-        tz_name = guess_timezone(phone)
+        tz_name = await prospect_timezone(conn, phone, contact if contact.get("contact_id") else None)
         start = datetime.strptime(f"{details['booking_date']} {details['booking_time']}", "%Y-%m-%d %H:%M").replace(
             tzinfo=ZoneInfo(tz_name))
         theirs = start.strftime("%a %b %d, %I:%M %p").replace(" 0", " ")
