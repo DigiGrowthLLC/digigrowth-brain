@@ -43,6 +43,30 @@ import reminder_engine
 
 router = APIRouter()
 
+
+def follow_up_appointment_sql(alias: str = "ar") -> str:
+    """SQL predicate: TRUE when appointment row `alias` is a follow-up call
+    (e.g. the 2nd call of a two-call close) rather than a fresh booking —
+    the same contact already had an earlier, non-canceled appointment whose
+    start time had already passed when this one was booked. Follow-ups are
+    excluded from booking/show analytics (Dylan, 2026-10-02) so a two-call
+    close doesn't count as two appointments booked.
+
+    A prior appointment marked no_show doesn't qualify — rebooking someone
+    who never showed is a genuinely new booking attempt, and excluding it
+    would also drop that rebook's show from the show rate. Canceled priors
+    don't qualify either (no call happened; Calendly reschedules land as
+    cancel + new booking)."""
+    return f"""EXISTS (
+        SELECT 1 FROM appointment_reminders prior_ar
+        WHERE prior_ar.contact_id = {alias}.contact_id
+          AND prior_ar.id != {alias}.id
+          AND prior_ar.status != 'canceled'
+          AND prior_ar.outcome_show IS DISTINCT FROM 'no_show'
+          AND prior_ar.appointment_at <= {alias}.created_at
+    )"""
+
+
 # sequence key -> engine module + the columns that track its 3-touch drip,
 # shared by the /sequence/{sequence} list/add/remove endpoints below. The
 # "reminder" sequence isn't in here — it's a fixed 3-window (24h/6h/1h)
@@ -209,12 +233,23 @@ async def create_appointment_row(payload: dict) -> dict:
     # Deliberately does NOT set status='closed' — booking an appointment
     # should not close the conversation thread in the Inbox; the prospect
     # may still reply and the thread should stay open for that.
+    #
+    # Skipped entirely for a follow-up call (see follow_up_appointment_sql):
+    # the prospect's booking was already credited on their first call, and
+    # re-running this would hand a channel booked credit it never earned
+    # and could knock contacts.status back to 'appointment-booked'.
     contact_id = payload.get("contact_id")
     channel = payload.get("channel")
     if contact_id:
         try:
             pool = await get_pool()
             async with pool.acquire() as conn:
+                is_follow_up = await conn.fetchval(
+                    f"SELECT {follow_up_appointment_sql('ar')} FROM appointment_reminders ar WHERE ar.id = $1",
+                    row["id"],
+                )
+                if is_follow_up:
+                    return dict(row)
                 # Credit is keyed off the contact's own campaign tag, not a
                 # guess about which channel "actually" drove the booking.
                 # Self-service Calendly bookings (routers/calendly_webhooks.py)

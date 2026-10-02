@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter
 from db import get_pool
 from routers.content_tracking import vsl_funnel, loom_outreach_funnel
+from routers.appointments import follow_up_appointment_sql
 
 router = APIRouter()
 
@@ -194,6 +195,12 @@ async def _os_sales_stats(conn, days: int) -> dict:
     queue, the pipeline funnel above) — and excludes canceled appointments,
     which never count as a win or a booking.
 
+    Follow-up calls (e.g. the 2nd call of a two-call close — see
+    appointments.follow_up_appointment_sql) don't count as a discovery call
+    booked or as a show: the prospect was already counted on their first
+    call. Closes/revenue still count from any appointment, since the close
+    often gets marked on the follow-up call itself.
+
     Each metric windows on the timestamp that actually reflects when that
     thing happened, not a single blanket cutoff: discovery_calls on
     created_at (when booked), shows on outcome_show_at (when marked),
@@ -215,11 +222,12 @@ async def _os_sales_stats(conn, days: int) -> dict:
         "ar.status != 'canceled' AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)"
     )
     join = "LEFT JOIN contacts c ON c.id = ar.contact_id"
+    not_follow_up = f"NOT {follow_up_appointment_sql('ar')}"
 
     discovery_calls = await conn.fetchval(
         f"""
         SELECT COUNT(*) FROM appointment_reminders ar {join}
-        WHERE {where}
+        WHERE {where} AND {not_follow_up}
         AND ($1::timestamptz IS NULL OR ar.created_at >= $1)
         """,
         since,
@@ -236,7 +244,7 @@ async def _os_sales_stats(conn, days: int) -> dict:
     shows = await conn.fetchval(
         f"""
         SELECT COUNT(*) FROM appointment_reminders ar {join}
-        WHERE {where} AND ar.outcome_show = 'show'
+        WHERE {where} AND {not_follow_up} AND ar.outcome_show = 'show'
         AND ($1::timestamptz IS NULL OR {show_col} >= $1)
         """,
         since,
@@ -705,8 +713,8 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
       - video play: pressed play on their {loom} video (watch page 'play'
         beacon — email link scanners that only fetch the page don't count);
         rate is out of prospects who were sent a video
-      - booked: an appointment (not canceled) created after Touch 1, or the
-        email conversation marked booked
+      - booked: an appointment (not canceled, not a follow-up call) created
+        after Touch 1, or the email conversation marked booked
     """
     clauses, args = [
         "ehs.touch1_sent_at IS NOT NULL", "NOT ehs.exclude_from_analytics", "c.status IS DISTINCT FROM 'test'",
@@ -724,7 +732,8 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
             SELECT ehs.contact_id, ehs.touch1_sent_at, ehs.loom_url, c.email_opted_out, c.status,
                    EXISTS (SELECT 1 FROM appointment_reminders ar
                            WHERE ar.contact_id = ehs.contact_id AND ar.status != 'canceled'
-                             AND ar.created_at >= ehs.touch1_sent_at)
+                             AND ar.created_at >= ehs.touch1_sent_at
+                             AND NOT {follow_up_appointment_sql('ar')})
                    OR EXISTS (SELECT 1 FROM email_conversations ec
                               WHERE ec.contact_id = ehs.contact_id AND ec.booked_at IS NOT NULL) AS is_booked
             FROM email_handoff_state ehs
