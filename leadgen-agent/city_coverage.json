@@ -1033,11 +1033,11 @@
       "last_scraped_date": "2026-09-03"
     },
     "Grand Rapids, MI": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 109,
+      "qualified_count": 12,
+      "last_scraped_date": "2026-10-02"
     },
     "Peoria, AZ": {
       "status": "not_started",
