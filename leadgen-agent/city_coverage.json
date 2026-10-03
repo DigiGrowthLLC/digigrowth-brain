@@ -1020,9 +1020,9 @@
     },
     "Knoxville, TN": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 93,
-      "qualified_count": 5,
+      "term_index": 2,
+      "reviewed_count": 105,
+      "qualified_count": 6,
       "last_scraped_date": "2026-10-02"
     },
     "Augusta, GA": {
