@@ -1019,9 +1019,9 @@
       "last_scraped_date": "2026-09-03"
     },
     "Knoxville, TN": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 145,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 158,
       "qualified_count": 6,
       "last_scraped_date": "2026-10-02"
     },
