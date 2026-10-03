@@ -1006,9 +1006,9 @@
     },
     "Overland Park, KS": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 111,
-      "qualified_count": 17,
+      "term_index": 2,
+      "reviewed_count": 127,
+      "qualified_count": 18,
       "last_scraped_date": "2026-10-02"
     },
     "Columbus, GA": {
