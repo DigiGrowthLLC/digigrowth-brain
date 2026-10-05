@@ -75,6 +75,7 @@ Work in a scratch folder, e.g. `<scratchpad>/blueprint-<slug>/`.
    - Message match: the hero headline restates ad #1's promise. Their palette, their logo, 1-2 real photos (from `assets.json`, or a clean frame grabbed from their own video, cropped above any burned-in caption).
    - **Check every photo before using it.** Site hero images are often wide banners with a dark fade on one side for text overlay; dropped into a small frame they look like a dark sliver. Open the image and crop to the real subject.
    - **Social proof leads.** Structure per `cro-funnel-principles.md`: hero + one CTA + a "5.0 on Google" style line (only a rating the site itself shows) → trust bar → **a wall of 6 real reviews** → good-fit list → 3 real treatment approaches → short FAQ (price, insurance, location) → the same CTA again. Buttons are visual only (`href="#"`).
+   - Every section uses the same container width and left alignment (Dylan, 2026-10-05: a narrower, centered FAQ looked out of place). Scope row styles to the rows themselves (e.g. `.faq .w>div`), never a bare `.faq div`, which also hits the container and strips its padding.
    - Leave ~38px of top padding on the mobile header so the phone frame's notch doesn't clip the logo, and hide the page's scrollbar (`html{scrollbar-width:none}` + `::-webkit-scrollbar{display:none}`) so the desktop preview looks clean.
    - Inline CSS, no JS, no external requests (system font stack). Keep it under ~250 KB with photos. The `--p`/`--p-ink` brand variables don't reach inside the iframe, so set colors directly.
 
