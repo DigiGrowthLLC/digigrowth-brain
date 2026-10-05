@@ -39,9 +39,6 @@ a { color: inherit; }
 h1 { font-size: clamp(32px, 5.4vw, 58px); line-height: 1.06; margin: 14px auto 18px; max-width: 900px; letter-spacing: -.02em; }
 h1 .grad { background: linear-gradient(90deg, var(--cyan), var(--blue) 60%, #8f7bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .lede { color: var(--muted); font-size: 18px; max-width: 680px; margin: 0 auto; }
-.steps-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 30px; }
-.steps-nav a { text-decoration: none; font-size: 14px; padding: 9px 15px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass); transition: .2s; }
-.steps-nav a:hover { border-color: var(--blue); background: rgba(58,123,213,.16); }
 
 /* sections */
 section { padding: 84px 0; position: relative; }
@@ -143,7 +140,7 @@ section.alt { background: linear-gradient(180deg, var(--bg2), var(--bg)); border
 @keyframes pulse { 70% { box-shadow: 0 0 0 9px rgba(52,211,153,0); } 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); } }
 
 /* recovery */
-.rec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.rec-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
 .rc { padding: 22px; transition: .25s; }
 .rc:hover { transform: translateY(-4px); border-color: rgba(245,165,36,.5); }
 .rc .lab { display: flex; align-items: center; gap: 10px; font-weight: 600; margin-bottom: 4px; }
@@ -152,6 +149,39 @@ section.alt { background: linear-gradient(180deg, var(--bg2), var(--bg)); border
 .sms { background: #1f2a4d; border-radius: 18px 18px 18px 5px; padding: 12px 14px; font-size: 14.5px; line-height: 1.45; font-family: Inter, system-ui, sans-serif; max-width: 92%; }
 .sms + .sms { margin-top: 8px; }
 .sms.in { background: #2f6fe0; margin-left: auto; border-radius: 18px 18px 5px 18px; }
+
+/* video ads */
+.row-label { text-align: center; font-family: 'Share Tech Mono', monospace; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 18px; }
+.row-label.second { margin-top: 56px; }
+.ad-img.v { aspect-ratio: 9/16; background: #000; cursor: pointer; }
+.ad-img.v video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.snd { position: absolute; right: 10px; bottom: 10px; background: rgba(0,0,0,.65); color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 999px; pointer-events: none; }
+
+/* funnel: why + devices */
+.why { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0 0 48px; }
+.why .glass { padding: 20px; }
+.why .ic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: rgba(58,123,213,.18); font-size: 18px; margin-bottom: 10px; }
+.why h4 { margin: 0 0 6px; font-size: 16px; }
+.why p { margin: 0; color: var(--muted); font-size: 14px; }
+.devices { position: relative; padding-right: 150px; max-width: 1060px; margin: 0 auto; }
+.browser { border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 40px 90px rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); }
+.bar3 { display: flex; align-items: center; gap: 7px; padding: 10px 14px; background: #e9ebf0; }
+.bar3 i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; display: inline-block; }
+.bar3 i:nth-child(2) { background: #febc2e; } .bar3 i:nth-child(3) { background: #28c840; }
+.bar3 .url { margin-left: 12px; flex: 1; background: #fff; border-radius: 7px; padding: 5px 12px; font-size: 12px; color: #555; font-family: Inter, system-ui, sans-serif; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.vp { position: relative; width: 100%; aspect-ratio: 1280/760; overflow: hidden; background: #fff; }
+.vp iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 760px; border: 0; transform-origin: 0 0; }
+.devices .phone { position: absolute; right: 0; bottom: -40px; width: 270px; padding: 10px; border-radius: 40px; }
+.devices .phone::before { top: 17px; width: 74px; height: 20px; }
+.devices .screen { height: 540px; border-radius: 31px; }
+.ticks-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 76px; }
+
+/* reactivation */
+.react { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.mail { background: #fff; color: #1f2937; border-radius: 12px; overflow: hidden; font-family: Inter, system-ui, sans-serif; }
+.mail .mh { padding: 12px 16px; border-bottom: 1px solid #e5e7eb; font-size: 13px; display: grid; gap: 2px; }
+.mail .mh span { color: #111; font-weight: 600; font-size: 14.5px; }
+.mail .mb { padding: 14px 16px 18px; font-size: 14px; line-height: 1.55; white-space: pre-line; }
 
 /* close */
 .guar { text-align: center; padding: 48px 28px; background: radial-gradient(ellipse at top, rgba(58,123,213,.28), transparent 60%), #060b1e; border: 1px solid rgba(95,212,255,.3); border-radius: 26px; }
@@ -175,7 +205,11 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 30px
   .map-wrap, .split { grid-template-columns: 1fr; }
   .split.rev .copy { order: 0; }
   .ads { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
-  .rec-grid, .g-cards { grid-template-columns: 1fr; }
+  .rec-grid, .g-cards, .why, .react { grid-template-columns: 1fr; }
+  .devices { padding-right: 0; }
+  .devices .phone { position: relative; right: auto; bottom: auto; margin: 28px auto 0; width: 300px; }
+  .devices .screen { height: 600px; }
+  .ticks-row { grid-template-columns: 1fr; margin-top: 32px; }
   section { padding: 64px 0; }
 }
 @media (max-width: 480px) {
@@ -203,9 +237,6 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 30px
     <div class="kicker reveal">The AI Growth Engine · Patient Acquisition Blueprint</div>
     <h1 class="reveal">{{HERO_HEADLINE}}</h1>
     <p class="lede reveal">{{HERO_SUBHEAD}}</p>
-    <nav class="steps-nav reveal">
-      <a href="#engine">The engine</a><a href="#ads">1 · Ads</a><a href="#funnel">2 · Funnel</a><a href="#agent">3 · AI agent</a><a href="#recovery">4 · Nothing leaks</a>
-    </nav>
   </div>
 </header>
 
@@ -271,7 +302,8 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 30px
         <a class="ms glass reveal" href="#ads"><div class="ic">📣</div><div><h4>1 · Ads bring in new patients</h4><p>{{STEP1_BLURB}}</p></div></a>
         <a class="ms glass reveal" href="#funnel"><div class="ic">🧭</div><div><h4>2 · A funnel built to book</h4><p>{{STEP2_BLURB}}</p></div></a>
         <a class="ms glass reveal" href="#agent"><div class="ic">💬</div><div><h4>3 · The AI agent books the consult</h4><p>{{STEP3_BLURB}}</p></div></a>
-        <a class="ms glass rec reveal" href="#recovery"><div class="ic">↺</div><div><h4>4 · Everything else gets recycled</h4><p>{{STEP4_BLURB}}</p></div></a>
+        <a class="ms glass rec reveal" href="#reactivation"><div class="ic">♻️</div><div><h4>4 · Database reactivation</h4><p>{{STEP4_BLURB}}</p></div></a>
+        <a class="ms glass rec reveal" href="#recovery"><div class="ic">↺</div><div><h4>5 · Nothing leaks</h4><p>{{STEP5_BLURB}}</p></div></a>
       </div>
     </div>
   </div>
@@ -284,19 +316,27 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 30px
       <h2>{{ADS_HEADLINE}}</h2>
       <p>{{ADS_INTRO}}</p>
     </div>
+    {{ADS_VIDEO_BLOCK}}
     <div class="ads">{{ADS_HTML}}</div>
   </div>
 </section>
 
 <section id="funnel" class="alt">
-  <div class="wrap split">
-    <div class="copy reveal">
+  <div class="wrap">
+    <div class="head reveal">
       <div class="kicker step-tag"><span class="n">2</span> Funnel</div>
-      <h3>{{FUNNEL_HEADLINE}}</h3>
+      <h2>{{FUNNEL_HEADLINE}}</h2>
       <p>{{FUNNEL_INTRO}}</p>
-      <ul class="ticks">{{FUNNEL_POINTS}}</ul>
     </div>
-    <div class="reveal"><div class="phone"><div class="screen"><iframe title="Funnel preview for {{BUSINESS}}" loading="lazy" srcdoc="{{FUNNEL_SRCDOC}}"></iframe></div></div></div>
+    <div class="why">{{FUNNEL_WHY_HTML}}</div>
+    <div class="devices reveal">
+      <div class="browser">
+        <div class="bar3"><i></i><i></i><i></i><span class="url">{{FUNNEL_URL}}</span></div>
+        <div class="vp" id="deskVp"><iframe id="deskFrame" title="Desktop funnel preview for {{BUSINESS}}"></iframe></div>
+      </div>
+      <div class="phone"><div class="screen"><iframe id="phoneFrame" title="Mobile funnel preview for {{BUSINESS}}" loading="lazy" srcdoc="{{FUNNEL_SRCDOC}}"></iframe></div></div>
+    </div>
+    <ul class="ticks ticks-row reveal">{{FUNNEL_POINTS}}</ul>
   </div>
 </section>
 
@@ -320,10 +360,26 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 30px
   </div>
 </section>
 
-<section id="recovery" class="alt">
+<section id="reactivation" class="alt">
   <div class="wrap">
     <div class="head reveal">
-      <div class="kicker step-tag"><span class="n">4</span> Nothing leaks</div>
+      <div class="kicker step-tag"><span class="n">4</span> Database reactivation</div>
+      <h2>{{REACT_HEADLINE}}</h2>
+      <p>{{REACT_INTRO}}</p>
+    </div>
+    <div class="react">
+      <div class="rc glass reveal"><div class="lab"><span class="ic">💬</span>SMS campaign</div><div class="when">{{REACT_SMS_WHEN}}</div>{{REACT_SMS_HTML}}</div>
+      <div class="rc glass reveal"><div class="lab"><span class="ic">✉️</span>Email campaign</div><div class="when">{{REACT_EMAIL_WHEN}}</div>
+        <div class="mail"><div class="mh"><b>{{BUSINESS}}</b><span>{{REACT_EMAIL_SUBJECT}}</span></div><div class="mb">{{REACT_EMAIL_BODY}}</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="recovery">
+  <div class="wrap">
+    <div class="head reveal">
+      <div class="kicker step-tag"><span class="n">5</span> Nothing leaks</div>
       <h2>{{RECOVERY_HEADLINE}}</h2>
       <p>{{RECOVERY_INTRO}}</p>
     </div>
@@ -357,6 +413,25 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 30px
   }, { threshold: 0.12 });
   document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
 
+  // Desktop funnel preview: render the funnel at a real 1280px desktop
+  // width, scaled down to fit the browser frame.
+  var vp = document.getElementById('deskVp'), df = document.getElementById('deskFrame');
+  // Same funnel document as the phone preview, embedded once and copied here.
+  if (df) df.srcdoc = document.getElementById('phoneFrame').getAttribute('srcdoc');
+  function fit() { if (vp && df) df.style.transform = 'scale(' + (vp.clientWidth / 1280) + ')'; }
+  fit(); window.addEventListener('resize', fit);
+
+  // Video ads play muted on loop; tap one for sound (and mute the others).
+  document.querySelectorAll('.ad-img.v').forEach(function (box) {
+    var v = box.querySelector('video'), badge = box.querySelector('.snd');
+    box.addEventListener('click', function () {
+      var on = v.muted;
+      document.querySelectorAll('.ad-img.v video').forEach(function (o) { o.muted = true; });
+      document.querySelectorAll('.ad-img.v .snd').forEach(function (b) { b.textContent = '🔇 Tap for sound'; });
+      v.muted = !on; if (on) { v.currentTime = 0; v.play(); badge.textContent = '🔊 Sound on'; }
+    });
+  });
+
   // Live demo chat. Talks to /lp/<slug>/chat (routers/landing_pages.py ->
   // blueprint_chat.py). The browser keeps the transcript; nothing is stored.
   var SLUG = {{SLUG_JSON}};
@@ -386,7 +461,17 @@ footer { text-align: center; color: var(--muted); font-size: 13px; padding: 30px
       if (!r.ok) throw new Error('down');
       return r.json();
     }).then(function (d) {
-      t.textContent = d.reply; history.push({ role: 'assistant', content: d.reply });
+      // The agent writes its answer and its next question as separate
+      // texts; show them as separate bubbles, a beat apart, like a person.
+      history.push({ role: 'assistant', content: d.reply });
+      var parts = (d.replies && d.replies.length) ? d.replies : [d.reply];
+      t.textContent = parts[0];
+      return parts.slice(1).reduce(function (p, part) {
+        return p.then(function () {
+          var n = bubble('a', ''); n.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+          return new Promise(function (res) { setTimeout(function () { n.textContent = part; body.scrollTop = body.scrollHeight; res(); }, 900); });
+        });
+      }, Promise.resolve());
     }).catch(function (e) {
       t.remove(); history.pop();
       bubble('sys', e.message === 'slow' ? 'Lots of messages at once. Give it a minute and try again.'

@@ -35,13 +35,21 @@ _hits: dict[str, deque] = defaultdict(deque)
 
 _SYSTEM_PREAMBLE = """You are the AI patient coordinator for a real local physical therapy practice, \
 chatting on the practice's website with someone who might become a patient. Respond like a warm, \
-sharp front-desk team member, not a chatbot. Keep replies short: 1-3 sentences, plain text, no \
-markdown, no bullet lists.
+sharp front-desk team member texting from their phone, not a chatbot. Plain text, no markdown, no \
+lists.
+
+Every reply is one or two short texts, separated by a blank line:
+1. The answer to what they said or asked, in 1-2 short sentences (under 30 words). No question in \
+this text.
+2. Then, as its own separate text, one short question that moves the conversation forward. \
+Usually that's learning what's bothering them ("What's been bothering you?") if you don't know yet, \
+or offering to book the free consultation once you do.
+If there's nothing to answer (they just said hi, or told you their issue), send a brief \
+acknowledgement as text 1 and the question as text 2. When confirming a booking, a single text is \
+fine. Keep the whole reply under 45 words. Never more than one question.
 
 Your goal is to help the person and, when it fits, get them booked for the practice's free \
-consultation (or whatever first visit the practice offers, per the business info below). Answer \
-their question first, then ask one simple question that moves toward booking. One question per \
-message.
+consultation (or whatever first visit the practice offers, per the business info below).
 
 Rules (these override style):
 - Only state facts, services, pricing, insurance details, hours, offers, or locations that are \
@@ -53,8 +61,8 @@ weakness or numbness, a fall with a possible fracture), tell them to call 911 or
 - Don't promise outcomes ("we'll fix your back"). Describe how the practice helps, in its own \
 words from the business info.
 - The moment they want to book, call check_availability and offer exactly the two times it \
-returns, phrased as what's open: "I've got Tuesday at 9am or 4:30pm, would either of those work?" \
-Then once they pick, ask for their name and best phone number if you don't have them, and call \
+returns, phrased as what's open ("I've got Tuesday at 9am or 4:30pm."), then the question as its \
+own text ("Would either of those work?"). Once they pick, ask for their name and best phone number if you don't have them, and call \
 propose_appointment. Confirm it back in one friendly sentence.
 - If they can't make those times, call check_availability again with after_date set to the day \
 after the day you offered.
@@ -181,6 +189,12 @@ def build_system_prompt(business: str, context: str, tz_name: str | None) -> str
         f"{_SYSTEM_PREAMBLE}\nToday is {today}. Resolve relative dates like \"tomorrow\" yourself.\n"
         f"\n--- Business: {business} ---\n{context.strip()}\n"
     )
+
+
+def split_texts(reply_text: str) -> list[str]:
+    """One model reply -> the separate chat bubbles it was written as."""
+    parts = [p.strip() for p in reply_text.replace("\r", "").split("\n\n")]
+    return [p for p in parts if p] or [reply_text.strip()]
 
 
 async def reply(business: str, context: str, tz_name: str | None, history: list[dict]) -> str:

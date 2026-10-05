@@ -31,7 +31,7 @@ import blueprint_chat
 import r2_storage
 from db import get_pool
 
-router = APIRouter()          # public: /lp/{slug}, /lp/{slug}/hero-image, /lp/{slug}/chat
+router = APIRouter()          # public: /lp/{slug}, /lp/{slug}/hero-image, /lp/{slug}/chat, /lp/{slug}/a/{name}
 admin_router = APIRouter()    # authenticated: /landing-pages (create/list/approve)
 
 
@@ -62,6 +62,18 @@ class ChatRequest(BaseModel):
 class HeroPresignRequest(BaseModel):
     slug: str
     content_type: str = "image/png"
+
+
+class AssetPresignRequest(BaseModel):
+    name: str
+    content_type: str = "video/mp4"
+
+
+def _safe_asset_name(name: str) -> str:
+    safe = "".join(c for c in name.strip() if c.isalnum() or c in "-_.")
+    if not safe or safe.startswith(".") or ".." in safe:
+        raise HTTPException(status_code=400, detail="Invalid asset name")
+    return safe
 
 
 class HeroCompleteRequest(BaseModel):
@@ -114,6 +126,15 @@ async def complete_hero_image(slug: str, body: HeroCompleteRequest):
     if not row:
         raise HTTPException(status_code=404, detail="Landing page not found — create it first")
     return {"ok": True}
+
+
+@admin_router.post("/landing-pages/{slug}/assets/presign")
+async def presign_asset(slug: str, body: AssetPresignRequest):
+    """Presigned PUT for a page asset too heavy to inline in the HTML (the
+    Patient Acquisition Blueprint's video ads). Served back publicly via
+    /lp/{slug}/a/{name}."""
+    r2_key = f"landing-pages/{_safe_slug(slug)}/assets/{_safe_asset_name(body.name)}"
+    return {"upload_url": r2_storage.presign_put(r2_key, body.content_type), "r2_key": r2_key}
 
 
 @admin_router.post("/landing-pages/{slug}/approve")
@@ -289,4 +310,20 @@ async def landing_page_chat(slug: str, body: ChatRequest, request: Request):
     except Exception as e:
         print(f"[landing_pages] chat failed for {slug}: {e}")
         raise HTTPException(status_code=502, detail="Chat is unavailable right now")
-    return {"reply": text}
+    # "replies" = the separate texts the agent wrote (answer, then the next
+    # question); the page shows each as its own bubble. "reply" keeps the
+    # joined text for the transcript the browser sends back next turn.
+    return {"reply": text, "replies": blueprint_chat.split_texts(text)}
+
+
+@router.get("/lp/{slug}/a/{name}", include_in_schema=False)
+async def landing_page_asset(slug: str, name: str):
+    """Same redirect-to-presigned-R2 pattern as the hero image, for assets
+    uploaded via /landing-pages/{slug}/assets/presign."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        exists = await conn.fetchval("SELECT 1 FROM landing_pages WHERE slug = $1", slug)
+    if not exists:
+        raise HTTPException(status_code=404, detail="Page not found")
+    key = f"landing-pages/{_safe_slug(slug)}/assets/{_safe_asset_name(name)}"
+    return RedirectResponse(r2_storage.presign_get(key), status_code=302)

@@ -5,7 +5,7 @@ URL. Only ever called AFTER Dylan has approved the page inside the session —
 this script has no approval logic of its own, it trusts the caller.
 
 Usage:
-    python publish_landing_page.py <slug> <html_file> <business> [contact_id] [hero_image] [--chat-context <file>]
+    python publish_landing_page.py <slug> <html_file> <business> [contact_id] [hero_image] [--chat-context <file>] [--assets <dir>]
 
 <hero_image> is optional — omit it if the generator didn't produce one.
 --chat-context is for Patient Acquisition Blueprint pages only: the practice
@@ -31,6 +31,11 @@ def main():
     if "--chat-context" in sys.argv:
         i = sys.argv.index("--chat-context")
         chat_context = pathlib.Path(sys.argv[i + 1]).read_text(encoding="utf-8")
+        del sys.argv[i:i + 2]
+    assets_dir = None
+    if "--assets" in sys.argv:
+        i = sys.argv.index("--assets")
+        assets_dir = pathlib.Path(sys.argv[i + 1])
         del sys.argv[i:i + 2]
 
     if len(sys.argv) < 4:
@@ -85,6 +90,21 @@ def main():
             timeout=30,
         )
         complete_resp.raise_for_status()
+
+    # Heavy page assets (blueprint video ads) go to R2 and are served from
+    # /lp/<slug>/a/<name>; the page references them by that path.
+    if assets_dir and assets_dir.is_dir():
+        for f in sorted(assets_dir.iterdir()):
+            ctype = "video/mp4" if f.suffix.lower() == ".mp4" else "application/octet-stream"
+            pre = requests.post(
+                f"{dashboard_url}/api/landing-pages/{slug}/assets/presign",
+                json={"name": f.name, "content_type": ctype}, auth=auth, timeout=30,
+            )
+            pre.raise_for_status()
+            with open(f, "rb") as fh:
+                put = requests.put(pre.json()["upload_url"], data=fh, headers={"Content-Type": ctype}, timeout=300)
+            put.raise_for_status()
+            print(f"Uploaded asset {f.name} ({f.stat().st_size / 1e6:.1f} MB)")
 
     approve_resp = requests.post(
         f"{dashboard_url}/api/landing-pages/{slug}/approve",

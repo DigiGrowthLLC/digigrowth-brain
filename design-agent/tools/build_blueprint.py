@@ -23,16 +23,23 @@ blueprint.json shape (paths are relative to the json file's folder):
   "logo": "data:image/png;base64,..." | "logo.png" | null,
   "hero": {"headline": "... *gradient words* ...", "subhead": "..."},
   "engine_intro": "...",
-  "step_blurbs": ["ads", "funnel", "agent", "recovery"],
+  "step_blurbs": ["ads", "funnel", "agent", "database reactivation", "nothing leaks"],
   "ads": {"headline": "...", "intro": "...", "items": [
      {"image": "ads/ad1.png", "hook": "...", "primary_text": "...",
-      "headline": "...", "cta": "Book Now", "angle": "Top of funnel: ..."}]},
-  "funnel": {"headline": "...", "intro": "...", "points": ["..."], "html_file": "funnel.html"},
+      "headline": "...", "cta": "Book Now", "angle_label": "Top of funnel", "angle": "..."}],
+   "video_items": [{"video": "social/cut1.mp4", "poster_at": 1.5, "primary_text": "...",
+      "headline": "...", "cta": "Learn More", "angle_label": "...", "angle": "..."}]},
+  "funnel": {"headline": "...", "intro": "...", "points": ["..."], "html_file": "funnel.html",
+             "url": "advantagetherapy.vegas/free-consult",
+             "why": [{"icon": "🎯", "title": "...", "text": "..."}]},
   "agent": {"headline": "...", "intro": "...", "points": ["..."],
             "greeting": "...", "chips": ["...", "...", "..."]},
   "recovery": {"headline": "...", "intro": "...", "items": [
      {"icon": "📞", "label": "Missed call text-back", "when": "...",
       "messages": [{"from": "practice", "text": "..."}, {"from": "lead", "text": "..."}]}]},
+  "reactivation": {"headline": "...", "intro": "...", "sms_when": "...",
+      "sms": [{"from": "practice", "text": "..."}, {"from": "lead", "text": "..."}],
+      "email_when": "...", "email": {"subject": "...", "body": "..."}},
   "close_intro": "...",
   "chat_context": "facts the demo agent may use, from the scrape"
 }
@@ -43,6 +50,8 @@ import io
 import json
 import pathlib
 import re
+import shutil
+import subprocess
 import sys
 
 from PIL import Image
@@ -100,16 +109,61 @@ def main():
     logo_img = f'<img src="{logo}" alt="{esc(business)}">' if logo else ""
 
     ad_avatar = logo_img or esc(initials(business))
+
+    def ad_card(ad, media_html):
+        return f"""<div class="reveal"><div class="ad">
+  <div class="ad-top"><div class="ad-av">{ad_avatar}</div><div><div class="ad-name">{esc(business)}</div><div class="ad-sp">Sponsored · 🌐</div></div></div>
+  <div class="ad-copy">{esc(ad["primary_text"])}</div>
+  {media_html}
+  <div class="ad-foot"><div><div class="u">{esc(d.get("domain") or short)}</div><div class="h">{esc(ad["headline"])}</div></div><div class="ad-btn">{esc(ad.get("cta") or "Book Now")}</div></div>
+</div><div class="ad-angle">{esc(ad.get("angle_label") or "Angle")}: <b>{esc(ad.get("angle"))}</b></div></div>"""
+
     ads_html = []
     for ad in d["ads"]["items"]:
         img = image_data_uri(base / ad["image"])
         hook = f'<div class="ad-hook">{esc(ad["hook"])}</div>' if ad.get("hook") else ""
-        ads_html.append(f"""<div class="reveal"><div class="ad">
-  <div class="ad-top"><div class="ad-av">{ad_avatar}</div><div><div class="ad-name">{esc(business)}</div><div class="ad-sp">Sponsored · 🌐</div></div></div>
-  <div class="ad-copy">{esc(ad["primary_text"])}</div>
-  <div class="ad-img"><img src="{img}" alt="">{hook}</div>
-  <div class="ad-foot"><div><div class="u">{esc(d.get("domain") or short)}</div><div class="h">{esc(ad["headline"])}</div></div><div class="ad-btn">{esc(ad.get("cta") or "Book Now")}</div></div>
-</div><div class="ad-angle">{esc(ad.get("angle_label") or "Angle")}: <b>{esc(ad.get("angle"))}</b></div></div>""")
+        ads_html.append(ad_card(ad, f'<div class="ad-img"><img src="{img}" alt="">{hook}</div>'))
+
+    # Video ads (cut from the prospect's own social videos) are too heavy to
+    # inline: they're copied to out/assets/ and uploaded to R2 by
+    # publish_landing_page.py --assets, then served from /lp/<slug>/a/<name>.
+    # The poster frame IS inlined, so the card still looks right where the
+    # video can't load (e.g. the Claude Artifact preview).
+    videos_html = []
+    assets = out / "assets"
+    for i, ad in enumerate(d["ads"].get("video_items") or [], 1):
+        vsrc = base / ad["video"]
+        assets.mkdir(exist_ok=True)
+        name = f"video{i}.mp4"
+        shutil.copyfile(vsrc, assets / name)
+        poster_jpg = out / f"_poster{i}.jpg"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(ad.get("poster_at", 1)), "-i", str(vsrc),
+                        "-frames:v", "1", str(poster_jpg)], check=True)
+        poster = image_data_uri(poster_jpg, width=480, quality=70)
+        poster_jpg.unlink()
+        mb = vsrc.stat().st_size / 1e6
+        if mb > 8:
+            warnings.append(f"{vsrc.name} is {mb:.1f} MB; re-encode smaller for a phone-friendly page")
+        src_url = f"/lp/{d['slug']}/a/{name}"
+        videos_html.append(ad_card(ad, f'<div class="ad-img v"><video src="{src_url}" poster="{poster}" muted loop playsinline autoplay preload="metadata"></video><span class="snd">🔇 Tap for sound</span></div>'))
+
+    videos_block = ""
+    if videos_html:
+        videos_block = (f'<p class="row-label reveal">{esc(d["ads"].get("video_label") or "Cut from your own videos")}</p>'
+                        f'<div class="ads">{"".join(videos_html)}</div>'
+                        f'<p class="row-label second reveal">{esc(d["ads"].get("static_label") or "AI-generated concepts")}</p>')
+
+    why_html = "".join(
+        f'<div class="glass reveal"><div class="ic">{esc(w.get("icon") or "🎯")}</div><h4>{esc(w["title"])}</h4><p>{esc(w["text"])}</p></div>'
+        for w in d["funnel"].get("why") or [])
+
+    react = d["reactivation"]
+    react_sms = []
+    for m in react["sms"]:
+        if GSM7_BAD.search(m["text"]):
+            warnings.append(f'non-GSM-7 character in reactivation SMS: {m["text"][:50]}...')
+        cls = "sms in" if m.get("from") == "lead" else "sms"
+        react_sms.append(f'<div class="{cls}">{esc(m["text"])}</div>')
 
     funnel_doc = (base / d["funnel"]["html_file"]).read_text(encoding="utf-8")
 
@@ -139,9 +193,12 @@ def main():
         "HERO_SUBHEAD": esc(d["hero"]["subhead"]),
         "ENGINE_INTRO": esc(d["engine_intro"]),
         "STEP1_BLURB": esc(blurbs[0]), "STEP2_BLURB": esc(blurbs[1]),
-        "STEP3_BLURB": esc(blurbs[2]), "STEP4_BLURB": esc(blurbs[3]),
+        "STEP3_BLURB": esc(blurbs[2]), "STEP4_BLURB": esc(blurbs[3]), "STEP5_BLURB": esc(blurbs[4]),
         "ADS_HEADLINE": esc(d["ads"]["headline"]), "ADS_INTRO": esc(d["ads"]["intro"]),
+        "ADS_VIDEO_BLOCK": videos_block,
         "ADS_HTML": "".join(ads_html),
+        "FUNNEL_WHY_HTML": why_html,
+        "FUNNEL_URL": esc(d["funnel"].get("url") or (d.get("domain") or "yourpractice.com") + "/free-consult"),
         "FUNNEL_HEADLINE": esc(d["funnel"]["headline"]), "FUNNEL_INTRO": esc(d["funnel"]["intro"]),
         "FUNNEL_POINTS": li(d["funnel"]["points"]),
         "FUNNEL_SRCDOC": html.escape(funnel_doc, quote=True),
@@ -151,6 +208,10 @@ def main():
         "CHAT_CHIPS": "".join(f'<button type="button" class="chip">{esc(c)}</button>' for c in d["agent"]["chips"]),
         "RECOVERY_HEADLINE": esc(d["recovery"]["headline"]), "RECOVERY_INTRO": esc(d["recovery"]["intro"]),
         "RECOVERY_HTML": "".join(rec_html),
+        "REACT_HEADLINE": esc(react["headline"]), "REACT_INTRO": esc(react["intro"]),
+        "REACT_SMS_WHEN": esc(react.get("sms_when")), "REACT_SMS_HTML": "".join(react_sms),
+        "REACT_EMAIL_WHEN": esc(react.get("email_when")),
+        "REACT_EMAIL_SUBJECT": esc(react["email"]["subject"]), "REACT_EMAIL_BODY": esc(react["email"]["body"]),
         "CLOSE_INTRO": esc(d["close_intro"]),
         # JSON inside <script>: escape "</" so page text can't close the tag.
         "SLUG_JSON": json.dumps(d["slug"]).replace("</", "<\\/"),
@@ -169,7 +230,9 @@ def main():
     kb = len(page.encode("utf-8")) / 1024
     if kb > 2500:
         warnings.append(f"page is {kb:.0f} KB, heavy for a texted link; shrink the funnel's embedded photos")
-    print(f"Built {out / 'page.html'} ({kb:.0f} KB), {len(ads_html)} ads, {len(rec_html)} recovery cards")
+    print(f"Built {out / 'page.html'} ({kb:.0f} KB), {len(videos_html)} video ads, {len(ads_html)} static ads, {len(rec_html)} recovery cards")
+    if videos_html:
+        print(f"Video assets: {assets} (publish with --assets {assets})")
     print(f"Chat context: {out / 'chat_context.txt'} ({len(d['chat_context'])} chars)")
     for w in warnings:
         print(f"WARNING: {w}")
