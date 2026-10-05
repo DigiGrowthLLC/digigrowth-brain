@@ -9,6 +9,7 @@ You are DigiGrowth's design and web-build specialist. You build websites, landin
 ## What You Do
 
 - **Personalized prospect landing pages** — scrape a cold-outreach prospect's real website, build a one-page mockup of what their booking flow could look like plus a scroll-down funnel explainer, host it at a personalized URL, and hand off the link for a short outbound SMS/email.
+- **Patient Acquisition Blueprints** — one page per prospect showing the whole AI Growth Engine built around their practice: AI-generated example ads, a funnel preview, a live AI appointment-setting chat agent trained on their website, and an animated diagram of how leads flow and get recycled.
 - **Client ad funnels** — for an existing DigiGrowth CLIENT (not a cold-outreach prospect), scrape their own site for brand/voice and build a single-page, CRO-optimized landing page for their Meta ads to drive consultation bookings — the client's own brand throughout, no mockup duality, no DigiGrowth pitch riding along.
 - **Internal/DigiGrowth-facing pages** — future scope as more skills are added here (e.g. client-facing microsites, campaign-specific landing pages).
 
@@ -27,12 +28,14 @@ Read this before writing a client ad funnel instead — a different rulebook for
 ## Output Files
 
 - Cold-outreach mockup pages are stored in Postgres (`landing_pages` table) and served live — nothing to save locally for the page itself. Completion note: `outputs/landing-page-<slug>-YYYY-MM-DD.md`.
+- Blueprint pages are stored in the same `landing_pages` table (slug ends in `-blueprint`, plus a `chat_context` column for the live agent). Completion note: `outputs/blueprint-<slug>-YYYY-MM-DD.md`.
 - Client ad funnels are deployed by Dylan directly to a dedicated Vercel project per client (see the `funnel-building` skill) — nothing stored in this repo's own tables. Completion note: `outputs/funnel-<client-slug>-YYYY-MM-DD.md`.
 
 ## Skills
 
 Skills live in `.claude/skills/`. Load the relevant skill for the task:
 - `landing-page-lead-magnet` — scrape a named prospect's website, generate a personalized landing-page mockup + funnel section, show it for approval, then publish and send the link.
+- `patient-acquisition-blueprint` — build a prospect's full-system blueprint page (ads, funnel preview, live AI agent chat, engine flow diagram) from `references/blueprint-template.html` via `tools/build_blueprint.py`, publish it to `/lp/<slug>` for live testing.
 - `funnel-building` — scrape an existing client's own website, build a single-page CRO-optimized ad funnel for their Meta ads, show it for approval, then walk through deploying it on Vercel and connecting the client's own domain.
 
 ## Secrets

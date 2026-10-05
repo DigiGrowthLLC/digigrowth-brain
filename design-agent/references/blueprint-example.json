@@ -1,0 +1,137 @@
+{
+ "_note": "Worked example for the patient-acquisition-blueprint skill. Peak Motion is a FICTIONAL practice; reuse the structure and length per field, never the copy. Image paths are relative to the json's own folder.",
+ "slug": "peak-motion-pt-blueprint",
+ "business": "Peak Motion Physical Therapy",
+ "business_short": "Peak Motion",
+ "domain": "peakmotionpt.com",
+ "brand": {
+  "primary": "#0f766e",
+  "primary_text": "#ffffff"
+ },
+ "logo": null,
+ "hero": {
+  "headline": "How Peak Motion fills its schedule with *10-20 new patients* in 6 weeks",
+  "subhead": "This is the exact system we'd run for your practice: the ads, the funnel, the AI agent that books the consults, and the recovery loop that makes sure no lead is wasted."
+ },
+ "engine_intro": "New leads, old leads and missed calls all land with one AI agent that replies in seconds and books the consult. Anyone who doesn't book, no-shows or finishes care gets recycled back into reactivation instead of forgotten.",
+ "step_blurbs": [
+  "Targeted ads put Peak Motion in front of active adults in Denver who want to get back to running and training.",
+  "Every click lands on a page built around one offer: the free discovery visit.",
+  "The agent texts and chats with every lead in seconds, answers questions and books them in.",
+  "Missed calls, no-shows and unbooked leads get followed up automatically, so nothing leaks."
+ ],
+ "ads": {
+  "headline": "Ads written around the patients you already help",
+  "intro": "Example creatives built with AI from what's on your site. In a real launch we test several angles and double down on whatever books the most consults.",
+  "items": [
+   {
+    "image": "ads/ad1.png",
+    "primary_text": "Started running again and your knee had other plans? Our Doctors of Physical Therapy build return-to-run plans one-on-one.",
+    "headline": "Free 20-minute discovery visit",
+    "cta": "Book Now",
+    "angle_label": "Top of funnel",
+    "angle": "return-to-running",
+    "hook": "Back to running, without the knee pain"
+   },
+   {
+    "image": "ads/ad2.png",
+    "primary_text": "A full hour, one-on-one, with the same Doctor of Physical Therapy every visit.",
+    "headline": "60 minutes with a DPT, not 15",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel",
+    "angle": "one-on-one time"
+   },
+   {
+    "image": "ads/ad3.png",
+    "primary_text": "Out of network? We give you superbills so you can submit for reimbursement.",
+    "headline": "Cash-pay, superbills provided",
+    "cta": "Book Now",
+    "angle_label": "Bottom of funnel",
+    "angle": "insurance objection"
+   }
+  ]
+ },
+ "funnel": {
+  "headline": "One page, one offer, one button",
+  "intro": "Ad clicks never land on your homepage. They land on a page that says back exactly what the ad promised and asks for one thing.",
+  "points": [
+   "Headline matches the ad they just clicked",
+   "Your real services, reviews and photos",
+   "One action: book the free discovery visit",
+   "The AI agent picks up the second they opt in"
+  ],
+  "html_file": "funnel.html"
+ },
+ "agent": {
+  "headline": "An agent that answers in seconds, at 11pm, on a Sunday",
+  "intro": "The practice that replies first usually wins the patient. This agent texts every new lead within seconds, answers their questions from your own website and books the consult on your calendar.",
+  "points": [
+   "Knows your services, offer and policies",
+   "Never invents prices or medical advice",
+   "Offers two real times and books the one they pick",
+   "Hands off to your team whenever it should"
+  ],
+  "greeting": "Hi! Thanks for reaching out to Peak Motion. What's going on that you'd like help with?",
+  "chips": [
+   "My knee hurts when I run",
+   "Do you take insurance?",
+   "Can I book a visit this week?"
+  ]
+ },
+ "recovery": {
+  "headline": "Every lead that doesn't book gets another shot",
+  "intro": "Most practices lose more patients to slow follow-up than to competitors. These run automatically.",
+  "items": [
+   {
+    "icon": "📞",
+    "label": "Missed call text-back",
+    "when": "Seconds after a call goes unanswered",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hey, this is Peak Motion PT, sorry we missed your call! Are you looking to book a visit, or did you have a question?"
+     },
+     {
+      "from": "lead",
+      "text": "trying to see if you can look at my shoulder"
+     }
+    ]
+   },
+   {
+    "icon": "⏳",
+    "label": "Unbooked lead follow-up",
+    "when": "Day 2 after an opt-in that didn't book",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi Jess, still want help with that knee? I have a couple of openings tomorrow if you want one."
+     }
+    ]
+   },
+   {
+    "icon": "🚫",
+    "label": "No-show recovery",
+    "when": "15 minutes after a missed consult",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi Mark, we missed you today! Want me to find you another time this week?"
+     }
+    ]
+   },
+   {
+    "icon": "♻️",
+    "label": "Database reactivation",
+    "when": "Old leads and past patients, every few months",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi Sarah, it's been a while since your last visit at Peak Motion. How's the back holding up? We have a few check-up spots open this month."
+     }
+    ]
+   }
+  ]
+ },
+ "close_intro": "We're running this pilot with a handful of practices to build case studies. Here's what we commit to.",
+ "chat_context": "Peak Motion Physical Therapy, Denver CO. Cash-pay, one-on-one 60 minute sessions with a Doctor of Physical Therapy. Services: sports injury rehab, back and neck pain, post-surgical rehab (ACL, rotator cuff), dry needling. Offer: free 20-minute discovery visit, in clinic. Out of network with insurance; provides superbills."
+}

@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{BUSINESS}} · Patient Acquisition Blueprint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Shell for design-agent's patient-acquisition-blueprint skill. Filled by
+   tools/build_blueprint.py. Don't hand-edit a built page; change this file
+   or the blueprint.json and rebuild. */
+:root {
+  --bg: #090f26; --bg2: #0d1533; --ink: #eef2ff; --muted: #9aa6c9; --line: rgba(140,165,255,.16);
+  --glass: rgba(255,255,255,.045); --blue: #3a7bd5; --cyan: #5fd4ff; --amber: #f5a524; --green: #34d399;
+  --p: {{BRAND_PRIMARY}}; --p-ink: {{BRAND_PRIMARY_TEXT}};
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Space Grotesk', system-ui, sans-serif; line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+img { max-width: 100%; display: block; }
+a { color: inherit; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+.mono { font-family: 'Share Tech Mono', monospace; }
+.bar { background: #050919; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); text-align: center; padding: 9px 16px; }
+.bar b { color: var(--ink); font-weight: 600; }
+
+/* hero */
+.hero { position: relative; padding: 72px 0 56px; overflow: hidden; }
+.hero::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(140,165,255,.14) 1px, transparent 1px); background-size: 26px 26px; mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%); }
+.orb { position: absolute; width: 560px; height: 560px; border-radius: 50%; filter: blur(90px); opacity: .45; background: radial-gradient(circle, var(--blue), transparent 65%); top: -220px; left: 50%; transform: translateX(-50%); animation: drift 14s ease-in-out infinite alternate; }
+@keyframes drift { to { transform: translate(-38%, 40px) scale(1.12); } }
+.hero-inner { position: relative; text-align: center; }
+.lockup { display: inline-flex; align-items: center; gap: 14px; padding: 10px 18px; border: 1px solid var(--line); border-radius: 999px; background: var(--glass); backdrop-filter: blur(10px); margin-bottom: 26px; }
+.lockup img { height: 30px; width: auto; }
+.lockup .x { color: var(--muted); font-size: 13px; }
+.lockup .dg { font-weight: 700; letter-spacing: .02em; }
+.kicker { font-family: 'Share Tech Mono', monospace; color: var(--cyan); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+h1 { font-size: clamp(32px, 5.4vw, 58px); line-height: 1.06; margin: 14px auto 18px; max-width: 900px; letter-spacing: -.02em; }
+h1 .grad { background: linear-gradient(90deg, var(--cyan), var(--blue) 60%, #8f7bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lede { color: var(--muted); font-size: 18px; max-width: 680px; margin: 0 auto; }
+.steps-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 30px; }
+.steps-nav a { text-decoration: none; font-size: 14px; padding: 9px 15px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass); transition: .2s; }
+.steps-nav a:hover { border-color: var(--blue); background: rgba(58,123,213,.16); }
+
+/* sections */
+section { padding: 84px 0; position: relative; }
+section.alt { background: linear-gradient(180deg, var(--bg2), var(--bg)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.head { text-align: center; max-width: 720px; margin: 0 auto 44px; }
+.head h2 { font-size: clamp(26px, 3.6vw, 40px); line-height: 1.12; margin: 10px 0 12px; letter-spacing: -.01em; }
+.head p { color: var(--muted); margin: 0; font-size: 17px; }
+.step-tag { display: inline-flex; align-items: center; gap: 8px; }
+.step-tag .n { width: 26px; height: 26px; border-radius: 8px; display: inline-grid; place-items: center; background: linear-gradient(135deg, var(--blue), #6a5cff); color: #fff; font-size: 13px; font-family: 'Share Tech Mono', monospace; }
+.glass { background: var(--glass); border: 1px solid var(--line); border-radius: 20px; backdrop-filter: blur(12px); }
+
+/* engine map */
+.map-wrap { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 36px; align-items: center; }
+.map { padding: 18px; }
+.map svg { width: 100%; height: auto; display: block; }
+.node rect { fill: rgba(20,32,74,.85); stroke: rgba(140,165,255,.35); stroke-width: 1.5; }
+.node.src rect { stroke: rgba(95,212,255,.55); }
+.node.agent rect { fill: url(#agentFill); stroke: var(--cyan); stroke-width: 2; filter: url(#glow); }
+.node.win rect { stroke: rgba(52,211,153,.7); fill: rgba(16,58,52,.7); }
+.node text { fill: var(--ink); font-family: 'Space Grotesk', sans-serif; text-anchor: middle; }
+.node .t { font-size: 21px; font-weight: 700; }
+.node .s { font-size: 15px; fill: var(--muted); }
+.flow { fill: none; stroke: var(--blue); stroke-width: 3; stroke-dasharray: 8 9; animation: dash 1.1s linear infinite; }
+.flow.rec { stroke: var(--amber); }
+@keyframes dash { to { stroke-dashoffset: -17; } }
+.lbl { font-family: 'Share Tech Mono', monospace; font-size: 16px; fill: var(--muted); }
+.lbl.rec { fill: var(--amber); }
+.dot { fill: var(--cyan); }
+.dot.rec { fill: var(--amber); }
+.map-steps { display: grid; gap: 14px; }
+.ms { display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 16px 18px; text-decoration: none; transition: .2s; }
+.ms:hover { transform: translateX(4px); border-color: var(--blue); }
+.ms .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: rgba(58,123,213,.18); }
+.ms.rec .ic { background: rgba(245,165,36,.16); }
+.ms h4 { margin: 0 0 3px; font-size: 16px; }
+.ms p { margin: 0; color: var(--muted); font-size: 14px; }
+
+/* ads */
+.ads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
+.ad { background: #fff; color: #1c1e21; border-radius: 14px; overflow: hidden; font-family: Inter, system-ui, sans-serif; box-shadow: 0 24px 60px rgba(0,0,0,.45); transition: transform .25s; }
+.ad:hover { transform: translateY(-6px); }
+.ad-top { display: flex; align-items: center; gap: 9px; padding: 11px 12px 8px; }
+.ad-av { width: 34px; height: 34px; border-radius: 50%; background: var(--p); color: var(--p-ink); display: grid; place-items: center; font-weight: 700; font-size: 14px; overflow: hidden; flex: none; }
+.ad-av img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.ad-name { font-weight: 600; font-size: 14px; line-height: 1.2; }
+.ad-sp { font-size: 12px; color: #65676b; }
+.ad-copy { font-size: 14px; padding: 0 12px 10px; line-height: 1.4; }
+.ad-img { position: relative; aspect-ratio: 4/5; background: #ddd; overflow: hidden; }
+.ad-img img { width: 100%; height: 100%; object-fit: cover; }
+.ad-hook { position: absolute; left: 12px; right: 12px; top: 14px; background: rgba(10,12,20,.78); color: #fff; font-weight: 700; font-size: 19px; line-height: 1.2; padding: 12px 14px; border-radius: 12px; text-align: center; backdrop-filter: blur(4px); }
+.ad-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: #f0f2f5; }
+.ad-foot .u { font-size: 11px; color: #65676b; text-transform: uppercase; }
+.ad-foot .h { font-weight: 600; font-size: 14px; line-height: 1.25; }
+.ad-btn { background: #e4e6eb; border-radius: 6px; padding: 8px 12px; font-weight: 600; font-size: 13px; white-space: nowrap; }
+.ad-angle { margin-top: 12px; font-size: 13px; color: var(--muted); text-align: center; }
+.ad-angle b { color: var(--cyan); font-weight: 500; }
+
+/* phone */
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: center; }
+.split.rev .copy { order: 2; }
+.phone { width: 340px; max-width: 100%; margin: 0 auto; border-radius: 46px; padding: 12px; background: linear-gradient(145deg, #2a3150, #0b1024); box-shadow: 0 40px 90px rgba(0,0,0,.55), inset 0 0 0 1.5px rgba(255,255,255,.12); position: relative; }
+.phone::before { content: ""; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 92px; height: 24px; border-radius: 14px; background: #000; z-index: 2; }
+.screen { border-radius: 36px; overflow: hidden; background: #fff; height: 640px; }
+.screen iframe { width: 100%; height: 100%; border: 0; display: block; }
+.copy h3 { font-size: 26px; margin: 10px 0 12px; line-height: 1.15; }
+.copy p { color: var(--muted); }
+.ticks { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 12px; }
+.ticks li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; }
+.ticks li::before { content: "✓"; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: rgba(52,211,153,.15); color: var(--green); font-weight: 700; font-size: 14px; }
+
+/* chat */
+.chat { width: 100%; max-width: 420px; margin: 0 auto; background: #fff; color: #111827; border-radius: 22px; overflow: hidden; box-shadow: 0 40px 90px rgba(0,0,0,.5); font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; height: 600px; }
+.chat-h { background: var(--p); color: var(--p-ink); padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+.chat-h .av { width: 40px; height: 40px; border-radius: 50%; background: #fff; display: grid; place-items: center; overflow: hidden; flex: none; color: #111; font-weight: 700; }
+.chat-h .av img { width: 82%; height: 82%; object-fit: contain; }
+.chat-h .nm { font-weight: 600; font-size: 15px; line-height: 1.2; }
+.chat-h .st { font-size: 12px; opacity: .85; display: flex; align-items: center; gap: 6px; }
+.chat-h .st i { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: inline-block; }
+.chat-b { flex: 1; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 9px; background: #f6f7fb; }
+.msg { max-width: 82%; padding: 10px 13px; border-radius: 16px; font-size: 14.5px; line-height: 1.42; white-space: pre-wrap; word-wrap: break-word; animation: pop .22s ease-out; }
+@keyframes pop { from { opacity: 0; transform: translateY(6px); } }
+.msg.a { background: #fff; border: 1px solid #e5e7eb; border-bottom-left-radius: 5px; align-self: flex-start; }
+.msg.u { background: var(--p); color: var(--p-ink); border-bottom-right-radius: 5px; align-self: flex-end; }
+.msg.sys { align-self: center; background: none; color: #6b7280; font-size: 12px; text-align: center; max-width: 92%; }
+.typing { display: inline-flex; gap: 4px; }
+.typing span { width: 7px; height: 7px; border-radius: 50%; background: #9ca3af; animation: blink 1.2s infinite; }
+.typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 60%, 100% { opacity: .3; } 30% { opacity: 1; } }
+.chips { display: flex; gap: 7px; overflow-x: auto; padding: 10px 12px 0; background: #fff; scrollbar-width: none; }
+.chip { flex: none; border: 1px solid #d1d5db; background: #fff; border-radius: 999px; padding: 6px 11px; font-size: 13px; cursor: pointer; color: #374151; font-family: inherit; }
+.chip:hover { border-color: var(--p); }
+.chat-f { display: flex; gap: 8px; padding: 10px 12px 12px; background: #fff; }
+.chat-f input { flex: 1; border: 1px solid #d1d5db; border-radius: 999px; padding: 11px 15px; font-size: 15px; font-family: inherit; outline: none; min-width: 0; }
+.chat-f input:focus { border-color: var(--p); }
+.chat-f button { border: 0; background: var(--p); color: var(--p-ink); width: 44px; height: 44px; border-radius: 50%; font-size: 18px; cursor: pointer; flex: none; }
+.chat-f button:disabled { opacity: .5; }
+.live { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--green); font-family: 'Share Tech Mono', monospace; letter-spacing: .08em; }
+.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 rgba(52,211,153,.6); animation: pulse 1.8s infinite; display: inline-block; vertical-align: middle; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 9px rgba(52,211,153,0); } 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); } }
+
+/* recovery */
+.rec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.rc { padding: 22px; transition: .25s; }
+.rc:hover { transform: translateY(-4px); border-color: rgba(245,165,36,.5); }
+.rc .lab { display: flex; align-items: center; gap: 10px; font-weight: 600; margin-bottom: 4px; }
+.rc .lab .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: rgba(245,165,36,.15); }
+.rc .when { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+.sms { background: #1f2a4d; border-radius: 18px 18px 18px 5px; padding: 12px 14px; font-size: 14.5px; line-height: 1.45; font-family: Inter, system-ui, sans-serif; max-width: 92%; }
+.sms + .sms { margin-top: 8px; }
+.sms.in { background: #2f6fe0; margin-left: auto; border-radius: 18px 18px 5px 18px; }
+
+/* close */
+.guar { text-align: center; padding: 48px 28px; background: radial-gradient(ellipse at top, rgba(58,123,213,.28), transparent 60%), #060b1e; border: 1px solid rgba(95,212,255,.3); border-radius: 26px; }
+.guar h2 { font-size: clamp(28px, 4vw, 44px); margin: 12px 0 10px; line-height: 1.1; }
+.guar .big { background: linear-gradient(90deg, var(--cyan), #8f7bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.g-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 30px 0 34px; }
+.g-cards .glass { padding: 20px; text-align: center; }
+.g-cards .ck { width: 38px; height: 38px; margin: 0 auto 10px; border-radius: 12px; display: grid; place-items: center; background: linear-gradient(135deg, var(--green), #10b981); color: #062; font-weight: 800; }
+.g-cards h4 { margin: 0 0 6px; }
+.g-cards p { margin: 0; color: var(--muted); font-size: 14px; }
+.cta { display: inline-block; text-decoration: none; background: linear-gradient(135deg, var(--blue), #6a5cff); color: #fff; font-weight: 700; padding: 16px 30px; border-radius: 14px; font-size: 17px; box-shadow: 0 14px 40px rgba(58,123,213,.45); transition: .2s; }
+.cta:hover { transform: translateY(-2px); box-shadow: 0 18px 50px rgba(58,123,213,.6); }
+.scarce { margin-top: 14px; color: var(--muted); font-size: 14px; }
+.scarce i { display: inline-block; vertical-align: middle; width: 8px; height: 8px; border-radius: 50%; background: var(--amber); margin-right: 7px; animation: pulse 1.8s infinite; }
+footer { text-align: center; color: var(--muted); font-size: 13px; padding: 30px 16px 40px; }
+
+.reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
+.reveal.in { opacity: 1; transform: none; }
+
+@media (max-width: 900px) {
+  .map-wrap, .split { grid-template-columns: 1fr; }
+  .split.rev .copy { order: 0; }
+  .ads { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
+  .rec-grid, .g-cards { grid-template-columns: 1fr; }
+  section { padding: 64px 0; }
+}
+@media (max-width: 480px) {
+  .wrap { padding: 0 16px; }
+  .hero { padding: 48px 0 40px; }
+  h1 { font-size: 30px; }
+  .lede { font-size: 16px; }
+  .head h2 { font-size: 24px; }
+  .head p { font-size: 15px; }
+  .copy h3 { font-size: 21px; }
+  .map { padding: 8px; }
+  .screen { height: 580px; }
+  .chat { height: 560px; }
+  .guar { padding: 36px 18px; }
+}
+</style>
+</head>
+<body>
+<div class="bar" id="top"><b>Patient Acquisition Blueprint</b> · a preview DigiGrowth built for {{BUSINESS}}. The ads, funnel and agent below are examples, not live campaigns.</div>
+
+<header class="hero">
+  <div class="orb"></div>
+  <div class="wrap hero-inner">
+    <div class="lockup reveal">{{LOGO_LOCKUP}}<span class="x">×</span><span class="dg">DigiGrowth</span></div>
+    <div class="kicker reveal">The AI Growth Engine · Patient Acquisition Blueprint</div>
+    <h1 class="reveal">{{HERO_HEADLINE}}</h1>
+    <p class="lede reveal">{{HERO_SUBHEAD}}</p>
+    <nav class="steps-nav reveal">
+      <a href="#engine">The engine</a><a href="#ads">1 · Ads</a><a href="#funnel">2 · Funnel</a><a href="#agent">3 · AI agent</a><a href="#recovery">4 · Nothing leaks</a>
+    </nav>
+  </div>
+</header>
+
+<section id="engine" class="alt">
+  <div class="wrap">
+    <div class="head reveal">
+      <div class="kicker">How the whole thing works</div>
+      <h2>Every lead source runs into one agent. Nothing falls out of the system.</h2>
+      <p>{{ENGINE_INTRO}}</p>
+    </div>
+    <div class="map-wrap">
+      <div class="map glass reveal">
+        <svg viewBox="0 0 600 880" role="img" aria-label="Flow: database reactivation, new ad leads and missed calls all feed the AI appointment agent, which books consults that become new patients. Unbooked leads, no-shows and finished patients loop back into database reactivation.">
+          <defs>
+            <linearGradient id="agentFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#16306e"/><stop offset="1" stop-color="#1b1f5e"/></linearGradient>
+            <filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#3a7bd5"/></marker>
+            <marker id="ahr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#f5a524"/></marker>
+          </defs>
+
+          <!-- forward flow -->
+          <path id="f1" class="flow" d="M110 132 C110 190, 200 190, 215 236" marker-end="url(#ah)"/>
+          <path id="f2" class="flow" d="M300 132 L300 236" marker-end="url(#ah)"/>
+          <path id="f3" class="flow" d="M490 132 C490 190, 400 190, 385 236" marker-end="url(#ah)"/>
+          <path id="f4" class="flow" d="M300 372 L300 476" marker-end="url(#ah)"/>
+          <path id="f5" class="flow" d="M300 572 L300 676" marker-end="url(#ah)"/>
+          <text class="lbl" x="314" y="430">books a consult</text>
+          <text class="lbl" x="314" y="630">shows up, starts care</text>
+
+          <!-- recycle lane: everything that doesn't convert goes back into reactivation -->
+          <path id="r1" class="flow rec" d="M130 306 L40 306"/>
+          <path id="r2" class="flow rec" d="M160 524 L40 524"/>
+          <path id="r3" class="flow rec" d="M160 724 L40 724"/>
+          <path id="r0" class="flow rec" d="M40 800 L40 150" marker-end="url(#ahr)"/>
+          <path class="flow rec" d="M40 800 L40 724"/>
+          <text class="lbl rec" x="50" y="296">unbooked</text>
+          <text class="lbl rec" x="56" y="514">no-show</text>
+          <text class="lbl rec" x="56" y="714">care ends</text>
+          <text class="lbl rec" x="22" y="836" text-anchor="start">↺ recycled into reactivation, never lost</text>
+
+          <!-- nodes -->
+          <g class="node src"><rect x="20" y="20" width="180" height="112" rx="16"/><text class="t" x="110" y="64">Database</text><text class="t" x="110" y="88">Reactivation</text><text class="s" x="110" y="114">old leads &amp; patients</text></g>
+          <g class="node src"><rect x="210" y="20" width="180" height="112" rx="16"/><text class="t" x="300" y="64">New Leads</text><text class="t" x="300" y="88">from Ads</text><text class="s" x="300" y="114">ads → funnel</text></g>
+          <g class="node src"><rect x="400" y="20" width="180" height="112" rx="16"/><text class="t" x="490" y="64">Missed</text><text class="t" x="490" y="88">Calls</text><text class="s" x="490" y="114">instant text-back</text></g>
+          <g class="node agent"><rect x="130" y="240" width="340" height="132" rx="20"/><text class="t" x="300" y="292" style="font-size:25px">AI Appointment Agent</text><text class="s" x="300" y="322">replies in seconds, 24/7</text><text class="s" x="300" y="347">by text + chat → books it</text></g>
+          <g class="node"><rect x="160" y="480" width="280" height="92" rx="16"/><text class="t" x="300" y="520">Booked Consult</text><text class="s" x="300" y="548">reminders cut no-shows</text></g>
+          <g class="node win"><rect x="160" y="680" width="280" height="92" rx="16"/><text class="t" x="300" y="720">New Patient</text><text class="s" x="300" y="748">at {{BUSINESS_SHORT}}</text></g>
+
+          <!-- moving leads -->
+          <circle class="dot" r="6"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#f1"/></animateMotion></circle>
+          <circle class="dot" r="6"><animateMotion dur="2.2s" begin=".6s" repeatCount="indefinite"><mpath href="#f2"/></animateMotion></circle>
+          <circle class="dot" r="6"><animateMotion dur="2.6s" begin="1.2s" repeatCount="indefinite"><mpath href="#f3"/></animateMotion></circle>
+          <circle class="dot" r="6"><animateMotion dur="2s" begin=".3s" repeatCount="indefinite"><mpath href="#f4"/></animateMotion></circle>
+          <circle class="dot" r="6"><animateMotion dur="2s" begin="1.1s" repeatCount="indefinite"><mpath href="#f5"/></animateMotion></circle>
+          <circle class="dot rec" r="5"><animateMotion dur="1.4s" begin=".4s" repeatCount="indefinite"><mpath href="#r1"/></animateMotion></circle>
+          <circle class="dot rec" r="5"><animateMotion dur="1.6s" begin="1s" repeatCount="indefinite"><mpath href="#r2"/></animateMotion></circle>
+          <circle class="dot rec" r="5"><animateMotion dur="1.6s" begin="1.6s" repeatCount="indefinite"><mpath href="#r3"/></animateMotion></circle>
+          <circle class="dot rec" r="5"><animateMotion dur="3.6s" repeatCount="indefinite"><mpath href="#r0"/></animateMotion></circle>
+          <circle class="dot rec" r="5"><animateMotion dur="3.6s" begin="1.8s" repeatCount="indefinite"><mpath href="#r0"/></animateMotion></circle>
+        </svg>
+      </div>
+      <div class="map-steps">
+        <a class="ms glass reveal" href="#ads"><div class="ic">📣</div><div><h4>1 · Ads bring in new patients</h4><p>{{STEP1_BLURB}}</p></div></a>
+        <a class="ms glass reveal" href="#funnel"><div class="ic">🧭</div><div><h4>2 · A funnel built to book</h4><p>{{STEP2_BLURB}}</p></div></a>
+        <a class="ms glass reveal" href="#agent"><div class="ic">💬</div><div><h4>3 · The AI agent books the consult</h4><p>{{STEP3_BLURB}}</p></div></a>
+        <a class="ms glass rec reveal" href="#recovery"><div class="ic">↺</div><div><h4>4 · Everything else gets recycled</h4><p>{{STEP4_BLURB}}</p></div></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ads">
+  <div class="wrap">
+    <div class="head reveal">
+      <div class="kicker step-tag"><span class="n">1</span> Ads</div>
+      <h2>{{ADS_HEADLINE}}</h2>
+      <p>{{ADS_INTRO}}</p>
+    </div>
+    <div class="ads">{{ADS_HTML}}</div>
+  </div>
+</section>
+
+<section id="funnel" class="alt">
+  <div class="wrap split">
+    <div class="copy reveal">
+      <div class="kicker step-tag"><span class="n">2</span> Funnel</div>
+      <h3>{{FUNNEL_HEADLINE}}</h3>
+      <p>{{FUNNEL_INTRO}}</p>
+      <ul class="ticks">{{FUNNEL_POINTS}}</ul>
+    </div>
+    <div class="reveal"><div class="phone"><div class="screen"><iframe title="Funnel preview for {{BUSINESS}}" loading="lazy" srcdoc="{{FUNNEL_SRCDOC}}"></iframe></div></div></div>
+  </div>
+</section>
+
+<section id="agent">
+  <div class="wrap split rev">
+    <div class="copy reveal">
+      <div class="kicker step-tag"><span class="n">3</span> AI appointment agent</div>
+      <h3>{{AGENT_HEADLINE}}</h3>
+      <p>{{AGENT_INTRO}}</p>
+      <ul class="ticks">{{AGENT_POINTS}}</ul>
+      <p style="margin-top:22px"><span class="live"><i></i> LIVE · TRY IT</span><br><span style="font-size:14px">Ask it anything a new patient would. It already knows {{BUSINESS_SHORT}}'s services from your website.</span></p>
+    </div>
+    <div class="reveal">
+      <div class="chat" id="chat">
+        <div class="chat-h"><div class="av">{{CHAT_AVATAR}}</div><div><div class="nm">{{BUSINESS}}</div><div class="st"><i></i> Patient coordinator · replies instantly</div></div></div>
+        <div class="chat-b" id="chatBody"></div>
+        <div class="chips" id="chips">{{CHAT_CHIPS}}</div>
+        <form class="chat-f" id="chatForm" autocomplete="off"><input id="chatIn" placeholder="Type a message…" maxlength="600" aria-label="Message"><button id="chatSend" aria-label="Send">➤</button></form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="recovery" class="alt">
+  <div class="wrap">
+    <div class="head reveal">
+      <div class="kicker step-tag"><span class="n">4</span> Nothing leaks</div>
+      <h2>{{RECOVERY_HEADLINE}}</h2>
+      <p>{{RECOVERY_INTRO}}</p>
+    </div>
+    <div class="rec-grid">{{RECOVERY_HTML}}</div>
+  </div>
+</section>
+
+<section id="book">
+  <div class="wrap">
+    <div class="guar reveal">
+      <div class="kicker">The AI Growth Engine guarantee</div>
+      <h2><span class="big">10-20 booked consultations</span><br>in your first 6 weeks.</h2>
+      <p style="color:var(--muted);max-width:620px;margin:0 auto">{{CLOSE_INTRO}}</p>
+      <div class="g-cards">
+        <div class="glass"><div class="ck">✓</div><h4>We work until it's hit</h4><p>If the guarantee isn't hit, we keep working for free until it is. No renegotiation.</p></div>
+        <div class="glass"><div class="ck">✓</div><h4>The fee is waived on our end</h4><p>You don't pay us anything for the pilot. We work for free until your results are hit.</p></div>
+        <div class="glass"><div class="ck">✓</div><h4>You come out ahead</h4><p>We stand behind the results. There's no version of this where you end up behind where you started.</p></div>
+      </div>
+      <a class="cta" href="https://calendly.com/dylanrg-digigrowthllc/30min">Book a 20-minute call to set this up</a>
+      <p class="scarce"><i></i>We're only taking on 3 practices for this program this month.</p>
+    </div>
+  </div>
+</section>
+
+<footer>Built for {{BUSINESS}} by DigiGrowth · digigrowthllc.com</footer>
+
+<script>
+(function () {
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+
+  // Live demo chat. Talks to /lp/<slug>/chat (routers/landing_pages.py ->
+  // blueprint_chat.py). The browser keeps the transcript; nothing is stored.
+  var SLUG = {{SLUG_JSON}};
+  var GREETING = {{CHAT_GREETING_JSON}};
+  var body = document.getElementById('chatBody'), form = document.getElementById('chatForm');
+  var input = document.getElementById('chatIn'), send = document.getElementById('chatSend');
+  var history = [{ role: 'assistant', content: GREETING }], busy = false;
+
+  function bubble(cls, text) {
+    var d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text;
+    body.appendChild(d); body.scrollTop = body.scrollHeight; return d;
+  }
+  bubble('a', GREETING);
+
+  function ask(text) {
+    text = (text || '').trim();
+    if (!text || busy) return;
+    busy = true; send.disabled = true; input.value = '';
+    bubble('u', text); history.push({ role: 'user', content: text });
+    var t = bubble('a', ''); t.innerHTML = '<span class="typing"><span></span><span></span><span></span></span>';
+    var tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) {}
+    fetch('/lp/' + encodeURIComponent(SLUG) + '/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history, timezone: tz })
+    }).then(function (r) {
+      if (r.status === 429) throw new Error('slow');
+      if (!r.ok) throw new Error('down');
+      return r.json();
+    }).then(function (d) {
+      t.textContent = d.reply; history.push({ role: 'assistant', content: d.reply });
+    }).catch(function (e) {
+      t.remove(); history.pop();
+      bubble('sys', e.message === 'slow' ? 'Lots of messages at once. Give it a minute and try again.'
+        : 'The live agent runs on the published blueprint link. Open that link to chat with it.');
+    }).finally(function () { busy = false; send.disabled = false; body.scrollTop = body.scrollHeight; });
+  }
+  form.addEventListener('submit', function (e) { e.preventDefault(); ask(input.value); });
+  document.querySelectorAll('.chip').forEach(function (c) {
+    c.addEventListener('click', function () { ask(c.textContent); });
+  });
+})();
+</script>
+</body>
+</html>

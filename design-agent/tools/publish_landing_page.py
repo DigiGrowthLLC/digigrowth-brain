@@ -5,9 +5,12 @@ URL. Only ever called AFTER Dylan has approved the page inside the session —
 this script has no approval logic of its own, it trusts the caller.
 
 Usage:
-    python publish_landing_page.py <slug> <html_file> <business> [contact_id] [hero_image]
+    python publish_landing_page.py <slug> <html_file> <business> [contact_id] [hero_image] [--chat-context <file>]
 
 <hero_image> is optional — omit it if the generator didn't produce one.
+--chat-context is for Patient Acquisition Blueprint pages only: the practice
+facts the page's live demo chat agent answers from (see
+dashboard/backend/blueprint_chat.py). Pages published without it have no chat.
 """
 import sys
 import subprocess
@@ -24,6 +27,12 @@ def doppler_secret(name):
 
 
 def main():
+    chat_context = None
+    if "--chat-context" in sys.argv:
+        i = sys.argv.index("--chat-context")
+        chat_context = pathlib.Path(sys.argv[i + 1]).read_text(encoding="utf-8")
+        del sys.argv[i:i + 2]
+
     if len(sys.argv) < 4:
         print("Usage: python publish_landing_page.py <slug> <html_file> <business> [contact_id] [hero_image]")
         sys.exit(1)
@@ -46,7 +55,8 @@ def main():
 
     create_resp = requests.post(
         f"{dashboard_url}/api/landing-pages",
-        json={"slug": slug, "business": business, "contact_id": contact_id, "html": html_text},
+        json={"slug": slug, "business": business, "contact_id": contact_id, "html": html_text,
+              "chat_context": chat_context},
         auth=auth,
         timeout=30,
     )

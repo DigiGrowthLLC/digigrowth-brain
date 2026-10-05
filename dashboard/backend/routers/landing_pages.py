@@ -27,10 +27,11 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
+import blueprint_chat
 import r2_storage
 from db import get_pool
 
-router = APIRouter()          # public: /lp/{slug}, /lp/{slug}/hero-image
+router = APIRouter()          # public: /lp/{slug}, /lp/{slug}/hero-image, /lp/{slug}/chat
 admin_router = APIRouter()    # authenticated: /landing-pages (create/list/approve)
 
 
@@ -48,6 +49,14 @@ class CreateRequest(BaseModel):
     html: str
     og_title: str = ""
     og_description: str = ""
+    # Blueprint pages only: practice context for the live demo chat agent.
+    # None leaves an existing value alone on re-publish.
+    chat_context: str | None = None
+
+
+class ChatRequest(BaseModel):
+    messages: list = []
+    timezone: str | None = None
 
 
 class HeroPresignRequest(BaseModel):
@@ -69,12 +78,14 @@ async def create_landing_page(body: CreateRequest):
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """INSERT INTO landing_pages (slug, contact_id, business, html, status)
-               VALUES ($1, $2, $3, $4, 'draft')
+            """INSERT INTO landing_pages (slug, contact_id, business, html, status, chat_context)
+               VALUES ($1, $2, $3, $4, 'draft', $5)
                ON CONFLICT (slug) DO UPDATE
-                 SET contact_id = $2, business = $3, html = $4
+                 SET contact_id = $2, business = $3, html = $4,
+                     chat_context = COALESCE($5, landing_pages.chat_context)
                RETURNING slug, business, status, created_at""",
             safe_slug, contact_id, body.business.strip() or None, body.html,
+            (body.chat_context or "").strip() or None,
         )
     return {
         "slug": row["slug"],
@@ -246,3 +257,36 @@ async def landing_page_hero_image(slug: str):
         raise HTTPException(status_code=404, detail="No hero image for this page")
     get_url = r2_storage.presign_get(row["hero_r2_key"])
     return RedirectResponse(get_url, status_code=302)
+
+
+@router.post("/lp/{slug}/chat", include_in_schema=False)
+async def landing_page_chat(slug: str, body: ChatRequest, request: Request):
+    """Live demo chat on a Patient Acquisition Blueprint page. Public (the
+    page itself is public), so it's rate limited and only answers for pages
+    that were published with a chat_context. See blueprint_chat.py."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT business, chat_context FROM landing_pages WHERE slug = $1", slug
+        )
+    if not row or not row["chat_context"]:
+        raise HTTPException(status_code=404, detail="No chat on this page")
+
+    ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip() or (
+        request.client.host if request.client else "unknown"
+    )
+    if blueprint_chat.rate_limited(ip, slug):
+        raise HTTPException(status_code=429, detail="Too many messages, try again in a bit")
+
+    history = blueprint_chat.clean_history(body.messages)
+    if not history:
+        raise HTTPException(status_code=400, detail="No message to reply to")
+
+    try:
+        text = await blueprint_chat.reply(
+            row["business"] or "the practice", row["chat_context"], body.timezone, history,
+        )
+    except Exception as e:
+        print(f"[landing_pages] chat failed for {slug}: {e}")
+        raise HTTPException(status_code=502, detail="Chat is unavailable right now")
+    return {"reply": text}

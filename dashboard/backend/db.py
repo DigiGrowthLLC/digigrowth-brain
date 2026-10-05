@@ -492,6 +492,9 @@ async def _create_schema(pool: asyncpg.Pool):
         # Migrate existing deployments — no-op if column already exists
         await conn.execute("""
             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plaid_category TEXT;
+            -- Patient Acquisition Blueprint pages: practice context for the
+            -- page's live demo chat agent (see blueprint_chat.py).
+            ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS chat_context TEXT;
             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recurring_id INTEGER REFERENCES recurring_transactions(id) ON DELETE SET NULL;
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS due_date DATE;
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS due_time TEXT;
