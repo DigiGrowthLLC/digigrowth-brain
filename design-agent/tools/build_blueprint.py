@@ -118,20 +118,17 @@ def main():
   <div class="ad-foot"><div><div class="u">{esc(d.get("domain") or short)}</div><div class="h">{esc(ad["headline"])}</div></div><div class="ad-btn">{esc(ad.get("cta") or "Book Now")}</div></div>
 </div><div class="ad-angle">{esc(ad.get("angle_label") or "Angle")}: <b>{esc(ad.get("angle"))}</b></div></div>"""
 
-    ads_html = []
-    for ad in d["ads"]["items"]:
-        img = image_data_uri(base / ad["image"])
-        hook = f'<div class="ad-hook">{esc(ad["hook"])}</div>' if ad.get("hook") else ""
-        ads_html.append(ad_card(ad, f'<div class="ad-img"><img src="{img}" alt="">{hook}</div>'))
-
-    # Video ads (cut from the prospect's own social videos) are too heavy to
-    # inline: they're copied to out/assets/ and uploaded to R2 by
+    # Video ads (the prospect's own social videos, or AI UGC/POV videos) are
+    # too heavy to inline: they're copied to out/assets/ and uploaded to R2 by
     # publish_landing_page.py --assets, then served from /lp/<slug>/a/<name>.
     # The poster frame IS inlined, so the card still looks right where the
     # video can't load (e.g. the Claude Artifact preview).
-    videos_html = []
     assets = out / "assets"
-    for i, ad in enumerate(d["ads"].get("video_items") or [], 1):
+    video_count = [0]
+
+    def video_media(ad):
+        video_count[0] += 1
+        i = video_count[0]
         vsrc = base / ad["video"]
         assets.mkdir(exist_ok=True)
         name = f"video{i}.mp4"
@@ -145,7 +142,20 @@ def main():
         if mb > 8:
             warnings.append(f"{vsrc.name} is {mb:.1f} MB; re-encode smaller for a phone-friendly page")
         src_url = f"/lp/{d['slug']}/a/{name}"
-        videos_html.append(ad_card(ad, f'<div class="ad-img v"><video src="{src_url}" poster="{poster}" muted loop playsinline autoplay preload="metadata"></video><span class="snd">🔇 Tap for sound</span></div>'))
+        return f'<div class="ad-img v"><video src="{src_url}" poster="{poster}" muted loop playsinline autoplay preload="metadata"></video><span class="snd">🔇 Tap for sound</span></div>'
+
+    videos_html = [ad_card(ad, video_media(ad)) for ad in d["ads"].get("video_items") or []]
+
+    # The AI row can mix formats: an item with "video" (AI UGC, POV) renders
+    # as a video card, an item with "image" as a static.
+    ads_html = []
+    for ad in d["ads"]["items"]:
+        if ad.get("video"):
+            ads_html.append(ad_card(ad, video_media(ad)))
+            continue
+        img = image_data_uri(base / ad["image"])
+        hook = f'<div class="ad-hook">{esc(ad["hook"])}</div>' if ad.get("hook") else ""
+        ads_html.append(ad_card(ad, f'<div class="ad-img"><img src="{img}" alt="">{hook}</div>'))
 
     videos_block = ""
     if videos_html:
@@ -190,7 +200,7 @@ def main():
         "BRAND_AVATAR_BG": esc(d["brand"].get("avatar_bg") or "#ffffff"),
         "LOGO_LOCKUP": logo_img or f'<span class="dg">{esc(business)}</span>',
         "HERO_HEADLINE": rich(d["hero"]["headline"]),
-        "HERO_SUBHEAD": esc(d["hero"]["subhead"]),
+        "HERO_SUBHEAD": esc(d["hero"].get("subhead")),
         "ENGINE_INTRO": esc(d["engine_intro"]),
         "STEP1_BLURB": esc(blurbs[0]), "STEP2_BLURB": esc(blurbs[1]),
         "STEP3_BLURB": esc(blurbs[2]), "STEP4_BLURB": esc(blurbs[3]), "STEP5_BLURB": esc(blurbs[4]),
@@ -230,8 +240,8 @@ def main():
     kb = len(page.encode("utf-8")) / 1024
     if kb > 2500:
         warnings.append(f"page is {kb:.0f} KB, heavy for a texted link; shrink the funnel's embedded photos")
-    print(f"Built {out / 'page.html'} ({kb:.0f} KB), {len(videos_html)} video ads, {len(ads_html)} static ads, {len(rec_html)} recovery cards")
-    if videos_html:
+    print(f"Built {out / 'page.html'} ({kb:.0f} KB), {len(videos_html)} own-video ads, {len(ads_html)} AI ads ({video_count[0] - len(videos_html)} video), {len(rec_html)} recovery cards")
+    if video_count[0]:
         print(f"Video assets: {assets} (publish with --assets {assets})")
     print(f"Chat context: {out / 'chat_context.txt'} ({len(d['chat_context'])} chars)")
     for w in warnings:

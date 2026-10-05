@@ -20,6 +20,7 @@ Spec (paths relative to the spec file):
                "lines": ["...", "..."], "button": "BOOK NOW", "footnote": "..."},
   "music": "work/bed.wav",                    # optional; plays under proof + end card only
   "crop_4x5_top": 120,                        # where the 4:5 window starts in the 1920 frame
+  "palette": {"card": [12,12,12], "accent": [208,11,20], "panel": [40,8,10]},  # optional RGB, default CrosaCore
   "caption_fixes": {"3pm.": "3pm,"}           # optional word replacements for the transcript
 }
 Writes <slug>-9x16.mp4 and <slug>-4x5.mp4 next to the spec, plus work/assembly/ intermediates.
@@ -66,6 +67,9 @@ def main():
     spec_path = Path(sys.argv[1]).resolve()
     base = spec_path.parent
     spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    if spec.get("palette"):  # another client's colors instead of the CrosaCore default
+        pal = spec["palette"]
+        ov.set_palette(*(tuple(pal[k]) if pal.get(k) else None for k in ("card", "accent", "panel")))
     work = base / "work" / "assembly"
     work.mkdir(parents=True, exist_ok=True)
     takes = [(base / t["path"], float(t["in"]), float(t["out"])) for t in spec["takes"]]
