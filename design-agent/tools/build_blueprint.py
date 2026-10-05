@@ -19,7 +19,7 @@ blueprint.json shape (paths are relative to the json file's folder):
   "slug": "peak-motion-pt-blueprint",
   "business": "Peak Motion Physical Therapy",
   "business_short": "Peak Motion",
-  "brand": {"primary": "#0f766e", "primary_text": "#ffffff"},
+  "brand": {"primary": "#0f766e", "primary_text": "#ffffff", "avatar_bg": "#ffffff"},
   "logo": "data:image/png;base64,..." | "logo.png" | null,
   "hero": {"headline": "... *gradient words* ...", "subhead": "..."},
   "engine_intro": "...",
@@ -131,6 +131,9 @@ def main():
         "BUSINESS_SHORT": esc(short),
         "BRAND_PRIMARY": esc(d["brand"]["primary"]),
         "BRAND_PRIMARY_TEXT": esc(d["brand"].get("primary_text") or "#ffffff"),
+        # Behind the logo in the round chat/ad avatars: match the logo's own
+        # background (a logo cut from a dark header needs a dark circle).
+        "BRAND_AVATAR_BG": esc(d["brand"].get("avatar_bg") or "#ffffff"),
         "LOGO_LOCKUP": logo_img or f'<span class="dg">{esc(business)}</span>',
         "HERO_HEADLINE": rich(d["hero"]["headline"]),
         "HERO_SUBHEAD": esc(d["hero"]["subhead"]),

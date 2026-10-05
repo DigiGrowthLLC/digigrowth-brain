@@ -39,7 +39,7 @@ Work in a scratch folder, e.g. `<scratchpad>/blueprint-<slug>/`.
    ```bash
    python design-agent/tools/scrape_prospect_site.py "<website>" "<scratch_dir>"
    ```
-   Same tool and same rules as `landing-page-lead-magnet` step 2: read `page_text.txt` closely (services, offer, insurance/cash-pay, hours, location, real reviews), take colors from `palette.json`, take the logo and photos from `assets.json` as data URIs (sanity-check an SVG logo's fill before trusting it).
+   Same tool and same rules as `landing-page-lead-magnet` step 2: read `page_text.txt` closely (services, offer, insurance/cash-pay, hours, location, real reviews), take colors from `palette.json`, take the logo and photos from `assets.json` as data URIs (sanity-check an SVG logo's fill before trusting it). **Look at `hero.png` too.** On Wix and similar builders the scraped "logo" is often a generic 24px site icon, and `palette.json` can miss the real brand color (it read white/blue on a black-and-red site). When that happens, crop the real wordmark out of `hero.png` with PIL, sample the brand color from its pixels, and set `brand.avatar_bg` to the logo's own background color (e.g. `#000000` for a logo cut from a black header).
 
 3. **Read before writing.**
    - `media-buying-agent/context/ad-creative-principles.md` (the ads follow its Working Checklist)
@@ -53,9 +53,9 @@ Work in a scratch folder, e.g. `<scratchpad>/blueprint-<slug>/`.
 5. **Generate 3 ad images.** Three distinct concepts, not variations, from their real services and patients:
    - 2 top-of-funnel (a specific patient avatar and situation: the weekend runner, the desk worker with neck pain, the post-op patient) and 1 bottom-of-funnel (one objection the site gives you material for: cash-pay/insurance, "will PT actually help", time).
    - Image prompt: the avatar unmistakable at a glance, in a believable PT clinic or real-life setting, concrete props for the vertical, harsh realism language (see the Ad Creative Realism memory). **No text in the image**: the hook goes on as an HTML overlay (`hook` field).
-   - Run from `content-agent/`:
+   - Run from `content-agent/`, under `doppler run` (the generator needs `FAL_KEY`). The three can run in parallel: put the commands in a small script with `&` + `wait` and run the script under one `doppler run`.
      ```bash
-     python tools/generate_creative.py image "<prompt>" --aspect 4:5 --out "<scratch_dir>/ads/ad1.png"
+     doppler run --project digigrowth --config prd -- python tools/generate_creative.py image "<prompt>" --model nano-banana-pro --aspect 4:5 --out "<scratch_dir>/ads/ad1.png"
      ```
      Use `--model nano-banana-pro` for any concept with a clear human face. If fal returns a 403 "TOP_UP", fal is out of credit: tell Dylan, don't silently swap in stock photos.
    - Look at each image (Read it, inline) before using it. Regenerate anything with mangled hands, gibberish signage or an off setting.

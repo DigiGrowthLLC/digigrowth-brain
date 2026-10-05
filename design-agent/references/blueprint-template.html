@@ -13,7 +13,7 @@
 :root {
   --bg: #090f26; --bg2: #0d1533; --ink: #eef2ff; --muted: #9aa6c9; --line: rgba(140,165,255,.16);
   --glass: rgba(255,255,255,.045); --blue: #3a7bd5; --cyan: #5fd4ff; --amber: #f5a524; --green: #34d399;
-  --p: {{BRAND_PRIMARY}}; --p-ink: {{BRAND_PRIMARY_TEXT}};
+  --p: {{BRAND_PRIMARY}}; --p-ink: {{BRAND_PRIMARY_TEXT}}; --av-bg: {{BRAND_AVATAR_BG}};
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
@@ -84,8 +84,8 @@ section.alt { background: linear-gradient(180deg, var(--bg2), var(--bg)); border
 .ad { background: #fff; color: #1c1e21; border-radius: 14px; overflow: hidden; font-family: Inter, system-ui, sans-serif; box-shadow: 0 24px 60px rgba(0,0,0,.45); transition: transform .25s; }
 .ad:hover { transform: translateY(-6px); }
 .ad-top { display: flex; align-items: center; gap: 9px; padding: 11px 12px 8px; }
-.ad-av { width: 34px; height: 34px; border-radius: 50%; background: var(--p); color: var(--p-ink); display: grid; place-items: center; font-weight: 700; font-size: 14px; overflow: hidden; flex: none; }
-.ad-av img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.ad-av { width: 34px; height: 34px; border-radius: 50%; background: var(--av-bg); color: var(--p-ink); display: grid; place-items: center; font-weight: 700; font-size: 14px; overflow: hidden; flex: none; }
+.ad-av img { width: 100%; height: 100%; object-fit: contain; background: var(--av-bg); }
 .ad-name { font-weight: 600; font-size: 14px; line-height: 1.2; }
 .ad-sp { font-size: 12px; color: #65676b; }
 .ad-copy { font-size: 14px; padding: 0 12px 10px; line-height: 1.4; }
@@ -115,7 +115,7 @@ section.alt { background: linear-gradient(180deg, var(--bg2), var(--bg)); border
 /* chat */
 .chat { width: 100%; max-width: 420px; margin: 0 auto; background: #fff; color: #111827; border-radius: 22px; overflow: hidden; box-shadow: 0 40px 90px rgba(0,0,0,.5); font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; height: 600px; }
 .chat-h { background: var(--p); color: var(--p-ink); padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
-.chat-h .av { width: 40px; height: 40px; border-radius: 50%; background: #fff; display: grid; place-items: center; overflow: hidden; flex: none; color: #111; font-weight: 700; }
+.chat-h .av { width: 40px; height: 40px; border-radius: 50%; background: var(--av-bg); display: grid; place-items: center; overflow: hidden; flex: none; color: #111; font-weight: 700; }
 .chat-h .av img { width: 82%; height: 82%; object-fit: contain; }
 .chat-h .nm { font-weight: 600; font-size: 15px; line-height: 1.2; }
 .chat-h .st { font-size: 12px; opacity: .85; display: flex; align-items: center; gap: 6px; }
