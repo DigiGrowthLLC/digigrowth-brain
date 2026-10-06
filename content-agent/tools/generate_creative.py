@@ -22,6 +22,8 @@ Models:
          veo31                 Veo 3.1 image-to-video: native audio + lip-synced speech from quoted
                                dialogue; accepts AI actor stills. 4, 6 or 8s per take, $0.40/s with
                                audio. Split longer scripts into takes from the same still
+         veo31-fast            Veo 3.1 Fast: same inputs and lip-sync, $0.15/s with audio (~60%
+                               cheaper). Default for UGC takes; use veo31 only if Fast looks off
 
   music  stable-audio          fal-ai/stable-audio: royalty-free instrumental bed, up to ~45s
                                (`music "<style prompt>" --duration 24 --out bed.wav`)
@@ -67,6 +69,7 @@ VIDEO_MODELS = {
     "kling": "fal-ai/kling-video/v2.1/standard/image-to-video",
     "seedance2": "bytedance/seedance-2.0/image-to-video",
     "veo31": "fal-ai/veo3.1/image-to-video",
+    "veo31-fast": "fal-ai/veo3.1/fast/image-to-video",
 }
 
 
@@ -136,7 +139,7 @@ def generate_video(image_path: Path, prompt: str, duration: str, model: str = "k
     payload = {"prompt": prompt, "image_url": _data_uri(image_path), "duration": duration}
     if model == "kling":
         payload["negative_prompt"] = "blur, distort, low quality, warped hands, extra fingers, text, watermark"
-    elif model == "veo31":
+    elif model in ("veo31", "veo31-fast"):
         payload.update({"duration": f"{duration}s", "resolution": resolution, "aspect_ratio": aspect,
                         "generate_audio": True})
     else:
@@ -151,14 +154,14 @@ def main():
     parser.add_argument("mode", choices=["image", "video", "music"])
     parser.add_argument("prompt")
     parser.add_argument("--model", help="image: flux (default) | nano-banana-pro; "
-                                        "video: kling (default) | seedance2 | veo31")
+                                        "video: kling (default) | seedance2 | veo31 | veo31-fast")
     parser.add_argument("--aspect", choices=list(ASPECT_TO_SIZE),
                         help="default 1:1 for images, 9:16 for video")
     parser.add_argument("--ref", action="append", default=[],
                         help="image mode, nano-banana-pro: reference image(s) to keep (repeatable)")
     parser.add_argument("--image", help="video mode: the approved still to animate")
     parser.add_argument("--duration", default="5",
-                        help="video mode: seconds (kling: 5 or 10; seedance2: 4-15; veo31: 4, 6, 8)")
+                        help="video mode: seconds (kling: 5 or 10; seedance2: 4-15; veo31/veo31-fast: 4, 6, 8)")
     parser.add_argument("--resolution", default="1080p", help="video mode, seedance2: 720p | 1080p")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
