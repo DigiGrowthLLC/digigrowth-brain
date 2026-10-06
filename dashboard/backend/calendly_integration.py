@@ -359,6 +359,22 @@ async def find_slot_scheduling_url(
         return None
 
 
+async def cancel_event(token: str, event_uri: str) -> None:
+    """Cancels a scheduled event as the host (POST {event_uri}/cancellation).
+    Calendly always emails the invitee a cancellation notice for this; the
+    API has no option to suppress it. No reason is sent, so the notice
+    carries none. The invitee.canceled webhook that follows reports
+    canceler_type "host", so _handle_invitee_canceled stays silent on our
+    side. An event that's already canceled counts as success."""
+    async with httpx.AsyncClient(timeout=10) as http:
+        resp = await http.post(f"{event_uri.rstrip('/')}/cancellation", headers=_headers(token), json={})
+    if resp.status_code in (200, 201, 204):
+        return
+    if "already" in resp.text.lower() and "cancel" in resp.text.lower():
+        return
+    raise RuntimeError(f"Calendly cancel failed ({resp.status_code}): {resp.text.strip()[:300]}")
+
+
 class RequiredQuestionUnrecognized(Exception):
     """Raised when the event type has a required custom question
     create_booking can't confidently answer — better to refuse and let

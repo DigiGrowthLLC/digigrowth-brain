@@ -90,9 +90,20 @@ export default function AppointmentsPanel() {
     ? rows.filter(r => new Date(r.appointment_at).getTime() + PAST_GRACE_MS <= Date.now())
     : rows;
 
-  const cancel = async (id) => {
-    if (!confirm("Cancel reminders for this appointment?")) return;
-    await fetch(API(`/appointment-reminders/${id}/cancel`), { method: "POST" }).catch(() => {});
+  // Our own texts/emails stay silent either way. Canceling in Calendly too
+  // stops Calendly's own reminders, but Calendly always emails the invitee a
+  // cancellation notice for that (its API can't suppress it), so it's asked
+  // per appointment.
+  const cancel = async (row) => {
+    if (!confirm("Cancel this appointment? (No texts or emails go out from the OS.)")) return;
+    const alsoCalendly = !!row.calendly_event_uri && confirm(
+      "Also cancel it in Calendly?\n\nOK = cancel in Calendly too (Calendly will email them a cancellation notice and stop its reminders).\nCancel = OS only (Calendly booking stays live)."
+    );
+    try {
+      const res = await fetch(API(`/appointment-reminders/${row.id}/cancel${alsoCalendly ? "?cancel_calendly=true" : ""}`), { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (data.calendly_error) alert(`Canceled in the OS, but the Calendly cancel failed:\n${data.calendly_error}`);
+    } catch {}
     load();
   };
 
@@ -145,7 +156,7 @@ export default function AppointmentsPanel() {
                 </td>
                 <td style={{ padding: "10px 14px" }}>
                   {row.status === "scheduled" && (
-                    <button onClick={() => cancel(row.id)} style={{
+                    <button onClick={() => cancel(row)} style={{
                       background: "rgba(220,60,60,0.1)", border: "1px solid rgba(220,60,60,0.3)",
                       color: "#dc3c3c", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer",
                     }}>Cancel</button>

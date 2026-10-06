@@ -26,6 +26,7 @@ reuse the exact same columns/engines above; they don't introduce a new send
 path, just manual control over the existing one.
 """
 
+import os
 from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -34,6 +35,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from db import get_pool
 from timezone_lookup import guess_timezone, prospect_timezone, US_TIMEZONES
+import calendly_integration
 import cancel_sequence
 import client_appointment_sequence
 import client_booking_notification
@@ -534,7 +536,7 @@ async def update_appointment(appointment_id: int, payload: dict):
 
 
 @router.post("/appointment-reminders/{appointment_id}/cancel")
-async def cancel_appointment(appointment_id: int, notify: bool = False):
+async def cancel_appointment(appointment_id: int, notify: bool = False, cancel_calendly: bool = False):
     """Marks the appointment canceled, and only kicks off the cancellation-
     recovery drip (cancel_sequence.py) when notify=True — stamps canceled_at,
     the clock that sequence's 3-touch drip counts its 0h/24h/72h delays from,
@@ -551,7 +553,16 @@ async def cancel_appointment(appointment_id: int, notify: bool = False):
     elsewhere, e.g. by phone) must never re-contact them about it. Only
     routers/calendly_webhooks.py's _handle_invitee_canceled passes
     notify=True, and only when Calendly reports the invitee (not the host)
-    as who actually canceled it."""
+    as who actually canceled it.
+
+    cancel_calendly=True (the internal Appointments tab's opt-in checkbox)
+    also cancels the linked Calendly event on Dylan's own account, so
+    Calendly stops sending its own reminders. Calendly emails the invitee a
+    cancellation notice for that and the API can't suppress it; our own
+    sequences still stay silent. Runs after the local cancel, so the
+    invitee.canceled webhook it triggers finds the row already resolved. A
+    Calendly failure doesn't undo the local cancel; it comes back as
+    calendly_error for the UI to show."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -594,7 +605,26 @@ async def cancel_appointment(appointment_id: int, notify: bool = False):
         except Exception as e:
             print(f"[appointments] cancel touch 1 failed for {appointment_id}: {e}")
 
-    return {"ok": True}
+    result = {"ok": True}
+    if cancel_calendly:
+        result["calendly_canceled"] = False
+        try:
+            if not row["calendly_event_uri"]:
+                raise RuntimeError("this appointment has no linked Calendly event")
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                token = await conn.fetchval(
+                    "SELECT value FROM dialer_settings WHERE key = 'dylan_calendly_api_token'",
+                ) or os.environ.get("DYLAN_CALENDLY_API_TOKEN")
+            if not token:
+                raise RuntimeError("no Calendly token saved for Dylan's account")
+            await calendly_integration.cancel_event(token, row["calendly_event_uri"])
+            result["calendly_canceled"] = True
+        except Exception as e:
+            print(f"[appointments] Calendly cancel failed for {appointment_id}: {e}")
+            result["calendly_error"] = str(e)
+
+    return result
 
 
 def _validate_sequence(sequence: str):
