@@ -1,0 +1,44 @@
+{
+  "_note": "Reusable AI video footage. Every clip here says and shows nothing practice-specific (no city, no business name, no prices or offer details), so it can be customized per prospect with tools/library_ad.py: their colors, their real Google review card, their CTA end card. Only add footage that passes that test. Talking takes are trimmed to the usable speech.",
+  "items": {
+    "ugc-tried-everything": {
+      "type": "ugc",
+      "take": "ugc-tried-everything/take.mp4",
+      "still": "ugc-tried-everything/actor.jpg",
+      "says": "Real talk. I've done the massages, the adjustments, even months of PT, and my back still flares up every week.",
+      "actor": "Man, early 40s, grey t-shirt, selfie in a parked car; palm trees and desert mountains outside (reads Sun Belt / Southwest).",
+      "fits": "Any practice. Angle: chronic pain, tried everything else. Pick a review about finally getting results after other care failed.",
+      "funnel_stage": "Top of funnel",
+      "hook": "Tried massage, adjustments AND PT?",
+      "caption_fixes": {"They'll": "Real"},
+      "source": "Veo 3.1 take 1, Advantage Therapy blueprint 2026-10-05"
+    },
+    "ugc-caregiver-mom": {
+      "type": "ugc",
+      "take": "ugc-caregiver-mom/take.mp4",
+      "still": "ugc-caregiver-mom/actor.jpg",
+      "says": "Driving my mom to PT three times a week after her knee replacement? Honestly, it was a second job.",
+      "actor": "Woman, late 40s, navy quarter-zip, selfie in an SUV parked in a suburban driveway.",
+      "fits": "ONLY practices that offer in-home / mobile PT (the payoff is 'PT that comes to the house'). Pick a review about in-home convenience.",
+      "funnel_stage": "Top of funnel",
+      "hook": "PT at Mom's house",
+      "caption_fixes": {},
+      "caution": "Same AI actor as CrosaCore's caregiver ad (Austin). Don't use it for another practice in the Austin market.",
+      "source": "Veo 3.1 take 1, CrosaCore caregiver concept 2026-10-05"
+    },
+    "pov-rushed-pt": {
+      "type": "pov",
+      "clips": ["pov-rushed-pt/clip1.mp4", "pov-rushed-pt/clip2.mp4", "pov-rushed-pt/clip3.mp4"],
+      "beats": [
+        "POV: a 15-minute PT visit, and the therapist is juggling 3 other patients",
+        "Week 8. Still doing band exercises alone. Still in pain.",
+        null
+      ],
+      "closer_hint": "Beat 3 is the practice's own line over hands-on care, from their real facts, e.g. 'At <Practice>, every visit is a full hour. One-on-one. Hands-on.'",
+      "shows": "1: busy insurance-style clinic, a patient waiting while the therapist works with someone else. 2: a woman alone on a mat with a red band. 3: gloved hands-on manual therapy on a lower back, therapist's face not shown.",
+      "fits": "Cash-pay or one-on-one practices (the contrast is rushed, crowded PT). Pick a review about fewer visits / real hands-on time.",
+      "funnel_stage": "Bottom of funnel",
+      "source": "Kling image-to-video from nano-banana-pro stills, Advantage Therapy blueprint 2026-10-05"
+    }
+  }
+}

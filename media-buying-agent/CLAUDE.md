@@ -40,6 +40,12 @@ ads, or launch unpaused. Creative upload via the connector isn't enabled on clie
   finished captioned 9:16 + 4:5 video ads from a `spec.json` (see the skill's "AI UGC Video Ads" loop);
   `tools/assemble_pov_ad.py` builds the silent POV text-on-video format (scene clips + text cards + real
   review + end card) the same way. Both take a `palette` for a client's colors.
+- **Reuse AI video footage instead of regenerating it.** `video-library/` holds generic AI clips
+  (talking takes with no city/practice/offer in them, POV scene clips) catalogued in
+  `video-library/library.json`. `tools/library_ad.py practice.json out/` turns them into a finished
+  ad for any practice: their colors, a real Google review card, their CTA end card. Default to this
+  for prospect/blueprint ads; generate new footage only when Dylan asks or nothing fits, script it
+  without practice-specific words, and add it to the library.
 - **Research competitors** — scan the live Meta Ad Library for a vertical to see what's actually
   performing (structure competitors are spending the most on, sustained over time) and worth
   replicating, via the `research-competitors` skill. Standalone, or as the research step inside
