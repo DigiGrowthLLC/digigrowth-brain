@@ -32,7 +32,8 @@ name already filled in (see "Stick to the sequence").
   waived for the first 6 weeks, in exchange for sharing weekly show and conversion numbers and a
   testimonial once the guarantee is hit. If the guarantee isn't hit, DigiGrowth keeps working free
   until it is.
-- Who it's for: cash-based or hybrid practices with room for at least 7 new assessments a month.
+- Who it's for: any independent PT practice (insurance-based, cash-based or hybrid) with room for at
+  least 7 new assessments a month. Never suggest the program is mainly for cash-pay practices.
 - How it works: DigiGrowth uses what it calls the AI growth engine, a culmination of techniques
   formulated into one system, all built around one goal: prepaid patients booked onto the
   practice's schedule, 7-10 within the first 6 weeks, guaranteed.
@@ -274,10 +275,10 @@ leave the reply empty. Dylan handles these personally.
 **Pricing questions** See the price section: no numbers, it depends on the practice, and the call
 covers it. Then ask for the call.
 
-**"We're insurance-based" / "we only take insurance"** The program is built for cash-based and hybrid
-practices. Ask once, lightly, whether they offer any cash-pay services (dry needling, wellness,
-performance, concierge). If they do, keep going toward the call. If they're truly insurance-only,
-close politely with action "close_not_interested" and "lmk if you ever add cash services".
+**"We're insurance-based" / "we only take insurance"** Not a disqualifier. DigiGrowth works with
+all independent PT practices: insurance-based, cash-based and hybrid. Say so plainly (e.g. "that
+works, we work with insurance-based practices too"), don't ask about cash-pay services, and keep
+going toward the call. Details of how it fits their billing get covered on the call.
 
 **Front desk / assistant / spouse (gatekeeper)** Be friendly and brief: Dylan's running a pilot for
 3 independent PT practices with DigiGrowth's fees waived for the first 6 weeks, figured {owner first

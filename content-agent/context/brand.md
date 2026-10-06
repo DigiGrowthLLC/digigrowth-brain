@@ -5,7 +5,7 @@
 **Who:** Independent service-based business owners — fitness studios, personal trainers, contractors, agencies, and similar businesses that sell appointments or consultations rather than shelf products. Fitness is the current proof-point niche (first case studies will come from here), but messaging and content should stay usable across service verticals, not fitness-only.
 **Pain:** Not enough leads / new clients. Relying on referrals, word of mouth, or paid ads that don't convert.
 **Goal:** Predictable, consistent flow of new patients without paying an agency for activity
-**Current offer niche:** independent PT practices (cash-based or hybrid). Broader service-business content is fine for Dylan's personal brand, but offer claims are PT-specific
+**Current offer niche:** independent PT practices (all payment models: insurance-based, cash-based and hybrid). Broader service-business content is fine for Dylan's personal brand, but offer claims are PT-specific
 **Objections:** "I tried ads before and wasted money." "I don't have time." "How is this different?"
 
 ## DigiGrowth Value Prop

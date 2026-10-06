@@ -1,7 +1,7 @@
 # DigiGrowth
 
 **Type:** Patient acquisition agency
-**Niche:** Independent physical therapy practices (cash-based or hybrid, plan of care $1,500+)
+**Niche:** Independent physical therapy practices (insurance-based, cash-based or hybrid; plan of care $1,500+)
 **Stage:** Early revenue: first client (CrosaCore) live, launching the pay-per-booking offer
 
 ## Core Service (offer as of 2026-10-06, full terms in `context/offer.md` at the repo root)

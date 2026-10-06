@@ -12,7 +12,8 @@ it here first, then update everything that points here.
 $1,500/month retainer) and the older flat $1,500/month package. Don't use those terms anywhere.
 
 ## Who it's for
-Independent physical therapy practices, cash-based or hybrid, with an average plan of care worth
+Independent physical therapy practices of any payment model (insurance-based, cash-based or hybrid),
+with an average plan of care worth
 $1,500 or more and room for at least 7 new assessments a month.
 
 ## The problem it solves
@@ -129,7 +130,7 @@ as what past clients got.
 
 ## Requirements
 The guarantee applies to clinics that meet these:
-- Average plan of care worth $1,500 or more (cash-based or hybrid practice).
+- Average plan of care worth $1,500 or more (insurance-based, cash-based or hybrid all qualify).
 - $1,000/month ad spend, paid directly to Meta from the practice's ad account, for at least 6 weeks.
 - Capacity to see at least 7 new assessments a month.
 
