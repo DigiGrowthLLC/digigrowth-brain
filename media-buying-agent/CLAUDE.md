@@ -61,6 +61,10 @@ ads, or launch unpaused. Creative upload via the connector isn't enabled on clie
 `clients/<client-slug>/` —
 - `campaign-plan.md` — the current campaign plan (overwrite in place when revised; this is the live
   plan, not a version history).
+- `client-context.md` — rules specific to this one client (which service to lead with, age limits,
+  brand voice, how their leads flow, what past account data showed). Read it before any work for
+  that client; it overrides general skill defaults. Client-specific rules go here, never into the
+  shared skills.
 - `creatives/<concept-slug>/` — one folder per finished, approved ad concept: `image.jpg` (or
   `image.png`) + a short `copy.md` (avatar, funnel stage, format, the actual on-image copy/quote,
   CTA). Final images are **exactly 1080x1350 (4:5, Meta Feed)** by default (1080x1920 only for

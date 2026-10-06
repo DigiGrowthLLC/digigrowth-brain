@@ -4,7 +4,7 @@ Scan the live Meta Ad Library (plus published best-practice guides) for a vertic
 actually working — the structural patterns competitors are spending the most on — as reusable
 knowledge. Standalone: doesn't require writing a full campaign plan. Use it just to build up
 `ad-creative-principles.md`, to sanity-check a client's current creative against the market, or as a
-first pass before `build-campaign-plan` (which calls this skill as its own step 2).
+first pass before `build-campaign-plan` (which calls this skill as its own research step).
 
 ---
 
@@ -27,7 +27,36 @@ Ask if not already given:
 
 ---
 
+## The bar: at least 10 proven ads (Dylan, 2026-10-06)
+
+Every run must end with **at least 10 proven ads**, each with its **verbatim copy** captured. An ad
+counts as proven only if it is **still active today AND started running 6+ months ago**. A
+long-running active ad is one an advertiser has kept paying for, which is the closest public signal
+of performance the Ad Library offers. Newer ads, inactive ads, and one-off gimmicks don't count
+toward the 10, however good they look.
+
+These 10 are the raw material for the rest of the pipeline: `build-campaign-plan` ties each of its
+10 concepts to one of them, and `generate-ad` writes each approved ad's 3 copy variations from
+their copy. So the copy has to be captured word for word, not summarized.
+
 ## Steps
+
+### 0. Collect proven ads with the Meta connector (`mcp__meta-ads__ads_library_search`)
+
+Load it via ToolSearch. It returns each ad's creative text, page name, start/creation date and
+snapshot URL, but can't filter by date or sort by reach, so:
+- Run several searches with `ad_active_status: "ACTIVE"`, `countries: ["US"]`, `limit: 50`: the
+  vertical's core keywords, the client's specific services/conditions (e.g. "physical therapy",
+  "back pain", "dry needling", "sports injury"), and named direct competitors (`page_ids` when known).
+- Keep only ads whose start date is **6+ months before today**. Dedupe near-identical copies from
+  the same advertiser (count the concept once, note how many variants they run, which is itself a
+  signal).
+- **Under 10?** Widen in this order: more keywords and conditions, the same vertical in other US
+  cities/regions, then adjacent verticals with the same buyer and offer type (e.g. chiropractic and
+  sports medicine for a PT client). Never pad the list with ads under 6 months old. If 10 truly
+  can't be found, stop and say how many were found and where you looked.
+- For each proven ad, open the `ad_snapshot_url` (playwright) when the text alone doesn't show the
+  format (video vs. static vs. carousel) or the on-screen hook.
 
 ### 1. Browse the live Meta Ad Library with `playwright` MCP tools
 
@@ -91,16 +120,36 @@ mechanic). If a client was given as input, explicitly check each finding against
 `onboarding.differentiation_voice` rules. Always call out *structure* (what to borrow) separately from
 *tone* (match to the client) — never just paste the winning template as-is.
 
-### 4. Append findings to `context/ad-creative-principles.md`
+### 4. Save the proven ads file
+
+Write `context/proven-ads/<vertical-slug>.md` (create the folder if needed). If the file exists,
+re-verify each entry is still active, drop dead ones, and add new ones, keeping the date it was last
+checked at the top. One entry per proven ad, numbered P1, P2, ... so plans and ads can cite them:
+
+```
+## P1 · <Advertiser> · <city/region if shown> · running since <YYYY-MM-DD> (<N> months) · <format>
+Snapshot: <ad_snapshot_url>
+Variants running: <n>
+Primary text (verbatim):
+> <full text, line breaks kept>
+Headline (verbatim): <...>   CTA button: <...>
+Hook: <first line / first 3 seconds on screen>
+Copy structure: <e.g. city callout → pain question → mechanism → proof → offer → CTA>
+Offer: <...>   Proof type: <review quote / stat / credential / before-after>
+Borrow: <the structure worth reusing>   Don't borrow: <claims, offers or tone that clash with the client>
+```
+
+### 5. Append findings to `context/ad-creative-principles.md`
 
 Per this agent's existing convention — add a new dated `## Source: Meta Ad Library Field Scan — <vertical> (YYYY-MM-DD)` section, never overwrite prior research. Note explicitly that findings are
 vertical-specific, not universal. Structure like the existing Ad Library scan sections in that file:
 dominant winning template, any notable sub-segment variation (e.g. "orthopedic/surgeon-tier ads skew
 softer"), and an applicability note for tone-matching.
 
-### 5. Report back
+### 6. Report back
 
-Summarize the findings directly in the conversation (the saved file is the durable record, but Dylan
+Lead with the proven-ads table (P#, advertiser, months running, format, hook, copy structure), then
+the patterns. Summarize the findings directly in the conversation (the saved file is the durable record, but Dylan
 shouldn't have to open it to see what was found). If this was run for a specific client, flag which
 patterns are safe to use as-is vs. need a tone adjustment before informing any ad copy.
 

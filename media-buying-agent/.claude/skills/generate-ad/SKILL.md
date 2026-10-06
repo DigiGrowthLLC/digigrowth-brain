@@ -76,6 +76,23 @@ Ask if not already given:
      and/or different archetype), not the same ad with a swapped headline.
    - If in **iteration mode** (only once Dylan has confirmed a concept is a winner): write 1 primary
      + 1-2 alternate hooks on that same concept.
+   - **Three copy variations per ad, each modeled on proven copy (Dylan, 2026-10-06).** For every
+     ad Dylan has approved (stills and video alike), write **3 primary-text variations**, each one
+     built on the copy of a specific proven ad in `context/proven-ads/<vertical-slug>.md` (still
+     active, running 6+ months; run `research-competitors` first if that file is missing or stale).
+     Start with the proven ad the concept was built on, then two others with a different copy
+     structure (e.g. a short city-callout + checklist, a story-led long form, a testimonial-led
+     open), so the three read as genuinely different, not reworded. For each variation:
+     - Cite its source: `Modeled on P4 (<advertiser>, running <N> months): <structure borrowed>`.
+     - Keep the proven ad's **structure, rhythm and length** (opener type, line breaks, where the
+       proof and offer sit, CTA phrasing pattern); swap in the client's real offer, avatar, proof
+       and facts.
+     - Never copy a competitor's claims, prices, offers, credentials, names or distinctive phrases
+       word for word, and drop any part that breaks the client's brand-voice rules or
+       `client-context.md` (e.g. a "$49, only 30 spots" mechanic for a no-pressure brand).
+     - Pair the variations with headlines in the same spirit (Meta accepts up to 5 primary texts and
+       5 headlines per ad, so all three go into the same ad for Meta to rotate).
+     Save all three in the ad's `copy.md` with their citations.
    - **If Dylan wants a short-form UGC video script** instead of/alongside a still (to hand off to
      `content-agent` or a human UGC creator — this skill itself stays stills-first, no video
      generation): map the same hook → problem → solution → proof → CTA beats onto an 18-20 second
