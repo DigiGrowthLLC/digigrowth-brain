@@ -1096,9 +1096,9 @@
       "last_scraped_date": "2026-10-05"
     },
     "Brownsville, TX": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 88,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 90,
       "qualified_count": 1,
       "last_scraped_date": "2026-10-05"
     },
