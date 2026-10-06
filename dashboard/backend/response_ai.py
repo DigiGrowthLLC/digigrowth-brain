@@ -63,6 +63,7 @@ import anthropic
 
 import calendly_integration
 import client_sms
+import lead_flags
 import scheduler_registry
 from db import get_pool
 from routers.appointments import create_appointment_row
@@ -101,6 +102,11 @@ files a complaint, or you're not confident how to respond, call escalate_to_huma
 know a team member will follow up.
 - Never claim an appointment is booked unless propose_appointment confirmed it in this same turn. \
 Never send the lead a booking link — you book it for them.
+- If it becomes clear the lead can't be a client — they live outside the area the business serves, \
+need something the business doesn't offer, or fail a requirement in the business info or rules below \
+(e.g. they say they'll only go somewhere that bills their insurance) — call mark_unqualified with the \
+reason and send one short, polite closing text. Only do this on a clear answer from the lead, never on \
+a guess or a first hesitation, and never for a price question alone.
 """
 
 _TOOLS = [
@@ -157,7 +163,60 @@ _TOOLS = [
             "required": ["reason"],
         },
     },
+    {
+        "name": "mark_unqualified",
+        "description": (
+            "Tag this lead Unqualified once they've clearly shown they can't be a client (e.g. they live "
+            "outside the service area). Your closing text in this same turn still goes out, but after "
+            "that they get no more automated texts or emails of any kind."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reason": {"type": "string", "description": "Short reason, e.g. 'Lives in Chicago, outside Austin service area'."},
+            },
+            "required": ["reason"],
+        },
+    },
 ]
+
+# mark_unqualified is applied only AFTER that turn's reply has been sent,
+# because the Unqualified tag blocks every automated send (lead_flags.py) —
+# applying it mid-turn would swallow the polite closing text. Keyed by
+# (client_id, phone); filled by _execute_tool, drained by
+# _apply_pending_unqualified once the reply segments are out.
+_pending_unqualified: dict[tuple[int, str], str] = {}
+
+
+async def _apply_pending_unqualified(client_id: int, phone: str) -> None:
+    reason = _pending_unqualified.pop((client_id, phone), None)
+    if reason is None:
+        return
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                rf"""
+                UPDATE contacts c SET
+                    tags = CASE WHEN {lead_flags.UNQUALIFIED_SQL} THEN c.tags
+                                ELSE array_append(coalesce(c.tags, '{{}}'), $3) END,
+                    client_followup_enrolled_at = NULL, client_followup_anchor_at = NULL,
+                    client_followup_touch1_sent_at = NULL, client_followup_touch2_sent_at = NULL,
+                    client_followup_touch3_sent_at = NULL,
+                    updated_at = now()
+                WHERE c.client_id = $1 AND NOT c.is_client_anchor
+                  AND coalesce(c.phone, '') != ''
+                  AND right(regexp_replace(c.phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                """,
+                client_id, phone, lead_flags.UNQUALIFIED_TAG,
+            )
+            await conn.execute(
+                "UPDATE client_lead_conversations SET status = 'unqualified' WHERE client_id = $1 AND phone = $2",
+                client_id, phone,
+            )
+        print(f"[response_ai] {phone} (client={client_id}) marked Unqualified: {reason}")
+    except Exception as e:
+        print(f"[response_ai] failed to mark {phone} (client={client_id}) Unqualified: {e}")
 
 
 async def _get_or_create_conversation(conn, client_id: int, phone: str) -> dict:
@@ -358,6 +417,11 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
             contact = await _get_or_create_contact(conn, client_id, from_phone)
             if conversation["status"] == "escalated":
                 return  # a human has taken over this thread — stay silent
+            if await lead_flags.is_unqualified(client_id, phone=from_phone):
+                # Tagged Unqualified — no automated replies (the client can
+                # still reply by hand). Checks the tag, not the 'unqualified'
+                # conversation status, so removing the tag re-enables the AI.
+                return
 
             messages = await _load_recent_messages(conn, client_id, from_phone)
             booking = await _upcoming_booking(conn, from_phone, (contact or {}).get("email"))
@@ -408,6 +472,7 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
                     # times out a reply on such a client.
                     await asyncio.sleep(10)
                 await client_sms.send_client_sms(client_id, from_phone, segment)
+        await _apply_pending_unqualified(client_id, from_phone)
     except Exception as e:
         print(f"[response_ai] handle_inbound_sms failed for client={client_id} phone={from_phone}: {e}")
 
@@ -572,6 +637,9 @@ async def _send_initial_message(
             if await _upcoming_booking(conn, phone, lead_email):
                 print(f"[response_ai] meta lead {phone} (client={client_id}) already booked — skipping opener")
                 return "skipped_booked"
+        if await lead_flags.is_unqualified(client_id, phone=phone, email=lead_email):
+            return "skipped_unqualified"
+        async with pool.acquire() as conn:
             # Creates the client_lead_conversations row right before the
             # first text goes out, so the thread shows up in the portal
             # inbox from message one, same as handle_inbound_sms does for
@@ -587,6 +655,7 @@ async def _send_initial_message(
             if i > 0:
                 await asyncio.sleep(10)
             await client_sms.send_client_sms(client_id, phone, segment, stage="meta_lead_opener")
+        await _apply_pending_unqualified(client_id, phone)
         return "sent"
     except Exception as e:
         print(f"[response_ai] _send_initial_message failed for client={client_id} phone={phone}: {e}")
@@ -788,5 +857,10 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 client_id, from_phone,
             )
         return "Escalated to a human team member."
+
+    if tool_name == "mark_unqualified":
+        _pending_unqualified[(client_id, from_phone)] = (tool_input.get("reason") or "").strip() or "Not a fit"
+        return ("Marked Unqualified. Send one short, polite closing text now; after this turn they get no "
+                "further automated messages.")
 
     return f"Unknown tool: {tool_name}"

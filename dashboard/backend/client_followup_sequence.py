@@ -4,8 +4,11 @@ Client-portal port of dm_followup_sequence.py (Dylan's own DM Reach
 follow-up), for a client's own leads: sends from the client's own Twilio
 number (client_sms.py), reads the client's own SMS log (client_sms_messages),
 and uses the client's own copy (client_sequence_steps, sequence_key
-'prospect_followup', one SMS step per touch at step_order 0/1/2 — editable
-from the Clients admin panel, previewed on the portal's Sequences tab).
+'prospect_followup' — an SMS + email pair per touch, step_order 0-1 = Touch 1,
+2-3 = Touch 2, 4-5 = Touch 3, same pairing as the no-show/cancellation drips;
+editable from the Clients admin panel, previewed on the portal's Sequences
+tab). The email goes from the client's connected Gmail mailbox to the lead's
+email on file, and is skipped when either is missing.
 Never touches sms_conversations/sms_messages or Dylan's own templates.
 
 State lives on the lead's contacts row (client_followup_* columns) since
@@ -26,7 +29,8 @@ timestamps, exactly like dm_followup_sequence.py:
      'booked'): hard-clear the enrollment and the whole cycle. Booked leads
      are handed to the reminder/no-show/cancellation sequences instead, and
      can't be re-enrolled.
-  2. Ball in the client's court (last inbound >= last outbound): clear the
+  2. Ball in the client's court (last inbound text OR email from the lead
+     >= last outbound text): clear the
      anchor and touch columns. This is "stops the moment they reply" — the
      response AI (or the client) answers them, and nothing sends until
      another outbound message goes unanswered.
@@ -34,10 +38,15 @@ timestamps, exactly like dm_followup_sequence.py:
      anchor and every touch already sent, it's a genuinely new silence cycle
      (a real message, not one of this sequence's own touches) — re-anchor
      on it and clear the touch columns.
-  4. Send whichever touch is next due: Touch 1 24h after the anchor, Touch 2
-     48h after Touch 1's actual send, Touch 3 4 days after Touch 2's —
+  4. Send whichever touch is next due: Touch 1 3h after the anchor, Touch 2
+     24h after Touch 1's actual send, Touch 3 3 days after Touch 2's —
      chained off real sends so a stale anchor can never fire a burst (see
-     dm_followup_sequence.py's docstring for the full reasoning).
+     dm_followup_sequence.py's docstring for the full reasoning). A touch
+     that comes due during quiet hours (9pm-8am in the lead's timezone, see
+     lead_flags.py) waits for the morning.
+
+Leads tagged Unqualified (lead_flags.py) are dropped from the sequence and
+can't be enrolled, same as booked leads.
 
 Not ported: Dylan's dialer escalation (flip to 'dialer-lead' 24h after Touch
 2) — clients have no dialer queue, only a per-lead Call button — and the
@@ -50,17 +59,19 @@ Templates support {first_name}, {business} (the client's name), and {link}
 
 from datetime import datetime, timedelta, timezone as dt_timezone
 
+import lead_flags
 from db import get_pool
 from merge_fields import first_name_from_owner
+from timezone_lookup import guess_timezone
 
 SEQUENCE_KEY = "prospect_followup"
 
 # (touch number, sent-at column, reference column — None means the anchor,
 # otherwise the previous touch's own sent-at column — and delay)
 _TOUCHES = [
-    (1, "client_followup_touch1_sent_at", None, timedelta(hours=24)),
-    (2, "client_followup_touch2_sent_at", "client_followup_touch1_sent_at", timedelta(hours=48)),
-    (3, "client_followup_touch3_sent_at", "client_followup_touch2_sent_at", timedelta(days=4)),
+    (1, "client_followup_touch1_sent_at", None, timedelta(hours=3)),
+    (2, "client_followup_touch2_sent_at", "client_followup_touch1_sent_at", timedelta(hours=24)),
+    (3, "client_followup_touch3_sent_at", "client_followup_touch2_sent_at", timedelta(days=3)),
 ]
 
 _CLEAR_CYCLE = (
@@ -95,6 +106,14 @@ _BOOKED_SQL = r"""(
           AND right(regexp_replace(clc.phone, '\D', '', 'g'), 10) = right(regexp_replace(coalesce(c.phone, ''), '\D', '', 'g'), 10)
     )
 )"""
+
+# Inbound emails from contact `c` to its client's connected mailbox
+# (client_email.py stores the sender in to_email for inbound rows).
+_EMAIL_INBOUND_SQL = """
+    FROM client_email_messages em
+    WHERE em.client_id = c.client_id AND em.direction = 'inbound'
+      AND coalesce(c.email, '') != '' AND lower(em.to_email) = lower(c.email)
+"""
 
 # client_sms_messages rows for contact `c`'s phone on its own client's number.
 _THREAD_SQL = r"""
@@ -131,7 +150,7 @@ async def maybe_enroll(client_id: int, phone: str) -> None:
                   AND c.client_followup_enrolled_at IS NULL
                   AND coalesce(c.phone, '') != ''
                   AND right(regexp_replace(c.phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
-                  AND NOT {_BOOKED_SQL}
+                  AND NOT {_BOOKED_SQL} AND NOT {lead_flags.UNQUALIFIED_SQL}
                 """,
                 client_id, phone,
             )
@@ -139,16 +158,28 @@ async def maybe_enroll(client_id: int, phone: str) -> None:
         print(f"[client_followup_sequence] enroll failed for client={client_id} phone={phone}: {e}")
 
 
-async def _send_touch(row: dict, touch_num: int, body: str) -> None:
+async def _send_touch(row: dict, touch_num: int, sms_step: dict | None, email_step: dict | None) -> None:
+    """One touch = the SMS step and the email step for it, each best-effort
+    and independent (a missing email address or unconnected mailbox only
+    skips the email)."""
+    import client_email
     import client_sms
 
-    text = _fill(body, row)
-    if not text.strip():
-        return
-    try:
-        await client_sms.send_client_sms(row["client_id"], row["phone"], text, stage=f"{SEQUENCE_KEY}_touch{touch_num}")
-    except Exception as e:
-        print(f"[client_followup_sequence] SMS failed for client={row['client_id']} phone={row['phone']}: {e}")
+    text = _fill((sms_step or {}).get("body"), row)
+    if text.strip():
+        try:
+            await client_sms.send_client_sms(row["client_id"], row["phone"], text, stage=f"{SEQUENCE_KEY}_touch{touch_num}")
+        except Exception as e:
+            print(f"[client_followup_sequence] SMS failed for client={row['client_id']} phone={row['phone']}: {e}")
+
+    email = (row.get("email") or "").strip()
+    subject = _fill((email_step or {}).get("subject"), row)
+    body = _fill((email_step or {}).get("body"), row)
+    if email and subject.strip() and body.strip() and row.get("gmail_refresh_token"):
+        try:
+            await client_email.send_client_email(row["client_id"], email, subject, body)
+        except Exception as e:
+            print(f"[client_followup_sequence] email failed for client={row['client_id']} ({email}): {e}")
 
 
 async def send_due_touches():
@@ -158,17 +189,20 @@ async def send_due_touches():
     pool = await get_pool()
     now = datetime.now(dt_timezone.utc)
     async with pool.acquire() as conn:
-        # Booked leads leave the sequence for good.
+        # Booked and Unqualified leads leave the sequence for good.
         await conn.execute(
             f"UPDATE contacts c SET client_followup_enrolled_at = NULL, {_CLEAR_CYCLE} "
-            f"WHERE c.client_followup_enrolled_at IS NOT NULL AND {_BOOKED_SQL}"
+            f"WHERE c.client_followup_enrolled_at IS NOT NULL AND ({_BOOKED_SQL} OR {lead_flags.UNQUALIFIED_SQL})"
         )
         rows = await conn.fetch(
             f"""
-            SELECT c.*, cl.name AS client_name,
+            SELECT c.*, cl.name AS client_name, cmc.gmail_refresh_token,
                    coalesce(nullif(cmc.calendly_event_type_url, ''), cl.calendly_url) AS booking_link,
                    (SELECT MAX(m.created_at) {_THREAD_SQL.format(direction='outbound')}) AS last_outbound_at,
-                   (SELECT MAX(m.created_at) {_THREAD_SQL.format(direction='inbound')}) AS last_inbound_at
+                   GREATEST(
+                       (SELECT MAX(m.created_at) {_THREAD_SQL.format(direction='inbound')}),
+                       (SELECT MAX(em.created_at) {_EMAIL_INBOUND_SQL})
+                   ) AS last_inbound_at
             FROM contacts c
             JOIN clients cl ON cl.id = c.client_id
             JOIN client_marketing_config cmc ON cmc.client_id = c.client_id
@@ -182,11 +216,11 @@ async def send_due_touches():
             return
 
         step_rows = await conn.fetch(
-            "SELECT client_id, step_order, body FROM client_sequence_steps "
-            "WHERE sequence_key = $1 AND channel = 'sms' AND client_id = ANY($2)",
+            "SELECT client_id, step_order, channel, subject, body FROM client_sequence_steps "
+            "WHERE sequence_key = $1 AND client_id = ANY($2)",
             SEQUENCE_KEY, list({r["client_id"] for r in rows}),
         )
-        steps = {(s["client_id"], s["step_order"]): s["body"] for s in step_rows}
+        steps = {(s["client_id"], s["step_order"], s["channel"]): dict(s) for s in step_rows}
 
         for record in rows:
             row = dict(record)
@@ -222,9 +256,13 @@ async def send_due_touches():
                     continue
                 reference = anchor if ref_col is None else row[ref_col]
                 if reference is not None and now >= reference + delay:
-                    body = steps.get((row["client_id"], touch_num - 1))
-                    if body:
-                        await _send_touch(row, touch_num, body)
+                    if lead_flags.in_quiet_hours(guess_timezone(row["phone"]), now):
+                        break  # due, but it's night where they are — send at 8am
+                    pair = ((touch_num - 1) * 2, (touch_num - 1) * 2 + 1)
+                    sms_step = steps.get((row["client_id"], pair[0], "sms"))
+                    email_step = steps.get((row["client_id"], pair[1], "email"))
+                    if sms_step or email_step:
+                        await _send_touch(row, touch_num, sms_step, email_step)
                     # Stamped even when the client has no copy for this
                     # touch, so a blanked-out touch is skipped rather than
                     # stalling the rest of the sequence.
@@ -283,7 +321,7 @@ async def add(client_id: int, contact_id: str) -> str | None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            f"SELECT c.id, c.phone, {_BOOKED_SQL} AS booked FROM contacts c "
+            f"SELECT c.id, c.phone, {_BOOKED_SQL} AS booked, {lead_flags.UNQUALIFIED_SQL} AS unqualified FROM contacts c "
             "WHERE c.id = $1 AND c.client_id = $2 AND NOT c.is_client_anchor",
             contact_id, client_id,
         )
@@ -293,6 +331,8 @@ async def add(client_id: int, contact_id: str) -> str | None:
             return "This lead has no phone number on file"
         if row["booked"]:
             return "This lead has already booked, so they get appointment reminders instead"
+        if row["unqualified"]:
+            return "This lead is tagged Unqualified, so they get no automated messages. Remove the tag first"
         await conn.execute(
             f"UPDATE contacts SET client_followup_enrolled_at = now(), {_CLEAR_CYCLE} WHERE id = $1",
             contact_id,

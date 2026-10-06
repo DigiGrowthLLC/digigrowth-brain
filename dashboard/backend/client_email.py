@@ -55,7 +55,15 @@ def _client_gmail_service(refresh_token: str):
     return build("gmail", "v1", credentials=_client_creds(refresh_token), cache_discovery=False)
 
 
-async def send_client_email(client_id: int, to: str, subject: str, body: str) -> str:
+async def send_client_email(client_id: int, to: str, subject: str, body: str, manual: bool = False) -> str:
+    """Sends from the client's own connected Gmail mailbox. Automated sends
+    (everything except a reply the client types in the portal inbox or an
+    admin test send, which pass manual=True) are silently skipped for a lead
+    tagged Unqualified — see lead_flags.py."""
+    import lead_flags
+    if not manual and await lead_flags.is_unqualified(client_id, email=to):
+        print(f"[client_email] {to} (client={client_id}) is tagged Unqualified — skipping automated email")
+        return f"Skipped {to}: lead is tagged Unqualified"
     pool = await get_pool()
     async with pool.acquire() as conn:
         config = await conn.fetchrow(

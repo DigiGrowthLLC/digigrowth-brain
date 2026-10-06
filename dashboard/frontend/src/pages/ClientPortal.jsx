@@ -626,31 +626,27 @@ const SEQUENCE_LABELS = {
 };
 const SEQUENCE_ORDER = ["prospect_followup", "appointment_reminder", "no_show", "cancellation"];
 
-// Send timing per column — mirrors client_appointment_reminders.py's
-// _WINDOW_HOURS_BY_STEP (24h, 2h before) and client_appointment_sequence.py's
-// _TOUCH_DELAYS (0h, 24h, 72h after).
-const REMINDER_TIMING = ["24 hours before", "2 hours before"];
-const TOUCH_TIMING = ["Right away", "After 24 hours", "After 72 hours"];
-// client_followup_sequence.py's _TOUCHES — chained off the previous touch.
-const FOLLOWUP_TIMING = ["24 hours without a reply", "2 days later", "4 days later"];
+// Send timing per column — mirrors client_followup_sequence.py's _TOUCHES
+// (chained off the previous touch), client_appointment_reminders.py's
+// _WINDOW_HOURS_BY_TOUCH and client_appointment_sequence.py's _TOUCH_DELAYS.
+const SEQUENCE_TIMING = {
+  prospect_followup: ["3 hours without a reply", "24 hours later", "3 days later"],
+  appointment_reminder: ["24 hours before", "6 hours before", "1 hour before"],
+  no_show: ["Right away", "After 3 hours", "After 24 hours"],
+  cancellation: ["Right away", "After 3 hours", "After 24 hours"],
+};
+const REMINDER_TITLES = ["24 Hour Reminder", "6 Hour Reminder", "1 Hour Reminder"];
 
-// One column per send: reminders are one step each; no-show/cancellation
-// touches are an SMS + email pair (step_order 0-1 = Touch 1, 2-3 = Touch 2…),
-// grouped from step_order rather than the label so a renamed step still lands
-// in the right column.
+// One column per touch: every sequence is an SMS + email pair per touch
+// (step_order 0-1 = Touch 1, 2-3 = Touch 2…), grouped from step_order rather
+// than the label so a renamed step still lands in the right column.
 function sequenceColumns(key, group) {
   const sorted = [...group].sort((a, b) => a.step_order - b.step_order);
-  if (key === "appointment_reminder") {
-    return sorted.map((s) => ({ title: s.label, timing: REMINDER_TIMING[s.step_order], steps: [s] }));
-  }
-  if (key === "prospect_followup") {
-    // One SMS per touch (step_order 0/1/2), no email pair.
-    return sorted.map((s) => ({ title: `Touch ${s.step_order + 1}`, timing: FOLLOWUP_TIMING[s.step_order], steps: [s] }));
-  }
   const cols = [];
   for (const s of sorted) {
     const i = Math.floor(s.step_order / 2);
-    if (!cols[i]) cols[i] = { title: `Touch ${i + 1}`, timing: TOUCH_TIMING[i], steps: [] };
+    const title = key === "appointment_reminder" ? (REMINDER_TITLES[i] || `Reminder ${i + 1}`) : `Touch ${i + 1}`;
+    if (!cols[i]) cols[i] = { title, timing: (SEQUENCE_TIMING[key] || [])[i], steps: [] };
     cols[i].steps.push(s);
   }
   return cols.filter(Boolean);
@@ -696,7 +692,7 @@ const CLIENT_SEQUENCE_COPY = {
     removeLabel: "Stop Sequence",
     removeConfirm: (name) => `Stop the follow-up sequence for ${name}? They'll get no more follow-up texts unless you or your assistant text them again.`,
     addTitle: "Add Prospect to Follow-Up",
-    addHint: "Booked leads (Appointment Booked status or tag) can't be added. The 3 texts go out 24 hours, 3 days, and 7 days after your last unanswered message, and stop the moment they reply.",
+    addHint: "Booked or Unqualified leads can't be added. The 3 touches (a text plus an email) go out 3 hours, 27 hours, and about 4 days after your last unanswered message, never overnight, and stop the moment they reply.",
     addLabel: "+ Add Prospect",
   },
   no_show: {

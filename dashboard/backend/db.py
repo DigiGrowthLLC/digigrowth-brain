@@ -1874,6 +1874,69 @@ async def _create_schema(pool: asyncpg.Pool):
             """
         )
 
+        # Prospect follow-up + appointment reminders gained an email step per
+        # touch (2026-10-06), same SMS + email pairing as no-show/cancellation
+        # (step_order 0-1 = touch 1, 2-3 = touch 2, 4-5 = touch 3). Existing
+        # SMS-only rows are renumbered 0/1/2 -> 0/2/4 — only for a client with
+        # no email step in that sequence yet, so this runs exactly once per
+        # client and keeps whatever copy they've edited — then the missing
+        # steps are filled in from the defaults (never overwriting a row).
+        await conn.execute(
+            """
+            UPDATE client_sequence_steps s SET step_order = s.step_order * 2
+            WHERE s.sequence_key IN ('prospect_followup', 'appointment_reminder')
+              AND NOT EXISTS (
+                  SELECT 1 FROM client_sequence_steps e
+                  WHERE e.client_id = s.client_id AND e.sequence_key = s.sequence_key AND e.channel = 'email'
+              )
+            """
+        )
+        await conn.execute(
+            """
+            UPDATE client_sequence_steps SET label = CASE
+                WHEN label = '24 Hour Reminder' THEN '24 Hour Reminder (SMS)'
+                WHEN label = 'Day-Of Reminder' AND step_order = 2 THEN '6 Hour Reminder (SMS)'
+                ELSE label END
+            WHERE sequence_key = 'appointment_reminder' AND label IN ('24 Hour Reminder', 'Day-Of Reminder')
+            """
+        )
+        await conn.execute(
+            """
+            INSERT INTO client_sequence_steps (client_id, sequence_key, step_order, label, channel, subject, body)
+            SELECT c.id, s.sequence_key, s.step_order, s.label, s.channel, s.subject, s.body
+            FROM clients c
+            CROSS JOIN (VALUES
+                ('prospect_followup', 1, 'Touch 1 (Email)', 'email', 'Following up',
+                 E'Hi {first_name},\n\nJust following up on my text in case it got buried. Happy to answer any questions or get you set up with a free consultation.\n\nJust reply here whenever works.\n\n{business}'),
+                ('prospect_followup', 3, 'Touch 2 (Email)', 'email', 'Still have a couple of openings',
+                 E'Hi {first_name},\n\nWe still have a couple of openings for a free consultation this month. It only takes 15 minutes and it''s an easy way to see if we''re a good fit.\n\nReply to this email and we''ll find a time.\n\n{business}'),
+                ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Last note from me',
+                 E'Hi {first_name},\n\nThis is my last follow-up. If the timing isn''t right, no worries at all. Whenever you''re ready, just reply to this email and we''ll get you on the schedule.\n\nTake care,\n{business}'),
+                ('appointment_reminder', 1, '24 Hour Reminder (Email)', 'email', 'Reminder: your consultation tomorrow',
+                 E'Hi {first_name},\n\nA friendly reminder about your free consultation with {business} tomorrow, {date} at {time}.\n\nIf you need to reschedule, just reply to this email.\n\nSee you then,\n{business}'),
+                ('appointment_reminder', 3, '6 Hour Reminder (Email)', 'email', 'Today: your consultation at {time}',
+                 E'Hi {first_name},\n\nJust a reminder that your consultation with {business} is today at {time}.\n\nNeed to reschedule? Reply to this email and we''ll sort it out.\n\n{business}'),
+                ('appointment_reminder', 4, '1 Hour Reminder (SMS)', 'sms', NULL,
+                 'Hi {first_name}, your consultation with {business} starts in about an hour, at {time}. Talk soon!'),
+                ('appointment_reminder', 5, '1 Hour Reminder (Email)', 'email', 'Starting in an hour',
+                 E'Hi {first_name},\n\nQuick heads-up: your consultation with {business} starts in about an hour, at {time}.\n\nTalk soon,\n{business}')
+            ) AS s(sequence_key, step_order, label, channel, subject, body)
+            WHERE EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key)
+            AND NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key AND step_order = s.step_order)
+            """
+        )
+        # Appointments already mid-reminders when the pairing shipped got their
+        # 24h text under the old numbering ("0") — mark the new 24h email ("1")
+        # skipped so it doesn't go out late. Only legacy rows match: the new
+        # engine always records both steps of a window together.
+        await conn.execute(
+            """
+            UPDATE appointment_reminders SET reminder_steps_sent = reminder_steps_sent || '{"1": "skipped"}'::jsonb
+            WHERE status = 'scheduled' AND appointment_at > now()
+              AND reminder_steps_sent ? '0' AND NOT reminder_steps_sent ? '1'
+            """
+        )
+
         # Seed the two auto-applied lead-source tags calendly_webhooks.py
         # stamps onto a client's leads (ads-lead vs organic-lead, based on
         # the ?utm_source=paid_ad marker on the ad-funnel page's Calendly
@@ -1892,6 +1955,9 @@ async def _create_schema(pool: asyncpg.Pool):
             ("No-Show History", "#dc3c3c"), ("Cancelled Appointment", "#e08ad0"),
             ("Lost to Insurance", "#8a6fd8"), ("Price Objection", "#c2c24a"),
             ("Referral", "#4ade80"), ("Cold / Unresponsive", "#5a6f8f"),
+            # Applied by the response AI's mark_unqualified tool; blocks all
+            # automated messaging to the lead (lead_flags.py).
+            ("Unqualified", "#9aa3b2"),
         ]:
             await conn.execute("INSERT INTO tags (name, color) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING", _tag_name, _tag_color)
 

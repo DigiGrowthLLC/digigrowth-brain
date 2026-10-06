@@ -32,9 +32,11 @@ router = APIRouter()
 # brand-new client gets seeded immediately at creation instead of waiting
 # for the next app restart's migration pass.
 _DEFAULT_SEQUENCE_STEPS = [
-    ("appointment_reminder", 0, "24 Hour Reminder", "sms", None,
+    # Appointment reminders: an SMS + email pair per window (step_order 0-1 =
+    # 24h before, 2-3 = 6h, 4-5 = 1h; client_appointment_reminders.py).
+    ("appointment_reminder", 0, "24 Hour Reminder (SMS)", "sms", None,
      "Hi {first_name}, a friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. We'll call you at this number. Reply CONFIRM to confirm, or let us know if you need to reschedule."),
-    ("appointment_reminder", 1, "Day-Of Reminder", "sms", None,
+    ("appointment_reminder", 2, "6 Hour Reminder (SMS)", "sms", None,
      "Hi {first_name}, just a reminder, your consultation with {business} is today at {time}. We'll give you a call at this number. Talk soon!"),
     ("no_show", 0, "Touch 1 (SMS)", "sms", None,
      "Hi {first_name}, sorry we missed you for your consultation with {business} today. No worries, these things happen! Reply here or give us a call and we'll find a new time that works for you."),
@@ -67,14 +69,29 @@ _DEFAULT_SEQUENCE_STEPS = [
      "{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know."),
     ("cancellation", 5, "Touch 3 (Email)", "email", "Closing your file",
      "Hi {first_name},\n\nHaven't heard back, so we'll close this out on our end unless we hear from you. If timing's just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}"),
-    # Prospect follow-up (client_followup_sequence.py) — one SMS per touch,
-    # sent 24h / +48h / +4d into a silence. Same values as db.py's seed.
+    # Prospect follow-up (client_followup_sequence.py) — an SMS + email pair
+    # per touch (step_order 0-1, 2-3, 4-5), sent 3h / +24h / +3d into a
+    # silence. Same values as db.py's seed + pairing migration.
     ("prospect_followup", 0, "Touch 1 (SMS)", "sms", None,
      "Hey {first_name}, just following up, checking you got that last message?"),
-    ("prospect_followup", 1, "Touch 2 (SMS)", "sms", None,
+    ("prospect_followup", 2, "Touch 2 (SMS)", "sms", None,
      "{first_name}, still got a couple slots for our free consultation this month. You got 15 minutes?"),
-    ("prospect_followup", 2, "Touch 3 (SMS)", "sms", None,
+    ("prospect_followup", 4, "Touch 3 (SMS)", "sms", None,
      "{first_name}, last one from me. Not sure if there'll be any slots left, but feel free to check in whenever you're free: {link}"),
+    ('prospect_followup', 1, 'Touch 1 (Email)', 'email', 'Following up',
+     'Hi {first_name},\n\nJust following up on my text in case it got buried. Happy to answer any questions or get you set up with a free consultation.\n\nJust reply here whenever works.\n\n{business}'),
+    ('prospect_followup', 3, 'Touch 2 (Email)', 'email', 'Still have a couple of openings',
+     "Hi {first_name},\n\nWe still have a couple of openings for a free consultation this month. It only takes 15 minutes and it's an easy way to see if we're a good fit.\n\nReply to this email and we'll find a time.\n\n{business}"),
+    ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Last note from me',
+     "Hi {first_name},\n\nThis is my last follow-up. If the timing isn't right, no worries at all. Whenever you're ready, just reply to this email and we'll get you on the schedule.\n\nTake care,\n{business}"),
+    ('appointment_reminder', 1, '24 Hour Reminder (Email)', 'email', 'Reminder: your consultation tomorrow',
+     'Hi {first_name},\n\nA friendly reminder about your free consultation with {business} tomorrow, {date} at {time}.\n\nIf you need to reschedule, just reply to this email.\n\nSee you then,\n{business}'),
+    ('appointment_reminder', 3, '6 Hour Reminder (Email)', 'email', 'Today: your consultation at {time}',
+     "Hi {first_name},\n\nJust a reminder that your consultation with {business} is today at {time}.\n\nNeed to reschedule? Reply to this email and we'll sort it out.\n\n{business}"),
+    ('appointment_reminder', 4, '1 Hour Reminder (SMS)', 'sms', None,
+     'Hi {first_name}, your consultation with {business} starts in about an hour, at {time}. Talk soon!'),
+    ('appointment_reminder', 5, '1 Hour Reminder (Email)', 'email', 'Starting in an hour',
+     'Hi {first_name},\n\nQuick heads-up: your consultation with {business} starts in about an hour, at {time}.\n\nTalk soon,\n{business}'),
 ]
 
 

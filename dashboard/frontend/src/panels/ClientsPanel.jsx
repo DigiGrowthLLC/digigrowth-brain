@@ -865,10 +865,10 @@ function ClientLaunchChecklist({ clientId }) {
 // Cancellation, previewed read-only in the client's own portal (Sequences
 // tab). Not wired to any real send yet; this is just content editing.
 const SEQUENCE_GROUP_LABELS = {
-  prospect_followup: "Prospect Follow-Up (24h / +2d / +4d after no reply)",
-  appointment_reminder: "Appointment Reminders",
-  no_show: "No Show Follow-Up",
-  cancellation: "Cancellation Follow-Up",
+  prospect_followup: "Prospect Follow-Up (3h / +24h / +3d after no reply)",
+  appointment_reminder: "Appointment Reminders (24h / 6h / 1h before)",
+  no_show: "No Show Follow-Up (now / 3h / 24h)",
+  cancellation: "Cancellation Follow-Up (now / 3h / 24h)",
 };
 const SEQUENCE_GROUP_ORDER = ["prospect_followup", "appointment_reminder", "no_show", "cancellation"];
 

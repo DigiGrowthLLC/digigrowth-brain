@@ -1,12 +1,12 @@
-"""No Show / Cancellation recovery — real 3-touch drips (0h/24h/72h) for a
+"""No Show / Cancellation recovery — real 3-touch drips (0h/3h/24h) for a
 CLIENT's own lead, sent from the CLIENT's own Twilio number / Gmail mailbox
 using that client's own client_sequence_steps copy — never DigiGrowth's
 shared Twilio/Gmail credentials and never Dylan's own no_show_sequence.py/
 cancel_sequence.py copy (that copy is signed "Dylan" and links to Dylan's own
 Calendly, which is wrong for a client's own patient).
 
-Same touch cadence and step-pair-per-touch shape as no_show_sequence.py/
-cancel_sequence.py (step_order 0-1 = Touch 1, 2-3 = Touch 2, 4-5 = Touch 3 —
+Same step-pair-per-touch shape as no_show_sequence.py/cancel_sequence.py,
+on a faster cadence (right away, 3h, 24h after the no-show/cancel) (step_order 0-1 = Touch 1, 2-3 = Touch 2, 4-5 = Touch 3 —
 each pair is one SMS step + one email step; see routers/clients.py's
 _DEFAULT_SEQUENCE_STEPS), but progress is tracked generically via a JSONB map
 (client_no_show_steps_sent / client_cancel_steps_sent on appointment_reminders,
@@ -19,7 +19,9 @@ called from routers/appointments.py's PATCH handler and cancel_appointment(),
 routers/client_portal.py's portal_update_appointment_outcome()/
 portal_cancel_appointment()) — never left to wait for the next poll. Touches 2-3
 go out via send_due_touches(), scheduled from main.py on the same 5-minute
-cadence as every other drip in this codebase.
+cadence as every other drip in this codebase; a delayed touch that comes
+due during quiet hours (9pm-8am in the lead's timezone, lead_flags.py) waits
+for the morning. Leads tagged Unqualified get none of it.
 
 Stops permanently the moment the prospect replies on either channel — routers/
 client_sms_webhooks.py's inbound Twilio webhook and client_email.py's inbound
@@ -45,8 +47,10 @@ client's own leads.
 import json
 from datetime import datetime, timedelta, timezone as dt_timezone
 
+import lead_flags
 from db import get_pool
 from merge_fields import first_name_from_owner
+from timezone_lookup import guess_timezone
 
 # appointment_reminders sequence key -> client_sequence_steps.sequence_key.
 # client_sequence_steps also has "appointment_reminder", handled separately
@@ -61,7 +65,7 @@ _SEQUENCE_KEYS = {
 # index for "touch 2" — same numbering-gap convention as no_show_sequence.py/
 # cancel_sequence.py (kept for historical stage-tag continuity, see those
 # modules' docstrings).
-_TOUCH_DELAYS = [timedelta(hours=0), timedelta(hours=24), timedelta(hours=72)]
+_TOUCH_DELAYS = [timedelta(hours=0), timedelta(hours=3), timedelta(hours=24)]
 _TOUCH_LABELS = ["Touch 1", "Touch 2", "Touch 3"]
 
 _ANCHOR_COL = {"no_show": "outcome_show_at", "cancellation": "canceled_at"}
@@ -240,6 +244,7 @@ async def send_due_touches():
                 WHERE {_ACTIVE_WHERE[sequence]}
                 AND ar.{anchor_col} IS NOT NULL
                 AND c.client_id IS NOT NULL AND NOT c.is_client_anchor
+                AND NOT {lead_flags.UNQUALIFIED_SQL}
                 """
             )
         if not rows:
@@ -258,6 +263,9 @@ async def send_due_touches():
                     continue
                 if now < anchor + delay:
                     break  # earlier touches must go first; not due yet either way
+                tz_name = row.get("prospect_timezone") or guess_timezone(row.get("prospect_phone"))
+                if lead_flags.in_quiet_hours(tz_name, now):
+                    break  # due, but it's night where they are — send at 8am
                 async with pool.acquire() as conn:
                     steps = await conn.fetch(
                         "SELECT step_order, channel, subject, body FROM client_sequence_steps "
@@ -348,6 +356,7 @@ async def list_active(client_id: int, sequence: str) -> list[dict]:
             JOIN contacts c ON c.id = ar.contact_id
             WHERE c.client_id = $1 AND NOT c.is_client_anchor
             AND {_ACTIVE_WHERE[sequence]}
+            AND NOT {lead_flags.UNQUALIFIED_SQL}
             ORDER BY ar.{_ANCHOR_COL[sequence]} ASC
             """,
             client_id,

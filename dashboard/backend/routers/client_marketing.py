@@ -184,6 +184,7 @@ async def send_test_email(client_id: int, body: ClientTestEmail):
         result = await client_email.send_client_email(
             client_id, body.to, "Test email from your DigiGrowth setup",
             "This is a test send confirming your connected mailbox is working.",
+            manual=True,
         )
         return {"detail": result}
     except RuntimeError as e:

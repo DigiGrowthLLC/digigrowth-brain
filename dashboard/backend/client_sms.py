@@ -131,8 +131,17 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
         return dict(row)
 
 
-async def send_client_sms(client_id: int, to_number: str, body: str, stage: str | None = None) -> None:
-    """Sends from the client's own provisioned number, via their own subaccount."""
+async def send_client_sms(client_id: int, to_number: str, body: str, stage: str | None = None,
+                          manual: bool = False) -> None:
+    """Sends from the client's own provisioned number, via their own subaccount.
+
+    Automated sends (everything except a reply the client types in the portal
+    inbox, which passes manual=True) are silently skipped for a lead tagged
+    Unqualified — see lead_flags.py."""
+    import lead_flags
+    if not manual and await lead_flags.is_unqualified(client_id, phone=to_number):
+        print(f"[client_sms] {to_number} (client={client_id}) is tagged Unqualified — skipping automated SMS ({stage or 'reply'})")
+        return
     pool = await get_pool()
     async with pool.acquire() as conn:
         config = await conn.fetchrow(

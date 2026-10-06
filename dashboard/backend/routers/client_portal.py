@@ -1547,7 +1547,7 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
         if not phone:
             raise HTTPException(status_code=400, detail="This contact has no phone number on file")
         try:
-            await asyncio.wait_for(client_sms.send_client_sms(client["id"], phone, text), timeout=_SEND_TIMEOUT_S)
+            await asyncio.wait_for(client_sms.send_client_sms(client["id"], phone, text, manual=True), timeout=_SEND_TIMEOUT_S)
         except asyncio.TimeoutError:
             raise HTTPException(status_code=504, detail="SMS send timed out — check Twilio credentials/status and try again.")
         except RuntimeError:
@@ -1571,7 +1571,7 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
         )
     subject = last_subject or f"Message from {client['name']}"
     try:
-        await asyncio.wait_for(client_email.send_client_email(client["id"], email, subject, text), timeout=_SEND_TIMEOUT_S)
+        await asyncio.wait_for(client_email.send_client_email(client["id"], email, subject, text, manual=True), timeout=_SEND_TIMEOUT_S)
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Email send timed out — check Gmail credentials/status and try again.")
     except RuntimeError:
