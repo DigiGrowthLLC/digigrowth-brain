@@ -1090,9 +1090,9 @@
     },
     "Chattanooga, TN": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 100,
-      "qualified_count": 19,
+      "term_index": 2,
+      "reviewed_count": 114,
+      "qualified_count": 21,
       "last_scraped_date": "2026-10-05"
     },
     "Brownsville, TX": {
