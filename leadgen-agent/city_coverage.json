@@ -1124,9 +1124,9 @@
       "last_scraped_date": "2026-10-05"
     },
     "Clarksville, TN": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 118,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 123,
       "qualified_count": 4,
       "last_scraped_date": "2026-10-05"
     },
