@@ -1,29 +1,36 @@
 ---
 name: patient-acquisition-blueprint
-description: Build a personalized Patient Acquisition Blueprint page for one PT practice prospect — AI-generated example ad creatives, a funnel preview in a phone frame, a LIVE AI appointment-setting chat agent trained on their own website, and an animated flow diagram of the whole engine (database reactivation + new ad leads + missed calls → AI agent → booked consult, with unbooked leads, no-shows and finished patients recycled back into reactivation). Hosted at /lp/<slug>. Use when Dylan says "run the blueprint for X", "build a patient acquisition blueprint", or wants a show-the-whole-system page for a prospect or a sales call.
+description: Build a personalized Patient Acquisition Blueprint page for one PT practice prospect that Dylan walks through on a sales call — ads (cut from the practice's own social videos, plus AI UGC/POV videos and an AI static), the patient funnel shown in a desktop browser and a phone, a LIVE AI appointment-setting chat agent trained on their website, email + SMS database reactivation, and an animated flow diagram of the whole engine (reactivation + new ad leads + missed calls → AI agent → booked consult, with unbooked leads, no-shows and finished patients recycled back into reactivation). Hosted at /lp/<slug>. Use when Dylan says "run the blueprint for X", "build a patient acquisition blueprint", or wants a show-the-whole-system page for a prospect.
 ---
 
 # Patient Acquisition Blueprint
 
-One page that shows a practice owner the entire AI Growth Engine built around *their* practice: what their ads would look like, the funnel those ads land on, an AI agent they can actually talk to, and how every lead that doesn't book gets recycled instead of lost.
+One page that shows a practice owner the entire AI Growth Engine built around *their* practice: what their ads would look like, the funnel those ads land on, an AI agent they can actually talk to, how their existing list gets reactivated, and how every lead that doesn't book gets recycled instead of lost.
 
-How it differs from `landing-page-lead-magnet`: that page is a cold-SMS curiosity planter with a mockup of their site on top. The blueprint is the **full system walkthrough**, written to the practice owner from the first line, for prospects already on a sales call with Dylan: he walks them through it live (and may send the link after). Its centerpiece is the live agent. It has no booking CTA, since the prospect is already on the call.
+How it differs from `landing-page-lead-magnet`: that page is a cold-SMS curiosity planter with a mockup of their site on top. The blueprint is the **full system walkthrough**, written to the practice owner from the first line, for prospects **already on a sales call** with Dylan: he walks them through it live (and may send the link after). Its centerpiece is the live agent. It has no booking CTA, since the prospect is already on the call.
 
 **One prospect at a time, in the foreground. Never background this skill.** (Standing rule across agents since the leadgen backgrounding incident.)
 
-**Nothing is sent to the prospect without Dylan's explicit approval.** Publishing the page so Dylan can test the chat live is fine (step 9). Sending the link is a separate yes.
+**Nothing is sent to the prospect without Dylan's explicit approval.** Publishing the page so Dylan can test it live is fine (step 10). Sending the link is a separate yes.
 
-## How the page is built
+Worked example (Dylan-approved, 2026-10-05): Advantage Therapy, Las Vegas, live at `pages.digigrowthllc.com/lp/advantage-therapy-blueprint`. Its content is `references/blueprint-example.json`, its funnel is `references/blueprint-example-funnel.html` (photos stubbed out), and the run notes are `outputs/blueprint-advantage-therapy-blueprint-2026-10-05.md`.
 
-The fixed parts live in `design-agent/references/blueprint-template.html`: the layout, the DigiGrowth navy/glass theme, the animated engine diagram, the chat widget, the guarantee close. Don't hand-edit a built page. Per prospect, you write:
+## The page, top to bottom
 
-- `blueprint.json`: all the copy, the ad data, the SMS examples, the agent's greeting/chips, and `chat_context` (schema in `design-agent/tools/build_blueprint.py`'s docstring; `references/blueprint-example.json` is a full worked example)
-- `funnel.html`: a standalone patient-facing funnel page, shown inside a phone frame
-- 3 ad images
+Fixed by `design-agent/references/blueprint-template.html` (DigiGrowth navy/glass theme; the practice's own colors only inside the ads, funnel and chat):
 
-`build_blueprint.py` fills the template, compresses the images and inlines everything into one `page.html`. The live chat posts to `/lp/<slug>/chat` (`dashboard/backend/routers/landing_pages.py` → `dashboard/backend/blueprint_chat.py`), which answers from `chat_context` stored on the page's `landing_pages` row. **Booking in the demo chat is simulated:** made-up open times, nothing written to any calendar, nobody texted.
+1. **Disclaimer bar**, then the **hero**: their logo × DigiGrowth lockup, kicker, and a headline only. No navigation buttons and no subheading (Dylan removed both, 2026-10-05).
+2. **How the whole thing works**: the animated engine diagram, next to five step cards: 1 Ads, 2 Funnel, 3 AI agent, 4 Database reactivation, 5 Nothing leaks.
+3. **1 · Ads**: a row "Cut from your own videos" (their real social videos, edited into ads), then a row "AI-generated concepts" (AI UGC video, one static, AI POV video), all in Facebook-post frames.
+4. **2 · Funnel**: "Why ads go to a funnel, not your website" with three reason cards, then the funnel shown in a desktop browser frame with a phone beside it.
+5. **3 · AI appointment agent**: the live chat in the practice's colors.
+6. **4 · Database reactivation**: an SMS thread and an email to leads and past patients they already have.
+7. **5 · Nothing leaks**: missed-call text-back, unbooked follow-up, no-show recovery.
+8. **The guarantee** (10-20 booked consults in 6 weeks, three cards). The page ends here.
 
-If the template itself needs a design change (a better diagram, a new section), change `blueprint-template.html` so every future blueprint gets it, and rebuild.
+Per prospect you write `blueprint.json` (all copy, ad data, SMS/email examples, chat greeting/chips, `chat_context`; schema in `design-agent/tools/build_blueprint.py`'s docstring), `funnel.html`, and the ad media. `build_blueprint.py` fills the template, inlines images and the funnel, and copies videos to `out/assets/` for upload. The live chat posts to `/lp/<slug>/chat` (`dashboard/backend/routers/landing_pages.py` → `dashboard/backend/blueprint_chat.py`), answering from `chat_context` stored on the page's `landing_pages` row. **Booking in the demo chat is simulated:** made-up open times, nothing written to any calendar, nobody texted.
+
+If the page itself needs a design change, change `blueprint-template.html` (or the build script) so every future blueprint gets it, and rebuild. Don't hand-edit a built page.
 
 ## Steps
 
@@ -33,90 +40,86 @@ Work in a scratch folder, e.g. `<scratchpad>/blueprint-<slug>/`.
    ```bash
    python design-agent/tools/lookup_prospect.py "<name or business>"
    ```
-   Gives `contact_id`, `phone`, `website`, `owner`. If Dylan gave a website directly and there's no contact on file, carry on with the website alone and pass `-` as the contact_id in step 9.
+   Gives `contact_id`, `phone`, `website`, `owner`. If Dylan gave a website directly and there's no contact on file, carry on with the website alone and pass `-` as the contact_id in step 10.
 
 2. **Scrape their site.**
    ```bash
    python design-agent/tools/scrape_prospect_site.py "<website>" "<scratch_dir>"
    ```
-   Same tool and same rules as `landing-page-lead-magnet` step 2: read `page_text.txt` closely (services, offer, insurance/cash-pay, hours, location, real reviews), take colors from `palette.json`, take the logo and photos from `assets.json` as data URIs (sanity-check an SVG logo's fill before trusting it). **Look at `hero.png` too.** On Wix and similar builders the scraped "logo" is often a generic 24px site icon, and `palette.json` can miss the real brand color (it read white/blue on a black-and-red site). When that happens, crop the real wordmark out of `hero.png` with PIL, sample the brand color from its pixels, and set `brand.avatar_bg` to the logo's own background color (e.g. `#000000` for a logo cut from a black header).
+   Same tool and rules as `landing-page-lead-magnet` step 2: read `page_text.txt` closely (services, offer, insurance/cash-pay, prices, hours, location, reviews), colors from `palette.json`, logo and photos from `assets.json`. **Look at `hero.png` too.** On Wix and similar builders the scraped "logo" is often a generic 24px site icon, and `palette.json` can miss the real brand color (it read white/blue on Advantage's black-and-red site). When that happens, crop the real wordmark out of `hero.png` with PIL, sample the brand color from its pixels, and set `brand.avatar_bg` to the logo's own background color (`#000000` for a logo cut from a black header).
 
 3. **Read before writing.**
-   - `media-buying-agent/context/ad-creative-principles.md` (the ads follow its Working Checklist)
-   - `media-buying-agent/.claude/skills/generate-ad/SKILL.md`, the "Who can say what" rules
-   - `design-agent/references/cro-funnel-principles.md` (for the funnel preview)
+   - `media-buying-agent/context/ad-creative-principles.md` (ads follow its Working Checklist)
+   - `media-buying-agent/.claude/skills/generate-ad/SKILL.md`: "Who can say what", "Video Ad Variations" and "AI UGC Video Ads"
+   - `design-agent/references/cro-funnel-principles.md` (for the funnel)
    - `apptset-agent/context/sms-setter-playbook.md`, "The facts you can use" (offer, guarantee, pilot terms: the only DigiGrowth claims the page may make)
    - `design-agent/references/blueprint-example.json`, for tone and length per field
 
-3b. **Pull their real reviews and social videos.** These are the strongest material on the page.
-   - **Reviews:** most PT sites have a reviews/testimonials page that `page_text.txt` doesn't cover. Open it with Playwright (Wix and similar builders render reviews with JS, so `requests` misses them), scroll to load them all, and read `document.body.innerText`. Pick 6 that match the funnel's angle (e.g. "tried everything else", "fewer visits than other PT") for the funnel's review wall. Attribute as first name + last initial ("Jessica C.").
-   - **Videos:** grab their social links from the homepage HTML (`instagram.com/`, `tiktok.com/@`, `youtube.com/@`). Instagram and TikTok refuse downloads without a login, but YouTube Shorts works and usually holds the same videos. List them with view counts:
+4. **Pull their real reviews and social videos.** The strongest material on the page.
+   - **Reviews:** most PT sites have a reviews/testimonials page `page_text.txt` doesn't cover. Open it with Playwright (Wix renders reviews with JS, so `requests` misses them), scroll to load them all, read `document.body.innerText`. Pick 6 that fit the funnel's angle ("tried everything else", "fewer visits than other PT") for the funnel's review wall, plus one or two for ad proof cards. Attribute as first name + last initial ("Jessica C.").
+   - **Videos:** take their social links from the homepage HTML (`instagram.com/`, `tiktok.com/@`, `youtube.com/@`). Instagram and TikTok refuse downloads without a login; YouTube Shorts works and usually has the same videos. `yt-dlp` is pip-installed (`python -m yt_dlp`). List with view counts:
      ```bash
      python -m yt_dlp --flat-playlist --playlist-end 30 --print "%(id)s|%(view_count)s|%(title).80s" "https://www.youtube.com/@<handle>/shorts"
      ```
-     Shortlist 3-4 by view count and fit (a real patient result, a before/after, the owner explaining why they're different), download them (`python -m yt_dlp -f "bv*[height<=1920][ext=mp4]+ba[ext=m4a]/b" --merge-output-format mp4 -o <id>.mp4 https://www.youtube.com/shorts/<id>`), then transcribe (faster-whisper) and make a contact sheet per video (`ffmpeg -vf "fps=1/5,scale=180:-1,tile=6x2"`) and look at it before choosing cuts.
-   - **Edit each chosen video into an ad, lightly:** trim to its strongest 15-50s, **cut their organic calls to action** ("comment X", "learn more in the caption", "text me"), which don't belong in a paid ad, and append a 2.5s branded end card (black or their brand color, their logo, "Free phone consult" or their real first-step offer). Re-encode to 720x1280, H.264 CRF ~27, AAC 96k, `+faststart`; keep each file under ~8 MB. Their own burned-in captions stay; don't stack a second set on top. Real before/afters are fine for the preview, but flag to Dylan that Meta can restrict before/after health imagery if these ever run as real ads.
+     Shortlist 3-4 by views and fit (a real patient result, a before/after, the owner explaining why they're different), download (`python -m yt_dlp -f "bv*[height<=1920][ext=mp4]+ba[ext=m4a]/b" --merge-output-format mp4 -o <id>.mp4 https://www.youtube.com/shorts/<id>`), transcribe (faster-whisper), and look at a contact sheet per video (`ffmpeg -vf "fps=1/5,scale=180:-1,tile=6x2"`) before choosing cuts.
+   - **Edit 3 of them into ads, lightly:** trim to the strongest 15-50s, **cut their organic calls to action** ("comment X", "learn more in the caption", "text me"), and append a 2.5s branded end card (their logo, their real first-step offer, e.g. "Free phone consult"). Keep their own burned-in captions; don't stack a second set. Re-encode to 720x1280, H.264 CRF ~27, AAC 96k, `+faststart`, under ~8 MB each. These go in `ads.video_items`. Real before/afters are fine for the preview, but flag to Dylan that Meta can restrict before/after health imagery if they ever run as real ads.
 
-4. **Write `chat_context`: the demo agent's whole knowledge of the practice.** Facts only, all from the scrape: name, city/area, who treats patients (credentials), services, the real first-visit offer (free consult/screen/discovery visit, as their site words it), insurance or cash-pay policy, superbills, hours, address, anything distinctive about their approach, and 1-2 real review snippets if they help. Plain sentences or short labeled lines, roughly 150-400 words. If the site doesn't say something (prices, insurance), leave it out. The agent is told to say "I'll have the team confirm" for anything missing, which is exactly what a good real agent does. Never pad with guesses: whatever's in here, the agent will state as fact to whoever's testing it.
+5. **Write `chat_context`: the demo agent's whole knowledge of the practice.** Facts only, all from the scrape: name, area, clinicians and credentials, approach, conditions, services, the real first step (free consult/phone consult/screen, as their site words it), prices if the site lists them, insurance/cash-pay, HSA/FSA, superbills, hours, address, contact method, 1-2 real review snippets. Plain sentences or labeled lines, roughly 150-450 words. If the site doesn't say something, leave it out: the agent says "I'll have the team confirm" for anything missing. Never pad with guesses, since the agent states whatever is here as fact.
 
-5. **Generate 3 ad images.** Three distinct concepts, not variations, from their real services and patients:
-   - 2 top-of-funnel (a specific patient avatar and situation: the weekend runner, the desk worker with neck pain, the post-op patient) and 1 bottom-of-funnel (one objection the site gives you material for: cash-pay/insurance, "will PT actually help", time).
-   - Image prompt: the avatar unmistakable at a glance, in a believable PT clinic or real-life setting, concrete props for the vertical, harsh realism language (see the Ad Creative Realism memory). **No text in the image**: the hook goes on as an HTML overlay (`hook` field).
-   - Run from `content-agent/`, under `doppler run` (the generator needs `FAL_KEY`). The three can run in parallel: put the commands in a small script with `&` + `wait` and run the script under one `doppler run`.
-     ```bash
-     doppler run --project digigrowth --config prd -- python tools/generate_creative.py image "<prompt>" --model nano-banana-pro --aspect 4:5 --out "<scratch_dir>/ads/ad1.png"
-     ```
-     Use `--model nano-banana-pro` for any concept with a clear human face. If fal returns a 403 "TOP_UP", fal is out of credit: tell Dylan, don't silently swap in stock photos.
-   - Look at each image (Read it, inline) before using it. Regenerate anything with mangled hands, gibberish signage or an off setting.
-   - Copy rules: hook → problem → solution → proof → CTA. Never assert the viewer's condition ("Your back pain..."), since Meta rejects it. Describe the situation instead. Proof comes only from the scrape (real reviews, first-name attribution) or is omitted. No fabricated testimonials, no AI actor presented as a patient. Fill `angle_label` with "Top of funnel" / "Bottom of funnel" and `angle` with the short angle name.
+6. **Make the AI-generated concepts row: an AI UGC video, one static, an AI POV video** (Dylan's preferred mix, 2026-10-05). Three distinct angles, two top-of-funnel and one bottom-of-funnel (one objection the site gives you material for, e.g. insurance/cash-pay). All generation runs from `content-agent/` under `doppler run --project digigrowth --config prd --` (needs `FAL_KEY`); run independent generations in parallel from one small script (`&` + `wait`). Look at every still before animating it. If fal returns 403 "TOP_UP", fal is out of credit: tell Dylan, finish with what's already generated (e.g. a video without a music bed), and never swap in stock media.
+   - **AI UGC video (top of funnel).** Follow `generate-ad`'s "AI UGC Video Ads" loop. Actor still: `generate_creative.py image ... --model nano-banana-pro --aspect 9:16` (a relatable patient avatar filming a selfie, e.g. in their car in the practice's city). **Start the prompt with "Full-bleed photograph, no phone interface, no status bar, no app UI"**: "selfie" prompts tend to draw a fake camera app over the image. Two Veo 3.1 takes from the same still (`video ... --model veo31 --duration 8`), identical voice description in both. Script as two ≤8s takes: the actor voices the *situation* ("I've done the massages, the adjustments, even months of PT...") and the offer's facts ("Turns out there's a physical therapist here in Vegas who..."), never a result or patient claim. Verify each take by transcript, then assemble with `media-buying-agent/tools/assemble_ugc_ad.py spec.json`: hook card, captions (`caption_fixes` for misheard words), a real review proof card, the end card, `"label": ""` (no AI label, Dylan's standing call), and a `palette` in the spec so the cards use the practice's colors.
+   - **AI static (top of funnel).** `generate_creative.py image ... --model nano-banana-pro --aspect 4:5`, the avatar or the practice's distinctive setting unmistakable at a glance, harsh realism language (see the Ad Creative Realism memory), **no text in the image** (the hook is an HTML overlay via the `hook` field).
+   - **AI POV text-on-video (bottom of funnel).** The CrosaCore "3PM Desk" format: three 9:16 scene stills (e.g. a rushed insurance clinic, a patient alone with a band, hands-on one-on-one care with the therapist's face not shown), each animated with Kling (`video ... --image <still> --duration 5`), then assembled with `python media-buying-agent/tools/assemble_pov_ad.py spec.json` (one text card per beat, shown from frame 0 since a paused video displays its first frame; a real review card; the end card; a `palette` for their colors; an optional `music` bed from `generate_creative.py music` if fal has credit). Keep "POV" lines describing the situation, not asserting the viewer's condition.
+   - Re-encode the finished videos to 720x1280 CRF ~27 for the page. In `ads.items`, an entry with `video` renders as a video card, one with `image` as a static.
+   - Copy rules for every ad: hook → problem → solution → proof → CTA. Never assert the viewer's condition ("Your back pain..."), since Meta rejects it. Proof only from real reviews, first-name attribution. Fill `angle_label` ("Top of funnel · AI UGC", "Bottom of funnel · AI POV video", ...) and `angle`.
 
-6. **Write `funnel.html`, the patient-facing funnel page that ad #1 clicks into.** A complete standalone, **responsive** HTML document: the blueprint shows it twice, in a phone frame (~375px wide) and in a desktop browser frame (rendered at 1280px and scaled down). Design mobile first, then a `@media (min-width:900px)` layer: two-column hero (copy left, photo right), a CTA button in the header, a 3-column review wall.
+7. **Write `funnel.html`, the patient-facing page ad #1 clicks into.** A complete standalone, **responsive** HTML document; the blueprint shows it twice, in a phone frame (~375px) and in a desktop browser frame (rendered at 1280px, scaled down). Design mobile first, then a `@media (min-width:900px)` layer: two-column hero (copy left, photo right), a CTA button in the header, a 3-column review wall.
    - **Patient voice only**, exactly as in `landing-page-lead-magnet`'s Section 1 voice check: it *is* their page talking to a patient. No DigiGrowth, no "your practice", no meta.
-   - Message match: the hero headline restates ad #1's promise. Their palette, their logo, 1-2 real photos (from `assets.json`, or a clean frame grabbed from their own video, cropped above any burned-in caption).
-   - **Check every photo before using it.** Site hero images are often wide banners with a dark fade on one side for text overlay; dropped into a small frame they look like a dark sliver. Open the image and crop to the real subject.
-   - **Social proof leads.** Structure per `cro-funnel-principles.md`: hero + one CTA + a "5.0 on Google" style line (only a rating the site itself shows) → trust bar → **a wall of 6 real reviews** → good-fit list → 3 real treatment approaches → short FAQ (price, insurance, location) → the same CTA again. Buttons are visual only (`href="#"`).
-   - Every section uses the same container width and left alignment (Dylan, 2026-10-05: a narrower, centered FAQ looked out of place). Scope row styles to the rows themselves (e.g. `.faq .w>div`), never a bare `.faq div`, which also hits the container and strips its padding.
-   - Leave ~38px of top padding on the mobile header so the phone frame's notch doesn't clip the logo, and hide the page's scrollbar (`html{scrollbar-width:none}` + `::-webkit-scrollbar{display:none}`) so the desktop preview looks clean.
-   - Inline CSS, no JS, no external requests (system font stack). Keep it under ~250 KB with photos. The `--p`/`--p-ink` brand variables don't reach inside the iframe, so set colors directly.
+   - Message match: the hero headline restates the first ad's promise. Their palette, their logo, 1-2 real photos (from `assets.json`, or a clean frame from their own video, cropped above any burned-in caption).
+   - **Check every photo before using it.** Site hero images are often wide banners with a dark fade on one side for text; in a small frame they look like a dark sliver. Crop to the real subject.
+   - **Social proof leads.** Per `cro-funnel-principles.md`: hero + one CTA + a "5.0 on Google" line (only a rating the site itself shows) → trust bar → **wall of 6 real reviews** → good-fit list → 3 real treatment approaches → short FAQ (price, insurance, location) → the same CTA again. Buttons are visual only (`href="#"`).
+   - **Every section uses the same container width and left alignment** (Dylan, 2026-10-05: a narrower, centered FAQ looked out of place). Scope row styles to the rows (`.faq .w>div`), never a bare `.faq div`, which also hits the container and strips its padding.
+   - ~38px of top padding on the mobile header so the phone notch doesn't clip the logo; hide the page's scrollbar (`html{scrollbar-width:none}` + `::-webkit-scrollbar{display:none}`) so the desktop preview looks clean.
+   - Inline CSS, no JS, no external requests (system font stack), under ~250 KB with photos. The `--p`/`--p-ink` variables don't reach inside the iframe, so set colors directly.
 
-7. **Write `blueprint.json`.** Copy `references/blueprint-example.json` as a starting point for structure only; every word gets rewritten for this practice. Notes per field:
-   - `slug`: `<business-slug>-blueprint`. Keep the `-blueprint` suffix so it never overwrites the same practice's lead-magnet page.
-   - `brand.primary`/`primary_text`: their real button color and its text color from `palette.json` (the chat header, chat bubbles and ad avatar use these). Make sure the pair is readable.
-   - `hero.headline`: (there is no hero subheading; Dylan removed it 2026-10-05) about the practice's outcome, addressed to the owner. Wrap 2-4 words in `*asterisks*` for the gradient accent. Anchor numbers only to the real guarantee (10-20 booked consults in 6 weeks).
-   - `step_blurbs`: five, in order: ads, funnel, AI agent, database reactivation (email + SMS to leads and past patients they already have), nothing leaks.
-   - `ads.items` (the "AI-generated concepts" row) can mix formats: an item with `video` instead of `image` renders as a video card. Dylan's preferred row for Advantage Therapy (2026-10-05): an **AI UGC talking-actor video** (made with `generate-ad`'s "AI UGC Video Ads" loop: actor still, two Veo 3.1 takes, `media-buying-agent/tools/assemble_ugc_ad.py` with a `palette` in the spec for the practice's colors), **one static**, and an **AI POV text-on-video** (3 Kling clips from stills + text cards from `ad_overlays.py` + a real review card + end card, the CrosaCore "3PM Desk" format). Show text cards from frame 0, since a paused video displays its first frame. Re-encode videos to 720x1280 CRF ~27 for the page.
-   - `ads.video_items`: the edited social videos (`video`, `poster_at` seconds for the still frame, copy fields like the statics). Static `items` stay as the "AI-generated concepts" row.
-   - `funnel.headline`/`intro`/`why`: this section answers "I already have a website." Headline along the lines of "Why ads go to a funnel, not your website"; intro says their site is good and stays, but a site is built to inform, while an ad click needs one reason and one way to book. Three `why` cards: only the information that gets someone to book; no distractions (no menu, articles, links away); one choice, since too many options cause decision paralysis. `funnel.url` is the fake address shown in the browser bar (their domain + `/free-consult`).
-   - `reactivation`: an SMS thread (practice text + a lead reply) and an email (`subject`, `body` with `\n\n` paragraph breaks) to old leads/past patients, in the practice's voice. SMS GSM-7 rules apply.
-   - `agent.greeting` + 3 `chips`: what a real patient of *this* practice would type (one symptom question from their specialty, one insurance/cost question, one booking request).
-   - `recovery.items`: three cards in this order: missed-call text-back, unbooked-lead follow-up, no-show recovery (database reactivation has its own section now). Each has an example SMS thread in the practice's voice. **SMS text must be GSM-7 safe**: no em dashes, curly quotes, ellipses or emoji in `messages[].text` (the build warns). Use realistic first names, never real patients from the reviews.
-   - `close_intro`: one or two sentences. The guarantee cards are fixed in the template. There is deliberately no booking CTA at the end: the blueprint is shown to prospects already on a sales call (Dylan, 2026-10-05), so the page ends on the guarantee.
-   - The template's engine diagram and guarantee wording are fixed. Don't restate their numbers differently elsewhere in the copy.
+8. **Write `blueprint.json`.** Start from `references/blueprint-example.json` for structure; every word gets rewritten for this practice.
+   - `slug`: `<business-slug>-blueprint` (the suffix keeps it from overwriting the practice's lead-magnet page).
+   - `brand.primary`/`primary_text`/`avatar_bg`: real button color and its text color (chat header, bubbles, ad avatars), and the logo's background color.
+   - `hero.headline`: the practice's outcome, addressed to the owner, 2-4 words in `*asterisks*` for the gradient accent. Anchor numbers only to the real guarantee (10-20 booked consults in 6 weeks). No subheading.
+   - `engine_intro`: personalize it to something real on their site (Advantage: "your site says you text and don't take calls" set up the missed-call angle).
+   - `step_blurbs`: five, in order: ads, funnel, AI agent, database reactivation (email + SMS campaigns to leads and past patients they already have), nothing leaks.
+   - `ads.intro`, `ads.video_items` (step 4), `ads.items` (step 6).
+   - `funnel`: `headline`/`intro`/`why` answer "I already have a website": their site is good and stays, but a site is built to inform, while an ad click needs one reason and one way to book. Three `why` cards: only the information that gets someone to book; no distractions (no menu, articles, links away); one choice, since too many options cause decision paralysis. `url` is the address shown in the browser bar (their domain + `/free-consult`). `points` are the four ticks under the devices.
+   - `agent.greeting` + 3 `chips`: what a real patient of this practice would type (a symptom from their specialty, insurance/cost, a booking request).
+   - `reactivation`: an SMS thread (practice text + a lead reply) and an email (`subject`, `body` with `\n\n` paragraph breaks) to old leads/past patients, in the practice's voice.
+   - `recovery.items`: three cards in this order: missed-call text-back, unbooked-lead follow-up, no-show recovery.
+   - All SMS text must be **GSM-7 safe** (no em dashes, curly quotes, ellipses or emoji; the build warns). Use realistic first names, never real patients from the reviews.
+   - `close_intro`: one or two sentences above the fixed guarantee cards. The page deliberately ends there, with no booking CTA.
 
-8. **Build and preview.**
+9. **Build and check.**
    ```bash
    python design-agent/tools/build_blueprint.py "<scratch_dir>/blueprint.json" "<scratch_dir>/out"
    ```
-   Fix every WARNING it prints. Then publish `<scratch_dir>/out/page.html` as a Claude Artifact so Dylan sees the page. In the Artifact the chat shows "runs on the published blueprint link", which is expected (the Artifact can't reach the backend). Check mobile too (force `.reveal{opacity:1 !important}` before screenshots, same gotcha as the lead-magnet skill; save screenshots under `.playwright-mcp/`, never the repo root).
+   Fix every WARNING. Then look at it: either publish `out/page.html` as a Claude Artifact (the chat shows "runs on the published blueprint link" and video cards show poster frames there; both expected), or serve `out/` locally with a tiny HTTP server that answers `/lp/<slug>/chat` via `blueprint_chat.reply()` and serves `/a/<name>` from `out/assets/`, so the chat and videos work before publishing. Force `.reveal{opacity:1 !important}` before screenshots, check desktop and ~390px mobile, and save screenshots under `.playwright-mcp/`, never the repo root.
 
-9. **Publish for live testing** once the visual direction looks right:
-   ```bash
-   python design-agent/tools/publish_landing_page.py "<slug>" "<scratch_dir>/out/page.html" "<business>" "<contact_id or ->" --chat-context "<scratch_dir>/out/chat_context.txt" --assets "<scratch_dir>/out/assets"
-   ```
-   `--assets` uploads the video ads to R2 (served from `/lp/<slug>/a/<name>`); omit it if there are no video ads. In the Artifact preview the video cards show their poster frame only.
-   Prints the live URL. Give it to Dylan to test the agent himself. Run a quick smoke test yourself too: POST two messages to `<url>/chat` (a services question, then "can I book this week?") and confirm it answers from the practice's facts and offers two times. Revisions: edit the json or funnel, rebuild, re-run this same publish command (it upserts the same slug).
+10. **Publish for live testing.**
+    ```bash
+    python design-agent/tools/publish_landing_page.py "<slug>" "<scratch_dir>/out/page.html" "<business>" "<contact_id or ->" --chat-context "<scratch_dir>/out/chat_context.txt" --assets "<scratch_dir>/out/assets"
+    ```
+    `--assets` uploads the videos to R2 (served from `/lp/<slug>/a/<name>`); a republish without it keeps what's already uploaded. Prints the live URL. Smoke-test on production: each `/a/videoN.mp4` returns 200, and POST two messages to `<url>/chat` (an insurance/services question, then "can I book this week?"): the answer and the next question come back as two `replies`, from the practice's facts, then two times are offered. Revisions: edit, rebuild, re-run the same publish command (it upserts the slug).
 
-10. **Sending is a separate yes.** Only when Dylan explicitly asks to send it to the prospect. The landing-page SMS tool's locked wording is about the pilot mockup, so don't reuse it. Ask Dylan how he wants it delivered (text it himself, in a call follow-up, or a one-off SMS he approves word for word).
+11. **Sending is a separate yes.** Only when Dylan explicitly asks. The landing-page SMS tool's locked wording is about the pilot mockup, so don't reuse it. Ask how he wants it delivered (he texts it himself, a call follow-up, or a one-off SMS he approves word for word).
 
-11. **Completion note** to `design-agent/outputs/blueprint-<slug>-YYYY-MM-DD.md`: URL, the 3 ad angles, image prompts used, anything the chat context was missing, and whether it was sent.
+12. **Completion note** to `design-agent/outputs/blueprint-<slug>-YYYY-MM-DD.md`: URL, which social videos were cut (ids + cuts), the AI ad angles and prompts/scripts, fal spend, anything the chat context was missing, and whether it was sent.
 
 ## Guardrails
 
-- No fabricated stats, testimonials or results. DigiGrowth's only numeric claim is the stated guarantee. Practice facts come from their own site.
+- No fabricated stats, testimonials or results. DigiGrowth's only numeric claim is the stated guarantee. Practice facts come from their own site; proof comes from their real reviews.
+- AI actors voice the situation and the offer's facts only, never results or patient status. No AI/"dramatization" label (Dylan's standing call).
 - The ads are labeled as examples (the top bar says so). Never upload or run them on the prospect's behalf.
-- The demo agent costs real API spend per message on a public URL. It's rate-limited (30 messages/IP/hour, 400/page/day) and only answers on pages published with `--chat-context`. Republishing without the flag keeps the existing context, so to switch a page's chat off, clear it in SQL: `UPDATE landing_pages SET chat_context = NULL WHERE slug = '<slug>'`.
-- Model: `BLUEPRINT_CHAT_MODEL` env var (default `claude-opus-5-5`, low effort, ~3-5s replies).
-- Chat format (Dylan's call, 2026-10-05): text-message length. Each reply is the answer (about 20 words) and then the next question as a **separate** text, e.g. insurance answer, then "What's been bothering you?". The backend splits on the blank line and the page shows two bubbles. Change it in `blueprint_chat.py`'s preamble, not per page.
+- The demo agent costs real API spend per message on a public URL. It's rate-limited (30 messages/IP/hour, 400/page/day) and only answers on pages published with `--chat-context`. Republishing without the flag keeps the existing context; to switch a page's chat off: `UPDATE landing_pages SET chat_context = NULL WHERE slug = '<slug>'`.
+- Model: `BLUEPRINT_CHAT_MODEL` env var (default `claude-opus-5-5`, low effort, ~3s replies).
+- **Chat format (Dylan, 2026-10-05):** text-message length. Each reply is the answer (about 20 words), then the next question as a **separate** text, e.g. the insurance answer, then "What's been bothering you?". The backend splits on the blank line and the page shows two bubbles. Change it in `blueprint_chat.py`'s preamble, not per page.
 
 ## Completion Message
 

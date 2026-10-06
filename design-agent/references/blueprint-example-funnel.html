@@ -1,0 +1,73 @@
+<!-- Worked example funnel (Advantage Therapy, 2026-10-05). Photos replaced with PHOTO_DATA_URI; reuse the structure and responsive CSS, never the copy. -->
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}html{scrollbar-width:none}html::-webkit-scrollbar{display:none}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#111;background:#fff}
+.w{max-width:1120px;margin:0 auto;padding:0 20px}
+.top{background:#000}.top .w{display:flex;align-items:center;justify-content:space-between;padding-top:38px;padding-bottom:14px}.top img{height:42px;width:auto;display:block}
+.top a{display:none}
+.hero{background:#000;color:#fff}.hero .w{display:grid;grid-template-columns:1fr;gap:0;padding-top:4px;padding-bottom:28px}
+.eye{color:#d00b14;font-weight:800;letter-spacing:.14em;font-size:11px;text-transform:uppercase;margin:6px 0 8px}
+h1{font-size:27px;line-height:1.08;margin:0 0 12px;text-transform:uppercase;letter-spacing:.01em;font-weight:900}
+h1 em{color:#d00b14;font-style:normal}
+.hero p{margin:0 0 18px;font-size:15px;line-height:1.5;color:#d6d6d6}.hero p b{color:#fff}
+.btn{display:block;text-align:center;background:#d00b14;color:#fff;font-weight:800;letter-spacing:.08em;text-transform:uppercase;font-size:14px;padding:15px 22px;border-radius:6px;text-decoration:none}
+.under{color:#9a9a9a;font-size:12px;margin-top:9px;text-align:center}
+.stars{margin-top:16px;font-size:13px;color:#ddd;text-align:center}.stars b{color:#f5b301;letter-spacing:2px}
+.pic{margin-top:22px;border-radius:12px;overflow:hidden;aspect-ratio:4/3}.pic img{width:100%;height:100%;object-fit:cover;object-position:50% 25%;display:block}
+.trust{background:#111;color:#fff}.trust .w{display:flex;justify-content:space-around;text-align:center;padding-top:12px;padding-bottom:12px;font-size:12px}.trust b{display:block;color:#d00b14;font-size:16px}
+.s{padding:30px 0}.s h2{font-size:20px;text-transform:uppercase;margin:0 0 16px;letter-spacing:.02em}.s h2 em{color:#d00b14;font-style:normal}
+.fit{padding-left:18px;margin:0}.fit li{margin-bottom:8px;font-size:14.5px;line-height:1.45}
+.two{display:grid;grid-template-columns:1fr;gap:22px}
+.c{border:1px solid #e6e6e6;border-left:4px solid #d00b14;border-radius:8px;padding:13px 14px;margin-bottom:10px;font-size:14px;line-height:1.45}.c b{display:block;margin-bottom:3px;font-size:15px}
+.ph2{border-radius:12px;overflow:hidden;aspect-ratio:4/3}.ph2 img{width:100%;height:100%;object-fit:cover;display:block}
+.rev{background:#f4f4f4}.wall{display:grid;grid-template-columns:1fr;gap:12px}
+.q{background:#fff;border-radius:10px;padding:16px;box-shadow:0 4px 16px rgba(0,0,0,.06)}.q p{margin:6px 0 0;font-size:14.5px;line-height:1.5}
+.st{color:#f5b301;letter-spacing:2px;font-size:14px}.who{margin-top:10px;font-weight:700;font-size:13px}.who span{color:#777;font-weight:400}
+.faq .w>div{border-bottom:1px solid #eee;padding:13px 0;font-size:14px;line-height:1.5}.faq .w>div b{display:block;margin-bottom:4px}
+.end{background:#000;color:#fff;text-align:center}.end .w{padding-top:30px;padding-bottom:36px;max-width:560px}.end h2{text-transform:uppercase;font-size:21px;margin:0 0 8px}.end p{color:#bbb;font-size:14px;margin:0 0 16px}
+@media (min-width:900px){
+ .top .w{padding-top:14px}
+ .top a{display:inline-block;background:#d00b14;color:#fff;text-decoration:none;font-weight:800;font-size:13px;letter-spacing:.08em;text-transform:uppercase;padding:11px 18px;border-radius:6px}
+ .hero .w{grid-template-columns:1.1fr .9fr;gap:48px;align-items:center;padding-top:30px;padding-bottom:56px}
+ h1{font-size:46px}.hero p{font-size:18px}.btn{display:inline-block}.under,.stars{text-align:left}
+ .pic{margin-top:0;aspect-ratio:5/6}
+ .s{padding:56px 0}.s h2{font-size:28px}
+ .two{grid-template-columns:1fr 1fr;gap:48px;align-items:center}
+ .wall{grid-template-columns:repeat(3,1fr);gap:16px}
+
+}
+</style></head><body>
+<div class="top"><div class="w"><img src="PHOTO_DATA_URI" alt="Advantage Therapy"><a href="#">Free phone consult</a></div></div>
+<div class="hero"><div class="w">
+ <div>
+  <div class="eye">Las Vegas manual therapy</div>
+  <h1>Tried massage, adjustments and PT, and the <em>pain keeps coming back?</em></h1>
+  <p>Get <b>one-on-one, hands-on treatment</b> with Dr. Phil Young DPT or Dr. Monique Lawson DPT, focused on finding the root cause, not chasing symptoms.</p>
+  <a class="btn" href="#">Book my free phone consult</a>
+  <div class="under">Free call. We cover pricing, availability and whether it's a fit.</div>
+  <div class="stars"><b>★★★★★</b> 5.0 on Google</div>
+ </div>
+ <div class="pic"><img src="PHOTO_DATA_URI" alt="Dr. Phil Young treating a patient"></div>
+</div></div>
+<div class="trust"><div class="w"><div><b>5.0 ★</b>Google rating</div><div><b>60 min</b>one-on-one</div><div><b>DPT</b>every visit</div><div><b>HSA/FSA</b>accepted</div></div></div>
+<div class="s rev"><div class="w"><h2>Patients who <em>tried everything else</em></h2><div class="wall"><div class="q"><div class="st">★★★★★</div><p>"What would have taken me at least 12 sessions through a different PT, we got it done in 3. His goal is to get you pain-free in the most efficient way, not make you come back multiple times."</p><div class="who">Jessica C. <span>· Google review</span></div></div><div class="q"><div class="st">★★★★★</div><p>"Severe neck and back pain for many years. Chiropractors got me to about a 4 after many months. After only 4 sessions with Phil, my pain is almost gone, about a 2, sometimes even a 1."</p><div class="who">Isa P. <span>· Google review</span></div></div><div class="q"><div class="st">★★★★★</div><p>"For several years I have suffered with a terrible back. After 2 back surgeries, shots and pills with little success. After 5 sessions I feel better than twenty years ago!"</p><div class="who">Reiney P. <span>· Google review</span></div></div><div class="q"><div class="st">★★★★★</div><p>"I have seen several chiropractors, massage therapists and PTs for years. After my first appointment, I felt like I finally had some hope."</p><div class="who">Angie P. <span>· Google review</span></div></div><div class="q"><div class="st">★★★★★</div><p>"Intense pain in my shoulder, worried I tore my rotator cuff. After only 3 treatments I am pain free with no surgery and full range of motion."</p><div class="who">Stefani C. <span>· Google review</span></div></div><div class="q"><div class="st">★★★★★</div><p>"He is the only PT I've been to that has actually spent more than 10 min of manual therapy on me. I really appreciate the one on one sessions."</p><div class="who">Baylee R. <span>· Google review</span></div></div></div></div></div>
+<div class="s"><div class="w two">
+ <div><h2>You're a <em>good fit</em> if you:</h2><ul class="fit">
+  <li>Have dealt with back, neck, shoulder or hip pain for months or years</li>
+  <li>Tried PT, adjustments, massage or acupuncture without lasting results</li>
+  <li>Want hands-on care for the root cause, not just the symptoms</li>
+  <li>Prefer 1-on-1 care over being a number</li></ul></div>
+ <div class="ph2"><img src="PHOTO_DATA_URI" alt="Dr. Phil Young with a patient"></div>
+</div></div>
+<div class="s" style="padding-top:0"><div class="w"><h2>How we <em>treat it</em></h2>
+ <div class="c"><b>Find the root cause</b>A detailed assessment of the movement, joint, muscle or nerve dysfunction behind your pain.</div>
+ <div class="c"><b>Targeted manual therapy</b>Joint manipulation, neuro/myofascial release, dry needling and shockwave, aimed at what we find.</div>
+ <div class="c"><b>Home exercises that stick</b>A personalized program, reassessed and progressed as you improve.</div>
+</div></div>
+<div class="s faq" style="padding-top:0"><div class="w"><h2>Quick <em>questions</em></h2>
+ <div><b>Do you take insurance?</b>No, on purpose: you get 60 full minutes, one-on-one. HSA/FSA cards work, and we provide superbills for out-of-network reimbursement.</div>
+ <div><b>What does it cost?</b>The initial evaluation is $250 for a full 60-minute session. Follow-ups are $250, or $800 for a 4-session package.</div>
+ <div><b>Where are you?</b>Inside SVG3 Fitness, 6416 Arville St, Las Vegas 89118. Monday to Friday, 8am to 5pm.</div>
+</div></div>
+<div class="end"><div class="w"><h2>Start with a free phone consult</h2><p>Tell us what's going on. We'll tell you honestly if we can help.</p><a class="btn" href="#">Book my free phone consult</a></div></div>
+</body></html>

@@ -1,86 +1,139 @@
 {
- "_note": "Worked example for the patient-acquisition-blueprint skill. Peak Motion is a FICTIONAL practice; reuse the structure and length per field, never the copy. Image paths are relative to the json's own folder.",
- "slug": "peak-motion-pt-blueprint",
- "business": "Peak Motion Physical Therapy",
- "business_short": "Peak Motion",
- "domain": "peakmotionpt.com",
+ "_note": "Worked example: Advantage Therapy (Las Vegas), Dylan-approved 2026-10-05, live at pages.digigrowthllc.com/lp/advantage-therapy-blueprint. Reuse the structure and length per field, never the copy. Media paths (ads/, social/, logo.png) were relative to that run's scratch folder and aren't kept in the repo.",
+ "slug": "advantage-therapy-blueprint",
+ "business": "Advantage Therapy",
+ "business_short": "Advantage Therapy",
+ "domain": "advantagetherapy.vegas",
  "brand": {
-  "primary": "#0f766e",
-  "primary_text": "#ffffff"
+  "primary": "#d00b14",
+  "primary_text": "#ffffff",
+  "avatar_bg": "#000000"
  },
- "logo": null,
+ "logo": "logo.png",
  "hero": {
-  "headline": "How Peak Motion fills its schedule with *10-20 new patients* in 6 weeks",
-  "subhead": "This is the exact system we'd run for your practice: the ads, the funnel, the AI agent that books the consults, and the recovery loop that makes sure no lead is wasted."
+  "headline": "A system built to put *10-20 booked consults* on Advantage Therapy's calendar in 6 weeks",
+  "subhead": "Phil, this is the exact engine we'd run for you: the ads, the page they land on, an AI agent that answers every lead in seconds, and the follow-up that catches everyone who slips through. Scroll through it, then try the agent yourself."
  },
- "engine_intro": "New leads, old leads and missed calls all land with one AI agent that replies in seconds and books the consult. Anyone who doesn't book, no-shows or finishes care gets recycled back into reactivation instead of forgotten.",
+ "engine_intro": "Your site says you text and don't take calls, which makes sense when you're hands-on with a patient for 60 minutes. The engine is built for exactly that: new ad leads, past patients and every missed call land with one AI agent that replies in seconds and books the free phone consult. Anyone who doesn't book, no-shows or finishes care gets recycled back into reactivation instead of forgotten.",
  "step_blurbs": [
-  "Targeted ads put Peak Motion in front of active adults in Denver who want to get back to running and training.",
-  "Every click lands on a page built around one offer: the free discovery visit.",
-  "The agent texts and chats with every lead in seconds, answers questions and books them in.",
-  "Missed calls, no-shows and unbooked leads get followed up automatically, so nothing leaks."
+  "Ads put you in front of Las Vegas adults who've already tried massage, adjustments and PT, and are done living with it.",
+  "Every click lands on a page about chronic pain and your free phone consult, not your homepage.",
+  "The agent texts and chats with every lead in seconds, answers the insurance and price questions, and books the consult.",
+  "Email and SMS campaigns to the leads and past patients you already have, so the list you've built keeps booking consults.",
+  "Missed calls, no-shows and unbooked leads get followed up automatically, so nothing you paid for leaks out."
  ],
  "ads": {
-  "headline": "Ads written around the patients you already help",
-  "intro": "Example creatives built with AI from what's on your site. In a real launch we test several angles and double down on whatever books the most consults.",
+  "headline": "Ads built around the patients you're best at helping",
+  "intro": "Your own videos are the strongest ads you have: real patients, real results, you on camera. We cut these from your YouTube Shorts, and paired them with AI-made concepts (a UGC-style video, a static and a POV video) for angles you haven't filmed yet. In a real launch we test them and double down on whatever books the most consults.",
   "items": [
    {
-    "image": "ads/ad1.png",
-    "primary_text": "Started running again and your knee had other plans? Our Doctors of Physical Therapy build return-to-run plans one-on-one.",
-    "headline": "Free 20-minute discovery visit",
-    "cta": "Book Now",
-    "angle_label": "Top of funnel",
-    "angle": "return-to-running",
-    "hook": "Back to running, without the knee pain"
+    "video": "social/web-advantage-ugc-tried-everything-9x16.mp4",
+    "poster_at": 1.2,
+    "primary_text": "Massage, adjustments, months of PT, and it still flares up every week? Dr. Phil Young DPT spends a full hour with you, one-on-one and hands-on, aimed at the root cause. Start with a free phone consult.",
+    "headline": "Free phone consult, Las Vegas",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel · AI UGC",
+    "angle": "tried everything, still in pain"
    },
    {
     "image": "ads/ad2.png",
-    "primary_text": "A full hour, one-on-one, with the same Doctor of Physical Therapy every visit.",
-    "headline": "60 minutes with a DPT, not 15",
-    "cta": "Learn More",
+    "hook": "60 minutes. One-on-one. Hands-on.",
+    "primary_text": "No 15-minute check-ins, no rotating aides. Every visit is a full hour with Dr. Phil Young DPT or Dr. Monique Lawson DPT, using manual therapy, dry needling and shockwave on what's actually driving the pain.",
+    "headline": "A full hour with a DPT, every visit",
+    "cta": "Book Now",
     "angle_label": "Top of funnel",
-    "angle": "one-on-one time"
+    "angle": "real one-on-one time"
    },
    {
-    "image": "ads/ad3.png",
-    "primary_text": "Out of network? We give you superbills so you can submit for reimbursement.",
-    "headline": "Cash-pay, superbills provided",
-    "cta": "Book Now",
+    "video": "social/web-advantage-pov-rushed-pt-9x16.mp4",
+    "poster_at": 1.5,
+    "primary_text": "15-minute visits. A therapist juggling three other patients. Band exercises on your own. Every visit at Advantage Therapy is a full hour, one-on-one with a DPT. Cash-pay, HSA/FSA welcome, superbills provided.",
+    "headline": "A full hour, every visit",
+    "cta": "Learn More",
+    "angle_label": "Bottom of funnel · AI POV video",
+    "angle": "rushed insurance PT"
+   }
+  ],
+  "video_label": "Cut from your own videos",
+  "static_label": "AI-generated concepts",
+  "video_items": [
+   {
+    "video": "social/cut1.mp4",
+    "poster_at": 1.5,
+    "primary_text": "6 months of severe hip pain and sciatica down the leg. Gone in 3 sessions, and still pain free a month later. One-on-one manual therapy in Las Vegas, aimed at the root cause.",
+    "headline": "Free phone consult, Las Vegas",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel",
+    "angle": "real result, sciatica"
+   },
+   {
+    "video": "social/cut2.mp4",
+    "poster_at": 2.5,
+    "primary_text": "4 years of chronic back pain and nothing had worked. Watch the before and after. If you've tried everything else, start with a free phone consult.",
+    "headline": "See the before and after",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel",
+    "angle": "before and after"
+   },
+   {
+    "video": "social/cut3.mp4",
+    "poster_at": 1,
+    "primary_text": "Why Dr. Phil started a cash-pay practice: a full hour one-on-one, no insurance company deciding your care, and a plan you can keep up at home.",
+    "headline": "Why we left insurance behind",
+    "cta": "Learn More",
     "angle_label": "Bottom of funnel",
-    "angle": "insurance objection"
+    "angle": "the insurance objection, in his words"
    }
   ]
  },
  "funnel": {
-  "headline": "One page, one offer, one button",
-  "intro": "Ad clicks never land on your homepage. They land on a page that says back exactly what the ad promised and asks for one thing.",
+  "headline": "Why ads go to a funnel, not your website",
+  "intro": "You already have a good website, and it should stay. But a website is built to inform: services, articles, videos, pricing, forms. Someone who just clicked an ad needs one thing: a reason to book and an easy way to do it.",
   "points": [
-   "Headline matches the ad they just clicked",
-   "Your real services, reviews and photos",
-   "One action: book the free discovery visit",
-   "The AI agent picks up the second they opt in"
+   "Headline matches the ad they clicked",
+   "Six real Google reviews up front",
+   "Price and insurance answered early",
+   "One action: the free phone consult"
   ],
-  "html_file": "funnel.html"
+  "html_file": "funnel.html",
+  "url": "advantagetherapy.vegas/free-consult",
+  "why": [
+   {
+    "icon": "🎯",
+    "title": "Only what matters",
+    "text": "Just the information that gets someone to book: their problem, your approach, real reviews, price and insurance. Nothing else."
+   },
+   {
+    "icon": "🚫",
+    "title": "No distractions",
+    "text": "No menu, no articles, no gallery, no links away. Every extra page is a chance for them to wander off and forget about you."
+   },
+   {
+    "icon": "👆",
+    "title": "One choice: book",
+    "text": "Too many options causes decision paralysis. Every button on the page does the same thing: book the free phone consult."
+   }
+  ]
  },
  "agent": {
-  "headline": "An agent that answers in seconds, at 11pm, on a Sunday",
-  "intro": "The practice that replies first usually wins the patient. This agent texts every new lead within seconds, answers their questions from your own website and books the consult on your calendar.",
+  "headline": "An agent that answers while you're hands-on with a patient",
+  "intro": "The practice that replies first usually wins the patient, and you can't text back mid-session. This agent replies to every lead in seconds, answers questions from your own website, handles the insurance and price questions, and books the free phone consult.",
   "points": [
-   "Knows your services, offer and policies",
-   "Never invents prices or medical advice",
-   "Offers two real times and books the one they pick",
-   "Hands off to your team whenever it should"
+   "Knows your services, pricing and insurance policy",
+   "Never gives medical advice or invents details",
+   "Offers two open times and books the one they pick",
+   "Hands off to you whenever it should"
   ],
-  "greeting": "Hi! Thanks for reaching out to Peak Motion. What's going on that you'd like help with?",
+  "greeting": "Hi! Thanks for reaching out to Advantage Therapy. What's been bothering you?",
   "chips": [
-   "My knee hurts when I run",
+   "My lower back has hurt for years",
    "Do you take insurance?",
-   "Can I book a visit this week?"
+   "Can I book a free consult?"
   ]
  },
  "recovery": {
   "headline": "Every lead that doesn't book gets another shot",
-  "intro": "Most practices lose more patients to slow follow-up than to competitors. These run automatically.",
+  "intro": "Most practices lose more patients to slow follow-up than to competitors. These run on their own, in your voice.",
   "items": [
    {
     "icon": "📞",
@@ -89,11 +142,11 @@
     "messages": [
      {
       "from": "practice",
-      "text": "Hey, this is Peak Motion PT, sorry we missed your call! Are you looking to book a visit, or did you have a question?"
+      "text": "Hey, it's Advantage Therapy! Sorry we missed your call, we're usually hands-on with a patient. Are you looking to set up a free phone consult, or do you have a question?"
      },
      {
       "from": "lead",
-      "text": "trying to see if you can look at my shoulder"
+      "text": "yeah my neck has been bad for months, how much is it?"
      }
     ]
    },
@@ -104,34 +157,43 @@
     "messages": [
      {
       "from": "practice",
-      "text": "Hi Jess, still want help with that knee? I have a couple of openings tomorrow if you want one."
+      "text": "Hi Jason, it's Dr. Phil's team at Advantage Therapy. Still dealing with that low back pain? I have a couple of free consult times tomorrow if you want one."
      }
     ]
    },
    {
     "icon": "🚫",
     "label": "No-show recovery",
-    "when": "15 minutes after a missed consult",
+    "when": "15 minutes after a missed appointment",
     "messages": [
      {
       "from": "practice",
-      "text": "Hi Mark, we missed you today! Want me to find you another time this week?"
-     }
-    ]
-   },
-   {
-    "icon": "♻️",
-    "label": "Database reactivation",
-    "when": "Old leads and past patients, every few months",
-    "messages": [
-     {
-      "from": "practice",
-      "text": "Hi Sarah, it's been a while since your last visit at Peak Motion. How's the back holding up? We have a few check-up spots open this month."
+      "text": "Hi Maria, we missed you at 2pm today. No problem at all, want me to find you another time this week?"
      }
     ]
    }
   ]
  },
- "close_intro": "We're running this pilot with a handful of practices to build case studies. Here's what we commit to.",
- "chat_context": "Peak Motion Physical Therapy, Denver CO. Cash-pay, one-on-one 60 minute sessions with a Doctor of Physical Therapy. Services: sports injury rehab, back and neck pain, post-surgical rehab (ACL, rotator cuff), dry needling. Offer: free 20-minute discovery visit, in clinic. Out of network with insurance; provides superbills."
+ "close_intro": "We're running this as a pilot with a handful of practices to build case studies before rates go up. Here's what we commit to.",
+ "chat_context": "Advantage Therapy - Manual Physical Therapy, Las Vegas NV. Specializes in manual physical therapy for chronic pain (pain lasting months or years).\n\nClinicians: Dr. Phil Young DPT, CIDN (B.S. Human Movement, Utah State; Doctorate of Physical Therapy, Rocky Mountain University; spent over a decade with chronic back pain himself before finding what worked) and Dr. Monique Lawson DPT, CIDN. Both certified in dry needling and manual manipulation.\n\nApproach: one-on-one, hands-on, 60 full minutes per session. 1) detailed assessment to find the movement, joint, muscle or nerve dysfunction causing the pain, 2) targeted manual therapy based on those findings, 3) prescribed home exercises, 4) reassess and progress as the patient improves. Goal is quick, long-lasting results and a very high success rate of avoiding surgery.\n\nConditions: chronic back pain, neck pain, shoulder pain, TMJ dysfunction, hip pain, plantar fasciitis and other foot pain, radiating pain or numbness into arms/hands/legs/feet, sciatica, bursitis, tendonitis. Athletes and everyday people. Great fit for people who tried PT, chiropractic adjustments, massage or acupuncture without lasting results.\n\nServices: dry needling (with e-stim), neuro/myofascial release, dynamic cupping, joint mobilization, joint manipulation, radial shockwave, focused shockwave, neuromuscular re-education, lumbar traction, cervical traction, kinesiology tape, instrument-assisted soft tissue mobilization (scraping).\n\nFirst step: a FREE phone consult (by text or call) to cover pricing, availability and whether it's a good fit. This is what you book.\n\nPricing (cash-pay): initial evaluation $250 (60 minutes, includes hands-on treatment and a home exercise plan). Follow-up sessions $250, or $800 for a package of 4. Optional home exercise equipment kit $50.\nInsurance: does NOT accept insurance, on purpose (insurance care often means rushed sessions and 10-20+ visits). HSA/FSA cards accepted. Superbills provided for out-of-network reimbursement. Many patients say it costs less in the long run because they get results in a few sessions.\n\nLocation: inside SVG3 Fitness, 6416 Arville St, Las Vegas NV 89118. Hours: Monday to Friday, 8am to 5pm. Contact: text (702) 803-3042 (they text, they don't answer calls), info@advantagetherapy.vegas.\n\nReal Google review (Greg B.): 10 years of low back pain, months of PT without results; pain went from 8/10 to nearly none in the first session and to a lasting 0/10 after 4 more treatments.",
+ "reactivation": {
+  "headline": "Turn the leads you already have into booked consults",
+  "intro": "Every past patient and every person who asked about care but never booked is already on your list. Regular email and SMS campaigns bring them back, at almost no cost per booking.",
+  "sms_when": "To old leads and past patients, every few months",
+  "sms": [
+   {
+    "from": "practice",
+    "text": "Hi Kevin, it's been a few months since your last visit at Advantage Therapy. How's the shoulder holding up? We have a few spots open this month if you want a tune-up."
+   },
+   {
+    "from": "lead",
+    "text": "honestly its been creeping back. do you have anything next week?"
+   }
+  ],
+  "email_when": "Monthly, to the whole list",
+  "email": {
+   "subject": "Still dealing with that pain?",
+   "body": "Hi Sarah,\n\nA while back you reached out about your low back. If it's still bothering you, we'd love to help.\n\nEvery visit is a full hour, one-on-one with Dr. Phil Young DPT or Dr. Monique Lawson DPT, focused on the root cause.\n\nReply to this email or text us to set up a free phone consult.\n\nThe Advantage Therapy team"
+  }
+ }
 }

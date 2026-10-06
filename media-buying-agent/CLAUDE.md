@@ -37,7 +37,9 @@ ads, or launch unpaused. Creative upload via the connector isn't enabled on clie
   via the `generate-ad` skill. Image generation reuses `content-agent/tools/generate_creative.py`
   (fal.ai) directly rather than duplicating it. The same tool makes AI video (Kling silent B-roll,
   Veo 3.1 talking actors) and music beds. `tools/assemble_ugc_ad.py` turns talking-actor takes into
-  finished captioned 9:16 + 4:5 video ads from a `spec.json` (see the skill's "AI UGC Video Ads" loop).
+  finished captioned 9:16 + 4:5 video ads from a `spec.json` (see the skill's "AI UGC Video Ads" loop);
+  `tools/assemble_pov_ad.py` builds the silent POV text-on-video format (scene clips + text cards + real
+  review + end card) the same way. Both take a `palette` for a client's colors.
 - **Research competitors** — scan the live Meta Ad Library for a vertical to see what's actually
   performing (structure competitors are spending the most on, sustained over time) and worth
   replicating, via the `research-competitors` skill. Standalone, or as the research step inside
