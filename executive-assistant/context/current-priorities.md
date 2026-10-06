@@ -12,6 +12,6 @@
 
 ## Ongoing Goals
 
-- **Get the first client** — land DigiGrowth's first paying client at $1,500/month
+- **Fill the pilot** — sign 3 PT clinics to the pay-per-booking pilot (offer in `context/offer.md`), then convert them to standard pricing
 - **Deliver great service** — build a solid fulfillment process before clients arrive
 - **Scale to $10k MRR** — ~7 clients

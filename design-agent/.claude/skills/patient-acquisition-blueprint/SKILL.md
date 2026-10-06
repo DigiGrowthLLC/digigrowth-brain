@@ -26,7 +26,7 @@ Fixed by `design-agent/references/blueprint-template.html` (DigiGrowth navy/glas
 5. **3 · AI appointment agent**: the live chat in the practice's colors.
 6. **4 · Database reactivation**: an SMS thread and an email to leads and past patients they already have.
 7. **5 · Nothing leaks**: missed-call text-back, unbooked follow-up, no-show recovery.
-8. **The guarantee** (10-20 booked consults in 6 weeks, three cards). The page ends here.
+8. **The guarantee** (7 paid assessments in the first 6 weeks, three cards; terms in `context/offer.md`). The page ends here.
 
 Per prospect you write `blueprint.json` (all copy, ad data, SMS/email examples, chat greeting/chips, `chat_context`; schema in `design-agent/tools/build_blueprint.py`'s docstring), `funnel.html`, and the ad media. `build_blueprint.py` fills the template, inlines images and the funnel, and copies videos to `out/assets/` for upload. The live chat posts to `/lp/<slug>/chat` (`dashboard/backend/routers/landing_pages.py` → `dashboard/backend/blueprint_chat.py`), answering from `chat_context` stored on the page's `landing_pages` row. **Booking in the demo chat is simulated:** made-up open times, nothing written to any calendar, nobody texted.
 
@@ -52,7 +52,7 @@ Work in a scratch folder, e.g. `<scratchpad>/blueprint-<slug>/`.
    - `media-buying-agent/context/ad-creative-principles.md` (ads follow its Working Checklist)
    - `media-buying-agent/.claude/skills/generate-ad/SKILL.md`: "Who can say what", "Video Ad Variations" and "AI UGC Video Ads"
    - `design-agent/references/cro-funnel-principles.md` (for the funnel)
-   - `apptset-agent/context/sms-setter-playbook.md`, "The facts you can use" (offer, guarantee, pilot terms: the only DigiGrowth claims the page may make)
+   - `context/offer.md` at the repo root (offer, guarantee, pilot terms, KPIs: the only DigiGrowth claims the page may make)
    - `design-agent/references/blueprint-example.json`, for tone and length per field
 
 4. **Pull their real reviews and social videos.** The strongest material on the page.
@@ -81,6 +81,7 @@ Work in a scratch folder, e.g. `<scratchpad>/blueprint-<slug>/`.
 
 7. **Write `funnel.html`, the patient-facing page ad #1 clicks into.** A complete standalone, **responsive** HTML document; the blueprint shows it twice, in a phone frame (~375px) and in a desktop browser frame (rendered at 1280px, scaled down). Design mobile first, then a `@media (min-width:900px)` layer: two-column hero (copy left, photo right), a CTA button in the header, a 3-column review wall.
    - **Patient voice only**, exactly as in `landing-page-lead-magnet`'s Section 1 voice check: it *is* their page talking to a patient. No DigiGrowth, no "your practice", no meta.
+   - **The patient offer is the $49 assessment** (per `context/offer.md`): the hero, CTA and FAQ sell a $49 assessment ("normally $X", using the practice's real assessment/eval price from their site, or $150 if it isn't shown), paid when booking, with limited spots each month. The CTA reads like "Book your $49 assessment". No "free consult".
    - Message match: the hero headline restates the first ad's promise. Their palette, their logo, 1-2 real photos (from `assets.json`, or a clean frame from their own video, cropped above any burned-in caption).
    - **Check every photo before using it.** Site hero images are often wide banners with a dark fade on one side for text; in a small frame they look like a dark sliver. Crop to the real subject.
    - **Social proof leads.** Per `cro-funnel-principles.md`: hero + one CTA + a "5.0 on Google" line (only a rating the site itself shows) → trust bar → **wall of 6 real reviews** → good-fit list → 3 real treatment approaches → short FAQ (price, insurance, location) → the same CTA again. Buttons are visual only (`href="#"`).
@@ -91,12 +92,12 @@ Work in a scratch folder, e.g. `<scratchpad>/blueprint-<slug>/`.
 8. **Write `blueprint.json`.** Start from `references/blueprint-example.json` for structure; every word gets rewritten for this practice.
    - `slug`: `<business-slug>-blueprint` (the suffix keeps it from overwriting the practice's lead-magnet page).
    - `brand.primary`/`primary_text`/`avatar_bg`: real button color and its text color (chat header, bubbles, ad avatars), and the logo's background color.
-   - `hero.headline`: the practice's outcome, addressed to the owner, 2-4 words in `*asterisks*` for the gradient accent. Anchor numbers only to the real guarantee (10-20 booked consults in 6 weeks). No subheading.
+   - `hero.headline`: the practice's outcome, addressed to the owner, 2-4 words in `*asterisks*` for the gradient accent. Anchor numbers only to the real guarantee (7 paid assessments in the first 6 weeks). No subheading.
    - `engine_intro`: personalize it to something real on their site (Advantage: "your site says you text and don't take calls" set up the missed-call angle).
    - `step_blurbs`: five, in order: ads, funnel, AI agent, database reactivation (email + SMS campaigns to leads and past patients they already have), nothing leaks.
    - `ads.intro`, `ads.video_items` (step 4), `ads.items` (step 6).
-   - `funnel`: `headline`/`intro`/`why` answer "I already have a website": their site is good and stays, but a site is built to inform, while an ad click needs one reason and one way to book. Three `why` cards: only the information that gets someone to book; no distractions (no menu, articles, links away); one choice, since too many options cause decision paralysis. `url` is the address shown in the browser bar (their domain + `/free-consult`). `points` are the four ticks under the devices.
-   - `agent.greeting` + 3 `chips`: what a real patient of this practice would type (a symptom from their specialty, insurance/cost, a booking request).
+   - `funnel`: `headline`/`intro`/`why` answer "I already have a website": their site is good and stays, but a site is built to inform, while an ad click needs one reason and one way to book. Three `why` cards: only the information that gets someone to book; no distractions (no menu, articles, links away); one choice, since too many options cause decision paralysis. `url` is the address shown in the browser bar (their domain + `/assessment`). `points` are the four ticks under the devices.
+   - `agent.greeting` + 3 `chips`: what a real patient of this practice would type (a symptom from their specialty, insurance/cost, a booking request for the $49 assessment).
    - `reactivation`: an SMS thread (practice text + a lead reply) and an email (`subject`, `body` with `\n\n` paragraph breaks) to old leads/past patients, in the practice's voice.
    - `recovery.items`: three cards in this order: missed-call text-back, unbooked-lead follow-up, no-show recovery.
    - All SMS text must be **GSM-7 safe** (no em dashes, curly quotes, ellipses or emoji; the build warns). Use realistic first names, never real patients from the reviews.
@@ -120,7 +121,7 @@ Work in a scratch folder, e.g. `<scratchpad>/blueprint-<slug>/`.
 
 ## Guardrails
 
-- No fabricated stats, testimonials or results. DigiGrowth's only numeric claim is the stated guarantee. Practice facts come from their own site; proof comes from their real reviews.
+- No fabricated stats, testimonials or results. DigiGrowth's only numeric claims are the stated guarantee and the offer terms in `context/offer.md`. Practice facts come from their own site; proof comes from their real reviews.
 - AI actors voice the situation and the offer's facts only, never results or patient status. No AI/"dramatization" label (Dylan's standing call).
 - The ads are labeled as examples (the top bar says so). Never upload or run them on the prospect's behalf.
 - The demo agent costs real API spend per message on a public URL. It's rate-limited (30 messages/IP/hour, 400/page/day) and only answers on pages published with `--chat-context`. Republishing without the flag keeps the existing context; to switch a page's chat off: `UPDATE landing_pages SET chat_context = NULL WHERE slug = '<slug>'`.

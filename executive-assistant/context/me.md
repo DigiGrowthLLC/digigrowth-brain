@@ -8,7 +8,7 @@
 
 ## What He Does
 
-Runs DigiGrowth, an AI-powered client acquisition agency that helps independent service-based businesses book 20-40 new client appointments per month.
+Runs DigiGrowth, a patient acquisition agency that books prepaid patients into independent PT practices' evaluation schedules, paid per booking instead of a retainer (offer in `context/offer.md` at the repo root).
 
 ## #1 Priority
 

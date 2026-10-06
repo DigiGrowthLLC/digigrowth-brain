@@ -573,9 +573,10 @@ INFO_EMAIL_BODY = """{first_name},
 
 Here's the link: https://digigrowthllc.com
 
-Quick summary of what we do: we help independent service-based businesses bring in 5-15k in new \
-business in 6 weeks using Meta ads, database reactivation, and an AI system that \
-handles the booking for you — no extra work on your end.
+Quick summary of what we do: we book prepaid new patients straight into independent PT \
+practices' evaluation schedules, and you pay per booking instead of a monthly retainer. \
+Patients pay a $49 assessment when they book (you keep it), and we guarantee 7 paid \
+assessments in your first 6 weeks.
 
 Take a look and let me know if it's worth a closer look. Happy to jump on a call \
 if it makes sense.

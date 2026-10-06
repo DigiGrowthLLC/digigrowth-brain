@@ -5,8 +5,11 @@
 ## Brand Decisions
 
 - Target niche: independent service-based businesses broadly (fitness/personal training is the current proof-point vertical — see `context/brand.md`)
-- Price point: $1,500/month
-- Core promise: 20–40 new intro sessions per month, done-for-you
+- Offer (2026-10-06): pay per booking, no retainer. $100 per paid assessment ($1,000 setup) on the
+  standard program; fees waived for the first 6 weeks in the 3-clinic pilot. Full terms:
+  `context/offer.md` at the repo root.
+- Core promise: prepaid patients ($49 assessment, clinic keeps it) booked straight into the
+  practice's eval schedule, 7 paid assessments guaranteed in the first 6 weeks
 - Dylan's personal brand: agency founder, documenting 0 → $10k MRR journey
 
 ## Copy Preferences

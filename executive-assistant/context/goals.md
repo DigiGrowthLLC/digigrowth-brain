@@ -5,7 +5,7 @@
 ## Milestones
 
 - [ ] Land first client
-- [ ] Reach $10k/month MRR (~7 clients at $1,500/month)
+- [ ] Reach $10k/month (~7-10 clinics at 10-15 paid assessments/month at $100 each, plus setup fees; see `context/offer.md`)
 
 ## Supporting Goals
 

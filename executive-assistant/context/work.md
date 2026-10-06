@@ -1,22 +1,27 @@
 # DigiGrowth
 
-**Type:** AI client acquisition agency
-**Niche:** Independent service-based businesses
-**Stage:** Pre-revenue — building toward first client
+**Type:** Patient acquisition agency
+**Niche:** Independent physical therapy practices (cash-based or hybrid, plan of care $1,500+)
+**Stage:** Early revenue: first client (CrosaCore) live, launching the pay-per-booking offer
 
-## Core Service
+## Core Service (offer as of 2026-10-06, full terms in `context/offer.md` at the repo root)
 
-One package at **$1,500/month**. Includes:
+DigiGrowth books **prepaid patients** directly into a practice's evaluation schedule, and the
+practice **pays per booking instead of a monthly retainer**.
 
-- Meta ads management
-- Workflow automations
-- SMS and email marketing
-- Deliverable: 20-40 new client appointments per month per client
+- Ads promote a **$49 assessment (normally $150)**, paid at booking; the clinic keeps the $49
+- **Standard:** $1,000 setup + **$100 per paid assessment**; clinic funds $1,000/month ad spend
+- **Pilot (3 clinics):** setup and booking fees waived for the first 6 weeks; continue on standard
+  pricing (setup waived with a 90-day commitment) or end at 6 weeks
+- **Guarantee:** 7 paid assessments in the first 6 weeks, or no booking fees until 7 are delivered
+- Includes Meta ads, booking funnel + checkout, AI SMS follow-up in under 5 minutes, reminders,
+  database reactivation, weekly reporting
 
 ## Revenue Goals
 
-- Next milestone: Land first client
-- Short-term target: $10k/month MRR (~7 clients)
+- Next milestone: fill the 3 pilot clinics, then convert them to standard pricing
+- Short-term target: $10k/month (e.g. ~7-10 clinics at 10-15 paid assessments a month, $100 each,
+  plus $1,000 setup fees)
 
 ## Tools
 

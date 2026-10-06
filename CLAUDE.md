@@ -4,6 +4,8 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 
 ## Directory Structure
 
+- `context/offer.md` — **the current DigiGrowth offer** (PT patient acquisition: prepaid $49 assessments, pay per booking, 7 paid assessments guaranteed in 6 weeks, standard vs. 3-clinic pilot pricing). Single source of truth: anything that states the offer, price, guarantee or pilot terms must match it.
+
 - `dashboard/frontend/src/panels/` — React panel components (one per nav tab)
 - `dashboard/backend/routers/` — FastAPI routers (one per feature area)
 - `dashboard/backend/main.py` — app entry, router registration, HTTPBasic auth

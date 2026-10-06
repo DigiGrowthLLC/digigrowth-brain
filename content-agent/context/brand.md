@@ -4,13 +4,17 @@
 
 **Who:** Independent service-based business owners — fitness studios, personal trainers, contractors, agencies, and similar businesses that sell appointments or consultations rather than shelf products. Fitness is the current proof-point niche (first case studies will come from here), but messaging and content should stay usable across service verticals, not fitness-only.
 **Pain:** Not enough leads / new clients. Relying on referrals, word of mouth, or paid ads that don't convert.
-**Goal:** Predictable, consistent flow of new appointments/consultations — 20–40/month
+**Goal:** Predictable, consistent flow of new patients without paying an agency for activity
+**Current offer niche:** independent PT practices (cash-based or hybrid). Broader service-business content is fine for Dylan's personal brand, but offer claims are PT-specific
 **Objections:** "I tried ads before and wasted money." "I don't have time." "How is this different?"
 
 ## DigiGrowth Value Prop
 
-We run a full done-for-you client acquisition system: Meta ads + SMS follow-up + automated booking. 
-You pay $1,500/month. You get 20–40 new intro sessions. We handle everything.
+We book prepaid patients directly into independent PT practices' evaluation schedules, and the
+practice pays per booking instead of a monthly retainer. Patients pay a $49 assessment when they
+book (the practice keeps it), which filters for intent and raises show rates. Guarantee: 7 paid
+assessments in the first 6 weeks, or no booking fees until 7 are delivered. Full terms (pricing,
+pilot, requirements): `context/offer.md` at the repo root.
 
 ## Proof Points (build these as clients come in)
 

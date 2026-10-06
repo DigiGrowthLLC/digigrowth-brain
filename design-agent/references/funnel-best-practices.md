@@ -41,8 +41,9 @@ per run. Update this file when a real campaign result confirms or contradicts so
   whether a page/link is worth their attention — the first visual impression (does
   this look real, does it look like *them*) does more work than the copy underneath it.
 - **A real, specific guarantee outperforms a vague promise.** Anchor claims to
-  DigiGrowth's actual stated guarantee (10-20 booked consultations in 6 weeks, or
-  continued work for free) rather than invented industry statistics — this is also
+  DigiGrowth's actual stated guarantee (7 paid assessments in the first 6 weeks, or
+  no booking fees until 7 are delivered; see `context/offer.md`) rather than invented
+  industry statistics — this is also
   a hard compliance rule, not just a style preference.
 
 ## PT-Practice-Specific Patient Acquisition Funnel
