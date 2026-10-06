@@ -490,7 +490,7 @@ _PROACTIVE_PREAMBLE_ADDITION = (
 # A Meta lead form can send the prospect straight on to the client's
 # Calendly from its completion screen. The opener waits this long to give
 # them time to book, then is skipped if they did (see _upcoming_booking).
-META_LEAD_BOOKING_GRACE_SECONDS = 180
+META_LEAD_BOOKING_GRACE_SECONDS = 60
 
 
 async def _upcoming_booking(conn, phone: str, email: str | None):
