@@ -43,7 +43,11 @@ Included:
 ## The guarantee
 **7-10 paid assessments booked in the first 6 weeks, with 7 guaranteed.** 7-10 is the expected
 range; 7 is the guarantee. If DigiGrowth falls short of 7, it keeps running the campaigns and the
-practice pays no booking fees until it has received 7. The practice keeps funding
+practice pays no booking fees until it has received 7.
+
+**How to say it to prospects (website, texts, emails, pages):** "7-10 paid assessments within 6
+weeks, guaranteed." Don't say "7 guaranteed" in customer-facing copy; the 7 floor
+is the internal definition of the guarantee and goes in contracts and the call, not headlines. The practice keeps funding
 the ad spend directly.
 
 A paid assessment counts when a patient has booked and paid the $49 through the DigiGrowth checkout.

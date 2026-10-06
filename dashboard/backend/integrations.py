@@ -575,8 +575,8 @@ Here's the link: https://digigrowthllc.com
 
 Quick summary of what we do: we book prepaid new patients straight into independent PT \
 practices' evaluation schedules, and you pay per booking instead of a monthly retainer. \
-Patients pay a $49 assessment when they book (you keep it). The target is 7-10 paid \
-assessments in your first 6 weeks, and 7 is guaranteed.
+Patients pay a $49 assessment when they book (you keep it). We book 7-10 paid \
+assessments within your first 6 weeks, guaranteed.
 
 Take a look and let me know if it's worth a closer look. Happy to jump on a call \
 if it makes sense.
