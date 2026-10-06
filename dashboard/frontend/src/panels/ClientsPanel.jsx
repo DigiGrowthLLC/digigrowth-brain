@@ -663,10 +663,10 @@ function ActionItemsSection() {
 // team actually does the work (see the per-client toggle panel added to
 // ClientRow below).
 
-// Post-launch items are generic timeline milestones (not per-client agency
-// tasks), so they're excluded from the admin catalog editor and per-client
-// toggle below entirely — the client portal's LaunchChecklistTab still
-// renders them (fetched straight from the API, not filtered by phase).
+// Post-launch items are generic timeline milestones, so they're excluded
+// from the admin catalog editor below; they're still checked off per client
+// in ClientLaunchChecklist's Post Launch view, and the client portal's
+// LaunchChecklistTab renders them (fetched straight from the API).
 const CHECKLIST_PHASE_OPTIONS = [
   { value: "prelaunch", label: "Prelaunch" },
 ];
@@ -787,17 +787,28 @@ function LaunchChecklistSection() {
 // the setup work mark this specific client's launch-checklist items done as
 // they actually get completed. Read-only catalog (titles/phases come from
 // LaunchChecklistSection above); only completion status is per-client here.
+// A Prelaunch / Post Launch dropdown switches which phase is shown, so the
+// post-launch milestones the client's portal shows can be checked off here too.
+const CLIENT_CHECKLIST_PHASES = [
+  { value: "prelaunch", label: "Prelaunch" },
+  { value: "post_launch", label: "Post Launch" },
+];
+
 function ClientLaunchChecklist({ clientId }) {
-  const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [phase, setPhase] = useState("prelaunch");
 
   const load = async () => {
     const r = await fetch(API(`/clients/${clientId}/launch-checklist`));
-    // Post-launch items are generic timeline milestones, not per-client
-    // agency tasks — keep them out of this admin toggle (see the note on
-    // CHECKLIST_PHASE_OPTIONS above).
-    if (r.ok) setItems((await r.json()).filter((i) => (i.phase || "prelaunch") === "prelaunch"));
+    if (r.ok) setAllItems(await r.json());
     setLoading(false);
+  };
+
+  const items = allItems.filter((i) => (i.phase || "prelaunch") === phase);
+  const countFor = (p) => {
+    const inPhase = allItems.filter((i) => (i.phase || "prelaunch") === p);
+    return `${inPhase.filter((i) => i.completed_at).length}/${inPhase.length}`;
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
@@ -810,23 +821,27 @@ function ClientLaunchChecklist({ clientId }) {
     });
     if (r.ok) {
       const updated = await r.json();
-      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, completed_at: updated.completed_at } : i)));
+      setAllItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, completed_at: updated.completed_at } : i)));
     }
   };
 
   if (loading) {
     return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
   }
-  if (items.length === 0) {
-    return (
-      <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
-        NO LAUNCH CHECKLIST ITEMS YET — ADD SOME BELOW UNDER "LAUNCH CHECKLIST (TO DO TAB)"
-      </div>
-    );
-  }
 
   return (
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 8 }}>
+      <select className="dg-input" value={phase} onChange={(e) => setPhase(e.target.value)}
+        style={{ fontSize: 12, padding: "6px 10px", width: "auto", alignSelf: "flex-start", marginBottom: 4 }}>
+        {CLIENT_CHECKLIST_PHASES.map((p) => (
+          <option key={p.value} value={p.value}>{p.label} ({countFor(p.value)})</option>
+        ))}
+      </select>
+      {items.length === 0 && (
+        <div style={{ padding: "8px 0", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
+          NO {phase === "post_launch" ? "POST LAUNCH" : "PRELAUNCH"} ITEMS YET
+        </div>
+      )}
       {items.map((item) => {
         const done = !!item.completed_at;
         return (
