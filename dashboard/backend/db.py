@@ -1911,8 +1911,8 @@ async def _create_schema(pool: asyncpg.Pool):
                  E'Hi {first_name},\n\nJust following up on my text in case it got buried. Happy to answer any questions or get you set up with a free consultation.\n\nJust reply here whenever works.\n\n{business}'),
                 ('prospect_followup', 3, 'Touch 2 (Email)', 'email', 'Still have a couple of openings',
                  E'Hi {first_name},\n\nWe still have a couple of openings for a free consultation this month. It only takes 15 minutes and it''s an easy way to see if we''re a good fit.\n\nReply to this email and we''ll find a time.\n\n{business}'),
-                ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Checking in',
-                 E'Hi {first_name},\n\nJust checking in. If you still have questions or want to see whether we''re a good fit, we''re happy to set up a free 15-minute consultation.\n\nReply to this email whenever works.\n\n{business}'),
+                ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Almost out of slots this week',
+                 E'Hi {first_name},\n\nWe''re almost out of slots this week, and I just wanted to let you know so you don''t miss out.\n\nLet me know and I can get you set up for your free consultation whenever the timing works for you. Just reply to this email.\n\n{business}'),
                 ('prospect_followup', 6, 'Touch 4 (SMS)', 'sms', NULL,
                  '{first_name}, last one from me. Not sure if there''ll be any slots left, but feel free to check in whenever you''re free: {link}'),
                 ('prospect_followup', 7, 'Touch 4 (Email)', 'email', 'Last note from me',
@@ -1933,20 +1933,37 @@ async def _create_schema(pool: asyncpg.Pool):
         # Prospect follow-up gained a Touch 4 (+7 days, step_order 6-7) on
         # 2026-10-06; the insert above adds its default rows. Touch 3's default
         # copy said "last one from me", so a client still on that exact default
-        # gets a check-in instead (the breakup text moves to Touch 4). Edited
+        # gets the Touch 3 default instead (the breakup text moves to Touch 4). Edited
         # copy is never touched.
         await conn.execute(
             """
-            UPDATE client_sequence_steps SET body = '{first_name}, just checking in. Still happy to get you set up with a free consult whenever the timing works for you.'
+            UPDATE client_sequence_steps SET body = 'Hey {first_name}, we''re almost out of slots this week. Just wanted to let you know so you don''t miss out. Let me know and I can get you set up whenever the timing works for you.'
             WHERE sequence_key = 'prospect_followup' AND step_order = 4 AND channel = 'sms'
               AND body = '{first_name}, last one from me. Not sure if there''ll be any slots left, but feel free to check in whenever you''re free: {link}'
             """
         )
         await conn.execute(
             """
-            UPDATE client_sequence_steps SET subject = 'Checking in', body = E'Hi {first_name},\n\nJust checking in. If you still have questions or want to see whether we''re a good fit, we''re happy to set up a free 15-minute consultation.\n\nReply to this email whenever works.\n\n{business}'
+            UPDATE client_sequence_steps SET subject = 'Almost out of slots this week', body = E'Hi {first_name},\n\nWe''re almost out of slots this week, and I just wanted to let you know so you don''t miss out.\n\nLet me know and I can get you set up for your free consultation whenever the timing works for you. Just reply to this email.\n\n{business}'
             WHERE sequence_key = 'prospect_followup' AND step_order = 5 AND channel = 'email'
               AND subject = 'Last note from me' AND body = E'Hi {first_name},\n\nThis is my last follow-up. If the timing isn''t right, no worries at all. Whenever you''re ready, just reply to this email and we''ll get you on the schedule.\n\nTake care,\n{business}'
+            """
+        )
+        # Touch 3 became a scarcity nudge (2026-10-06, right after a brief
+        # check-in version shipped). Clients still on that exact check-in default
+        # move to the scarcity copy; edited copy is never touched.
+        await conn.execute(
+            """
+            UPDATE client_sequence_steps SET body = 'Hey {first_name}, we''re almost out of slots this week. Just wanted to let you know so you don''t miss out. Let me know and I can get you set up whenever the timing works for you.'
+            WHERE sequence_key = 'prospect_followup' AND step_order = 4 AND channel = 'sms'
+              AND body = '{first_name}, just checking in. Still happy to get you set up with a free consult whenever the timing works for you.'
+            """
+        )
+        await conn.execute(
+            """
+            UPDATE client_sequence_steps SET subject = 'Almost out of slots this week', body = E'Hi {first_name},\n\nWe''re almost out of slots this week, and I just wanted to let you know so you don''t miss out.\n\nLet me know and I can get you set up for your free consultation whenever the timing works for you. Just reply to this email.\n\n{business}'
+            WHERE sequence_key = 'prospect_followup' AND step_order = 5 AND channel = 'email'
+              AND subject = 'Checking in' AND body = E'Hi {first_name},\n\nJust checking in. If you still have questions or want to see whether we''re a good fit, we''re happy to set up a free 15-minute consultation.\n\nReply to this email whenever works.\n\n{business}'
             """
         )
         # Appointments already mid-reminders when the pairing shipped got their
