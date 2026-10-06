@@ -1131,9 +1131,9 @@
       "last_scraped_date": "2026-10-05"
     },
     "Fort Lauderdale, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 189,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 215,
       "qualified_count": 18,
       "last_scraped_date": "2026-10-05"
     },
