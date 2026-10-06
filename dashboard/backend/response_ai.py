@@ -202,7 +202,7 @@ async def _apply_pending_unqualified(client_id: int, phone: str) -> None:
                                 ELSE array_append(coalesce(c.tags, '{{}}'), $3) END,
                     client_followup_enrolled_at = NULL, client_followup_anchor_at = NULL,
                     client_followup_touch1_sent_at = NULL, client_followup_touch2_sent_at = NULL,
-                    client_followup_touch3_sent_at = NULL,
+                    client_followup_touch3_sent_at = NULL, client_followup_touch4_sent_at = NULL,
                     updated_at = now()
                 WHERE c.client_id = $1 AND NOT c.is_client_anchor
                   AND coalesce(c.phone, '') != ''

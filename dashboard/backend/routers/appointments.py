@@ -570,6 +570,10 @@ async def cancel_appointment(appointment_id: int, notify: bool = False):
     if row is None:
         raise HTTPException(404, "appointment not found or already resolved")
 
+    # A client's own lead is tagged "Cancelled Appointment" whether or not a
+    # recovery text goes out (no-op for Dylan's own contacts).
+    await client_appointment_sequence.tag_outcome(row["contact_id"], "cancellation")
+
     if notify:
         try:
             pool = await get_pool()

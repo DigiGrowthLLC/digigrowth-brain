@@ -1,11 +1,11 @@
-"""Client prospect follow-up — a CLIENT's own 3-touch "gone quiet" nudge.
+"""Client prospect follow-up — a CLIENT's own 4-touch "gone quiet" nudge.
 
 Client-portal port of dm_followup_sequence.py (Dylan's own DM Reach
 follow-up), for a client's own leads: sends from the client's own Twilio
 number (client_sms.py), reads the client's own SMS log (client_sms_messages),
 and uses the client's own copy (client_sequence_steps, sequence_key
 'prospect_followup' — an SMS + email pair per touch, step_order 0-1 = Touch 1,
-2-3 = Touch 2, 4-5 = Touch 3, same pairing as the no-show/cancellation drips;
+2-3 = Touch 2, 4-5 = Touch 3, 6-7 = Touch 4, same pairing as the no-show/cancellation drips;
 editable from the Clients admin panel, previewed on the portal's Sequences
 tab). The email goes from the client's connected Gmail mailbox to the lead's
 email on file, and is skipped when either is missing.
@@ -39,14 +39,16 @@ timestamps, exactly like dm_followup_sequence.py:
      (a real message, not one of this sequence's own touches) — re-anchor
      on it and clear the touch columns.
   4. Send whichever touch is next due: Touch 1 3h after the anchor, Touch 2
-     24h after Touch 1's actual send, Touch 3 3 days after Touch 2's —
+     24h after Touch 1's actual send, Touch 3 3 days after Touch 2's, Touch 4
+     7 days after Touch 3's —
      chained off real sends so a stale anchor can never fire a burst (see
      dm_followup_sequence.py's docstring for the full reasoning). A touch
      that comes due during quiet hours (9pm-8am in the lead's timezone, see
      lead_flags.py) waits for the morning.
 
 Leads tagged Unqualified (lead_flags.py) are dropped from the sequence and
-can't be enrolled, same as booked leads.
+can't be enrolled, same as booked leads. A lead whose last touch goes out
+with no reply is tagged "Database Reactivation".
 
 Not ported: Dylan's dialer escalation (flip to 'dialer-lead' 24h after Touch
 2) — clients have no dialer queue, only a per-lead Call button — and the
@@ -72,11 +74,13 @@ _TOUCHES = [
     (1, "client_followup_touch1_sent_at", None, timedelta(hours=3)),
     (2, "client_followup_touch2_sent_at", "client_followup_touch1_sent_at", timedelta(hours=24)),
     (3, "client_followup_touch3_sent_at", "client_followup_touch2_sent_at", timedelta(days=3)),
+    (4, "client_followup_touch4_sent_at", "client_followup_touch3_sent_at", timedelta(days=7)),
 ]
 
 _CLEAR_CYCLE = (
     "client_followup_anchor_at = NULL, client_followup_touch1_sent_at = NULL, "
-    "client_followup_touch2_sent_at = NULL, client_followup_touch3_sent_at = NULL"
+    "client_followup_touch2_sent_at = NULL, client_followup_touch3_sent_at = NULL, "
+    "client_followup_touch4_sent_at = NULL"
 )
 
 # A lead counts as booked if their status is 'appointment-booked' (what
@@ -238,17 +242,20 @@ async def send_due_touches():
             known_times = [t for t in (
                 row["client_followup_anchor_at"], row["client_followup_touch1_sent_at"],
                 row["client_followup_touch2_sent_at"], row["client_followup_touch3_sent_at"],
+                row["client_followup_touch4_sent_at"],
             ) if t is not None]
             if not known_times or last_outbound_at > max(known_times):
                 await conn.execute(
                     "UPDATE contacts SET client_followup_anchor_at = $1, client_followup_touch1_sent_at = NULL, "
-                    "client_followup_touch2_sent_at = NULL, client_followup_touch3_sent_at = NULL WHERE id = $2",
+                    "client_followup_touch2_sent_at = NULL, client_followup_touch3_sent_at = NULL, "
+                    "client_followup_touch4_sent_at = NULL WHERE id = $2",
                     last_outbound_at, row["id"],
                 )
                 row["client_followup_anchor_at"] = last_outbound_at
                 row["client_followup_touch1_sent_at"] = None
                 row["client_followup_touch2_sent_at"] = None
                 row["client_followup_touch3_sent_at"] = None
+                row["client_followup_touch4_sent_at"] = None
 
             anchor = row["client_followup_anchor_at"]
             for touch_num, sent_col, ref_col, delay in _TOUCHES:
@@ -267,13 +274,16 @@ async def send_due_touches():
                     # touch, so a blanked-out touch is skipped rather than
                     # stalling the rest of the sequence.
                     await conn.execute(f"UPDATE contacts SET {sent_col} = now() WHERE id = $1", row["id"])
+                    if touch_num == len(_TOUCHES):
+                        await lead_flags.add_tag(row["id"], lead_flags.REACTIVATION_TAG)
                 break
 
 
 def _progress(row: dict) -> dict:
+    total = len(_TOUCHES)
     sent = sum(1 for _, col, _, _ in _TOUCHES if row.get(col) is not None)
     next_due = None
-    if row.get("client_followup_anchor_at") and sent < 3:
+    if row.get("client_followup_anchor_at") and sent < total:
         _, _, ref_col, delay = _TOUCHES[sent]
         reference = row["client_followup_anchor_at"] if ref_col is None else row.get(ref_col)
         next_due = reference + delay if reference else None
@@ -281,13 +291,13 @@ def _progress(row: dict) -> dict:
         # Either they replied last, or they were just enrolled and the next
         # poll hasn't anchored the cycle yet — same state either way.
         label = "Waiting for an unanswered text"
-    elif sent == 3:
-        label = "All 3 touches sent"
+    elif sent == total:
+        label = f"All {total} touches sent"
     elif sent:
-        label = f"Touch {sent} of 3 sent"
+        label = f"Touch {sent} of {total} sent"
     else:
         label = "Touch 1 pending"
-    return {"touches_sent": sent, "touches_total": 3, "step_label": label, "next_touch_due_at": next_due}
+    return {"touches_sent": sent, "touches_total": total, "step_label": label, "next_touch_due_at": next_due}
 
 
 async def list_active(client_id: int) -> list[dict]:
@@ -298,7 +308,8 @@ async def list_active(client_id: int) -> list[dict]:
         rows = await conn.fetch(
             """
             SELECT id, owner, business, phone, client_followup_enrolled_at, client_followup_anchor_at,
-                   client_followup_touch1_sent_at, client_followup_touch2_sent_at, client_followup_touch3_sent_at
+                   client_followup_touch1_sent_at, client_followup_touch2_sent_at, client_followup_touch3_sent_at,
+                   client_followup_touch4_sent_at
             FROM contacts
             WHERE client_id = $1 AND NOT is_client_anchor AND client_followup_enrolled_at IS NOT NULL
             ORDER BY client_followup_enrolled_at ASC

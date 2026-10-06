@@ -630,7 +630,7 @@ const SEQUENCE_ORDER = ["prospect_followup", "appointment_reminder", "no_show", 
 // (chained off the previous touch), client_appointment_reminders.py's
 // _WINDOW_HOURS_BY_TOUCH and client_appointment_sequence.py's _TOUCH_DELAYS.
 const SEQUENCE_TIMING = {
-  prospect_followup: ["3 hours without a reply", "24 hours later", "3 days later"],
+  prospect_followup: ["3 hours without a reply", "24 hours later", "3 days later", "7 days later"],
   appointment_reminder: ["24 hours before", "6 hours before", "1 hour before"],
   no_show: ["Right away", "After 3 hours", "After 24 hours"],
   cancellation: ["Right away", "After 3 hours", "After 24 hours"],
@@ -692,7 +692,7 @@ const CLIENT_SEQUENCE_COPY = {
     removeLabel: "Stop Sequence",
     removeConfirm: (name) => `Stop the follow-up sequence for ${name}? They'll get no more follow-up texts unless you or your assistant text them again.`,
     addTitle: "Add Prospect to Follow-Up",
-    addHint: "Booked or Unqualified leads can't be added. The 3 touches (a text plus an email) go out 3 hours, 27 hours, and about 4 days after your last unanswered message, never overnight, and stop the moment they reply.",
+    addHint: "Booked or Unqualified leads can't be added. The 4 touches (a text plus an email) go out 3 hours, 27 hours, about 4 days, and about 11 days after your last unanswered message, never overnight, and stop the moment they reply.",
     addLabel: "+ Add Prospect",
   },
   no_show: {

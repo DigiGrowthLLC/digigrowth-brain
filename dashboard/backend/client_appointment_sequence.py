@@ -23,6 +23,11 @@ cadence as every other drip in this codebase; a delayed touch that comes
 due during quiet hours (9pm-8am in the lead's timezone, lead_flags.py) waits
 for the morning. Leads tagged Unqualified get none of it.
 
+Tags: the lead gets "No-Show History" / "Cancelled Appointment" the moment
+the outcome is recorded (tag_outcome(), also called from cancel_appointment()
+for a silent host cancel that sends no Touch 1), and "Database Reactivation"
+once the last touch goes out with no reply (lead_flags.py).
+
 Stops permanently the moment the prospect replies on either channel — routers/
 client_sms_webhooks.py's inbound Twilio webhook and client_email.py's inbound
 Gmail sync both call stop_sequence_for_reply() the instant a matching inbound
@@ -170,6 +175,12 @@ async def _send_steps(conn_pool, client: dict, config, steps, row: dict, stage_p
     return attempted
 
 
+async def tag_outcome(contact_id: str | None, sequence: str) -> None:
+    """Stamp the outcome tag on a client lead. Safe to call for any contact:
+    lead_flags.add_tag ignores Dylan's own contacts and the anchor contact."""
+    await lead_flags.add_tag(contact_id, lead_flags.NO_SHOW_TAG if sequence == "no_show" else lead_flags.CANCELED_TAG)
+
+
 async def send_first_touch(row: dict, sequence: str):
     """`row` is an appointment_reminders row (already updated with the new
     outcome). `sequence` is "no_show" or "cancellation". Never raises — a
@@ -180,6 +191,7 @@ async def send_first_touch(row: dict, sequence: str):
     ever fires once per appointment."""
     sequence_key = _SEQUENCE_KEYS[sequence]
     steps_sent_col = _STEPS_SENT_COL[sequence]
+    await tag_outcome(row.get("contact_id"), sequence)
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -287,6 +299,10 @@ async def send_due_touches():
                         f"UPDATE appointment_reminders SET {steps_sent_col} = $2 WHERE id = $1",
                         row["id"], json.dumps(sent_map),
                     )
+                if touch_idx == len(_TOUCH_DELAYS) - 1:
+                    # Last touch out and they never replied (a reply stops
+                    # the sequence before this point).
+                    await lead_flags.add_tag(row.get("contact_id"), lead_flags.REACTIVATION_TAG)
                 break
 
 

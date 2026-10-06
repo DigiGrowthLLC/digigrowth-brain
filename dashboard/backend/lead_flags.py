@@ -25,6 +25,14 @@ from zoneinfo import ZoneInfo
 from db import get_pool
 
 UNQUALIFIED_TAG = "Unqualified"
+# Outcome/lifecycle tags stamped automatically on a client's own leads. The
+# first two reuse the starter catalog names in db.py so imported and live
+# leads share one tag each.
+NO_SHOW_TAG = "No-Show History"
+CANCELED_TAG = "Cancelled Appointment"
+# A lead who reached the last touch of the prospect follow-up, no-show or
+# cancellation sequence without replying: the pool for database reactivation.
+REACTIVATION_TAG = "Database Reactivation"
 QUIET_START_HOUR = 21  # 9pm local
 QUIET_END_HOUR = 8     # 8am local
 
@@ -65,6 +73,31 @@ async def is_unqualified(client_id: int, phone: str | None = None, email: str | 
     except Exception as e:
         print(f"[lead_flags] unqualified lookup failed for client={client_id}: {e}")
         return False
+
+
+async def add_tag(contact_id: str | None, tag: str) -> None:
+    """Add `tag` to one client lead's contact row unless it's already there
+    (case/separator-insensitive, like every tag check here). Client leads
+    only, never the anchor contact or Dylan's own contacts. Never raises."""
+    if not contact_id:
+        return
+    norm = "".join(ch for ch in tag.lower() if ch.isalpha())
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                r"""
+                UPDATE contacts c SET tags = array_append(coalesce(c.tags, '{}'), $2), updated_at = now()
+                WHERE c.id = $1 AND c.client_id IS NOT NULL AND NOT c.is_client_anchor
+                  AND NOT EXISTS (
+                      SELECT 1 FROM unnest(coalesce(c.tags, '{}')) t
+                      WHERE lower(regexp_replace(t, '[^A-Za-z]', '', 'g')) = $3
+                  )
+                """,
+                contact_id, tag, norm,
+            )
+    except Exception as e:
+        print(f"[lead_flags] failed to tag {contact_id} {tag!r}: {e}")
 
 
 def in_quiet_hours(tz_name: str | None, now: datetime) -> bool:

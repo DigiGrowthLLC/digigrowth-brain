@@ -1850,6 +1850,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_touch1_sent_at TIMESTAMPTZ;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_touch2_sent_at TIMESTAMPTZ;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_touch3_sent_at TIMESTAMPTZ;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_touch4_sent_at TIMESTAMPTZ;
             CREATE INDEX IF NOT EXISTS idx_contacts_client_followup
                 ON contacts(client_id) WHERE client_followup_enrolled_at IS NOT NULL;
         """)
@@ -1910,7 +1911,11 @@ async def _create_schema(pool: asyncpg.Pool):
                  E'Hi {first_name},\n\nJust following up on my text in case it got buried. Happy to answer any questions or get you set up with a free consultation.\n\nJust reply here whenever works.\n\n{business}'),
                 ('prospect_followup', 3, 'Touch 2 (Email)', 'email', 'Still have a couple of openings',
                  E'Hi {first_name},\n\nWe still have a couple of openings for a free consultation this month. It only takes 15 minutes and it''s an easy way to see if we''re a good fit.\n\nReply to this email and we''ll find a time.\n\n{business}'),
-                ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Last note from me',
+                ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Checking in',
+                 E'Hi {first_name},\n\nJust checking in. If you still have questions or want to see whether we''re a good fit, we''re happy to set up a free 15-minute consultation.\n\nReply to this email whenever works.\n\n{business}'),
+                ('prospect_followup', 6, 'Touch 4 (SMS)', 'sms', NULL,
+                 '{first_name}, last one from me. Not sure if there''ll be any slots left, but feel free to check in whenever you''re free: {link}'),
+                ('prospect_followup', 7, 'Touch 4 (Email)', 'email', 'Last note from me',
                  E'Hi {first_name},\n\nThis is my last follow-up. If the timing isn''t right, no worries at all. Whenever you''re ready, just reply to this email and we''ll get you on the schedule.\n\nTake care,\n{business}'),
                 ('appointment_reminder', 1, '24 Hour Reminder (Email)', 'email', 'Reminder: your consultation tomorrow',
                  E'Hi {first_name},\n\nA friendly reminder about your free consultation with {business} tomorrow, {date} at {time}.\n\nIf you need to reschedule, just reply to this email.\n\nSee you then,\n{business}'),
@@ -1923,6 +1928,25 @@ async def _create_schema(pool: asyncpg.Pool):
             ) AS s(sequence_key, step_order, label, channel, subject, body)
             WHERE EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key)
             AND NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key AND step_order = s.step_order)
+            """
+        )
+        # Prospect follow-up gained a Touch 4 (+7 days, step_order 6-7) on
+        # 2026-10-06; the insert above adds its default rows. Touch 3's default
+        # copy said "last one from me", so a client still on that exact default
+        # gets a check-in instead (the breakup text moves to Touch 4). Edited
+        # copy is never touched.
+        await conn.execute(
+            """
+            UPDATE client_sequence_steps SET body = '{first_name}, just checking in. Still happy to get you set up with a free consult whenever the timing works for you.'
+            WHERE sequence_key = 'prospect_followup' AND step_order = 4 AND channel = 'sms'
+              AND body = '{first_name}, last one from me. Not sure if there''ll be any slots left, but feel free to check in whenever you''re free: {link}'
+            """
+        )
+        await conn.execute(
+            """
+            UPDATE client_sequence_steps SET subject = 'Checking in', body = E'Hi {first_name},\n\nJust checking in. If you still have questions or want to see whether we''re a good fit, we''re happy to set up a free 15-minute consultation.\n\nReply to this email whenever works.\n\n{business}'
+            WHERE sequence_key = 'prospect_followup' AND step_order = 5 AND channel = 'email'
+              AND subject = 'Last note from me' AND body = E'Hi {first_name},\n\nThis is my last follow-up. If the timing isn''t right, no worries at all. Whenever you''re ready, just reply to this email and we''ll get you on the schedule.\n\nTake care,\n{business}'
             """
         )
         # Appointments already mid-reminders when the pairing shipped got their
@@ -1958,6 +1982,9 @@ async def _create_schema(pool: asyncpg.Pool):
             # Applied by the response AI's mark_unqualified tool; blocks all
             # automated messaging to the lead (lead_flags.py).
             ("Unqualified", "#9aa3b2"),
+            # Stamped when a lead finishes the prospect follow-up, no-show or
+            # cancellation sequence with no reply (lead_flags.py).
+            ("Database Reactivation", "#3a7bd5"),
         ]:
             await conn.execute("INSERT INTO tags (name, color) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING", _tag_name, _tag_color)
 

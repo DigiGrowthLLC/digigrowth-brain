@@ -70,19 +70,23 @@ _DEFAULT_SEQUENCE_STEPS = [
     ("cancellation", 5, "Touch 3 (Email)", "email", "Closing your file",
      "Hi {first_name},\n\nHaven't heard back, so we'll close this out on our end unless we hear from you. If timing's just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}"),
     # Prospect follow-up (client_followup_sequence.py) — an SMS + email pair
-    # per touch (step_order 0-1, 2-3, 4-5), sent 3h / +24h / +3d into a
-    # silence. Same values as db.py's seed + pairing migration.
+    # per touch (step_order 0-1, 2-3, 4-5, 6-7), sent 3h / +24h / +3d / +7d
+    # into a silence. Same values as db.py's seed + pairing migration.
     ("prospect_followup", 0, "Touch 1 (SMS)", "sms", None,
      "Hey {first_name}, just following up, checking you got that last message?"),
     ("prospect_followup", 2, "Touch 2 (SMS)", "sms", None,
      "{first_name}, still got a couple slots for our free consultation this month. You got 15 minutes?"),
     ("prospect_followup", 4, "Touch 3 (SMS)", "sms", None,
-     "{first_name}, last one from me. Not sure if there'll be any slots left, but feel free to check in whenever you're free: {link}"),
+     '{first_name}, just checking in. Still happy to get you set up with a free consult whenever the timing works for you.'),
     ('prospect_followup', 1, 'Touch 1 (Email)', 'email', 'Following up',
      'Hi {first_name},\n\nJust following up on my text in case it got buried. Happy to answer any questions or get you set up with a free consultation.\n\nJust reply here whenever works.\n\n{business}'),
     ('prospect_followup', 3, 'Touch 2 (Email)', 'email', 'Still have a couple of openings',
      "Hi {first_name},\n\nWe still have a couple of openings for a free consultation this month. It only takes 15 minutes and it's an easy way to see if we're a good fit.\n\nReply to this email and we'll find a time.\n\n{business}"),
-    ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Last note from me',
+    ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Checking in',
+     "Hi {first_name},\n\nJust checking in. If you still have questions or want to see whether we're a good fit, we're happy to set up a free 15-minute consultation.\n\nReply to this email whenever works.\n\n{business}"),
+    ('prospect_followup', 6, 'Touch 4 (SMS)', 'sms', None,
+     "{first_name}, last one from me. Not sure if there'll be any slots left, but feel free to check in whenever you're free: {link}"),
+    ('prospect_followup', 7, 'Touch 4 (Email)', 'email', 'Last note from me',
      "Hi {first_name},\n\nThis is my last follow-up. If the timing isn't right, no worries at all. Whenever you're ready, just reply to this email and we'll get you on the schedule.\n\nTake care,\n{business}"),
     ('appointment_reminder', 1, '24 Hour Reminder (Email)', 'email', 'Reminder: your consultation tomorrow',
      'Hi {first_name},\n\nA friendly reminder about your free consultation with {business} tomorrow, {date} at {time}.\n\nIf you need to reschedule, just reply to this email.\n\nSee you then,\n{business}'),
