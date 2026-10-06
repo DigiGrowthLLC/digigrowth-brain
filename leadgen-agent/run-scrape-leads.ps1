@@ -3,7 +3,7 @@
 # fallback — see leadgen-agent/CLAUDE.md for why).
 #
 # One `claude -p` process per city, looped here, instead of one process asked to
-# cover up to 10 cities itself. A single session that tried to carry all 10 cities'
+# cover many cities itself. A single session that tried to carry every city's
 # browser snapshots and website text in one growing context would run out of tokens
 # before finishing some nights -- restarting a fresh process per city resets the
 # context budget each time, since city_coverage.json/scraped_ids.json already carry
@@ -80,11 +80,16 @@ function Get-SessionResetTime([string]$text) {
 # Decode claude's output as UTF-8 when capturing it, so arrows/dashes in its
 # reports don't come out as mojibake in the log.
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$maxCitiesPerRun = if ($config.max_cities_per_run) { $config.max_cities_per_run } else { 10 }
+# No city cap: keep taking cities until the run's lead target is met. The target is
+# only checked between cities, so a city in progress always finishes all 4 terms.
+# Stall guard: if city-next hands back the same city at the same term_index twice in
+# a row, that process made no progress (Playwright down, crash, etc.) -- stop rather
+# than loop all night on it.
+$lastCursor = $null
 
 $prompt = "Run the scrape-leads skill (leadgen-agent/.claude/skills/scrape-leads/SKILL.md) for exactly one city, resuming from wherever leadgen-agent/city_coverage.json's cursor (via 'python lib.py city-next') says to. Follow it exactly, including pushing any qualified leads to the DigiGrowth OS. This is an unattended run with nobody available to answer questions. Finish all 4 search terms for this one city (per the skill's step 2), then stop -- do not move on to a second city yourself, this wrapper script decides that between processes. This run's run_id is $runId -- do NOT call run-start; pass this run_id to every city-record-progress call and use it for run-tally."
 
-for ($cityCount = 1; $cityCount -le $maxCitiesPerRun; $cityCount++) {
+for ($cityCount = 1; ; $cityCount++) {
     $tallyJson = python (Join-Path $leadgenDir "lib.py") run-tally $runId 2>$null
     $tally = $tallyJson | ConvertFrom-Json
     if ($tally.qualified -ge $leadTarget) {
@@ -98,6 +103,13 @@ for ($cityCount = 1; $cityCount -le $maxCitiesPerRun; $cityCount++) {
         Add-Content -Path $logFile -Value "`n--- city-next reports nothing due -- stopping. ---`n"
         break
     }
+
+    $cursor = "$($next.city)|$($next.state)|$($next.term_index)"
+    if ($cursor -eq $lastCursor) {
+        Add-Content -Path $logFile -Value "`n--- No progress on $($next.city), $($next.state) since the last process (still term_index=$($next.term_index)) -- stopping run. ---`n"
+        break
+    }
+    $lastCursor = $cursor
 
     Add-Content -Path $logFile -Value "`n=== City $cityCount`: $($next.city), $($next.state) (term_index=$($next.term_index)) ===`n"
 
