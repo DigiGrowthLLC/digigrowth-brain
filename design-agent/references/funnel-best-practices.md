@@ -41,7 +41,7 @@ per run. Update this file when a real campaign result confirms or contradicts so
   whether a page/link is worth their attention — the first visual impression (does
   this look real, does it look like *them*) does more work than the copy underneath it.
 - **A real, specific guarantee outperforms a vague promise.** Anchor claims to
-  DigiGrowth's actual stated guarantee (7 paid assessments in the first 6 weeks, or
+  DigiGrowth's actual stated offer (7-10 paid assessments in the first 6 weeks, 7 guaranteed, or
   no booking fees until 7 are delivered; see `context/offer.md`) rather than invented
   industry statistics — this is also
   a hard compliance rule, not just a style preference.

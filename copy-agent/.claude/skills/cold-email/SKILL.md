@@ -65,7 +65,7 @@ The swipe file is someone else's agency's emails. Before any line goes out as Di
    or check `media-buying-agent/clients/<slug>/` and the offer files — first-name-only attribution
    per the media-buying convention). **If there's no real number yet, don't invent one** — use the
    current offer's honest framing instead (from `context/offer.md`: e.g. the 3-clinic pilot with
-   fees waived for 6 weeks, or pay per booking with 7 paid assessments guaranteed in 6 weeks) or a
+   fees waived for 6 weeks, or pay per booking with 7-10 paid assessments in 6 weeks, 7 guaranteed) or a
    capability claim without a stat.
 2. **No false "I'm not automated" claims.** The Email Handoff sequence *is* automated, so lines like "this isn't an automated message", "I send these all personally", "not blasting you from software", and a fake "Sent from my iPhone" are untrue — and they backfire when a prospect sees Touch 2 arrive on schedule. Keep the *human* signal with true statements: "I'm a real person and I read every reply myself", "reply here and it comes straight to me", a specific observation about their business. (These lines are fine only for a genuinely one-to-one manual send.)
 3. **Conditional angles must be real.** Off 5.0 ("we have inquiries in your city with nowhere to send them") only if a live campaign actually is producing unrouted leads there. Off 6.0 ("my research team saw something concerning") only when it names a specific real finding.

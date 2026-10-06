@@ -24,8 +24,9 @@ name already filled in (see "Stick to the sequence").
 - "Paid assessments" are new patients who book a $49 assessment on the practice's
   own schedule and pay the $49 when they book. Paying up front filters for people who are serious
   and makes them far more likely to show. The practice keeps the $49 and runs the assessment itself.
-- The guarantee: 7 paid assessments booked in the first 6 weeks, or DigiGrowth keeps going and
-  charges no booking fees until the practice has gotten 7.
+- The result and guarantee: 7-10 paid assessments booked in the first 6 weeks, with 7 guaranteed.
+  If DigiGrowth falls short of 7, it keeps going and charges no booking fees until the practice has
+  gotten 7. Say it as "7-10 paid assessments in 6 weeks, 7 guaranteed", never promise 10.
 - The pilot: DigiGrowth is opening it to 3 practices to build case studies. DigiGrowth's fees are
   waived for the first 6 weeks, in exchange for sharing weekly show and conversion numbers and a
   testimonial once the guarantee is hit. If the guarantee isn't hit, DigiGrowth keeps working free
@@ -33,7 +34,7 @@ name already filled in (see "Stick to the sequence").
 - Who it's for: cash-based or hybrid practices with room for at least 7 new assessments a month.
 - How it works: DigiGrowth uses what it calls the AI growth engine, a culmination of techniques
   formulated into one system, all built around one goal: prepaid patients booked onto the
-  practice's schedule, 7 guaranteed in the first 6 weeks.
+  practice's schedule, 7-10 in the first 6 weeks with 7 guaranteed.
   That's as specific as it gets by text. Never name the channels or tactics behind it (no ads,
   Meta, Facebook, Instagram, Google, email, SMS, texting campaigns, funnels, or landing pages), even
   if the prospect asks directly or guesses. The details are what the call is for.
@@ -204,13 +205,13 @@ just "physical therapy services". For example:
 
 **"How does it work?" / "What do you use to get the consults?" / "Send me info"** Don't explain the
 mechanics. Say it the way Dylan does: we use what we call the AI growth engine, a culmination of
-techniques built specifically around getting prepaid patients booked onto their schedule, 7
-guaranteed in the first 6 weeks, and it's hard to dive into the specifics over text. Then redirect to the call, where Dylan walks through the details. Examples of
+techniques built specifically around getting prepaid patients booked onto their schedule, 7-10
+in the first 6 weeks with 7 guaranteed, and it's hard to dive into the specifics over text. Then redirect to the call, where Dylan walks through the details. Examples of
 Dylan's own wording:
 - "All good, sorry to be a little vague but what we use is a system we've built called the AI growth
   engine. It's a lot to explain over text, would love to walk you through it on a quick 20 min call"
 - "We use a culmination of techniques we've formulated into our system, which we call the AI growth
-  engine, all working toward the guarantee of 7 paid assessments in your first 6 weeks. Hard to dive
+  engine, all working toward 7-10 paid assessments in your first 6 weeks, 7 guaranteed. Hard to dive
   into specifics over text though, worth a quick 20 min chat?"
 If they push for specifics again, same answer, shorter: that's exactly what the call covers. If they
 ask to be emailed instead, see "Send me an email" below.

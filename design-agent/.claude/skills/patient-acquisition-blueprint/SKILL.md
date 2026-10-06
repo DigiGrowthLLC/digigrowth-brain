@@ -26,7 +26,7 @@ Fixed by `design-agent/references/blueprint-template.html` (DigiGrowth navy/glas
 5. **3 · AI appointment agent**: the live chat in the practice's colors.
 6. **4 · Database reactivation**: an SMS thread and an email to leads and past patients they already have.
 7. **5 · Nothing leaks**: missed-call text-back, unbooked follow-up, no-show recovery.
-8. **The guarantee** (7 paid assessments in the first 6 weeks, three cards; terms in `context/offer.md`). The page ends here.
+8. **The guarantee** (7-10 paid assessments in the first 6 weeks, 7 guaranteed, three cards; terms in `context/offer.md`). The page ends here.
 
 Per prospect you write `blueprint.json` (all copy, ad data, SMS/email examples, chat greeting/chips, `chat_context`; schema in `design-agent/tools/build_blueprint.py`'s docstring), `funnel.html`, and the ad media. `build_blueprint.py` fills the template, inlines images and the funnel, and copies videos to `out/assets/` for upload. The live chat posts to `/lp/<slug>/chat` (`dashboard/backend/routers/landing_pages.py` → `dashboard/backend/blueprint_chat.py`), answering from `chat_context` stored on the page's `landing_pages` row. **Booking in the demo chat is simulated:** made-up open times, nothing written to any calendar, nobody texted.
 
@@ -92,7 +92,7 @@ Work in a scratch folder, e.g. `<scratchpad>/blueprint-<slug>/`.
 8. **Write `blueprint.json`.** Start from `references/blueprint-example.json` for structure; every word gets rewritten for this practice.
    - `slug`: `<business-slug>-blueprint` (the suffix keeps it from overwriting the practice's lead-magnet page).
    - `brand.primary`/`primary_text`/`avatar_bg`: real button color and its text color (chat header, bubbles, ad avatars), and the logo's background color.
-   - `hero.headline`: the practice's outcome, addressed to the owner, 2-4 words in `*asterisks*` for the gradient accent. Anchor numbers only to the real guarantee (7 paid assessments in the first 6 weeks). No subheading.
+   - `hero.headline`: the practice's outcome, addressed to the owner, 2-4 words in `*asterisks*` for the gradient accent. Anchor numbers only to the real offer (7-10 paid assessments in the first 6 weeks, 7 guaranteed). No subheading.
    - `engine_intro`: personalize it to something real on their site (Advantage: "your site says you text and don't take calls" set up the missed-call angle).
    - `step_blurbs`: five, in order: ads, funnel, AI agent, database reactivation (email + SMS campaigns to leads and past patients they already have), nothing leaks.
    - `ads.intro`, `ads.video_items` (step 4), `ads.items` (step 6).

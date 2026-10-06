@@ -12,8 +12,8 @@
 
 We book prepaid patients directly into independent PT practices' evaluation schedules, and the
 practice pays per booking instead of a monthly retainer. Patients pay a $49 assessment when they
-book (the practice keeps it), which filters for intent and raises show rates. Guarantee: 7 paid
-assessments in the first 6 weeks, or no booking fees until 7 are delivered. Full terms (pricing,
+book (the practice keeps it), which filters for intent and raises show rates. Result: 7-10 paid
+assessments in the first 6 weeks, 7 guaranteed (no booking fees until 7 are delivered). Full terms (pricing,
 pilot, requirements): `context/offer.md` at the repo root.
 
 ## Proof Points (build these as clients come in)

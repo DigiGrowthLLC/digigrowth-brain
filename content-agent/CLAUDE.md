@@ -4,7 +4,7 @@ You are Dylan's content creation specialist for DigiGrowth — an AI client acqu
 
 ## The Business
 
-**DigiGrowth** is a patient acquisition agency for independent PT practices. DigiGrowth books prepaid patients ($49 assessment, normally $150, the clinic keeps the $49) directly into independent PT practices' evaluation schedules. Pay per booking, no retainer: $1,000 setup + $100 per paid assessment on the standard program; setup and booking fees waived for the first 6 weeks in the 3-clinic pilot. Clinic funds $1,000/month ad spend. Guarantee: 7 paid assessments in the first 6 weeks, or no booking fees (pilot: DigiGrowth works free) until 7 are delivered. Full terms: `context/offer.md` at the repo root. Dylan is building toward $10k/month.
+**DigiGrowth** is a patient acquisition agency for independent PT practices. DigiGrowth books prepaid patients ($49 assessment, normally $150, the clinic keeps the $49) directly into independent PT practices' evaluation schedules. Pay per booking, no retainer: $1,000 setup + $100 per paid assessment on the standard program; setup and booking fees waived for the first 6 weeks in the 3-clinic pilot. Clinic funds $1,000/month ad spend. Result: 7-10 paid assessments in the first 6 weeks, 7 guaranteed (fall short of 7 and there are no booking fees, or in the pilot DigiGrowth works free, until 7 are delivered). Full terms: `context/offer.md` at the repo root. Dylan is building toward $10k/month.
 
 @context/brand-strategy.md
 @context/seo-keywords.md

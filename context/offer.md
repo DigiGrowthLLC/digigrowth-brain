@@ -41,8 +41,9 @@ Included:
 6. **Weekly reporting.** Spend, leads, bookings and pacing against the guarantee.
 
 ## The guarantee
-**7 paid assessments booked in the first 6 weeks.** If DigiGrowth falls short, it keeps running the
-campaigns and the practice pays no booking fees until it has received 7. The practice keeps funding
+**7-10 paid assessments booked in the first 6 weeks, with 7 guaranteed.** 7-10 is the expected
+range; 7 is the guarantee. If DigiGrowth falls short of 7, it keeps running the campaigns and the
+practice pays no booking fees until it has received 7. The practice keeps funding
 the ad spend directly.
 
 A paid assessment counts when a patient has booked and paid the $49 through the DigiGrowth checkout.
@@ -55,7 +56,7 @@ Bookings from database reactivation count toward the 7.
 | Setup fee | $1,000 one-time | Waived |
 | Per paid assessment | $100 | Waived |
 | Ad spend (paid by the practice to Meta) | $1,000/month | $1,000/month |
-| Guarantee | 7 paid assessments in 6 weeks | 7 paid assessments in 6 weeks |
+| Result | 7-10 paid assessments in 6 weeks, 7 guaranteed | 7-10 paid assessments in 6 weeks, 7 guaranteed |
 | If the guarantee is missed | No booking fees until 7 are delivered | DigiGrowth keeps working free until 7 are delivered |
 | After 6 weeks | $100 per paid assessment | Standard pricing; setup fee waived with a 90-day commitment |
 | Availability | Open | 3 clinics |
@@ -97,7 +98,7 @@ which the targets reach in about a month).
 | End of week 1 | $250 | 10 | 2 |
 | End of week 2 | $500 | 20 | 3-4 |
 | End of week 4 | $1,000 | 40 | 7 |
-| End of week 6 | $1,400 | 56 | 7 guaranteed (~10 projected) |
+| End of week 6 | $1,400 | 56 | 7-10 (7 guaranteed) |
 
 Under 3 bookings at the end of week 2 triggers a fix: new creative if cost per lead is high, tighter
 follow-up if booking rate is low.
