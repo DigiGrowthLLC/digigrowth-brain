@@ -237,6 +237,21 @@ async def _load(client_id: int) -> dict:
 _SOCIAL_HOSTS = ("tiktok", "facebook", "instagram", "twitter", "linkedin", "youtube", "yelp", "google", "social", "x-logo")
 
 
+def _full_res(src: str) -> str:
+    """The rendered page's image URL is the size it's displayed at, often a
+    few hundred px, which looks blurry once the funnel shows it bigger.
+    Site builders serve the original from a predictable URL; the scraper's
+    own compression then caps it at 1100px."""
+    # Wix: static.wixstatic.com/media/<id>/v1/fill/w_310,.../<name> -> /media/<id>
+    m = re.match(r"(https://static\.wixstatic\.com/media/[^/]+)/v1/", src or "")
+    if m:
+        return m.group(1)
+    # Squarespace: images.squarespace-cdn.com/...?format=300w -> 1500w
+    if "squarespace-cdn.com" in (src or ""):
+        return re.sub(r"format=\d+w", "format=1500w", src) if "format=" in src else src + "?format=1500w"
+    return src
+
+
 async def _scrape(url: str) -> dict | None:
     """Reuses design-agent's scraper (same one the funnel-building skill
     runs locally): page text from requests+BS4, computed colors + logo +
@@ -260,7 +275,7 @@ async def _scrape(url: str) -> dict | None:
     logo = await asyncio.to_thread(sps._fetch_as_data_uri, logo_src) if logo_src else None
     photos = []
     for src in (data.get("photo_srcs") or [])[:4]:
-        uri = await asyncio.to_thread(sps._fetch_as_data_uri, src, True)
+        uri = await asyncio.to_thread(sps._fetch_as_data_uri, _full_res(src), True)
         if uri:
             photos.append(uri)
     palette = {k: data.get(k) for k in ("body", "button", "header", "h1", "theme_color")}
