@@ -1961,28 +1961,20 @@ const AUTOMATION_CANDIDATES = [
 // Registrar, Hosting) stored on the client row, plus an open-ended list for
 // everything else (Drive links, brand assets, marketing material, etc.).
 // Admin-only reference — nothing here is shown in the client's own portal.
-// Card order follows SETUP_ORDER_PHASES: what can start before the client
-// finishes onboarding comes first.
+// Card order: Client Portal, Landing Page, SMS Marketing, Response AI,
+// SMS/Email Automations, Email Marketing, Paid Ad Creatives.
 const MARKETING_STEPS = [
+  {
+    key: "client_portal", label: "Set Up Client Portal",
+    status: (cfg, client) => (client?.calendly_url
+      ? "Calendly connected — Analytics still needs manual verification, see guide"
+      : "Calendly not connected yet — see guide"),
+    done: (cfg) => _guideStepsAllDone(cfg, "client_portal"),
+  },
   {
     key: "landing_page", label: "Landing Page",
     status: (cfg) => (cfg?.landing_page_url ? cfg.landing_page_url : "Not created"),
     done: (cfg) => Boolean(cfg?.landing_page_url),
-  },
-  {
-    key: "ad_creatives", label: "Paid Ad Creatives",
-    status: (cfg) => {
-      const n = cfg?.ad_creative_status ? Object.keys(cfg.ad_creative_status).length : 0;
-      return n > 0 ? `${n} asset${n === 1 ? "" : "s"} tracked` : "None yet";
-    },
-    // Was keyed off ad_creative_status (a "how many assets tracked" JSONB
-    // field) instead of the guide checklist like every other step here —
-    // nothing in the app ever actually writes to ad_creative_status, so
-    // checking off every step in the guide modal never marked this done.
-    // Matches automations/client_portal below now: done = every guide step
-    // checked off. Status text is untouched (still a legitimate separate
-    // "how many assets tracked" readout once that field is ever populated).
-    done: (cfg) => _guideStepsAllDone(cfg, "ad_creatives"),
   },
   {
     key: "sms", label: "SMS Marketing",
@@ -1997,13 +1989,6 @@ const MARKETING_STEPS = [
     done: (cfg) => Boolean(cfg?.response_ai_enabled && cfg?.response_ai_context),
   },
   {
-    key: "email", label: "Email Marketing",
-    status: (cfg) => (cfg?.gmail_refresh_token
-      ? `Connected — ${cfg.gmail_sender_email || "mailbox linked"}${cfg.email_subdomain ? ` (${cfg.email_subdomain})` : ""}`
-      : "Not connected"),
-    done: (cfg) => Boolean(cfg?.gmail_refresh_token),
-  },
-  {
     key: "automations", label: "SMS/Email Automations",
     status: (cfg) => (cfg?.twilio_number && cfg?.gmail_refresh_token
       ? "Channels ready — add No Show/Cancellation copy on the Sequences tab"
@@ -2011,11 +1996,26 @@ const MARKETING_STEPS = [
     done: (cfg) => _guideStepsAllDone(cfg, "automations"),
   },
   {
-    key: "client_portal", label: "Set Up Client Portal",
-    status: (cfg, client) => (client?.calendly_url
-      ? "Calendly connected — Analytics still needs manual verification, see guide"
-      : "Calendly not connected yet — see guide"),
-    done: (cfg) => _guideStepsAllDone(cfg, "client_portal"),
+    key: "email", label: "Email Marketing",
+    status: (cfg) => (cfg?.gmail_refresh_token
+      ? `Connected — ${cfg.gmail_sender_email || "mailbox linked"}${cfg.email_subdomain ? ` (${cfg.email_subdomain})` : ""}`
+      : "Not connected"),
+    done: (cfg) => Boolean(cfg?.gmail_refresh_token),
+  },
+  {
+    key: "ad_creatives", label: "Paid Ad Creatives",
+    status: (cfg) => {
+      const n = cfg?.ad_creative_status ? Object.keys(cfg.ad_creative_status).length : 0;
+      return n > 0 ? `${n} asset${n === 1 ? "" : "s"} tracked` : "None yet";
+    },
+    // Was keyed off ad_creative_status (a "how many assets tracked" JSONB
+    // field) instead of the guide checklist like every other step here —
+    // nothing in the app ever actually writes to ad_creative_status, so
+    // checking off every step in the guide modal never marked this done.
+    // Matches automations/client_portal above now: done = every guide step
+    // checked off. Status text is untouched (still a legitimate separate
+    // "how many assets tracked" readout once that field is ever populated).
+    done: (cfg) => _guideStepsAllDone(cfg, "ad_creatives"),
   },
 ];
 
