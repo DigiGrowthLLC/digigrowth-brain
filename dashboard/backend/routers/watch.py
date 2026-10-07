@@ -133,6 +133,30 @@ async def complete_watch_video(body: CompleteRequest):
     )
 
 
+@admin_router.delete("/watch-videos/{slug}")
+async def delete_watch_video(slug: str):
+    """Unpublish a watch page: the row, its view events, and its R2 file.
+    The public link 404s afterwards."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow("DELETE FROM watch_videos WHERE slug = $1 RETURNING r2_key", slug)
+            if not row:
+                raise HTTPException(status_code=404, detail="Video not found")
+            events = await conn.fetchval(
+                "WITH d AS (DELETE FROM content_view_events WHERE source = 'outreach_video' AND content_key = $1 "
+                "RETURNING 1) SELECT count(*) FROM d",
+                slug,
+            )
+    _video_cache.pop(slug, None)
+    if row["r2_key"]:
+        try:
+            r2_storage.delete_object(row["r2_key"])
+        except Exception as e:
+            print(f"[watch] R2 delete failed for {row['r2_key']}: {e}")
+    return {"ok": True, "slug": slug, "view_events_deleted": events}
+
+
 async def register_watch_video(slug: str, title: str, r2_key: str, file_size: int,
                                content_type: str = "video/mp4", contact_id: str | None = None) -> dict:
     """Records the watch_videos row for an object already in R2 and returns
