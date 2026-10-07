@@ -38,6 +38,7 @@ from fastapi import APIRouter, HTTPException, Query
 from db import get_pool
 from timezone_lookup import guess_timezone, prospect_timezone, US_TIMEZONES
 import calendly_integration
+import client_autosetup
 import cancel_sequence
 import client_appointment_sequence
 import client_booking_notification
@@ -536,6 +537,14 @@ async def update_appointment(appointment_id: int, payload: dict):
             portal_url = await onboarding_sequence.ensure_client_portal(dict(updated)) or None
         except Exception as e:
             print(f"[appointments] client portal creation failed for {appointment_id}: {e}")
+        # Then the rest of Marketing Setup (landing page, number, Response
+        # AI, automation copy, email subdomain) runs in the background —
+        # client_autosetup.py. Progress shows on the client's Marketing Setup tab.
+        if portal_url:
+            try:
+                await client_autosetup.kick_off_for_contact(updated["contact_id"])
+            except Exception as e:
+                print(f"[appointments] marketing auto-setup failed to start for {appointment_id}: {e}")
         try:
             await onboarding_sequence.send_kickoff(dict(updated))
         except Exception as e:

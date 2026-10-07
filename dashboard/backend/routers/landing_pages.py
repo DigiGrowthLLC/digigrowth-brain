@@ -22,6 +22,7 @@ domain + CNAME — that's DNS/Railway-level routing, not app-level, so this
 module doesn't need to know or care which domain a request arrived on.
 """
 import html
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -31,7 +32,7 @@ import blueprint_chat
 import r2_storage
 from db import get_pool
 
-router = APIRouter()          # public: /lp/{slug}, /lp/{slug}/hero-image, /lp/{slug}/chat, /lp/{slug}/a/{name}
+router = APIRouter()          # public: /lp/{slug}, /lp/{slug}/hero-image, /lp/{slug}/chat, /lp/{slug}/a/{name}, /lp/{slug}/book
 admin_router = APIRouter()    # authenticated: /landing-pages (create/list/approve)
 
 
@@ -224,7 +225,7 @@ async def landing_page(slug: str, request: Request):
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT html, business, hero_r2_key, contact_id FROM landing_pages WHERE slug = $1", slug
+            "SELECT html, business, hero_r2_key, contact_id, client_id FROM landing_pages WHERE slug = $1", slug
         )
     if not row:
         raise HTTPException(status_code=404, detail="Page not found")
@@ -244,7 +245,9 @@ async def landing_page(slug: str, request: Request):
     base_url = f"{scheme}://{request.url.netloc}"
 
     business = html.escape(row["business"] or "your practice")
-    og_title = f"A quick mockup for {business}"
+    # A client's own funnel (client_autosetup.py) is their brand talking to
+    # their patients, not a mockup pitched to a prospect.
+    og_title = business if row["client_id"] else f"A quick mockup for {business}"
     og_image_tag = ""
     if row["hero_r2_key"]:
         image_url = f"{base_url}/lp/{slug}/hero-image"
@@ -314,6 +317,40 @@ async def landing_page_chat(slug: str, body: ChatRequest, request: Request):
     # question); the page shows each as its own bubble. "reply" keeps the
     # joined text for the transcript the browser sends back next turn.
     return {"reply": text, "replies": blueprint_chat.split_texts(text)}
+
+
+@router.get("/lp/{slug}/book", include_in_schema=False)
+async def landing_page_book(slug: str, utm_content: str | None = None):
+    """Every CTA on an auto-built client funnel (client_autosetup.py) points
+    here instead of a hardcoded Calendly link, so the page works before the
+    client's Calendly is connected and picks it up the moment it is.
+    Appends utm_source=paid_ad (calendly_webhooks.py tags the booking
+    ads-lead from it) and passes through utm_content=meta from the page's
+    tracking snippet. No Calendly yet: falls back to the client's own site."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT cl.calendly_url, cmc.calendly_event_type_url, c.website
+               FROM landing_pages lp
+               JOIN clients cl ON cl.id = lp.client_id
+               LEFT JOIN client_marketing_config cmc ON cmc.client_id = cl.id
+               LEFT JOIN contacts c ON c.client_id = cl.id AND c.is_client_anchor
+               WHERE lp.slug = $1 LIMIT 1""",
+            slug,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Page not found")
+    booking = (row["calendly_url"] or row["calendly_event_type_url"] or "").strip()
+    if not booking:
+        site = (row["website"] or "").strip()
+        if not site:
+            raise HTTPException(status_code=404, detail="Booking isn't open yet")
+        return RedirectResponse(site if site.startswith("http") else f"https://{site}", status_code=302)
+    params = {"utm_source": "paid_ad"}
+    if utm_content:
+        params["utm_content"] = utm_content
+    sep = "&" if "?" in booking else "?"
+    return RedirectResponse(f"{booking}{sep}{urlencode(params)}", status_code=302)
 
 
 @router.get("/lp/{slug}/a/{name}", include_in_schema=False)

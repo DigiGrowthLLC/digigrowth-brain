@@ -20,6 +20,7 @@ import json
 from fastapi import APIRouter, HTTPException, Query
 
 import calendly_integration
+import client_autosetup
 import client_email
 import client_sms
 import context_gen
@@ -34,7 +35,7 @@ router = APIRouter()
 
 # asyncpg has no JSONB codec registered on this pool (matches client_portal.py's
 # _decode_response_row) — a JSONB column comes back as a raw JSON string.
-_JSONB_FIELDS = ("ad_creative_status", "guide_progress", "response_ai_sequence")
+_JSONB_FIELDS = ("ad_creative_status", "guide_progress", "response_ai_sequence", "autosetup")
 
 
 def _decode_config(row) -> dict:
@@ -376,6 +377,20 @@ async def generate_response_ai_context(client_id: int):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"context": context}
+
+
+@router.post("/clients/{client_id}/marketing-config/autosetup")
+async def run_marketing_autosetup(client_id: int):
+    """Re-runs the automatic Marketing Setup that fires on Closed
+    (client_autosetup.py) in the background. Only fills what's still empty;
+    poll GET /marketing-config for progress in its `autosetup` field."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
+        if not client:
+            raise HTTPException(404, "Client not found")
+    client_autosetup.kick_off(client_id, force=True)
+    return {"ok": True}
 
 
 @router.get("/marketing-config/email-warmup-settings")

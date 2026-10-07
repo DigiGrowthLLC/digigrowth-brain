@@ -1778,7 +1778,7 @@ const MARKETING_GUIDES = {
   sms: {
     title: "Set Up SMS Marketing",
     steps: [
-      { text: "Click \"Buy Number\" on this tab — provisions a dedicated Twilio subaccount + local number for this client. (Automated — no external step.)" },
+      { text: "Automated: Auto-Setup buys it when the deal is marked Closed (in the client's area code). Otherwise click \"Buy Number\" on this tab — provisions a dedicated Twilio subaccount + local number for this client." },
       { text: "Register an A2P 10DLC Brand + Campaign for this client's Twilio subaccount using their real business name/EIN — required before real volume will deliver reliably.", link: "https://console.twilio.com/us1/develop/sms/regulatory-compliance/brand-registrations", linkLabel: "Twilio Console → Regulatory Compliance" },
       { text: "Confirm the inbound webhook is set (this happens automatically on purchase) — nothing to do here, just verify." },
       { text: "Send yourself a test text to/from the new number and confirm it lands in the message log." },
@@ -1818,7 +1818,7 @@ const MARKETING_GUIDES = {
     steps: [
       { text: "Confirm SMS marketing is provisioned first — this reuses the client's own Twilio number, it doesn't bring its own." },
       { text: "Head to this client's own \"Agents\" tab (next to Marketing Setup), expand the Facebook Leads Agent row. Everything below happens there." },
-      { text: "Enable the agent, then write its context (business info, offer, tone, hours, FAQs, what to escalate) — or click GENERATE CONTEXT to draft one from this client's onboarding answers, linked contact info, and any uploaded PDFs/docx, then review and edit it." },
+      { text: "Automated: Auto-Setup writes the context from their scraped website, fills the sequence and rules, and switches the agent on. Review it there. Manually: enable the agent, then write its context (business info, offer, tone, hours, FAQs, what to escalate) — or click GENERATE CONTEXT to draft one from this client's onboarding answers, linked contact info, and any uploaded PDFs/docx, then review and edit it." },
       { text: "Fill in the SMS Sequence — 5 short stage goals (first text through fifth text) the agent tries to progress a conversation through. It doesn't follow this rigidly: it always answers whatever the lead actually asks first, then steers back toward the next stage." },
       { text: "Set Rules — a minimum reply delay and a max words-per-text are actually enforced, not just suggested. Add any other freeform rules (tone quirks, things to never say, etc.) in the big text box; the agent reads it before every reply." },
       { text: "Connect the client's Calendly under \"Calendar (Calendly)\" (needed for direct booking, the client's booking alerts/reminders, and the Meta lead already-booked check). (1) Their Calendly must be a PAID plan (Standard or higher) so the agent can book straight onto it. (2) Use ONE event type for the consult, with location set to \"Phone call — I will call my invitee\" (the agent can only direct-book phone consults), and at most ONE required question besides phone number (e.g. \"What brings you to this call?\") — more required questions and direct booking fails. (3) Generate a Personal Access Token (Calendly → Integrations & Apps → API & Webhooks → Generate New Token) and paste it, then paste that event type's booking link as the event link. Saving the token registers the booking webhook automatically — confirm the webhook shows CONNECTED (use CONNECT WEBHOOK to retry if it shows an error)." },
@@ -1842,7 +1842,7 @@ const MARKETING_GUIDES = {
   landing_page: {
     title: "Create Landing Page",
     steps: [
-      { text: "Build the funnel with the design-agent's funnel-building skill (\"build the funnel for <client>\"): it scrapes the client's own site for brand, photos and reviews, so it doesn't need onboarding answers. Offer per context/offer.md: the $49 assessment (normally their real eval price). It also registers the page in the client's portal Website tab with tracking." },
+      { text: "Automated: Auto-Setup builds a $49-assessment funnel from the client's own site when the deal is marked Closed, hosts it on the pages domain, registers it in their portal Website tab, and fills the Live URL below. Review it before ads run. For a hand-built version instead: build the funnel with the design-agent's funnel-building skill (\"build the funnel for <client>\"): it scrapes the client's own site for brand, photos and reviews, so it doesn't need onboarding answers. Offer per context/offer.md: the $49 assessment (normally their real eval price). It also registers the page in the client's portal Website tab with tracking." },
       { text: "Push it live as its own Vercel project (not a route on the corporate site). The *.vercel.app URL works right away, before any client DNS.", link: "https://vercel.com/new", linkLabel: "Vercel → New Project" },
       { text: "Point the client's domain/subdomain at it via their registrar's DNS settings.", registrar: true },
       { text: "Paste the live URL below.",
@@ -1950,7 +1950,8 @@ const SETUP_ORDER_GUIDE = {
 // a registrar we don't control). Shown once at the top of the Marketing
 // Setup tab so it's obvious which steps are worth building automation for.
 const AUTOMATION_CANDIDATES = [
-  { step: "Landing Page", note: "Automatable: a content-agent skill could take the client's onboarding answers (offer, guarantee, CTA, brand) and generate the page's copy + layout automatically, matching the existing digigrowth-website design system. Still needs a human to review before it goes live and to push the Vercel deploy." },
+  { step: "Auto-Setup (on Closed)", note: "Marking a discovery call Closed builds the client portal, then in the background (client_autosetup.py): a $49-assessment landing page from the client's scraped site, their Twilio number, the Response AI context/sequence/rules (switched on), the reminder/no-show/cancellation/follow-up copy rewritten for the offer, and their email outreach subdomain. Still manual: A2P 10DLC (needs EIN), registrar DNS for email and a custom funnel domain, Calendly, Facebook Page/ad account access. Re-run from the Auto-Setup card; it only fills gaps." },
+  { step: "Landing Page", note: "Automated by Auto-Setup (see above), hosted on the pages domain with every CTA routed through /lp/<slug>/book to the client's Calendly. Still needs a human review before ad spend, and the client's own subdomain if wanted." },
   { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automated here yet. Automated already: once the Page ID is saved, Instant Form leads flow into the client's CRM and get texted by their agent (Make relay, built automatically)." },
   { step: "SMS / Email / Response AI", note: "SMS and Email still need a one-time human setup step outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent) that no API lets us do on someone's behalf. Response AI is fully self-built and automated once enabled — response_ai.py replies to inbound SMS itself, no third-party account needed, just per-client context/sequence/rules written on the Agent tab. What's already automated across all three: the number/mailbox setup itself, every send/receive once connected, and the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats)." },
   { step: "SMS/Email Automations", note: "As of 2026-09-13, fully automated once the copy's filled in: writing the No Show/Cancellation SMS+email copy on the Sequences tab is the only manual step — the actual send (client_appointment_sequence.py) fires on its own the moment a lead's appointment is marked No Show/Canceled, no scheduler or extra connection needed. Not automatable: onboarding a client's EXISTING patient base, which lives in their own booking/EHR system outside this app." },
@@ -2972,6 +2973,83 @@ function GuideModal({
   );
 }
 
+// Automatic Marketing Setup (backend client_autosetup.py): fires in the
+// background when a discovery call is marked Closed, and from RUN AUTO-SETUP
+// here. Polls the marketing config while a run is in progress.
+const AUTOSETUP_STEPS = [
+  ["client_portal", "Client Portal"],
+  ["landing_page", "Landing Page"],
+  ["sms", "SMS Marketing"],
+  ["response_ai", "Response AI"],
+  ["automations", "SMS/Email Automations"],
+  ["email", "Email Marketing"],
+];
+const AUTOSETUP_COLORS = { done: "#4ade80", skipped: "#5a7aa0", error: "#f87171" };
+
+function AutoSetupCard({ clientId, autosetup, onChange }) {
+  const [starting, setStarting] = useState(false);
+  const [err, setErr] = useState("");
+  const state = autosetup?.state;
+  const running = state === "running" || starting;
+  const steps = autosetup?.steps || {};
+
+  useEffect(() => {
+    if (state !== "running") return undefined;
+    const t = setInterval(onChange, 5000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line
+  }, [state]);
+
+  const start = async () => {
+    setStarting(true);
+    setErr("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/marketing-config/autosetup`), { method: "POST" });
+      if (!r.ok) throw new Error("Failed to start auto-setup");
+      // The run claims itself a moment after the request returns.
+      await new Promise((res) => setTimeout(res, 1500));
+      await onChange();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const headline = running
+    ? "RUNNING: the landing page takes a few minutes"
+    : state === "done" ? `LAST RUN ${new Date(autosetup.finished_at).toLocaleString()}`
+    : state === "error" ? `RUN FAILED: ${autosetup.error || "see server logs"}`
+    : "NOT RUN YET: runs automatically when the discovery call is marked Closed";
+
+  return (
+    <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(58,123,213,0.06)", marginBottom: 12 }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#9cc4f5" }}>Auto-Setup</div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginTop: 2 }}>{headline}</div>
+        </div>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={start} disabled={running}>
+          {running ? "RUNNING…" : state ? "RE-RUN (FILLS GAPS ONLY)" : "RUN AUTO-SETUP"}
+        </button>
+      </div>
+      {err && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#f87171", marginTop: 6 }}>{err}</div>}
+      {Object.keys(steps).length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+          {AUTOSETUP_STEPS.filter(([key]) => steps[key]).map(([key, label]) => (
+            <div key={key} style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, lineHeight: 1.5, color: "#5a7aa0" }}>
+              <span style={{ color: AUTOSETUP_COLORS[steps[key].status] || "#5a7aa0", fontWeight: 700 }}>
+                {steps[key].status.toUpperCase()}
+              </span>{" "}
+              <span style={{ color: "#c8d8f0" }}>{label}:</span> {steps[key].detail}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClientMarketingSetup({ clientId }) {
   const [config, setConfig] = useState(null);
   const [client, setClient] = useState(null);
@@ -3211,6 +3289,8 @@ function ClientMarketingSetup({ clientId }) {
         from DigiGrowth's own outreach system. Work through SETUP ORDER: it puts every step from
         the guides below in one sequence, starting with what needs nothing from the client.
       </div>
+
+      <AutoSetupCard clientId={clientId} autosetup={config?.autosetup} onChange={load} />
 
       {(() => {
         const done = SETUP_ORDER_GUIDE.steps.filter((st) => config?.guide_progress?.[st._ref.g]?.[st._ref.i]).length;

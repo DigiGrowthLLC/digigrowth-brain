@@ -32,6 +32,7 @@ from db import get_pool
 
 _MAX_CHARS_PER_FILE = 8000
 _MAX_TOTAL_FILE_CHARS = 30000
+_MAX_WEBSITE_CHARS = 25000
 
 _PDF_TYPE = "application/pdf"
 _DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -43,11 +44,11 @@ document the assistant will be given verbatim as its own knowledge and identity.
 Write it in first person, AS the assistant — give it a plausible human first name and a role title \
 ("You are [Name], the [role] for [business]...") — not third-person business documentation.
 
-Identify the actual top-of-funnel offer this business wants leads booked into (often a free intro \
-call/consultation — check the onboarding answers' offer/economics section first). That free/intro \
+Identify the actual top-of-funnel offer this business wants leads booked into (check the \
+onboarding answers' offer/economics section first, then the funnel offer at the bottom). That \
 offer should be established as the assistant's ONE job and primary CTA. Unless the source \
 information explicitly says otherwise, instruct the assistant to NOT quote or discuss pricing for \
-paid services over text — redirect pricing questions toward booking the free/intro offer instead, \
+paid services over text — redirect pricing questions toward booking that offer instead, \
 where the human can go over specifics.
 
 Also cover, where the information below actually supports it: what the business does, tone/voice, \
@@ -60,8 +61,11 @@ will contradict each other. Write it as clear prose/bullet points, not a form. A
 thorough enough to be useful, not exhaustive.
 
 Critical rule: NEVER invent or guess at a fact, number, price, or claim that isn't actually present \
-in the information below. Where something important is missing (e.g. no offer/CTA mentioned \
-anywhere), write "[NEEDS INFO: ...]" instead of making something up.
+in the information below. {missing_info_rule}
+
+If the onboarding answers don't name a different front-end offer, the primary CTA is the funnel offer \
+at the bottom (it's what the lead's ad promised them). Its price is the one price the assistant may \
+state, because the lead already saw it in the ad; every other price still gets redirected.
 
 --- Client record ---
 {client_info}
@@ -74,7 +78,35 @@ anywhere), write "[NEEDS INFO: ...]" instead of making something up.
 
 --- Excerpts from uploaded documents ---
 {uploads_text}
+
+--- The practice's own website (scraped text) ---
+{website_text}
+
+--- Funnel offer DigiGrowth runs for this practice's ads ---
+{funnel_offer}
 """
+
+_NEEDS_INFO_RULE = (
+    'Where something important is missing (e.g. no offer/CTA mentioned anywhere), write '
+    '"[NEEDS INFO: ...]" instead of making something up.'
+)
+# client_autosetup.py saves the draft straight to the live agent, so a
+# placeholder would be read literally by the agent mid-conversation.
+_AUTO_MISSING_INFO_RULE = (
+    "This document goes live as written, with no human edit, so never write placeholders like "
+    "[NEEDS INFO]. Where a fact is missing (hours, address, insurance, a specific price), leave it "
+    "out and instruct the assistant to say the team will confirm that detail and keep steering to the booking."
+)
+
+# The patient-facing side of context/offer.md (repo root, the single source
+# of truth for the offer). DigiGrowth's own pricing never goes in here.
+FUNNEL_OFFER = (
+    "A $49 assessment with the practice (framed as normally the practice's full evaluation price, "
+    "only if that price is known from the information above). Limited spots each month. The patient "
+    "pays the $49 when they book through the practice's booking link, which holds their spot; the "
+    "practice keeps it. The visit is an in-person evaluation at the practice unless the information "
+    "above says the practice works differently."
+)
 
 
 def _extract_pdf_text(data: bytes) -> str:
@@ -131,7 +163,10 @@ async def _gather_uploaded_text(conn, client_id: int) -> str:
     return "\n\n".join(parts) if parts else "(no extractable text found in uploaded files)"
 
 
-async def generate_context(client_id: int) -> str:
+async def generate_context(client_id: int, website_text: str | None = None, auto: bool = False) -> str:
+    """website_text: the practice's scraped site (client_autosetup.py passes
+    it; the manual GENERATE CONTEXT button doesn't scrape). auto: the result
+    is saved live without review, so no [NEEDS INFO] placeholders."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         client = await conn.fetchrow(
@@ -168,6 +203,9 @@ async def generate_context(client_id: int) -> str:
     prompt = _PROMPT_TEMPLATE.format(
         client_info=client_info, anchor_info=anchor_info,
         onboarding_text=onboarding_text, uploads_text=uploads_text,
+        website_text=(website_text or "").strip()[:_MAX_WEBSITE_CHARS] or "(not scraped)",
+        funnel_offer=FUNNEL_OFFER,
+        missing_info_rule=_AUTO_MISSING_INFO_RULE if auto else _NEEDS_INFO_RULE,
     )
 
     api_client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
