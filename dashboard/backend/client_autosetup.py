@@ -13,9 +13,9 @@ failure is recorded and the rest still run.
 1. Client portal: already built by ensure_client_portal(); recorded here.
 2. Landing page: scrapes the practice's own site (design-agent's
    scrape_prospect_site.py: text, computed brand colors, logo, photos) and
-   has Claude write a single-page booking funnel in their brand (no offer
-   or price unless their onboarding answers name one: the offer is for
-   Dylan and the client to decide),
+   has Claude write a single-page free-consultation booking funnel in
+   their brand (no prices or other offers unless the client's onboarding
+   answers name one),
    following design-agent's funnel-building references. Hosted on
    landing_pages at /lp/{slug} (the branded pages domain), registered as a
    client_websites row so the portal's Website tab tracks it. Every CTA
@@ -27,10 +27,10 @@ failure is recorded and the rest still run.
 4. Response AI: writes the agent's context from the scraped site + whatever
    is on file (context_gen.py), fills a default 5-stage sequence and rules,
    and switches the agent on.
-5. SMS/Email automations: rewrites the seeded reminder / no-show /
-   cancellation / follow-up copy (still the free-phone-consultation
-   template) for this practice as offer-neutral "appointment" copy, keeping
-   merge fields.
+5. SMS/Email automations: confirms the reminder / no-show / cancellation /
+   follow-up copy seeded on client creation (routers/clients.py, already
+   written around the free consultation) is in place; it sends from the
+   client's own number/mailbox with no further wiring.
 6. Email marketing: picks the outreach subdomain (mail.<their domain>). The
    DNS records need the client's registrar, so the rest stays manual.
 
@@ -301,12 +301,12 @@ _DEFAULT_SEQUENCE = [
     "looking into PT. Save follow-up details (how long, what they've tried) for a later message.",
     "Briefly validate what they shared and connect it to what {business} actually does for that exact "
     "situation, in plain language, without over-explaining or sounding like a sales pitch.",
-    "Invite them to book a visit with {business} as the natural next step, framed around getting a real "
-    "answer for their situation and a clear plan.",
+    "Introduce the free consultation as the natural next step, framed as low-pressure: a quick chat to "
+    "see if {business} is a good fit, not a commitment.",
     "If they hesitate or raise a concern (cost, insurance, time, does this actually work), address it "
-    "briefly and point back to the assessment as the easiest way to get a real answer.",
+    "briefly and point back to the free consultation as the easiest way to get a real answer.",
     "Once they're ready, send the booking link so they can pick a time. When they confirm they booked, "
-    "confirm it back in one message and set expectations for the visit.",
+    "confirm it back in one message and set expectations for what happens next.",
 ]
 
 _DEFAULT_RULES = (
@@ -315,8 +315,8 @@ _DEFAULT_RULES = (
     "2. Never use em dashes, curly quotes, or emoji.\n"
     "3. Never sound scripted or repeat the same phrasing twice in one conversation.\n"
     "4. Never ask two questions in one text.\n"
-    "5. Never quote prices or mention any offer, discount, or special unless your context states it. "
-    "Steer pricing questions to booking, where the team goes over specifics."
+    "5. Never quote prices or mention any discount or special. Steer pricing questions to the free "
+    "consultation, where the team goes over specifics."
 )
 
 
@@ -330,7 +330,7 @@ async def _step_response_ai(client_id: int, ctx: dict) -> tuple[str, str]:
         book_url = ctx.get("book_url")
         if book_url:
             context += (
-                f"\n\n## Booking link\nSend this when they're ready to book: {book_url}"
+                f"\n\n## Booking link\nSend this when they're ready to book their free consultation: {book_url}"
             )
         updates["response_ai_context"] = context
         done.append("context written" + (" from their website" if site_text else " (no website on file)"))
@@ -411,7 +411,7 @@ def _tracking_snippet(website_id: int) -> str:
 
 _PAGE_SYSTEM = """You build single-page, conversion-optimized landing pages for independent physical \
 therapy practices, for their Meta ad traffic. The page is 100% the practice's own brand talking to its \
-own patients, driving one action: book an appointment. Follow the CRO rulebook and reuse the \
+own patients, driving one action: book a free consultation. Follow the CRO rulebook and reuse the \
 worked example's structure and CSS approach (token system, hero grid areas, review wall, trust bar, \
 floating sticky mobile CTA), re-deriving every color, font pairing, and word for this practice. Never \
 reuse the example's copy, testimonials, fonts, or colors.
@@ -421,10 +421,10 @@ Hard rules:
 credential, price, or urgency claim. Use real reviews only if they appear in the scraped text, quoted \
 verbatim with first name or initial only. If there are none, leave the proof section to what is real \
 (credentials, specialties, years, location) rather than fabricating.
-- No offer. Don't state or invent any offer, discount, special, intro price, or "limited spots" \
-framing; the offer is decided later between the agency and the practice. The only exception is an \
-offer named in the onboarding answers. Don't quote prices. CTAs are plain booking language \
-("Book your appointment", "Schedule your visit").
+- The offer is a free consultation. Don't add any other offer, discount, special, intro price, or \
+"limited spots" framing unless the onboarding answers name it, and don't quote prices. Don't state \
+the consultation's length or format (phone, video, in person) unless the material says. CTAs: \
+"Book your free consultation" or close variants.
 - Every CTA link is exactly href="{{BOOK_URL}}". No other link destinations, no nav menu, no footer link list.
 - The {{LOGO}} image was auto-detected and can be wrong. Use it only if it clearly is this practice's own logo or wordmark; if it's a social media icon or anything else, set the practice name in type as the wordmark instead.
 - Images: use src="{{LOGO}}" for the logo and src="{{PHOTO_1}}" ... for the photos listed as \
@@ -574,86 +574,19 @@ async def _step_landing_page(client_id: int, ctx: dict) -> tuple[str, str]:
 
 # ---------------------------------------------------------------- automations
 
-_SEQ_SYSTEM = """You rewrite a physical therapy practice's patient text and email templates. They \
-were seeded from a generic "free phone consultation" template. Rewrite each template so it fits this \
-practice as offer-neutral copy about their "appointment" or "visit", keeping its purpose, timing, and \
-roughly its length.
-
-Rules:
-- Keep every merge field the original uses ({first_name}, {business}, {date}, {time}, {link}) spelled \
-exactly the same, and add no new ones.
-- Remove "free consultation" and any other offer wording: no offers, discounts, or prices. The offer \
-is decided later between the agency and the practice.
-- Don't say "we'll call you at this number" or otherwise assume phone vs in-person unless the practice \
-context says how visits work.
-- Use only facts from the practice context. Don't invent hours, addresses, or prices.
-- SMS bodies: plain ASCII only, no em dashes, curly quotes, or emoji (they double the SMS cost).
-- Don't use em dashes in emails either.
-
-Return only a JSON array: [{"id": <id>, "subject": <string or null>, "body": <string>}, ...] covering \
-every template given."""
-
-
 async def _step_automations(client_id: int, ctx: dict) -> tuple[str, str]:
-    from routers.clients import _DEFAULT_SEQUENCE_STEPS
-
-    defaults = {(k, o): (subj, body) for k, o, _label, _ch, subj, body in _DEFAULT_SEQUENCE_STEPS}
+    """The seeded copy is already written around the free consultation,
+    so there's nothing to rewrite: confirm it's there and tick the guide."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT id, sequence_key, step_order, label, channel, subject, body FROM client_sequence_steps WHERE client_id = $1",
-            client_id,
+        count = await conn.fetchval(
+            "SELECT count(*) FROM client_sequence_steps WHERE client_id = $1", client_id,
         )
-        context = await conn.fetchval(
-            "SELECT response_ai_context FROM client_marketing_config WHERE client_id = $1", client_id,
-        )
-    # Only copy nobody has edited yet.
-    untouched = [r for r in rows if defaults.get((r["sequence_key"], r["step_order"]), (None, None))[1] == r["body"]]
-    if not untouched:
-        return "skipped", "Sequence copy was already edited"
-
-    templates = [
-        {"id": r["id"], "sequence": r["sequence_key"], "label": r["label"], "channel": r["channel"],
-         "subject": r["subject"], "body": r["body"]}
-        for r in untouched
-    ]
-    prompt = (
-        f"Practice: {ctx['business']}\n\nPractice context:\n{context or '(none)'}\n\n"
-        f"Templates:\n{json.dumps(templates, indent=2)}"
-    )
-    client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    async with client.messages.stream(
-        model=_MODEL, max_tokens=32000, output_config={"effort": "medium"},
-        system=_SEQ_SYSTEM, messages=[{"role": "user", "content": prompt}],
-    ) as stream:
-        message = await stream.get_final_message()
-    text = "".join(b.text for b in message.content if b.type == "text")
-    start, end = text.find("["), text.rfind("]")
-    rewritten = json.loads(text[start:end + 1]) if start != -1 and end != -1 else []
-
-    by_id = {t["id"]: t for t in templates}
-    updated = 0
-    async with pool.acquire() as conn:
-        for item in rewritten:
-            original = by_id.get(item.get("id"))
-            body = (item.get("body") or "").strip()
-            if not original or not body:
-                continue
-            # A dropped or invented merge field would send broken copy.
-            if set(re.findall(r"\{\w+\}", body)) - set(re.findall(r"\{\w+\}", original["body"])):
-                continue
-            if original["channel"] == "sms":
-                body = body.replace("—", ", ").replace("–", "-").replace("’", "'").replace("“", '"').replace("”", '"')
-            subject = item.get("subject") if original["channel"] == "email" else None
-            await conn.execute(
-                "UPDATE client_sequence_steps SET body = $2, subject = COALESCE($3, subject) WHERE id = $1 AND client_id = $4",
-                original["id"], body, subject, client_id,
-            )
-            updated += 1
-    if not updated:
-        return "error", "Claude's rewrite couldn't be used; the seeded copy is unchanged"
+    if not count:
+        return "error", "No sequence copy found for this client (it's normally seeded when the client is created)"
     await _check_guide_steps(client_id, "automations", [1, 2])
     return "done", (
-        f"Rewrote {updated} reminder / no-show / cancellation / follow-up templates for this practice "
-        "(offer-neutral). They send from the client's own number now; email copy starts sending once the mailbox is connected."
+        f"{count} free-consultation reminder / no-show / cancellation / follow-up messages in place on the "
+        "Sequences tab. They send from the client's own number now; email copy starts sending once the "
+        "mailbox is connected."
     )

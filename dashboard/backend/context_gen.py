@@ -46,8 +46,8 @@ Write it in first person, AS the assistant — give it a plausible human first n
 
 Identify what this business wants leads booked into (check the onboarding answers' \
 offer/economics section first). Booking that should be established as the assistant's ONE job and \
-primary CTA. If no offer is named in the information below, the CTA is simply booking an \
-appointment: never invent an offer, discount, or special. Unless the source information explicitly \
+primary CTA. If no offer is named in the information below, the CTA is a free consultation: \
+never invent any other offer, discount, or special. Unless the source information explicitly \
 says otherwise, instruct the assistant to NOT quote or discuss pricing over text — redirect pricing \
 questions toward booking instead, where the human can go over specifics.
 
