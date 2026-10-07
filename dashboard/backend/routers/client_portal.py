@@ -24,6 +24,7 @@ from typing import Optional
 
 import asyncpg
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import RedirectResponse
 
 from db import get_pool
 from models import (
@@ -175,10 +176,35 @@ async def portal_videos(token: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, title, description, embed_url, sort_order FROM onboarding_videos "
-            "WHERE active ORDER BY sort_order, id"
+            "SELECT id, title, description, embed_url, sort_order, video_r2_key, thumbnail_r2_key "
+            "FROM onboarding_videos WHERE active ORDER BY sort_order, id"
         )
-    return [dict(r) for r in rows]
+    out = []
+    for r in rows:
+        d = dict(r)
+        # Self-hosted (R2) video: point at the redirect route below rather
+        # than a signed URL, which would expire (10 min) while the tab sits open.
+        base = f"{router.prefix}/{token}/videos/{d['id']}"
+        d["video_url"] = f"{base}/file" if d.pop("video_r2_key") else None
+        d["thumbnail_url"] = f"{base}/thumbnail" if d.pop("thumbnail_r2_key") else None
+        out.append(d)
+    return out
+
+
+@router.get("/{token}/videos/{video_id}/{kind}")
+async def portal_video_file(token: str, video_id: int, kind: str):
+    """302 to a freshly signed R2 link on every request (the video element's
+    range requests included), same pattern as landing_pages' hero image."""
+    column = {"file": "video_r2_key", "thumbnail": "thumbnail_r2_key"}.get(kind)
+    if not column:
+        raise HTTPException(404, "Not found")
+    await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        key = await conn.fetchval(f"SELECT {column} FROM onboarding_videos WHERE id = $1 AND active", video_id)
+    if not key:
+        raise HTTPException(404, "Not found")
+    return RedirectResponse(r2_storage.presign_get(key), status_code=302)
 
 
 @router.get("/{token}/websites")

@@ -1060,13 +1060,24 @@ function VideosTab({ token }) {
       {videos.map((v) => (
         <div key={v.id} className="glass-card-sm">
           <div style={{ position: "relative", paddingTop: "56.25%", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}>
-            <iframe
-              src={v.embed_url}
-              title={v.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-            />
+            {v.video_url ? (
+              <video
+                src={v.video_url}
+                poster={v.thumbnail_url || undefined}
+                controls
+                playsInline
+                preload="none"
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", background: "#000" }}
+              />
+            ) : (
+              <iframe
+                src={v.embed_url}
+                title={v.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+              />
+            )}
           </div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff", marginBottom: 4 }}>{v.title}</div>
           {v.description && <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.5 }}>{v.description}</div>}

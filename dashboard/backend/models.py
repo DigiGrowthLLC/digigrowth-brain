@@ -288,6 +288,8 @@ class OnboardingVideoUpdate(BaseModel):
     embed_url: Optional[str] = None
     sort_order: Optional[int] = None
     active: Optional[bool] = None
+    video_r2_key: Optional[str] = None
+    thumbnail_r2_key: Optional[str] = None
 
 
 class OnboardingSectionSave(BaseModel):

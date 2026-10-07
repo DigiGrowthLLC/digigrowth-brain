@@ -617,6 +617,10 @@ async def _create_schema(pool: asyncpg.Pool):
                 WHERE client_cancel_sequence_sent_at IS NOT NULL AND client_cancel_steps_sent = '{}';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_client_anchor BOOLEAN NOT NULL DEFAULT false;
+            -- Self-hosted onboarding videos (R2) with a thumbnail; when set, the
+            -- portal plays these instead of embed_url.
+            ALTER TABLE onboarding_videos ADD COLUMN IF NOT EXISTS video_r2_key TEXT;
+            ALTER TABLE onboarding_videos ADD COLUMN IF NOT EXISTS thumbnail_r2_key TEXT;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
             ALTER TABLE email_conversations ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL;
             ALTER TABLE onboarding_action_items ADD COLUMN IF NOT EXISTS link_tab TEXT;
