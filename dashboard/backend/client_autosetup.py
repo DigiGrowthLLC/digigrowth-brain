@@ -13,7 +13,9 @@ failure is recorded and the rest still run.
 1. Client portal: already built by ensure_client_portal(); recorded here.
 2. Landing page: scrapes the practice's own site (design-agent's
    scrape_prospect_site.py: text, computed brand colors, logo, photos) and
-   has Claude write a single-page $49-assessment funnel in their brand,
+   has Claude write a single-page booking funnel in their brand (no offer
+   or price unless their onboarding answers name one: the offer is for
+   Dylan and the client to decide),
    following design-agent's funnel-building references. Hosted on
    landing_pages at /lp/{slug} (the branded pages domain), registered as a
    client_websites row so the portal's Website tab tracks it. Every CTA
@@ -26,8 +28,9 @@ failure is recorded and the rest still run.
    is on file (context_gen.py), fills a default 5-stage sequence and rules,
    and switches the agent on.
 5. SMS/Email automations: rewrites the seeded reminder / no-show /
-   cancellation / follow-up copy (still the free-consultation template) for
-   this practice and the $49 in-person assessment, keeping merge fields.
+   cancellation / follow-up copy (still the free-phone-consultation
+   template) for this practice as offer-neutral "appointment" copy, keeping
+   merge fields.
 6. Email marketing: picks the outreach subdomain (mail.<their domain>). The
    DNS records need the client's registrar, so the rest stays manual.
 
@@ -298,12 +301,12 @@ _DEFAULT_SEQUENCE = [
     "looking into PT. Save follow-up details (how long, what they've tried) for a later message.",
     "Briefly validate what they shared and connect it to what {business} actually does for that exact "
     "situation, in plain language, without over-explaining or sounding like a sales pitch.",
-    "Introduce the $49 assessment as the natural next step: a full in-person evaluation and a clear plan, "
-    "limited spots each month, paid when they book to hold their spot.",
+    "Invite them to book a visit with {business} as the natural next step, framed around getting a real "
+    "answer for their situation and a clear plan.",
     "If they hesitate or raise a concern (cost, insurance, time, does this actually work), address it "
     "briefly and point back to the assessment as the easiest way to get a real answer.",
-    "Once they're ready, send the booking link so they can pick a time and hold it with the $49. When "
-    "they confirm they booked, confirm it back in one message and set expectations for the visit.",
+    "Once they're ready, send the booking link so they can pick a time. When they confirm they booked, "
+    "confirm it back in one message and set expectations for the visit.",
 ]
 
 _DEFAULT_RULES = (
@@ -312,7 +315,8 @@ _DEFAULT_RULES = (
     "2. Never use em dashes, curly quotes, or emoji.\n"
     "3. Never sound scripted or repeat the same phrasing twice in one conversation.\n"
     "4. Never ask two questions in one text.\n"
-    "5. The $49 assessment is the only price you ever state. Any other pricing question gets steered to the assessment."
+    "5. Never quote prices or mention any offer, discount, or special unless your context states it. "
+    "Steer pricing questions to booking, where the team goes over specifics."
 )
 
 
@@ -326,8 +330,7 @@ async def _step_response_ai(client_id: int, ctx: dict) -> tuple[str, str]:
         book_url = ctx.get("book_url")
         if book_url:
             context += (
-                f"\n\n## Booking link\nSend this when they're ready to book (they pick a time and pay the "
-                f"$49 to hold it): {book_url}"
+                f"\n\n## Booking link\nSend this when they're ready to book: {book_url}"
             )
         updates["response_ai_context"] = context
         done.append("context written" + (" from their website" if site_text else " (no website on file)"))
@@ -408,7 +411,7 @@ def _tracking_snippet(website_id: int) -> str:
 
 _PAGE_SYSTEM = """You build single-page, conversion-optimized landing pages for independent physical \
 therapy practices, for their Meta ad traffic. The page is 100% the practice's own brand talking to its \
-own patients, driving one action: book the $49 assessment. Follow the CRO rulebook and reuse the \
+own patients, driving one action: book an appointment. Follow the CRO rulebook and reuse the \
 worked example's structure and CSS approach (token system, hero grid areas, review wall, trust bar, \
 floating sticky mobile CTA), re-deriving every color, font pairing, and word for this practice. Never \
 reuse the example's copy, testimonials, fonts, or colors.
@@ -418,8 +421,10 @@ Hard rules:
 credential, price, or urgency claim. Use real reviews only if they appear in the scraped text, quoted \
 verbatim with first name or initial only. If there are none, leave the proof section to what is real \
 (credentials, specialties, years, location) rather than fabricating.
-- The offer: a $49 assessment, limited spots each month, paid when booking to hold the spot. Only \
-say "normally $X" if the practice's real evaluation price appears in the material.
+- No offer. Don't state or invent any offer, discount, special, intro price, or "limited spots" \
+framing; the offer is decided later between the agency and the practice. The only exception is an \
+offer named in the onboarding answers. Don't quote prices. CTAs are plain booking language \
+("Book your appointment", "Schedule your visit").
 - Every CTA link is exactly href="{{BOOK_URL}}". No other link destinations, no nav menu, no footer link list.
 - The {{LOGO}} image was auto-detected and can be wrong. Use it only if it clearly is this practice's own logo or wordmark; if it's a social media icon or anything else, set the practice name in type as the wordmark instead.
 - Images: use src="{{LOGO}}" for the logo and src="{{PHOTO_1}}" ... for the photos listed as \
@@ -546,7 +551,7 @@ async def _step_landing_page(client_id: int, ctx: dict) -> tuple[str, str]:
                 "SELECT id FROM client_websites WHERE client_id = $1 AND url = $2", client_id, page_url,
             ) or await conn.fetchval(
                 "INSERT INTO client_websites (client_id, label, url) VALUES ($1, $2, $3) RETURNING id",
-                client_id, "$49 Assessment Funnel", page_url,
+                client_id, "Meta Ads Funnel", page_url,
             )
             snippet = _tracking_snippet(website_id)
             html = html.replace("</body>", f"{snippet}\n</body>", 1) if "</body>" in html else html + snippet
@@ -570,15 +575,18 @@ async def _step_landing_page(client_id: int, ctx: dict) -> tuple[str, str]:
 # ---------------------------------------------------------------- automations
 
 _SEQ_SYSTEM = """You rewrite a physical therapy practice's patient text and email templates. They \
-were seeded from a generic "free phone consultation" template; this practice's offer is a $49 \
-in-person assessment that the patient pays for when booking. Rewrite each template so it fits this \
-practice and that offer, keeping its purpose, timing, and roughly its length.
+were seeded from a generic "free phone consultation" template. Rewrite each template so it fits this \
+practice as offer-neutral copy about their "appointment" or "visit", keeping its purpose, timing, and \
+roughly its length.
 
 Rules:
 - Keep every merge field the original uses ({first_name}, {business}, {date}, {time}, {link}) spelled \
 exactly the same, and add no new ones.
-- No "we'll call you at this number" or phone-consult wording: it's an in-person visit at the practice.
-- Use only facts from the practice context. Don't invent hours, addresses, or prices beyond the $49.
+- Remove "free consultation" and any other offer wording: no offers, discounts, or prices. The offer \
+is decided later between the agency and the practice.
+- Don't say "we'll call you at this number" or otherwise assume phone vs in-person unless the practice \
+context says how visits work.
+- Use only facts from the practice context. Don't invent hours, addresses, or prices.
 - SMS bodies: plain ASCII only, no em dashes, curly quotes, or emoji (they double the SMS cost).
 - Don't use em dashes in emails either.
 
@@ -646,6 +654,6 @@ async def _step_automations(client_id: int, ctx: dict) -> tuple[str, str]:
         return "error", "Claude's rewrite couldn't be used; the seeded copy is unchanged"
     await _check_guide_steps(client_id, "automations", [1, 2])
     return "done", (
-        f"Rewrote {updated} reminder / no-show / cancellation / follow-up templates for the $49 in-person "
-        "assessment. They send from the client's own number now; email copy starts sending once the mailbox is connected."
+        f"Rewrote {updated} reminder / no-show / cancellation / follow-up templates for this practice "
+        "(offer-neutral). They send from the client's own number now; email copy starts sending once the mailbox is connected."
     )
