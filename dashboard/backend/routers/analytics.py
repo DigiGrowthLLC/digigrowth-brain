@@ -195,11 +195,16 @@ async def _os_sales_stats(conn, days: int) -> dict:
     queue, the pipeline funnel above) — and excludes canceled appointments,
     which never count as a win or a booking.
 
+    Every stat is counted on the prospect's FIRST call (Dylan, 2026-10-07).
     Follow-up calls (e.g. the 2nd call of a two-call close — see
-    appointments.follow_up_appointment_sql) don't count as a discovery call
-    booked or as a show: the prospect was already counted on their first
-    call. Closes/revenue still count from any appointment, since the close
-    often gets marked on the follow-up call itself.
+    appointments.follow_up_appointment_sql) count toward nothing on their
+    own — not a booking, not a show/no-show, not a "not closed" — with one
+    exception: marking a follow-up "closed" flips its first call from
+    show-no-close to show-close. So closes are one per first call (a
+    close marked on both call 1 and call 2 is still one close, revenue
+    taken once from the latest priced closed row), windowed like that first
+    call's show, so close rate (closes ÷ shows) always compares the same
+    set of prospects.
 
     Each metric windows on the timestamp that actually reflects when that
     thing happened, not a single blanket cutoff: discovery_calls on
@@ -240,7 +245,7 @@ async def _os_sales_stats(conn, days: int) -> dict:
     # Treadwell's and Brandon Crosdale's shows + Brandon's close, fixed
     # 2026-09-24). Period windows (days>0) still use when the outcome was
     # marked, since there's no baseline to overlap with.
-    show_col, close_col = ("ar.created_at", "ar.created_at") if not days else ("ar.outcome_show_at", "ar.outcome_close_at")
+    show_col = "ar.created_at" if not days else "ar.outcome_show_at"
     shows = await conn.fetchval(
         f"""
         SELECT COUNT(*) FROM appointment_reminders ar {join}
@@ -249,12 +254,42 @@ async def _os_sales_stats(conn, days: int) -> dict:
         """,
         since,
     ) or 0
+    # Each closed row (first call or follow-up) is credited to its first
+    # call: itself if it is one, else the contact's latest first call that
+    # had started by the time this follow-up was booked. DISTINCT ON then
+    # keeps one close per first call. The window runs on the first call's
+    # own show column (falling back to when the close was marked if the
+    # show was never marked), so a call-2 close lands in the same period
+    # as the call-1 show it converts.
+    window_col = (
+        "COALESCE(f.created_at, x.created_at)" if not days
+        else "COALESCE(f.outcome_show_at, x.outcome_close_at)"
+    )
     close_row = await conn.fetchrow(
         f"""
-        SELECT COUNT(*) AS closes, COALESCE(SUM(ar.pricing), 0) AS revenue
-        FROM appointment_reminders ar {join}
-        WHERE {where} AND ar.outcome_close = 'closed'
-        AND ($1::timestamptz IS NULL OR {close_col} >= $1)
+        WITH base AS (
+            SELECT ar.* FROM appointment_reminders ar {join} WHERE {where}
+        ),
+        firsts AS (
+            SELECT ar.* FROM base ar WHERE {not_follow_up}
+        ),
+        credited AS (
+            SELECT DISTINCT ON (COALESCE(f.id, x.id))
+                   x.pricing, {window_col} AS window_at
+            FROM base x
+            LEFT JOIN LATERAL (
+                SELECT f.* FROM firsts f
+                WHERE f.id = x.id
+                   OR (f.contact_id = x.contact_id AND f.appointment_at <= x.created_at)
+                ORDER BY (f.id = x.id) DESC, f.appointment_at DESC
+                LIMIT 1
+            ) f ON TRUE
+            WHERE x.outcome_close = 'closed'
+            ORDER BY COALESCE(f.id, x.id), (x.pricing IS NULL), x.outcome_close_at DESC NULLS LAST
+        )
+        SELECT COUNT(*) AS closes, COALESCE(SUM(pricing), 0) AS revenue
+        FROM credited
+        WHERE $1::timestamptz IS NULL OR window_at >= $1
         """,
         since,
     )
