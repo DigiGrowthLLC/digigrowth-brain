@@ -192,7 +192,7 @@ Live-browsed `facebook.com/ads/library`, sorted by total impressions, filtered t
 The single most repeated structure across unrelated advertisers (chiropractors, wave/shockwave-therapy clinics, orthopedic surgeons) is close to identical:
 1. **Direct city/neighborhood callout** opening line — "Hey Phoenix!" / "Hey West Jefferson, London & Surrounding areas!" / "Hey Wesley Chapel & Nearby Areas!" — this out-performs a generic opener because it's an instant, unmissable relevance signal before the reader even processes the offer.
 2. **A named low-friction intro offer**, often with a specific dollar price and an artificial scarcity number ("30 vouchers... for just $49").
-3. **A bullet/emoji checklist of specific conditions treated** — ✅ Knee Pain ✅ Shoulder Pain ✅ Back Pain ✅ Neck Pain, etc. — lets the reader self-identify in under a second rather than reading prose.
+3. **A bullet/emoji checklist of specific conditions treated** — ✅ Knee Pain ✅ Shoulder Pain ✅ Back Pain ✅ Neck Pain, etc. — lets the reader self-identify in under a second rather than reading prose. *(Superseded 2026-10-07: keep the list, drop the emojis. See the Hormozi live ad review section below.)*
 4. **"Without medicine or surgery"** or similar non-invasive framing shows up repeatedly as the core value prop for the pain-avoidant avatar.
 5. **Address + "Learn more" CTA** into a dedicated offer landing page (not the clinic's homepage).
 6. Native-feeling **talking-head video (60-90 sec)**, not polished production — the practitioner or clinic owner speaking straight to camera dominates the highest-impression ads in this vertical over static images.
@@ -707,6 +707,91 @@ Dylan asked for the whole process replicated, so it's now `generate-ad`'s "AI UG
 
 ---
 
+## Source: "Why Feature-Heavy Ads Lose the Buyer" — Alex Hormozi Live Ad Review (2026-10-07)
+
+Hormozi critiquing a member's live ad (a coaching offer: emoji-heavy copy, a "Hey manifestors!"
+callout, an offer stack of features, abstract colorful AI images). Almost all of it is copy
+guidance, so it lands mainly in `generate-ad` step 2. Skipped: the closing ACQ event promo.
+
+### Ads must look like content, so no emojis in copy
+
+- Marketers adopted emojis around 2014 because they made ads feel native. Now every marketer uses
+  them, so "the pendulum has swung back": emojis read as *ad*, and people scroll past ads. A paid ad
+  can follow an ad's structure, but its look and feel should pass for an organic post.
+- **Default: no emojis in primary text, headlines or on-image text.** This overrides the ✅
+  condition checklist in the 2026-09-13 Ad Library scan above. Keep the checklist *structure* (a
+  scannable list of conditions), written as plain short lines instead of emoji bullets. Same when
+  modeling copy on a proven ad that uses emojis: borrow its structure, drop the emojis.
+- No hype punctuation either. "Become a magnet to prosperity!" made him scroll on sight: an
+  exclamation-point headline is a tell that it's an ad.
+
+### The callout has to be a label people actually give themselves
+
+- "Hey manifestors" fails because few people self-identify with that word. If the label isn't one
+  the avatar would use about themselves, **chunk up or down a level** to one they would ("people who
+  believe in X", "desk workers", "runners over 40"). Check every callout and avatar label against
+  this: would the avatar say this word about themselves, unprompted?
+
+### Lead with the pain, aiming for an instant "yeah, that's me"
+
+- The first line's job is to make the reader **nod their head**. Write it as an implied yes / "yes
+  statement" (from his book *$100M Leads*): a situation they recognize from their own life, usually
+  a question. His examples: "You ever keep trying things and nothing seems to stick?" "Do you ever
+  look in the mirror and wonder why you're not further than you are right now?"
+- A stack of features or an offer list is not a hook. Lead with the pain the avatar is living with
+  and what life would be like without it, and get to features later (and only as benefits, below).
+- **Healthcare guardrail (ours, not his):** Meta's personal-attributes policy rejects hooks that
+  assert the viewer's health condition ("Is your back pain..."). Make the yes-statement about a
+  *situation*, not a diagnosis: "Ever leave a PT visit wondering what you actually did for 45
+  minutes?" or "Ever skip the gym because your knee might act up?" work; "Do you have knee pain?"
+  doesn't.
+
+### Features → benefit → benefit of the benefit, then say it fresh
+
+- Most ads state a feature and call it a benefit. Chain it twice:
+  - Feature: a meal plan.
+  - Benefit: you never wonder what's for dinner.
+  - Benefit of the benefit: you hit your goals because there's no guesswork.
+- Then **check the wording for banner blindness.** If you've heard the phrase in marketing before
+  ("no guesswork", "root cause", "tailored to you", "get back to doing what you love"), readers
+  skim past it. Rewrite until it sounds new: "no guesswork" became **"so the easiest thing to eat is
+  also the right thing to eat."** That line produces a gut reaction a stock phrase can't.
+- This sharpens the "so that" chain in the Value Equation section above: run the chain, then
+  rewrite the last link in words nobody in the vertical is already using.
+
+### Plain-writing rules ("fixes 90% of people's copy")
+
+- Third-grade reading level or lower.
+- Simple sentences. Cut most commas: split the sentence instead.
+- For a long run of points, use "..." between them and put them on separate lines.
+- Tell simple stories, narratives and analogies.
+
+### Analogies from the avatar's world make the ad educational
+
+- An analogy compares the thing they don't know (your offer) to a thing they do. That's what
+  teaching is. Pick it from the audience's world: auto-shop owners get a car analogy; moms get a
+  kids analogy ("You know how Timmy won't eat what you put in front of him? You're Timmy too...").
+  For PT avatars, reach for their world: the desk job, the kid's soccer game, the morning run,
+  the car that needs a tune-up before it breaks down.
+- "The best way to get someone to believe you'll provide value after they buy is to provide value
+  before they buy." A well-formatted ad can teach one useful thing. Educational beats pitchy.
+
+### Testimonials and images
+
+- A block of text testimonials stacked in the copy underperforms. **Reformat testimonials as video
+  with punch-ins** (zoom cuts on the key line). Matches the "visual proof beats text proof" point
+  in the Hormozi landing-page section above.
+- Abstract AI images ("crazy colors") don't sell. **Show the process: your steps of implementation
+  and why they work.** For `generate-ad` image prompts: depict the mechanism or a concrete step (the
+  assessment, the hands-on session, the home visit), not a mood graphic.
+
+### CTA: personalization
+
+- He's repeated this across reviews: frame the CTA around personalization (what *they* get, built
+  for their situation), not a generic "Book now."
+
+---
+
 ## Working Checklist (apply to every generated ad)
 
 - [ ] Is there ONE clear avatar this specific ad is for — visually and verbally unmistakable?
@@ -729,3 +814,12 @@ Dylan asked for the whole process replicated, so it's now `generate-ad`'s "AI UG
       specific objection, warm avatar) — never an unfocused ad trying to do both jobs at once?
 - [ ] If bottom-of-funnel: does it address exactly ONE named objection, without restating the full
       top-of-funnel pitch?
+- [ ] Does the first line get an instant "yeah, that's me" (a pain/situation yes-statement), rather
+      than an offer, a feature list or an exclamation-point promise?
+- [ ] Is every callout label one the avatar would use about themselves?
+- [ ] Zero emojis and no hype punctuation; does it read like an organic post?
+- [ ] Is every feature taken to its benefit of the benefit, in wording that isn't a stock
+      marketing phrase?
+- [ ] Third-grade reading level, short sentences, few commas, line breaks?
+- [ ] If there's an analogy or teaching point, is it drawn from the avatar's own world?
+- [ ] Does the CTA speak to personalization rather than a generic "book now"?

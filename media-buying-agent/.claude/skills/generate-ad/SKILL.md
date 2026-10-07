@@ -70,7 +70,28 @@ Ask if not already given:
    - **Proof** — a specific number, timeframe, or named result. Never fabricate a stat — use what
      Dylan/the client has actually claimed elsewhere (check `content-agent/memory.md` or ask), or
      mark it `[PROOF NEEDED: ...]` rather than inventing one.
-   - **CTA** — one clear action.
+   - **CTA** — one clear action, framed around personalization (what they get for *their*
+     situation), not a generic "Book now."
+   - **Copy rules** (Hormozi live ad review, 2026-10-07 — full notes in `context/ad-creative-
+     principles.md`). Apply them to every line before delivering:
+     - **Hook = a pain yes-statement.** The first line should make the avatar nod: "yeah, that's
+       me." Usually a "You ever...?" question about a situation they live with. Never an offer
+       stack, a feature list or an exclamation-point promise. For healthcare, keep the
+       yes-statement about a situation, not a condition (Meta's personal-attributes policy):
+       "Ever skip the run because your knee might act up?" passes, "Do you have knee pain?" doesn't.
+     - **Callouts must be labels people give themselves.** If the avatar wouldn't use the word
+       about themselves, chunk up or down a level until they would.
+     - **No emojis anywhere** (primary text, headline, on-image text) and no hype punctuation. Ads
+       should read like organic posts. Condition checklists stay as plain short lines. When
+       modeling on a proven ad that uses emojis, keep its structure and drop the emojis.
+     - **Feature → benefit → benefit of the benefit.** Never state a feature alone. Then reword
+       any phrase you've seen in marketing before ("no guesswork", "root cause", "get back to what
+       you love") until it sounds new. Model: "no guesswork" → "so the easiest thing to eat is also
+       the right thing to eat."
+     - **Plain writing:** third-grade reading level, short simple sentences, few commas (split the
+       sentence instead), "..." and line breaks for runs of points.
+     - **Teach something, using an analogy from the avatar's world** (desk job, kid's game, car
+       tune-up), so the ad gives value before the click.
    - If in **new-concept mode** (the default — see Inputs Needed): write copy for each distinct
      concept separately — each should read like a genuinely different ad (different format framing
      and/or different archetype), not the same ad with a swapped headline.
@@ -103,7 +124,10 @@ Ask if not already given:
    visual should make the avatar unmistakable at a glance — literally show the avatar or a strong
    visual metaphor for their situation, per the "put the avatar in the ad" principle; vary the visual
    *format/style* across concepts too — e.g. one clean product/lifestyle still, one native-style
-   "screenshot-like" high-curiosity still — not the same visual template restated). For each concept,
+   "screenshot-like" high-curiosity still — not the same visual template restated). No abstract
+   "AI art" mood images: when the image isn't showing the avatar or the outcome, show the process
+   (a concrete step of the service and why it works). Testimonials work better as video with
+   punch-ins than as a stacked text block. For each concept,
    run from `content-agent/`:
    ```
    python tools/generate_creative.py image "<prompt>" --aspect 4:5 --out "../media-buying-agent/outputs/<slug>/image.png"
