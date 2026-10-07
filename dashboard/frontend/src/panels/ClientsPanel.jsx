@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { Fragment, useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -1842,8 +1842,8 @@ const MARKETING_GUIDES = {
   landing_page: {
     title: "Create Landing Page",
     steps: [
-      { text: "Not yet automated — see the automation note below this guide. For now: build the page manually from the DigiGrowth landing-page template, matching the offer/guarantee/CTA from onboarding." },
-      { text: "Push it live as its own Vercel project (not a route on the corporate site).", link: "https://vercel.com/new", linkLabel: "Vercel → New Project" },
+      { text: "Build the funnel with the design-agent's funnel-building skill (\"build the funnel for <client>\"): it scrapes the client's own site for brand, photos and reviews, so it doesn't need onboarding answers. Offer per context/offer.md: the $49 assessment (normally their real eval price). It also registers the page in the client's portal Website tab with tracking." },
+      { text: "Push it live as its own Vercel project (not a route on the corporate site). The *.vercel.app URL works right away, before any client DNS.", link: "https://vercel.com/new", linkLabel: "Vercel → New Project" },
       { text: "Point the client's domain/subdomain at it via their registrar's DNS settings.", registrar: true },
       { text: "Paste the live URL below.",
         fields: [{ key: "landing_page_url", label: "Live URL", placeholder: "https://…" }] },
@@ -1890,6 +1890,61 @@ const MARKETING_GUIDES = {
   },
 };
 
+// One ordered pass through every guide above, grouped by what the client has
+// to hand over, so everything that needs nothing from them gets done while
+// they're still working through onboarding. Each entry points at a step in
+// MARKETING_GUIDES ({g, i}) and checks off that same guide_progress slot —
+// never renumber or reorder those guides' steps (progress is keyed by index);
+// reorder here instead.
+const SETUP_ORDER_PHASES = {
+  now: {
+    title: "PHASE 1 · DO NOW: nothing needed from the client",
+    note: "Everything here runs off their website, the sales call and their profile. Do it the day they close.",
+    steps: [["sms", 0], ["sms", 6], ["sms", 2], ["sms", 3], ["sms", 5],
+      ["landing_page", 0], ["landing_page", 1],
+      ["ad_creatives", 0], ["ad_creatives", 4],
+      ["response_ai", 0], ["response_ai", 1], ["response_ai", 2], ["response_ai", 3], ["response_ai", 4], ["sms", 4],
+      ["automations", 1],
+      ["email", 0], ["email", 1],
+      ["client_portal", 1]],
+  },
+  access: {
+    title: "PHASE 2 · NEEDS CLIENT ACCESS: ask on the onboarding call",
+    note: "Four asks unlock all of this: registrar login, Facebook Business partner access (Page + ad account), their Calendly (paid plan), and legal name + EIN. Once their intake answers come in, click GENERATE CONTEXT again on the Response AI agent.",
+    steps: [["email", 2], ["email", 3], ["email", 4], ["landing_page", 2],
+      ["response_ai", 7], ["response_ai", 8], ["response_ai", 9],
+      ["ad_creatives", 1], ["ad_creatives", 3], ["response_ai", 10], ["response_ai", 11],
+      ["client_portal", 0], ["response_ai", 5],
+      ["sms", 1]],
+  },
+  after_dns: {
+    title: "PHASE 3 · AFTER DNS IS LIVE: time-gated",
+    note: "DKIM needs 24-72 hours after the MX record, and A2P review takes days, so start Phase 2 early.",
+    steps: [["email", 8], ["email", 9], ["email", 10], ["email", 5], ["email", 6], ["email", 7],
+      ["email", 11], ["email", 12], ["email", 13],
+      ["landing_page", 3], ["ad_creatives", 2]],
+  },
+  launch: {
+    title: "PHASE 4 · TEST AND LAUNCH",
+    note: "End-to-end tests, then creatives go into the ad account.",
+    steps: [["response_ai", 6], ["response_ai", 12],
+      ["automations", 0], ["automations", 2], ["automations", 3],
+      ["ad_creatives", 5],
+      ["client_portal", 2], ["client_portal", 3], ["client_portal", 4], ["client_portal", 5], ["automations", 4]],
+  },
+};
+
+const SETUP_ORDER_GUIDE = {
+  title: "Setup Order",
+  phases: SETUP_ORDER_PHASES,
+  steps: Object.entries(SETUP_ORDER_PHASES).flatMap(([phase, p]) =>
+    p.steps.map(([g, i]) => ({
+      ...MARKETING_GUIDES[g].steps[i],
+      text: `${MARKETING_GUIDES[g].title.replace(/^(Set Up|Create) /, "")}: ${MARKETING_GUIDES[g].steps[i].text}`,
+      _ref: { g, i }, _phase: phase,
+    }))),
+};
+
 // What's realistically automatable end-to-end vs. what always needs a human
 // in the loop (an account login, a legal/compliance review, a DNS change at
 // a registrar we don't control). Shown once at the top of the Marketing
@@ -1906,26 +1961,9 @@ const AUTOMATION_CANDIDATES = [
 // Registrar, Hosting) stored on the client row, plus an open-ended list for
 // everything else (Drive links, brand assets, marketing material, etc.).
 // Admin-only reference — nothing here is shown in the client's own portal.
+// Card order follows SETUP_ORDER_PHASES: what can start before the client
+// finishes onboarding comes first.
 const MARKETING_STEPS = [
-  {
-    key: "sms", label: "SMS Marketing",
-    status: (cfg) => (cfg?.twilio_number ? `Provisioned — ${cfg.twilio_number}` : "Not provisioned"),
-    done: (cfg) => Boolean(cfg?.twilio_number),
-  },
-  {
-    key: "email", label: "Email Marketing",
-    status: (cfg) => (cfg?.gmail_refresh_token
-      ? `Connected — ${cfg.gmail_sender_email || "mailbox linked"}${cfg.email_subdomain ? ` (${cfg.email_subdomain})` : ""}`
-      : "Not connected"),
-    done: (cfg) => Boolean(cfg?.gmail_refresh_token),
-  },
-  {
-    key: "response_ai", label: "Response AI",
-    status: (cfg) => (cfg?.response_ai_enabled
-      ? (cfg?.response_ai_context ? "Enabled — context set" : "Enabled — no context written yet")
-      : "Not enabled") + (cfg?.make_scenario_id && !cfg?.lead_ads_error ? " · Lead Ads connected" : ""),
-    done: (cfg) => Boolean(cfg?.response_ai_enabled && cfg?.response_ai_context),
-  },
   {
     key: "landing_page", label: "Landing Page",
     status: (cfg) => (cfg?.landing_page_url ? cfg.landing_page_url : "Not created"),
@@ -1945,6 +1983,25 @@ const MARKETING_STEPS = [
     // checked off. Status text is untouched (still a legitimate separate
     // "how many assets tracked" readout once that field is ever populated).
     done: (cfg) => _guideStepsAllDone(cfg, "ad_creatives"),
+  },
+  {
+    key: "sms", label: "SMS Marketing",
+    status: (cfg) => (cfg?.twilio_number ? `Provisioned — ${cfg.twilio_number}` : "Not provisioned"),
+    done: (cfg) => Boolean(cfg?.twilio_number),
+  },
+  {
+    key: "response_ai", label: "Response AI",
+    status: (cfg) => (cfg?.response_ai_enabled
+      ? (cfg?.response_ai_context ? "Enabled — context set" : "Enabled — no context written yet")
+      : "Not enabled") + (cfg?.make_scenario_id && !cfg?.lead_ads_error ? " · Lead Ads connected" : ""),
+    done: (cfg) => Boolean(cfg?.response_ai_enabled && cfg?.response_ai_context),
+  },
+  {
+    key: "email", label: "Email Marketing",
+    status: (cfg) => (cfg?.gmail_refresh_token
+      ? `Connected — ${cfg.gmail_sender_email || "mailbox linked"}${cfg.email_subdomain ? ` (${cfg.email_subdomain})` : ""}`
+      : "Not connected"),
+    done: (cfg) => Boolean(cfg?.gmail_refresh_token),
   },
   {
     key: "automations", label: "SMS/Email Automations",
@@ -2673,7 +2730,7 @@ function ClientAgentSetup({ clientId }) {
 // (persisted per-client), can carry an inline field to paste the info that
 // step produces, or (email's test step) a live action button.
 function GuideModal({
-  guide, progress, onToggleStep, config, client, onSaveFields,
+  guide, progress, allProgress, onToggleStep, config, client, onSaveFields,
   testEmailTo, setTestEmailTo, sendTestEmail, testingEmail, testError,
   syncEmailNow, syncingEmail,
   syncMetaAdsNow, syncingMeta, metaSyncResult, metaSyncError,
@@ -2686,8 +2743,11 @@ function GuideModal({
   }, [guide]);
 
   if (!guide) return null;
+  // Setup Order steps carry _ref {g, i}: they read/write the source guide's
+  // own guide_progress slot, so both views stay in sync.
+  const isChecked = (s, i) => Boolean(s._ref ? allProgress?.[s._ref.g]?.[s._ref.i] : progress?.[i]);
   const total = guide.steps.length;
-  const doneCount = guide.steps.filter((_, i) => progress?.[i]).length;
+  const doneCount = guide.steps.filter((s, i) => isChecked(s, i)).length;
   const registrar = client?.registrar_resource;
   const registrarIsUrl = registrar && /^https?:\/\//i.test(registrar);
 
@@ -2723,11 +2783,19 @@ function GuideModal({
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {guide.steps.map((s, i) => {
-            const checked = Boolean(progress?.[i]);
+            const checked = isChecked(s, i);
+            const phase = s._phase && s._phase !== guide.steps[i - 1]?._phase ? guide.phases?.[s._phase] : null;
             return (
-              <div key={i} style={{ display: "flex", gap: 10 }}>
+              <Fragment key={i}>
+              {phase && (
+                <div style={{ marginTop: i ? 10 : 0, paddingTop: i ? 12 : 0, borderTop: i ? "1px solid #1a2540" : "none" }}>
+                  <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#9cc4f5", letterSpacing: 0.4 }}>{phase.title}</div>
+                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", marginTop: 3, lineHeight: 1.5 }}>{phase.note}</div>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10 }}>
                 <button
-                  onClick={() => onToggleStep(i)}
+                  onClick={() => onToggleStep(i, undefined, s)}
                   title={checked ? "Mark not done" : "Mark done"}
                   style={{
                     flexShrink: 0, width: 22, height: 22, borderRadius: 6, cursor: "pointer",
@@ -2741,7 +2809,7 @@ function GuideModal({
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
                     <div style={{ fontSize: 12.5, color: "#d0e8ff", lineHeight: 1.5, textDecoration: checked ? "line-through" : "none" }}>{s.text}</div>
                     <button
-                      onClick={() => onToggleStep(i)}
+                      onClick={() => onToggleStep(i, undefined, s)}
                       className="btn btn-secondary"
                       style={{ fontSize: 9, padding: "2px 7px", flexShrink: 0, whiteSpace: "nowrap" }}
                     >
@@ -2773,7 +2841,7 @@ function GuideModal({
                   {s.fields && (
                     <GuideStepFields
                       fields={s.fields} config={config} client={client} onSaveFields={onSaveFields}
-                      onSaved={() => onToggleStep(i, true)}
+                      onSaved={() => onToggleStep(i, true, s)}
                     />
                   )}
                   {s.testAction === "email" && (
@@ -2783,7 +2851,7 @@ function GuideModal({
                           onChange={(e) => setTestEmailTo(e.target.value)} />
                         <button
                           className="btn btn-secondary" style={{ fontSize: 10 }}
-                          onClick={async () => { if (await sendTestEmail()) onToggleStep(i, true); }}
+                          onClick={async () => { if (await sendTestEmail()) onToggleStep(i, true, s); }}
                           disabled={testingEmail || !testEmailTo.trim()}
                         >
                           {testingEmail ? "SENDING…" : "SEND TEST"}
@@ -2832,7 +2900,7 @@ function GuideModal({
                     <div style={{ marginTop: 8 }}>
                       <button
                         className="btn btn-primary" style={{ fontSize: 10 }}
-                        onClick={async () => { if (await connectLeadAds()) onToggleStep(i, true); }}
+                        onClick={async () => { if (await connectLeadAds()) onToggleStep(i, true, s); }}
                         disabled={connectingLeadAds || !config?.meta_page_id}
                       >
                         {connectingLeadAds ? "CONNECTING…" : config?.make_scenario_id ? "RECONNECT" : "CONNECT"}
@@ -2894,6 +2962,7 @@ function GuideModal({
                   )}
                 </div>
               </div>
+              </Fragment>
             );
           })}
         </div>
@@ -3139,9 +3208,22 @@ function ClientMarketingSetup({ clientId }) {
         This client's OWN marketing infrastructure — their Twilio number, their email-sending
         domain, their AI response agent (see the Agents tab), their landing page, their ad
         creatives, their No Show/Cancellation automations, and their portal analytics. Separate
-        from DigiGrowth's own outreach system. Numbered steps below (1-7) are meant to be done in order.
+        from DigiGrowth's own outreach system. Work through SETUP ORDER: it puts every step from
+        the guides below in one sequence, starting with what needs nothing from the client.
       </div>
 
+      {(() => {
+        const done = SETUP_ORDER_GUIDE.steps.filter((st) => config?.guide_progress?.[st._ref.g]?.[st._ref.i]).length;
+        const total = SETUP_ORDER_GUIDE.steps.length;
+        return (
+          <button
+            className="btn btn-primary" style={{ fontSize: 10, marginBottom: 12, marginRight: 8 }}
+            onClick={() => setGuideKey("setup_order")}
+          >
+            SETUP ORDER · {done}/{total} DONE
+          </button>
+        );
+      })()}
       <button
         className="btn btn-secondary" style={{ fontSize: 10, marginBottom: 12 }}
         onClick={() => setShowAutomation((s) => !s)}
@@ -3239,9 +3321,10 @@ function ClientMarketingSetup({ clientId }) {
       )}
 
       <GuideModal
-        guide={guideKey ? MARKETING_GUIDES[guideKey] : null}
+        guide={guideKey === "setup_order" ? SETUP_ORDER_GUIDE : guideKey ? MARKETING_GUIDES[guideKey] : null}
         progress={guideKey ? config?.guide_progress?.[guideKey] : null}
-        onToggleStep={(idx, value) => toggleGuideStep(guideKey, idx, value)}
+        allProgress={config?.guide_progress}
+        onToggleStep={(idx, value, s) => (s?._ref ? toggleGuideStep(s._ref.g, s._ref.i, value) : toggleGuideStep(guideKey, idx, value))}
         config={config}
         client={client}
         onSaveFields={saveFields}
