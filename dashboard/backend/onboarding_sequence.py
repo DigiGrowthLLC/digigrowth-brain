@@ -19,13 +19,14 @@ being marked "Closed" (won) in the dialer UI.
    no_show_sequence.py's touches, since "the morning after" is a
    calendar-day condition, not an elapsed-time one.
 
-   Resolving the portal link requires a `clients` row already linked to
-   this appointment's contact (contacts.client_id -> clients.portal_token)
-   — see _portal_link_for_appointment(). If Dylan hasn't created the client
-   record yet by the time this fires, the touch is skipped (logged, not
-   raised) and onboarding_followup_sent_at still gets stamped, so it never
-   retries — create the client in the Clients tab right after closing, same
-   day, so the link is ready for the next morning's send.
+   The portal link comes from a `clients` row linked to this appointment's
+   contact (contacts.client_id -> clients.portal_token). That row is built
+   automatically the moment the appointment is marked Closed — see
+   ensure_client_portal(), called from appointments.py's PATCH handler and
+   again here as a fallback — so there's no manual Clients-tab step. If the
+   portal still can't be resolved (no contact on the appointment), the
+   touch is skipped (logged) and onboarding_followup_sent_at still gets
+   stamped so it never retries; send_followup_now() is the manual resend.
 
 Editable from Business Resources → Outreach Templates → Onboarding Kickoff,
 same dialer_settings-backed pattern as every other sequence module here (see
@@ -121,6 +122,44 @@ async def _portal_link_for_appointment(conn, row: dict) -> str:
     if not client_row:
         return ""
     return f"{_DASHBOARD_URL}/portal/{client_row['portal_token']}"
+
+
+async def ensure_client_portal(row: dict) -> str:
+    """Make sure the closed appointment's contact has a client record (and
+    so a portal), creating + anchor-linking one if not. Returns the portal
+    link, or "" if there's no contact to hang it on. An existing anchor link
+    is reused, so re-closing never creates a duplicate client. A contact
+    whose client_id points at a client WITHOUT being its anchor is one of
+    that client's own leads, not a DigiGrowth deal — left alone."""
+    from models import ClientCreate
+    from routers.clients import create_client_record
+
+    contact_id = row.get("contact_id")
+    if not contact_id:
+        print(f"[onboarding_sequence] appointment {row.get('id')} has no contact — can't build a client portal")
+        return ""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            contact = await conn.fetchrow(
+                "SELECT id, business, owner, client_id, is_client_anchor FROM contacts WHERE id = $1 FOR UPDATE",
+                contact_id,
+            )
+            if not contact:
+                return ""
+            if contact["client_id"]:
+                if not contact["is_client_anchor"]:
+                    return ""
+                return await _portal_link_for_appointment(conn, row)
+            client = await create_client_record(conn, ClientCreate(
+                name=(contact["business"] or row.get("prospect_name") or contact["owner"] or "New client").strip(),
+                contact_name=row.get("prospect_name") or contact["owner"],
+                email=(row.get("prospect_email") or "").strip() or None,
+                phone=(row.get("prospect_phone") or "").strip() or None,
+                contact_id=str(contact_id),
+            ))
+    print(f"[onboarding_sequence] created client {client['id']} ({client['name']}) for appointment {row.get('id')}")
+    return client["portal_url"]
 
 
 async def send_kickoff(row: dict):
@@ -221,14 +260,31 @@ async def send_followup_touches():
 
     templates = await _get_templates()
     for record in rows:
-        row = dict(record)
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            portal_link = await _portal_link_for_appointment(conn, row)
-        await _send_followup(row, templates, portal_link)
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE appointment_reminders SET onboarding_followup_sent_at = now() WHERE id = $1",
-                row["id"],
-            )
+        await _followup_one(dict(record), templates)
+
+
+async def _followup_one(row: dict, templates: dict) -> str:
+    portal_link = await ensure_client_portal(row)
+    await _send_followup(row, templates, portal_link)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE appointment_reminders SET onboarding_followup_sent_at = now() WHERE id = $1",
+            row["id"],
+        )
+    return portal_link
+
+
+async def send_followup_now(appointment_id: int) -> str:
+    """Manual (re)send of the portal email + SMS for one closed appointment,
+    outside the 8am batch — for a follow-up that was skipped or needs
+    resending. Returns the portal link sent ("" = nothing sent)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        record = await conn.fetchrow(
+            "SELECT * FROM appointment_reminders WHERE id = $1 AND outcome_close = 'closed'",
+            appointment_id,
+        )
+    if not record:
+        return ""
+    return await _followup_one(dict(record), await _get_templates())

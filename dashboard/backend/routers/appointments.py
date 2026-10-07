@@ -13,9 +13,11 @@ The /cancel endpoint below drives the same shape of sequence for
 cancellations — cancel_sequence.py, see that module's docstring.
 
 Marking an appointment's outcome_close = 'closed' (won) stamps
-outcome_close_at and fires the onboarding welcome email immediately —
-onboarding_sequence.py. Single touch, no drip/poller (contrast with the
-No Show/Cancel sequences above).
+outcome_close_at, auto-creates the client + portal (linked to the contact),
+and fires the onboarding welcome email immediately; the portal email + SMS
+follows the next morning at 8am ET — onboarding_sequence.py.
+POST /appointment-reminders/{id}/onboarding/send-followup sends that portal
+email + SMS right away instead.
 
 GET  /appointment-reminders/sequence/{sequence} and the /add, /remove
 sub-routes below (sequence in "no_show"/"cancel"/"reminder") back the
@@ -526,13 +528,30 @@ async def update_appointment(appointment_id: int, payload: dict):
         except Exception as e:
             print(f"[appointments] no-show touch 1 failed for {appointment_id}: {e}")
 
+    portal_url = None
     if updates.get("outcome_close") == "closed":
+        # Build the client + portal right away so the next-morning portal
+        # email/SMS always has a link to send (and Dylan sees it today).
+        try:
+            portal_url = await onboarding_sequence.ensure_client_portal(dict(updated)) or None
+        except Exception as e:
+            print(f"[appointments] client portal creation failed for {appointment_id}: {e}")
         try:
             await onboarding_sequence.send_kickoff(dict(updated))
         except Exception as e:
             print(f"[appointments] onboarding kickoff failed for {appointment_id}: {e}")
 
-    return {"ok": True, "id": appointment_id}
+    return {"ok": True, "id": appointment_id, "portal_url": portal_url}
+
+
+@router.post("/appointment-reminders/{appointment_id}/onboarding/send-followup")
+async def send_onboarding_followup(appointment_id: int):
+    """Send (or resend) the portal email + SMS for a closed appointment now,
+    instead of waiting for the 8am batch — creates the portal if needed."""
+    portal_url = await onboarding_sequence.send_followup_now(appointment_id)
+    if not portal_url:
+        raise HTTPException(400, "appointment isn't closed or has no contact to build a portal for")
+    return {"ok": True, "portal_url": portal_url}
 
 
 @router.post("/appointment-reminders/{appointment_id}/cancel")

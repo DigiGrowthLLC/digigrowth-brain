@@ -156,39 +156,46 @@ async def list_clients():
     return out
 
 
-@router.post("/clients")
-async def create_client(body: ClientCreate):
-    name = body.name.strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="name required")
-    token = secrets.token_urlsafe(24)
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO clients (name, contact_name, email, phone, notes, portal_token, is_test, calendly_url, booking_notification_enabled)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING *
-            """,
-            name, body.contact_name, body.email, body.phone, body.notes, token, body.is_test, body.calendly_url,
-            body.booking_notification_enabled,
+async def create_client_record(conn, body: ClientCreate) -> dict:
+    """Insert a client (fresh portal token), anchor-link its contact, and
+    seed its default sequences. Shared by the Clients tab's POST below and
+    onboarding_sequence.ensure_client_portal(), which auto-creates the
+    client the moment an appointment is marked Closed."""
+    row = await conn.fetchrow(
+        """
+        INSERT INTO clients (name, contact_name, email, phone, notes, portal_token, is_test, calendly_url, booking_notification_enabled)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING *
+        """,
+        body.name.strip(), body.contact_name, body.email, body.phone, body.notes, secrets.token_urlsafe(24),
+        body.is_test, body.calendly_url, body.booking_notification_enabled,
+    )
+    # Links the specific prospect/contact whose deal this client came
+    # from — this is what onboarding_sequence.py's next-morning
+    # follow-up resolves (contact -> contacts.client_id -> this row's
+    # portal_token) to know which portal link to send. Without this,
+    # the client record exists but no contact ever points back at it,
+    # so the follow-up send has nothing to resolve and skips forever.
+    if body.contact_id:
+        await conn.execute(
+            "UPDATE contacts SET client_id = $1, is_client_anchor = true, updated_at = now() WHERE id = $2",
+            row["id"], body.contact_id,
         )
-        # Links the specific prospect/contact whose deal this client came
-        # from — this is what onboarding_sequence.py's next-morning
-        # follow-up resolves (contact -> contacts.client_id -> this row's
-        # portal_token) to know which portal link to send. Without this,
-        # the client record exists but no contact ever points back at it,
-        # so the follow-up send has nothing to resolve and skips forever.
-        if body.contact_id:
-            await conn.execute(
-                "UPDATE contacts SET client_id = $1, is_client_anchor = true, updated_at = now() WHERE id = $2",
-                row["id"], body.contact_id,
-            )
-        await _seed_default_sequences(conn, row["id"])
-        d = dict(row)
-        d["linked_contact"] = await _linked_contact_summary(conn, d["id"])
+    await _seed_default_sequences(conn, row["id"])
+    d = dict(row)
+    d["linked_contact"] = await _linked_contact_summary(conn, d["id"])
     d["portal_url"] = _portal_url(d["portal_token"])
     return d
+
+
+@router.post("/clients")
+async def create_client(body: ClientCreate):
+    if not body.name.strip():
+        raise HTTPException(status_code=400, detail="name required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            return await create_client_record(conn, body)
 
 
 @router.get("/clients/{client_id}")
