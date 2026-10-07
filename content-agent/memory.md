@@ -81,3 +81,9 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   (the AI tool that writes every follow-up message), research cache stale (dated 2026-09-28,
   empty findings), own web search (single-email vs 3-step sequence reply-rate benchmarks) —
   2026-09-30 — pending approval (draft pushed to `content-agent/pending_approvals/blog-2026-09-30.json` on `main`)
+- "How to Reactivate Your Dead Leads List Without Lifting a Finger" (slug:
+  reactivate-dead-leads-list-ai) — pillar: Lead Follow-Up & Automation — topic: rotation #07
+  (reactivate dead leads list), research cache stale (dated 2026-10-02, empty findings), own web
+  search (3-5% typical reactivation conversion, 95%+ SMS open rate, vendor-reported up to 35%
+  recall rebooking) — 2026-10-07 — pending approval (draft pushed to
+  `content-agent/pending_approvals/blog-2026-10-07.json` on `main`)
