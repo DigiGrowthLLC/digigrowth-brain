@@ -13,7 +13,7 @@ failure is recorded and the rest still run.
 1. Client portal: already built by ensure_client_portal(); recorded here.
 2. Landing page: scrapes the practice's own site (design-agent's
    scrape_prospect_site.py: text, computed brand colors, logo, photos) and
-   has Claude write a single-page free-consultation booking funnel in
+   has Claude write a single-page free-consultation (Google Meet) booking funnel in
    their brand (no prices or other offers unless the client's onboarding
    answers name one),
    following design-agent's funnel-building references. Hosted on
@@ -301,8 +301,8 @@ _DEFAULT_SEQUENCE = [
     "looking into PT. Save follow-up details (how long, what they've tried) for a later message.",
     "Briefly validate what they shared and connect it to what {business} actually does for that exact "
     "situation, in plain language, without over-explaining or sounding like a sales pitch.",
-    "Introduce the free consultation as the natural next step, framed as low-pressure: a quick chat to "
-    "see if {business} is a good fit, not a commitment.",
+    "Introduce the free consultation as the natural next step: a quick Google Meet video call to see if "
+    "{business} is a good fit, framed as low-pressure, not a commitment.",
     "If they hesitate or raise a concern (cost, insurance, time, does this actually work), address it "
     "briefly and point back to the free consultation as the easiest way to get a real answer.",
     "Once they're ready, send the booking link so they can pick a time. When they confirm they booked, "
@@ -411,7 +411,7 @@ def _tracking_snippet(website_id: int) -> str:
 
 _PAGE_SYSTEM = """You build single-page, conversion-optimized landing pages for independent physical \
 therapy practices, for their Meta ad traffic. The page is 100% the practice's own brand talking to its \
-own patients, driving one action: book a free consultation. Follow the CRO rulebook and reuse the \
+own patients, driving one action: book a free consultation (a Google Meet video call). Follow the CRO rulebook and reuse the \
 worked example's structure and CSS approach (token system, hero grid areas, review wall, trust bar, \
 floating sticky mobile CTA), re-deriving every color, font pairing, and word for this practice. Never \
 reuse the example's copy, testimonials, fonts, or colors.
@@ -421,9 +421,10 @@ Hard rules:
 credential, price, or urgency claim. Use real reviews only if they appear in the scraped text, quoted \
 verbatim with first name or initial only. If there are none, leave the proof section to what is real \
 (credentials, specialties, years, location) rather than fabricating.
-- The offer is a free consultation. Don't add any other offer, discount, special, intro price, or \
-"limited spots" framing unless the onboarding answers name it, and don't quote prices. Don't state \
-the consultation's length or format (phone, video, in person) unless the material says. CTAs: \
+- The offer is a free consultation held as a Google Meet video call, so patients can do it from \
+home; say so on the page. Don't add any other offer, discount, special, intro price, or "limited \
+spots" framing unless the onboarding answers name it, and don't quote prices. Don't state the call's \
+length unless the material says. CTAs: \
 "Book your free consultation" or close variants.
 - Every CTA link is exactly href="{{BOOK_URL}}". No other link destinations, no nav menu, no footer link list.
 - The {{LOGO}} image was auto-detected and can be wrong. Use it only if it clearly is this practice's own logo or wordmark; if it's a social media icon or anything else, set the practice name in type as the wordmark instead.

@@ -35,9 +35,9 @@ _DEFAULT_SEQUENCE_STEPS = [
     # Appointment reminders: an SMS + email pair per window (step_order 0-1 =
     # 24h before, 2-3 = 6h, 4-5 = 1h; client_appointment_reminders.py).
     ("appointment_reminder", 0, "24 Hour Reminder (SMS)", "sms", None,
-     "Hi {first_name}, a friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. We'll call you at this number. Reply CONFIRM to confirm, or let us know if you need to reschedule."),
+     "Hi {first_name}, a friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. It's a quick Google Meet video call, the link is in your calendar invite. Reply CONFIRM to confirm, or let us know if you need to reschedule."),
     ("appointment_reminder", 2, "6 Hour Reminder (SMS)", "sms", None,
-     "Hi {first_name}, just a reminder, your consultation with {business} is today at {time}. We'll give you a call at this number. Talk soon!"),
+     "Hi {first_name}, just a reminder, your consultation with {business} is today at {time}. Just join with the Google Meet link in your calendar invite. Talk soon!"),
     ("no_show", 0, "Touch 1 (SMS)", "sms", None,
      "Hi {first_name}, sorry we missed you for your consultation with {business} today. No worries, these things happen! Reply here or give us a call and we'll find a new time that works for you."),
     ("no_show", 1, "Touch 1 (Email)", "email", "We missed you today",
@@ -89,13 +89,13 @@ _DEFAULT_SEQUENCE_STEPS = [
     ('prospect_followup', 7, 'Touch 4 (Email)', 'email', 'Last note from me',
      "Hi {first_name},\n\nThis is my last follow-up. If the timing isn't right, no worries at all. Whenever you're ready, just reply to this email and we'll get you on the schedule.\n\nTake care,\n{business}"),
     ('appointment_reminder', 1, '24 Hour Reminder (Email)', 'email', 'Reminder: your consultation tomorrow',
-     'Hi {first_name},\n\nA friendly reminder about your free consultation with {business} tomorrow, {date} at {time}.\n\nIf you need to reschedule, just reply to this email.\n\nSee you then,\n{business}'),
+     'Hi {first_name},\n\nA friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. It\'s a Google Meet video call; the link is in your calendar invite.\n\nIf you need to reschedule, just reply to this email.\n\nSee you then,\n{business}'),
     ('appointment_reminder', 3, '6 Hour Reminder (Email)', 'email', 'Today: your consultation at {time}',
-     "Hi {first_name},\n\nJust a reminder that your consultation with {business} is today at {time}.\n\nNeed to reschedule? Reply to this email and we'll sort it out.\n\n{business}"),
+     "Hi {first_name},\n\nJust a reminder that your consultation with {business} is today at {time}. Join with the Google Meet link in your calendar invite.\n\nNeed to reschedule? Reply to this email and we'll sort it out.\n\n{business}"),
     ('appointment_reminder', 4, '1 Hour Reminder (SMS)', 'sms', None,
-     'Hi {first_name}, your consultation with {business} starts in about an hour, at {time}. Talk soon!'),
+     'Hi {first_name}, your consultation with {business} starts in about an hour, at {time}. Join with the Google Meet link in your calendar invite. Talk soon!'),
     ('appointment_reminder', 5, '1 Hour Reminder (Email)', 'email', 'Starting in an hour',
-     'Hi {first_name},\n\nQuick heads-up: your consultation with {business} starts in about an hour, at {time}.\n\nTalk soon,\n{business}'),
+     'Hi {first_name},\n\nQuick heads-up: your consultation with {business} starts in about an hour, at {time}. Join with the Google Meet link in your calendar invite.\n\nTalk soon,\n{business}'),
 ]
 
 
