@@ -249,7 +249,7 @@ const AI_ACTION_META = {
 // Dylan's PC (apptset-agent/sms_setter_worker.py), so the dot shows whether
 // that worker has checked in recently — offline means nothing drafts or
 // sends, whatever the mode says.
-function SetterModeBar({ followUpCount, onOpenFollowUps }) {
+function SetterModeBar({ followUpCount, onOpenFollowUps, lessonCount, onOpenLessons }) {
   const [state, setState] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -287,7 +287,7 @@ function SetterModeBar({ followUpCount, onOpenFollowUps }) {
   const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em" };
   const modeColor = { off: "#5a6f8f", draft: "#3a7bd5", auto: "#14c882" };
   // Two quiet rows so nothing wraps in the narrow list column: status +
-  // mode switch, then (only when there are any) a follow-ups link.
+  // mode switch, then the follow-ups (only when there are any) and lessons links.
   const online = state.worker_online;
   return (
     <div style={{ padding: "8px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -313,15 +313,24 @@ function SetterModeBar({ followUpCount, onOpenFollowUps }) {
           ))}
         </div>
       </div>
-      {followUpCount > 0 && (
-        <button onClick={onOpenFollowUps} title="Check-ins the agent scheduled"
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        {followUpCount > 0 && (
+          <button onClick={onOpenFollowUps} title="Check-ins the AI setter will send"
+            style={{
+              ...mono, padding: 0, border: "none", background: "transparent", cursor: "pointer",
+              color: "#e0a030", textAlign: "left", whiteSpace: "nowrap",
+            }}>
+            {followUpCount} FOLLOW-UP{followUpCount === 1 ? "" : "S"} →
+          </button>
+        )}
+        <button onClick={onOpenLessons} title="What the AI setter learned from your own replies"
           style={{
             ...mono, padding: 0, border: "none", background: "transparent", cursor: "pointer",
-            color: "#e0a030", textAlign: "left", whiteSpace: "nowrap",
+            color: "#14c882", textAlign: "left", whiteSpace: "nowrap",
           }}>
-          {followUpCount} FOLLOW-UP{followUpCount === 1 ? "" : "S"} SCHEDULED →
+          {lessonCount} LESSON{lessonCount === 1 ? "" : "S"} LEARNED →
         </button>
-      )}
+      </div>
     </div>
   );
 }
@@ -404,6 +413,7 @@ function FollowUpRow({ f, workerOnline, onOpen, onChanged }) {
           {f.owner || f.phone}
         </div>
         {f.business && <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, color: "#5a6f8f" }}>{f.business}</div>}
+        {f.set_by === "dylan" && <span style={{ ...mono, color: "#3a7bd5" }}>SET BY YOU</span>}
         <div style={{ flex: 1 }} />
         <span style={{ ...mono, color: due ? "#e0a030" : "#14c882" }}>{fmtRelative(f.due_at).toUpperCase()}</span>
       </div>
@@ -426,7 +436,7 @@ function FollowUpRow({ f, workerOnline, onOpen, onChanged }) {
       )}
       {f.note && (
         <div style={{ marginTop: 4, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#8fa3c4" }}>
-          <span style={{ ...mono, color: "#3a7bd5" }}>WHY </span>{f.note}
+          <span style={{ ...mono, color: "#3a7bd5" }}>{f.set_by === "dylan" ? "YOUR NOTE " : "WHY "}</span>{f.note}
         </div>
       )}
 
@@ -473,7 +483,7 @@ function FollowUpsModal({ data, onClose, onOpen, onChanged }) {
               Scheduled Follow-Ups
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a6f8f", letterSpacing: "0.06em", marginTop: 3 }}>
-              CHECK-INS THE AI SETTER BOOKED WHEN A PROSPECT ASKED TO BE CONTACTED LATER · SOONEST FIRST
+              CHECK-INS THE AI SETTER WILL SEND · BOOKED BY THE AGENT OR BY YOU · SOONEST FIRST
             </div>
           </div>
           <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px" }}>×</button>
@@ -489,6 +499,222 @@ function FollowUpsModal({ data, onClose, onOpen, onChanged }) {
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.06em", marginTop: 6, lineHeight: 1.6 }}>
             IF THEY TEXT BEFORE THEN, THE CHECK-IN IS DROPPED AND THE AGENT ANSWERS THEIR TEXT INSTEAD.
             AUTO MODE SENDS IT 8AM-8PM THEIR TIME; IN DRAFT MODE IT WAITS IN THE INBOX FOR YOU.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Dylan books a check-in on a thread himself (POST /sms-setter/follow-ups/
+// schedule). Same path as the agent's own check-ins: when it's due the
+// worker writes the text, following his note, and auto mode sends it.
+function ScheduleFollowUpForm({ phone, onDone, onCancel }) {
+  const tomorrow = new Date(Date.now() + 86400000);
+  const pad = (n) => String(n).padStart(2, "0");
+  const [date, setDate] = useState(`${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`);
+  const [time, setTime] = useState("10:00");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em" };
+  const btn = (color) => ({
+    ...mono, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
+    border: `1px solid ${color}55`, background: `${color}14`, color,
+  });
+
+  const save = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await fetch(API("/sms-setter/follow-ups/schedule"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, date, time, note }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { setError(data.detail || "Couldn't schedule"); setBusy(false); return; }
+      onDone();
+    } catch (e) { setError(e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ marginBottom: 10, padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(224,160,48,0.35)", background: "rgba(224,160,48,0.05)" }}>
+      <div style={{ ...mono, color: "#e0a030", marginBottom: 8 }}>AI FOLLOW-UP · THE AGENT TEXTS THEM THEN, UNLESS THEY TEXT FIRST</div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+        <input className="dg-input" type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 150 }} />
+        <input className="dg-input" type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: 120 }} />
+        <span style={{ ...mono, color: "#5a6f8f" }}>THEIR TIME</span>
+      </div>
+      <textarea className="dg-input" value={note} onChange={e => setNote(e.target.value)} rows={2}
+        placeholder="Optional: what should the agent say? e.g. ask if things calmed down after their busy season and if they have 20 min next week"
+        style={{ width: "100%", resize: "vertical", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, boxSizing: "border-box" }} />
+      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+        <button onClick={save} disabled={busy || !date} style={btn("#14c882")}>{busy ? "SAVING..." : "SCHEDULE"}</button>
+        <button onClick={onCancel} disabled={busy} style={btn("#5a6f8f")}>CANCEL</button>
+      </div>
+      {error && <div style={{ ...mono, color: "#dc3c3c", marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
+
+// ── Lessons: what the AI setter learned from Dylan's own replies ─────────────
+// When Dylan answers a thread himself instead of the setter's draft (a
+// handoff, a draft he skipped or edited), the worker distills his reply into
+// a lesson that goes into every later prompt (sms_setter_ai.py, "Learning
+// from Dylan"). GET /sms-setter/lessons lists them; he can edit or turn off any.
+
+const LESSON_STATUS = {
+  collecting: { label: "LEARNING...",       color: "#3a7bd5" },
+  active:     { label: "IN USE",            color: "#14c882" },
+  skipped:    { label: "NOTHING REUSABLE",  color: "#5a6f8f" },
+  disabled:   { label: "OFF",               color: "#dc3c3c" },
+};
+const LESSON_TRIGGER = {
+  handoff: "AI handed it to you", override: "you skipped the AI's draft",
+  edited: "you edited the AI's draft", manual: "you clicked TEACH",
+};
+
+function LessonRow({ l, workerOnline, onOpen, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [situation, setSituation] = useState(l.situation || "");
+  const [lesson, setLesson] = useState(l.lesson || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em" };
+  const text = { fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#8fa3c4" };
+  const btn = (color) => ({
+    ...mono, padding: "3px 8px", borderRadius: 6, cursor: "pointer",
+    border: `1px solid ${color}55`, background: `${color}14`, color,
+  });
+  const st = LESSON_STATUS[l.status] || LESSON_STATUS.skipped;
+
+  const patch = async (body) => {
+    setBusy(true); setError(null);
+    try {
+      const r = await fetch(API(`/sms-setter/lessons/${l.id}`), {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { setError(data.detail || "Couldn't save"); setBusy(false); return; }
+      setEditing(false);
+      onChanged();
+    } catch (e) { setError(e.message); }
+    setBusy(false);
+  };
+  const remove = async () => {
+    if (!window.confirm("Delete this lesson? The AI setter stops using it.")) return;
+    setBusy(true);
+    try { await fetch(API(`/sms-setter/lessons/${l.id}`), { method: "DELETE" }); } catch {}
+    setBusy(false);
+    onChanged();
+  };
+
+  return (
+    <div className="glass-card-sm" style={{ padding: "12px 14px", marginBottom: 10, border: `1px solid ${st.color}40`, opacity: l.status === "active" || l.status === "collecting" ? 1 : 0.75 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: "#f0f4ff" }}>
+          {l.situation || (l.status === "collecting" ? "Learning from your reply" : "No lesson")}
+        </div>
+        <div style={{ flex: 1 }} />
+        <span style={{ ...mono, color: st.color }}>{st.label}</span>
+      </div>
+      <div style={{ ...mono, color: "#5a6f8f", marginTop: 3 }}>
+        {(l.owner || l.phone)}{l.business ? ` · ${l.business}` : ""} · {LESSON_TRIGGER[l.trigger] || l.trigger} · {new Date(l.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}
+      </div>
+      {l.status === "collecting" && (
+        <div style={{ ...mono, color: workerOnline ? "#3a7bd5" : "#dc3c3c", marginTop: 6 }}>
+          {workerOnline ? "YOUR PC WILL ANALYZE THIS A FEW MINUTES AFTER YOUR LAST TEXT" : "WAITING FOR YOUR PC TO COME ONLINE"}
+        </div>
+      )}
+
+      {editing ? (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+          <input className="dg-input" value={situation} onChange={e => setSituation(e.target.value)} placeholder="Situation, e.g. Prospect worried it's a scam" />
+          <textarea className="dg-input" value={lesson} onChange={e => setLesson(e.target.value)} rows={3}
+            placeholder="When this happens, the AI should..." style={{ resize: "vertical", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12 }} />
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => patch({ situation, lesson, status: "active" })} disabled={busy || !situation.trim() || !lesson.trim()} style={btn("#14c882")}>SAVE + USE</button>
+            <button onClick={() => setEditing(false)} disabled={busy} style={btn("#5a6f8f")}>BACK</button>
+          </div>
+        </div>
+      ) : l.lesson && (
+        <div style={{ marginTop: 8, fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#c8d4ec", lineHeight: 1.45 }}>{l.lesson}</div>
+      )}
+
+      <div style={{ marginTop: 8, ...text }}>
+        <span style={{ ...mono, color: "#3a7bd5" }}>YOU SENT </span>"{(l.dylan_reply || "").trim().slice(0, 320)}{(l.dylan_reply || "").length > 320 ? "..." : ""}"
+      </div>
+      {l.ai_action && (
+        <div style={{ marginTop: 4, ...text }}>
+          <span style={{ ...mono, color: "#5a6f8f" }}>AI WANTED </span>
+          {l.ai_action === "handoff" ? `to hand it to you: ${l.ai_rationale || ""}` : `"${(l.ai_reply || "").trim().slice(0, 200)}"`}
+        </div>
+      )}
+      {l.analysis_note && (
+        <div style={{ marginTop: 4, ...text }}><span style={{ ...mono, color: "#5a6f8f" }}>WHY </span>{l.analysis_note}</div>
+      )}
+
+      {!editing && (
+        <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button onClick={() => onOpen(l)} style={btn("#3a7bd5")}>OPEN THREAD</button>
+          {l.status !== "collecting" && <button onClick={() => { setSituation(l.situation || ""); setLesson(l.lesson || ""); setEditing(true); }} disabled={busy} style={btn("#e0a030")}>{l.lesson ? "EDIT" : "WRITE ONE"}</button>}
+          {l.status === "active" && <button onClick={() => patch({ status: "disabled" })} disabled={busy} style={btn("#dc3c3c")}>TURN OFF</button>}
+          {(l.status === "disabled" || l.status === "skipped") && l.lesson && <button onClick={() => patch({ status: "active" })} disabled={busy} style={btn("#14c882")}>USE IT</button>}
+          <button onClick={remove} disabled={busy} style={btn("#5a6f8f")}>DELETE</button>
+        </div>
+      )}
+      {error && <div style={{ ...mono, color: "#dc3c3c", marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
+
+function LessonsModal({ data, onClose, onOpen, onChanged }) {
+  const [showAll, setShowAll] = useState(false);
+  const all = data?.lessons || [];
+  const list = showAll ? all : all.filter(l => l.status === "active" || l.status === "collecting");
+  const hidden = all.length - list.length;
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
+        backdropFilter: "blur(6px)", zIndex: 1000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="glass-card"
+        style={{ width: "100%", maxWidth: 600, maxHeight: "85vh", padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ padding: "18px 22px 14px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>
+              What the AI Setter Learned From You
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a6f8f", letterSpacing: "0.06em", marginTop: 3 }}>
+              FROM THREADS WHERE YOU REPLIED INSTEAD OF THE AI · LESSONS IN USE GO INTO EVERY DRAFT
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "2px 6px" }}>×</button>
+        </div>
+        <div style={{ padding: "16px 22px", overflowY: "auto" }}>
+          {list.length === 0 ? (
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#5a6f8f", textAlign: "center", padding: "24px 0" }}>
+              Nothing learned yet. Next time the AI hands you a thread, just reply yourself and it learns from what you send.
+            </div>
+          ) : list.map(l => (
+            <LessonRow key={`${l.id}:${l.status}:${l.lesson || ""}`} l={l} workerOnline={data.worker_online} onOpen={onOpen} onChanged={onChanged} />
+          ))}
+          {(hidden > 0 || showAll) && (
+            <button onClick={() => setShowAll(v => !v)}
+              style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em", padding: 0, border: "none", background: "transparent", color: "#3a7bd5", cursor: "pointer" }}>
+              {showAll ? "HIDE OFF / NOTHING-REUSABLE" : `SHOW ${hidden} OFF / NOTHING-REUSABLE`}
+            </button>
+          )}
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.06em", marginTop: 10, lineHeight: 1.6 }}>
+            LESSONS NEVER OVERRIDE THE PLAYBOOK'S PRICE RULES OR FACTS. NEW OFFER FACTS BELONG IN THE PLAYBOOK, NOT HERE.
           </div>
         </div>
       </div>
@@ -625,6 +851,45 @@ export default function InboxPanel({ initialTarget }) {
     const id = setInterval(loadFollowUps, 60000);
     return () => clearInterval(id);
   }, [loadFollowUps]);
+
+  const [scheduling, setScheduling] = useState(false);
+  const [lessons, setLessons] = useState(null);
+  const [lessonsOpen, setLessonsOpen] = useState(false);
+  const [teachMsg, setTeachMsg] = useState(null);
+
+  const loadLessons = useCallback(async () => {
+    try {
+      const r = await fetch(API("/sms-setter/lessons"));
+      if (r.ok) setLessons(await r.json());
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadLessons();
+    const id = setInterval(loadLessons, 60000);
+    return () => clearInterval(id);
+  }, [loadLessons]);
+
+  // TEACH: learn from the texts Dylan just sent himself on this thread
+  // (for replies with no AI draft to compare against, or from before
+  // learning existed — anything after a draft is captured on its own).
+  const teachFromReply = async () => {
+    if (!thread?.phone) return;
+    setTeachMsg({ busy: true });
+    try {
+      const r = await fetch(API("/sms-setter/lessons/capture"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: thread.phone }),
+      });
+      const data = await r.json().catch(() => ({}));
+      setTeachMsg(r.ok
+        ? { ok: true, text: data.worker_online ? "GOT IT · YOUR PC IS LEARNING FROM THIS REPLY" : "SAVED · LEARNS WHEN YOUR PC IS BACK ONLINE" }
+        : { ok: false, text: (data.detail || "Couldn't save").toUpperCase() });
+      loadLessons();
+    } catch (e) { setTeachMsg({ ok: false, text: e.message }); }
+  };
+
+  useEffect(() => { setScheduling(false); setTeachMsg(null); }, [thread?.contact_id, thread?.phone]);
 
   const [channelFilter, setChannelFilter] = useState("all");
   const [timeFilter, setTimeFilter]       = useState("all");
@@ -1018,7 +1283,21 @@ export default function InboxPanel({ initialTarget }) {
         <SetterModeBar
           followUpCount={followUps?.follow_ups?.length || 0}
           onOpenFollowUps={() => { loadFollowUps(); setFollowUpsOpen(true); }}
+          lessonCount={lessons?.lessons?.filter(l => l.status === "active").length || 0}
+          onOpenLessons={() => { loadLessons(); setLessonsOpen(true); }}
         />
+        {lessonsOpen && (
+          <LessonsModal
+            data={lessons}
+            onClose={() => setLessonsOpen(false)}
+            onChanged={loadLessons}
+            onOpen={(l) => {
+              setLessonsOpen(false);
+              const match = l.contact_id || convos.find(c => phoneDigits(c.phone) === phoneDigits(l.phone))?.contact_id;
+              if (match) openThread(match);
+            }}
+          />
+        )}
         {followUpsOpen && (
           <FollowUpsModal
             data={followUps}
@@ -1496,17 +1775,54 @@ export default function InboxPanel({ initialTarget }) {
             {thread?.status !== "closed" ? (
               <div style={{ position: "relative", padding: "12px 20px", borderTop: "0.5px solid #1a2540", flexShrink: 0 }}>
                 {(() => {
-                  const fu = thread?.phone && followUps?.follow_ups?.find(f => phoneDigits(f.phone) === phoneDigits(thread.phone));
-                  if (!fu) return null;
+                  if (!thread?.phone) return null;
+                  const fu = followUps?.follow_ups?.find(f => phoneDigits(f.phone) === phoneDigits(thread.phone));
+                  if (scheduling) return (
+                    <ScheduleFollowUpForm phone={thread.phone} onCancel={() => setScheduling(false)}
+                      onDone={() => { setScheduling(false); loadFollowUps(); }} />
+                  );
+                  const sms = (thread.messages || []).filter(m => m.channel === "sms");
+                  const lastIsMine = sms.length > 0 && sms[sms.length - 1].direction === "outbound"
+                    && sms.some(m => m.direction === "inbound");
+                  const link = (color) => ({
+                    fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
+                    padding: 0, border: "none", background: "transparent", cursor: "pointer", color,
+                  });
                   return (
-                    <div onClick={() => setFollowUpsOpen(true)} title="Open Scheduled Follow-Ups"
-                      style={{
-                        marginBottom: 10, padding: "7px 12px", borderRadius: 8, cursor: "pointer",
-                        border: "1px solid rgba(224,160,48,0.35)", background: "rgba(224,160,48,0.07)",
-                        fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#e0a030",
-                      }}>
-                      Agent follows up {fmtInZone(fu.due_at, fu.timezone)} their time ({fmtRelative(fu.due_at)})
-                    </div>
+                    <>
+                      {(!fu || lastIsMine) && (
+                        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+                          {!fu && (
+                            <button onClick={() => setScheduling(true)} title="Have the AI setter text them at a time you pick" style={link("#e0a030")}>
+                              + AI FOLLOW-UP
+                            </button>
+                          )}
+                          {lastIsMine && (
+                            <button onClick={teachFromReply} disabled={teachMsg?.busy}
+                              title="Have the AI setter learn from the reply you just sent, so it handles this kind of message itself next time"
+                              style={link("#14c882")}>
+                              TEACH AI FROM MY REPLY
+                            </button>
+                          )}
+                          {teachMsg?.text && (
+                            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em", color: teachMsg.ok ? "#14c882" : "#dc3c3c" }}>
+                              {teachMsg.text}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {fu && (
+                        <div onClick={() => setFollowUpsOpen(true)} title="Open Scheduled Follow-Ups (change time or cancel)"
+                          style={{
+                            marginBottom: 10, padding: "7px 12px", borderRadius: 8, cursor: "pointer",
+                            border: "1px solid rgba(224,160,48,0.35)", background: "rgba(224,160,48,0.07)",
+                            fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#e0a030",
+                          }}>
+                          Agent follows up {fmtInZone(fu.due_at, fu.timezone)} their time ({fmtRelative(fu.due_at)})
+                          {fu.set_by === "dylan" ? " · set by you" : ""}
+                        </div>
+                      )}
+                    </>
                   );
                 })()}
                 {aiDraft && !aiRegenerating && <AiDraftCard

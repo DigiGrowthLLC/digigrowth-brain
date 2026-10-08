@@ -1400,6 +1400,38 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_due_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_set_at TIMESTAMPTZ;
             ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_note TEXT;
+            -- 'agent' (a "check back later" draft) or 'dylan' (scheduled by
+            -- hand from the Inbox — the note is then his instructions).
+            ALTER TABLE sms_conversations ADD COLUMN IF NOT EXISTS ai_followup_by TEXT;
+
+            -- What the SMS setter learns from Dylan's own replies (see
+            -- sms_setter_ai.py's "Learning from Dylan" section). A row is
+            -- opened when Dylan texts a thread himself instead of (or after
+            -- editing) the setter's draft, collects his back-to-back texts,
+            -- then the worker distills it into a reusable lesson that goes
+            -- into every later prompt. status: collecting | active |
+            -- skipped (nothing reusable) | disabled (by Dylan) | replaced
+            -- (merged into a newer lesson).
+            CREATE TABLE IF NOT EXISTS sms_setter_lessons (
+                id           SERIAL PRIMARY KEY,
+                phone        TEXT NOT NULL,
+                draft_id     INTEGER,
+                trigger      TEXT NOT NULL,
+                ai_action    TEXT,
+                ai_reply     TEXT,
+                ai_rationale TEXT,
+                transcript   TEXT NOT NULL DEFAULT '',
+                dylan_reply  TEXT NOT NULL,
+                situation    TEXT,
+                lesson       TEXT,
+                replaces_id  INTEGER,
+                analysis_note TEXT,
+                status      TEXT NOT NULL DEFAULT 'collecting',
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                analyzed_at  TIMESTAMPTZ
+            );
+            CREATE INDEX IF NOT EXISTS idx_sms_setter_lessons_status ON sms_setter_lessons(status);
             -- Set when Dylan turns DM Follow-Up off for a thread from the
             -- Inbox, cleared when he turns it back on. dm_followup_sequence's
             -- auto-enroll never re-adds a thread with this set.

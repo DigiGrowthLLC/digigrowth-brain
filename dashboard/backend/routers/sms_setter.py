@@ -13,12 +13,18 @@ Inbox:
   GET  /api/sms-setter/follow-ups           — every scheduled check-in, soonest first (Inbox FOLLOW-UPS view)
   POST /api/sms-setter/follow-ups/reschedule — {"phone", "date", "time"} prospect's local time
   POST /api/sms-setter/follow-ups/cancel    — {"phone"}
+  POST /api/sms-setter/follow-ups/schedule  — {"phone", "date", "time", "note"?} Dylan books a check-in by hand
+  GET  /api/sms-setter/lessons              — what the setter learned from Dylan's own replies
+  POST /api/sms-setter/lessons/capture      — {"phone"} TEACH: learn from Dylan's latest reply on a thread
+  PATCH  /api/sms-setter/lessons/{id}       — {"situation"?, "lesson"?, "status"?: "active" | "disabled"}
+  DELETE /api/sms-setter/lessons/{id}
 
 Local worker (apptset-agent/sms_setter_worker.py, on Dylan's PC):
   POST /api/sms-setter/worker/heartbeat
   GET  /api/sms-setter/worker/queue         — system prompt, output schema, and threads to draft
   POST /api/sms-setter/worker/submit        — {"phone", "last_inbound_at", "result", "model"}
   POST /api/sms-setter/worker/flush         — retry auto-sends held for business hours
+  POST /api/sms-setter/worker/lesson        — {"id", "result"} a distilled lesson (see sms_setter_ai)
 
 Marking a draft as sent from the Inbox happens in routers/sms.py's
 manual_send (the Inbox passes ai_draft_id along with the text), so the
@@ -136,7 +142,7 @@ async def list_follow_ups():
         rows = await conn.fetch(
             """
             SELECT sc.phone, sc.contact_id, sc.ai_followup_due_at, sc.ai_followup_set_at, sc.ai_followup_note,
-                   c.owner, c.business, c.city, c.state,
+                   sc.ai_followup_by, c.owner, c.business, c.city, c.state,
                    (SELECT body FROM sms_messages m WHERE m.phone = sc.phone AND m.direction = 'inbound'
                     ORDER BY m.sent_at DESC LIMIT 1) AS last_inbound
             FROM sms_conversations sc LEFT JOIN contacts c ON c.id = sc.contact_id
@@ -153,6 +159,7 @@ async def list_follow_ups():
                 "set_at": r["ai_followup_set_at"].isoformat() if r["ai_followup_set_at"] else None,
                 "timezone": guess_timezone(r["phone"], r["city"], r["state"]),
                 "note": r["ai_followup_note"], "last_inbound": r["last_inbound"],
+                "set_by": r["ai_followup_by"] or "agent",
             }
             for r in rows
         ],
@@ -163,23 +170,65 @@ async def list_follow_ups():
 @router.post("/sms-setter/follow-ups/reschedule")
 async def reschedule_follow_up(payload: dict):
     """{"phone", "date": "YYYY-MM-DD", "time": "HH:MM"} in the PROSPECT's
-    local time — the same way the agent picks it. Keeps the agent's note."""
-    from datetime import datetime, timezone
-    from zoneinfo import ZoneInfo
-
+    local time — the same way the agent picks it. Keeps the note and who
+    set it."""
     phone = (payload.get("phone") or "").strip()
     pool = await get_pool()
     async with pool.acquire() as conn:
-        tz_name = await prospect_timezone(conn, phone)
-        try:
-            due = datetime.strptime(f"{payload.get('date')} {payload.get('time') or '10:00'}", "%Y-%m-%d %H:%M").replace(
-                tzinfo=ZoneInfo(tz_name))
-        except (ValueError, TypeError):
-            raise HTTPException(400, "date (YYYY-MM-DD) and time (HH:MM) required")
-        if due <= datetime.now(timezone.utc):
-            raise HTTPException(400, "pick a time in the future")
-        note = await conn.fetchval("SELECT ai_followup_note FROM sms_conversations WHERE phone = $1", phone)
-        await sms_setter_ai.schedule_follow_up(conn, phone, due, note)
+        due = await _due_from_payload(conn, phone, payload)
+        cur = await conn.fetchrow("SELECT ai_followup_note, ai_followup_by FROM sms_conversations WHERE phone = $1", phone)
+        await sms_setter_ai.schedule_follow_up(
+            conn, phone, due, cur and cur["ai_followup_note"], (cur and cur["ai_followup_by"]) or "agent",
+        )
+    return {"ok": True, "due_at": due.isoformat()}
+
+
+async def _due_from_payload(conn, phone: str, payload: dict):
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
+    tz_name = await prospect_timezone(conn, phone)
+    try:
+        due = datetime.strptime(f"{payload.get('date')} {payload.get('time') or '10:00'}", "%Y-%m-%d %H:%M").replace(
+            tzinfo=ZoneInfo(tz_name))
+    except (ValueError, TypeError):
+        raise HTTPException(400, "date (YYYY-MM-DD) and time (HH:MM) required")
+    if due <= datetime.now(timezone.utc):
+        raise HTTPException(400, "pick a time in the future")
+    return due
+
+
+@router.post("/sms-setter/follow-ups/schedule")
+async def schedule_follow_up(payload: dict):
+    """Dylan books a check-in on a thread himself: {"phone", "date", "time"}
+    in the prospect's local time, plus an optional "note" telling the agent
+    what to say. When it's due the worker writes it (following the note)
+    and auto mode sends it, exactly like one the agent scheduled. Replaces
+    any check-in already set. A thread marked Not Interested is reopened
+    (he's explicitly asking to follow up); a closed or booked one isn't."""
+    phone = (payload.get("phone") or "").strip()
+    if not phone:
+        raise HTTPException(400, "phone required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        conv = await conn.fetchrow(
+            "SELECT phone, status, disposition FROM sms_conversations "
+            "WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1",
+            sms_setter_ai._digits(phone),
+        )
+        if not conv:
+            raise HTTPException(404, "no SMS thread for that number")
+        if conv["status"] == "closed" or conv["disposition"] == "booked":
+            raise HTTPException(400, "thread is closed or already booked")
+        due = await _due_from_payload(conn, conv["phone"], payload)
+        if conv["disposition"] == "not_interested":
+            await conn.execute(
+                "UPDATE sms_conversations SET disposition = NULL, status = 'active', updated_at = now() WHERE phone = $1",
+                conv["phone"],
+            )
+        await sms_setter_ai.schedule_follow_up(
+            conn, conv["phone"], due, (payload.get("note") or "").strip() or None, by="dylan",
+        )
     return {"ok": True, "due_at": due.isoformat()}
 
 
@@ -191,6 +240,91 @@ async def cancel_follow_up(payload: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
         await sms_setter_ai.schedule_follow_up(conn, phone, None)
+    return {"ok": True}
+
+
+# ── Lessons (learning from Dylan's own replies) ───────────────────────────────
+
+@router.get("/sms-setter/lessons")
+async def list_lessons():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT l.id, l.phone, l.trigger, l.ai_action, l.ai_reply, l.ai_rationale, l.dylan_reply, l.situation,
+                   l.lesson, l.status, l.analysis_note, l.created_at, l.analyzed_at,
+                   sc.contact_id, c.owner, c.business
+            FROM sms_setter_lessons l
+            LEFT JOIN sms_conversations sc ON sc.phone = l.phone
+            LEFT JOIN contacts c ON c.id = sc.contact_id
+            WHERE l.status <> 'replaced'
+            ORDER BY (l.status = 'collecting') DESC, l.created_at DESC
+            LIMIT 300
+            """
+        )
+        status = await sms_setter_ai.worker_status(conn)
+    return {
+        "lessons": [
+            {**dict(r), "created_at": r["created_at"].isoformat(),
+             "analyzed_at": r["analyzed_at"].isoformat() if r["analyzed_at"] else None}
+            for r in rows
+        ],
+        **status,
+    }
+
+
+@router.post("/sms-setter/lessons/capture")
+async def capture_lesson(payload: dict):
+    """TEACH: learn from the texts Dylan sent himself after the prospect's
+    latest message (sms_setter_ai.capture_from_thread)."""
+    phone = (payload.get("phone") or "").strip()
+    if not phone:
+        raise HTTPException(400, "phone required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await sms_setter_ai.capture_from_thread(conn, phone)
+        status = await sms_setter_ai.worker_status(conn)
+    if not result["ok"]:
+        raise HTTPException(400, result["error"])
+    return {**result, **status}
+
+
+@router.patch("/sms-setter/lessons/{lesson_id}")
+async def update_lesson(lesson_id: int, payload: dict):
+    """Dylan's edits. An edited lesson is active (it's his wording now)
+    unless he's switching it off in the same call."""
+    fields, args = [], [lesson_id]
+    for key in ("situation", "lesson"):
+        if isinstance(payload.get(key), str) and payload[key].strip():
+            args.append(payload[key].strip())
+            fields.append(f"{key} = ${len(args)}")
+    status = payload.get("status")
+    if status is not None and status not in ("active", "disabled"):
+        raise HTTPException(400, "status must be 'active' or 'disabled'")
+    if not (status or fields):
+        raise HTTPException(400, "nothing to update")
+    args.append(status or "active")
+    fields.append(f"status = ${len(args)}")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                f"UPDATE sms_setter_lessons SET {', '.join(fields)}, updated_at = now() "
+                "WHERE id = $1 AND status <> 'collecting' RETURNING id, situation, lesson, status",
+                *args,
+            )
+            if row and row["status"] == "active" and not (row["situation"] and row["lesson"]):
+                raise HTTPException(400, "add a situation and lesson text before turning it on")
+    if not row:
+        raise HTTPException(404, "lesson not found (or still being analyzed)")
+    return {"ok": True, **dict(row)}
+
+
+@router.delete("/sms-setter/lessons/{lesson_id}")
+async def delete_lesson(lesson_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM sms_setter_lessons WHERE id = $1", lesson_id)
     return {"ok": True}
 
 
@@ -255,6 +389,8 @@ async def worker_queue(limit: int = 5):
         mode = await sms_setter_ai.get_mode(conn)
         await sms_setter_ai.task_todos(conn)
         await sms_setter_ai.backfill_todo_links(conn)
+        lessons = await sms_setter_ai.active_lessons(conn)
+        lesson_items = await sms_setter_ai.lesson_queue(conn)
         items = []
         # Explicit REGENERATE requests first — they work even in "off" mode
         # (Dylan clicked the button himself).
@@ -268,9 +404,14 @@ async def worker_queue(limit: int = 5):
             items.extend(i for i in await sms_setter_ai.build_queue(conn, limit=limit) if i["phone"] not in seen)
     return {
         "mode": mode,
-        "system_prompt": sms_setter_ai.system_prompt(),
+        "system_prompt": sms_setter_ai.system_prompt(lessons),
         "schema": sms_setter_ai.DRAFT_SCHEMA,
         "items": items,
+        # Learning from Dylan: replies of his to distill into lessons. Not
+        # gated on mode, since learning sends nothing.
+        "lesson_system_prompt": sms_setter_ai.lesson_system_prompt(),
+        "lesson_schema": sms_setter_ai.LESSON_SCHEMA,
+        "lessons": lesson_items,
     }
 
 
@@ -290,3 +431,13 @@ async def worker_flush():
     pool = await get_pool()
     async with pool.acquire() as conn:
         return {"sent": await sms_setter_ai.flush_pending(conn)}
+
+
+@router.post("/sms-setter/worker/lesson")
+async def worker_lesson(payload: dict):
+    result = payload.get("result")
+    if not payload.get("id") or not isinstance(result, dict):
+        raise HTTPException(400, "id and result required")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await sms_setter_ai.submit_lesson(conn, int(payload["id"]), result)

@@ -490,6 +490,18 @@ async def manual_send(payload: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
         conv = await _get_or_create_conversation(conn, phone)
+        # A text Dylan typed himself on a thread the AI setter had a draft
+        # for (a handoff, a draft he skipped or edited) is something the
+        # setter learns from — see sms_setter_ai.capture_reply. Runs before
+        # the message is stored and the draft dismissed below, so it sees
+        # the thread as it was. Never allowed to break a send.
+        if stage != "ai_setter":
+            import sms_setter_ai
+
+            try:
+                await sms_setter_ai.capture_reply(conn, phone, body, payload.get("ai_draft_id"))
+            except Exception as e:
+                print(f"[sms] setter lesson capture failed for {phone}: {e}", flush=True)
         await _store_message(conn, phone, "assistant", body, stage=stage)
         # Record what happened to any pending AI setter draft: used (sent_body
         # kept so the edit rate is measurable) or, if Dylan replied without
@@ -543,10 +555,12 @@ async def manual_send(payload: dict):
                 await sms_setter_ai.task_todos(conn)
         else:
             # Dylan texting them himself supersedes any check-in the setter
-            # had scheduled.
+            # had scheduled — but not one he scheduled himself (Inbox's
+            # + AI FOLLOW-UP), which he may well set before texting them.
             await conn.execute(
                 f"UPDATE sms_conversations SET ai_followup_due_at = NULL, ai_followup_set_at = NULL, "
-                f"ai_followup_note = NULL WHERE {_phone_match('phone', '$1')} AND ai_followup_due_at IS NOT NULL",
+                f"ai_followup_note = NULL, ai_followup_by = NULL WHERE {_phone_match('phone', '$1')} "
+                f"AND ai_followup_due_at IS NOT NULL AND ai_followup_by IS DISTINCT FROM 'dylan'",
                 phone,
             )
         await conn.execute(

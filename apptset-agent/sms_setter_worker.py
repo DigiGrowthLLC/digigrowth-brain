@@ -11,7 +11,10 @@ Loop (every POLL_SECONDS):
   2. for each thread: `claude -p` with that prompt -> structured draft
   3. POST /api/sms-setter/worker/submit -> the server stores it, and in auto
      mode sends it (see dashboard/backend/sms_setter_ai.py for guardrails)
-  4. in auto mode: POST /api/sms-setter/worker/flush -> sends drafts that
+  4. for each lesson in the queue (a reply Dylan typed himself instead of
+     the draft): `claude -p` distills it -> POST /api/sms-setter/worker/lesson.
+     Active lessons come back inside the system prompt from step 1
+  5. in auto mode: POST /api/sms-setter/worker/flush -> sends drafts that
      were held until business hours
 
 Started at logon by the DigiGrowth-SMSSetter scheduled task
@@ -145,6 +148,17 @@ def one_pass() -> None:
             "result": result, "model": f"claude-code:{MODEL}",
         })
         log(f"{item['business']}: {result.get('action')} ({time.time() - started:.0f}s) -> {resp}")
+    for lesson in q.get("lessons") or []:
+        try:
+            result = run_claude(q["lesson_system_prompt"], lesson["prompt"], q["lesson_schema"])
+        except subprocess.TimeoutExpired:
+            log(f"lesson {lesson['id']}: claude timed out")
+            continue
+        if not result:
+            continue
+        resp = _api("POST", "/api/sms-setter/worker/lesson", {"id": lesson["id"], "result": result})
+        learned = f"learned \"{result.get('situation')}\"" if result.get("useful") else "nothing reusable"
+        log(f"lesson {lesson['id']}: {learned} -> {resp}")
     if q.get("mode") == "auto":
         flushed = _api("POST", "/api/sms-setter/worker/flush", {})
         if flushed.get("sent"):
