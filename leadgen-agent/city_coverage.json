@@ -5110,10 +5110,10 @@
       "last_scraped_date": "2026-10-07"
     },
     "Aurora, IL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 126,
-      "qualified_count": 5,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 170,
+      "qualified_count": 6,
       "last_scraped_date": "2026-10-07"
     },
     "Salem, OR": {
