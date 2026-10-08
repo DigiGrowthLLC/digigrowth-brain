@@ -5097,9 +5097,9 @@
     },
     "Elk Grove, CA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 58,
-      "qualified_count": 1,
+      "term_index": 2,
+      "reviewed_count": 102,
+      "qualified_count": 4,
       "last_scraped_date": "2026-10-07"
     },
     "Cary, NC": {
