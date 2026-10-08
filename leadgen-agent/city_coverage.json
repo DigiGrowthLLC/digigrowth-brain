@@ -5124,9 +5124,9 @@
       "last_scraped_date": "2026-10-07"
     },
     "Pembroke Pines, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 153,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 165,
       "qualified_count": 11,
       "last_scraped_date": "2026-10-07"
     },
