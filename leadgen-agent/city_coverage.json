@@ -5082,9 +5082,9 @@
       "last_scraped_date": "2026-10-07"
     },
     "Ontario, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 171,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 173,
       "qualified_count": 6,
       "last_scraped_date": "2026-10-07"
     },
