@@ -146,7 +146,8 @@ async def list_follow_ups():
                    (SELECT body FROM sms_messages m WHERE m.phone = sc.phone AND m.direction = 'inbound'
                     ORDER BY m.sent_at DESC LIMIT 1) AS last_inbound
             FROM sms_conversations sc LEFT JOIN contacts c ON c.id = sc.contact_id
-            WHERE sc.ai_followup_due_at IS NOT NULL AND sc.status <> 'closed' AND sc.disposition IS NULL
+            WHERE sc.ai_followup_due_at IS NOT NULL AND sc.status <> 'closed'
+              AND (sc.disposition IS NULL OR sc.ai_followup_by = 'dylan')
             ORDER BY sc.ai_followup_due_at
             """
         )
@@ -204,8 +205,11 @@ async def schedule_follow_up(payload: dict):
     in the prospect's local time, plus an optional "note" telling the agent
     what to say. When it's due the worker writes it (following the note)
     and auto mode sends it, exactly like one the agent scheduled. Replaces
-    any check-in already set. A thread marked Not Interested is reopened
-    (he's explicitly asking to follow up); a closed or booked one isn't."""
+    any check-in already set. Works on booked threads too (checking in
+    after the discovery call is a main use) — the Booked disposition stays.
+    A Not Interested mark is cleared (he's explicitly asking to follow up),
+    and a closed thread is reopened, since a closed thread silently drops
+    the reply the check-in is fishing for."""
     phone = (payload.get("phone") or "").strip()
     if not phone:
         raise HTTPException(400, "phone required")
@@ -218,12 +222,12 @@ async def schedule_follow_up(payload: dict):
         )
         if not conv:
             raise HTTPException(404, "no SMS thread for that number")
-        if conv["status"] == "closed" or conv["disposition"] == "booked":
-            raise HTTPException(400, "thread is closed or already booked")
         due = await _due_from_payload(conn, conv["phone"], payload)
-        if conv["disposition"] == "not_interested":
+        if conv["status"] == "closed" or conv["disposition"] == "not_interested":
             await conn.execute(
-                "UPDATE sms_conversations SET disposition = NULL, status = 'active', updated_at = now() WHERE phone = $1",
+                "UPDATE sms_conversations SET status = 'active', updated_at = now(), "
+                "disposition = CASE WHEN disposition = 'not_interested' THEN NULL ELSE disposition END "
+                "WHERE phone = $1",
                 conv["phone"],
             )
         await sms_setter_ai.schedule_follow_up(

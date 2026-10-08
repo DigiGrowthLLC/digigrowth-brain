@@ -321,9 +321,12 @@ def _check_in_request(note: str, by: str | None) -> str:
     if by == "dylan":
         return (
             "\n\nSCHEDULED CHECK-IN: Dylan scheduled this follow-up himself and it's due now; they haven't "
-            "texted since." + (f" His instructions for it: {note}." if note else "")
-            + " Write the check-in text, per the playbook's 'Scheduled check-ins' section, doing what his "
-            "instructions say."
+            "texted since."
+            + (f"\nDylan's private note to you (context and instructions, NOT text to send, and never quote or "
+               f"paraphrase it to the prospect as if they'd see it): {note}." if note else "")
+            + "\nWrite the check-in text yourself, in Dylan's voice, per the playbook's 'Scheduled check-ins' "
+            "section, doing what his note asks. If they've already had their discovery call, don't try to book "
+            "another one unless his note says to."
         )
     return (
         "\n\nSCHEDULED CHECK-IN: a follow-up on this thread is due now and they haven't texted since it "
@@ -686,7 +689,8 @@ async def _due_follow_ups(conn, limit: int):
     """Threads whose scheduled check-in is due and still wanted: the
     prospect hasn't texted since it was scheduled (a reply supersedes it —
     submit_draft clears it then anyway) and the thread is still open with
-    no booked/not-interested disposition."""
+    no booked/not-interested disposition — except one Dylan scheduled
+    himself, which may well be a post-call check-in on a booked prospect."""
     return await conn.fetch(
         """
         SELECT sc.phone, sc.status, sc.campaign_id, sc.contact_id, sc.ai_followup_note, sc.ai_followup_by,
@@ -694,7 +698,7 @@ async def _due_follow_ups(conn, limit: int):
         FROM sms_conversations sc
         LEFT JOIN contacts c ON c.id = sc.contact_id
         WHERE sc.ai_followup_due_at IS NOT NULL AND sc.ai_followup_due_at <= now()
-          AND sc.status <> 'closed' AND sc.disposition IS NULL
+          AND sc.status <> 'closed' AND (sc.disposition IS NULL OR sc.ai_followup_by = 'dylan')
           AND (c.client_id IS NULL OR c.is_client_anchor)
           AND NOT EXISTS (
               SELECT 1 FROM sms_messages m

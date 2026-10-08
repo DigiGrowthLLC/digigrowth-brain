@@ -545,8 +545,9 @@ function ScheduleFollowUpForm({ phone, onDone, onCancel }) {
         <input className="dg-input" type="time" value={time} onChange={e => setTime(e.target.value)} style={{ width: 120 }} />
         <span style={{ ...mono, color: "#5a6f8f" }}>THEIR TIME</span>
       </div>
+      <div style={{ ...mono, color: "#5a6f8f", marginBottom: 4 }}>NOTE FOR THE AI · CONTEXT ONLY, NEVER SENT · THE AI WRITES THE TEXT</div>
       <textarea className="dg-input" value={note} onChange={e => setNote(e.target.value)} rows={2}
-        placeholder="Optional: what should the agent say? e.g. ask if things calmed down after their busy season and if they have 20 min next week"
+        placeholder="Optional: context + what you want. e.g. call went well, she said reach out after the new year, ask if things have cleared up"
         style={{ width: "100%", resize: "vertical", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, boxSizing: "border-box" }} />
       <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
         <button onClick={save} disabled={busy || !date} style={btn("#14c882")}>{busy ? "SAVING..." : "SCHEDULE"}</button>
