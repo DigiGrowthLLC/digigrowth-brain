@@ -897,6 +897,7 @@ export default function InboxPanel({ initialTarget }) {
   const [statusFilter, setStatusFilter]   = useState(null);
   const [readFilter, setReadFilter]       = useState("all"); // "all" | "unread" | "read"
   const [stageFilter, setStageFilter]     = useState(null);
+  const [search, setSearch]               = useState("");
 
   const bottomRef = useRef(null);
   const autoOpenedRef = useRef(false);
@@ -1203,7 +1204,18 @@ export default function InboxPanel({ initialTarget }) {
   };
 
   const unreadCount = convos.filter(c => c.unread).length;
+  // Search matches name, practice, email, last message, and phone by digits
+  // (so "331303", "(331) 303" and "+1331303..." all find the same thread).
+  const searchTerm = search.trim().toLowerCase();
+  const searchDigits = searchTerm.replace(/\D/g, "");
+  const matchesSearch = (c) => {
+    if (!searchTerm) return true;
+    const text = [c.owner, c.business, c.email, c.last_message].filter(Boolean).join(" ").toLowerCase();
+    if (text.includes(searchTerm)) return true;
+    return searchDigits.length >= 3 && (c.phone || "").replace(/\D/g, "").includes(searchDigits);
+  };
   const filteredConvos = convos.filter(c => {
+    if (!matchesSearch(c)) return false;
     if (readFilter === "unread") return !!c.unread;
     if (readFilter === "read") return !c.unread;
     return true;
@@ -1313,6 +1325,26 @@ export default function InboxPanel({ initialTarget }) {
 
         {/* Filter bar */}
         <div style={{ padding: "10px 16px", borderBottom: "0.5px solid #1a2540", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ position: "relative" }}>
+            <input
+              className="dg-input"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === "Escape") setSearch(""); }}
+              placeholder="Search name, practice, phone, email..."
+              style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "7px 28px 7px 10px" }}
+            />
+            {search && (
+              <button onClick={() => setSearch("")} title="Clear search"
+                style={{
+                  position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+                  background: "transparent", border: "none", color: "#5a6f8f", cursor: "pointer",
+                  fontSize: 14, lineHeight: 1, padding: "2px 4px",
+                }}>
+                ×
+              </button>
+            )}
+          </div>
           <div style={{ display: "flex", gap: 6 }}>
             {[
               { value: "all",    label: "ALL" },
