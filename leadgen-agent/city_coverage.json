@@ -5096,10 +5096,10 @@
       "last_scraped_date": "2026-10-07"
     },
     "Elk Grove, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 104,
-      "qualified_count": 4,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 105,
+      "qualified_count": 5,
       "last_scraped_date": "2026-10-07"
     },
     "Cary, NC": {
