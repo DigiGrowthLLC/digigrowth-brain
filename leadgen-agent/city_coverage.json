@@ -5103,10 +5103,10 @@
       "last_scraped_date": "2026-10-07"
     },
     "Cary, NC": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 140,
-      "qualified_count": 14,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 170,
+      "qualified_count": 15,
       "last_scraped_date": "2026-10-07"
     },
     "Aurora, IL": {
