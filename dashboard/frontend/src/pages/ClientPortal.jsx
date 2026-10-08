@@ -1088,87 +1088,17 @@ function VideosTab({ token }) {
 }
 
 // Websites/funnels built for this client (admin CRUD in routers/clients.py;
-// no dedicated admin UI yet) — the live link plus basic view/conversion
-// stats, read from content_view_events via client_portal.py's
-// portal_websites(). A "conversion" here means a REAL Calendly booking
-// (routers/calendly_webhooks.py's invitee.created handler inserts it,
-// only when this client has exactly one tracked website — see that
-// handler's docstring on the attribution limitation), not a page CTA
-// click — deliberately labeled "Booked Consultations" rather than the
-// more technical "conversions" since this reads to a client, not an
-// engineer. The *_from_meta counts are a genuine Meta (Facebook/
-// Instagram) attribution, not just "all traffic assumed to be ads" —
-// views are flagged client-side (fbclid param or a facebook.com/
-// instagram.com referrer, see the funnel page's tracking snippet) and
-// bookings are flagged via Calendly's tracking.utm_content echo, since
-// the booking itself completes on Calendly's own domain. WebsiteStatsEditor
-// below lets Dylan manually correct the top-line counts (is_test-client-
-// gated, see portal_set_website_stats()) — the Meta breakdown isn't
-// manually editable, it's always the real tracked numbers.
-function WebsiteStatsEditor({ token, site, onSaved }) {
-  const [editing, setEditing] = useState(false);
-  const [views, setViews] = useState(site.views);
-  const [conversions, setConversions] = useState(site.conversions);
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-
-  if (!editing) {
-    return (
-      <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setEditing(true)}>
-        EDIT STATS
-      </button>
-    );
-  }
-
-  const save = async () => {
-    setSaving(true);
-    setErr("");
-    try {
-      const r = await fetch(`/portal-api/${token}/websites/${site.id}/stats`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ views: Number(views) || 0, conversions: Number(conversions) || 0 }),
-      });
-      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || "Failed to save"); }
-      setEditing(false);
-      onSaved();
-    } catch (e) { setErr(e.message); }
-    setSaving(false);
-  };
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <label style={{ fontSize: 11, color: "#5a7aa0" }}>Views
-        <input type="number" min="0" className="dg-input" style={{ width: 80, marginLeft: 6, fontSize: 12 }}
-          value={views} onChange={(e) => setViews(e.target.value)} />
-      </label>
-      <label style={{ fontSize: 11, color: "#5a7aa0" }}>Booked Consultations
-        <input type="number" min="0" className="dg-input" style={{ width: 80, marginLeft: 6, fontSize: 12 }}
-          value={conversions} onChange={(e) => setConversions(e.target.value)} />
-      </label>
-      <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={save} disabled={saving}>
-        {saving ? "SAVING…" : "SAVE"}
-      </button>
-      <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setEditing(false)} disabled={saving}>
-        CANCEL
-      </button>
-      {err && <div style={{ fontSize: 10, color: "#e05c5c", width: "100%" }}>{err}</div>}
-    </div>
-  );
-}
-
+// no dedicated admin UI yet) — just the live link, no analytics.
 function WebsiteTab({ token }) {
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const loadSites = () => {
+  useEffect(() => {
     fetch(`/portal-api/${token}/websites`)
       .then((r) => r.json())
       .then((data) => { setSites(data); setLoading(false); })
       .catch(() => setLoading(false));
-  };
-
-  useEffect(loadSites, [token]);
+  }, [token]);
 
   if (loading) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (sites.length === 0) return (
@@ -1181,37 +1111,12 @@ function WebsiteTab({ token }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {sites.map((s) => (
         <div key={s.id} className="glass-card-sm">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
             <div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 16, color: "#d0e8ff" }}>{s.label}</div>
               <a href={s.url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: "#3a7bd5" }}>{s.url}</a>
             </div>
             <a href={s.url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 11 }}>VISIT SITE &#8599;</a>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12 }}>
-            <div className="stat-card">
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>TOTAL VIEWERS</div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#d0e8ff" }}>{s.views}</div>
-            </div>
-            <div className="stat-card">
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>BOOKED CONSULTATIONS</div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#4ade80" }}>{s.conversions}</div>
-            </div>
-            <div className="stat-card">
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>CONVERSION RATE</div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#d0e8ff" }}>{s.conversion_rate}%</div>
-            </div>
-            <div className="stat-card">
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>VIEWERS FROM META</div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#d0e8ff" }}>{s.views_from_meta}</div>
-            </div>
-            <div className="stat-card">
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em" }}>BOOKED FROM META</div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#4ade80" }}>{s.conversions_from_meta}</div>
-            </div>
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <WebsiteStatsEditor token={token} site={s} onSaved={loadSites} />
           </div>
         </div>
       ))}
