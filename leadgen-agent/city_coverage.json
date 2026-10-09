@@ -5138,11 +5138,11 @@
       "last_scraped_date": "2026-10-08"
     },
     "Santa Rosa, CA": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 105,
+      "qualified_count": 5,
+      "last_scraped_date": "2026-10-08"
     },
     "Rancho Cucamonga, CA": {
       "status": "not_started",
