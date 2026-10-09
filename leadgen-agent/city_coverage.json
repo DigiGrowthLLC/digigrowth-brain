@@ -5131,9 +5131,9 @@
       "last_scraped_date": "2026-10-07"
     },
     "Eugene, OR": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 113,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 149,
       "qualified_count": 15,
       "last_scraped_date": "2026-10-08"
     },
