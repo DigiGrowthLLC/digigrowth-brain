@@ -670,14 +670,23 @@ async def _send_initial_message(
 
 _FOLLOWUP_PREAMBLE_ADDITION = (
     "\nThe lead has NOT replied to your last text, and it's time for a follow-up nudge. Write ONE "
-    "short text that picks up exactly where this conversation left off:\n"
-    "- If they told you what's bothering them, refer to it in their own words (\"is the knee still "
-    "giving you trouble?\"). If they never said, make it easy to answer (\"is it your back, neck, knee "
-    "or something else?\").\n"
-    "- If you had offered specific times, mention those same times again and ask which works. You "
-    "can't book anything in this text, so never say they're booked.\n"
-    "- Never repeat wording you already used in this thread, never say \"just following up\" or "
-    "\"checking you got my message\", never invent urgency or scarcity, and never send a link.\n"
+    "short text that reads as the natural next beat after your previous unanswered text(s), the way "
+    "a real person would follow up, not a bot firing off questions:\n"
+    "- Never stack a NEW question on top of one they haven't answered. If your last text asked "
+    "something, either make that same ask easier or ask nothing and just leave the door open. If "
+    "your last text asked nothing, one soft new question is fine. For this nudge, this overrides "
+    "the rule about ending every reply with a question.\n"
+    "- Build on your previous nudge instead of restarting: don't re-introduce yourself, don't send "
+    "something that just restates your last nudge, and don't repeat wording already in this thread.\n"
+    "- The business's template below sets this nudge's purpose. Keep that purpose, but adapt it to "
+    "where the thread actually is (e.g. if they already said yes to the call, an angle about whether "
+    "the call is worth it no longer fits; offer to find a time instead).\n"
+    "- If they told you what's bothering them, refer to it in their own words (\"the knee\").\n"
+    "- Never mention specific days or times at all in a nudge (the ones you offered may be taken or "
+    "already past), and never say they're booked. Offer to find a time instead.\n"
+    "- Never say \"just following up\" or \"checking you got my message\", never invent urgency or "
+    "scarcity, never send a link, and never imply anything they tried before was wrong (no "
+    "\"differently\" or \"better than\").\n"
     "Reply with only the text itself, nothing else.\n"
 )
 
@@ -717,7 +726,10 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
         goal = (
             "This is the LAST follow-up: say you'll stop texting so you're not a pest, and end by asking "
             "if you should close this out for now."
-            if final else "End with exactly one easy question."
+            if final else (
+                "Use the template's specific angle (its actual point), not a generic check-in. "
+                "If it asks nothing, you ask nothing."
+            )
         )
         messages.append({"role": "user", "content": (
             f"[System note: the lead hasn't replied. Write the follow-up text now. {goal} "
