@@ -259,6 +259,15 @@ async def connect_client_calendly_webhook(client_id: int):
     return {"ok": True}
 
 
+@router.post("/clients/{client_id}/marketing-config/resync-calendly")
+async def resync_client_calendly(client_id: int):
+    """Imports upcoming bookings on the client's Calendly link that the
+    webhook never recorded. Safe to re-run: events already on file are
+    skipped. See calendly_webhooks.resync_client_bookings."""
+    from routers.calendly_webhooks import resync_client_bookings
+    return await resync_client_bookings(client_id)
+
+
 async def _connect_calendly_webhook(client_id: int) -> str | None:
     """Registers the client's Calendly webhook and records the outcome
     (calendly_webhook_uri/signing_key, or calendly_webhook_error). Returns

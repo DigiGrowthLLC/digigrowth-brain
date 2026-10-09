@@ -543,35 +543,93 @@ async def calendly_webhook_client(client_id: int, request: Request):
     if not token:
         raise HTTPException(400, "No Calendly token saved for this client")
 
-    # Symmetric guard to calendly_webhook_dylan above — this org-scoped
-    # subscription can equally receive a booking made on DYLAN's own event
-    # type (or another client sharing the org) if the client's Calendly
-    # account is on the same shared organization. Only process an event
-    # that's actually this client's own, or one of Dylan's own sales-
-    # pipeline prospects could get created as a "lead" inside this client's
-    # portal instead. Fails open if the host can't be determined.
-    host_uri = await _resolve_host_uri(body["payload"], token)
-    if host_uri:
-        client_user_uri = await calendly_integration.get_user_uri(token)
-        if host_uri != client_user_uri:
-            return {"ok": True}
-
-    # Only accept a booking made on the ONE Calendly link actually connected
-    # for this client (calendly_event_type_url, set from Marketing Setup's
-    # Response AI step) — a client's Calendly account can have other event
-    # types on it (other services they offer, personal/unrelated links) that
-    # this org-scoped subscription also delivers, and those must never
-    # create a "lead" here just because they share an account. Skips this
-    # check (accepts anything, old behavior) if no event type is configured
-    # yet, or if either side can't be resolved — fails open on ambiguity,
-    # closed only on a confirmed mismatch. Caught live 2026-09-17: Crosacore's
-    # existing-patient follow-up/treatment links (unrelated to the "Pain
-    # Confidence Consultation" lead-intake link) were feeding bookings in.
-    if config["calendly_event_type_url"]:
-        configured_uri = await calendly_integration.get_event_type_uri(token, config["calendly_event_type_url"])
-        incoming_uri = await _resolve_event_type_uri(body["payload"], token)
-        if configured_uri and incoming_uri and incoming_uri != configured_uri:
-            return {"ok": True}
+    if not await _is_client_booking(body["payload"], token, config["calendly_event_type_url"]):
+        return {"ok": True}
 
     await _handle_invitee_created(body["payload"], token, client_id=client_id)
     return {"ok": True}
+
+
+async def _is_client_booking(payload: dict, token: str, event_type_url: str | None) -> bool:
+    """Whether an org-scoped subscription's booking belongs to this client.
+
+    The ONE Calendly link connected for the client (calendly_event_type_url,
+    set from Marketing Setup's Response AI step) is the authority: a booking
+    on it is theirs whoever's calendar hosts it, and a booking on any other
+    event type isn't. Their account can have other links (existing-patient
+    follow-ups, personal links) that must never create a "lead" here. Caught
+    live 2026-09-17: Crosacore's follow-up/treatment links were feeding
+    bookings in.
+
+    Only when no link is configured, or either side can't be resolved, does
+    it fall back to comparing the host with the token's own user, so one of
+    Dylan's own sales-pipeline bookings (he's an admin on the client's org)
+    can't land in the client's portal. Never the host check when the link
+    matches: the client's token is often Dylan's admin token, so the host
+    (the client) never equals the token's user, and every real patient
+    booking was silently dropped until 2026-10-09 (Crosacore: 5 of 12 ad
+    leads booked, none recorded)."""
+    if event_type_url:
+        configured_uri = await calendly_integration.get_event_type_uri(token, event_type_url)
+        incoming_uri = await _resolve_event_type_uri(payload, token)
+        if configured_uri and incoming_uri:
+            return incoming_uri == configured_uri
+    host_uri = await _resolve_host_uri(payload, token)
+    if host_uri:
+        return host_uri == await calendly_integration.get_user_uri(token)
+    return True  # fail open, as before, rather than drop a real booking
+
+
+async def resync_client_bookings(client_id: int) -> dict:
+    """Imports this client's upcoming bookings on their connected Calendly
+    link that never made it in (e.g. dropped by the old host check). Runs
+    each through the same _handle_invitee_created as the webhook, skipping
+    any event already on file. If one person has several upcoming bookings,
+    only their most recently made one is imported (so they don't get
+    double reminders) and the rest are reported for the client to cancel."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        config = await conn.fetchrow(
+            "SELECT calendly_api_token, calendly_event_type_url FROM client_marketing_config WHERE client_id = $1",
+            client_id,
+        )
+        known = {r["calendly_event_uri"] for r in await conn.fetch(
+            "SELECT calendly_event_uri FROM appointment_reminders WHERE calendly_event_uri IS NOT NULL"
+        )}
+    if not config or not config["calendly_api_token"] or not config["calendly_event_type_url"]:
+        raise HTTPException(400, "Calendly token or booking link not configured for this client")
+    token = config["calendly_api_token"]
+    event_type_uri = await calendly_integration.get_event_type_uri(token, config["calendly_event_type_url"])
+    if not event_type_uri:
+        raise HTTPException(400, "Couldn't resolve the configured Calendly link")
+
+    headers = {"Authorization": f"Bearer {token}"}
+    bookings = []
+    async with httpx.AsyncClient(timeout=20) as http:
+        me = (await http.get("https://api.calendly.com/users/me", headers=headers)).json()["resource"]
+        url = "https://api.calendly.com/scheduled_events"
+        params = {"organization": me["current_organization"], "status": "active",
+                  "min_start_time": datetime.utcnow().isoformat() + "Z", "count": 100}
+        while url:
+            page = (await http.get(url, headers=headers, params=params)).json()
+            for event in page.get("collection", []):
+                if event["event_type"] != event_type_uri or event["uri"] in known:
+                    continue
+                invitees = (await http.get(event["uri"] + "/invitees", headers=headers)).json()
+                for inv in invitees.get("collection", []):
+                    if inv.get("status") == "active":
+                        bookings.append({**inv, "event": event["uri"], "scheduled_event": event})
+            url, params = page.get("pagination", {}).get("next_page"), None
+
+    latest: dict[str, dict] = {}
+    for b in sorted(bookings, key=lambda b: b["created_at"]):
+        latest[(b.get("email") or b.get("name") or b["uri"]).lower()] = b
+    imported, duplicates = [], []
+    for b in bookings:
+        key = (b.get("email") or b.get("name") or b["uri"]).lower()
+        if latest[key] is not b:
+            duplicates.append({"name": b.get("name"), "start": b["scheduled_event"]["start_time"]})
+            continue
+        await _handle_invitee_created(b, token, client_id=client_id)
+        imported.append({"name": b.get("name"), "start": b["scheduled_event"]["start_time"]})
+    return {"imported": imported, "skipped_duplicates": duplicates}
