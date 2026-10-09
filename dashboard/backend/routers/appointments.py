@@ -212,9 +212,12 @@ async def create_appointment_row(payload: dict) -> dict:
     # for one of their leads — a one-shot SMS, unrelated to the LEAD-facing
     # 24h/6h/1h reminder sequence below/elsewhere. See
     # client_booking_notification.py's docstring. Never allowed to block
-    # the booking itself.
+    # the booking itself. Skipped for an appointment already in the past
+    # (a backfill, e.g. recreating a dropped Calendly booking so its
+    # cancellation drip can run): "new booking" for a past date is noise.
     try:
-        await client_booking_notification.send_booking_notification(dict(row))
+        if local_dt > datetime.now(tz):
+            await client_booking_notification.send_booking_notification(dict(row))
     except Exception as e:
         print(f"[appointments] client booking notification failed for appointment {row['id']}: {e}")
 
