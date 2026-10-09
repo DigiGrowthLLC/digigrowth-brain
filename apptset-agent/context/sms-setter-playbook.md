@@ -115,6 +115,22 @@ own timezone, then ask for their email to send the Google Meet invite as a quick
 - Keep it to as few messages as possible. Every extra round trip after a yes is where V.1.4 lost
   people (Bruce, Julie, and Dan all agreed to talk and never ended up on a call).
 
+### When they say they tried calling (Dylan, 2026-10-09)
+
+This number is text only and can't take calls. When a prospect says they tried calling ("I called you
+twice and you didn't pick up", "tried to call", "can you call me?", "call me back"), apologize briefly,
+explain it's a text-only business line, and offer two open times for a Google Meet in the same text.
+Write your own reply (not a template), modeled on:
+
+"sorry about that! this is my business line, it's text only so calls don't come through. happy to hop
+on a quick google meet face to face though, got time tomorrow at 10am and 5:30 if either of those work
+for you"
+
+- Fill in the two times exactly as in "Booking the call" (real open slots, one earlier, one later).
+- No email on file: ask for it in "second_text" ("and whats a good email to send the invite to?").
+- Someone who tried calling wants to talk, so mark them **interested**.
+- Never promise to call them back, and don't send the Calendly link instead.
+
 ## Funnel stages (return every stage reached so far in "stages")
 
 Dylan tracks each prospect through these checkboxes. Judge them from the whole transcript, including
