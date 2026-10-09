@@ -56,7 +56,9 @@ Not ported: Dylan's dialer escalation (flip to 'dialer-lead' 24h after Touch
 stops a prospect by removing them from the queue instead.
 
 Templates support {first_name}, {business} (the client's name), and {link}
-(the client's Calendly booking link, blank if none is connected).
+(the client's Calendly booking link, blank if none is connected). When the
+client's response AI is on, each SMS touch is rewritten from the thread by
+response_ai.write_followup_text (template = its brief, and the fallback).
 """
 
 from datetime import datetime, timedelta, timezone as dt_timezone
@@ -168,9 +170,16 @@ async def _send_touch(row: dict, touch_num: int, sms_step: dict | None, email_st
     skips the email)."""
     import client_email
     import client_sms
+    import response_ai
 
     text = _fill((sms_step or {}).get("body"), row)
     if text.strip():
+        # With the client's response AI on, the agent rewrites the touch from
+        # the thread itself (the lead's pain, the times already offered);
+        # the template is the brief and the fallback.
+        text = await response_ai.write_followup_text(
+            row["client_id"], row["phone"], text, final=touch_num == len(_TOUCHES),
+        ) or text
         try:
             await client_sms.send_client_sms(row["client_id"], row["phone"], text, stage=f"{SEQUENCE_KEY}_touch{touch_num}")
         except Exception as e:

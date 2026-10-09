@@ -291,9 +291,15 @@ def _split_into_sms_segments(text: str, max_words: int | None) -> list[str]:
     Breaks at sentence boundaries so each segment reads naturally on its
     own; only hard-splits mid-sentence as a last resort, if one sentence by
     itself is longer than the whole limit. Segments are sent in order as
-    separate texts (see handle_inbound_sms)."""
+    separate texts (see handle_inbound_sms). A line break the model wrote
+    is always a text boundary — the conversation arc asks for some replies
+    as two texts (an empathy line, then the call offer)."""
     if not max_words:
         return [text]
+
+    lines = [line for line in text.strip().split("\n") if line.strip()]
+    if len(lines) > 1:
+        return [seg for line in lines for seg in _split_into_sms_segments(line, max_words)]
 
     sentences = re.split(r"(?<=[.!?])\s+", text.strip())
     segments: list[str] = []
@@ -660,6 +666,79 @@ async def _send_initial_message(
     except Exception as e:
         print(f"[response_ai] _send_initial_message failed for client={client_id} phone={phone}: {e}")
         return "failed"
+
+
+_FOLLOWUP_PREAMBLE_ADDITION = (
+    "\nThe lead has NOT replied to your last text, and it's time for a follow-up nudge. Write ONE "
+    "short text that picks up exactly where this conversation left off:\n"
+    "- If they told you what's bothering them, refer to it in their own words (\"is the knee still "
+    "giving you trouble?\"). If they never said, make it easy to answer (\"is it your back, neck, knee "
+    "or something else?\").\n"
+    "- If you had offered specific times, mention those same times again and ask which works. You "
+    "can't book anything in this text, so never say they're booked.\n"
+    "- Never repeat wording you already used in this thread, never say \"just following up\" or "
+    "\"checking you got my message\", never invent urgency or scarcity, and never send a link.\n"
+    "Reply with only the text itself, nothing else.\n"
+)
+
+
+async def write_followup_text(client_id: int, phone: str, intent: str, final: bool = False) -> str | None:
+    """A no-reply follow-up written from the actual thread, for
+    client_followup_sequence.py — so the nudge mentions the lead's own pain or
+    the times they were offered instead of a generic template. `intent` is
+    the client's template for this touch (filled), used as the brief.
+    Returns None whenever it can't produce a usable text (agent off, no
+    thread, API error, runaway length) so the caller sends the template
+    unchanged. No tools: a nudge never books or tags anything."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT cmc.response_ai_enabled, cmc.response_ai_context, cmc.response_ai_sequence, "
+                "cmc.response_ai_max_words, cmc.response_ai_rules, c.name FROM client_marketing_config cmc "
+                "JOIN clients c ON c.id = cmc.client_id WHERE cmc.client_id = $1",
+                client_id,
+            )
+            if not row or not row["response_ai_enabled"]:
+                return None
+            messages = await _load_recent_messages(conn, client_id, phone)
+        if not messages:
+            return None
+
+        sequence = row["response_ai_sequence"]
+        if isinstance(sequence, str):
+            sequence = json.loads(sequence)
+        max_words = row["response_ai_max_words"]
+
+        system_prompt = _build_system_prompt(
+            row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
+            _today_str(guess_timezone(phone)),
+        ) + _FOLLOWUP_PREAMBLE_ADDITION
+        goal = (
+            "This is the LAST follow-up: say you'll stop texting so you're not a pest, and end by asking "
+            "if you should close this out for now."
+            if final else "End with exactly one easy question."
+        )
+        messages.append({"role": "user", "content": (
+            f"[System note: the lead hasn't replied. Write the follow-up text now. {goal} "
+            f"The business's template for this follow-up, as a guide to its purpose: \"{intent}\"]"
+        )})
+
+        api_client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-5")
+        response = await asyncio.to_thread(
+            api_client.messages.create,
+            model=model, max_tokens=300, system=system_prompt, messages=messages,
+        )
+        text = gsm7_safe("".join(b.text for b in response.content if b.type == "text").strip())
+        # One nudge is one text: a reply far past the word cap means the
+        # model went off-script, so fall back to the template.
+        if not text or (max_words and len(text.split()) > max_words + 10):
+            return None
+        return text
+    except Exception as e:
+        print(f"[response_ai] write_followup_text failed for client={client_id} phone={phone}: {e}")
+        return None
 
 
 async def _run_agent_turn(client_id: int, from_phone: str, system_prompt: str, messages: list[dict]) -> str | None:
