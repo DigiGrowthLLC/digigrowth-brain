@@ -5222,11 +5222,11 @@
       "last_scraped_date": "2026-10-08"
     },
     "Palmdale, CA": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 51,
       "qualified_count": 0,
-      "last_scraped_date": null
+      "last_scraped_date": "2026-10-08"
     },
     "Corona, CA": {
       "status": "not_started",
