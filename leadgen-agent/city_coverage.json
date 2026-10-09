@@ -5167,9 +5167,9 @@
     },
     "Oceanside, CA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 108,
-      "qualified_count": 16,
+      "term_index": 2,
+      "reviewed_count": 131,
+      "qualified_count": 17,
       "last_scraped_date": "2026-10-08"
     },
     "Fort Collins, CO": {
