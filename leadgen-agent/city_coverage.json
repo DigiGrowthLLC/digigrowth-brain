@@ -5201,9 +5201,9 @@
       "last_scraped_date": "2026-10-08"
     },
     "Lancaster, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 125,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 129,
       "qualified_count": 4,
       "last_scraped_date": "2026-10-08"
     },
