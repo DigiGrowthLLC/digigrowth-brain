@@ -1138,6 +1138,16 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
             draft["rationale"], model, current_inbound,
         )
 
+    # An opt-out is settled the moment it's drafted: apply_stages already
+    # marked them Not Interested and pulled them from DM Follow-Up, and
+    # Twilio refuses texts to a number that sent STOP (which used to fail
+    # the auto-send and leave Dylan a to-do). Nothing to send, nothing to do.
+    if draft["action"] == "opt_out":
+        await conn.execute(
+            "UPDATE sms_ai_drafts SET status = 'dismissed', decided_at = now() WHERE id = $1", row["id"],
+        )
+        return {"ok": True, "draft_id": row["id"], "auto": "opted out: removed from sequences, no text sent"}
+
     await task_todos(conn)
 
     outcome = None

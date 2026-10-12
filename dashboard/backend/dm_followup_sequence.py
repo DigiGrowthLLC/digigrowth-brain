@@ -270,7 +270,7 @@ async def _setter_judgment(conn, phone: str, last_inbound_at) -> str | None:
     return await conn.fetchval(
         """
         SELECT action FROM sms_ai_drafts
-        WHERE phone = $1 AND last_inbound_at >= $2 - interval '1 second'
+        WHERE phone = $1 AND last_inbound_at >= $2::timestamptz - interval '1 second'
         ORDER BY created_at DESC LIMIT 1
         """,
         phone, last_inbound_at,
