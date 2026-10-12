@@ -5236,10 +5236,10 @@
       "last_scraped_date": "2026-10-08"
     },
     "Salinas, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 144,
-      "qualified_count": 14,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 186,
+      "qualified_count": 18,
       "last_scraped_date": "2026-10-12"
     },
     "Killeen, TX": {
