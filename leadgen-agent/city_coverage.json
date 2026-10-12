@@ -5250,10 +5250,10 @@
       "last_scraped_date": "2026-10-12"
     },
     "Paterson, NJ": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 94,
-      "qualified_count": 9,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 132,
+      "qualified_count": 13,
       "last_scraped_date": "2026-10-12"
     },
     "Alexandria, VA": {
