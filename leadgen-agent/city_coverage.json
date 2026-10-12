@@ -5285,10 +5285,10 @@
       "last_scraped_date": "2026-10-12"
     },
     "Sunnyvale, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 147,
-      "qualified_count": 11,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 160,
+      "qualified_count": 12,
       "last_scraped_date": "2026-10-12"
     },
     "Ramapo, NY": {
