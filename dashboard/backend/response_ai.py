@@ -167,6 +167,15 @@ _TOOLS = [
             "type": "object",
             "properties": {
                 "reason": {"type": "string"},
+                "urgent": {
+                    "type": "boolean",
+                    "description": (
+                        "true ONLY when it can't wait for someone to check the inbox: concerning symptoms "
+                        "(new weakness or numbness, significant trauma, rapidly worsening pain, signs of a "
+                        "medical emergency) or an angry complaint. Pricing, insurance, frustration, or "
+                        "questions you can't answer are never urgent."
+                    ),
+                },
             },
             "required": ["reason"],
         },
@@ -261,36 +270,52 @@ async def _apply_pending_unqualified(client_id: int, phone: str) -> None:
 
 
 # escalate_to_human used to be a dead end: the thread went silent and nobody
-# was told (a CrosaCore lead waited 22h for a human, 2026-10-10). The owner
-# now gets a text on the business's own forwarding number, sent after the
-# turn's reply so the thread they open is complete. Keyed like
-# _pending_unqualified.
-_pending_escalation_alerts: dict[tuple[int, str], str] = {}
+# was told (a CrosaCore lead waited 22h for a human, 2026-10-10). Every
+# escalation now puts a to-do on Dylan's OS To-Do list (and shows as "AI
+# paused" in the client's portal inbox). The business owner is only TEXTED
+# when the agent marks it urgent: Dylan's rule (2026-10-12) is not to text
+# clients unless absolutely necessary. Sent after the turn's reply so the
+# thread is complete. Keyed like _pending_unqualified; value is (reason, urgent).
+_pending_escalation_alerts: dict[tuple[int, str], tuple[str, bool]] = {}
 
 
 async def _send_pending_escalation_alert(client_id: int, phone: str) -> None:
-    reason = _pending_escalation_alerts.pop((client_id, phone), None)
-    if reason is None:
+    pending = _pending_escalation_alerts.pop((client_id, phone), None)
+    if pending is None:
         return
+    reason, urgent = pending
     try:
         pool = await get_pool()
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 r"""
-                SELECT cmc.call_forward_number,
+                SELECT cmc.call_forward_number, cl.name AS client_name,
                        (SELECT c.owner FROM contacts c WHERE c.client_id = $1 AND NOT c.is_client_anchor
                           AND coalesce(c.phone, '') != ''
                           AND right(regexp_replace(c.phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
                         LIMIT 1) AS owner
-                FROM client_marketing_config cmc WHERE cmc.client_id = $1
+                FROM client_marketing_config cmc JOIN clients cl ON cl.id = cmc.client_id
+                WHERE cmc.client_id = $1
                 """,
                 client_id, phone,
             )
+            who = ((row["owner"] if row else None) or "").strip() or phone
+            text = f"{row['client_name'] if row else 'Client'} lead needs a human: {who}"
+            if not await conn.fetchval("SELECT 1 FROM todos WHERE NOT done AND text = $1", text):
+                await conn.execute(
+                    "INSERT INTO todos (text, description, due_date) VALUES ($1, $2, $3)",
+                    text,
+                    f"{reason}\n\n{phone} · the AI has paused on this thread. Reply from the client's portal "
+                    "inbox, then click HAND BACK TO AI there if the agent should take over again."
+                    + ("\n\nMarked URGENT: the business owner was texted too." if urgent else ""),
+                    datetime.now(ZoneInfo("America/New_York")).date(),
+                )
+        if not urgent:
+            return
         forward = (row["call_forward_number"] or "").strip() if row else ""
         if not forward:
-            print(f"[response_ai] escalation for {phone} (client={client_id}) has no call_forward_number to alert")
+            print(f"[response_ai] urgent escalation for {phone} (client={client_id}) has no call_forward_number to alert")
             return
-        who = (row["owner"] or "").strip() or phone
         await client_sms.send_client_sms(
             client_id, forward,
             f"Your AI assistant needs you: {who} ({phone}). {reason[:200]} "
@@ -631,7 +656,7 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
                     "escalation_reason = $2, ai_handled_at = now() WHERE id = $1",
                     conversation["id"], reason,
                 )
-                _pending_escalation_alerts[(client_id, from_phone)] = reason
+                _pending_escalation_alerts[(client_id, from_phone)] = (reason, False)
                 cap_hit = True
 
             if not cap_hit:
@@ -1196,11 +1221,11 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 client_id, from_phone, reason,
             )
         # Queued, not sent here: the alert goes out after this turn's reply,
-        # so the business owner sees the lead's thread as it actually stands.
-        _pending_escalation_alerts[(client_id, from_phone)] = reason
-        return ("Escalated: the business owner is being texted about this thread right now, and you won't "
-                "reply here again until they hand it back. Tell the lead, in one short line with no "
-                "question, that the owner or their team will reach out to them directly.")
+        # so whoever picks it up sees the lead's thread as it actually stands.
+        _pending_escalation_alerts[(client_id, from_phone)] = (reason, bool(tool_input.get("urgent")))
+        return ("Escalated: the team has been flagged on this thread, and you won't reply here again until "
+                "they hand it back. Tell the lead, in one short line with no question, that the team will "
+                "follow up with them directly.")
 
     if tool_name == "mark_unqualified":
         _pending_unqualified[(client_id, from_phone)] = (tool_input.get("reason") or "").strip() or "Not a fit"
