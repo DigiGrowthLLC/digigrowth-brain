@@ -5279,9 +5279,9 @@
     },
     "Lakewood, CO": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 110,
-      "qualified_count": 5,
+      "term_index": 2,
+      "reviewed_count": 136,
+      "qualified_count": 7,
       "last_scraped_date": "2026-10-12"
     },
     "Sunnyvale, CA": {
