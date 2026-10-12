@@ -1518,6 +1518,17 @@ async def portal_inbox_thread(token: str, contact_id: str):
             "UPDATE contacts SET client_channel_last_read_at = now() WHERE id = $1",
             contact_id,
         )
+        ai = None
+        if contact["phone"]:
+            ai = await conn.fetchrow(
+                r"""
+                SELECT status, escalation_reason, escalated_at FROM client_lead_conversations
+                WHERE client_id = $1
+                  AND right(regexp_replace(phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                ORDER BY last_message_at DESC NULLS LAST LIMIT 1
+                """,
+                client["id"], contact["phone"],
+            )
 
     messages = (
         [{"channel": "sms", "direction": m["direction"], "body": m["body"], "subject": None, "sent_at": m["sent_at"]} for m in sms_msgs]
@@ -1525,7 +1536,32 @@ async def portal_inbox_thread(token: str, contact_id: str):
     )
     messages.sort(key=lambda m: m["sent_at"])
 
-    return {"contact": dict(contact), "messages": messages}
+    return {"contact": dict(contact), "messages": messages, "ai": dict(ai) if ai else None}
+
+
+@router.post("/{token}/inbox/{contact_id}/resume-ai")
+async def portal_resume_ai(token: str, contact_id: str):
+    """Hands a thread the response AI escalated (or closed) back to it: it
+    answers the lead's next text again and follow-ups resume."""
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        contact = await conn.fetchrow(
+            "SELECT phone FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
+            contact_id, client["id"],
+        )
+        if not contact or not (contact["phone"] or "").strip():
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        await conn.execute(
+            r"""
+            UPDATE client_lead_conversations SET status = 'ai_active', escalation_reason = NULL, escalated_at = NULL
+            WHERE client_id = $1 AND status IN ('escalated', 'closed')
+              AND right(regexp_replace(phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+            """,
+            client["id"], contact["phone"],
+        )
+    await client_followup_sequence.maybe_enroll(client["id"], contact["phone"])
+    return {"ok": True}
 
 
 @router.post("/{token}/inbox/{contact_id}/send")

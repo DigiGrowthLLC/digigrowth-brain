@@ -2755,6 +2755,30 @@ function InboxThread({ token, contactId, onSent }) {
         </div>
       </div>
 
+      {thread.ai && ["escalated", "closed"].includes(thread.ai.status) && (
+        <div style={{
+          padding: "10px 18px", borderBottom: "1px solid rgba(240,160,40,0.25)", background: "rgba(240,160,40,0.08)",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+        }}>
+          <div style={{ fontSize: 12, color: "#f0c070", lineHeight: 1.5 }}>
+            {thread.ai.status === "escalated"
+              ? <>AI paused, this lead needs you{thread.ai.escalation_reason ? `: ${thread.ai.escalation_reason}` : "."}</>
+              : <>AI closed this conversation. It reopens if they text again.</>}
+          </div>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: 10, whiteSpace: "nowrap" }}
+            onClick={async () => {
+              const r = await fetch(`/portal-api/${token}/inbox/${contactId}/resume-ai`, { method: "POST" });
+              if (r.ok) refreshSilently();
+              else setNotice("Couldn't hand it back, try again.");
+            }}
+          >
+            HAND BACK TO AI
+          </button>
+        </div>
+      )}
+
       {/* minHeight: 0 is load-bearing here — a flex child defaults to
           min-height: auto, so without it this div grows to fit every
           message instead of respecting flex:1, pushing the parent past

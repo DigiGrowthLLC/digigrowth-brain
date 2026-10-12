@@ -107,6 +107,14 @@ need something the business doesn't offer, or fail a requirement in the business
 (e.g. they say they'll only go somewhere that bills their insurance) — call mark_unqualified with the \
 reason and send one short, polite closing text. Only do this on a clear answer from the lead, never on \
 a guess or a first hesitation, and never for a price question alone.
+- If the lead says they're not interested, already found care, or asks you to stop, call \
+close_conversation and send one short, kind closing text with no question and no pitch.
+- If the message is an automated reply rather than a person (an auto-responder, "Thanks for texting \
+X, we'll get back to you", a carrier or voicemail notice), don't reply at all: write no text.
+- If the lead asks you to reach back out later ("text me Thursday", "I'm driving"), call \
+schedule_followup with the time they gave (or tomorrow if they gave none) and reply with one short line.
+- Answer the lead's actual question first, every time, before steering back to booking. Never send the \
+same line twice in one conversation; if they ask again, answer shorter and in new words.
 """
 
 _TOOLS = [
@@ -178,6 +186,39 @@ _TOOLS = [
             "required": ["reason"],
         },
     },
+    {
+        "name": "close_conversation",
+        "description": (
+            "Close this conversation when the lead says they're not interested, already found care, or "
+            "asks you to stop texting. Send one short, kind closing text in this same turn. After that "
+            "they get no automated follow-ups. If they text again later, the conversation reopens."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "reason": {"type": "string", "description": "Short reason, e.g. 'Not interested right now'."},
+            },
+            "required": ["reason"],
+        },
+    },
+    {
+        "name": "schedule_followup",
+        "description": (
+            "When the lead asks you to reach back out later (\"text me Thursday\", \"after the 20th\", "
+            "\"I'm driving, try me tonight\"), schedule that check-in. Automated follow-ups pause until "
+            "then, and a check-in written from this thread goes out at that time. Reply with one short "
+            "line that doesn't promise a time they didn't give."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD in the lead's local time. 'Next week' = Monday of next week."},
+                "time": {"type": "string", "description": "HH:MM 24h in the lead's local time, if they named one. Omit for 10:00."},
+                "note": {"type": "string", "description": "What to pick back up, e.g. 'was driving, wanted to talk about the knee'."},
+            },
+            "required": ["date"],
+        },
+    },
 ]
 
 # mark_unqualified is applied only AFTER that turn's reply has been sent,
@@ -217,6 +258,57 @@ async def _apply_pending_unqualified(client_id: int, phone: str) -> None:
         print(f"[response_ai] {phone} (client={client_id}) marked Unqualified: {reason}")
     except Exception as e:
         print(f"[response_ai] failed to mark {phone} (client={client_id}) Unqualified: {e}")
+
+
+# escalate_to_human used to be a dead end: the thread went silent and nobody
+# was told (a CrosaCore lead waited 22h for a human, 2026-10-10). The owner
+# now gets a text on the business's own forwarding number, sent after the
+# turn's reply so the thread they open is complete. Keyed like
+# _pending_unqualified.
+_pending_escalation_alerts: dict[tuple[int, str], str] = {}
+
+
+async def _send_pending_escalation_alert(client_id: int, phone: str) -> None:
+    reason = _pending_escalation_alerts.pop((client_id, phone), None)
+    if reason is None:
+        return
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                r"""
+                SELECT cmc.call_forward_number,
+                       (SELECT c.owner FROM contacts c WHERE c.client_id = $1 AND NOT c.is_client_anchor
+                          AND coalesce(c.phone, '') != ''
+                          AND right(regexp_replace(c.phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                        LIMIT 1) AS owner
+                FROM client_marketing_config cmc WHERE cmc.client_id = $1
+                """,
+                client_id, phone,
+            )
+        forward = (row["call_forward_number"] or "").strip() if row else ""
+        if not forward:
+            print(f"[response_ai] escalation for {phone} (client={client_id}) has no call_forward_number to alert")
+            return
+        who = (row["owner"] or "").strip() or phone
+        await client_sms.send_client_sms(
+            client_id, forward,
+            f"Your AI assistant needs you: {who} ({phone}). {reason[:200]} "
+            "The AI has paused on this thread. Reply to them from your portal inbox.",
+            stage="escalation_alert",
+        )
+    except Exception as e:
+        print(f"[response_ai] escalation alert failed for {phone} (client={client_id}): {e}")
+
+
+async def _active_lessons(conn, client_id: int) -> list[str]:
+    """Lessons Dylan approved from human replies (client_ai_lessons.py)."""
+    rows = await conn.fetch(
+        "SELECT lesson FROM client_ai_lessons WHERE client_id = $1 AND status = 'active' "
+        "AND coalesce(lesson, '') != '' ORDER BY id",
+        client_id,
+    )
+    return [r["lesson"] for r in rows]
 
 
 async def _get_or_create_conversation(conn, client_id: int, phone: str) -> dict:
@@ -336,7 +428,7 @@ def _today_str(tz_name: str) -> str:
 
 def _build_system_prompt(
     business_name: str, context: str, sequence: list[str], max_words: int | None, rules: str,
-    today_str: str, booked_for: str | None = None,
+    today_str: str, booked_for: str | None = None, lessons: list[str] | None = None,
 ) -> str:
     # Order matters here: business context and the conversation arc come
     # first (background the model reasons with), and the mandatory rules
@@ -376,6 +468,16 @@ def _build_system_prompt(
             "questions, and help them show up prepared.\n"
         )
 
+    if lessons:
+        # Approved lessons from the humans who texted this business's leads
+        # by hand (client_ai_lessons.py). Before the mandatory rules, which
+        # still win on any conflict.
+        parts.append(
+            "\n--- Lessons learned from the business's own replies ---\n"
+            "The owner answered leads like these by hand. Handle the same situations the same way:\n"
+            + "\n".join(f"- {lesson}" for lesson in lessons) + "\n"
+        )
+
     if max_words or (rules and rules.strip()):
         parts.append(
             "\n=== MANDATORY RULES ===\n"
@@ -388,6 +490,60 @@ def _build_system_prompt(
             parts.append(f"{rules.strip()}\n")
 
     return "".join(parts)
+
+
+# Per thread, per 24h. A real lead conversation never gets near this; a lead
+# number that auto-replies would otherwise loop with the agent forever.
+_MAX_AI_TEXTS_PER_DAY = 20
+
+
+async def _mark_handled(conn, conversation_id: int) -> None:
+    await conn.execute("UPDATE client_lead_conversations SET ai_handled_at = now() WHERE id = $1", conversation_id)
+
+
+def _ago(delta: timedelta) -> str:
+    hours = delta.total_seconds() / 3600
+    if hours < 1.5:
+        return "an hour"
+    if hours < 36:
+        return f"{round(hours)} hours"
+    return f"{round(hours / 24)} days"
+
+
+async def retry_unanswered() -> None:
+    """Scheduled from main.py. Answers lead texts the agent never got to:
+    the API was down or out of credit (2026-10-12), a crash, or a redeploy
+    that dropped the delayed reply job. Anything newer than the
+    conversation's ai_handled_at with no outbound text after it, at least 5
+    minutes old (so the normal delayed reply has had its chance) and under
+    48 hours old. Waits for morning in the lead's timezone instead of
+    texting at night."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            r"""
+            SELECT DISTINCT ON (clc.id) clc.client_id, clc.phone, m.body
+            FROM client_lead_conversations clc
+            JOIN client_marketing_config cmc ON cmc.client_id = clc.client_id AND cmc.response_ai_enabled
+            JOIN client_sms_messages m ON m.client_id = clc.client_id AND m.direction = 'inbound'
+             AND right(regexp_replace(m.from_number, '\D', '', 'g'), 10) = right(regexp_replace(clc.phone, '\D', '', 'g'), 10)
+            WHERE clc.status <> 'escalated'
+              AND m.created_at > now() - interval '48 hours' AND m.created_at < now() - interval '5 minutes'
+              AND m.created_at > coalesce(clc.ai_handled_at, '-infinity'::timestamptz)
+              AND NOT EXISTS (
+                  SELECT 1 FROM client_sms_messages o
+                  WHERE o.client_id = clc.client_id AND o.direction = 'outbound' AND o.created_at > m.created_at
+                    AND right(regexp_replace(o.to_number, '\D', '', 'g'), 10) = right(regexp_replace(clc.phone, '\D', '', 'g'), 10)
+              )
+            ORDER BY clc.id, m.created_at DESC
+            LIMIT 10
+            """
+        )
+    for r in rows:
+        if lead_flags.in_quiet_hours(guess_timezone(r["phone"]), datetime.now(timezone.utc)):
+            continue
+        print(f"[response_ai] retrying unanswered text from {r['phone']} (client={r['client_id']})")
+        await handle_inbound_sms(r["client_id"], r["phone"], r["body"])
 
 
 async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None:
@@ -411,6 +567,7 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
             if not row:
                 return
 
+            cap_hit = False
             conversation = await _get_or_create_conversation(conn, client_id, from_phone)
             # Every inbound lead needs a contacts row to show up in the
             # client portal's inbox at all (it lists threads by contact,
@@ -421,16 +578,69 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
             # was actively replying. Create it up front instead, for every
             # message, not just a booked one.
             contact = await _get_or_create_contact(conn, client_id, from_phone)
+            latest = await conn.fetchrow(
+                r"""
+                SELECT body, created_at FROM client_sms_messages
+                WHERE client_id = $1 AND direction = 'inbound'
+                  AND right(regexp_replace(from_number, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                client_id, from_phone,
+            )
+            if latest and latest["body"] != body:
+                # A newer text from them landed during the reply delay; its
+                # own job answers the whole burst, so one reply, not two.
+                return
+            if contact:
+                # They texted back, so a check-in they asked for earlier is
+                # moot (schedule_followup can set a new one this turn).
+                await conn.execute(
+                    "UPDATE contacts SET client_followup_snooze_until = NULL, client_followup_snooze_note = NULL "
+                    "WHERE id = $1 AND client_followup_snooze_until IS NOT NULL",
+                    contact["id"],
+                )
             if conversation["status"] == "escalated":
+                await _mark_handled(conn, conversation["id"])
                 return  # a human has taken over this thread — stay silent
+            if conversation["status"] == "closed":
+                # They closed it out earlier but texted again: they're back.
+                await conn.execute(
+                    "UPDATE client_lead_conversations SET status = 'ai_active' WHERE id = $1", conversation["id"],
+                )
             if await lead_flags.is_unqualified(client_id, phone=from_phone):
                 # Tagged Unqualified — no automated replies (the client can
                 # still reply by hand). Checks the tag, not the 'unqualified'
                 # conversation status, so removing the tag re-enables the AI.
+                await _mark_handled(conn, conversation["id"])
                 return
+            sent_today = await conn.fetchval(
+                r"""
+                SELECT count(*) FROM client_sms_messages
+                WHERE client_id = $1 AND direction = 'outbound' AND stage = 'ai_reply'
+                  AND created_at > now() - interval '24 hours'
+                  AND right(regexp_replace(to_number, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                """,
+                client_id, from_phone,
+            )
+            if sent_today >= _MAX_AI_TEXTS_PER_DAY:
+                # Almost always another bot's auto-replies ping-ponging with
+                # ours; a human takes it from here.
+                reason = f"The AI hit its limit of {_MAX_AI_TEXTS_PER_DAY} texts in 24h on this thread, so it paused."
+                await conn.execute(
+                    "UPDATE client_lead_conversations SET status = 'escalated', escalated_at = now(), "
+                    "escalation_reason = $2, ai_handled_at = now() WHERE id = $1",
+                    conversation["id"], reason,
+                )
+                _pending_escalation_alerts[(client_id, from_phone)] = reason
+                cap_hit = True
 
-            messages = await _load_recent_messages(conn, client_id, from_phone)
-            booking = await _upcoming_booking(conn, from_phone, (contact or {}).get("email"))
+            if not cap_hit:
+                messages = await _load_recent_messages(conn, client_id, from_phone)
+                booking = await _upcoming_booking(conn, from_phone, (contact or {}).get("email"))
+                lessons = await _active_lessons(conn, client_id)
+        if cap_hit:
+            await _send_pending_escalation_alert(client_id, from_phone)
+            return
 
         # asyncpg has no JSONB codec registered on this pool (matches
         # client_marketing.py's _decode_config) — comes back as a raw string.
@@ -444,8 +654,16 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
-            today_str, booked_for=_format_booking(booking) if booking else None,
+            today_str, booked_for=_format_booking(booking) if booking else None, lessons=lessons,
         )
+        waited = datetime.now(timezone.utc) - latest["created_at"] if latest else timedelta(0)
+        if waited > timedelta(minutes=60):
+            # Answering late (picked up by retry_unanswered after an outage).
+            system_prompt += (
+                f"\nYour reply is late: their last text came in about {_ago(waited)} ago and went unanswered. "
+                "Open with a short, plain \"sorry for the slow reply\" (once, no excuses), then answer what they "
+                "said. If any times you offered earlier may have passed, check availability again.\n"
+            )
         reply_text = await _run_agent_turn(client_id, from_phone, system_prompt, messages)
         if reply_text:
             # Belt-and-suspenders, same as the word-count cap below: a "no
@@ -477,8 +695,11 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
                     # an edge case, but worth knowing about if Twilio ever
                     # times out a reply on such a client.
                     await asyncio.sleep(10)
-                await client_sms.send_client_sms(client_id, from_phone, segment)
+                await client_sms.send_client_sms(client_id, from_phone, segment, stage="ai_reply")
         await _apply_pending_unqualified(client_id, from_phone)
+        await _send_pending_escalation_alert(client_id, from_phone)
+        async with pool.acquire() as conn:
+            await _mark_handled(conn, conversation["id"])
     except Exception as e:
         print(f"[response_ai] handle_inbound_sms failed for client={client_id} phone={from_phone}: {e}")
 
@@ -687,15 +908,22 @@ _FOLLOWUP_PREAMBLE_ADDITION = (
     "- Never say \"just following up\" or \"checking you got my message\", never invent urgency or "
     "scarcity, never send a link, and never imply anything they tried before was wrong (no "
     "\"differently\" or \"better than\").\n"
+    "- First work out where the thread is. If they already said yes to the call or were offered "
+    "times, this nudge's only job is getting a time locked in (e.g. \"want me to grab you a time for "
+    "that call?\"): never re-pitch whether the call is "
+    "worth it, whatever the template says. If they asked a question you answered, pick that back up.\n"
     "Reply with only the text itself, nothing else.\n"
 )
 
 
-async def write_followup_text(client_id: int, phone: str, intent: str, final: bool = False) -> str | None:
+async def write_followup_text(client_id: int, phone: str, intent: str, final: bool = False,
+                              checkin_note: str | None = None) -> str | None:
     """A no-reply follow-up written from the actual thread, for
     client_followup_sequence.py — so the nudge mentions the lead's own pain or
     the times they were offered instead of a generic template. `intent` is
     the client's template for this touch (filled), used as the brief.
+    `checkin_note` makes it the check-in the lead asked for (schedule_followup)
+    instead of a no-reply nudge.
     Returns None whenever it can't produce a usable text (agent off, no
     thread, API error, runaway length) so the caller sends the template
     unchanged. No tools: a nudge never books or tags anything."""
@@ -711,6 +939,7 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
             if not row or not row["response_ai_enabled"]:
                 return None
             messages = await _load_recent_messages(conn, client_id, phone)
+            lessons = await _active_lessons(conn, client_id)
         if not messages:
             return None
 
@@ -721,8 +950,16 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
-            _today_str(guess_timezone(phone)),
+            _today_str(guess_timezone(phone)), lessons=lessons,
         ) + _FOLLOWUP_PREAMBLE_ADDITION
+        if checkin_note is not None:
+            messages.append({"role": "user", "content": (
+                "[System note: the lead asked you to reach back out around now"
+                + (f" ({checkin_note})" if checkin_note else "")
+                + ". Write that check-in: pick up where the thread left off, in one short text, and ask "
+                "the next natural thing (usually whether they'd like you to find them a time for the call).]"
+            )})
+            return await _complete_followup(system_prompt, messages, max_words)
         goal = (
             "This is the LAST follow-up: say you'll stop texting so you're not a pest, and end by asking "
             "if you should close this out for now."
@@ -735,7 +972,16 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
             f"[System note: the lead hasn't replied. Write the follow-up text now. {goal} "
             f"The business's template for this follow-up, as a guide to its purpose: \"{intent}\"]"
         )})
+        return await _complete_followup(system_prompt, messages, max_words)
+    except Exception as e:
+        print(f"[response_ai] write_followup_text failed for client={client_id} phone={phone}: {e}")
+        return None
 
+
+async def _complete_followup(system_prompt: str, messages: list[dict], max_words: int | None) -> str | None:
+    """The model call behind write_followup_text. None on any failure, so
+    the caller falls back to the template."""
+    try:
         api_client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
         model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-5")
         response = await asyncio.to_thread(
@@ -749,7 +995,7 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
             return None
         return text
     except Exception as e:
-        print(f"[response_ai] write_followup_text failed for client={client_id} phone={phone}: {e}")
+        print(f"[response_ai] follow-up completion failed: {e}")
         return None
 
 
@@ -942,16 +1188,54 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             return f"Booking failed: {e}"
 
     if tool_name == "escalate_to_human":
+        reason = (tool_input.get("reason") or "").strip() or "Needs a human"
         async with pool.acquire() as conn:
             await conn.execute(
-                "UPDATE client_lead_conversations SET status = 'escalated' WHERE client_id = $1 AND phone = $2",
-                client_id, from_phone,
+                "UPDATE client_lead_conversations SET status = 'escalated', escalation_reason = $3, "
+                "escalated_at = now() WHERE client_id = $1 AND phone = $2",
+                client_id, from_phone, reason,
             )
-        return "Escalated to a human team member."
+        # Queued, not sent here: the alert goes out after this turn's reply,
+        # so the business owner sees the lead's thread as it actually stands.
+        _pending_escalation_alerts[(client_id, from_phone)] = reason
+        return ("Escalated: the business owner is being texted about this thread right now, and you won't "
+                "reply here again until they hand it back. Tell the lead, in one short line with no "
+                "question, that the owner or their team will reach out to them directly.")
 
     if tool_name == "mark_unqualified":
         _pending_unqualified[(client_id, from_phone)] = (tool_input.get("reason") or "").strip() or "Not a fit"
         return ("Marked Unqualified. Send one short, polite closing text now; after this turn they get no "
                 "further automated messages.")
+
+    if tool_name == "close_conversation":
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE client_lead_conversations SET status = 'closed' WHERE client_id = $1 AND phone = $2",
+                client_id, from_phone,
+            )
+        return ("Closed. Send one short, kind closing text now with no question; no automated follow-ups "
+                "will go out after it.")
+
+    if tool_name == "schedule_followup":
+        try:
+            tz = ZoneInfo(guess_timezone(from_phone))
+            day = datetime.strptime((tool_input.get("date") or "").strip(), "%Y-%m-%d").date()
+            hh, mm = ((tool_input.get("time") or "").strip() or "10:00").split(":")[:2]
+            when = datetime(day.year, day.month, day.day, int(hh), int(mm), tzinfo=tz)
+        except (ValueError, TypeError):
+            return "Couldn't read that date/time. Use date YYYY-MM-DD and time HH:MM (24h)."
+        if when <= datetime.now(tz):
+            when = datetime.now(tz) + timedelta(days=1)
+        async with pool.acquire() as conn:
+            await conn.execute(
+                r"""
+                UPDATE contacts SET client_followup_snooze_until = $3, client_followup_snooze_note = $4
+                WHERE client_id = $1 AND NOT is_client_anchor AND coalesce(phone, '') != ''
+                  AND right(regexp_replace(phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                """,
+                client_id, from_phone, when, (tool_input.get("note") or "").strip() or None,
+            )
+        return (f"Check-in scheduled for {when:%A %B} {when.day} at {when:%H:%M} their time. Reply with one "
+                "short line (e.g. \"no worries, I'll reach back out then\"), no question needed.")
 
     return f"Unknown tool: {tool_name}"

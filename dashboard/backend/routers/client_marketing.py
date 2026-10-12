@@ -20,8 +20,10 @@ import json
 from fastapi import APIRouter, HTTPException, Query
 
 import calendly_integration
+import client_ai_lessons
 import client_autosetup
 import client_email
+import client_followup_sequence
 import client_sms
 import context_gen
 import dialer_engine
@@ -38,11 +40,28 @@ router = APIRouter()
 _JSONB_FIELDS = ("ad_creative_status", "guide_progress", "response_ai_sequence", "autosetup")
 
 
+# Credentials never leave the server in full: responses carry a mask (still
+# truthy, so the admin UI's "connected" checks work), and a mask sent back on
+# save is ignored so it can't overwrite the real value. Found 2026-10-12:
+# GET marketing-config was returning all of these in plain JSON.
+_SECRET_FIELDS = ("gmail_refresh_token", "calendly_api_token", "twilio_api_key_secret", "calendly_webhook_signing_key")
+_MASK_PREFIX = "•••• "
+
+
+def _mask(value):
+    if not value:
+        return value
+    return _MASK_PREFIX + str(value)[-4:]
+
+
 def _decode_config(row) -> dict:
     d = dict(row)
     for key in _JSONB_FIELDS:
         if isinstance(d.get(key), str):
             d[key] = json.loads(d[key])
+    for key in _SECRET_FIELDS:
+        if key in d:
+            d[key] = _mask(d[key])
     return d
 
 
@@ -78,7 +97,10 @@ async def update_marketing_config(client_id: int, body: ClientMarketingConfigUpd
             raise HTTPException(404, "Client not found")
         await _get_or_create_config(conn, client_id)
 
-        fields = body.model_dump(exclude_unset=True)
+        fields = {
+            k: v for k, v in body.model_dump(exclude_unset=True).items()
+            if not (k in _SECRET_FIELDS and isinstance(v, str) and v.startswith(_MASK_PREFIX))
+        }
         if not fields:
             return await _get_or_create_config(conn, client_id)
 
@@ -169,7 +191,7 @@ async def provision_sms_number(client_id: int, area_code: str | None = None):
         if not client:
             raise HTTPException(404, "Client not found")
     try:
-        return await client_sms.provision_client_number(client_id, area_code=area_code)
+        return _decode_config(await client_sms.provision_client_number(client_id, area_code=area_code))
     except (ValueError, RuntimeError) as e:
         raise HTTPException(400, str(e))
 
@@ -506,3 +528,90 @@ async def list_client_sms_messages(client_id: int, limit: int = 200):
             client_id, limit,
         )
         return [dict(r) for r in rows]
+
+
+
+# ---- Response AI: lessons + funnel stats (Clients -> Agent tab) -------------
+
+@router.get("/clients/{client_id}/ai-lessons")
+async def list_ai_lessons(client_id: int):
+    return await client_ai_lessons.list_lessons(client_id)
+
+
+@router.patch("/clients/{client_id}/ai-lessons/{lesson_id}")
+async def update_ai_lesson(client_id: int, lesson_id: int, body: dict):
+    try:
+        row = await client_ai_lessons.update_lesson(client_id, lesson_id, body)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not row:
+        raise HTTPException(404, "Lesson not found")
+    return row
+
+
+@router.delete("/clients/{client_id}/ai-lessons/{lesson_id}")
+async def delete_ai_lesson(client_id: int, lesson_id: int):
+    if not await client_ai_lessons.delete_lesson(client_id, lesson_id):
+        raise HTTPException(404, "Lesson not found")
+    return {"ok": True}
+
+
+# An AI or manual text that offers a clock time ("2:00pm", "5:45 PM").
+_TIME_OFFER_RE = r"\m[0-9]{1,2}(:[0-9]{2})? ?(am|pm)\M"
+
+
+@router.get("/clients/{client_id}/ai-stats")
+async def response_ai_stats(client_id: int, days: int | None = Query(None, ge=1, le=365)):
+    """The response AI's funnel per lead: texted -> replied -> offered times
+    -> booked -> showed, plus where the rest ended up. `days` limits it to
+    leads created in that window. Booked uses the follow-up sequence's own
+    definition (an appointment on file, a booked tag/status, or the AI's
+    booking), so it counts self-booked leads too; ai_booked is just the ones
+    the agent booked in-thread."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            rf"""
+            WITH m AS (
+                SELECT *, right(regexp_replace(CASE WHEN direction = 'outbound' THEN to_number ELSE from_number END,
+                                               '\D', '', 'g'), 10) AS lead10
+                FROM client_sms_messages WHERE client_id = $1
+            ),
+            leads AS (
+                SELECT c.id,
+                    EXISTS (SELECT 1 FROM m WHERE m.lead10 = right(regexp_replace(c.phone, '\D', '', 'g'), 10)
+                            AND m.direction = 'inbound') AS replied,
+                    EXISTS (SELECT 1 FROM m WHERE m.lead10 = right(regexp_replace(c.phone, '\D', '', 'g'), 10)
+                            AND m.direction = 'outbound' AND coalesce(m.stage, 'ai_reply') IN ('ai_reply', 'manual_reply')
+                            AND m.body ~* '{_TIME_OFFER_RE}') AS offered,
+                    {client_followup_sequence._BOOKED_SQL} AS booked,
+                    EXISTS (SELECT 1 FROM appointment_reminders a WHERE a.contact_id = c.id AND a.outcome_show = 'show') AS showed,
+                    (SELECT clc.status FROM client_lead_conversations clc WHERE clc.client_id = c.client_id
+                       AND right(regexp_replace(clc.phone, '\D', '', 'g'), 10) = right(regexp_replace(c.phone, '\D', '', 'g'), 10)
+                     LIMIT 1) AS ai_status,
+                    EXISTS (SELECT 1 FROM unnest(coalesce(c.tags, '{{}}')) t
+                            WHERE lower(regexp_replace(t, '[^A-Za-z]', '', 'g')) = 'unqualified') AS unqualified
+                FROM contacts c
+                WHERE c.client_id = $1 AND NOT c.is_client_anchor AND coalesce(c.phone, '') != ''
+                  AND ($2::int IS NULL OR c.created_at > now() - make_interval(days => $2::int))
+                  AND EXISTS (SELECT 1 FROM m WHERE m.lead10 = right(regexp_replace(c.phone, '\D', '', 'g'), 10))
+            )
+            SELECT count(*) AS leads,
+                   count(*) FILTER (WHERE replied) AS replied,
+                   count(*) FILTER (WHERE offered) AS offered_times,
+                   count(*) FILTER (WHERE booked) AS booked,
+                   count(*) FILTER (WHERE ai_status = 'booked') AS ai_booked,
+                   count(*) FILTER (WHERE showed) AS showed,
+                   count(*) FILTER (WHERE unqualified) AS unqualified,
+                   count(*) FILTER (WHERE ai_status = 'escalated') AS escalated,
+                   count(*) FILTER (WHERE ai_status = 'closed') AS closed
+            FROM leads
+            """,
+            client_id, days,
+        )
+        pending = await conn.fetchval(
+            "SELECT count(*) FROM client_ai_lessons WHERE client_id = $1 AND status = 'pending'", client_id,
+        )
+    out = dict(row)
+    out["lessons_pending"] = pending
+    return out

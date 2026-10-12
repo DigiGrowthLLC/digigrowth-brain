@@ -27,6 +27,7 @@ from routers import crm, sms, sms_sequences, sms_setter, cold_call_scripts, dial
 import call_reminders
 import cancel_sequence
 import client_appointment_reminders
+import client_ai_lessons
 import client_appointment_sequence
 import client_followup_sequence
 import daily_sms_handoff
@@ -464,6 +465,18 @@ async def lifespan(app: FastAPI):
         # commits (leadgen scrapes) can redeploy this container every
         # minute or two, and a plain interval job never fires in between.
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=20),
+    )
+    scheduler.add_job(
+        response_ai.retry_unanswered,
+        IntervalTrigger(minutes=5),
+        id="response-ai-retry-unanswered",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        client_ai_lessons.analyze_due,
+        IntervalTrigger(minutes=2),
+        id="client-ai-lessons",
+        replace_existing=True,
     )
     scheduler.add_job(
         call_reminders.check_all,

@@ -1896,6 +1896,46 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_touch4_sent_at TIMESTAMPTZ;
             CREATE INDEX IF NOT EXISTS idx_contacts_client_followup
                 ON contacts(client_id) WHERE client_followup_enrolled_at IS NOT NULL;
+            -- The lead asked to be texted at a specific time ("try me
+            -- Thursday"): response_ai's schedule_followup tool sets these and
+            -- the sequence holds every touch until then, then sends one
+            -- check-in written from the thread.
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_snooze_until TIMESTAMPTZ;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_followup_snooze_note TEXT;
+        """)
+        # Why/when the client's response AI handed a thread to a human
+        # (escalate_to_human), shown in the portal inbox with a "Hand back
+        # to AI" button.
+        await conn.execute("""
+            ALTER TABLE client_lead_conversations ADD COLUMN IF NOT EXISTS escalation_reason TEXT;
+            ALTER TABLE client_lead_conversations ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMPTZ;
+            -- When the response AI last finished handling this lead's texts.
+            -- An inbound text newer than this went unanswered (API outage,
+            -- crash, redeploy) and response_ai.retry_unanswered picks it up.
+            ALTER TABLE client_lead_conversations ADD COLUMN IF NOT EXISTS ai_handled_at TIMESTAMPTZ;
+        """)
+        # What a client's response AI learns from the humans who text its
+        # threads by hand (client_ai_lessons.py), the client-side port of
+        # sms_setter_lessons. A lesson only reaches the prompt once Dylan
+        # approves it. status: collecting (gathering the human's back-to-back
+        # texts) | pending (awaiting Dylan) | active | skipped (nothing
+        # reusable) | disabled.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS client_ai_lessons (
+                id            SERIAL PRIMARY KEY,
+                client_id     INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                phone         TEXT NOT NULL,
+                transcript    TEXT NOT NULL DEFAULT '',
+                human_reply   TEXT NOT NULL,
+                situation     TEXT,
+                lesson        TEXT,
+                analysis_note TEXT,
+                status        TEXT NOT NULL DEFAULT 'collecting',
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                analyzed_at   TIMESTAMPTZ
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_ai_lessons_client ON client_ai_lessons(client_id, status);
         """)
         # Default copy for it — one SMS per touch (step_order 0/1/2). Seeded
         # per sequence_key, so it reaches existing clients without touching

@@ -2306,6 +2306,157 @@ function AgentRulesEditor({ config, onSaveFields }) {
   );
 }
 
+// The response AI's funnel (GET /clients/{id}/ai-stats): texted -> replied
+// -> offered times -> booked -> showed, plus where the rest ended up.
+function AgentPerformance({ clientId }) {
+  const [days, setDays] = useState(null);
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStats(null);
+    fetch(API(`/clients/${clientId}/ai-stats${days ? `?days=${days}` : ""}`))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled) setStats(d); });
+    return () => { cancelled = true; };
+  }, [clientId, days]);
+
+  const pct = (n) => (stats?.leads ? `${Math.round((100 * n) / stats.leads)}%` : "–");
+  const funnel = stats ? [
+    ["Texted", stats.leads], ["Replied", stats.replied], ["Offered times", stats.offered_times],
+    ["Booked", stats.booked], ["Showed", stats.showed],
+  ] : [];
+  const other = stats ? [
+    ["Booked by the AI", stats.ai_booked], ["Unqualified", stats.unqualified],
+    ["Escalated", stats.escalated], ["Closed", stats.closed],
+  ] : [];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        {[[null, "ALL TIME"], [30, "30 DAYS"], [7, "7 DAYS"]].map(([d, label]) => (
+          <button key={label} className="btn btn-secondary" style={{ fontSize: 10, opacity: days === d ? 1 : 0.5 }} onClick={() => setDays(d)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {!stats ? (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 8 }}>
+            {funnel.map(([label, n]) => (
+              <div key={label} className="glass-card-sm" style={{ padding: "10px 12px" }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", letterSpacing: "0.06em" }}>{label.toUpperCase()}</div>
+                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{n}</div>
+                {label !== "Texted" && <div style={{ fontSize: 10, color: "#3a7bd5" }}>{pct(n)}</div>}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8aaad0" }}>
+            {other.map(([label, n]) => `${label}: ${n}`).join("  ·  ")}
+            {stats.lessons_pending > 0 && `  ·  ${stats.lessons_pending} lesson${stats.lessons_pending === 1 ? "" : "s"} awaiting approval`}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Lessons drafted from human replies (client_ai_lessons.py). Pending ones
+// wait for approval; only Active ones go into the agent's prompt.
+function AgentLessons({ clientId }) {
+  const [lessons, setLessons] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [showSkipped, setShowSkipped] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/ai-lessons`));
+    if (r.ok) setLessons(await r.json());
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const update = async (id, fields) => {
+    setError("");
+    const r = await fetch(API(`/clients/${clientId}/ai-lessons/${id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fields),
+    });
+    if (!r.ok) setError((await r.json().catch(() => null))?.detail || "Failed to save");
+    setEditingId(null);
+    await load();
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm("Delete this lesson?")) return;
+    await fetch(API(`/clients/${clientId}/ai-lessons/${id}`), { method: "DELETE" });
+    await load();
+  };
+
+  if (!lessons) return <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+
+  const visible = lessons.filter((l) => showSkipped || l.status !== "skipped");
+  const skippedCount = lessons.length - lessons.filter((l) => l.status !== "skipped").length;
+  const statusColor = { pending: "#f0b429", active: "#4ade80", disabled: "#5a7aa0", skipped: "#5a7aa0" };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {visible.length === 0 && (
+        <div style={{ fontSize: 12, color: "#5a7aa0" }}>
+          No lessons yet. They appear here a few minutes after someone texts one of this client's leads by hand from the portal.
+        </div>
+      )}
+      {visible.map((l) => (
+        <div key={l.id} style={{ padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.12)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 12.5, color: "#d0e8ff" }}>
+              {l.situation || "No reusable lesson"}
+            </div>
+            <span className="mono" style={{ fontSize: 9, color: statusColor[l.status] || "#5a7aa0", letterSpacing: "0.06em" }}>{l.status.toUpperCase()}</span>
+          </div>
+          {editingId === l.id ? (
+            <textarea className="dg-input" rows={3} style={{ width: "100%", fontSize: 12 }} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          ) : (
+            l.lesson && <div style={{ fontSize: 12.5, color: "#c4d0e8", lineHeight: 1.5 }}>{l.lesson}</div>
+          )}
+          <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6, whiteSpace: "pre-wrap" }}>
+            What they texted: "{l.human_reply}"
+          </div>
+          {l.analysis_note && <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 2 }}>{l.analysis_note}</div>}
+          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+            {editingId === l.id ? (
+              <>
+                <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={() => update(l.id, { lesson: draft.trim() })}>SAVE</button>
+                <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setEditingId(null)}>CANCEL</button>
+              </>
+            ) : (
+              <>
+                {l.status !== "active" && l.lesson && (
+                  <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={() => update(l.id, { status: "active" })}>APPROVE</button>
+                )}
+                {l.status === "active" && (
+                  <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => update(l.id, { status: "disabled" })}>TURN OFF</button>
+                )}
+                {l.lesson && (
+                  <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setEditingId(l.id); setDraft(l.lesson); }}>EDIT</button>
+                )}
+                <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => remove(l.id)}>DELETE</button>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+      {skippedCount > 0 && (
+        <button className="btn btn-secondary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={() => setShowSkipped(!showSkipped)}>
+          {showSkipped ? "HIDE" : "SHOW"} {skippedCount} SKIPPED
+        </button>
+      )}
+      {error && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{error}</div>}
+    </div>
+  );
+}
+
 // Wipes a test phone number's conversation state (client_lead_conversations
 // row + client_sms_messages history) so re-texting the client's number
 // starts response_ai.py fresh — no escalated/booked state or prior message
@@ -2681,6 +2832,16 @@ function ClientAgentSetup({ clientId }) {
           "Calendar (Calendly)",
           "Optional — lets the agent check real availability before proposing a time, instead of asking blind.",
           <AgentCalendlyConnect config={config} onSaveFields={saveFields} clientId={clientId} />
+        )}
+        {section(
+          "Performance",
+          "Every lead the agent has texted, by how far they got. Booked includes leads who booked on their own.",
+          <AgentPerformance clientId={clientId} />
+        )}
+        {section(
+          "Lessons Learned",
+          "When someone texts a lead by hand, the agent drafts a lesson from it. Nothing reaches the agent until you approve it.",
+          <AgentLessons clientId={clientId} />
         )}
         {section(
           "Testing",
