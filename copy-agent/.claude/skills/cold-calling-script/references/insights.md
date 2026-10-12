@@ -2,13 +2,19 @@
 
 *Source: Dylan's Google Drive cold-calling corpus (scripts, notes, call reviews, rebuttal vault, playbooks, metrics). Compiled 2026-07-30 as a pre-read before building the `cold-calling-script` skill.*
 
-`Last resync: 2026-10-05`
+`Last resync: 2026-10-12`
 
 ---
 
 ## Update Log
 
 Reverse-chronological. Each entry is tagged `(automated resync)` (weekly, via `executive-assistant/.claude/skills/cold-calling-resync/SKILL.md`) or `(Dylan, in conversation)` (reactive, added the moment new data/notes come up). Check here first before leaning on the Baseline below — an entry may supersede a stale number or contradict a stated principle (the way March 2026's real booking rate contradicted the "V.1.9 was an improvement" narrative — see Baseline §7-8).
+
+### 2026-10-12 (automated resync)
+- **Drive:** No new or changed cold-calling docs since the last resync (2026-10-05) — searched Drive for files modified since then against the known title patterns, zero matches.
+- **Metrics:** No October 2026 Cold Calling Metrics sheet exists yet; the September 2026 sheet is unchanged since 2026-09-16 and effectively empty (no booking rate). Most recent sheet with real data is still July 2026 (per Baseline §7).
+- **OS dialer:** Could not check this source again — the `curl` to `GET /api/dialer/stats` failed at the egress proxy (`CONNECT tunnel failed, response 403`) for `digigrowth-brain-production.up.railway.app`. Not circumvented. Same recommendation as prior entries: allow this host in the cloud environment's network policy or wire up a dedicated dialer tool, and keep the credential in Doppler rather than the routine prompt.
+- **Changes the picture?** No — no new signal from the reachable sources; the OS dialer gap remains a network-policy issue.
 
 ### 2026-10-05 (automated resync)
 - **Drive:** No new or changed cold-calling docs since the last resync (2026-09-28) — checked all files modified since then against the known title patterns, zero matches. Only sales-adjacent activity was more per-prospect "Free Offer V.1.1 DigiGrowth Sales Script" copies (Shelby Moreno, Lejoy Mathew, Phil Young) and a "Physical Therapy Practice - Offer Description" doc — Free Offer/positioning material, out of scope per Baseline §8.
