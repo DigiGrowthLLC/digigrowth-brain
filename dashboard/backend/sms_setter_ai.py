@@ -73,7 +73,7 @@ _MIN_LEAD_HOURS = 3            # never offer/accept a call sooner than this
 
 # Auto-mode guardrails
 AUTO_SEND_HOURS = (8, 20)      # prospect's local time, [start, end)
-AUTO_MAX_SENDS_PER_DAY = 4     # per thread — stops an auto-reply ping-pong loop
+AUTO_MAX_SENDS_PER_DAY = 10    # per thread — stops an auto-reply ping-pong loop ("book" is exempt)
 AUTO_ACTIONS = {"reply", "book", "send_template", "capture_email",
                 "gatekeeper_relay", "follow_up", "close_not_interested", "opt_out"}
 
@@ -1219,7 +1219,10 @@ async def try_auto_send(conn, draft_id: int) -> str:
         "SELECT COUNT(*) FROM sms_ai_drafts WHERE phone = $1 AND status = 'auto_sent' AND decided_at > now() - interval '1 day'",
         d["phone"],
     )
-    if sent_today >= AUTO_MAX_SENDS_PER_DAY:
+    # A booking ends the back-and-forth rather than feeding it, so it's
+    # exempt: Orlando Walters said yes to a time right after the 4th send
+    # and sat unbooked for over an hour.
+    if sent_today >= AUTO_MAX_SENDS_PER_DAY and d["action"] != "book":
         return await _note(conn, draft_id, f"daily auto-send cap ({AUTO_MAX_SENDS_PER_DAY}) reached for this thread")
 
     if d["action"] == "book" and not details.get("booked"):
