@@ -131,13 +131,25 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
         return dict(row)
 
 
+# Stages of texts that are part of the live conversation rather than a
+# sequence. None covers rows logged before AI and manual replies got their
+# own stage.
+CONVERSATIONAL_STAGES = (None, "ai_reply", "manual_reply", "meta_lead_opener")
+
+
 async def send_client_sms(client_id: int, to_number: str, body: str, stage: str | None = None,
                           manual: bool = False) -> None:
     """Sends from the client's own provisioned number, via their own subaccount.
 
     Automated sends (everything except a reply the client types in the portal
     inbox, which passes manual=True) are silently skipped for a lead tagged
-    Unqualified — see lead_flags.py."""
+    Unqualified — see lead_flags.py.
+
+    A manual send is logged with stage 'manual_reply' (response AI replies use
+    'ai_reply'), so a human's text can be told apart from the agent's — the
+    response AI learns from those (client_ai_lessons.py)."""
+    if manual and stage is None:
+        stage = "manual_reply"
     import lead_flags
     if not manual and await lead_flags.is_unqualified(client_id, phone=to_number):
         print(f"[client_sms] {to_number} (client={client_id}) is tagged Unqualified — skipping automated SMS ({stage or 'reply'})")
@@ -168,10 +180,24 @@ async def send_client_sms(client_id: int, to_number: str, body: str, stage: str 
             client_id, config["twilio_number"], to_number, body, message.sid, stage,
         )
 
-    # A conversational text (a response AI reply — stage None — the Meta
-    # lead opener, or a manual portal reply, also stage None) enrolls the
-    # lead in the 3-touch prospect follow-up. Automated sequence sends carry
-    # their own stage and never enroll anyone.
-    if stage is None or stage == "meta_lead_opener":
+    # A conversational text (a response AI reply, the Meta lead opener, or a
+    # manual portal reply) enrolls the lead in the prospect follow-up.
+    # Automated sequence sends carry their own stage and never enroll anyone.
+    if stage == "manual_reply":
+        # A human picking a closed thread back up reopens it (an escalated
+        # one stays with the human until they hand it back in the portal).
+        async with pool.acquire() as conn:
+            await conn.execute(
+                r"""
+                UPDATE client_lead_conversations SET status = 'ai_active'
+                WHERE client_id = $1 AND status = 'closed'
+                  AND right(regexp_replace(phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                """,
+                client_id, to_number,
+            )
+    if stage in CONVERSATIONAL_STAGES:
         import client_followup_sequence
         await client_followup_sequence.maybe_enroll(client_id, to_number)
+    if stage == "manual_reply":
+        import client_ai_lessons
+        await client_ai_lessons.record_human_reply(client_id, to_number, body)

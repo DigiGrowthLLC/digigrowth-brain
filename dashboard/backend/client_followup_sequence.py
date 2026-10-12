@@ -79,6 +79,16 @@ _TOUCHES = [
     (4, "client_followup_touch4_sent_at", "client_followup_touch3_sent_at", timedelta(days=7)),
 ]
 
+# Once the lead has replied at least once, a gone-quiet thread gets a
+# lighter touch: one nudge the next day, then a closing text 3 days later,
+# instead of the full 3h/24h/3d/7d cycle meant for leads who never answered
+# the opener (a CrosaCore lead got 4 "no rush" texts in 2 days mid-
+# conversation, 2026-10-10). Touch 4's column/template is the closing one.
+_TOUCHES_REPLIED = [
+    (1, "client_followup_touch1_sent_at", None, timedelta(hours=20)),
+    (4, "client_followup_touch4_sent_at", "client_followup_touch1_sent_at", timedelta(days=3)),
+]
+
 _CLEAR_CYCLE = (
     "client_followup_anchor_at = NULL, client_followup_touch1_sent_at = NULL, "
     "client_followup_touch2_sent_at = NULL, client_followup_touch3_sent_at = NULL, "
@@ -111,6 +121,16 @@ _BOOKED_SQL = r"""(
         WHERE clc.client_id = c.client_id AND clc.status = 'booked'
           AND right(regexp_replace(clc.phone, '\D', '', 'g'), 10) = right(regexp_replace(coalesce(c.phone, ''), '\D', '', 'g'), 10)
     )
+)"""
+
+# The response AI closed this thread (not interested) or handed it to a
+# human (escalated): no automated nudges. A human reply or the lead
+# texting back reopens a closed thread (response_ai.handle_inbound_sms); an
+# escalated one stays with the human until they hand it back in the portal.
+_PAUSED_SQL = r"""EXISTS (
+    SELECT 1 FROM client_lead_conversations clc
+    WHERE clc.client_id = c.client_id AND clc.status IN ('closed', 'escalated')
+      AND right(regexp_replace(clc.phone, '\D', '', 'g'), 10) = right(regexp_replace(coalesce(c.phone, ''), '\D', '', 'g'), 10)
 )"""
 
 # Inbound emails from contact `c` to its client's connected mailbox
@@ -156,12 +176,31 @@ async def maybe_enroll(client_id: int, phone: str) -> None:
                   AND c.client_followup_enrolled_at IS NULL
                   AND coalesce(c.phone, '') != ''
                   AND right(regexp_replace(c.phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
-                  AND NOT {_BOOKED_SQL} AND NOT {lead_flags.UNQUALIFIED_SQL}
+                  AND NOT {_BOOKED_SQL} AND NOT {lead_flags.UNQUALIFIED_SQL} AND NOT {_PAUSED_SQL}
                 """,
                 client_id, phone,
             )
     except Exception as e:
         print(f"[client_followup_sequence] enroll failed for client={client_id} phone={phone}: {e}")
+
+
+async def _send_checkin(row: dict) -> None:
+    """The check-in a lead asked for. Written from the thread by the
+    response AI; skipped (not templated) if the agent is off or fails, since
+    there's no template for "you asked me to text you now"."""
+    import client_sms
+    import response_ai
+
+    text = await response_ai.write_followup_text(
+        row["client_id"], row["phone"], "", checkin_note=row.get("client_followup_snooze_note") or "",
+    )
+    if not text:
+        print(f"[client_followup_sequence] no check-in text for client={row['client_id']} phone={row['phone']}")
+        return
+    try:
+        await client_sms.send_client_sms(row["client_id"], row["phone"], text, stage=f"{SEQUENCE_KEY}_checkin")
+    except Exception as e:
+        print(f"[client_followup_sequence] check-in failed for client={row['client_id']} phone={row['phone']}: {e}")
 
 
 async def _send_touch(row: dict, touch_num: int, sms_step: dict | None, email_step: dict | None) -> None:
@@ -202,10 +241,13 @@ async def send_due_touches():
     pool = await get_pool()
     now = datetime.now(dt_timezone.utc)
     async with pool.acquire() as conn:
-        # Booked and Unqualified leads leave the sequence for good.
+        # Booked and Unqualified leads leave the sequence for good; closed
+        # and escalated threads leave until something reopens them.
         await conn.execute(
-            f"UPDATE contacts c SET client_followup_enrolled_at = NULL, {_CLEAR_CYCLE} "
-            f"WHERE c.client_followup_enrolled_at IS NOT NULL AND ({_BOOKED_SQL} OR {lead_flags.UNQUALIFIED_SQL})"
+            f"UPDATE contacts c SET client_followup_enrolled_at = NULL, {_CLEAR_CYCLE}, "
+            "client_followup_snooze_until = NULL, client_followup_snooze_note = NULL "
+            f"WHERE c.client_followup_enrolled_at IS NOT NULL "
+            f"AND ({_BOOKED_SQL} OR {lead_flags.UNQUALIFIED_SQL} OR {_PAUSED_SQL})"
         )
         rows = await conn.fetch(
             f"""
@@ -248,6 +290,21 @@ async def send_due_touches():
                     await conn.execute(f"UPDATE contacts SET {_CLEAR_CYCLE} WHERE id = $1", row["id"])
                 continue
 
+            snooze_until = row.get("client_followup_snooze_until")
+            if snooze_until is not None:
+                # They asked to be texted at a set time (schedule_followup):
+                # nothing goes out before it, then one check-in from the
+                # thread. That check-in is a new outbound, so the normal
+                # cycle re-anchors on it if they don't answer.
+                if now < snooze_until or lead_flags.in_quiet_hours(guess_timezone(row["phone"]), now):
+                    continue
+                await conn.execute(
+                    "UPDATE contacts SET client_followup_snooze_until = NULL, client_followup_snooze_note = NULL "
+                    "WHERE id = $1", row["id"],
+                )
+                await _send_checkin(row)
+                continue
+
             known_times = [t for t in (
                 row["client_followup_anchor_at"], row["client_followup_touch1_sent_at"],
                 row["client_followup_touch2_sent_at"], row["client_followup_touch3_sent_at"],
@@ -267,7 +324,8 @@ async def send_due_touches():
                 row["client_followup_touch4_sent_at"] = None
 
             anchor = row["client_followup_anchor_at"]
-            for touch_num, sent_col, ref_col, delay in _TOUCHES:
+            touches = _TOUCHES_REPLIED if last_inbound_at is not None else _TOUCHES
+            for touch_num, sent_col, ref_col, delay in touches:
                 if row[sent_col] is not None:
                     continue
                 reference = anchor if ref_col is None else row[ref_col]
