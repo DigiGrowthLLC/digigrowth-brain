@@ -5405,8 +5405,8 @@
     },
     "Waco, TX": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 73,
+      "term_index": 2,
+      "reviewed_count": 126,
       "qualified_count": 5,
       "last_scraped_date": "2026-10-12"
     },
