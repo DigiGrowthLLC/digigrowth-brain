@@ -5320,9 +5320,9 @@
       "last_scraped_date": "2026-10-12"
     },
     "Naperville, IL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 122,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 135,
       "qualified_count": 7,
       "last_scraped_date": "2026-10-12"
     },
