@@ -5314,9 +5314,9 @@
     },
     "Bellevue, WA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 112,
-      "qualified_count": 8,
+      "term_index": 2,
+      "reviewed_count": 119,
+      "qualified_count": 9,
       "last_scraped_date": "2026-10-12"
     },
     "Naperville, IL": {
