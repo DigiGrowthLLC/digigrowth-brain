@@ -5397,9 +5397,9 @@
       "last_scraped_date": "2026-10-12"
     },
     "Thornton, CO": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 123,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 124,
       "qualified_count": 10,
       "last_scraped_date": "2026-10-12"
     },
