@@ -5404,8 +5404,8 @@
       "last_scraped_date": "2026-10-12"
     },
     "Waco, TX": {
-      "status": "in_progress",
-      "term_index": 3,
+      "status": "covered",
+      "term_index": 4,
       "reviewed_count": 126,
       "qualified_count": 5,
       "last_scraped_date": "2026-10-12"
