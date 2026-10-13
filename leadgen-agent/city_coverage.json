@@ -5355,9 +5355,9 @@
       "last_scraped_date": "2026-10-12"
     },
     "Olathe, KS": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 114,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 120,
       "qualified_count": 4,
       "last_scraped_date": "2026-10-12"
     },
