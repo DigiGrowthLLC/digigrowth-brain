@@ -5335,9 +5335,9 @@
     },
     "Bridgeport, CT": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 20,
-      "qualified_count": 3,
+      "term_index": 2,
+      "reviewed_count": 81,
+      "qualified_count": 11,
       "last_scraped_date": "2026-10-12"
     },
     "Mesquite, TX": {
