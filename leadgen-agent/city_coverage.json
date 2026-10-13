@@ -5313,9 +5313,9 @@
       "last_scraped_date": "2026-10-12"
     },
     "Bellevue, WA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 127,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 153,
       "qualified_count": 9,
       "last_scraped_date": "2026-10-12"
     },
