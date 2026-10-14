@@ -5503,9 +5503,9 @@
     },
     "Stamford, CT": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 101,
-      "qualified_count": 10,
+      "term_index": 2,
+      "reviewed_count": 132,
+      "qualified_count": 19,
       "last_scraped_date": "2026-10-13"
     },
     "West Valley City, UT": {
