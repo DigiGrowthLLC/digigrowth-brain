@@ -5460,10 +5460,10 @@
       "last_scraped_date": "2026-10-13"
     },
     "Coral Springs, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 134,
-      "qualified_count": 7,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 170,
+      "qualified_count": 9,
       "last_scraped_date": "2026-10-13"
     },
     "Victorville, CA": {
