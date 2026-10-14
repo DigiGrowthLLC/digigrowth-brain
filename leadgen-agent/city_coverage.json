@@ -5432,10 +5432,10 @@
       "last_scraped_date": "2026-10-13"
     },
     "Miramar, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 164,
-      "qualified_count": 4,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 198,
+      "qualified_count": 8,
       "last_scraped_date": "2026-10-13"
     },
     "Palm Bay, FL": {
