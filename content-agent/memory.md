@@ -87,3 +87,9 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   search (3-5% typical reactivation conversion, 95%+ SMS open rate, vendor-reported up to 35%
   recall rebooking) — 2026-10-07 — pending approval (draft pushed to
   `content-agent/pending_approvals/blog-2026-10-07.json` on `main`)
+- "The No-Show Follow-Up Workflow That Fills Your Calendar Back Up" (slug:
+  ai-no-show-follow-up-workflow) — pillar: Lead Follow-Up & Automation — topic: rotation #08 (AI
+  workflow that follows up with every no-show), research cache stale (dated 2026-10-12, empty
+  findings), own web search (no-show baseline 23-34%, vendor reminder claims 25-50% vs. a gov't
+  study's 1.6-pt non-significant drop) — 2026-10-14 — pending approval (draft pushed to
+  `content-agent/pending_approvals/blog-2026-10-14.json` on `main`)

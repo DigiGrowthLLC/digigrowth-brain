@@ -1,0 +1,64 @@
+{
+  "title": "The No-Show Follow-Up Workflow That Fills Your Calendar Back Up",
+  "summary": "Rotation #08: an AI workflow that follows up with every no-show and gets the appointment rebooked.",
+  "payload": {
+    "post": {
+      "slug": "ai-no-show-follow-up-workflow",
+      "title": "The No-Show Follow-Up Workflow That Fills Your Calendar Back Up",
+      "metaDescription": "A prospect no-shows at 2pm and by 2:05 your calendar has a hole. Here is the simple AI follow-up sequence that gets missed appointments rebooked.",
+      "date": "2026-10-14",
+      "thumbnailIcon": "followup",
+      "intro": [
+        "It is 2:05 on a Wednesday. The consultation you blocked off at 2:00 is still empty, the video link is open, and nobody has joined. You wait ten minutes, send a quick text, and then the afternoon fills up and you never think about it again.",
+        "That prospect did not decide against you. Most people who miss an appointment forgot, got pulled into something, or hit a scheduling conflict. The booking only dies because nobody followed up while the intent was still warm. Here is a follow-up workflow that runs without you, so a missed call turns into a rescheduled one."
+      ],
+      "sections": [
+        {
+          "heading": "Why a no-show is usually not a no",
+          "paragraphs": [
+            "Forgetfulness and scheduling conflicts are the reasons people most often give for missing appointments. Neither one means they lost interest. They booked because they wanted what you offer, and that has not changed in the last hour.",
+            "The problem is the gap. Outpatient no-show rates are commonly quoted somewhere between 23% and 34%, though the number varies a lot by industry. If one in four booked calls goes empty and you do nothing, a large share of the leads you paid to get never get a real conversation."
+          ]
+        },
+        {
+          "heading": "The three-message sequence",
+          "paragraphs": [
+            "Set this up once and it fires every time someone does not show:",
+            "1. Within five minutes: a short, friendly text. 'Looks like we missed each other. No problem. Want me to grab you a new time? Here are two options.' Do not scold. Make rescheduling a one-tap reply.",
+            "2. Same day, a few hours later: a second message that adds one useful thing, like a short video or a one-line recap of what the call would have covered. This gives them a reason to answer that is not 'please reply'.",
+            "3. Next morning: a last, low-pressure check-in with a direct booking link. If there is still no reply, stop. Three honest touches is persistence. Ten is spam."
+          ]
+        },
+        {
+          "heading": "What to put in each message",
+          "paragraphs": [
+            "Keep every message under two sentences and written the way you would text a friend. The first one should sound like a person noticed a miss, not like a system fired an alert. Use the lead's first name and the thing they booked for, so it is obvious the message is about them.",
+            "Offer two specific times instead of asking 'when works for you?'. Open-ended questions create work for the other person, and work is what makes people put a message off. A reply of '1' or 'Thursday' takes five seconds.",
+            "Include the reason for the original call in one line. If they booked to hear how you could bring in more clients, remind them of that outcome. People reschedule for the result, not for the meeting."
+          ]
+        },
+        {
+          "heading": "What the research says about reminders",
+          "paragraphs": [
+            "Reminders help, but be careful with the big numbers you see online. Vendor pages claim automated reminders cut no-shows anywhere from 25% to 50%. A large government-agency study of automated texts found a smaller drop, about 1.6 percentage points, which was not statistically significant.",
+            "The takeaway: do not count on a reminder alone to fix no-shows. Pair a reminder before the appointment with a fast, easy way to reschedule after a miss. The reschedule path is where the recovered bookings come from."
+          ]
+        },
+        {
+          "heading": "What changes for you",
+          "paragraphs": [
+            "Today a no-show costs you the slot and the lead. With the sequence running, you get a text back saying 'Thursday at 10 works' and the calendar updates itself. You do not chase anyone, and you do not have to remember to.",
+            "If you want the details on how the follow-up piece fits into a full booking system, the [FAQ](/faq) walks through it."
+          ]
+        },
+        {
+          "heading": "How to tell whether it is working",
+          "paragraphs": [
+            "Track three numbers for a month: how many booked calls went empty, how many of those replied to your sequence, and how many were rebooked and attended. Even a modest recovery rate adds up, because each recovered call is a lead you already paid to get.",
+            "Look at which of the three messages gets the replies. If most come from the first text, tighten the window to two minutes. If they come from the video, lead with it next time. Small changes to timing and wording are where the sequence improves."
+          ]
+        }
+      ]
+    }
+  }
+}
