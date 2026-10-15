@@ -1,0 +1,162 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}html{scrollbar-width:none}html::-webkit-scrollbar{display:none}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#0f2a31;background:#f5f9fa;-webkit-font-smoothing:antialiased;padding-bottom:76px}
+.w{max-width:1140px;margin:0 auto;padding:0 20px}
+.i{width:18px;height:18px;flex:none;display:block}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#ffab5e;color:#0f2a31;font-weight:800;letter-spacing:.01em;font-size:15.5px;padding:16px 24px;border-radius:12px;text-decoration:none;box-shadow:0 10px 24px rgba(255,140,40,.35),inset 0 -2px 0 rgba(0,0,0,.08)}
+.top{background:#0b3f4b;position:relative;z-index:2}.top .w{display:flex;align-items:center;justify-content:space-between;padding-top:38px;padding-bottom:12px}
+.top img{height:46px;width:auto;display:block}
+.top .tel{display:flex;align-items:center;gap:8px;color:#cfe7ec;font-size:13px;font-weight:600;text-decoration:none}
+.top .tel .i{width:16px;height:16px;color:#ffab5e}
+.top .hb{display:none}
+.hero{position:relative;overflow:hidden;color:#fff;background:radial-gradient(ellipse at 85% 0%,rgba(95,200,220,.28),transparent 55%),linear-gradient(170deg,#0b3f4b 0%,#12596a 70%,#176a7d 100%)}
+.hero::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.08) 1px,transparent 1px);background-size:22px 22px;mask-image:linear-gradient(180deg,#000,transparent 80%);pointer-events:none}
+.hero .w{position:relative;z-index:1;display:grid;grid-template-columns:1fr;gap:26px;padding-top:14px;padding-bottom:34px}
+.pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 12px 6px 8px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#e3f4f7}
+.pill b{width:8px;height:8px;border-radius:50%;background:#ffab5e;box-shadow:0 0 0 3px rgba(255,171,94,.25)}
+h1{font-size:33px;line-height:1.06;margin:16px 0 14px;font-weight:850;letter-spacing:-.03em}
+h1 em{font-style:normal;color:#ffab5e}
+.hero p{margin:0 0 22px;font-size:16px;line-height:1.55;color:#d3e9ee}.hero p b{color:#fff;font-weight:700}
+.under{display:flex;align-items:center;justify-content:center;gap:8px;color:#b6d6dd;font-size:12.5px;margin-top:12px}
+.under .i{width:14px;height:14px}
+.pic{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:4/3;box-shadow:0 30px 60px rgba(0,20,30,.45);border:1px solid rgba(255,255,255,.18)}
+.pic img{width:100%;height:100%;object-fit:cover;object-position:50% 40%;display:block}
+.badge{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.96);color:#0f2a31;border-radius:12px;padding:9px 13px;box-shadow:0 10px 24px rgba(0,0,0,.2)}
+.badge .bn{font-size:22px;font-weight:850;letter-spacing:-.02em}
+.badge .bs{font-size:11px;line-height:1.25;color:#55707a}.badge .bs b{display:block;color:#f5a400;letter-spacing:1px;font-size:12px}
+.badge2{position:absolute;right:12px;top:12px;display:flex;align-items:center;gap:7px;background:#0b3f4b;color:#fff;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:700}
+.badge2 .i{width:14px;height:14px;color:#ffab5e}
+.trust{background:#fff;border-bottom:1px solid #e3ecee}
+.trust .w{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.trust .t{display:flex;align-items:center;gap:11px;padding:15px 6px}
+.trust .t:nth-child(odd){border-right:1px solid #e3ecee}.trust .t:nth-child(-n+2){border-bottom:1px solid #e3ecee}
+.trust .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:#e8f4f6;color:#16687a;flex:none}
+.trust b{display:block;font-size:14.5px;line-height:1.2}.trust span{font-size:12px;color:#5d7780}
+.s{padding:44px 0}
+.eye{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#16879c;margin:0 0 8px}
+.s h2{font-size:25px;line-height:1.12;margin:0 0 22px;letter-spacing:-.025em;font-weight:850}
+.s h2 em{font-style:normal;color:#16879c}
+.wall{display:grid;grid-template-columns:1fr;gap:14px}
+.q{background:#fff;border:1px solid #e3ecee;border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(15,60,75,.06);position:relative}
+.q::before{content:"\201C";position:absolute;right:16px;top:2px;font-size:64px;line-height:1;font-family:Georgia,serif;color:#e3f0f2}
+.st{color:#f5a400;letter-spacing:2px;font-size:14px}
+.q p{margin:10px 0 16px;font-size:15px;line-height:1.55;position:relative}
+.who{display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid #eef4f5}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#0b3f4b;color:#ffab5e;font-weight:800;font-size:14px;flex:none}
+.who b{display:block;font-size:14px}.who span{font-size:12px;color:#6b838b}
+.two{display:grid;grid-template-columns:1fr;gap:26px}
+.fit{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+.fit li{display:grid;grid-template-columns:26px 1fr;gap:12px;font-size:15.5px;line-height:1.45}
+.fit .ck{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#e1f3ef;color:#11876b}
+.fit .ck .i{width:15px;height:15px}
+.ph2{border-radius:18px;overflow:hidden;aspect-ratio:4/3;box-shadow:0 20px 44px rgba(15,60,75,.18)}.ph2 img{width:100%;height:100%;object-fit:cover;object-position:40% 40%;display:block}
+.disc{background:#0b3f4b;color:#fff;border-radius:22px;padding:26px 22px;position:relative;overflow:hidden}
+.disc::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(255,171,94,.25),transparent 70%)}
+.disc h2{color:#fff}.disc h2 em{color:#ffab5e}.disc .eye{color:#ffab5e}
+.disc .lead{color:#c9e3e8;margin:-8px 0 20px;font-size:15px}
+.steps{display:grid;grid-template-columns:1fr;gap:10px;position:relative;z-index:1}
+.step{display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px}
+.step .n{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:#ffab5e;color:#0b3f4b;font-weight:850;font-size:15px}
+.step p{margin:0;font-size:15px;line-height:1.4}
+.cards{display:grid;grid-template-columns:1fr;gap:14px}
+.c{background:#fff;border:1px solid #e3ecee;border-radius:16px;padding:22px;box-shadow:0 8px 24px rgba(15,60,75,.05)}
+.c .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.c .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#e8f4f6;color:#16687a}
+.c .ic .i{width:20px;height:20px}
+.c .no{font-size:12px;font-weight:800;color:#a9bfc5;letter-spacing:.1em}
+.c b{display:block;font-size:18px;margin-bottom:6px;letter-spacing:-.01em}.c p{margin:0;font-size:14.5px;line-height:1.55;color:#4c666e}
+.faq details{background:#fff;border:1px solid #e3ecee;border-radius:14px;margin-bottom:10px;overflow:hidden}
+.faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:17px 18px;font-weight:750;font-size:15.5px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary .pm{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#e8f4f6;color:#16687a;flex:none;font-size:18px;font-weight:600}
+.faq details[open] summary .pm{background:#ffab5e;color:#0b3f4b}
+.faq details p{margin:0;padding:0 18px 18px;font-size:14.5px;line-height:1.6;color:#4c666e}
+.end{color:#fff;text-align:center;background:radial-gradient(ellipse at 50% 0%,rgba(255,171,94,.22),transparent 60%),linear-gradient(170deg,#0b3f4b,#12596a)}
+.end .w{padding-top:46px;padding-bottom:50px;max-width:640px}
+.end h2{font-size:28px;margin:0 0 10px;letter-spacing:-.03em;line-height:1.1}.end p{color:#c4e0e6;font-size:15.5px;margin:0 0 22px}
+.end .row{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:18px;font-size:12.5px;color:#b6d6dd}
+.end .row span{display:flex;align-items:center;gap:6px}.end .row .i{width:14px;height:14px;color:#ffab5e}
+.sticky{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid #e3ecee;padding:10px 14px 14px;display:flex;align-items:center;gap:12px}
+.sticky .tx{font-size:12px;line-height:1.25;color:#55707a;flex:none}.sticky .tx b{display:block;color:#0f2a31;font-size:15px}
+.sticky .btn{flex:1;padding:13px 14px;font-size:14.5px;box-shadow:none}
+@media (min-width:900px){
+ body{padding-bottom:0}.sticky{display:none}
+ .top .w{padding-top:16px;padding-bottom:16px}
+ .top .hb{display:flex;align-items:center;gap:22px}
+ .top .btn{padding:11px 18px;font-size:14px;box-shadow:none}
+ .hero .w{grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding-top:44px;padding-bottom:64px}
+ h1{font-size:54px}.hero p{font-size:18.5px;max-width:540px}.hero .btn{display:inline-flex}.under{justify-content:flex-start}
+ .trust .w{grid-template-columns:repeat(4,1fr)}
+ .trust .t{padding:20px 18px;border:0!important}.trust .t+.t{border-left:1px solid #e3ecee!important}
+ .s{padding:72px 0}.s h2{font-size:38px;margin-bottom:30px}
+ .wall{grid-template-columns:repeat(3,1fr);gap:18px}
+ .two{grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+ .disc{padding:44px}.steps{grid-template-columns:1fr 1fr;gap:14px}
+ .cards{grid-template-columns:repeat(3,1fr);gap:18px}
+ .end h2{font-size:40px}.end .btn{display:inline-flex}
+}
+</style></head><body>
+<div class="top"><div class="w"><img src="{{LOGO}}" alt="Pinnacle Physical Therapy">
+ <div class="hb"><a class="tel" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>Cantrell Rd, Little Rock</a><a class="btn" href="#">Book the $49 Discovery Visit</a></div>
+</div></div>
+<div class="hero"><div class="w">
+ <div>
+  <span class="pill"><b></b>Little Rock physical therapy</span>
+  <h1>Been to PT before and it didn't help? <em>This is different.</em></h1>
+  <p>Every session is <b>one-on-one with your physical therapist, never a tech or an aide</b>. Dr. Brian Murphy looks at your whole body to find the root cause, without medications, injections or surgery.</p>
+  <a class="btn" href="#">Book my $49 Discovery Visit<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+  <div class="under"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Paid when you book. Limited Discovery Visit spots each month.</div>
+ </div>
+ <div class="pic"><img src="{{HERO}}" alt="Dr. Brian Murphy screening a golfer">
+  <div class="badge2"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/></svg>1-on-1, every session</div>
+  <div class="badge"><span class="bn">4.9</span><span class="bs"><b>★★★★★</b>Google rating</span></div>
+ </div>
+</div></div>
+<div class="trust"><div class="w">
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg></span><div><b>Orthopedic specialist</b><span>Board-certified OCS</span></div></div>
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/></svg></span><div><b>Your PT, every visit</b><span>Never a tech or aide</span></div></div>
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><div><b>No meds or surgery</b><span>Root-cause care</span></div></div>
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span><div><b>Mon to Fri, 7am to 7pm</b><span>Cantrell Rd, Little Rock</span></div></div>
+</div></div>
+<div class="s"><div class="w"><p class="eye">Real patient reviews</p><h2>Patients who <em>tried everything else</em></h2><div class="wall">
+ <div class="q"><div class="st">★★★★★</div><p>"I have seen several of the so called best pain doctors and physical therapist in Little Rock to no avail. Dr. Murphy saw me and evaluated my entire movements of the body, not just my back."</p><div class="who"><span class="av">B</span><div><b>Barry</b><span>Golfer, retired police lieutenant</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"Only his hands at work on a patient: no techs, no assistants, just him. After years of pain, it has only taken 5 visits with Brian to discover how to correct and seemingly resolve my pain issue."</p><div class="who"><span class="av">I</span><div><b>Ireon</b><span>Patient review</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"I've been through physical therapy twice for my back, and never got such quality care and personal attention before. I started seeing results improving my condition in less than a week."</p><div class="who"><span class="av">A</span><div><b>Andrew</b><span>Shoulder, neck and back</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"Saw Brian for pain down my leg. In ONE session, the pain went away and hasn't returned 6 months later! He was very caring, professional and took as much time as I required."</p><div class="who"><span class="av">J</span><div><b>Jeannie</b><span>Leg pain</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"I was suffering from pain in my right knee while running which had already led to extended downtime. Within a couple weeks I was running again without any pain!"</p><div class="who"><span class="av">M</span><div><b>Matthew</b><span>Runner, knee pain</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"Dr. Murphy was able to get me right in and in only 3 visits, with home exercise training, I have been able to train with full recovery of my ankle."</p><div class="who"><span class="av">R</span><div><b>Rachael</b><span>Triathlete, ankle sprain</span></div></div></div>
+</div></div></div>
+<div class="s" style="padding-top:0"><div class="w two">
+ <div><p class="eye">Who we help</p><h2>You're a <em>good fit</em> if you:</h2><ul class="fit">
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Have back, neck, shoulder, hip, knee, foot or jaw pain that keeps coming back</li>
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Tried PT, chiropractic, massage or medication without lasting results</li>
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Want to avoid medications, injections and surgery</li>
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Want to get back to golf, pickleball, running or just your normal day</li></ul></div>
+ <div class="ph2"><img src="{{CLINIC}}" alt="Dr. Brian Murphy treating a patient"></div>
+</div></div>
+<div class="s" style="padding-top:0"><div class="w"><div class="disc">
+ <p class="eye">The $49 Discovery Visit</p><h2>What you'll <em>discover</em> at your visit</h2>
+ <p class="lead">Sit down with a physical therapist, tell your story, and leave knowing:</p>
+ <div class="steps">
+  <div class="step"><span class="n">01</span><p>What's actually going on, and the root cause behind your pain</p></div>
+  <div class="step"><span class="n">02</span><p>Whether PT can help with your issue</p></div>
+  <div class="step"><span class="n">03</span><p>How long it should take to see results, and what it will cost</p></div>
+  <div class="step"><span class="n">04</span><p>What you can start doing at home to speed up your recovery</p></div>
+ </div>
+</div></div></div>
+<div class="s" style="padding-top:0"><div class="w"><p class="eye">The Pinnacle approach</p><h2>How we <em>treat it</em></h2><div class="cards">
+ <div class="c"><div class="hd"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span><span class="no">01</span></div><b>Analyze</b><p>We look at your movement and lifestyle, head to toe, to find what's contributing to your pain.</p></div>
+ <div class="c"><div class="hd"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span><span class="no">02</span></div><b>Educate</b><p>You understand your plan of care and exactly what it will take to reach your goals.</p></div>
+ <div class="c"><div class="hd"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="no">03</span></div><b>Empower</b><p>Hands-on care that shows you real change in session, plus a video-based home program you can actually follow.</p></div>
+</div></div></div>
+<div class="s faq" style="padding-top:0"><div class="w"><p class="eye">Before you book</p><h2>Quick <em>questions</em></h2>
+ <details open><summary>What does it cost?<span class="pm">+</span></summary><p>The Discovery Visit is $49, paid when you book. If you continue with care, we're clear about costs, goals and a timeline before you commit.</p></details>
+ <details><summary>Who will I see?<span class="pm">+</span></summary><p>Your physical therapist, every session. Dr. Brian Murphy (DPT, OCS, ATC, TPI Level 2) or Steve Forbush, PT, an orthopedic specialist with 46 years of experience.</p></details>
+ <details><summary>Where are you?<span class="pm">+</span></summary><p>12511 Cantrell Rd, Suite 100, Little Rock, AR 72223. Monday to Friday, 7am to 7pm.</p></details>
+</div></div>
+<div class="end"><div class="w"><h2>Start with a $49 Discovery Visit</h2><p>Tell us what's going on. We'll tell you honestly whether we can help.</p><a class="btn" href="#">Book my $49 Discovery Visit<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+ <div class="row"><span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>One-on-one with your PT</span><span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>No meds or surgery</span><span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>4.9 on Google</span></div>
+</div></div>
+<div class="sticky"><div class="tx"><b>$49</b>Discovery Visit</div><a class="btn" href="#">Book my visit</a></div>
+</body></html>

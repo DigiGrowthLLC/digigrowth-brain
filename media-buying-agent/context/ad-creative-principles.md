@@ -792,6 +792,409 @@ guidance, so it lands mainly in `generate-ad` step 2. Skipped: the closing ACQ e
 
 ---
 
+## Source: "How to make Meta Ad Creatives in 2026" — Jared Robinson, Creative Don (2026-10-08)
+
+A DTC creative-agency founder (8 figures spent on Meta) on the *psychology* of a good ad, not account
+structure. He breaks down 4 static ads his team made: a fertility quiz, a looksmaxxing app, golf
+putter covers and a "snuff cup." Then he gives his research process and brief template. Mostly
+`generate-ad` material (concept planning, copy, image direction) plus one research habit. Skipped:
+the agency pitch and the "comment below" ask.
+
+### The 4 core elements: Attention, Curiosity, Emotion, Connection
+
+Every good ad does some mix of these four. Name which ones a concept is built on before writing it.
+
+1. **Attention: you have about 0.5 seconds, not 3.** Watch people scroll: they're gone in under a
+   second if the first frame isn't interesting. The *first frame / the image itself* has to stop
+   them before any copy is read. This sharpens the 0-3s hook in the video script timing: the 0-3s
+   window is for the spoken hook, but frame 1 must already be arresting on mute (a striking face, a
+   strange object, a dark mood, a joke you get at a glance).
+2. **Curiosity: you don't have to sell the whole thing in the ad.** A long "cold scroller to buyer"
+   ad sells everything in the ad. The other option is to spark just enough curiosity to earn the
+   click, and let the page after it (quiz, listicle, landing page) do the explaining and selling.
+   Those ads do very little selling on purpose.
+3. **Emotion: pick the core emotion on purpose.** Fear, insecurity, self-blame, hope, excitement,
+   humor, belonging. His examples run from very dark (fertility, looksmaxxing) to pure humor (golf,
+   dip cup). Which one is right depends on who the buyer is and where they are emotionally, so
+   decide it from the avatar, not from taste.
+4. **Connection: the ad has to read as made by someone who knows them.** Use the avatar's own
+   insider words and in-jokes. The looksmaxxing ad says "ascend" because that's the niche's word;
+   outsiders wouldn't get it and that's the point. This extends the 2026-10-07 "labels people
+   give themselves" rule from the callout to the whole ad's vocabulary.
+
+His summary: a good ad speaks directly to the ICP, opens a curiosity gap, triggers an emotional
+response and gives a clear path to a solution. The result is the viewer feeling **"this was made
+for me."** Generic ads that look like everyone else's never get that.
+
+### Two ad modes, chosen by the product and the avatar
+
+- **Problem/emotion products → lead with Curiosity + Emotion.** The fertility ad: a woman with her
+  head in her hands, two handwritten inner-monologue notes ("What's wrong with me?" / "Maybe
+  nothing."), the headline "Stop blaming yourself for not seeing that positive test." and a CTA
+  button "Take the Quiz → See What's Stopping You." It names the private self-blame, takes it off
+  them, and promises an answer one click away. Very little product in the ad.
+- **Low-stakes / identity products → lead with Attention + Connection, often humor.** "The foursome
+  experience you dream about" (putter covers, sold to Gen Z/millennial golfers who drink beers with
+  the boys, not the old guard) and "Made for spitters, not quitters." They sell belonging ("makes
+  me one of the boys") and they get *shared*, which is free reach.
+- Each ad is built for one avatar so precisely that the other avatars would scroll past it in two
+  seconds. That's correct: matches "content is targeting" from the Andromeda sections above.
+- **Nobody cares about specs** (ingredients, fabric weight). Corroborates feature → benefit →
+  benefit of the benefit.
+
+### Research: days of manual reading before any ad
+
+- Spend 3-4 days reading the avatar's own words: Reddit threads, competitors' reviews, Amazon
+  reviews, TikTok comments, comments on competitor ads. Copy and paste verbatim quotes and take
+  screenshots into a raw **research document**. Don't summarize it into a prompt.
+- His point about AI: a "deep research" prompt gives you the average. It won't write "made for
+  spitters, not quitters." The funny, insider, painfully specific lines come from reading real
+  people talk. **For us:** the `deep-research` skill does the collecting with AI (Dylan's call,
+  2026-10-08), but its output is a file of *verbatim* customer phrases with sources
+  (`clients/<slug>/customer-language.md`), not a summary, and Dylan reviews it at three gates.
+  Hooks and callouts are lifted or adapted from those phrases, and each ad cites which phrase it
+  came from.
+- PT sources to mine: Google reviews of competing clinics (both the 5-star and the 1-2 star ones),
+  Reddit (r/physicaltherapy, r/running, r/backpain, r/Pickleball, local city subs), Facebook group
+  comments, comments under competitor PT ads in the Ad Library.
+
+### The brief template: six fields per concept
+
+Write this for every concept before making anything:
+
+1. **Concept**
+2. **Creative type**: curiosity static, us vs. them, USP callout, social proof / review, meme /
+   humor, etc. Always log it. Without it you end up making 100 copies of the same ad, and Meta
+   needs creative diversity (corroborates the new-concept vs. iteration rules above).
+3. **Angle**: what you're saying and who it's for.
+4. **Headline**
+5. **CTA**
+6. **Visual direction**
+
+### Offer still matters
+
+He bought Skims purely because the offer was too good to refuse. Great creative carries a strong
+offer. It doesn't replace one.
+
+### Applicability notes (DigiGrowth / PT)
+
+- **Curiosity mode needs a page that sells.** It only works when the click goes to a landing page
+  or quiz that explains and sells. Client ads that go to a **Meta Instant Form** (e.g. Crosacore via
+  Make) have no page after the click, so the ad itself must carry the problem, mechanism and
+  offer. Pure-curiosity ads there just bring in low-intent form fills. Use curiosity mode for
+  campaigns that send traffic to a client landing page.
+- **The "stop blaming yourself" pattern fits PT well, kept to situations.** Meta's
+  personal-attributes policy still applies: blame-relief about a *situation* passes ("Stop blaming
+  yourself for skipping the morning run"; "Stop blaming your age. Most people were just never
+  shown the right plan."), but asserting the viewer's condition doesn't ("Stop blaming yourself
+  for your back pain"). Handwritten inner-monologue notes on the image are a strong visual for the
+  dark/emotional mode.
+- **Humor/identity mode suits active avatars** (runners, golfers, pickleball players, weekend
+  lifters): an in-joke from their world beats a clinical headline. Keep it kind. Never joke about
+  the pain itself.
+- **Client funnels push the free consult, never prices** (see the client-funnel rule). A curiosity
+  CTA like "See what's actually stopping your runs" pointing to the free consult is the
+  PT version of "Take the quiz → see what's stopping you."
+- No emojis still applies. None of his four ads use them.
+
+---
+
+## Source: "How to Win with Facebook Ad Creatives in 2027" — AdsMastery (2026-10-08)
+
+An e-com agency owner ($600M+ in ad spend) on account-level creative *mix*: what has to be in the ad
+set for Andromeda to scale it. This is strategy, not copywriting, so it lands mainly in
+`build-campaign-plan` section 7 (the 10 concepts) and section 8 (measurement). **Dylan's call:
+real-creator UGC is out** (his "creator army": samples, TikTok GMV Max, creator communities, invite
+tools). Everywhere the video says UGC, we use our tested **AI UGC** pipeline instead (Veo talking
+actors, `generate-ad`'s "AI UGC Video Ads" loop). Also skipped: the tool promos and the next-video
+plug.
+
+### The 33% rule, our version: three pillars
+
+His slide labels each pillar with a job. Our version:
+
+| Pillar | His job label | What it is for us | Strength | Weakness |
+|---|---|---|---|---|
+| AI statics / AI scene video | Discovery: find winners | fal.ai images, Kling scenes | Fast, a few dollars, fills any missing format | Less trust, can drift off the formula |
+| AI UGC (replaces his creator army) | Scale: mass volume | Veo 3.1 talking actors | A "real person talking" at volume. Vary actor age, gender and setting to reach different avatars | Not authentic proof. Never a patient (existing rule) |
+| In-house | Control | The practitioner's founder story, team, the clinic behind the scenes | The most trust, full control of the message, hardest for competitors to copy | Slowest (about 30 min to hours per ad), depends on the client's footage |
+
+- Keep roughly **a third from each pillar.** The trust gap in the two AI pillars is closed by real
+  reviews as proof cards and by the in-house pillar.
+- **Founder stories work.** He disagrees with "build the product brand, not the founder": a real
+  "why I started this" and the setbacks along the way make people relate and want to support a
+  small business. For PT, that's the practitioner's own story. Note this is *not* the same as a
+  re-cut of the practitioner's educational footage, which Dylan rejected (2026-09-29).
+
+### Cover the whole awareness ladder, in one ad set
+
+- Also roughly **a third each of top, middle and bottom of funnel**, all inside **one ad set**.
+  Andromeda decides who sees which ad at which stage. Don't split stages into separate audiences.
+  This corroborates the house format (1 campaign, 1 ad set, 10 ads).
+- His formats by stage, with our PT translation:
+
+| Stage | His formats | PT version |
+|---|---|---|
+| Unaware | Educational stat, founder story, "did you know" | A surprising fact about a *situation* ("Most runners who stop for a sore knee never had a knee problem"), never asserting the viewer's condition. Founder story |
+| Problem-aware | Before/after, benefit callouts | A functional before/after told through a real patient's review (couldn't do X, now does X). No body before/after images (Meta restricts those in health) |
+| Solution-aware | 3 reasons why, us vs. them, reviews, testimonials | PT vs. rest / chiro / injections / YouTube stretches; 3 reasons one-on-one PT works; real Google review cards; AI UGC actor voicing the situation |
+| Product-aware | Limited-time offer, offer, testimonials | Free-consult reminder with reviews. Never a price (client-funnel rule) |
+| Most-aware | One direct CTA ad | "Book your free consult," plain and direct |
+
+- **Conflict with "The Only 2 Ad Creative Formats" (2026-09-13), which said skip the middle of the
+  funnel:** this newer rule wins *for the mix*. The 10 ads span the ladder, middle included. That
+  source's real point still holds *per ad*: each ad does exactly one stage's job, never a vague
+  blend.
+
+### The 2027 strategy: unique formats per angle, not variants of one winner
+
+- **The old way (his "2026 strategy"):** find the winning format, then make variants of it (same
+  walk-and-talk, new person; same static, new background). All the spend piles into 1-4 ads, and
+  when that format fatigues, the account tanks and you start hunting for a new winner again.
+- **The new way:** for each avatar, pick 3 angles. Each angle gets the **full format set: Review,
+  Benefit, Founder, Educate, Problem, Offer**. Every ad is unique, and no two share both angle and
+  format. Run 10-15 of these.
+- **The health signal is spend spread across many ads**, not concentrated in the top 3-4. If spend is
+  stuck in a few ads, add new *formats*, not more variants.
+- **Don't switch off "weaker" ads that are still getting spend.** They have a role at their stage
+  of the ladder, and that's what keeps return on ad spend steady as spend rises.
+- **Conflict with the "minimum spend before judging" rule** in the $30/day source above: judge the
+  *ad set* by cost per booked consult and by how spend is spread. Don't kill an ad only because its
+  own cost per lead is worse while it's still getting spend. Still kill ads for policy problems, and
+  ads with zero results after the minimum-spend threshold. His advice comes from accounts spending
+  thousands a day, and our clients run about $25/day, so with 10 ads the threshold takes a while to
+  reach. Be patient, not trigger-happy.
+- Corroborates the ratio flip (new concepts over iterations) from the Post-Andromeda Q&A.
+
+### The angle flywheel
+
+- When an angle wins in one pillar, rebuild it in the other two. His example: a creator's
+  ingredient-label comparison took an account from 1.7x to 4x return on ad spend once the founder
+  re-made it as AI and in-house ads. The founder had never thought of that angle himself.
+- For us: a winning AI UGC script becomes a static and a founder-story take, and the reverse.
+- His **wide vs. specific briefs** map onto our AI UGC scripts: *wide* = fresh angles from
+  `deep-research`; *specific* = modeled on our current best ad (the existing "same actor,
+  different scripts" double-down).
+
+### Personification: open new avatars by sub-problem when spend plateaus
+
+- One general avatar ("people who can't sleep") eventually maxes out. Split it by *sub-problem*:
+  can't fall asleep / falls asleep but wakes up groggy / keeps waking up at night. These are
+  different people, and each gets its own full pillar × ladder set.
+- Or split by identity: athlete, mom who works out 3 days a week, office worker, frequent traveler.
+- For PT, these come from the `deep-research` segments: runner knee, desk-worker neck, weekend
+  warrior, parent lifting kids, golfer, post-surgery. Corroborates "go niche" from the Hormozi /
+  Andromeda section. At $25/day, launch one avatar first, and open the next when results plateau.
+
+---
+
+## Source: "How to Make Meta Video Ads in 2026" — Creative Don (2026-10-08)
+
+Jared Robinson again (same agency as the 2026 static-ads source above), this time on the **video
+script structure** behind their best DTC video ads (high six figures in purchase value from single
+ads). Lands in `generate-ad`'s video sections. His examples are apparel (gym leggings and tanks, a
+premium hat). Skipped: the creative-audit pitch and the comment bait. His "don't let influencers
+freeball it" applies to us as: **AI UGC scripts are always written from proven messaging**
+(real-creator UGC is out, per Dylan).
+
+### Three parts, three jobs
+
+1. **Hook (about the first 5 seconds): stop the scroll. That's all.** It's not there to sell or to
+   get the click. Three ingredients:
+   - **A visual hook in frame 1.** If nothing interesting is happening on screen the instant they
+     scroll onto it, the copy doesn't matter. On screen in his example: a big bold caption of the
+     key phrase ("BUTT ENHANCING TECH") over the product in action.
+   - **Curiosity copy.** "The girls got the leggings with the butt-enhancing tech... Worker made
+     tanks for the boys with chest-enhancing tech." The viewer wonders what that even means.
+   - **It qualifies the ICP in about a second**, using words only the niche gets (gym people know
+     the leggings). Everyone else scrolls on, which is fine. Corroborates Connection / insider words
+     (2026 static source) and "content is targeting" (Andromeda).
+2. **Body: sell, using messaging you already know works.**
+   - Lead with a **value proposition / unique mechanism**: the product as *the* solution, or the
+     next new thing. "This is not your cheap store-bought tank top. The cheap ones stretch out
+     fast." Then the selling points people actually responded to ("holds its shape all day"), the
+     use cases, and **identity** ("built for bodybuilders, powerlifters and hard work").
+   - Never write a script on unvalidated messaging. He finds the messages with cheap, structured
+     **static tests first**, then scripts videos from what won.
+3. **CTA: overcome objections and doubt, not "check it out."** Many ads have good hook and hold
+   rates and still don't sell, because they end on "check it out" or "selling out fast." Once
+   someone has watched 30 seconds they're interested. The ending's job is to push them over the
+   line with:
+   - **Objection handling** ("there's a reason it's priced like this, it's not for people who want
+     to cheap out")
+   - **Risk reversal** (free returns, a 30-day money-back guarantee)
+   - **Social proof volume** ("20,000 people already trust us... 45,000 sold in under two years"),
+     shown as a fast scroll through a wall of review cards with the speaker in a corner bubble
+   - **An offer**, plus urgency or scarcity.
+   In his example, the last ~20 seconds of a ~50-second ad are all CTA and objection handling.
+
+### His go-to full structure (6 beats)
+
+Works as a talking actor, a VSL or a founder-led VSL. He says it "absolutely prints."
+
+1. **Hook**: call out the ICP and the angle (plus the visual hook and curiosity above)
+2. **Storytelling**: what's the problem? Relate to the ICP.
+3. **UMP → UMS**: the unique-mechanism problem ("why the usual options fail") turning into the
+   unique-mechanism solution: **why we work when others don't**
+4. **Risk reversal**: guarantee, warranty
+5. **Testimonials**: results, or sheer volume of 5-star reviews
+6. **CTA**: offer, urgency, scarcity
+
+Beats 2-3 are where the selling happens. Beats 4-6 push them over the line.
+
+### How this fits our rules
+
+- **Script length.** Our AI UGC loop makes ~15-20s ads with a 5s end card. That stays as the
+  short format. His 6 beats become a **separate long-form concept type, the "full-structure
+  video" (~40-60s)**: 5-7 Veo takes of 8 seconds or less (hook, story, UMP, UMS), then a proof
+  section (review cards) and an offer card. Or use the practitioner's own footage as a founder-led
+  version. Put one full-structure concept among a campaign's 10. It's a different format, which
+  is what the 2027 strategy wants anyway.
+- **Static tests first vs. our house format** (at least 7 of 10 ads are video, Dylan 2026-10-06):
+  **the house format stays.** For a first launch, "proven messaging" means the `deep-research`
+  quote bank plus the proven competitor ads (both already validated outside our account). After
+  the first read, new video scripts go on the angles that won in *any* format (the flywheel). A
+  statics-first test launch is an option to offer Dylan for a new client, not the default.
+- **The CTA under our client-funnel rules:**
+  - **No price, ever**, so his "price objection" becomes the PT objections from `deep-research`:
+    cost/insurance worries, time off work, "PT didn't work for me before", "do I need a
+    referral?" Answer only with facts from the client's `client-context.md` (e.g. Texas direct
+    access) and never a price.
+  - **Risk reversal = the free consult itself**: "free, no obligation, you'll leave with a plan
+    either way." Mention a guarantee only if the client really offers one.
+  - **Urgency or scarcity only if it's real** and the client's voice rules allow it. A no-pressure
+    brand doesn't get "only 3 spots left."
+  - **Social proof** = review count + real review cards, first names only. Our proof card already
+    does this. The scrolling review wall with the speaker in a corner bubble is a richer version.
+- **Corroborates:** the 0.5s attention rule, insider words, Hormozi's risk reversal right after the
+  CTA, visual proof over text proof, and the existing 0-3s hook timing.
+
+### PT translation of UMP → UMS
+
+- **UMP examples**, only where true for that client's competitors: "Most clinics give you 15
+  minutes with the PT, then an aide hands you a sheet of exercises." "Rest and YouTube stretches
+  calm it down, then it comes back the first time you run."
+- **UMS** = the client's *real* differentiator (Crosacore: a full one-on-one hour with Brandon,
+  in-clinic or at home). Never invent one.
+- **Identity** works for PT too: "built for people who refuse to stop running."
+
+---
+
+## Source: "How I Make AI Static Ads in minutes" — static ads masterclass (2026-10-08)
+
+A paid-social strategist (10 years, tens of thousands of statics for Laura Geller, Nuts.com and
+others; her top static did $1.8M in spend at 2.15 ROAS). Part 1 is a static-ad masterclass. Part 2
+is a **sponsored** demo of Superscale, an AI ad agent. We take its *workflow*, not the tool: every
+step maps onto what we already have (see the table at the end). Lands in `generate-ad` steps 2-3,
+the concept library and `build-campaign-plan` step 2. Skipped: the sponsor pitch.
+
+### Myths
+
+- **"Statics are only for retargeting."** False. With the right persona and awareness-level
+  messaging, statics scale to cold audiences.
+- **"Only video works for us."** A skill issue: people think about statics as a *format*, not as
+  messaging that "waves a flag" at a cold persona.
+- **"Statics are just for testing messages cheaply before video."** That misses what a great static
+  can do on its own. **Resolution with the Creative Don video section:** both are true. Statics are a
+  cheap message test *and* real performers, so the ~3 statics in the house format get designed as
+  full ads, never as throwaways.
+
+### Layer 1: strategy, decided before any copy
+
+1. **One goal.** Offer, education, or reaching the problem-aware. Never two jobs in one static.
+   Corroborates the one-job-per-ad rule.
+2. **One specific persona**: not "small business owners" but which one, at what stage, with which
+   objection. That decides the vocabulary, the proof needed and the objections to answer.
+3. **The format.** It decides which copy survives and what the image must carry.
+4. **The awareness level.** It's the bridge between persona and goal and the copy framework.
+   Corroborates the AdsMastery ladder.
+
+### Layer 2: design
+
+- **Hierarchy:** headline first (it does the targeting), then the product or key visual, then
+  supporting elements. The focal point is usually the headline, and sometimes the image.
+- **The one-second comprehension test.** Clarity beats creativity. If a stranger can't tell what's
+  being sold or said at a glance, kill it. Her "scrap it" example: a bottle surrounded by six
+  "NO MORE" callouts with little illustrations. No focal point, too much going on. **AI statics
+  drift into exactly this**, so check every generated static against it.
+
+### Layer 3: copy tactics (every winning static uses at least one)
+
+1. **Specific numbers** for time, effort or cost ("5 minutes", "under $5", "one use"). Her top
+   static: "The 5 Minute Makeup Routine."
+2. **Call out the audience by name.** Self-selection is a targeting mechanic. Corroborates the
+   callout rule.
+3. **Taboo:** say what competitors are too polite to say.
+4. **Primal desire as the headline:** status, belonging, safety, approval. The product is just the
+   mechanism. The desire is the headline.
+5. **A curiosity loop:** show the setup, hide the payoff behind the click. If it wins, make sure
+   the landing page pays it off. Corroborates curiosity mode from the 2026 static source.
+6. **Negative marketing:** name what they're afraid of.
+7. **Golden-nugget testimonials.** Her most repeated winner. Export all reviews (CSV) and have an
+   LLM pull the lines that would work best as ads. Better than writing copy.
+8. **Show the transformation, don't describe it.** Before/after is legal, just restricted for
+   cosmetic and weight-loss products.
+
+### Production levels and seven formats
+
+- **Three production levels:** graphic, hi-fi production, and **lo-fi creator content** (statics
+  that look like a phone photo). Brands forget the lo-fi kind, and it's "really moving the needle"
+  right now.
+- **Formats to always test** (taking a winning message into several formats is easy creative
+  diversity):
+  1. **Educational infographic.** Top of funnel; feels organic because it teaches. Example:
+     "Instant brighter teeth in 3 easy steps" with numbered steps.
+  2. **Headliner.** One big headline front and center (Ogilvy-era). The home of taboo lines.
+  3. **Benefit callouts.** The product in the middle with benefits around it. Test a primal-desire
+     headline or a golden-nugget testimonial on top. Keep it to a few callouts (see the hierarchy
+     rule).
+  4. **Comparison / us vs. them.**
+  5. **Transformation.** The **biggest gap** in most accounts and the biggest opportunity for
+     problem- and solution-aware people, who are "just looking for proof."
+  6. **Grid.** Several items in a grid. Her $8.4M top static was a grid ("The 5 Minute Makeup
+     Routine": four products with prices). Best for multi-product brands.
+  7. **Text-only.** Founder letters, notes-app posts. Example: "iPhone Cases Are Weird.", a
+     short-line letter ending in press proof.
+
+### Her AI workflow, mapped onto our stack (no new tool needed)
+
+| Her step (Superscale) | Our equivalent |
+|---|---|
+| Pull brand fonts, colors and products from the URL | Client portal + `design-agent` site scrape |
+| A "brand brain" doc from Claude | `client-context.md` + `deep-research.md` |
+| Research own and competitor ads | `research-competitors` + the Meta connector |
+| **Creative gap analysis**: which formats, personas and awareness levels the account is missing | **New:** creative gap table in `build-campaign-plan` step 2 |
+| Generate ~3 variations per concept to start | `generate-ad` step 3 (fal.ai Nano Banana Pro) |
+| Edit by chat: fix typos, colors, sizes | Nano Banana `--ref` edits, at the visual gate |
+| "5 variations of this ad for 3 personas" (works on competitor ads too) | `generate-ad` input 5 (recreate a proven ad) |
+
+Her critiques of the AI output **corroborate our rules**: she deletes em dashes, fixes AI
+spelling errors, dislikes quote-heavy review collages (matches Hormozi's "stacked text testimonials
+underperform"), and flags that AI statics often have "too much going on."
+
+### PT translation
+
+- **The seven formats for PT:**
+  1. Infographic: "3 reasons your knee aches after long runs" or "What happens in your first
+     visit (step by step)."
+  2. Headliner: a taboo line such as "Most clinics book you for an hour. You see the PT for 15
+     minutes." Only where that's true of local competitors, and never naming one.
+  3. Benefit callouts: around a real session photo. Three callouts at most.
+  4. Comparison: one-on-one PT vs. rest, chiro, injections or a 15-minute clinic.
+  5. Transformation: a functional before/after told through a real review ("couldn't lift my
+     daughter" → "carried her up the stairs"). Never body before/after images.
+  6. Grid: "what we help with" or the team. Lowest priority for PT.
+  7. Text-only: a founder letter from the PT ("Why I left the big clinic to open my own").
+- **Lo-fi:** a phone-photo look of a real session or the clinic. Pairs with the in-house pillar.
+- **Tactics in PT terms:**
+  - Numbers describe the *service* ("60 minutes, one-on-one", "in-home"), never outcome promises.
+  - Primal desires: independence, keeping up with the kids, safety, not being "the injured one."
+  - Negative marketing names the fear (surgery, being told to stop running) without asserting the
+    viewer's condition.
+  - **Golden nuggets:** run the client's Google reviews through the LLM, first names only.
+
+---
+
 ## Working Checklist (apply to every generated ad)
 
 - [ ] Is there ONE clear avatar this specific ad is for — visually and verbally unmistakable?
@@ -810,10 +1213,10 @@ guidance, so it lands mainly in `generate-ad` step 2. Skipped: the closing ACQ e
 - [ ] If proof is included, is it visual (before/after, result screenshot, video-style still) rather
       than a plain text quote?
 - [ ] If a real guarantee/risk-reversal exists for this offer, is it stated right after the CTA?
-- [ ] Is this ad explicitly TOP-OF-FUNNEL (problem+solution, cold avatar) or BOTTOM-OF-FUNNEL (one
-      specific objection, warm avatar) — never an unfocused ad trying to do both jobs at once?
-- [ ] If bottom-of-funnel: does it address exactly ONE named objection, without restating the full
-      top-of-funnel pitch?
+- [ ] Does this ad do ONE funnel job, never an unfocused ad trying to do several at once? (Since
+      2026-10-08 the middle funnel is in scope too. See the awareness-stage item below.)
+- [ ] If it's an objection ad (product/most aware): does it address exactly ONE named objection,
+      without restating the full top-of-funnel pitch?
 - [ ] Does the first line get an instant "yeah, that's me" (a pain/situation yes-statement), rather
       than an offer, a feature list or an exclamation-point promise?
 - [ ] Is every callout label one the avatar would use about themselves?
@@ -823,3 +1226,35 @@ guidance, so it lands mainly in `generate-ad` step 2. Skipped: the closing ACQ e
 - [ ] Third-grade reading level, short sentences, few commas, line breaks?
 - [ ] If there's an analogy or teaching point, is it drawn from the avatar's own world?
 - [ ] Does the CTA speak to personalization rather than a generic "book now"?
+- [ ] Does frame 1 / the image alone stop the scroll in half a second, on mute, before any copy is
+      read?
+- [ ] Is the concept's lead element named (Attention / Curiosity / Emotion / Connection) and its
+      core emotion chosen on purpose for this avatar?
+- [ ] If it's a curiosity-led ad that sells very little, does the click go to a page that does the
+      selling (not a bare Instant Form)?
+- [ ] Does the copy use at least one insider word or phrase the avatar actually uses, ideally
+      lifted from real customer language (reviews, Reddit, comments)?
+- [ ] Is the brief complete (concept, creative type, angle, headline, CTA, visual direction), and
+      is the creative type different from the other concepts in the batch?
+- [ ] Is each ad tagged with exactly one awareness stage (unaware / problem / solution / product /
+      most aware) and doing only that stage's job?
+- [ ] Does the set of concepts span the whole ladder, middle funnel included?
+- [ ] Does the set mix the three pillars (AI static/scene, AI UGC, in-house) roughly in thirds,
+      where the client's footage allows?
+- [ ] Are any two concepts just variants of the same format (same format, cosmetic change)? If so,
+      replace one with a different format.
+- [ ] Video: is there a visual hook in frame 1 (something happening, plus a bold keyword caption),
+      and does the hook qualify the ICP in about a second?
+- [ ] Video: does the body name the unique-mechanism problem and the solution (why this works when
+      the usual options don't), using only the client's real differentiators?
+- [ ] Video: does the ending handle at least one real objection, plus risk reversal (the free
+      consult) and social proof, rather than a bare "book now"?
+- [ ] Video: is the script built on proven messaging? Cite the research quote, proven ad or
+      winning angle it came from.
+- [ ] Static: does it pass the one-second comprehension test, with one clear focal point (usually
+      the headline) and not too much going on?
+- [ ] Static: does it use at least one copy tactic (specific number, audience callout, taboo,
+      primal desire, curiosity loop, named fear, golden-nugget review, shown transformation)?
+- [ ] Static: is its format named (infographic, headliner, callouts, comparison, transformation,
+      grid, text-only) and its production level (graphic, hi-fi, lo-fi), and do the statics in a
+      batch use different formats?

@@ -1,0 +1,197 @@
+{
+ "slug": "pinnacle-physical-therapy-blueprint",
+ "business": "Pinnacle Physical Therapy",
+ "business_short": "Pinnacle",
+ "domain": "pinnacledpt.com",
+ "brand": {
+  "primary": "#248ca1",
+  "primary_text": "#ffffff",
+  "avatar_bg": "#0f4d5c"
+ },
+ "logo": "logo.png",
+ "hero": {
+  "headline": "A system built to put *7-10 paid Discovery Visits* on Pinnacle's calendar in your first 6 weeks"
+ },
+ "engine_intro": "Your contact page tells patients to text or call Madison, and Ireon's review says he was amazed the therapist himself got back to him instead of a receptionist. That personal touch is the point, and it's also the bottleneck while you're one-on-one with a patient. The engine keeps it: new ad leads, past patients and every missed call land with one AI agent that replies in seconds, in Pinnacle's voice, and books the $49 Discovery Visit. Anyone who doesn't book, no-shows or finishes care gets recycled back into reactivation instead of forgotten.",
+ "step_blurbs": [
+  "Ads put you in front of Little Rock adults who've already tried PT, chiropractic or medication, plus active adults stuck in the flare-up cycle and people with jaw pain, a specialty most clinics can't claim.",
+  "Every click lands on a page about one thing, the $49 Discovery Visit, instead of a site with 60 pages to wander through.",
+  "The agent texts and chats with every lead in seconds, answers questions about the visit and your approach, and books the Discovery Visit.",
+  "Email and SMS campaigns to the leads and past patients you already have, so the list Pinnacle built since 2017 keeps booking visits.",
+  "Missed calls, no-shows and unbooked leads get followed up automatically, so nothing you paid for leaks out."
+ ],
+ "ads": {
+  "headline": "Ads built around the patients you're best at helping",
+  "intro": "Your own videos are the strongest ads you have: Ned Perme's story, you explaining why Pinnacle is different, your TMJ specialty. We cut these from your YouTube channel and paired them with three AI-made UGC-style videos for angles you haven't filmed yet. In a real launch we test them and double down on whatever books the most Discovery Visits.",
+  "video_label": "Cut from your own videos",
+  "static_label": "AI-generated concepts",
+  "video_items": [
+   {
+    "video": "social/cut1.mp4",
+    "poster_at": 1.5,
+    "primary_text": "Ned Perme retired from Channel 7, took up pickleball, and then plantar fasciitis hit. Nine treatments with Dr. Brian Murphy, including Class 4 laser therapy, and after eight weeks he was back on the court. Start with a $49 Discovery Visit in Little Rock.",
+    "headline": "$49 Discovery Visit, Little Rock",
+    "cta": "Book Now",
+    "angle_label": "Top of funnel",
+    "angle": "a familiar local face, a real result"
+   },
+   {
+    "video": "social/cut2.mp4",
+    "poster_at": 1.5,
+    "primary_text": "Tried PT before and it didn't help? Dr. Brian Murphy looks at the body from head to toe to find the root cause, not just the spot that hurts. Every session is one-on-one with your physical therapist, never a tech.",
+    "headline": "Tried PT before? This is different.",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel",
+    "angle": "the 'I already tried PT' objection, in your words"
+   },
+   {
+    "video": "social/cut3.mp4",
+    "poster_at": 1.5,
+    "primary_text": "Jaw pain, headaches, clicking or popping when you chew? Dr. Brian Murphy is a TMJ/TMD specialist who works with your dentist and treats the neck, upper back and posture too, not just the joint. Start with a $49 Discovery Visit.",
+    "headline": "TMJ specialist in Little Rock",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel · specialty",
+    "angle": "TMJ, a niche most PTs don't treat"
+   }
+  ],
+  "items": [
+   {
+    "video": "libads/pinnacle-ugc-tried-everything-web.mp4",
+    "poster_at": 1.2,
+    "primary_text": "Massage, adjustments, months of PT, and it still flares up? At Pinnacle, Dr. Brian Murphy looks at your whole body to find the root cause, one-on-one every session. No medications, injections or surgery. Start with a $49 Discovery Visit.",
+    "headline": "$49 Discovery Visit, Little Rock",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel · AI UGC",
+    "angle": "tried everything, still in pain"
+   },
+   {
+    "video": "libads/pinnacle-ugc-thursday-web.mp4",
+    "poster_at": 1.2,
+    "primary_text": "Massage. Stretching. A new desk chair. And by Thursday the neck and shoulder tension is right back? At Pinnacle, every session is one-on-one with your physical therapist, never a tech, and Dr. Brian Murphy looks at your whole body to find the root cause. Start with a $49 Discovery Visit.",
+    "headline": "One-on-one PT in Little Rock",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel · AI UGC",
+    "angle": "desk tension that keeps coming back"
+   },
+   {
+    "video": "libads/pinnacle-ugc-squareone-web.mp4",
+    "poster_at": 1.2,
+    "primary_text": "A few good weeks back in the gym, then a flare-up, and it's square one again? Dr. Brian Murphy, DPT, OCS looks at your whole body to find what keeps setting you back, then builds a plan to get you training again. Start with a $49 Discovery Visit.",
+    "headline": "Back to training, not square one",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel · AI UGC",
+    "angle": "active adults stuck in the flare-up cycle"
+   }
+  ]
+ },
+ "funnel": {
+  "headline": "Why ads go to a funnel, not your website",
+  "intro": "pinnacledpt.com is a good site and it should stay: condition pages for every body part, golf, TMJ, massage, blogs, videos and ebooks. That's perfect for someone researching. Someone who just clicked an ad needs one thing: a reason to book and an easy way to do it.",
+  "points": [
+   "Headline matches the ad they clicked",
+   "Six real patient reviews up front",
+   "What the visit covers, answered early",
+   "One action: the $49 Discovery Visit"
+  ],
+  "html_file": "funnel.html",
+  "url": "pinnacledpt.com/discovery-visit",
+  "why": [
+   {
+    "icon": "target",
+    "title": "Only what matters",
+    "text": "Just the information that gets someone to book: their problem, your approach, real reviews, what the visit covers and what it costs. Nothing else."
+   },
+   {
+    "icon": "ban",
+    "title": "No distractions",
+    "text": "No menu with 60 condition pages, no blog, no ebooks, no links away. Every extra page is a chance for them to wander off and forget about you."
+   },
+   {
+    "icon": "pointer",
+    "title": "One choice: book",
+    "text": "Too many options causes decision paralysis. Every button on the page does the same thing: book the $49 Discovery Visit."
+   }
+  ]
+ },
+ "agent": {
+  "headline": "An agent that answers while you're one-on-one with a patient",
+  "intro": "The practice that replies first usually wins the patient, and you can't text back mid-session. This agent replies to every lead in seconds, answers questions from your own website, explains what the Discovery Visit covers, and books it.",
+  "points": [
+   "Knows your services, specialties, team and hours",
+   "Never gives medical advice or invents details",
+   "Offers two open times and books the one they pick",
+   "Hands off to Madison or you whenever it should"
+  ],
+  "greeting": "Hi! Thanks for reaching out to Pinnacle Physical Therapy. What's been bothering you?",
+  "chips": [
+   "My lower back pain keeps coming back",
+   "What happens at the Discovery Visit?",
+   "Can I book the $49 visit this week?"
+  ]
+ },
+ "recovery": {
+  "headline": "Every lead that doesn't book gets another shot",
+  "intro": "Most practices lose more patients to slow follow-up than to competitors. These run on their own, in Pinnacle's voice.",
+  "items": [
+   {
+    "icon": "phone",
+    "label": "Missed call text-back",
+    "when": "Seconds after a call goes unanswered",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi, it's Pinnacle Physical Therapy! Sorry we missed your call, we're usually with a patient. Are you looking to book a $49 Discovery Visit, or do you have a question?"
+     },
+     {
+      "from": "lead",
+      "text": "yeah my knee has been bad since pickleball season, how soon can I get in?"
+     }
+    ]
+   },
+   {
+    "icon": "clock",
+    "label": "Unbooked lead follow-up",
+    "when": "Day 2 after an opt-in that didn't book",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi Jason, it's Madison with Dr. Murphy's team at Pinnacle. Still dealing with that low back pain? I have a couple of Discovery Visit times tomorrow if you want one."
+     }
+    ]
+   },
+   {
+    "icon": "calendarx",
+    "label": "No-show recovery",
+    "when": "15 minutes after a missed appointment",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi Maria, we missed you at 2pm today. No problem at all, want me to find you another time this week?"
+     }
+    ]
+   }
+  ]
+ },
+ "reactivation": {
+  "headline": "Turn the leads you already have into booked visits",
+  "intro": "Every past patient and every person who asked about care but never booked is already on your list. Regular email and SMS campaigns bring them back, at almost no cost per booking.",
+  "sms_when": "To old leads and past patients, every few months",
+  "sms": [
+   {
+    "from": "practice",
+    "text": "Hi Kevin, it's Madison at Pinnacle Physical Therapy. It's been a while since your last visit, how's the shoulder holding up? We opened a few $49 Discovery Visit spots this month if you want Dr. Murphy to take a look."
+   },
+   {
+    "from": "lead",
+    "text": "honestly its been creeping back. anything next week?"
+   }
+  ],
+  "email_when": "Monthly, to the whole list",
+  "email": {
+   "subject": "Still dealing with that pain?",
+   "body": "Hi Sarah,\n\nA while back you reached out about your low back. If it's still bothering you, we'd love to help.\n\nEvery session at Pinnacle is one-on-one with your physical therapist, never a tech or an aide, and we look at your whole body to find the root cause, without medications, injections or surgery.\n\nReply to this email or text us to book a $49 Discovery Visit. You'll leave knowing what's going on, whether PT can help, how long it should take and what it will cost.\n\nThe Pinnacle Physical Therapy team"
+  }
+ },
+ "close_intro": "Your site already sells a $49 Discovery Visit, so we're not changing your offer, just putting it in front of more of the right people in Little Rock and making sure every one of them gets an answer. Here's what we commit to.",
+ "chat_context": "Pinnacle Physical Therapy, Little Rock, Arkansas. Opened in August 2017 by Dr. Brian Murphy and his wife Chelsea Murphy (CFO).\n\nClinicians: Dr. Brian Murphy, DPT, OCS, ATC, PES, TPI Level 2 Medical. Owner. BS Athletic Training (University of Central Florida), Doctorate of Physical Therapy (University of North Florida), completed a year-long orthopedic residency at Florida Hospital Orlando, Orthopedic Clinical Specialist since 2015 (one of only 26 OCS physical therapists in Arkansas at the time the site was written), Athletic Trainer Certified, Performance Enhancement Specialist, Level 2 Titleist Performance Institute (TPI) Medical Provider, TMJ/TMD specialist. Steve Forbush, PT: more than 46 years as a physical therapist, orthopedic residency, APTA certified orthopedic specialist, Certified Manual Therapist, 17 years as a professor in the PT program at the University of Central Arkansas; focuses on complex pain and movement disorders. Patient care coordinator: Madison Rogers. The site also mentions licensed massage therapists.\n\nThe Pinnacle Promise: every session is with your physical therapist, not a technician or aide. One-on-one care, more time with your therapist, faster relief and fewer visits needed. Most of the time you see the same therapist every visit. Easy access to your therapist by phone, text or email. A video-based home exercise program. Clear communication about costs, goals and a timeline for recovery. Holistic, whole-body approach to find the root cause; the goal is relief without medications, injections or surgery. Three pillars: Analyze (movement and lifestyle, head to toe), Educate (understand your plan of care), Empower (show positive changes in session, then a video-based home program).\n\nConditions treated: head and neck pain, headaches and migraines, pinched nerve or herniated disc in the neck, TMJ disorder (jaw pain, clicking, popping, headaches, pain chewing or yawning; works alongside your dentist), shoulder pain (rotator cuff tear, impingement, bursitis, frozen shoulder/adhesive capsulitis, labral tear, AC joint, arthritis, thoracic outlet syndrome), mid back pain, low back pain (chronic low back pain, herniated disc, degenerative disc disease, sciatica, SI joint pain, scoliosis), hip pain (osteoarthritis, bursitis, impingement, labral tears), knee pain (meniscus tear, patellar tendinitis, patellofemoral pain, IT band syndrome, hamstring injury), foot and ankle pain (plantar fasciitis, ankle sprain, Achilles tendinopathy, calf strain), vertigo, sports injuries, post-surgery rehab.\n\nServices: physical therapy, manual therapy, dry needling, blood flow restriction training, Class 4 laser therapy, pain neuroscience education, TMJ therapy, sports therapy, golf health program (TPI golf body screening, golf pain/injury rehab, golf performance), tennis and pickleball injury prevention, orthotics assessment, wellness services (fitness and exercise programs, injury prevention, fall prevention), massage therapy. Evaluations offered: wellness evaluation, injury evaluation, sports performance evaluation (full-body assessments).\n\nFirst step: the $49 Discovery Visit, paid when you book. You sit down with a physical therapist, tell your story, and get a brief history and movement screen. You leave knowing: what's going on and the root cause, whether a PT can help your issue, how long it should take to see results, what it will cost, and what you can start doing at home. It's also a chance for the team to make sure you're a good fit. This is what you book.\n\nPricing: the Discovery Visit is $49. Other prices are not listed; the cost of a plan of care is explained at the Discovery Visit. Insurance: the website does not say whether insurance is accepted; have the team confirm.\n\nLocation: 12511 Cantrell Rd, Suite 100, Little Rock, AR 72223. Hours: Monday to Friday, 7am to 7pm. Phone (501) 529-2010, you can text or call. Rated 4.9 to 5.0 stars on Google.\n\nReal patient reviews: Barry (52, retired police lieutenant) couldn't play golf for 4 years due to thoracic back pain and had seen several of the so-called best pain doctors and physical therapists in Little Rock; Dr. Murphy evaluated his whole body and got him back to playing golf. Jeannie: pain down her leg went away in one session and hadn't returned 6 months later. Ned Perme (retired from Channel 7) got back on the pickleball court after eight weeks of treatment for plantar fasciitis, including nine Class 4 laser treatments."
+}

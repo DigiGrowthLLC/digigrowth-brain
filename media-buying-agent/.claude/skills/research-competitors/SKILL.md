@@ -27,17 +27,18 @@ Ask if not already given:
 
 ---
 
-## The bar: at least 10 proven ads (Dylan, 2026-10-06)
+## The bar: at least 20 proven ads (Dylan, 2026-10-06; raised from 10 on 2026-10-08)
 
-Every run must end with **at least 10 proven ads**, each with its **verbatim copy** captured. An ad
+Every run must end with **at least 20 proven ads**, each with its **verbatim copy** captured. An ad
 counts as proven only if it is **still active today AND started running 6+ months ago**. A
 long-running active ad is one an advertiser has kept paying for, which is the closest public signal
 of performance the Ad Library offers. Newer ads, inactive ads, and one-off gimmicks don't count
-toward the 10, however good they look.
+toward the 20, however good they look.
 
-These 10 are the raw material for the rest of the pipeline: `build-campaign-plan` ties each of its
-10 concepts to one of them, and `generate-ad` writes each approved ad's 3 copy variations from
-their copy. So the copy has to be captured word for word, not summarized.
+These 20 are the raw material for the rest of the pipeline: `build-campaign-plan` ties each of its
+10 concepts to a different one of them (20 gives room to pick the best fit for each concept and to
+drop any that clash with the client's tone), and `generate-ad` writes each approved ad's 3 copy
+variations from their copy. So the copy has to be captured word for word, not summarized.
 
 ## Steps
 
@@ -51,9 +52,9 @@ snapshot URL, but can't filter by date or sort by reach, so:
 - Keep only ads whose start date is **6+ months before today**. Dedupe near-identical copies from
   the same advertiser (count the concept once, note how many variants they run, which is itself a
   signal).
-- **Under 10?** Widen in this order: more keywords and conditions, the same vertical in other US
+- **Under 20?** Widen in this order: more keywords and conditions, the same vertical in other US
   cities/regions, then adjacent verticals with the same buyer and offer type (e.g. chiropractic and
-  sports medicine for a PT client). Never pad the list with ads under 6 months old. If 10 truly
+  sports medicine for a PT client). Never pad the list with ads under 6 months old. If 20 truly
   can't be found, stop and say how many were found and where you looked.
 - For each proven ad, open the `ad_snapshot_url` (playwright) when the text alone doesn't show the
   format (video vs. static vs. carousel) or the on-screen hook.
@@ -110,6 +111,11 @@ produces more organized, directly usable findings:
 3. Which **audience segments** are responding best, where stated?
 4. What **creative patterns repeat** across multiple winning ads (ties back to the Ad Library
    structural-pattern findings from step 1 — use this to confirm or extend them)?
+
+This skill studies competitors' *ads*. What customers themselves say (Reddit, reviews, comments)
+is the `deep-research` skill's job, saved to `clients/<slug>/customer-language.md`. When both
+exist, check the proven ads' hooks against that language bank, and note which ones use words the
+avatar really uses.
 
 ### 3. Separate structure from tone
 

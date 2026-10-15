@@ -99,17 +99,17 @@
   "url": "advantagetherapy.vegas/assessment",
   "why": [
    {
-    "icon": "🎯",
+    "icon": "target",
     "title": "Only what matters",
     "text": "Just the information that gets someone to book: their problem, your approach, real reviews, price and insurance. Nothing else."
    },
    {
-    "icon": "🚫",
+    "icon": "ban",
     "title": "No distractions",
     "text": "No menu, no articles, no gallery, no links away. Every extra page is a chance for them to wander off and forget about you."
    },
    {
-    "icon": "👆",
+    "icon": "pointer",
     "title": "One choice: book",
     "text": "Too many options causes decision paralysis. Every button on the page does the same thing: book the free phone consult."
    }
@@ -136,7 +136,7 @@
   "intro": "Most practices lose more patients to slow follow-up than to competitors. These run on their own, in your voice.",
   "items": [
    {
-    "icon": "📞",
+    "icon": "phone",
     "label": "Missed call text-back",
     "when": "Seconds after a call goes unanswered",
     "messages": [
@@ -151,7 +151,7 @@
     ]
    },
    {
-    "icon": "⏳",
+    "icon": "clock",
     "label": "Unbooked lead follow-up",
     "when": "Day 2 after an opt-in that didn't book",
     "messages": [
@@ -162,7 +162,7 @@
     ]
    },
    {
-    "icon": "🚫",
+    "icon": "calendarx",
     "label": "No-show recovery",
     "when": "15 minutes after a missed appointment",
     "messages": [

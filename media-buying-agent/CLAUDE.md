@@ -83,6 +83,12 @@ the finalized copy landed correctly in `clients/`.
 Save extracted principles to `context/ad-creative-principles.md` (unchanged — this is shared across
 clients, not per-client).
 
+`context/pt-ad-concept-library.md` is the menu of proven PT ad concepts (offers, angles, formats),
+each with a "best for" client/demographic fit and how to adapt it to our rules. Read it whenever
+choosing concepts for a PT client (`build-campaign-plan` step 6B, `generate-ad` inputs). New
+concepts are added there. Which concepts won for a specific client goes in that client's
+`client-context.md`.
+
 ## Skills
 
 Skills live in `.claude/skills/`:
@@ -92,9 +98,30 @@ Skills live in `.claude/skills/`:
   vertical, separates structural patterns worth borrowing from tone that needs to match a specific
   client, and logs findings to `context/ad-creative-principles.md`. Standalone, or called by
   `build-campaign-plan` as its own research step.
+- `deep-research` — AI voice-of-customer and market research on one client's niche and target
+  segment (their own leads' SMS, Reddit, competitor Google reviews, YouTube/TikTok comments, Amazon
+  reviews, forums). Produces `clients/<slug>/deep-research.md` (dossier + angle candidates) and
+  `clients/<slug>/customer-language.md` (verbatim quote bank). Standalone, or step 3 of
+  `build-campaign-plan`.
+- `build-offer` — designs the client's patient-facing offer (what people book to get an eval):
+  audits the current offer and economics, reads the audience's objections from `deep-research`,
+  maps proven offers, and builds 3 candidates with the Value Equation, grand-slam structure and
+  psychology principles. The approved offer goes into `clients/<slug>/client-context.md`.
+  Standalone, or step 5 of `build-campaign-plan`.
 - `build-campaign-plan` — full campaign plan for a client (offer, avatar, budget/campaign settings,
-  concepts, measurement), grounded in that client's real portal uploads + `research-competitors`
-  findings, published as an Artifact.
+  concepts, measurement), grounded in that client's real portal uploads, `deep-research`,
+  `research-competitors` and `build-offer`, published as an Artifact.
+
+**Offer precedence (Dylan, 2026-10-08).** The default patient offer is the free consult, with no
+prices (the 2026-10-07 client-funnel rule). Wherever a skill or the principles file says "free
+consult" or "never a price", read it as "the client's approved offer". If
+`clients/<slug>/client-context.md` has an approved "## Offer" section (from `build-offer`), that
+offer replaces the default for that client, prices and real capacity-based scarcity included.
+
+**Campaign and creative work is interactive (Dylan, 2026-10-08).** `build-campaign-plan`,
+`deep-research`, `build-offer` and `generate-ad` run step by step, with review gates: show the stage's work, ask
+Approve / Edit / Redo, and wait for the answer before moving on. Never run a whole campaign build
+end to end unless Dylan says so in that conversation.
 
 ## Secrets
 

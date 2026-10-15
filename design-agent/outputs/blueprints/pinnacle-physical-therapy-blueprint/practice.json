@@ -1,0 +1,12 @@
+{
+  "slug": "pinnacle",
+  "palette": {"card": [8, 34, 42], "accent": [255, 171, 94], "panel": [20, 92, 110]},
+  "end_card": {"eyebrow": "PINNACLE PT · LITTLE ROCK", "headline": "$49 Discovery Visit",
+               "lines": ["Every session with your PT, never a tech", "No meds, shots or surgery"],
+               "button": "BOOK NOW", "footnote": "12511 Cantrell Rd, Suite 100"},
+  "reviews": {
+    "ugc-tried-everything": {"quote": "I have seen several of the so called best pain doctors and physical therapist in Little Rock to no avail. He has me back to playing golf again.", "attribution": "BARRY · REAL PATIENT REVIEW"},
+    "pov-rushed-pt": {"quote": "No techs, no assistants, just him. After years of pain, it has only taken 5 visits with Brian.", "attribution": "IREON · REAL PATIENT REVIEW"}
+  },
+  "pov_closer": "At Pinnacle, every session is with your physical therapist. Never a tech or an aide."
+}

@@ -18,20 +18,29 @@ ad image + copy pairing.
 
 Ask if not already given:
 1. **Offer/client** — what's being advertised (DigiGrowth's own service, or a specific client's
-   business — get the vertical, guarantee/result, and price if relevant).
+   business — get the vertical, guarantee/result, and price if relevant). For a client, the ad
+   sells the **approved offer** in the "## Offer" section of `clients/<slug>/client-context.md`
+   (from `build-offer`): its name, what's included, risk reversal and real capacity. With no
+   approved offer, use the free-consult default. Where this skill says "free consult" or "never a
+   price", read it as "the client's approved offer."
 2. **Avatar(s)/angle(s)** — who this ad is for. If Dylan hasn't picked one, propose 2-3 narrow
    avatar/angle options per `context/ad-creative-principles.md`'s "go niche" guidance rather than
-   defaulting to something broad.
-2a. **Funnel stage — top or bottom** (per the "Only 2 Ad Creative Formats" section of `context/ad-
-   creative-principles.md`): every concept must be explicitly one or the other, never a vague
-   in-between ad.
-   - **Top of funnel** = problem + solution, for an avatar who doesn't know your product yet. Build
-     the angle from the avatar's list of problems (the Avatar Framework).
-   - **Bottom of funnel** = one specific objection (usually price, unless Dylan names another), for
-     an avatar who already knows the product but hasn't converted. Address only that one objection —
-     don't restate the full pitch.
-   - If Dylan doesn't specify, default to producing one of each rather than a single ad that tries to
-     do both.
+   defaulting to something broad. For PT clients, draw the options from
+   `context/pt-ad-concept-library.md`, matched to the client's services and demographic by each
+   concept's "best for."
+2a. **Awareness stage: exactly one per ad** (AdsMastery 2027 section of `context/ad-creative-
+   principles.md`, which replaced the older "top or bottom only" rule on 2026-10-08). Tag every
+   concept with one stage and make it do only that stage's job:
+   - **Unaware**: a surprising fact about a situation, or the founder story.
+   - **Problem-aware**: a functional before/after through a real patient review, or benefit
+     callouts. Build the angle from the avatar's list of problems (the Avatar Framework).
+   - **Solution-aware**: PT vs. the alternatives, 3 reasons why, real review cards.
+   - **Product-aware**: one specific objection (usually cost or time, unless Dylan names another),
+     plus the free-consult reminder. Address only that one objection, don't restate the full
+     pitch, and never a price.
+   - **Most-aware**: a direct "book your free consult" ad.
+   - In a batch, spread the concepts across stages. If Dylan doesn't specify, default to one
+     problem-aware, one solution-aware and one product-aware concept.
 3. **New concept vs. iteration** (per the "Post-Andromeda" section of `context/ad-creative-
    principles.md`) — clarify which mode this request is:
    - **Default / most requests**: Dylan wants fresh creative to test → produce **new concepts**
@@ -54,6 +63,27 @@ Ask if not already given:
    the raw Ad Library image usually can't be used directly as an input asset (it's typically
    watermarked "Protected") — work from the structural description, not the file itself. Always
    generate at least 3 alternate headline options for a recreated concept, not just one.
+
+---
+
+## Review gates (step by step with Dylan, 2026-10-08)
+
+Dylan wants to review and approve as the ad gets made, not get a finished batch at the end. Each
+stage below ends at a gate. At each gate, show the work, ask with `AskUserQuestion` (**Approve** /
+**Edit** / **Redo**) and **stop until he answers**. Gates are ordered so each one comes before the
+next spend: an edit to the brief is free, an edit to a Veo video costs about $3 per take.
+
+1. **Brief gate:** the six-field brief per concept (step 2), plus the research quote and proven ad
+   it's built on.
+2. **Copy gate:** hooks, primary-text variations and headlines (step 2).
+3. **Visual gate:** the image, or for video the actor still / first scene still (step 3, and
+   step 3 of the UGC loop) before any video is generated.
+4. **Final gate:** the finished composite or rendered video in both sizes, before finalizing into
+   `clients/<slug>/creatives/` (step 6).
+
+With several concepts, go through each gate with the whole batch side by side (so he can compare),
+unless he asks to go one concept at a time. Only skip gates if Dylan says so in the current
+conversation.
 
 ---
 
@@ -92,6 +122,20 @@ Ask if not already given:
        sentence instead), "..." and line breaks for runs of points.
      - **Teach something, using an analogy from the avatar's world** (desk job, kid's game, car
        tune-up), so the ad gives value before the click.
+   - **Copy tactics for statics** ("How I Make AI Static Ads" section of the principles file): every
+     static uses at least one: a specific number about the service, an audience callout, a taboo
+     line, a primal desire as the headline, a curiosity loop, a named fear, a golden-nugget review,
+     or a shown transformation. **Golden-nugget pass:** before writing proof lines, run the
+     client's real reviews through a "which lines would work best as ads" pass and pick from those
+     (first names only).
+   - **Brief first, then psychology (Creative Don, 2026-10-08, full notes in `context/ad-creative-
+     principles.md`).** Before writing each concept, fill its brief: concept, creative type
+     (curiosity static, us vs. them, USP callout, social proof, meme/humor...), angle, headline,
+     CTA, visual direction. No two concepts in a batch share a creative type. Name the lead
+     element (Attention / Curiosity / Emotion / Connection) and the core emotion, chosen for the
+     avatar. Curiosity-led ads that barely sell only go to a landing page that sells, never a bare
+     Instant Form. Use the avatar's insider words, lifted from `clients/<slug>/customer-language.md`
+     when it exists.
    - If in **new-concept mode** (the default — see Inputs Needed): write copy for each distinct
      concept separately — each should read like a genuinely different ad (different format framing
      and/or different archetype), not the same ad with a swapped headline.
@@ -127,7 +171,14 @@ Ask if not already given:
    "screenshot-like" high-curiosity still — not the same visual template restated). No abstract
    "AI art" mood images: when the image isn't showing the avatar or the outcome, show the process
    (a concrete step of the service and why it works). Testimonials work better as video with
-   punch-ins than as a stacked text block. For each concept,
+   punch-ins than as a stacked text block.
+   **Static format and checks** (static masterclass section of the principles file): name each
+   static's format (infographic, headliner, benefit callouts, comparison, transformation, grid,
+   text-only) and production level (graphic, hi-fi, or lo-fi phone-photo look, which is often
+   forgotten and working now). Start with **about 3 visual variations per concept**. Before the
+   visual gate, check each one: the headline is the focal point, it passes the one-second
+   comprehension test, there's no clutter (AI statics drift into too many callouts), and no AI text
+   errors or em dashes (fix with a Nano Banana `--ref` edit rather than regenerating). For each concept,
    run from `content-agent/`:
    ```
    python tools/generate_creative.py image "<prompt>" --aspect 4:5 --out "../media-buying-agent/outputs/<slug>/image.png"
@@ -144,7 +195,8 @@ Ask if not already given:
 
 4. **Save each concept's pairing while iterating** to its own
    `media-buying-agent/outputs/ad-<slug>-<YYYY-MM-DD>/`:
-   - `copy.md` — avatar/angle, format, the copy, placement notes (mirrors `content-agent`'s
+   - `copy.md` — the brief from step 2 (concept, creative type, angle, headline, CTA, visual
+     direction, lead element + emotion), the copy, placement notes (mirrors `content-agent`'s
      `ad-copy` skill output format).
    - `image.png` + `image.png.meta.json` (from step 3).
    - When producing multiple new concepts in one request, use a distinct `<slug>` per concept so
@@ -179,7 +231,8 @@ update).
    a new hook and angle**. If the speaker, format, and angle all change, it's a new concept, not a
    variation. Say which one you're producing.
 2. **Write 4-5 scripts, keep the best 2.** Each 18-20s, natural spoken language, written for a cold
-   audience: hook 0-3s, problem 3-8s, solution 8-15s, proof 15-18s, CTA 18-20s. Score each out of 10
+   audience: hook 0-3s, problem 3-8s, solution 8-15s, proof 15-18s, CTA 18-20s. Apply the same
+   hook / unique-mechanism / objection-handling CTA rules as the UGC loop's step 2. Score each out of 10
    against the Working Checklist in `context/ad-creative-principles.md`. Present only 9.5+ scripts
    as ready, and list the rest as weaker instead of silently dropping them.
 3. **Per script, write a shot brief:** speaker (age, gender, setting, emotion), vertical, handheld,
@@ -217,6 +270,18 @@ update).
 
 For a **talking AI actor** (UGC selfie-style), use the full loop below instead of step 5.
 
+**Full-structure video (long form, ~40-60s).** A separate concept type from the 20s format, built
+on Creative Don's 6 beats (see `context/ad-creative-principles.md`, "How to Make Meta Video Ads in
+2026"): hook (ICP + angle) → story (the problem, relatable) → unique-mechanism problem → solution
+("why this works when the usual options don't") → risk reversal (the free consult; a guarantee
+only if the client has one) → testimonials (real review cards, first names, ideally a fast
+scroll of several) → CTA (free consult; urgency only if real and on-brand, never a price). Make it
+from 5-7 Veo takes of 8 seconds or less with the same approved actor (UGC loop steps 3-4), or from
+the practitioner's own footage as a founder-led version. The same review gates apply: script,
+then still, then the cut. `assemble_ugc_ad.py` handles takes, a proof card and an end card today.
+A scrolling review wall with the speaker in a corner bubble would need a tool change, so ask
+Dylan before building it.
+
 ---
 
 ## AI UGC Video Ads (the "Claude x Meta" loop)
@@ -247,9 +312,15 @@ and `copy.md` with the reusable voice/lighting lines).
 2. **Scripts (senior performance-marketer pass):** top 3 pain points → **5 scripts**, one per angle,
    written for a cold audience in natural spoken language. **One Veo take = 8s max**, so write each
    script as ~2 takes of ≤8s: hook 0-3s, problem 3-7s, solution 7-12s, CTA 12-15s spoken, then
-   proof card + end card added in the edit (≈20s total). Score each /10 against the Working
+   proof card + end card added in the edit (≈20s total). Script rules (Creative Don video source,
+   2026-10-08): the hook only stops the scroll (visual hook in frame 1, curiosity, qualifies the
+   ICP with insider words); the body names the unique-mechanism problem and solution, using
+   proven messaging (cite the research quote or proven ad); the CTA handles one real objection
+   plus "free consult, no obligation" as the risk reversal, never just "book now." Score each /10 against the Working
    Checklist, keep only **9.5+**, and list the rest with the reason (don't drop silently). Give each
-   kept script an **actor spec**: age, gender, setting, emotion, wardrobe. Apply the "Who can say
+   kept script an **actor spec**: age, gender, setting, emotion, wardrobe. Across the concepts in a
+   campaign, vary the actors (age, gender, setting) so each one reaches its own avatar. AI UGC is
+   our stand-in for a "creator army" (AdsMastery 2027 section). Apply the "Who can say
    what" guardrails above: the actor voices the situation and the offer's facts, **never** a
    results claim or a patient story.
 3. **Actor still (Nano Banana Pro), then approval:**
@@ -257,8 +328,8 @@ and `copy.md` with the reusable voice/lighting lines).
    natural skin texture, realistic smartphone quality, no text'>" --model nano-banana-pro
    --aspect 9:16 --out work/actor-<x>.png` (~$0.15). Add `--ref <file>` to hold a product, place or
    outfit exactly. **Review the still before any video**: hands, face, wardrobe, background text.
-   Fix with a new prompt now, because fixing a still is much cheaper than a video. Dylan approves it,
-   unless he's said to run it end to end.
+   Fix with a new prompt now, because fixing a still is much cheaper than a video. Dylan approves it
+   (visual gate) before any Veo call, unless he's said in this conversation to run it end to end.
 4. **Talking video (Veo 3.1):** one call per take, all from the **same approved still**:
    `generate_creative.py video "<Handheld front-camera selfie video, vertical 9:16, candid UGC. The
    woman talks straight into the camera, <voice description, identical in every take>... She says:
@@ -288,6 +359,9 @@ and `copy.md` with the reusable voice/lighting lines).
 8. **Double down on the winner:** "same actor, different scripts." Reuse the winning actor still and
    voice description, write 5 new scripts on the winning angle, and repeat steps 2 → 5. Changing the
    actor or format makes it a new concept, not an iteration.
+   **Also run the angle flywheel:** propose rebuilding the winning *angle* in the other pillars (a
+   static and an in-house/founder take), so the angle doesn't depend on one format that will
+   fatigue. Bring the proposals to Dylan at the brief gate.
 
 ---
 

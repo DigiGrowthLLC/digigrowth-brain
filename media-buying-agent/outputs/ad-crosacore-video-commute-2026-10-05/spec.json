@@ -1,0 +1,35 @@
+{
+  "slug": "crosacore-skip-the-drive",
+  "takes": [
+    {
+      "path": "work/take1.mp4",
+      "in": 0.0,
+      "out": 7.55
+    },
+    {
+      "path": "work/take2.mp4",
+      "in": 0.0,
+      "out": 7.45
+    }
+  ],
+  "hook": "Skip the drive to PT",
+  "proof": {
+    "quote": "As a busy mom & business owner, it's so convenient that he offers concierge care at your home!",
+    "attribution": "KEATING \u00b7 BUSINESS OWNER, REAL GOOGLE REVIEW"
+  },
+  "end_card": {
+    "eyebrow": "CROSACORE \u00b7 AUSTIN",
+    "headline": "Free 15-Minute Consultation",
+    "lines": [
+      "In-clinic or in your home",
+      "Private pay \u00b7 superbills available"
+    ],
+    "button": "BOOK NOW"
+  },
+  "music": "work/bed.wav",
+  "caption_fixes": {
+    "Mopac": "MoPac",
+    "consults": "consult's",
+    "question,": "question."
+  }
+}

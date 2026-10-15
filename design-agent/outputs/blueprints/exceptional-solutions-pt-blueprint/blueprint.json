@@ -1,0 +1,231 @@
+{
+ "slug": "exceptional-solutions-pt-blueprint",
+ "package": "foundations",
+ "business": "Exceptional Solutions PT",
+ "business_short": "Exceptional Solutions PT",
+ "domain": "exceptionalsolutionspt.com",
+ "brand": {
+  "primary": "#3060cc",
+  "primary_text": "#ffffff",
+  "avatar_bg": "#ffffff"
+ },
+ "logo": "logo.png",
+ "booked_node": "Booked Evaluation",
+ "hero": {
+  "headline": "*Every inquiry answered* and every past patient brought back, without adding to your day"
+ },
+ "engine_intro": "Your FAQ says it plainly: right now you're the only employee. You treat, you handle insurance, and you answer calls and texts at (616) 430-8172 between sessions. That's exactly when inquiries slip away. Foundations puts one AI text agent behind all of it: website chats, text inquiries and past patients get a text reply in seconds, in your own words, and every missed call gets an instant text back so the conversation moves to text. A new SEO website brings in people searching Google, and the agent books the free consultation by text. Anyone who doesn't book, no-shows or finishes care gets recycled back into reactivation instead of forgotten.",
+ "step_blurbs": [
+  "A full website built to rank on Google for EDS, hypermobility and chronic pain in Grand Rapids, with every page leading to a free consultation.",
+  "The agent texts back every new inquiry in seconds, by SMS or website chat, answers insurance and pricing questions from your own site, and books the free consultation while you're with a patient.",
+  "Email and SMS campaigns to past patients and people who asked about care but never booked, so the patients you've already earned come back.",
+  "Missed calls get an instant text back, unbooked inquiries get followed up, and no-shows get rebooked, automatically."
+ ],
+ "agent": {
+  "headline": "An AI text agent that replies while you're the only one in the clinic",
+  "intro": "The practice that replies first usually wins the patient, and you can't text back mid-session. This agent works entirely by text (SMS and your website chat, no phone calls): it replies to every inquiry in seconds, answers questions from your own website, handles the insurance and pricing questions, and books the free consultation. It's patient and gentle in tone, because so many of your patients have been dismissed before.",
+  "points": [
+   "Knows your insurances, cash-pay rates and grand opening special",
+   "Never gives medical advice or invents details",
+   "Offers open times by text and books the free consultation",
+   "Hands the text thread off to you whenever it should"
+  ],
+  "greeting": "Hi! Thanks for reaching out to Exceptional Solutions PT. What's been going on?",
+  "chips": [
+   "I have hEDS and PT made it worse before",
+   "Do you take Medicare?",
+   "Can I book a free consultation?"
+  ]
+ },
+ "recovery": {
+  "headline": "Every inquiry that doesn't book gets another shot",
+  "intro": "Most practices lose more patients to slow follow-up than to competitors. These run on their own, in your own words.",
+  "items": [
+   {
+    "icon": "phone",
+    "label": "Missed call text-back",
+    "when": "Seconds after a call goes unanswered",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi, it's Exceptional Solutions PT! Sorry I missed your call, I'm usually with a patient. Are you looking to book a free consultation, or do you have a question I can help with?"
+     },
+     {
+      "from": "lead",
+      "text": "hi! I have EDS and my last PT made things worse. do you take BCBS?"
+     }
+    ]
+   },
+   {
+    "icon": "clock",
+    "label": "Unbooked inquiry follow-up",
+    "when": "Day 2 after an inquiry that didn't book",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi Hannah, it's Samantha at Exceptional Solutions PT. Just checking in after your message. I have an evening opening Thursday if you'd like a free consultation call."
+     }
+    ]
+   },
+   {
+    "icon": "calendarx",
+    "label": "No-show recovery",
+    "when": "15 minutes after a missed appointment",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi Maria, we missed you at 2pm today. No problem at all, flare days happen. Want me to find you another time this week?"
+     }
+    ]
+   }
+  ]
+ },
+ "reactivation": {
+  "headline": "Bring back the patients you've already earned",
+  "intro": "Chronic pain and hypermobility need care over years, not weeks. Every past patient and every person who asked about care but never booked is already on your list. Regular email and SMS check-ins bring them back, at almost no cost per booking.",
+  "sms_when": "To past patients and old inquiries, every few months",
+  "sms": [
+   {
+    "from": "practice",
+    "text": "Hi Megan, it's Samantha at Exceptional Solutions PT. How have the hips been holding up since your last visit? I have a few openings this month, including evenings, if you'd like a check-in."
+   },
+   {
+    "from": "lead",
+    "text": "they've been flaring again honestly. do you have anything thursday evening?"
+   }
+  ],
+  "email_when": "Monthly, to the whole list",
+  "email": {
+   "subject": "Checking in on you",
+   "body": "Hi Sarah,\n\nA while back you reached out about your joint pain. I wanted to check in and see how you're doing.\n\nIf things have been flaring, I'd love to help. There are no protocols at my clinic: every session is one-on-one with me, gentle, and built around your goals.\n\nI take Original Medicare, BCBS, BCN and more, and I have early morning, evening and weekend times by appointment. Just reply to this email or text me to set up a free consultation call.\n\nSamantha Newell, DPT\nExceptional Solutions PT"
+  }
+ },
+ "included": {
+  "package_name": "Foundations",
+  "label": "The Foundations package",
+  "headline": "Everything above, *running for you every day*",
+  "intro": "Foundations is the back end of your practice. It works on the inquiries, calls and patient list Exceptional Solutions PT already has, so fewer of them slip away while you're treating.",
+  "items": [
+   {
+    "icon": "funnel",
+    "title": "SEO website",
+    "text": "A full site with a page for every condition you treat, written for local Google search, with a free consultation on every page."
+   },
+   {
+    "icon": "bot",
+    "title": "AI text agent",
+    "text": "Replies to texts and website chats in seconds, 24/7, from your own site's information, and books consultations into your calendar. Text only, no phone calls."
+   },
+   {
+    "icon": "database",
+    "title": "Database reactivation",
+    "text": "SMS and email campaigns to past patients and old inquiries, written in your own words."
+   },
+   {
+    "icon": "phone",
+    "title": "Missed-call text-back",
+    "text": "Every unanswered call gets a text within seconds, so the caller keeps the conversation going by text instead of moving on to the next clinic."
+   },
+   {
+    "icon": "clock",
+    "title": "Follow-up and no-show recovery",
+    "text": "Inquiries that don't book get followed up automatically, and a missed appointment gets a friendly rebooking text the same day."
+   },
+   {
+    "icon": "message",
+    "title": "Appointment reminders",
+    "text": "Confirmations and reminders before every visit, so your schedule stays full."
+   }
+  ],
+  "price": "$500",
+  "price_unit": "/month",
+  "price_note": "**Less than one new patient a month.** One patient on your Silver Holistic package ($910) covers Foundations almost twice, before counting the hours you get back."
+ },
+ "chat_context": "Exceptional Solutions PT (Exceptional Solutions Physical Therapy), Grand Rapids, Michigan. A new, owner-run clinic specializing in physical therapy for chronic pain, hypermobility and Ehlers-Danlos Syndrome (EDS/hEDS).\n\nClinician: Samantha Newell, DPT, the owner and currently the only employee (no PTAs, never PT techs). She has Ehlers-Danlos Syndrome herself (her site says EDS and does not name the type, so never say hEDS about her) and a lifetime of personal experience with hypermobility and chronic pain. Completed the EDS ECHO training for practitioners through the Ehlers-Danlos Society. Calvin College graduate (kinesiology, psychology, French), DPT graduated 2022.\n\nApproach: one-on-one, gentle, individualized care with no standard protocols (she does not use the Muldowney protocol). Movement re-training and muscle control first, before strengthening, to avoid pain and injury in hypermobile bodies. Combines traditional physical therapy with somatic and nervous system re-education and holistic methods. Trauma-informed and neurodivergent-friendly. Listens to the patient's story and believes them. Great fit for people whose past physical therapy didn't help or made things worse.\n\nConditions: chronic pain (pain lasting 3+ months), hypermobility, Ehlers-Danlos Syndrome, joint pain and instability, pre- and post-op care, chronic back pain. Also sees kids and teens with joint pain. Takes out-of-state patients (the clinic is about 10 minutes from motels and restaurants).\n\nInsurance accepted: BCBS (Blue Cross Blue Shield), Medicare Plus Blue, BCN (Blue Care Network), BCNA (Blue Care Network Advantage), Original Medicare, Tricare East, Original Medicaid, PPO ASR/HAP plans. Recently accepted: Priority Health and Aetna. Still in process: Humana, Molina, United, Cigna. Original Medicare allows a full hour of treatment. Medicare Advantage plans require more documentation to keep care authorized. Works with health sharing plans like CHM until reimbursement arrives. Superbills available for out-of-network benefits. Referrals are not required, but insurance requires a prescription before it pays.\n\nGrand opening special (cash pay, for patients whose insurance is still being credentialed): up to a 1.5 hour initial evaluation for $90, and follow-ups for $45 per half hour.\n\nCash-pay wellness pricing: 30 min wellness treatment $60, 60 min $120, 90 min wellness evaluation $180. Standard Wellness Package (8 half-hour sessions) $400. Premium Wellness Package (12 half-hour sessions) $575. Silver Holistic Package (90 min evaluation + 8 one-hour treatments) $910. Gold Holistic Package (90 min evaluation + 12 one-hour treatments) $1,225. Workout plan at your gym $150. Keep It Going Package (12 monthly half-hour follow-ups + two workout plans) $900.\n\nFirst step: a free consultation, a Google Meet video call with Samantha to talk through what's going on and whether her approach is a fit. This is what you book. The initial evaluation (billed to insurance, or the $90 grand opening evaluation if their insurance is still in process) comes after.\n\nLocation: 1444 Michigan Ave, Suite 2, Grand Rapids, MI 49503 (between Fuller and Plymouth, minutes off I-196 at the Fuller exit, near the Medical Mile). Parking and entrance are behind the building; Suite 2 is the first door on the left. Hours: by appointment only, with early mornings, evenings and weekends available. Contact: call or text (616) 430-8172, SNewell@ExceptionalSolutionsPT.net.\n\nReal patient review (Julia): she came in exhausted from joint pain, and Samantha was the first medical professional who truly understood what she was going through.",
+ "funnel": {
+  "label": "SEO website",
+  "step_title": "A website built to be found",
+  "headline": "A website built to be found on Google, and to book",
+  "intro": "Most people searching \"EDS physical therapy Grand Rapids\" or \"hypermobility PT near me\" never find a specialist like you. This site gives every condition you treat its own page, with the titles, descriptions and local details Google ranks on, and every page leads to the same next step: a free consultation. Click around the preview: every page works.",
+  "points": [
+   "A page for every condition you treat",
+   "Titles and descriptions written for local search",
+   "Business schema, FAQ schema, name/address/phone on every page",
+   "One action everywhere: the free consultation"
+  ],
+  "html_file": "site.html",
+  "url": "exceptionalsolutionspt.com",
+  "why": [
+   {
+    "icon": "target",
+    "title": "Found by the right people",
+    "text": "Each page targets what your patients actually type into Google: EDS, hypermobility and chronic pain physical therapy in Grand Rapids."
+   },
+   {
+    "icon": "pointer",
+    "title": "Built to book",
+    "text": "Clear headlines, real reviews and insurance answered up front, with a free consultation on every page instead of a contact form buried at the bottom."
+   },
+   {
+    "icon": "ban",
+    "title": "Fast and focused",
+    "text": "Lightweight pages that load quickly on a phone, with nothing that pulls visitors away from booking."
+   }
+  ]
+ },
+ "math": {
+  "label": "The math",
+  "headline": "What Foundations is *worth* to a one-person clinic",
+  "intro": "Estimated monthly impact for a clinic your size. Each number shows how it was worked out: published research for the rates, and your own prices for the dollar values.",
+  "price": 500,
+  "reminder_cut": 0.33,
+  "stats": [
+   {
+    "num": "7x",
+    "label": "Leads contacted within an hour were 7 times as likely to qualify as leads contacted even an hour later.",
+    "source": "Harvard Business Review · Oldroyd et al. 2011 · 1.25M leads",
+    "url": "https://hbr.org/2011/03/the-short-life-of-online-sales-leads"
+   },
+   {
+    "num": "1/3",
+    "label": "fewer missed appointments with text reminders: attendance rose from 67.8% to 78.6%.",
+    "source": "Cochrane Review 2013 · 7 trials, 5,841 people",
+    "url": "https://www.cochranelibrary.com/cdsr/doi/10.1002/14651858.CD007458.pub3"
+   },
+   {
+    "num": "10.4%",
+    "label": "mean no-show rate across US outpatient PT clinics",
+    "source": "Bokinskie et al. 2015 · national survey, 634 clinics",
+    "url": "https://oasis.library.unlv.edu/thesesdissertations/2323/"
+   }
+  ],
+  "note": "These are estimates, not a promise. Actual results depend on your inquiry volume, your prices and how many people book.",
+  "outcomes": [
+   {
+    "k": "Time back",
+    "v": "7.5 hrs",
+    "s": "a month you're not texting back, answering questions and scheduling",
+    "how": "We assume about **30 inquiries a month** for a solo practice (texts, calls, website and Facebook messages), each taking about **15 minutes** to answer and schedule. 30 × 15 minutes = **7.5 hours** the agent handles instead of you, worth about $900 at your $120 hourly rate."
+   },
+   {
+    "k": "Estimated added revenue",
+    "v": "$1,980",
+    "s": "a month, from about 2 extra patients and fewer no-shows",
+    "how": "Replying within minutes matters: leads contacted within an hour are **7x as likely** to turn into real prospects (Harvard Business Review). We assume that, plus follow-up and reactivation, books **2 extra patients a month**. 2 × $910 (your Silver Holistic package) = $1,820, plus 2.6 saved visits × $60 = **$158**."
+   },
+   {
+    "k": "Fewer no-shows",
+    "v": "1/3",
+    "s": "of missed visits prevented by automatic text reminders",
+    "how": "In a Cochrane review of 7 trials (5,841 people), text reminders raised attendance from **67.8% to 78.6%**, about a third fewer missed visits. A national survey of 634 US outpatient PT clinics found a **10.4%** average no-show rate, so on 80 visits a month that's about 8 missed visits, and **2.6** saved."
+   },
+   {
+    "k": "Return on $500",
+    "v": "4x",
+    "s": "and it pays for itself with a single new patient",
+    "highlight": true,
+    "how": "**$1,980** estimated added revenue ÷ **$500** a month ≈ 4x. One new patient on your $910 package already covers Foundations, before counting the 7.5 hours you get back."
+   }
+  ]
+ }
+}
