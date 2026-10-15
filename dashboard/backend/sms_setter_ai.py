@@ -369,6 +369,10 @@ def normalize_draft(result: dict) -> dict:
         draft["action"] = "reply"
     if draft["action"] != "send_template":
         draft["template"] = ""
+    if draft["action"] in NOT_INTERESTED_ACTIONS:
+        # Never texted (see submit_draft) — blank it so the Inbox doesn't
+        # show a sign-off that was never sent.
+        draft["reply"] = draft["second_text"] = ""
     if draft["action"] != "capture_email" or draft["email_from"] not in ("owner", "gatekeeper"):
         draft["email_from"] = ""
     # Funnel stages are cumulative: anyone Interested was also Primed and
@@ -620,10 +624,13 @@ async def _thread_messages(conn, phone: str) -> list[dict]:
 
 
 async def build_queue(conn, limit: int = 5, phone: str | None = None) -> list[dict]:
-    """Threads the worker should draft now: campaign-tagged, open, last
-    message is the prospect's, that burst is at least DEBOUNCE_SECONDS old,
-    and no draft exists for it yet. `phone` forces a single thread (the
-    Inbox's REGENERATE button), skipping those checks."""
+    """Threads the worker should draft now: campaign-tagged, open, not
+    marked Not Interested, last message is the prospect's, that burst is at
+    least DEBOUNCE_SECONDS old, and no draft exists for it yet. Someone who
+    already said no gets no more texts, even if they write again ("ok",
+    "thanks") — their reply still lands in the Inbox for Dylan. `phone`
+    forces a single thread (the Inbox's REGENERATE button), skipping those
+    checks."""
     if phone:
         rows = await conn.fetch(
             _CONV_SELECT + " WHERE right(regexp_replace(sc.phone, '\\D', '', 'g'), 10) = $1", _digits(phone),
@@ -642,6 +649,7 @@ async def build_queue(conn, limit: int = 5, phone: str | None = None) -> list[di
                 WHERE m.phone = sc.phone ORDER BY m.sent_at DESC LIMIT 1
             ) last_msg
             WHERE sc.campaign_id IS NOT NULL AND sc.status <> 'closed'
+              AND sc.disposition IS DISTINCT FROM 'not_interested'
               AND (c.client_id IS NULL OR c.is_client_anchor)
               AND last_msg.direction = 'inbound'
               AND last_msg.sent_at < now() - make_interval(secs => $1)
@@ -1138,15 +1146,18 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
             draft["rationale"], model, current_inbound,
         )
 
-    # An opt-out is settled the moment it's drafted: apply_stages already
-    # marked them Not Interested and pulled them from DM Follow-Up, and
-    # Twilio refuses texts to a number that sent STOP (which used to fail
-    # the auto-send and leave Dylan a to-do). Nothing to send, nothing to do.
-    if draft["action"] == "opt_out":
+    # A no or an opt-out is settled the moment it's drafted: apply_stages
+    # already marked them Not Interested and pulled them from DM Follow-Up.
+    # We go silent rather than send a sign-off — every text costs money and
+    # a "have a great one" earns nothing from someone who said no (and
+    # Twilio refuses texts to a number that sent STOP anyway). Nothing to
+    # send, nothing to do.
+    if draft["action"] in NOT_INTERESTED_ACTIONS:
         await conn.execute(
             "UPDATE sms_ai_drafts SET status = 'dismissed', decided_at = now() WHERE id = $1", row["id"],
         )
-        return {"ok": True, "draft_id": row["id"], "auto": "opted out: removed from sequences, no text sent"}
+        label = "opted out" if draft["action"] == "opt_out" else "not interested"
+        return {"ok": True, "draft_id": row["id"], "auto": f"{label}: removed from sequences, no text sent"}
 
     await task_todos(conn)
 
