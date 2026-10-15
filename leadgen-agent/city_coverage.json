@@ -5523,9 +5523,9 @@
       "last_scraped_date": "2026-10-14"
     },
     "Cedar Rapids, IA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 123,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 142,
       "qualified_count": 5,
       "last_scraped_date": "2026-10-14"
     },
