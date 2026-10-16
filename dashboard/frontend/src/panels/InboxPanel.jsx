@@ -78,6 +78,8 @@ const CHANNEL_CHIP = {
 function ComposeModal({ onClose, onSent }) {
   const [channel, setChannel] = useState("sms");
   const [to, setTo]           = useState("");
+  const [owner, setOwner]     = useState("");
+  const [business, setBusiness] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody]       = useState("");
   const [sending, setSending] = useState(false);
@@ -94,7 +96,7 @@ function ComposeModal({ onClose, onSent }) {
         const r = await fetch(API("/sms/send"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: p, body: b }),
+          body: JSON.stringify({ phone: p, body: b, compose: true, owner: owner.trim(), business: business.trim() }),
         });
         const data = await r.json().catch(() => ({}));
         if (!r.ok || !data.ok) { setError(data.error || "Failed to send"); return; }
@@ -113,7 +115,7 @@ function ComposeModal({ onClose, onSent }) {
         const r = await fetch(API("/email/send"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ thread_id: "", to: addr, subject: subject.trim(), body: b }),
+          body: JSON.stringify({ thread_id: "", to: addr, subject: subject.trim(), body: b, compose: true, owner: owner.trim(), business: business.trim() }),
         });
         const data = await r.json().catch(() => ({}));
         if (!r.ok || !data.ok) { setError(data.error || "Failed to send"); return; }
@@ -177,6 +179,29 @@ function ComposeModal({ onClose, onSent }) {
               style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
               autoFocus
             />
+          </div>
+          {/* Saved on the CRM contact (created if this is someone new) so
+              the thread shows up in the Inbox under their name. Optional;
+              an existing contact's name/business are never overwritten. */}
+          <div style={{ marginBottom: 14, display: "flex", gap: 10 }}>
+            {[
+              ["PROSPECT NAME", "Jane Smith", owner, setOwner],
+              ["BUSINESS NAME", "Smith Physical Therapy", business, setBusiness],
+            ].map(([label, placeholder, value, setValue]) => (
+              <div key={label} style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>
+                  {label}
+                </div>
+                <input
+                  className="dg-input"
+                  type="text"
+                  placeholder={placeholder}
+                  value={value}
+                  onChange={e => setValue(e.target.value)}
+                  style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
+                />
+              </div>
+            ))}
           </div>
           {channel === "email" && (
             <div style={{ marginBottom: 14 }}>

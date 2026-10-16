@@ -26,6 +26,7 @@ drafts replies (or, in auto mode, sends them). See sms_setter_ai.py.
 
 import json
 import os
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -98,6 +99,38 @@ def _phone_match(col: str, param: str) -> str:
         f"right(regexp_replace({col}, '\\D', '', 'g'), 10) = "
         f"right(regexp_replace({param}, '\\D', '', 'g'), 10)"
     )
+
+
+async def ensure_compose_contact(conn, *, phone: str | None = None, email: str | None = None,
+                                 owner: str | None = None, business: str | None = None) -> str:
+    """The Inbox's New Message box texts/emails someone who may not be in the
+    CRM yet. The Inbox only lists threads tied to a contact, so a send to a
+    brand-new number used to go out and then never show up. Find the contact
+    by phone (normalized) or email, or create one with the name/business
+    typed in the compose box; on an existing contact only blank name/business
+    fields are filled, never overwritten."""
+    owner = (owner or "").strip() or None
+    business = (business or "").strip() or None
+    if phone:
+        row = await conn.fetchrow(f"SELECT id FROM contacts WHERE {_phone_match('phone', '$1')} LIMIT 1", phone)
+    else:
+        row = await conn.fetchrow("SELECT id FROM contacts WHERE lower(trim(email)) = lower(trim($1)) LIMIT 1", email)
+    if row:
+        await conn.execute(
+            "UPDATE contacts SET owner = COALESCE(NULLIF(trim(owner), ''), $2), "
+            "business = COALESCE(NULLIF(trim(business), ''), $3), updated_at = now() WHERE id = $1",
+            row["id"], owner, business,
+        )
+        return row["id"]
+    if phone:
+        digits = "".join(c for c in phone if c.isdigit())
+        phone = f"+1{digits}" if len(digits) == 10 else (f"+{digits}" if digits else phone)
+    contact_id = str(uuid.uuid4())
+    await conn.execute(
+        "INSERT INTO contacts (id, owner, business, phone, email, status) VALUES ($1, $2, $3, $4, $5, 'new')",
+        contact_id, owner, business, phone, (email or "").strip() or None,
+    )
+    return contact_id
 
 
 async def _get_or_create_conversation(conn, phone: str) -> dict:
@@ -489,6 +522,16 @@ async def manual_send(payload: dict):
 
     pool = await get_pool()
     async with pool.acquire() as conn:
+        if payload.get("compose"):
+            # New Message box: make sure the thread has a contact so it lists
+            # in the Inbox (also re-links a thread created before this fix).
+            contact_id = await ensure_compose_contact(
+                conn, phone=phone, owner=payload.get("owner"), business=payload.get("business"),
+            )
+            await conn.execute(
+                f"UPDATE sms_conversations SET contact_id = $2 WHERE {_phone_match('phone', '$1')} AND contact_id IS NULL",
+                phone, contact_id,
+            )
         conv = await _get_or_create_conversation(conn, phone)
         # A text Dylan typed himself on a thread the AI setter had a draft
         # for (a handoff, a draft he skipped or edited) is something the

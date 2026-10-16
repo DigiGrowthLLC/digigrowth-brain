@@ -347,6 +347,13 @@ async def manual_email_send(payload: dict):
     async with pool.acquire() as conn:
         contact_row = await conn.fetchrow("SELECT id FROM contacts WHERE lower(email) = lower($1)", to)
         contact_id = contact_row["id"] if contact_row else None
+        if payload.get("compose"):
+            # New Message box: same as /sms/send — a new address gets a
+            # contact so the thread lists in the Inbox and replies sync.
+            from routers.sms import ensure_compose_contact
+            contact_id = await ensure_compose_contact(
+                conn, email=to, owner=payload.get("owner"), business=payload.get("business"),
+            )
 
         # Each individual send is tagged with whichever campaign is active
         # right now (a CRM-assigned pending campaign for this contact takes
