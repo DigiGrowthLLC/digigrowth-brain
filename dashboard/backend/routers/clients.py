@@ -16,6 +16,7 @@ from stream_zip import ZIP_64, stream_zip
 
 import client_resources_autofill
 import r2_storage
+from routers import client_finance
 from db import get_pool
 from models import (
     ClientCreate, ClientUpdate, ClientLinkContact, OnboardingVideoCreate, OnboardingVideoUpdate,
@@ -183,6 +184,8 @@ async def create_client_record(conn, body: ClientCreate) -> dict:
             row["id"], body.contact_id,
         )
     await _seed_default_sequences(conn, row["id"])
+    if not row["is_test"]:
+        await client_finance.post_default_expenses(conn, row["id"])
     d = dict(row)
     d["linked_contact"] = await _linked_contact_summary(conn, d["id"])
     d["portal_url"] = _portal_url(d["portal_token"])

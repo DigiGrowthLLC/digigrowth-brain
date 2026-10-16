@@ -546,6 +546,16 @@ async def lifespan(app: FastAPI):
         id="onboarding-followup",
         replace_existing=True,
     )
+    # Posts each active client's default monthly expense allocations
+    # (fal.ai/Twilio/Workspace/Meta ad spend) to their Finance ledger once per
+    # month. Also runs at startup so existing clients get the current month.
+    scheduler.add_job(
+        client_finance.post_default_expenses_all,
+        CronTrigger(hour=6, minute=15, timezone=eastern),
+        id="client-default-expenses",
+        replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
+    )
     scheduler.add_job(
         meta_ads.sync_meta_ad_stats,
         CronTrigger(hour=5, minute=0, timezone=eastern),

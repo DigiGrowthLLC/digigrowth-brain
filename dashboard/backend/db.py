@@ -1506,6 +1506,17 @@ async def _create_schema(pool: asyncpg.Pool):
                 created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             CREATE INDEX IF NOT EXISTS idx_client_transactions_client ON client_transactions(client_id, date);
+
+            -- One row per (client, month) once client_finance.py has posted
+            -- that month's default expense allocations (fal.ai, Twilio,
+            -- Google Workspace, Meta ad spend), so the daily job never posts
+            -- a month twice and a default entry the admin deletes stays deleted.
+            CREATE TABLE IF NOT EXISTS client_default_expense_postings (
+                client_id  INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                month      DATE NOT NULL,
+                posted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (client_id, month)
+            );
         """)
         # Templatize the launch checklist itself: fill in the real,
         # step-by-step setup SOP for SMS/Response AI/Email as each item's
