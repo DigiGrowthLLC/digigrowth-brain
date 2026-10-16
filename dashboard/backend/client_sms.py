@@ -86,24 +86,43 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
             phone_number = config["twilio_number"]
 
         # Leads call this number back after the AI agent texts them —
-        # forward those calls (routers/client_voice_webhooks.py). Re-applied
-        # on every run so re-clicking Buy Number fixes an older number too.
+        # forward those calls (routers/client_voice_webhooks.py). Both
+        # webhooks are re-applied on every run so re-clicking Buy Number
+        # fixes an older number, and re-points a number handed over from
+        # another client (its URLs still carried the old client_id).
+        dashboard_url = os.environ.get("DASHBOARD_URL", "").rstrip("/")
         for number in subaccount_client.incoming_phone_numbers.list(phone_number=phone_number, limit=1):
             number.update(
-                voice_url=f"{os.environ.get('DASHBOARD_URL', '').rstrip('/')}/webhooks/client-voice/{client_id}/incoming",
+                sms_url=f"{dashboard_url}/webhooks/client-sms/{client_id}",
+                sms_method="POST",
+                voice_url=f"{dashboard_url}/webhooks/client-voice/{client_id}/incoming",
                 voice_method="POST",
             )
 
+        # A saved TwiML app / API key only works in the subaccount that owns
+        # it — after a number handover the client's saved ones live in their
+        # old subaccount, so recreate them here.
+        def _owned(fetch) -> bool:
+            try:
+                fetch()
+                return True
+            except Exception:
+                return False
+
+        has_app = bool(config and config["twilio_twiml_app_sid"]) and _owned(
+            lambda: subaccount_client.applications(config["twilio_twiml_app_sid"]).fetch())
+        has_key = bool(config and config["twilio_api_key_sid"]) and _owned(
+            lambda: subaccount_client.keys(config["twilio_api_key_sid"]).fetch())
+
         voice_fields = {}
-        if not (config and config["twilio_twiml_app_sid"]):
-            dashboard_url = os.environ.get("DASHBOARD_URL", "").rstrip("/")
+        if not has_app:
             app = subaccount_client.applications.create(
                 friendly_name=f"DigiGrowth Client Voice — {client['name']}",
                 voice_url=f"{dashboard_url}/webhooks/client-voice/{client_id}/agent-join",
                 voice_method="POST",
             )
             voice_fields["twilio_twiml_app_sid"] = app.sid
-        if not (config and config["twilio_api_key_sid"]):
+        if not has_key:
             key = subaccount_client.new_keys.create(friendly_name=f"DigiGrowth Client Voice — {client['name']}")
             voice_fields["twilio_api_key_sid"] = key.sid
             voice_fields["twilio_api_key_secret"] = key.secret
