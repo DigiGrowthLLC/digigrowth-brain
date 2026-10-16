@@ -5649,9 +5649,9 @@
       "last_scraped_date": "2026-10-15"
     },
     "Athens, GA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 119,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 121,
       "qualified_count": 6,
       "last_scraped_date": "2026-10-15"
     },
