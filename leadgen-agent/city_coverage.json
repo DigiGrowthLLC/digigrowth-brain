@@ -5614,10 +5614,10 @@
       "last_scraped_date": "2026-10-15"
     },
     "Norman, OK": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 118,
-      "qualified_count": 6,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 141,
+      "qualified_count": 7,
       "last_scraped_date": "2026-10-15"
     },
     "Columbia, MO": {
