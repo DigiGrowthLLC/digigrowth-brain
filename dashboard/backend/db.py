@@ -770,6 +770,9 @@ async def _create_schema(pool: asyncpg.Pool):
             -- out of the freeform "Other Resources" list into its own field
             -- since every client has at most one of these too.
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS funnel_resource TEXT;
+            -- Fifth: the client's scheduling/booking software (link or
+            -- login notes). Manual only, not touched by the autofill.
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS scheduling_resource TEXT;
             -- What client_resources_autofill.py last wrote into each of the
             -- four resource fields ({field: {value, priority, source, at}}),
             -- so it only ever rewrites a field still holding its own value

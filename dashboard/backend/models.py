@@ -161,6 +161,7 @@ class ClientUpdate(BaseModel):
     registrar_resource: Optional[str] = None
     hosting_resource: Optional[str] = None
     funnel_resource: Optional[str] = None
+    scheduling_resource: Optional[str] = None
 
 
 class ClientResourceCreate(BaseModel):

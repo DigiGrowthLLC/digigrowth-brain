@@ -1810,10 +1810,39 @@ function ClientUploads({ clientId }) {
 // client row (ads_manager_resource / registrar_resource / hosting_resource).
 // Free text — a link, a login note, an account ID, whatever's easiest to
 // paste for that platform.
-function ResourceField({ clientId, field, label, placeholder, value, onSaved }) {
+// Collapsible card shell shared by the Resources tab's sections. The body is
+// hidden rather than unmounted so unsaved edits survive collapsing.
+function ResourceCard({ title, summary, muted, isOpen, onToggle, right, children }) {
+  return (
+    <div style={{ border: "1px solid rgba(58,123,213,0.15)", borderRadius: 8, background: "rgba(10,20,50,0.35)", overflow: "hidden" }}>
+      <div
+        role="button" tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", cursor: "pointer" }}
+      >
+        <span style={{ color: "#3a7bd5", fontSize: 10, width: 10, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 12.5, color: "#c4d0e8", flexShrink: 0 }}>{title}</span>
+        <span style={{
+          flex: 1, minWidth: 0, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          fontFamily: muted ? "'Share Tech Mono', monospace" : "inherit", fontSize: muted ? 10 : 11.5, color: muted ? "#2a4a7a" : "#5a7096",
+        }}>
+          {summary}
+        </span>
+        {right && <span onClick={(e) => e.stopPropagation()}>{right}</span>}
+      </div>
+      <div style={{ display: isOpen ? "block" : "none", padding: "10px 12px 12px 32px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ResourceField({ clientId, field, label, placeholder, value, onSaved, isOpen, onToggle, children }) {
   const [text, setText] = useState(value || "");
   const [saving, setSaving] = useState(false);
   const dirty = text !== (value || "");
+  const saved = (value || "").trim();
 
   useEffect(() => { setText(value || ""); }, [value]);
 
@@ -1828,21 +1857,24 @@ function ResourceField({ clientId, field, label, placeholder, value, onSaved }) 
   };
 
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8 }}>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.08em", marginBottom: 6 }}>
-        {label.toUpperCase()}
-      </div>
+    <ResourceCard
+      title={label}
+      summary={dirty ? "UNSAVED CHANGES" : saved ? saved.split("\n")[0] : "NOT SET"}
+      muted={dirty || !saved}
+      isOpen={isOpen} onToggle={onToggle}
+    >
       <textarea
         className="dg-input" rows={2} placeholder={placeholder} value={text}
         onChange={(e) => setText(e.target.value)}
         style={{ width: "100%", boxSizing: "border-box", fontSize: 12, resize: "vertical", marginBottom: 6 }}
       />
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={save} disabled={saving || !dirty}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        {children}
+        <button className="btn btn-secondary" style={{ fontSize: 10, marginLeft: "auto" }} onClick={save} disabled={saving || !dirty}>
           {saving ? "SAVING…" : "SAVE"}
         </button>
       </div>
-    </div>
+    </ResourceCard>
   );
 }
 
@@ -3765,8 +3797,18 @@ function ClientMarketingSetup({ clientId }) {
   );
 }
 
+// Single free-text resource fields on the client row (clients.*_resource).
+const RESOURCE_FIELDS = [
+  { field: "ads_manager_resource", label: "Ads Manager", placeholder: "e.g. Business Manager link, ID, or login notes…" },
+  { field: "registrar_resource", label: "Registrar Platform", placeholder: "e.g. GoDaddy / Namecheap link or login notes…" },
+  { field: "hosting_resource", label: "Hosting Platform", placeholder: "e.g. Vercel / hosting link or login notes…" },
+  { field: "funnel_resource", label: "Funnel", placeholder: "e.g. the client's live funnel/landing-page URL…" },
+  { field: "scheduling_resource", label: "Scheduling Software", placeholder: "e.g. Jane / Calendly / GHL calendar link or login notes…" },
+];
+
 function ClientResources({ clientId }) {
   const [client, setClient] = useState(null);
+  const [open, setOpen] = useState({});
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -3808,46 +3850,59 @@ function ClientResources({ clientId }) {
     return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
   }
 
-  return (
-    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
-      <ResourceField
-        clientId={clientId} field="ads_manager_resource" label="Ads Manager"
-        placeholder="e.g. Business Manager link, ID, or login notes…"
-        value={client?.ads_manager_resource} onSaved={setClient}
-      />
-      <ResourceField
-        clientId={clientId} field="registrar_resource" label="Registrar Platform"
-        placeholder="e.g. GoDaddy / Namecheap link or login notes…"
-        value={client?.registrar_resource} onSaved={setClient}
-      />
-      <ResourceField
-        clientId={clientId} field="hosting_resource" label="Hosting Platform"
-        placeholder="e.g. Vercel / hosting link or login notes…"
-        value={client?.hosting_resource} onSaved={setClient}
-      />
-      <ResourceField
-        clientId={clientId} field="funnel_resource" label="Funnel"
-        placeholder="e.g. the client's live funnel/landing-page URL…"
-        value={client?.funnel_resource} onSaved={setClient}
-      />
-      {client?.funnel_resource && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "-2px 0 8px", padding: "0 12px" }}>
-          <a href={client.funnel_resource} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10 }}>
-            VISIT FUNNEL &#8599;
-          </a>
-          <ExcludeMyIpButton />
-        </div>
-      )}
+  const fields = RESOURCE_FIELDS.map((f) => ({ ...f, value: client?.[f.field] }));
+  const setCount = fields.filter((f) => (f.value || "").trim()).length;
+  const cardKeys = [...RESOURCE_FIELDS.map((f) => f.field), "other"];
+  const allOpen = cardKeys.every((k) => open[k]);
+  const toggleAll = () => setOpen(allOpen ? {} : Object.fromEntries(cardKeys.map((k) => [k, true])));
+  const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "18px 0 8px" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.08em" }}>
-          OTHER RESOURCES
-        </div>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowForm((s) => !s)}>
-          {showForm ? "CANCEL" : "+ ADD"}
+  return (
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7096", letterSpacing: "0.06em" }}>
+          {setCount}/{fields.length} PLATFORMS SET · {resources.length} OTHER
+        </span>
+        <button
+          onClick={toggleAll}
+          style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.06em" }}
+        >
+          {allOpen ? "COLLAPSE ALL" : "EXPAND ALL"}
         </button>
       </div>
 
+      {fields.map((f) => (
+        <ResourceField
+          key={f.field}
+          clientId={clientId} field={f.field} label={f.label} placeholder={f.placeholder}
+          value={f.value} onSaved={setClient}
+          isOpen={!!open[f.field]} onToggle={() => toggle(f.field)}
+        >
+          {f.field === "funnel_resource" && client?.funnel_resource && (
+            <>
+              <a href={client.funnel_resource} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10 }}>
+                VISIT FUNNEL &#8599;
+              </a>
+              <ExcludeMyIpButton />
+            </>
+          )}
+        </ResourceField>
+      ))}
+
+      <ResourceCard
+        title="Other Resources"
+        summary={resources.length ? `${resources.length} SAVED` : "NONE YET"}
+        muted
+        isOpen={!!open.other} onToggle={() => toggle("other")}
+        right={
+          <button
+            className="btn btn-secondary" style={{ fontSize: 10 }}
+            onClick={() => { setShowForm((s) => !s); setOpen((o) => ({ ...o, other: true })); }}
+          >
+            {showForm ? "CANCEL" : "+ ADD"}
+          </button>
+        }
+      >
       {showForm && (
         <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8, display: "flex", flexDirection: "column", gap: 8 }}>
           <input
@@ -3868,11 +3923,12 @@ function ClientResources({ clientId }) {
       )}
 
       {resources.length === 0 && !showForm && (
-        <div style={{ padding: "16px 0", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
+        <div style={{ padding: "4px 0", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
           NO OTHER RESOURCES YET
         </div>
       )}
       {resources.map((r) => <MiscResourceRow key={r.id} resource={r} onDelete={removeResource} />)}
+      </ResourceCard>
     </div>
   );
 }
