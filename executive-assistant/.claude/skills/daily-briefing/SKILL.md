@@ -227,6 +227,8 @@ Examples:
 
 ### Step 4.5 — Newsletter Draft (Monday, Friday)
 
+**PAUSED (2026-10-16, by Dylan) — skip this step every day and omit the `## Newsletter Preview` section entirely until Dylan un-pauses it.** Do not run the newsletter skill or write `weekly_research_cache.json` / `newsletter_draft.json`. To resume, delete this paragraph.
+
 Skip this step unless today is Monday or Friday.
 
 Run the newsletter draft on these two days: use the `manage-apptset-agent` skill to run the newsletter draft. Follow the Draft Mode steps in `$(git rev-parse --show-toplevel)/apptset-agent/.claude/skills/newsletter/SKILL.md` — this now includes a research step that writes `apptset-agent/weekly_research_cache.json`, and ends by submitting the draft for approval (not just previewing it). Each of the two days picks its own topic from the rotation (Step 1 of the newsletter skill) — they are not the same draft repeated.
