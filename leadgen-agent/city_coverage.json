@@ -5670,10 +5670,10 @@
       "last_scraped_date": "2026-10-15"
     },
     "West Palm Beach, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 182,
-      "qualified_count": 14,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 213,
+      "qualified_count": 16,
       "last_scraped_date": "2026-10-15"
     },
     "Allentown, PA": {
