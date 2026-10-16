@@ -733,6 +733,29 @@ def calendar_list_events(days_ahead: int = 7, calendar_id: str = "primary") -> s
         return f"Calendar error: {e}"
 
 
+def calendar_timed_events(start: datetime, end: datetime, calendar_id: str = "primary") -> list[dict]:
+    """Every timed (non-all-day) event between start and end, all pages:
+    [{"title", "start", "end"}] with tz-aware datetimes. Raises on failure."""
+    svc = _calendar_service()
+    events, page = [], None
+    while True:
+        res = svc.events().list(
+            calendarId=calendar_id, timeMin=start.isoformat(), timeMax=end.isoformat(),
+            singleEvents=True, orderBy="startTime", maxResults=250, pageToken=page,
+        ).execute()
+        for ev in res.get("items", []):
+            if ev.get("status") == "cancelled" or "dateTime" not in ev.get("start", {}):
+                continue
+            events.append({
+                "title": ev.get("summary", ""),
+                "start": datetime.fromisoformat(ev["start"]["dateTime"]),
+                "end": datetime.fromisoformat(ev["end"]["dateTime"]),
+            })
+        page = res.get("nextPageToken")
+        if not page:
+            return events
+
+
 def calendar_create_event(
     title: str,
     start_datetime: str,

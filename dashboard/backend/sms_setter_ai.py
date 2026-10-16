@@ -430,10 +430,41 @@ async def worker_status(conn) -> dict:
 
 _slot_cache: dict = {"at": 0.0, "slots": None}
 
+# Dylan's Discount Tire shifts sit on his Google Calendar as "Work", "Work –
+# Discount Tire", "Discount Tire Shift", "Discount Tire - Work Shift". No
+# call may start or end within SHIFT_BUFFER of one (his rule, 2026-10-16),
+# so he's never rushing to or from a shift. Calendly only knows the shift
+# itself is busy, not the buffer, so it's enforced here.
+SHIFT_BUFFER = timedelta(minutes=30)
+_SHIFT_TITLE = re.compile(r"discount\s*tire|^\s*work(\s+shift)?\s*$", re.I)
+
+
+async def work_shifts(days: int) -> list[tuple[datetime, datetime]]:
+    """Dylan's shift windows from a day ago to `days` out. Raises if the
+    calendar can't be read: callers fail closed rather than risk a call
+    right before a shift."""
+    import asyncio
+
+    import integrations
+
+    now = datetime.now(timezone.utc)
+    events = await asyncio.to_thread(
+        integrations.calendar_timed_events, now - timedelta(days=1), now + timedelta(days=days + 1),
+    )
+    return [(e["start"], e["end"]) for e in events if _SHIFT_TITLE.search(e["title"] or "")]
+
+
+def near_shift(start: datetime, shifts: list[tuple[datetime, datetime]]) -> bool:
+    """Whether a call starting at `start` would land within SHIFT_BUFFER of
+    a shift (or during one)."""
+    end = start + _HOLD_LENGTH
+    return any(start < s_end + SHIFT_BUFFER and end > s_start - SHIFT_BUFFER for s_start, s_end in shifts)
+
 
 async def open_slots_utc(conn) -> list[datetime] | None:
-    """Dylan's real Calendly openings for the next _SLOT_DAYS, cached for 5
-    minutes so a queue of several threads costs one Calendly lookup."""
+    """Dylan's real Calendly openings for the next _SLOT_DAYS, minus any
+    within SHIFT_BUFFER of a work shift, cached for 5 minutes so a queue of
+    several threads costs one Calendly lookup."""
     import calendly_integration
     import integrations
 
@@ -449,7 +480,12 @@ async def open_slots_utc(conn) -> list[datetime] | None:
     except Exception as e:
         print(f"[sms_setter_ai] Calendly lookup failed: {e}", flush=True)
         return None
-    slots = [_as_dt(s["start_time"]) for s in raw]
+    try:
+        shifts = await work_shifts(_SLOT_DAYS)
+    except Exception as e:
+        print(f"[sms_setter_ai] work-shift lookup failed, offering no slots: {e}", flush=True)
+        return None
+    slots = [s for s in (_as_dt(s["start_time"]) for s in raw) if not near_shift(s, shifts)]
     _slot_cache.update(at=time.time(), slots=slots)
     return slots
 
@@ -1362,6 +1398,11 @@ async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str
         return "book: bad date/time"
     if start < datetime.now(timezone.utc) + timedelta(hours=_MIN_LEAD_HOURS - 1):
         return "book: time too soon"
+    try:
+        if near_shift(start, await work_shifts(_SLOT_DAYS)):
+            return "book: within 30 min of a work shift"
+    except Exception as e:
+        return f"book: couldn't check work shifts ({e})"
 
     # This prospect's own hold blocks the slot on Calendly too — free it
     # first. Calendly can take a few seconds to see the calendar change,
