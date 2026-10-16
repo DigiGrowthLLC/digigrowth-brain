@@ -28,6 +28,7 @@ import client_sms
 import context_gen
 import dialer_engine
 import email_warmup
+import guide_autocheck
 import make_leadgen
 import meta_ads
 from db import get_pool
@@ -194,6 +195,51 @@ async def provision_sms_number(client_id: int, area_code: str | None = None):
         return _decode_config(await client_sms.provision_client_number(client_id, area_code=area_code))
     except (ValueError, RuntimeError) as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/clients/{client_id}/marketing-config/take-number")
+async def take_number_from_client(client_id: int, from_client_id: int):
+    """Hand a former client's Twilio number (and its A2P registration, which
+    stays attached to the number's own subaccount) to this client: the
+    number is removed from the old client's config so nothing of theirs can
+    send on it, saved on this one, and re-provisioned so its SMS/voice
+    webhooks point here and this client gets voice keys in that subaccount.
+    The A2P brand stays the old business's — re-register under this
+    client's EIN when you can."""
+    if from_client_id == client_id:
+        raise HTTPException(400, "Pick a different client to take the number from")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        src = await conn.fetchrow(
+            "SELECT twilio_subaccount_sid, twilio_number FROM client_marketing_config WHERE client_id = $1",
+            from_client_id,
+        )
+        if not src or not src["twilio_number"] or not src["twilio_subaccount_sid"]:
+            raise HTTPException(400, "That client has no Twilio number to hand over")
+        await _get_or_create_config(conn, client_id)
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE client_marketing_config SET twilio_number = NULL, updated_at = now() WHERE client_id = $1",
+                from_client_id,
+            )
+            # Voice keys from this client's old subaccount can't mint tokens in
+            # the new one; provisioning recreates them when they don't belong.
+            await conn.execute(
+                "UPDATE client_marketing_config SET twilio_subaccount_sid = $2, twilio_number = $3, "
+                "updated_at = now() WHERE client_id = $1",
+                client_id, src["twilio_subaccount_sid"], src["twilio_number"],
+            )
+    try:
+        return _decode_config(await client_sms.provision_client_number(client_id))
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/clients/{client_id}/marketing-config/autocheck")
+async def autocheck_guide(client_id: int):
+    """Tick every Marketing Setup step the dashboard can prove is done
+    (guide_autocheck.py). Returns the newly ticked {guide: [step indexes]}."""
+    return {"ticked": await guide_autocheck.autocheck(client_id)}
 
 
 @router.post("/clients/{client_id}/marketing-config/test-email")

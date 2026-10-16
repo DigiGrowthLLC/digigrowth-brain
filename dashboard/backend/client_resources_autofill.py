@@ -21,7 +21,14 @@ exactly what was auto-written (so a higher-priority source, e.g. the real ad
 account link replacing the portfolio invite note, can upgrade it). Once Dylan
 edits a field by hand it's his.
 
-autofill_job() runs on the app scheduler (main.py); POST
+3. The client's DNS host, looked up from their domain's nameservers and
+   added once as an "Other Resources" entry. The registrar (where the domain
+   was bought) often isn't where DNS records are edited — Advantage Therapy's
+   domain is at GoDaddy but its DNS is on Wix — and DNS changes have to be
+   made wherever the nameservers point.
+
+autofill_job() runs on the app scheduler (main.py), and also runs
+guide_autocheck (ticks Marketing Setup steps the data proves are done); POST
 /api/client-resources/autofill (clients.py) runs it on demand with a longer
 Gmail lookback for a backfill.
 """
@@ -31,6 +38,9 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
+import httpx
+
+import guide_autocheck
 import integrations
 from db import get_pool
 
@@ -261,19 +271,86 @@ async def scan_invites(days: int = 3) -> int:
     return written
 
 
+# Nameserver suffix -> where the DNS records are actually edited.
+_DNS_HOSTS = [
+    ("wixdns.net", "Wix", "https://manage.wix.com/account/domains"),
+    ("domaincontrol.com", "GoDaddy", "https://dcc.godaddy.com/control/portfolio"),
+    ("cloudflare.com", "Cloudflare", "https://dash.cloudflare.com/"),
+    ("squarespacedns.com", "Squarespace", "https://account.squarespace.com/domains"),
+    ("googledomains.com", "Squarespace (ex-Google Domains)", "https://account.squarespace.com/domains"),
+    ("registrar-servers.com", "Namecheap", "https://ap.www.namecheap.com/domains/list/"),
+    ("vercel-dns.com", "Vercel", "https://vercel.com/dashboard/domains"),
+    ("awsdns", "AWS Route 53", "https://console.aws.amazon.com/route53/"),
+    ("porkbun.com", "Porkbun", "https://porkbun.com/account/domainsSpeedy"),
+    ("hostgator.com", "HostGator", "https://portal.hostgator.com/"),
+    ("bluehost.com", "Bluehost", "https://my.bluehost.com/"),
+    ("dreamhost.com", "DreamHost", "https://panel.dreamhost.com/"),
+]
+
+
+async def _client_domain(conn, client_id: int) -> str:
+    row = await conn.fetchrow(
+        """SELECT c.email, ct.website,
+                  (SELECT answers->>'name_website' FROM client_onboarding_responses r
+                    WHERE r.client_id = c.id AND r.section = 'practice_snapshot') AS name_website
+           FROM clients c LEFT JOIN contacts ct ON ct.client_id = c.id AND ct.is_client_anchor
+           WHERE c.id = $1""",
+        client_id,
+    )
+    if not row:
+        return ""
+    for site in [row["website"], *re.findall(r"[\w.-]+\.[a-z]{2,}", row["name_website"] or ""), row["email"]]:
+        d = _domain(site or "")
+        if d and d not in _FREE_MAIL:
+            return d
+    return ""
+
+
+async def detect_dns_hosts(conn) -> int:
+    added = 0
+    ids = [r["id"] for r in await conn.fetch(
+        "SELECT id FROM clients c WHERE NOT is_test AND NOT EXISTS "
+        "(SELECT 1 FROM client_resources cr WHERE cr.client_id = c.id AND cr.label = 'DNS host')")]
+    async with httpx.AsyncClient(timeout=10) as http:
+        for client_id in ids:
+            domain = await _client_domain(conn, client_id)
+            if not domain:
+                continue
+            try:
+                r = await http.get("https://dns.google/resolve", params={"name": domain, "type": "NS"})
+                ns = sorted(a["data"].rstrip(".").lower() for a in r.json().get("Answer", []) if a.get("type") == 2)
+            except Exception as e:
+                print(f"[resource-autofill] DNS lookup for {domain} failed: {e}", flush=True)
+                continue
+            if not ns:
+                continue
+            host, link = next(((h, l) for suffix, h, l in _DNS_HOSTS if any(suffix in n for n in ns)), (None, None))
+            value = (f"{host}: edit {domain}'s DNS records here, not at the registrar: {link}\nNameservers: {', '.join(ns)}"
+                     if host else f"Unrecognized DNS host for {domain}. Nameservers: {', '.join(ns)}")
+            await conn.execute(
+                "INSERT INTO client_resources (client_id, label, value, sort_order) VALUES ($1, 'DNS host', $2, 0)",
+                client_id, value,
+            )
+            print(f"[resource-autofill] client {client_id}: DNS host {host or ns}", flush=True)
+            added += 1
+    return added
+
+
 async def run(days: int = 3) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
         from_config = await reconcile_config(conn)
+        dns_hosts = await detect_dns_hosts(conn)
     from_email = await scan_invites(days)
-    return {"from_config": from_config, "from_email": from_email}
+    await guide_autocheck.autocheck_all()
+    return {"from_config": from_config, "from_email": from_email, "dns_hosts": dns_hosts}
 
 
 async def autofill_job():
     """APScheduler entrypoint — never raises."""
     try:
         result = await run()
-        if result["from_config"] or result["from_email"]:
+        if result["from_config"] or result["from_email"] or result["dns_hosts"]:
             print(f"[resource-autofill] {result}", flush=True)
     except Exception as e:
         print(f"[resource-autofill] error: {e}", flush=True)

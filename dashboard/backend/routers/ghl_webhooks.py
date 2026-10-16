@@ -84,6 +84,10 @@ async def ghl_booking_webhook(client_id: int, request: Request, key: str = ""):
     if not hmac.compare_digest(key, _key(client_id)):
         raise HTTPException(401, "Invalid key")
     body = await request.json()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE client_marketing_config SET ghl_last_webhook_at = now() WHERE client_id = $1", client_id)
     cal = body.get("calendar") or {}
     appt_id = cal.get("appointmentId") or body.get("appointmentId") or cal.get("id")
     status = (cal.get("appoinmentStatus") or cal.get("appointmentStatus") or cal.get("status") or "booked").lower()

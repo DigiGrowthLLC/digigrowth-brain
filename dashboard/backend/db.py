@@ -778,6 +778,9 @@ async def _create_schema(pool: asyncpg.Pool):
             -- Per-message on/off for a client's sequences (Sequences tab, admin
             -- and portal). Every sender reads only enabled steps.
             ALTER TABLE client_sequence_steps ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true;
+            -- Last authenticated GoHighLevel booking webhook for this client
+            -- (routers/ghl_webhooks.py) — proof the GHL workflow is live.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS ghl_last_webhook_at TIMESTAMPTZ;
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

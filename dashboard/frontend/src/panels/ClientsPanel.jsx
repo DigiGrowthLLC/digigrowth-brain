@@ -11,6 +11,7 @@ import PeriodToggle from "../components/PeriodToggle.jsx";
 function OnboardingAnswers({ clientId }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState({});
 
   useEffect(() => {
     fetch(API(`/clients/${clientId}`))
@@ -25,42 +26,71 @@ function OnboardingAnswers({ clientId }) {
   if (!detail) return null;
 
   const onboarding = detail.onboarding || {};
-  const anyAnswers = Object.values(onboarding).some((s) => s.answers && Object.keys(s.answers).length > 0);
+  const answerOf = (answers, q) => (answers[q.key] || "").toString().trim();
+  const totalQs = SECTIONS.reduce((n, s) => n + s.questions.length, 0);
+  const totalAnswered = SECTIONS.reduce((n, s) => {
+    const answers = onboarding[s.key]?.answers || {};
+    return n + s.questions.filter((q) => answerOf(answers, q)).length;
+  }, 0);
+  const sectionsDone = SECTIONS.filter((s) => onboarding[s.key]?.completed_at).length;
+  const allOpen = SECTIONS.every((s) => open[s.key]);
+  const toggleAll = () => setOpen(allOpen ? {} : Object.fromEntries(SECTIONS.map((s) => [s.key, true])));
 
   return (
-    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 16 }}>
-      {!anyAnswers && (
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>
-          NOTHING SUBMITTED YET
-        </div>
-      )}
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7096", letterSpacing: "0.06em" }}>
+          {sectionsDone}/{SECTIONS.length} SECTIONS COMPLETE · {totalAnswered}/{totalQs} QUESTIONS ANSWERED
+        </span>
+        <button
+          onClick={toggleAll}
+          style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.06em" }}
+        >
+          {allOpen ? "COLLAPSE ALL" : "EXPAND ALL"}
+        </button>
+      </div>
       {SECTIONS.map((s) => {
         const section = onboarding[s.key];
         const answers = section?.answers || {};
-        const hasAny = Object.values(answers).some((v) => (v || "").toString().trim());
-        if (!hasAny) return null;
+        const answered = s.questions.filter((q) => answerOf(answers, q)).length;
+        const isOpen = !!open[s.key];
+        const status = section?.completed_at
+          ? { cls: "badge-green", text: "COMPLETE" }
+          : answered > 0
+            ? { cls: "badge-amber", text: "IN PROGRESS" }
+            : { cls: "badge-gray", text: "NOT STARTED" };
         return (
-          <div key={s.key}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <div key={s.key} style={{ border: "1px solid rgba(58,123,213,0.15)", borderRadius: 8, background: "rgba(10,20,50,0.35)", overflow: "hidden" }}>
+            <button
+              onClick={() => setOpen((o) => ({ ...o, [s.key]: !o[s.key] }))}
+              style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+            >
+              <span style={{ color: "#3a7bd5", fontSize: 10, width: 10, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 12.5, color: "#c4d0e8" }}>{s.title}</span>
-              {section?.completed_at ? (
-                <span className="badge badge-green" style={{ fontSize: 9 }}>COMPLETE</span>
-              ) : (
-                <span className="badge badge-amber" style={{ fontSize: 9 }}>IN PROGRESS</span>
-              )}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {s.questions.map((q) => {
-                const val = (answers[q.key] || "").toString().trim();
-                if (!val) return null;
-                return (
-                  <div key={q.key}>
-                    <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 2 }}>{q.label}</div>
-                    <div style={{ fontSize: 12.5, color: "#d0e8ff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{val}</div>
-                  </div>
-                );
-              })}
-            </div>
+              <span style={{ marginLeft: "auto", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7096" }}>
+                {answered}/{s.questions.length}
+              </span>
+              <span className={`badge ${status.cls}`} style={{ fontSize: 9, ...(status.cls === "badge-gray" ? { background: "rgba(90,112,150,0.15)", color: "#5a7096" } : {}) }}>
+                {status.text}
+              </span>
+            </button>
+            {isOpen && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "4px 12px 12px 32px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+                {s.questions.map((q) => {
+                  const val = answerOf(answers, q);
+                  return (
+                    <div key={q.key} style={{ paddingTop: 8 }}>
+                      <div style={{ fontSize: 11, color: "#5a7096", marginBottom: 3, lineHeight: 1.4 }}>{q.label}</div>
+                      {val ? (
+                        <div style={{ fontSize: 12.5, color: "#d0e8ff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{val}</div>
+                      ) : (
+                        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>NOT ANSWERED</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}
@@ -1844,8 +1874,10 @@ const MARKETING_GUIDES = {
       { text: "Once Response AI is connected below, confirm it's using this same number, not one of its own." },
       { text: "Automated — nothing to do here: every message sent/received through this number is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test text." },
       // Appended, not inserted — guide_progress is keyed by step index.
-      { text: "Leads call this number back after the AI agent texts them. Those calls forward to the number below (leave blank to use the client's own phone from their profile), showing the lead's number as caller ID. Buy Number wires this up automatically; for a number bought before this existed, click Buy Number again. Test by calling the client's number from your phone.",
+      { text: "Leads call this number back after the AI agent texts them. Those calls forward to the number below (leave blank to use the client's own phone from their profile), showing the lead's number as caller ID. Buy Number wires this up automatically; for a number bought before this existed, click Buy Number again. Filled automatically when the client answers the onboarding Ops question about calls with a phone number (only while this is blank). Test by calling the client's number from your phone.",
         fields: [{ key: "call_forward_number", label: "Forward calls to", placeholder: "(737) 555-0123" }] },
+      // Appended 2026-10-16. Never insert above: progress is keyed by index.
+      { text: "Optional, instead of Buy Number: reuse a former client's already-registered number. POST /api/clients/{this client}/marketing-config/take-number?from_client_id={old client} (the onboarding agent's service-delivery-setup skill runs it) removes it from the old client, saves it here, re-points its SMS/voice webhooks at this client and creates voice keys. Never move the number to another Twilio subaccount: the A2P registration is attached to the old one and a moved number is unregistered (carriers block it). The registration stays under the old business's name, so re-register under this client's EIN when you have it. Test by texting the number: the reply should come from this client's AI agent." },
     ],
   },
   email: {
@@ -1870,6 +1902,8 @@ const MARKETING_GUIDES = {
       { text: "Send a test email and confirm it lands (check spam too).", testAction: "email" },
       { text: "Automated — nothing to do here: every email sent through this mailbox is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test email." },
       { text: "Before starting real outreach, run this mailbox through an automated warm-up to build sending reputation. Real outreach can still start any time even if warm-up isn't finished — it just tops up around whatever real volume already goes out.", warmupAction: true },
+      // Appended 2026-10-16.
+      { text: "Before any DNS step: find where the client's DNS is actually edited. It's wherever the domain's nameservers point, which is often NOT the registrar (Advantage Therapy: bought at GoDaddy, DNS on Wix, so GoDaddy access was useless). Resources → Other Resources shows the detected \"DNS host\" (looked up automatically). Get access THERE: Wix needs the Admin (Co-Owner) role, since domains count as billing permissions; GoDaddy delegate invites expire after 48 hours and can't be accepted from a login that's the same GoDaddy account; Cloudflare and Squarespace need a member invite. If access drags, send the client the exact records to add themselves." },
     ],
   },
   response_ai: {
@@ -1896,6 +1930,12 @@ const MARKETING_GUIDES = {
         link: "https://business.facebook.com/latest/instant_forms", linkLabel: "Meta Business Suite → Instant Forms" },
       { text: "Test it: in Meta's Lead Ads Testing Tool pick the client's Page and form, delete any old test lead, and create one with your own phone number. About a minute later you should get the agent's first text (none if you booked through Calendly — test that path too), and the lead should show up in the client's portal Leads tab (tagged meta_lead).",
         link: "https://developers.facebook.com/tools/lead-ads-testing", linkLabel: "Meta Lead Ads Testing Tool" },
+      // Appended 2026-10-16. Calendly (step 6) is the default; steps 14-16 are
+      // ONLY for a client who explicitly books on GoHighLevel.
+      { text: "ONLY if the client explicitly says they book on GoHighLevel (Calendly, step 6, is the default; skip 14-16 otherwise). Get added to their GHL sub-account as Admin. If the invite lands you in another agency's account (one email can only be one GHL user), have them invite dylanrg+<client>@digigrowthllc.com instead and open it in an incognito window. Create a calendar for the free consultation: name it to match the funnel (\"Free Consultation\"), no in-person group, Google Meet location (needs their Google account connected under Calendars → Connections), 20 min + 10 min buffer, their business hours in their time zone, 2 hr minimum notice, form asks first/last name + phone + email. If the custom URL says the slug is taken, use any unique slug: the booking link uses the calendar ID anyway (api.leadconnectorhq.com/widget/booking/<calendarId>). Notifications: Email ON for \"Appointment booked (Confirmed)\" to the contact (that's how leads get the Meet link); leave GHL Reminder/Follow-Up/Cancellation OFF since this dashboard sends those. Paste the booking link as the Calendly event link in Set Up Client Portal step 1 (it drives the funnel's Book button, the AI's booking link and the follow-up texts)." },
+      { text: "ONLY for a GoHighLevel client: sync their bookings into this dashboard (portal appointment, 24h/6h/1h reminders, booking alert, ads-lead tag, funnel conversion). In GHL → Automation → Workflows → new workflow: trigger \"Customer Booked Appointment\" filtered to that calendar, second trigger \"Appointment Status\" filtered to that calendar + status Cancelled, then action Webhook (under Send Data, not Custom Webhook) POST to the URL below, no headers or custom data. Name it \"DigiGrowth booking sync\" and Publish. Bookings from their other calendars are ignored automatically.",
+        ghlWebhookAction: true },
+      { text: "Test bookings without notifying the client: turn off the client's booking alert and the calendar's own notifications, book one slot with your own details, confirm it shows in their portal Appointments (the onboarding agent can check), cancel it, delete the test lead, reset the funnel's conversions (Website stats), then turn every notification back on." },
     ],
   },
   landing_page: {
@@ -1923,6 +1963,12 @@ const MARKETING_GUIDES = {
         ], testAction: "meta_ads" },
       { text: "Not yet automated for visuals — see the automation note below this guide. For now: produce the image/video manually using the copy above." },
       { text: "Upload the finished creative directly into the client's ad account.", link: "https://business.facebook.com/adsmanager", linkLabel: "Meta Ads Manager" },
+      // Appended 2026-10-16.
+      { text: "Accept the client's Meta business portfolio invite (the \"You're invited to join the <name> business portfolio\" email to dylanrg@; valid about 4 weeks) and check Users → People → your name. If they have more than one ad account, use the one with spend history and a card on file (an empty account with no payment method can't run ads), confirm it with the client, and save its ID here. Saving it also turns on the daily ad-spend sync and links Ads Manager in Resources.",
+        link: "https://business.facebook.com/settings", linkLabel: "Meta Business Settings",
+        fields: [{ key: "meta_ad_account_id", label: "Meta Ad Account ID", placeholder: "123456789012345" }] },
+      { text: "Get their Facebook Page and Instagram assigned to you. A \"Partial access: Basic\" portfolio role can't self-assign, so the client does it: Business Settings → Users → People → your name → Assign assets → their Page and Instagram, Full control (or makes you a full-control admin). Then save the Page ID: that builds the Lead Ads relay (Set Up Response AI step 11).",
+        fields: [{ key: "meta_page_id", label: "Meta Page ID", placeholder: "987654321098765" }] },
     ],
   },
   automations: {
@@ -1933,6 +1979,8 @@ const MARKETING_GUIDES = {
       { text: "That's it to go live — automated, nothing else to click: the moment a lead tied to this client goes No Show or gets Canceled (marked from the internal Appointments tab, or by the client themselves once self-service booking is turned on for them), the matching SMS/email fires automatically from the client's own number/mailbox. No scheduler or extra wiring needed (client_appointment_sequence.py)." },
       { text: "Test: mark a test appointment No Show (or Cancel it) from the Appointments tab and confirm the message lands from the client's own number/inbox, not DigiGrowth's." },
       { text: "Real limitation, not automatable from here: this only covers leads DigiGrowth booked for this client through this OS. A client's EXISTING patient base lives in their own booking software/EHR, which this system has no connection to — the same automation for their whole existing patient list needs that specific system integrated (a real per-client dev task) or the client running it through their own tool." },
+      // Appended 2026-10-16.
+      { text: "Set the on/off switches on the Sequences tab (per message, or a whole sequence): turn OFF the email steps until Email Marketing is connected, and anything the client doesn't want (e.g. no-show texts). The client can flip these from their own portal too. Also check the copy matches how the client really works: if they don't take calls, nothing should say \"give us a call\"." },
     ],
   },
   client_portal: {
@@ -1945,6 +1993,8 @@ const MARKETING_GUIDES = {
       { text: "Appointments Booked / Show Rate / Close Rate compute live from the internal Appointments tab's outcome marking (outcome_show/outcome_close) for this client's leads — nothing to connect, just make sure reps are actually marking outcomes for this client's appointments instead of leaving them blank." },
       { text: "\"Your Number\"/\"Your Mailbox\" SMS + email counts only populate once real sends go through the client's own Twilio number / Gmail mailbox (portal replies, the automations above, or the Response AI agent once enabled) — if those read zero, that's accurate, not broken, until one of those is live." },
       { text: "Ad Spend / Impressions / Clicks / CTR / CPC / Cost per Lead sync automatically every morning (meta_ads.py) once the Paid Ad Creatives step is done (ad account ID saved + shared with DigiGrowth's system user). If the portal still shows no ad data after a day of spend, click SYNC NOW in that step to see the exact error." },
+      // Appended 2026-10-16.
+      { text: "After all testing, clean the client's portal before launch: delete test leads (deleting a lead removes its appointments too) and reset the funnel's Website stats (views/conversions) so test bookings don't show as real results. The onboarding agent can do both." },
     ],
   },
 };
@@ -1959,21 +2009,22 @@ const SETUP_ORDER_PHASES = {
   now: {
     title: "PHASE 1 · DO NOW: nothing needed from the client",
     note: "Everything here runs off their website, the sales call and their profile. Do it the day they close.",
-    steps: [["sms", 0], ["sms", 6], ["sms", 2], ["sms", 3], ["sms", 5],
+    steps: [["sms", 0], ["sms", 7], ["sms", 6], ["sms", 2], ["sms", 3], ["sms", 5],
       ["landing_page", 0], ["landing_page", 1],
       ["ad_creatives", 0], ["ad_creatives", 4],
       ["response_ai", 0], ["response_ai", 1], ["response_ai", 2], ["response_ai", 3], ["response_ai", 4], ["sms", 4],
-      ["automations", 1],
+      ["automations", 1], ["automations", 5],
       ["email", 0], ["email", 1],
       ["client_portal", 1]],
   },
   access: {
     title: "PHASE 2 · NEEDS CLIENT ACCESS: ask on the onboarding call",
-    note: "Four asks unlock all of this: registrar login, Facebook Business partner access (Page + ad account), their Calendly (paid plan), and legal name + EIN. Once their intake answers come in, click GENERATE CONTEXT again on the Response AI agent.",
-    steps: [["email", 2], ["email", 3], ["email", 4], ["landing_page", 2],
+    note: "Four asks unlock all of this: access wherever their DNS is hosted (see DNS host in Resources), Facebook Business access (Page + Instagram + ad account), their Calendly (paid plan; GoHighLevel only if they explicitly book there), and legal name + EIN. Once their intake answers come in, click GENERATE CONTEXT again on the Response AI agent.",
+    steps: [["email", 14], ["email", 2], ["email", 3], ["email", 4], ["landing_page", 2],
+      ["ad_creatives", 6], ["ad_creatives", 7],
       ["response_ai", 7], ["response_ai", 8], ["response_ai", 9],
       ["ad_creatives", 1], ["ad_creatives", 3], ["response_ai", 10], ["response_ai", 11],
-      ["client_portal", 0], ["response_ai", 5],
+      ["client_portal", 0], ["response_ai", 5], ["response_ai", 13], ["response_ai", 14],
       ["sms", 1]],
   },
   after_dns: {
@@ -1986,10 +2037,11 @@ const SETUP_ORDER_PHASES = {
   launch: {
     title: "PHASE 4 · TEST AND LAUNCH",
     note: "End-to-end tests, then creatives go into the ad account.",
-    steps: [["response_ai", 6], ["response_ai", 12],
+    steps: [["response_ai", 6], ["response_ai", 15], ["response_ai", 12],
       ["automations", 0], ["automations", 2], ["automations", 3],
       ["ad_creatives", 5],
-      ["client_portal", 2], ["client_portal", 3], ["client_portal", 4], ["client_portal", 5], ["automations", 4]],
+      ["client_portal", 2], ["client_portal", 3], ["client_portal", 4], ["client_portal", 5], ["automations", 4],
+      ["client_portal", 6]],
   },
 };
 
@@ -2945,6 +2997,30 @@ function ClientAgentSetup({ clientId }) {
   );
 }
 
+// The webhook URL a GoHighLevel client's booking workflow posts to
+// (routers/ghl_webhooks.py). Fetched rather than built here: the per-client
+// key in it is derived server-side.
+function GhlWebhookUrl({ clientId }) {
+  const [url, setUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!clientId) return;
+    fetch(API(`/clients/${clientId}/ghl-webhook-url`)).then((r) => (r.ok ? r.json() : null)).then((d) => d && setUrl(d.url));
+  }, [clientId]);
+  if (!url) return null;
+  return (
+    <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+      <input className="dg-input" readOnly value={url} style={{ fontSize: 10, flex: 1, minWidth: 0 }} onFocus={(e) => e.target.select()} />
+      <button
+        className="btn btn-secondary" style={{ fontSize: 9, padding: "3px 8px" }}
+        onClick={() => { navigator.clipboard?.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+      >
+        {copied ? "COPIED" : "COPY URL"}
+      </button>
+    </div>
+  );
+}
+
 // The "click a step, get a doc with numbered instructions + the exact links
 // to go to" surface — one guide at a time, rendered via portal like the
 // existing dropdown menus in this file. Each step can be checked off
@@ -3117,6 +3193,7 @@ function GuideModal({
                       )}
                     </div>
                   )}
+                  {s.ghlWebhookAction && <GhlWebhookUrl clientId={client?.id} />}
                   {s.leadAdsAction && (
                     <div style={{ marginTop: 8 }}>
                       <button

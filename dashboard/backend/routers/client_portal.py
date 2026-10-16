@@ -167,6 +167,21 @@ async def save_onboarding_section(token: str, section: str, body: OnboardingSect
             """,
             client["id"], section, json.dumps(body.answers), body.completed,
         )
+        # Ops' "where should calls forward?" answer: a phone number in it
+        # becomes the client's call_forward_number, unless DigiGrowth already
+        # set one. "Text only" leaves forwarding as it is.
+        if section == "ops":
+            digits = "".join(c for c in str(body.answers.get("call_handling") or "") if c.isdigit())
+            if len(digits) == 11 and digits.startswith("1"):
+                digits = digits[1:]
+            if len(digits) == 10:
+                await conn.execute(
+                    """INSERT INTO client_marketing_config (client_id, call_forward_number) VALUES ($1, $2)
+                       ON CONFLICT (client_id) DO UPDATE SET call_forward_number = EXCLUDED.call_forward_number,
+                           updated_at = now()
+                       WHERE coalesce(client_marketing_config.call_forward_number, '') = ''""",
+                    client["id"], f"+1{digits}",
+                )
     return _decode_response_row(row)
 
 
