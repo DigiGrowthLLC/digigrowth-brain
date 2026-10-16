@@ -310,11 +310,26 @@ async def record_booking(*, name: str | None, email: str | None, phone: str | No
                     str(uuid.uuid4()), name, phone, email, client_id,
                 )
                 contact_id = row["id"]
-            # else: phone already belongs to a DIFFERENT client — leave
-            # contact_id unset rather than misattributing someone else's
-            # lead; the appointment still gets created (reminders still
-            # send off prospect_name/phone/email directly) just without
-            # client-portal visibility.
+            else:
+                # Phone already belongs to a DIFFERENT client's contact
+                # (contacts.phone is globally unique). Don't touch that
+                # contact, but don't leave this booking contact-less either:
+                # an unscoped appointment falls into Dylan's own pipeline and
+                # reminder_engine.py, never this client's portal (caught
+                # 2026-10-16 when a GHL test booking from Dylan's own cell
+                # landed in his pipeline). Create this client's lead without
+                # the phone; the appointment row keeps prospect_phone, so the
+                # client's reminders still text it.
+                row = await conn.fetchrow(
+                    """
+                    INSERT INTO contacts (id, owner, email, status, client_id, notes)
+                    VALUES ($1, $2, $3, 'new', $4, $5)
+                    RETURNING id
+                    """,
+                    str(uuid.uuid4()), name, email, client_id,
+                    f"Booked with phone {phone}, which is on another client's contact." if phone else None,
+                )
+                contact_id = row["id"]
 
             # Auto-tag the lead by source: the ad-funnel landing page's
             # Calendly CTA carries ?utm_source=paid_ad (see design-agent's
