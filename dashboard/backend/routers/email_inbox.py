@@ -947,11 +947,13 @@ async def set_dm_followup_active(contact_id: str, payload: dict):
 
     active=true enrolls (idempotent — COALESCE keeps an existing enrollment's
     original timestamp rather than restarting the clock). Refuses to enroll
-    a contact with any disposition already set (booked/not_interested) —
-    this is the actual guarantee that a booked or not-interested prospect
-    never gets back into the sequence: it's enforced here at the one place
-    enrollment can start, not just by the poller's own disposition filter,
-    so even a deliberate "add them anyway" click can't do it by mistake.
+    a Not Interested contact. A booked one CAN be enrolled from here (Dylan,
+    2026-10-16: a booked prospect is never auto-enrolled, but adding them by
+    hand from the Inbox's Sequences panel must work) — every automatic path
+    (dm_followup_sequence.auto_enroll, sms.py's AI-setter send) still
+    requires disposition IS NULL, and booking clears any live enrollment, so
+    a booked thread is only ever enrolled because someone clicked ADD here.
+    The poller and the dialer queue accept disposition 'booked' for that.
 
     active=false unenrolls and clears the in-flight cycle (anchor + all
     touch-sent columns) so a later re-enroll starts a fresh 24h countdown
@@ -966,7 +968,7 @@ async def set_dm_followup_active(contact_id: str, payload: dict):
         if not conv:
             raise HTTPException(status_code=404, detail="No SMS conversation for this contact")
         if active:
-            if conv["disposition"] is not None:
+            if conv["disposition"] not in (None, "booked"):
                 raise HTTPException(
                     status_code=400,
                     detail=f"Contact is dispositioned '{conv['disposition']}' — cannot enroll in DM Follow-Up",

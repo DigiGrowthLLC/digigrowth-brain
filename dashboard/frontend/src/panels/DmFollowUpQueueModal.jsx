@@ -75,7 +75,7 @@ function AddToDmFollowUpModal({ activeContactIds, onClose, onAdded }) {
         </div>
 
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
-          Enrolls into DM Follow-Up and starts the 24h-silence countdown from now — independent of the "DM Reached" checkbox in the Inbox. Refused for anyone already dispositioned (booked/not interested).
+          Enrolls into DM Follow-Up and starts the 24h-silence countdown from now — independent of the "DM Reached" checkbox in the Inbox. Refused for anyone marked not interested. Booked prospects are never auto-enrolled but can be added here.
         </div>
 
         <input

@@ -43,9 +43,11 @@ naturally re-derivable every time from the message log itself:
   dm_followup_enrolled_at itself the moment they're set (not just rely on
   this disposition filter) — see email_inbox.py's not_interested branch and
   routers/appointments.py's create_appointment_row() — and the enrollment
-  endpoint refuses to re-enroll anyone with a disposition already set. So a
-  Not Interested or booked prospect can neither still be mid-cycle nor be
-  re-added into one, deliberately or by a stale state.
+  endpoint refuses to re-enroll a Not Interested prospect. A booked one is
+  never auto-enrolled, but Dylan can add them by hand from the Inbox
+  (2026-10-16), so the poller also runs rows with disposition 'booked'.
+  Canceling an appointment clears the 'booked' disposition again
+  (routers/appointments.py's cancel_appointment).
   2. Ball in Dylan's court (last_inbound_at >= last_outbound_at, i.e. they
      just replied, or no outbound has been sent yet): clear
      dm_followup_anchor_at and all three touch-sent columns to NULL. This IS
@@ -299,7 +301,10 @@ async def send_due_touches():
             """
             SELECT sc.*, c.owner, c.city, c.state FROM sms_conversations sc
             LEFT JOIN contacts c ON c.id = sc.contact_id
-            WHERE sc.status != 'closed' AND sc.disposition IS NULL
+            WHERE sc.status != 'closed'
+            -- 'booked' + enrolled only happens by a manual ADD in the Inbox
+            -- (booking clears enrollment and auto-enroll skips booked).
+            AND (sc.disposition IS NULL OR sc.disposition = 'booked')
             AND sc.dm_followup_enrolled_at IS NOT NULL
             -- The SMS setter's own scheduled check-in (the prospect said
             -- when to come back) replaces this sequence while it's set.

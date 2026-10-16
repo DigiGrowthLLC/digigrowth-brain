@@ -1703,29 +1703,29 @@ async def _create_schema(pool: asyncpg.Pool):
         await conn.execute(
             "UPDATE email_conversations SET booked_at = updated_at WHERE disposition = 'booked' AND booked_at IS NULL"
         )
-        # Corrective: the first version of backfill 2 below (deployed
-        # 2026-09-14) didn't exclude canceled appointments, so a contact
-        # whose only appointment_reminders rows are canceled — e.g. the
-        # "Dylan"/"Outcome Verification Test" contact used to test the
-        # reminder pipeline itself, never a real prospect — got wrongly
-        # credited with booked_at. Clear it before backfill 2 re-runs with
-        # the status filter added below; a conversation genuinely booked
-        # keeps its credit either via disposition='booked' (backfill 1) or
-        # a real, non-canceled appointment (backfill 2).
+        # (A corrective that cleared booked_at for contacts whose only
+        # appointments are canceled lived here from 2026-09-14 — it undid
+        # the old backfill 2's credit for the "Outcome Verification Test"
+        # contact. Removed 2026-10-16: canceling now clears the 'booked'
+        # disposition (routers/appointments.py's cancel_appointment), and
+        # this would then have wiped every canceled booking's real credit.)
+        # Same rule for cancellations from before that: a 'booked' thread
+        # whose contact's appointments are all canceled isn't booked.
+        for table in ("sms_conversations", "email_conversations"):
+            await conn.execute(
+                f"""
+                UPDATE {table} t SET disposition = NULL
+                WHERE disposition = 'booked'
+                  AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = t.contact_id)
+                  AND NOT EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = t.contact_id AND ar.status != 'canceled')
+                """
+            )
         await conn.execute(
             """
-            UPDATE sms_conversations sc SET booked_at = NULL
-            WHERE disposition IS DISTINCT FROM 'booked'
-              AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id)
-              AND NOT EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled')
-            """
-        )
-        await conn.execute(
-            """
-            UPDATE email_conversations ec SET booked_at = NULL
-            WHERE disposition IS DISTINCT FROM 'booked'
-              AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id)
-              AND NOT EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled')
+            UPDATE contacts c SET status = 'manual-followup', updated_at = now()
+            WHERE status = 'appointment-booked' AND (client_id IS NULL OR is_client_anchor)
+              AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = c.id)
+              AND NOT EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = c.id AND ar.status != 'canceled')
             """
         )
         # Backfill 2 (REMOVED 2026-09-17): used to recover booked_at for any
@@ -1806,6 +1806,8 @@ async def _create_schema(pool: asyncpg.Pool):
         # only genuine phantom credits left over from the old backfill 2 (or
         # any other unexplained booked_at, e.g. a campaign_id later cleared
         # by contacts/{id}/campaigns' DELETE endpoint after credit was given).
+        # A canceled appointment also justifies it: canceling clears the
+        # 'booked' disposition (2026-10-16), but the booking still happened.
         await conn.execute(
             """
             UPDATE sms_conversations sc SET booked_at = NULL
@@ -1815,6 +1817,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 sc.campaign_id IS NOT NULL
                 AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id AND ar.status != 'canceled')
               )
+              AND NOT EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = sc.contact_id AND ar.status = 'canceled')
             """
         )
         await conn.execute(
@@ -1826,6 +1829,7 @@ async def _create_schema(pool: asyncpg.Pool):
                 ec.campaign_id IS NOT NULL
                 AND EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status != 'canceled')
               )
+              AND NOT EXISTS (SELECT 1 FROM appointment_reminders ar WHERE ar.contact_id = ec.contact_id AND ar.status = 'canceled')
             """
         )
 

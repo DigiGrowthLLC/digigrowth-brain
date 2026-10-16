@@ -742,7 +742,7 @@ async def list_dm_followup_active():
             """
             SELECT sc.*, c.business, c.owner FROM sms_conversations sc
             LEFT JOIN contacts c ON c.id = sc.contact_id
-            WHERE sc.status != 'closed' AND sc.disposition IS NULL
+            WHERE sc.status != 'closed' AND (sc.disposition IS NULL OR sc.disposition = 'booked')
             AND sc.dm_followup_enrolled_at IS NOT NULL AND sc.dm_followup_anchor_at IS NOT NULL
             AND sc.dm_followup_touch3_sent_at IS NULL
             ORDER BY sc.dm_followup_anchor_at ASC

@@ -609,6 +609,43 @@ async def cancel_appointment(appointment_id: int, notify: bool = False, cancel_c
             "WHERE id = $1 AND status = 'scheduled' RETURNING *",
             appointment_id,
         )
+        # No longer booked once their last scheduled appointment is
+        # canceled: drop the 'booked' disposition so the thread can go back
+        # into sequences like DM Follow-Up (Dylan, 2026-10-16). booked_at
+        # stays — Analytics' Booked count reads that, and the booking did
+        # happen. A rebooking re-stamps 'booked' via create_appointment_row.
+        if row is not None and row["contact_id"]:
+            await conn.execute(
+                """
+                UPDATE sms_conversations SET disposition = NULL, updated_at = now()
+                WHERE contact_id = $1 AND disposition = 'booked'
+                  AND NOT EXISTS (SELECT 1 FROM appointment_reminders
+                                  WHERE contact_id = $1 AND status = 'scheduled')
+                """,
+                row["contact_id"],
+            )
+            await conn.execute(
+                """
+                UPDATE email_conversations SET disposition = NULL, updated_at = now()
+                WHERE contact_id = $1 AND disposition = 'booked'
+                  AND NOT EXISTS (SELECT 1 FROM appointment_reminders
+                                  WHERE contact_id = $1 AND status = 'scheduled')
+                """,
+                row["contact_id"],
+            )
+            # The CRM status follows: appointment-booked -> MANUAL F/U.
+            # Dylan's own contacts only — a client's lead keeps its status,
+            # which client_followup_sequence reads.
+            await conn.execute(
+                """
+                UPDATE contacts SET status = 'manual-followup', updated_at = now()
+                WHERE id = $1 AND status = 'appointment-booked'
+                  AND (client_id IS NULL OR is_client_anchor)
+                  AND NOT EXISTS (SELECT 1 FROM appointment_reminders
+                                  WHERE contact_id = $1 AND status = 'scheduled')
+                """,
+                row["contact_id"],
+            )
     if row is None:
         raise HTTPException(404, "appointment not found or already resolved")
 
