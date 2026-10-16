@@ -63,9 +63,15 @@ async def _check(outcome_column_where: str, reference_column: str, created_flag_
     pool = await get_pool()
     now = datetime.now(dt_timezone.utc)
     async with pool.acquire() as conn:
+        # Dylan's own pipeline only — a client's lead (contact with a client_id
+        # that isn't the client's anchor contact) is handled by
+        # client_appointment_sequence.py and must never land on Dylan's To-Do.
         rows = await conn.fetch(
-            f"SELECT * FROM appointment_reminders WHERE {outcome_column_where} "
-            f"AND {reference_column} IS NOT NULL AND {created_flag_column} IS NULL"
+            f"SELECT ar.* FROM appointment_reminders ar "
+            f"LEFT JOIN contacts c ON c.id = ar.contact_id "
+            f"WHERE ar.{outcome_column_where} "
+            f"AND ar.{reference_column} IS NOT NULL AND ar.{created_flag_column} IS NULL "
+            f"AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)"
         )
         for record in rows:
             row = dict(record)
