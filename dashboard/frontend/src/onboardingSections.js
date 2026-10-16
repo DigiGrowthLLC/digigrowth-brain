@@ -65,6 +65,7 @@ export const SECTIONS = [
     questions: [
       { key: "booking_software", label: "What do you currently book appointments with (software/system)?" },
       { key: "handoff", label: "Who on staff should the AI booking agent hand off to for anything it can't answer?" },
+      { key: "call_handling", label: "When a lead calls your practice's texting number, what should happen? Give us the phone number calls should forward to, or write \"text only\" if you'd rather not take calls and want the AI agent to follow up by text after a missed call." },
       { key: "no_show_rate", label: "Rough no-show rate today, if you know it" },
     ],
   },
