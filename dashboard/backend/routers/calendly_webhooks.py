@@ -231,7 +231,6 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
 
     start_iso = await _resolve_start_time(payload, token)
     start_utc = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
-    local = start_utc.astimezone(tz)
 
     # Calendly echoes back whatever UTM params were on the booking link in
     # this payload's `tracking` object — utm_content=meta is set by the
@@ -240,6 +239,23 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
     # the one signal available for attributing an actual CONFIRMED booking
     # to Meta, since the booking itself completes on Calendly's domain.
     tracking = payload.get("tracking") or {}
+    return await record_booking(
+        name=name, email=email, phone=phone, start_utc=start_utc, tz_name=tz_name,
+        tracking=tracking, event_uri=payload.get("event"), client_id=client_id,
+    )
+
+
+async def record_booking(*, name: str | None, email: str | None, phone: str | None,
+                         start_utc: datetime, tz_name: str, tracking: dict,
+                         event_uri: str | None, client_id: int | None) -> dict:
+    """Everything a confirmed booking triggers, independent of which booking
+    tool sent it: contact match/create, ads-lead/organic-lead tag, the
+    appointment_reminders row (reminders + booking alert), and the funnel's
+    conversion event. Shared by the Calendly handler above and
+    routers/ghl_webhooks.py. `event_uri` is the booking's external id,
+    stored as calendly_event_uri so a later cancel can find the row."""
+    tz = ZoneInfo(tz_name)
+    local = start_utc.astimezone(tz)
     from_meta = tracking.get("utm_content") == "meta"
 
     contact_id = None
@@ -383,7 +399,7 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
             )
             RETURNING *
             """,
-            payload.get("event"), start_utc, contact_id, name, email, digits,
+            event_uri, start_utc, contact_id, name, email, digits,
         )
     if existing_appt:
         appt_row = dict(existing_appt)
@@ -396,7 +412,7 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
             "date": local.strftime("%Y-%m-%d"),
             "time": local.strftime("%H:%M"),
             "timezone": tz_name,
-            "calendly_event_uri": payload.get("event"),
+            "calendly_event_uri": event_uri,
         })
 
     # "Booked Consultations" on a client's portal Website tab (see
