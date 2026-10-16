@@ -652,13 +652,41 @@ function sequenceColumns(key, group) {
   return cols.filter(Boolean);
 }
 
-function SequenceStepCard({ step, hideLabel }) {
+// On/off pill for one message or a whole sequence (client_sequence_steps.
+// enabled — the same flag DigiGrowth's admin view switches).
+function OnOffSwitch({ on, onChange, busy, text }) {
   return (
-    <div className="glass-card-sm" style={{ padding: 16 }}>
+    <button
+      type="button" role="switch" aria-checked={on} disabled={busy}
+      onClick={() => onChange(!on)}
+      title={on ? "On: click to turn off" : "Off: click to turn on"}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", padding: 0, cursor: busy ? "wait" : "pointer" }}
+    >
+      <span style={{
+        position: "relative", width: 30, height: 16, borderRadius: 999, flexShrink: 0,
+        background: on ? "rgba(20,200,130,0.25)" : "rgba(90,111,143,0.2)",
+        border: `1px solid ${on ? "rgba(20,200,130,0.6)" : "rgba(90,111,143,0.45)"}`,
+      }}>
+        <span style={{
+          position: "absolute", top: 1, left: on ? 15 : 1, width: 12, height: 12, borderRadius: "50%",
+          background: on ? "#14c882" : "#5a6f8f", transition: "left 0.15s",
+        }} />
+      </span>
+      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: on ? "#14c882" : "#5a6f8f" }}>
+        {text || (on ? "ON" : "OFF")}
+      </span>
+    </button>
+  );
+}
+
+function SequenceStepCard({ step, hideLabel, onToggle, busy }) {
+  return (
+    <div className="glass-card-sm" style={{ padding: 16, opacity: step.enabled === false ? 0.55 : 1 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff", flex: 1 }}>
           {hideLabel ? "" : step.label}
         </span>
+        {onToggle && <OnOffSwitch on={step.enabled !== false} onChange={onToggle} busy={busy} />}
         <span style={{
           fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
           padding: "3px 8px", borderRadius: 999, color: "#6ab0ff",
@@ -956,6 +984,27 @@ function SequencesTab({ token }) {
   const [steps, setSteps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openQueue, setOpenQueue] = useState(null); // "reminder" | "no_show" | "cancel" | null
+  const [busy, setBusy] = useState(null); // step id or sequence key being switched
+
+  const setStepEnabled = async (stepId, enabled) => {
+    setBusy(stepId);
+    const r = await fetch(`/portal-api/${token}/sequence-steps/${stepId}/enabled`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    if (r.ok) setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, enabled } : s)));
+    setBusy(null);
+  };
+
+  const setSequenceEnabled = async (key, enabled) => {
+    setBusy(key);
+    const r = await fetch(`/portal-api/${token}/sequence-keys/${key}/enabled`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    if (r.ok) setSteps((prev) => prev.map((s) => (s.sequence_key === key ? { ...s, enabled } : s)));
+    setBusy(null);
+  };
 
   useEffect(() => {
     fetch(`/portal-api/${token}/sequences`)
@@ -974,7 +1023,8 @@ function SequencesTab({ token }) {
         </div>
         <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
           Your appointment reminders and follow-ups are live, sending from your own number and
-          mailbox. Below is the copy for each, plus who's currently in each sequence.
+          mailbox. Below is the copy for each, plus who's currently in each sequence. Switch off
+          any single message, or a whole sequence, and it stops before its next send.
         </div>
       </div>
 
@@ -982,10 +1032,19 @@ function SequencesTab({ token }) {
         const group = steps.filter((s) => s.sequence_key === key);
         if (group.length === 0) return null;
         const modalKey = SEQUENCE_MODAL_KEY[key];
+        const onCount = group.filter((s) => s.enabled !== false).length;
         return (
           <div key={key} style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <SectionHeading>{SEQUENCE_LABELS[key] || key}</SectionHeading>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SectionHeading>{SEQUENCE_LABELS[key] || key}</SectionHeading>
+              </div>
+              <OnOffSwitch
+                on={onCount > 0}
+                onChange={(enabled) => setSequenceEnabled(key, enabled)}
+                busy={busy === key}
+                text={onCount === group.length ? "ALL ON" : onCount === 0 ? "ALL OFF" : `${onCount}/${group.length} ON`}
+              />
               {modalKey && (
                 <button
                   onClick={() => setOpenQueue(modalKey)}
@@ -1013,7 +1072,12 @@ function SequencesTab({ token }) {
                             </span>
                           )}
                         </div>
-                        {col.steps.map((step) => <SequenceStepCard key={step.id} step={step} hideLabel />)}
+                        {col.steps.map((step) => (
+                          <SequenceStepCard
+                            key={step.id} step={step} hideLabel
+                            onToggle={(enabled) => setStepEnabled(step.id, enabled)} busy={busy === step.id}
+                          />
+                        ))}
                       </div>
                     ))}
                   </div>

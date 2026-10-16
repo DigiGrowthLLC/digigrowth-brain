@@ -251,6 +251,11 @@ class SequenceStepUpdate(BaseModel):
     channel: Optional[str] = None
     subject: Optional[str] = None
     body: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+class SequenceEnabledSet(BaseModel):
+    enabled: bool
 
 
 class ClientRequestCreate(BaseModel):

@@ -272,7 +272,7 @@ async def send_due_touches():
 
         step_rows = await conn.fetch(
             "SELECT client_id, step_order, channel, subject, body FROM client_sequence_steps "
-            "WHERE sequence_key = $1 AND client_id = ANY($2)",
+            "WHERE sequence_key = $1 AND client_id = ANY($2) AND enabled",
             SEQUENCE_KEY, list({r["client_id"] for r in rows}),
         )
         steps = {(s["client_id"], s["step_order"], s["channel"]): dict(s) for s in step_rows}

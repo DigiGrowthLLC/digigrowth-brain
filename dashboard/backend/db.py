@@ -775,6 +775,9 @@ async def _create_schema(pool: asyncpg.Pool):
             -- so it only ever rewrites a field still holding its own value
             -- and never a manual entry.
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS resource_autofill JSONB NOT NULL DEFAULT '{}';
+            -- Per-message on/off for a client's sequences (Sequences tab, admin
+            -- and portal). Every sender reads only enabled steps.
+            ALTER TABLE client_sequence_steps ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT true;
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

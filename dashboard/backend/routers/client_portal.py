@@ -29,7 +29,7 @@ from fastapi.responses import RedirectResponse
 from db import get_pool
 from models import (
     OnboardingSectionSave, ONBOARDING_SECTIONS, ActionItemComplete, TagAssign,
-    ClientRequestCreate, UploadPresignRequest, UploadRecordCreate,
+    ClientRequestCreate, UploadPresignRequest, UploadRecordCreate, SequenceEnabledSet,
 )
 import cancel_sequence
 import client_appointment_reminders
@@ -360,21 +360,48 @@ async def portal_todo(token: str):
 
 @router.get("/{token}/sequences")
 async def portal_sequences(token: str):
-    """Read-only preview of this client's Appointment Reminder / No Show /
-    Cancellation copy — edited by DigiGrowth staff from the Clients admin
-    panel (routers/clients.py's /clients/{id}/sequences). Not wired to any
-    real SMS/email send yet; this is content prep the client can see ahead
-    of time, same "watch, don't edit" shape as the To Do tab's launch
-    checklist."""
+    """This client's sequence copy (edited by DigiGrowth staff from the
+    Clients admin panel) with each message's on/off state — the client can
+    switch a message or a whole sequence off below; copy stays read-only."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, sequence_key, step_order, label, channel, subject, body "
+            "SELECT id, sequence_key, step_order, label, channel, subject, body, enabled "
             "FROM client_sequence_steps WHERE client_id = $1 ORDER BY sequence_key, step_order, id",
             client["id"],
         )
     return [dict(r) for r in rows]
+
+
+@router.put("/{token}/sequence-steps/{step_id}/enabled")
+async def portal_set_step_enabled(token: str, step_id: int, body: SequenceEnabledSet):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "UPDATE client_sequence_steps SET enabled = $3, updated_at = now() "
+            "WHERE id = $1 AND client_id = $2 RETURNING id, enabled",
+            step_id, client["id"], body.enabled,
+        )
+    if not row:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return dict(row)
+
+
+@router.put("/{token}/sequence-keys/{sequence_key}/enabled")
+async def portal_set_sequence_enabled(token: str, sequence_key: str, body: SequenceEnabledSet):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE client_sequence_steps SET enabled = $3, updated_at = now() "
+            "WHERE client_id = $1 AND sequence_key = $2",
+            client["id"], sequence_key, body.enabled,
+        )
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    return {"ok": True, "enabled": body.enabled}
 
 
 # ---------------- Client requests ("something I want fixed/done") ----------------

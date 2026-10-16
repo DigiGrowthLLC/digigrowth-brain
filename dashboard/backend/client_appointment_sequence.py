@@ -214,7 +214,7 @@ async def send_first_touch(row: dict, sequence: str):
         )
         steps = await conn.fetch(
             "SELECT step_order, channel, subject, body FROM client_sequence_steps "
-            "WHERE client_id = $1 AND sequence_key = $2 AND step_order IN (0, 1) ORDER BY step_order",
+            "WHERE client_id = $1 AND sequence_key = $2 AND step_order IN (0, 1) AND enabled ORDER BY step_order",
             client["client_id"], sequence_key,
         )
 
@@ -279,8 +279,8 @@ async def send_due_touches():
                 if lead_flags.in_quiet_hours(tz_name, now):
                     break  # due, but it's night where they are — send at 8am
                 async with pool.acquire() as conn:
-                    steps = await conn.fetch(
-                        "SELECT step_order, channel, subject, body FROM client_sequence_steps "
+                    all_steps = await conn.fetch(
+                        "SELECT step_order, channel, subject, body, enabled FROM client_sequence_steps "
                         "WHERE client_id = $1 AND sequence_key = $2 AND step_order = ANY($3) ORDER BY step_order",
                         client_id, sequence_key, list(step_order_pair),
                     )
@@ -288,9 +288,22 @@ async def send_due_touches():
                         "SELECT twilio_number, gmail_refresh_token FROM client_marketing_config WHERE client_id = $1",
                         client_id,
                     )
-                if not steps:
+                if not all_steps:
                     print(f"[client_appointment_sequence] client {client_id} has no {_TOUCH_LABELS[touch_idx]} steps configured for {sequence} — skipping")
                     break
+                steps = [s for s in all_steps if s["enabled"]]
+                if not steps:
+                    # Every message in this touch is switched off (Sequences
+                    # tab): mark it skipped and move on, so turning one touch
+                    # off doesn't stall the touches after it.
+                    for so in step_order_pair:
+                        sent_map[str(so)] = "skipped"
+                    async with pool.acquire() as conn:
+                        await conn.execute(
+                            f"UPDATE appointment_reminders SET {steps_sent_col} = $2 WHERE id = $1",
+                            row["id"], json.dumps(sent_map),
+                        )
+                    continue
                 await _send_steps(pool, {"client_id": client_id, "client_name": row["client_name"]}, config, steps, row, f"{sequence}_touch{touch_idx}")
                 for so in step_order_pair:
                     sent_map[str(so)] = now.isoformat()

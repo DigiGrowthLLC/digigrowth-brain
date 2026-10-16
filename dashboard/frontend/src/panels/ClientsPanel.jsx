@@ -887,11 +887,49 @@ const SEQUENCE_GROUP_LABELS = {
 };
 const SEQUENCE_GROUP_ORDER = ["prospect_followup", "appointment_reminder", "no_show", "cancellation"];
 
+// On/off pill for a sequence message or a whole sequence. The same
+// client_sequence_steps.enabled flag is switchable from the client's portal.
+function OnOffSwitch({ on, onChange, busy, text }) {
+  return (
+    <button
+      type="button" role="switch" aria-checked={on} disabled={busy}
+      onClick={() => onChange(!on)}
+      title={on ? "On: click to turn off" : "Off: click to turn on"}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", padding: 0, cursor: busy ? "wait" : "pointer" }}
+    >
+      <span style={{
+        position: "relative", width: 30, height: 16, borderRadius: 999, flexShrink: 0,
+        background: on ? "rgba(20,200,130,0.25)" : "rgba(90,111,143,0.2)",
+        border: `1px solid ${on ? "rgba(20,200,130,0.6)" : "rgba(90,111,143,0.45)"}`,
+      }}>
+        <span style={{
+          position: "absolute", top: 1, left: on ? 15 : 1, width: 12, height: 12, borderRadius: "50%",
+          background: on ? "#14c882" : "#5a6f8f", transition: "left 0.15s",
+        }} />
+      </span>
+      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: on ? "#14c882" : "#5a6f8f" }}>
+        {text || (on ? "ON" : "OFF")}
+      </span>
+    </button>
+  );
+}
+
 function SequenceStepEditor({ step, onSaved }) {
   const [subject, setSubject] = useState(step.subject || "");
   const [body, setBody] = useState(step.body || "");
   const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState(false);
   const dirty = subject !== (step.subject || "") || body !== (step.body || "");
+
+  const toggle = async (enabled) => {
+    setToggling(true);
+    const r = await fetch(API(`/clients/${step.client_id}/sequences/${step.id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    if (r.ok) onSaved(await r.json());
+    setToggling(false);
+  };
 
   const save = async () => {
     setSaving(true);
@@ -904,10 +942,11 @@ function SequenceStepEditor({ step, onSaved }) {
   };
 
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8 }}>
+    <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 8, opacity: step.enabled === false ? 0.55 : 1 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: 12.5, fontWeight: 600, color: "#d0e8ff", flex: 1 }}>{step.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5" }}>{step.channel.toUpperCase()}</span>
+        <OnOffSwitch on={step.enabled !== false} onChange={toggle} busy={toggling} />
       </div>
       {step.channel === "email" && (
         <input
@@ -933,6 +972,17 @@ function SequenceStepEditor({ step, onSaved }) {
 function ClientSequences({ clientId }) {
   const [steps, setSteps] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [togglingKey, setTogglingKey] = useState(null);
+
+  const setSequenceEnabled = async (key, enabled) => {
+    setTogglingKey(key);
+    const r = await fetch(API(`/clients/${clientId}/sequence-keys/${key}/enabled`), {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    if (r.ok) setSteps((prev) => prev.map((s) => (s.sequence_key === key ? { ...s, enabled } : s)));
+    setTogglingKey(null);
+  };
 
   const load = async () => {
     const r = await fetch(API(`/clients/${clientId}/sequences`));
@@ -952,10 +1002,19 @@ function ClientSequences({ clientId }) {
       {SEQUENCE_GROUP_ORDER.map((key) => {
         const group = steps.filter((s) => s.sequence_key === key);
         if (group.length === 0) return null;
+        const onCount = group.filter((s) => s.enabled !== false).length;
         return (
           <div key={key} style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.1em", marginBottom: 6 }}>
-              {(SEQUENCE_GROUP_LABELS[key] || key).toUpperCase()}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.1em", flex: 1 }}>
+                {(SEQUENCE_GROUP_LABELS[key] || key).toUpperCase()}
+              </div>
+              <OnOffSwitch
+                on={onCount > 0}
+                onChange={(enabled) => setSequenceEnabled(key, enabled)}
+                busy={togglingKey === key}
+                text={onCount === group.length ? "ALL ON" : onCount === 0 ? "ALL OFF" : `${onCount}/${group.length} ON`}
+              />
             </div>
             {group.map((step) => (
               <SequenceStepEditor

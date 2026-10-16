@@ -100,7 +100,7 @@ async def send_due_reminders():
         async with pool.acquire() as conn:
             steps = await conn.fetch(
                 "SELECT step_order, channel, subject, body FROM client_sequence_steps "
-                "WHERE client_id = $1 AND sequence_key = $2 ORDER BY step_order",
+                "WHERE client_id = $1 AND sequence_key = $2 AND enabled ORDER BY step_order",
                 client_id, _SEQUENCE_KEY,
             )
             config = await conn.fetchrow(

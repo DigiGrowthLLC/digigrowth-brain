@@ -21,7 +21,7 @@ from models import (
     ClientCreate, ClientUpdate, ClientLinkContact, OnboardingVideoCreate, OnboardingVideoUpdate,
     ActionItemCreate, ActionItemUpdate, ONBOARDING_SECTIONS,
     LaunchChecklistItemCreate, LaunchChecklistItemUpdate, LaunchChecklistStatusUpdate,
-    SequenceStepUpdate, ClientRequestUpdate,
+    SequenceStepUpdate, SequenceEnabledSet, ClientRequestUpdate,
     ClientResourceCreate, ClientResourceUpdate,
     ClientWebsiteCreate, ClientWebsiteUpdate, ClientWebsiteStatsSet,
 )
@@ -824,10 +824,11 @@ async def set_client_launch_checklist_status(client_id: int, item_id: int, body:
 
 # ---------------- Sequences (admin-editable per-client outreach copy) ----------------
 #
-# Appointment Reminder / No Show / Cancellation copy, shown read-only on the
-# client portal's Sequences tab (routers/client_portal.py). Not wired to any
-# real SMS/email send yet — this is content prep for when per-client
-# messaging/emailing gets built. Seeded with PT-oriented defaults at client
+# Appointment Reminder / No Show / Cancellation / Prospect Follow-Up copy,
+# sent by client_appointment_reminders.py, client_appointment_sequence.py and
+# client_followup_sequence.py, and shown on the client portal's Sequences tab
+# (routers/client_portal.py). Each step has an `enabled` switch (per step, or
+# a whole sequence at once), settable here and from the portal. Seeded with PT-oriented defaults at client
 # creation (create_client() above) and, for clients that pre-date this
 # feature, by a one-time backfill in db.py.
 
@@ -860,6 +861,22 @@ async def update_client_sequence_step(client_id: int, step_id: int, body: Sequen
     if not row:
         raise HTTPException(status_code=404, detail="Sequence step not found")
     return dict(row)
+
+
+@router.put("/clients/{client_id}/sequence-keys/{sequence_key}/enabled")
+async def set_client_sequence_enabled(client_id: int, sequence_key: str, body: SequenceEnabledSet):
+    """Whole-sequence switch: turns every message in one sequence on or off
+    (same per-step `enabled` flag the per-message switch sets)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE client_sequence_steps SET enabled = $3, updated_at = now() "
+            "WHERE client_id = $1 AND sequence_key = $2",
+            client_id, sequence_key, body.enabled,
+        )
+    if result == "UPDATE 0":
+        raise HTTPException(status_code=404, detail="Sequence not found")
+    return {"ok": True, "enabled": body.enabled}
 
 
 # ---------------- Client requests ("something I want fixed/done") ----------------
