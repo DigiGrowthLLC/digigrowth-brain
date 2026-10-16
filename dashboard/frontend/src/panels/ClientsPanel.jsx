@@ -910,10 +910,10 @@ function ClientLaunchChecklist({ clientId }) {
 // Cancellation, previewed read-only in the client's own portal (Sequences
 // tab). Not wired to any real send yet; this is just content editing.
 const SEQUENCE_GROUP_LABELS = {
-  prospect_followup: "Prospect Follow-Up (3h / +24h / +3d / +7d after no reply)",
-  appointment_reminder: "Appointment Reminders (24h / 6h / 1h before)",
-  no_show: "No Show Follow-Up (now / 3h / 24h)",
-  cancellation: "Cancellation Follow-Up (now / 3h / 24h)",
+  prospect_followup: { title: "Prospect Follow-Up", timing: "3h / +24h / +3d / +7d after no reply" },
+  appointment_reminder: { title: "Appointment Reminders", timing: "24h / 6h / 1h before" },
+  no_show: { title: "No Show Follow-Up", timing: "now / 3h / 24h" },
+  cancellation: { title: "Cancellation Follow-Up", timing: "now / 3h / 24h" },
 };
 const SEQUENCE_GROUP_ORDER = ["prospect_followup", "appointment_reminder", "no_show", "cancellation"];
 
@@ -1003,6 +1003,7 @@ function ClientSequences({ clientId }) {
   const [steps, setSteps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [togglingKey, setTogglingKey] = useState(null);
+  const [open, setOpen] = useState({});
 
   const setSequenceEnabled = async (key, enabled) => {
     setTogglingKey(key);
@@ -1027,32 +1028,67 @@ function ClientSequences({ clientId }) {
     return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>NO SEQUENCE STEPS FOR THIS CLIENT</div>;
   }
 
+  const groupKeys = SEQUENCE_GROUP_ORDER.filter((key) => steps.some((s) => s.sequence_key === key));
+  const allOpen = groupKeys.every((key) => open[key]);
+  const toggleAll = () => setOpen(allOpen ? {} : Object.fromEntries(groupKeys.map((key) => [key, true])));
+  const totalOn = steps.filter((s) => s.enabled !== false).length;
+
   return (
-    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
-      {SEQUENCE_GROUP_ORDER.map((key) => {
+    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7096", letterSpacing: "0.06em" }}>
+          {groupKeys.length} SEQUENCES · {totalOn}/{steps.length} MESSAGES ON
+        </span>
+        <button
+          onClick={toggleAll}
+          style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.06em" }}
+        >
+          {allOpen ? "COLLAPSE ALL" : "EXPAND ALL"}
+        </button>
+      </div>
+      {groupKeys.map((key) => {
         const group = steps.filter((s) => s.sequence_key === key);
-        if (group.length === 0) return null;
         const onCount = group.filter((s) => s.enabled !== false).length;
+        const label = SEQUENCE_GROUP_LABELS[key] || { title: key, timing: "" };
+        const channels = [...new Set(group.map((s) => s.channel.toUpperCase()))].join(" + ");
+        const isOpen = !!open[key];
         return (
-          <div key={key} style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.1em", flex: 1 }}>
-                {(SEQUENCE_GROUP_LABELS[key] || key).toUpperCase()}
+          <div key={key} style={{ border: "1px solid rgba(58,123,213,0.15)", borderRadius: 8, background: "rgba(10,20,50,0.35)", overflow: "hidden" }}>
+            <div
+              role="button" tabIndex={0}
+              onClick={() => setOpen((o) => ({ ...o, [key]: !o[key] }))}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => ({ ...o, [key]: !o[key] })); } }}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", cursor: "pointer" }}
+            >
+              <span style={{ color: "#3a7bd5", fontSize: 10, width: 10, transform: isOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 12.5, color: "#c4d0e8" }}>{label.title}</div>
+                {label.timing && (
+                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#3a5a80", marginTop: 2 }}>{label.timing}</div>
+                )}
               </div>
-              <OnOffSwitch
-                on={onCount > 0}
-                onChange={(enabled) => setSequenceEnabled(key, enabled)}
-                busy={togglingKey === key}
-                text={onCount === group.length ? "ALL ON" : onCount === 0 ? "ALL OFF" : `${onCount}/${group.length} ON`}
-              />
+              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7096" }}>
+                {group.length} MSG · {channels}
+              </span>
+              <span onClick={(e) => e.stopPropagation()}>
+                <OnOffSwitch
+                  on={onCount > 0}
+                  onChange={(enabled) => setSequenceEnabled(key, enabled)}
+                  busy={togglingKey === key}
+                  text={onCount === group.length ? "ALL ON" : onCount === 0 ? "ALL OFF" : `${onCount}/${group.length} ON`}
+                />
+              </span>
             </div>
-            {group.map((step) => (
-              <SequenceStepEditor
-                key={step.id}
-                step={step}
-                onSaved={(updated) => setSteps((prev) => prev.map((s) => (s.id === updated.id ? { ...updated, client_id: clientId } : s)))}
-              />
-            ))}
+            {/* Hidden rather than unmounted so unsaved edits survive collapsing. */}
+            <div style={{ display: isOpen ? "block" : "none", padding: "10px 12px 4px 32px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+              {group.map((step) => (
+                <SequenceStepEditor
+                  key={step.id}
+                  step={step}
+                  onSaved={(updated) => setSteps((prev) => prev.map((s) => (s.id === updated.id ? { ...updated, client_id: clientId } : s)))}
+                />
+              ))}
+            </div>
           </div>
         );
       })}
