@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse
 
 import integrations
 import client_email
+import client_resources_autofill
 import email_warmup
 import scheduler_registry
 from db import get_pool
@@ -388,6 +389,12 @@ async def lifespan(app: FastAPI):
         client_email.sync_client_email_job,
         IntervalTrigger(seconds=120),
         id="client-email-sync",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        client_resources_autofill.autofill_job,
+        IntervalTrigger(minutes=10),
+        id="client-resources-autofill",
         replace_existing=True,
     )
     scheduler.add_job(

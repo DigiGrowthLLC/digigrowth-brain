@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from stream_zip import ZIP_64, stream_zip
 
+import client_resources_autofill
 import r2_storage
 from db import get_pool
 from models import (
@@ -339,6 +340,13 @@ async def update_client(client_id: int, body: ClientUpdate):
 # since every client has at most one of each. Everything else — Drive
 # folders, brand assets, marketing material links, etc. — is an open-ended
 # list instead, since a client can have any number of those.
+
+@router.post("/client-resources/autofill")
+async def run_resource_autofill(days: int = Query(3, ge=1, le=90)):
+    """Same pass as the 10-minute scheduled job, with a longer Gmail lookback
+    for backfilling invites that arrived before it existed."""
+    return await client_resources_autofill.run(days)
+
 
 @router.get("/clients/{client_id}/resources")
 async def list_client_resources(client_id: int):

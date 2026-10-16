@@ -770,6 +770,11 @@ async def _create_schema(pool: asyncpg.Pool):
             -- out of the freeform "Other Resources" list into its own field
             -- since every client has at most one of these too.
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS funnel_resource TEXT;
+            -- What client_resources_autofill.py last wrote into each of the
+            -- four resource fields ({field: {value, priority, source, at}}),
+            -- so it only ever rewrites a field still holding its own value
+            -- and never a manual entry.
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS resource_autofill JSONB NOT NULL DEFAULT '{}';
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"
