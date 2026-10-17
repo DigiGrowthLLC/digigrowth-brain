@@ -5762,9 +5762,9 @@
     },
     "Lafayette, LA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 100,
-      "qualified_count": 14,
+      "term_index": 2,
+      "reviewed_count": 126,
+      "qualified_count": 15,
       "last_scraped_date": "2026-10-16"
     },
     "Hartford, CT": {
