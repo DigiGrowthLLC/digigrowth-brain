@@ -5712,9 +5712,9 @@
       "last_scraped_date": "2026-10-16"
     },
     "Thousand Oaks, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 141,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 142,
       "qualified_count": 10,
       "last_scraped_date": "2026-10-16"
     },
