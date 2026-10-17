@@ -5691,9 +5691,9 @@
       "last_scraped_date": "2026-10-16"
     },
     "Topeka, KS": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 119,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 131,
       "qualified_count": 1,
       "last_scraped_date": "2026-10-16"
     },
