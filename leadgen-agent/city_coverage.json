@@ -5691,11 +5691,11 @@
       "last_scraped_date": "2026-10-16"
     },
     "Topeka, KS": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 94,
+      "qualified_count": 1,
+      "last_scraped_date": "2026-10-16"
     },
     "Wilmington, NC": {
       "status": "not_started",
