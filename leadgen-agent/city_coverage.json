@@ -5733,8 +5733,8 @@
       "last_scraped_date": "2026-10-16"
     },
     "Vallejo, CA": {
-      "status": "in_progress",
-      "term_index": 3,
+      "status": "covered",
+      "term_index": 4,
       "reviewed_count": 107,
       "qualified_count": 9,
       "last_scraped_date": "2026-10-16"
