@@ -5769,9 +5769,9 @@
     },
     "Hartford, CT": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 110,
-      "qualified_count": 6,
+      "term_index": 2,
+      "reviewed_count": 149,
+      "qualified_count": 8,
       "last_scraped_date": "2026-10-16"
     },
     "Arvada, CO": {
