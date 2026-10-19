@@ -23,7 +23,6 @@ the live ones, to test a prompt change BEFORE saving it. --threads limits the
 run to leads whose phone ends in the given digits (e.g. --threads 0274 3404).
 """
 import argparse
-import asyncio
 import base64
 import json
 import os
