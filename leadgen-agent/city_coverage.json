@@ -5782,9 +5782,9 @@
       "last_scraped_date": "2026-10-16"
     },
     "Berkeley, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 166,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 172,
       "qualified_count": 11,
       "last_scraped_date": "2026-10-19"
     },
