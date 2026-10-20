@@ -318,13 +318,21 @@ async def loom_outreach_funnel(days: int = 0, campaign_id: int | None = None, si
                 WHERE source = 'outreach_video' AND event_type = 'complete'
                 AND contact_id IN (SELECT contact_id FROM cohort)
             ),
+            -- SMS or Email stage ticks (email_contact_stages) — Email Handoff
+            -- prospects are marked on the email channel, not SMS.
             engaged AS (
-                SELECT DISTINCT sc.contact_id FROM sms_conversations sc
-                WHERE sc.contact_id IN (SELECT contact_id FROM cohort) AND sc.stage_engaged
+                SELECT contact_id FROM sms_conversations
+                WHERE contact_id IN (SELECT contact_id FROM cohort) AND stage_engaged
+                UNION
+                SELECT contact_id FROM email_contact_stages
+                WHERE contact_id IN (SELECT contact_id FROM cohort) AND stage_engaged
             ),
             interested AS (
-                SELECT DISTINCT sc.contact_id FROM sms_conversations sc
-                WHERE sc.contact_id IN (SELECT contact_id FROM cohort) AND sc.stage_interested
+                SELECT contact_id FROM sms_conversations
+                WHERE contact_id IN (SELECT contact_id FROM cohort) AND stage_interested
+                UNION
+                SELECT contact_id FROM email_contact_stages
+                WHERE contact_id IN (SELECT contact_id FROM cohort) AND stage_interested
             ),
             booked AS (
                 SELECT id FROM contacts

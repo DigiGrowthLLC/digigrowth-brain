@@ -18,6 +18,7 @@ github_path/_gh_fetch below is legacy-read-only support for the handful of
 videos published before this migration; every new upload uses r2_key.
 """
 import html
+import json
 import os
 
 from fastapi import APIRouter, HTTPException, Request
@@ -233,6 +234,7 @@ async def watch_page(slug: str, request: Request):
         first = html.escape(first_name_from_owner(row["owner"])) if row["owner"] else "there"
         biz = html.escape(row["business"] or "your practice")
         heading = f'<h1>Hey {first}, I made this for {biz}</h1>'
+    lead_js = json.dumps(row["contact_id"]).replace("</", "<\\/")
 
     return HTMLResponse(f"""<!DOCTYPE html>
 <html lang="en">
@@ -275,7 +277,10 @@ async def watch_page(slug: str, request: Request):
   function track(eventType) {{
     if (fired[eventType]) return;
     fired[eventType] = true;
-    var payload = JSON.stringify({{source: 'outreach_video', content_key: '{slug}', event_type: eventType}});
+    // lead ties the event to the prospect — without it play/complete were
+    // logged anonymously (Completed read 0 of 646 sent), and Email Handoff's
+    // Touch 2/3 gate (email_handoff_sequence._played_video) reads 'play'.
+    var payload = JSON.stringify({{source: 'outreach_video', content_key: '{slug}', event_type: eventType, lead: {lead_js}}});
     // A plain-string sendBeacon body defaults to Content-Type: text/plain,
     // which the backend's dict-body parsing rejected with a 422 — wrap it
     // in a Blob so the browser sends application/json instead.

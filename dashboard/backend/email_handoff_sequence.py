@@ -25,6 +25,9 @@ send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
     (a touch that's slightly late due to poll cadence doesn't compress the
     remaining schedule).
   - Touch 3 fires 4 days after touch2_sent_at.
+  - Touches 2 and 3 only go to prospects who pressed play on their
+    outreach video (_played_video); everyone else stops after Touch 1
+    unless they watch later, which un-holds Touch 2.
   - Reply detection is computed LIVE each poll from email_messages
     (direction='inbound' for this contact_id) rather than trusted from
     stage_replied alone — a rep manually clearing the checkbox must never
@@ -239,6 +242,19 @@ async def _has_replied(conn, contact_id: str) -> bool:
     return bool(await conn.fetchval(
         "SELECT 1 FROM email_messages WHERE contact_id = $1 AND direction = 'inbound' "
         "AND NOT is_auto_reply LIMIT 1",
+        contact_id,
+    ))
+
+
+async def _played_video(conn, contact_id: str) -> bool:
+    """Touch 2/3 qualifier (Dylan, 2026-10-20): only prospects who pressed
+    play on their outreach video get follow-ups. A bare page load ('view')
+    doesn't count, since email link scanners and previews fire those
+    without a human ever watching; the in-page 'play' beacon needs a real
+    click and already skips excluded (Dylan's own) IPs."""
+    return bool(await conn.fetchval(
+        "SELECT 1 FROM content_view_events WHERE source = 'outreach_video' AND contact_id = $1 "
+        "AND event_type IN ('play', 'progress_25', 'progress_50', 'progress_75', 'complete') LIMIT 1",
         contact_id,
     ))
 
@@ -528,7 +544,8 @@ async def send_due_touches():
                 reference = row["enrolled_at"] if ref_col is None else row[ref_col]
                 if touch_num == 1 and row.get("send_immediately"):
                     delay = timedelta(0)  # manual enrollment — Touch 1 goes out right away
-                if reference is not None and now >= reference + delay and not spacing_blocked:
+                if (reference is not None and now >= reference + delay and not spacing_blocked
+                        and (touch_num == 1 or await _played_video(conn, contact_id))):
                     sent = await _send_touch(conn, row, f"touch{touch_num}", templates)
                     if sent:
                         await conn.execute(
