@@ -823,6 +823,21 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+@router.post("/analytics/email-outreach/reset")
+async def reset_email_outreach():
+    """Zeroes the Email Outreach card by flagging every prospect whose
+    Touch 1 has already gone out as exclude_from_analytics (used for the
+    2026-10-20 relaunch). Nothing is deleted: sends, replies and threads
+    stay, and the sequence itself ignores the flag."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE email_handoff_state SET exclude_from_analytics = true, updated_at = now() "
+            "WHERE touch1_sent_at IS NOT NULL AND NOT exclude_from_analytics"
+        )
+    return {"ok": True, "excluded": int(result.split()[-1])}
+
+
 @router.get("/analytics/outreach")
 async def outreach(days: int = 30):
     pool  = await get_pool()
