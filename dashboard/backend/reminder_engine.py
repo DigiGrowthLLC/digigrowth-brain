@@ -102,14 +102,16 @@ async def _send_instance(row: dict, instance: str, templates: dict, stage: str) 
     """Send one template instance (24h/6h/1h/reschedule) — SMS uses
     its own text, email uses its own subject + body, independently editable.
 
-    Returns True only if every channel that was actually attempted (phone
-    present -> SMS, email present -> email) genuinely went out. Returns
-    False if any attempted channel failed to send, so the caller knows NOT
-    to mark this window as sent — a real send failure (e.g. Twilio
-    rejecting the request) must stay retryable on the next poll, not get
-    silently treated the same as success. A failure logging the message
-    into sms_conversations AFTER Twilio already accepted it is reported
-    separately and does not, by itself, count as a send failure — the text
+    Returns True if at least one channel genuinely reached the prospect (or
+    there was nothing to attempt), so the caller marks the window sent.
+    Returns False only when every attempted channel failed — then nothing
+    went out and the next poll can safely retry. Never retry a partial
+    success: the window is tracked once for both channels, so retrying
+    would resend the channel that already worked on every 5-min poll.
+    Caught live 2026-10-20 — Twilio was suspended (401), every SMS failed,
+    and Kylie Dugan + Natalia Martinez each got the 24h email ~every 10 min.
+    A failure logging the message into sms_conversations AFTER Twilio
+    already accepted it doesn't count as a send failure either — the text
     still reached the recipient, it just won't show up in the inbox UI."""
     # Blocking Google API call, hence to_thread — same pattern as gmail_send
     # below. Looked up once per send rather than once per template field.
@@ -121,16 +123,18 @@ async def _send_instance(row: dict, instance: str, templates: dict, stage: str) 
     subject     = _fill(templates[f"reminder_{instance}_email_subject"], row, meeting_link)
     email_body  = _fill(templates[f"reminder_{instance}_email_body"], row, meeting_link)
 
-    ok = True
+    attempted = 0
+    delivered = 0
 
     phone = (row.get("prospect_phone") or "").strip()
     if phone:
+        attempted += 1
         try:
             sms_router._send_twilio(phone, sms_text)
         except Exception as e:
-            print(f"[reminder_engine] SMS SEND FAILED for {phone} (window will retry next poll): {e}")
-            ok = False
+            print(f"[reminder_engine] SMS SEND FAILED for {phone}: {e}")
         else:
+            delivered += 1
             try:
                 pool = await get_pool()
                 async with pool.acquire() as conn:
@@ -143,16 +147,20 @@ async def _send_instance(row: dict, instance: str, templates: dict, stage: str) 
 
     email = (row.get("prospect_email") or "").strip()
     if email:
+        attempted += 1
         try:
             result = await asyncio.to_thread(integrations.gmail_send, email, subject, email_body, is_automated=True, urgent=True)
-            if not result.startswith("Sent email"):
-                print(f"[reminder_engine] email SEND FAILED for {email} (window will retry next poll): {result}")
-                ok = False
+            if result.startswith("Sent email"):
+                delivered += 1
+            else:
+                print(f"[reminder_engine] email SEND FAILED for {email}: {result}")
         except Exception as e:
-            print(f"[reminder_engine] email SEND FAILED for {email} (window will retry next poll): {e}")
-            ok = False
+            print(f"[reminder_engine] email SEND FAILED for {email}: {e}")
 
-    return ok
+    if attempted and not delivered:
+        print(f"[reminder_engine] {instance} reminder for appointment {row.get('id')}: every channel failed, will retry next poll")
+        return False
+    return True
 
 
 async def send_reschedule_confirmation(row: dict):
