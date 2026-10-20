@@ -25,6 +25,16 @@ signal this module (and dialer.py's dm-followup-active queue) checks —
 whether stage_dm_reached is also checked is irrelevant to whether the
 sequence runs, in both directions.
 
+Except one direction (Dylan, 2026-10-20): touches only ever go out on a
+thread with stage_dm_reached checked. Every touch is addressed to the owner
+by name ("Hey Joshua, just following up..."), so on a thread that has only
+reached a front desk it reads as a bot — 99 gatekeeper threads had been
+getting all three touches. Enrollment still doesn't SET or CLEAR the
+checkbox, and REMOVE in the Inbox is still how to stop a cycle; the checkbox
+just has to be on for anything to send (send_due_touches, auto_enroll, the
+Inbox ADD and the dialer's dm-followup-active queue all require it). A
+thread enrolled before DM Reached is checked simply waits.
+
 Unlike no_show_sequence.py/cancel_sequence.py, this sequence has NO explicit
 reply-stop hook wired into the inbound webhook. Its stop/restart behavior is
 entirely derived, each poll, from live sms_messages timestamps — simpler and
@@ -249,6 +259,7 @@ async def auto_enroll(conn) -> int:
             SELECT max(sent_at) AS sent_at FROM sms_messages m WHERE m.phone = sc.phone AND m.direction = 'inbound'
         ) li
         WHERE sc.campaign_id IS NOT NULL AND sc.status <> 'closed' AND sc.disposition IS NULL
+          AND sc.stage_dm_reached
           AND sc.dm_followup_enrolled_at IS NULL AND sc.dm_followup_stopped_at IS NULL
           AND sc.ai_followup_due_at IS NULL
           AND c.client_id IS NULL
@@ -306,6 +317,9 @@ async def send_due_touches():
             -- (booking clears enrollment and auto-enroll skips booked).
             AND (sc.disposition IS NULL OR sc.disposition = 'booked')
             AND sc.dm_followup_enrolled_at IS NOT NULL
+            -- Owner-addressed touches only once the owner has been reached
+            -- — never to a front desk (see module docstring).
+            AND sc.stage_dm_reached
             -- The SMS setter's own scheduled check-in (the prospect said
             -- when to come back) replaces this sequence while it's set.
             AND sc.ai_followup_due_at IS NULL

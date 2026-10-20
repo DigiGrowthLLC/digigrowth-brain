@@ -995,11 +995,18 @@ async def set_dm_followup_active(contact_id: str, payload: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
         conv = await conn.fetchrow(
-            "SELECT disposition FROM sms_conversations WHERE contact_id = $1", contact_id,
+            "SELECT disposition, stage_dm_reached FROM sms_conversations WHERE contact_id = $1", contact_id,
         )
         if not conv:
             raise HTTPException(status_code=404, detail="No SMS conversation for this contact")
         if active:
+            # The sequence never sends before DM Reached (dm_followup_sequence's
+            # docstring), so an ADD here would just sit — say so instead.
+            if not conv["stage_dm_reached"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="DM Follow-Up only runs once the owner is reached. Check DM Reached first.",
+                )
             if conv["disposition"] not in (None, "booked"):
                 raise HTTPException(
                     status_code=400,

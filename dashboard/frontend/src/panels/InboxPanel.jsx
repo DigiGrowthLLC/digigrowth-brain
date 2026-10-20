@@ -1784,7 +1784,7 @@ export default function InboxPanel({ initialTarget }) {
                                 <div style={{ color: "#3a5a80", fontSize: 9 }}>
                                   {contactSeqs.dm_followup?.dm_followup_enrolled_at
                                     ? `Enrolled${contactSeqs.dm_followup.dm_followup_anchor_at ? " · mid-cycle" : ""}`
-                                    : "Not enrolled — independent of the DM Reached checkbox above."}
+                                    : "Not enrolled. Only sends once DM Reached is checked above."}
                                 </div>
                                 <button
                                   onClick={async () => {

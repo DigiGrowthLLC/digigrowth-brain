@@ -744,7 +744,7 @@ async def list_dm_followup_active():
             LEFT JOIN contacts c ON c.id = sc.contact_id
             WHERE sc.status != 'closed' AND (sc.disposition IS NULL OR sc.disposition = 'booked')
             AND sc.dm_followup_enrolled_at IS NOT NULL AND sc.dm_followup_anchor_at IS NOT NULL
-            AND sc.dm_followup_touch3_sent_at IS NULL
+            AND sc.dm_followup_touch3_sent_at IS NULL AND sc.stage_dm_reached
             ORDER BY sc.dm_followup_anchor_at ASC
             """
         )
