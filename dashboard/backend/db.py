@@ -2186,6 +2186,39 @@ async def _create_schema(pool: asyncpg.Pool):
             "CREATE INDEX IF NOT EXISTS idx_send_info_loom_queue_pending "
             "ON send_info_loom_queue(created_at) WHERE status = 'pending'"
         )
+        # When this row's email actually went out (complete() sets it) —
+        # Send Info and Gatekeeper Deferral emails count toward Email
+        # analytics from 2026-10-20 (analytics.py::_email_metrics). One-time
+        # backfill of that day's sends made before this column existed: a
+        # done row counts if an outbox email to the contact was queued around
+        # its completion.
+        await conn.execute(
+            "ALTER TABLE send_info_loom_queue ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ"
+        )
+        # The email itself, held until the outreach identity's daily cap has
+        # room (send_info_queue.send_queued_emails). email_status: NULL (no
+        # email for this row) | queued | sent | skipped | failed.
+        await conn.execute("""
+            ALTER TABLE send_info_loom_queue ADD COLUMN IF NOT EXISTS email_status  TEXT;
+            ALTER TABLE send_info_loom_queue ADD COLUMN IF NOT EXISTS email_subject TEXT;
+            ALTER TABLE send_info_loom_queue ADD COLUMN IF NOT EXISTS email_body    TEXT;
+            CREATE INDEX IF NOT EXISTS idx_send_info_loom_queue_email_queued
+                ON send_info_loom_queue(completed_at) WHERE email_status = 'queued';
+        """)
+        if await conn.fetchval(
+            "INSERT INTO dialer_settings (key, value, updated_at) VALUES ('send_info_email_sent_backfill', 'done', now()) "
+            "ON CONFLICT (key) DO NOTHING RETURNING key"
+        ):
+            await conn.execute("""
+                UPDATE send_info_loom_queue q SET email_sent_at = q.completed_at
+                FROM contacts c
+                WHERE c.id = q.contact_id AND q.status = 'done' AND q.email_sent_at IS NULL
+                  AND q.completed_at >= '2026-10-20 00:00 America/New_York'::timestamptz
+                  AND EXISTS (SELECT 1 FROM email_outbox o
+                              WHERE lower(o.to_email) = lower(c.email)
+                                AND o.created_at BETWEEN q.completed_at - interval '10 minutes'
+                                                     AND q.completed_at + interval '1 minute')
+            """)
 
         # Dylan's OWN Calendly connection — same idea as client_marketing_config's
         # calendly_* columns above, just for DigiGrowth's own pipeline rather

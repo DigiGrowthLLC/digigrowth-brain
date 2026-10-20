@@ -26,6 +26,7 @@ doesn't care which kind a row is; complete() sends the right thing.
 """
 
 import re
+from datetime import datetime
 
 from db import get_pool
 
@@ -105,45 +106,71 @@ async def _receptionist_for(conn, contact_id: str, phone: str | None, notes: str
     return receptionist_name(texts, notes, owner, business)
 
 
-async def _send_now(contact: dict, loom_url: str | None) -> None:
-    import integrations
-    from routers import sms as sms_router
+# ── Email: outreach identity mailbox, shared daily cap ───────────────────────
+# Both kinds' emails go out the same way Email Handoff touches do (Dylan,
+# 2026-10-20): from the active outreach identity mailbox
+# (email_identities.pick_identity — dylan@mail.digigrowthllc.com today, not
+# the main dylanrg@ inbox), recorded on that identity's thread so they count
+# toward its DAILY_CAP_PER_IDENTITY alongside Handoff touches, and never
+# before 8am Eastern. One that can't go out yet waits as email_status =
+# 'queued' and send_queued_emails() (main.py, 5-min poll) sends it, oldest
+# first, once the cap has room. email_sent_at = when it actually went out
+# (Email analytics counts it from then — analytics.py::_email_metrics).
 
-    try:
-        await sms_router.send_info_message(contact, loom_url=loom_url)
-    except Exception as e:
-        print(f"send-info SMS failed for {contact.get('phone')}: {e}")
-    if contact.get("email"):
-        try:
-            result = await integrations.send_info_email(
-                contact["email"], contact.get("owner"), contact.get("business"), loom_url=loom_url,
-            )
-            if not result.startswith("Sent email"):
-                print(f"send-info email to {contact['email']} did not send: {result}")
-        except Exception as e:
-            print(f"send-info email failed for {contact.get('email')}: {e}")
+async def _try_send_email(conn, queue_id: int) -> bool:
+    import email_handoff_sequence as handoff
+    import email_identities
 
-
-async def _send_gatekeeper_deferral(conn, contact: dict, notes: str | None, loom_url: str) -> str | None:
-    """Email only, to the address on the contact (the one the front desk
-    gave Dylan). Returns an error string if it couldn't send."""
-    import integrations
-
-    if not contact.get("email"):
-        return "no email on file: add the email the front desk gave you to the contact, then set Gatekeeper Deferral again"
-    receptionist = await _receptionist_for(
-        conn, contact["id"], contact.get("phone"), notes, contact.get("owner"), contact.get("business"),
+    if datetime.now(handoff.SEND_TZ).hour < handoff.SEND_DAY_START_HOUR:
+        return False
+    row = await conn.fetchrow(
+        "SELECT q.email_subject, q.email_body, c.id, c.email, c.email_opted_out, c.email_provider, "
+        "c.email_provider_checked_at FROM send_info_loom_queue q JOIN contacts c ON c.id = q.contact_id "
+        "WHERE q.id = $1 AND q.email_status = 'queued'",
+        queue_id,
     )
-    try:
-        result = await integrations.gatekeeper_deferral_email(
-            contact["email"], contact.get("owner"), contact.get("business"), receptionist, loom_url,
+    if not row:
+        return False
+    if row["email_opted_out"]:
+        await conn.execute(
+            "UPDATE send_info_loom_queue SET email_status = 'skipped', error = 'unsubscribed from email' WHERE id = $1",
+            queue_id,
         )
-    except Exception as e:
-        return f"email failed: {e}"
-    return None if result.startswith("Sent email") else f"email did not send: {result}"
+        return False
+    identity = await email_identities.pick_identity(conn, await email_identities.get_cached_provider(conn, dict(row)))
+    if not identity or await handoff._sent_today(conn, identity["id"]) >= handoff.DAILY_CAP_PER_IDENTITY:
+        return False  # no active mailbox, or today's cap is used up: stays queued
+    if not await handoff._deliver(conn, identity, row["id"], row["email"].strip(), row["email_subject"],
+                                  row["email_body"], is_automated=False):
+        await conn.execute(
+            "UPDATE send_info_loom_queue SET email_status = 'failed', error = $2 WHERE id = $1",
+            queue_id, f"email failed to send from {identity['mailbox_email']}",
+        )
+        return False
+    await conn.execute(
+        "UPDATE send_info_loom_queue SET email_status = 'sent', email_sent_at = now() WHERE id = $1", queue_id,
+    )
+    return True
+
+
+async def send_queued_emails() -> None:
+    """main.py's 5-minute poll: sends the oldest queued email that can go
+    out now (at most one per poll, so a backlog drains spaced out rather
+    than in a burst at 8am)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        ids = await conn.fetch(
+            "SELECT id FROM send_info_loom_queue WHERE email_status = 'queued' ORDER BY completed_at, id"
+        )
+        for r in ids:
+            if await _try_send_email(conn, r["id"]):
+                return
 
 
 async def complete(queue_id: int, watch_url: str) -> dict:
+    import integrations
+    from routers import sms as sms_router
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -156,9 +183,12 @@ async def complete(queue_id: int, watch_url: str) -> dict:
             raise ValueError(f"Queue entry {queue_id} not found")
         contact = {"id": row["c_id"], "phone": row["phone"], "email": row["email"],
                    "owner": row["owner"], "business": row["business"]}
+        subject = body = None
         if row["kind"] == GATEKEEPER_DEFERRAL:
-            error = await _send_gatekeeper_deferral(conn, contact, row["notes"], watch_url)
-            if error:
+            # Email only, to the address the front desk gave Dylan (no SMS:
+            # that number is the front desk's).
+            if not (contact["email"] or "").strip():
+                error = "no email on file: add the email the front desk gave you to the contact, then set Gatekeeper Deferral again"
                 print(f"gatekeeper-deferral send failed for contact {contact['id']}: {error}")
                 failed = await conn.fetchrow(
                     "UPDATE send_info_loom_queue SET status = 'failed', watch_url = $2, error = $3, completed_at = now() "
@@ -166,13 +196,28 @@ async def complete(queue_id: int, watch_url: str) -> dict:
                     queue_id, watch_url, error,
                 )
                 return dict(failed)
+            receptionist = await _receptionist_for(
+                conn, contact["id"], contact["phone"], row["notes"], contact["owner"], contact["business"],
+            )
+            subject, body = await integrations.gatekeeper_deferral_email(
+                contact["owner"], contact["business"], receptionist, watch_url,
+            )
         else:
-            await _send_now(contact, loom_url=watch_url)
-        updated = await conn.fetchrow(
-            "UPDATE send_info_loom_queue SET status = 'done', watch_url = $2, completed_at = now() "
-            "WHERE id = $1 RETURNING *",
-            queue_id, watch_url,
+            try:
+                await sms_router.send_info_message(contact, loom_url=watch_url)
+            except Exception as e:
+                print(f"send-info SMS failed for {contact.get('phone')}: {e}")
+            if (contact["email"] or "").strip():
+                subject, body = await integrations.send_info_email(contact["owner"], contact["business"], watch_url)
+        await conn.execute(
+            "UPDATE send_info_loom_queue SET status = 'done', watch_url = $2, completed_at = now(), "
+            "email_status = CASE WHEN $3::text IS NOT NULL THEN 'queued' END, email_subject = $3, email_body = $4 "
+            "WHERE id = $1",
+            queue_id, watch_url, subject, body,
         )
+        if subject:
+            await _try_send_email(conn, queue_id)
+        updated = await conn.fetchrow("SELECT * FROM send_info_loom_queue WHERE id = $1", queue_id)
     return dict(updated)
 
 

@@ -586,10 +586,12 @@ DigiGrowth
 """
 
 
-async def send_info_email(to: str, owner: str | None, business: str | None, loom_url: str | None = None) -> str:
-    """Send the "Send Info" disposition's follow-up email — website + company blurb.
-    Subject/body are editable from Business Resources → Outreach Templates
-    (stored in dialer_settings); falls back to the defaults below if never saved.
+async def send_info_email(owner: str | None, business: str | None, loom_url: str | None = None) -> tuple[str, str]:
+    """(subject, body) of the "Send Info" disposition's follow-up email —
+    website + company blurb. send_info_queue.py sends it from the outreach
+    identity mailbox under its daily cap. Subject/body are editable from
+    Business Resources → Outreach Templates (stored in dialer_settings);
+    falls back to the defaults below if never saved.
 
     `loom_url` is the personalized outreach-video watch link generated for
     this contact by send_info_queue.py — dropped into the template's
@@ -608,7 +610,7 @@ async def send_info_email(to: str, owner: str | None, business: str | None, loom
 
     subject = f"{subject_template} — {business}" if business else subject_template
     body = body_template.replace("{first_name}", first_name).replace("{loom_link}", loom_url or "")
-    return await asyncio.to_thread(gmail_send, to, subject, body, True)
+    return subject, body
 
 
 GK_DEFERRAL_EMAIL_SUBJECT = "Following up on my chat with {receptionist}"
@@ -624,9 +626,10 @@ DigiGrowth
 
 
 async def gatekeeper_deferral_email(
-    to: str, owner: str | None, business: str | None, receptionist: str | None, loom_url: str | None,
-) -> str:
-    """The "Gatekeeper Deferral" status's email — a front desk said to reach
+    owner: str | None, business: str | None, receptionist: str | None, loom_url: str | None,
+) -> tuple[str, str]:
+    """(subject, body) of the "Gatekeeper Deferral" status's email, sent by
+    send_info_queue.py like Send Info's — a front desk said to reach
     the owner by email, so the owner gets the same personalized Loom as Send
     Info, framed as following up on what their receptionist said. Editable
     from Business Resources → Outreach Templates (dialer_settings gk_deferral_*
@@ -650,7 +653,7 @@ async def gatekeeper_deferral_email(
 
     subject = fill(f"{subject_template} — {business}" if business else subject_template)
     body = fill(body_template)
-    return await asyncio.to_thread(gmail_send, to, subject, body, True)
+    return subject, body
 
 
 def gmail_send_reply(to: str, subject: str, body: str, thread_id: str) -> dict:

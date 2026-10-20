@@ -38,6 +38,7 @@ import sms_setter_ai
 import email_handoff_sequence
 import email_followup_trigger
 import outreach_video
+import send_info_queue
 import identity_warmup
 import meta_ads
 import no_show_sequence
@@ -514,6 +515,12 @@ async def lifespan(app: FastAPI):
         email_handoff_sequence.send_due_touches,
         IntervalTrigger(minutes=5),
         id="email-handoff-sequence",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        send_info_queue.send_queued_emails,
+        IntervalTrigger(minutes=5),
+        id="send-info-queued-emails",
         replace_existing=True,
     )
     scheduler.add_job(

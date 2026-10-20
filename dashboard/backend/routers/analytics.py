@@ -730,16 +730,19 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
 
 async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     """
-    Email Outreach analytics = the Email Handoff sequence ONLY (Dylan,
-    2026-09-24). Every other email the account sends (Inbox replies,
+    Email Outreach analytics = the Email Handoff sequence (Dylan,
+    2026-09-24) plus, from 2026-10-20, the Send Info and Gatekeeper Deferral
+    video emails. Every other email the account sends (Inbox replies,
     reminders, newsletters, manual sends) is excluded. One prospect = one
     "sent": Touch 1 is the outreach, Touches 2/3 are follow-ups and never
-    add to Sent.
+    add to Sent, and a prospect reached by more than one of these counts
+    once, at their first send.
 
-    Population: email_handoff_state rows whose Touch 1 has gone out
-    (windowed on touch1_sent_at; campaign view = rows tagged with that
+    Population: email_handoff_state rows whose Touch 1 has gone out plus
+    send_info_loom_queue rows whose email went out (email_sent_at), windowed
+    on that first send; campaign view = Handoff rows tagged with that
     campaign at Touch 1 send — see email_handoff_sequence._send_touch and
-    campaigns.py's backfill-history). Test-status contacts excluded.
+    campaigns.py's backfill-history. Test-status contacts excluded.
     Per prospect:
       - replied: a real inbound email (not an out-of-office auto-reply)
         after Touch 1
@@ -751,28 +754,44 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
       - booked: an appointment (not canceled, not a follow-up call) created
         after Touch 1, or the email conversation marked booked
     """
-    clauses, args = [
-        "ehs.touch1_sent_at IS NOT NULL", "NOT ehs.exclude_from_analytics", "c.status IS DISTINCT FROM 'test'",
+    handoff_clauses, clauses, args = ["ehs.touch1_sent_at IS NOT NULL", "NOT ehs.exclude_from_analytics"], [
+        "c.status IS DISTINCT FROM 'test'",
     ], []
     if since:
         args.append(since)
-        clauses.append(f"ehs.touch1_sent_at >= ${len(args)}")
+        clauses.append(f"f.touch1_sent_at >= ${len(args)}")
     if campaign_id is not None:
         args.append(campaign_id)
-        clauses.append(f"ehs.campaign_id = ${len(args)}")
+        handoff_clauses.append(f"ehs.campaign_id = ${len(args)}")
+    # Send Info / Gatekeeper Deferral video emails (send_info_queue.py) count
+    # too, from 2026-10-20 on (Dylan) — email_sent_at only exists from then.
+    # They carry no campaign, so a campaign view stays Handoff-only.
+    send_info_sql = "" if campaign_id is not None else """
+            UNION ALL
+            SELECT q.contact_id, q.email_sent_at, q.watch_url
+            FROM send_info_loom_queue q WHERE q.email_sent_at IS NOT NULL"""
 
     row = await conn.fetchrow(
         f"""
-        WITH pop AS (
-            SELECT ehs.contact_id, ehs.touch1_sent_at, ehs.loom_url, c.email_opted_out, c.status,
+        WITH sends AS (
+            SELECT ehs.contact_id, ehs.touch1_sent_at AS sent_at, ehs.loom_url
+            FROM email_handoff_state ehs
+            WHERE {" AND ".join(handoff_clauses)}{send_info_sql}
+        ),
+        first_send AS (
+            SELECT DISTINCT ON (contact_id) contact_id, sent_at AS touch1_sent_at, loom_url
+            FROM sends ORDER BY contact_id, sent_at
+        ),
+        pop AS (
+            SELECT f.contact_id, f.touch1_sent_at, f.loom_url, c.email_opted_out, c.status,
                    EXISTS (SELECT 1 FROM appointment_reminders ar
-                           WHERE ar.contact_id = ehs.contact_id AND ar.status != 'canceled'
-                             AND ar.created_at >= ehs.touch1_sent_at
+                           WHERE ar.contact_id = f.contact_id AND ar.status != 'canceled'
+                             AND ar.created_at >= f.touch1_sent_at
                              AND NOT {follow_up_appointment_sql('ar')})
                    OR EXISTS (SELECT 1 FROM email_conversations ec
-                              WHERE ec.contact_id = ehs.contact_id AND ec.booked_at IS NOT NULL) AS is_booked
-            FROM email_handoff_state ehs
-            JOIN contacts c ON c.id = ehs.contact_id
+                              WHERE ec.contact_id = f.contact_id AND ec.booked_at IS NOT NULL) AS is_booked
+            FROM first_send f
+            JOIN contacts c ON c.id = f.contact_id
             WHERE {" AND ".join(clauses)}
         )
         SELECT

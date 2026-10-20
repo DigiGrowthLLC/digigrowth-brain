@@ -249,7 +249,7 @@ async def list_send_info_queue(status: str = "pending"):
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT q.id, q.kind, q.status, q.watch_url, q.error, q.created_at, "
+            "SELECT q.id, q.kind, q.status, q.watch_url, q.error, q.created_at, q.email_status, q.email_sent_at, "
             "c.id AS contact_id, c.business, c.owner, c.phone, c.email, c.website "
             "FROM send_info_loom_queue q JOIN contacts c ON c.id = q.contact_id "
             "WHERE q.status = $1 ORDER BY q.created_at",
