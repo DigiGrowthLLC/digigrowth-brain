@@ -38,6 +38,7 @@ _VARIATION_HINTS = [
 _URL_RE = re.compile(r"https?://[^\s<>()]+")
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.S)
 _NUM_RE = re.compile(r"\$?\d[\d,.]*%?")
+_PARA_RE = re.compile(r"\n\s*\n")
 
 _SYSTEM = """You lightly personalize one cold outreach email from Dylan (DigiGrowth) to the owner of an independent physical therapy practice. The same template goes to many practices, and identical emails look like bulk mail, so each copy needs small natural differences.
 
@@ -73,6 +74,8 @@ def _valid(original: str, rewrite: str) -> str | None:
         return "bold phrases changed"
     if set(_NUM_RE.findall(rewrite)) - set(_NUM_RE.findall(original)):
         return "new numbers"
+    if len(_PARA_RE.split(rewrite)) != len(_PARA_RE.split(original)):
+        return "paragraphs added or dropped"
     if "—" in rewrite and "—" not in original:
         return "em dash"
     if not 0.8 <= len(rewrite) / max(len(original), 1) <= 1.25:

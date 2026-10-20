@@ -293,6 +293,27 @@ def _gmail_raw_messages(svc, query_after: int) -> list[dict]:
     return out
 
 
+def _gmail_sent_messages(svc, query_after: int) -> list[dict]:
+    """Mail Dylan sent from this mailbox in Gmail itself (not via the
+    dashboard), so those replies show in the Inbox thread too. Sequence
+    touches and dashboard replies are already in email_messages under the
+    same Gmail id and get skipped by the caller."""
+    q = f"in:sent after:{query_after}" if query_after else "in:sent newer_than:30d"
+    res = svc.users().messages().list(userId="me", q=q, maxResults=50).execute()
+    out = []
+    for m in res.get("messages", []):
+        full = svc.users().messages().get(userId="me", id=m["id"], format="full").execute()
+        headers = {h["name"].lower(): h["value"] for h in full["payload"].get("headers", [])}
+        out.append({
+            "message_id": m["id"],
+            "to_addrs": re.findall(r"[\w.+-]+@[\w-]+\.[\w.-]+", f"{headers.get('to', '')},{headers.get('cc', '')}".lower()),
+            "subject": headers.get("subject", "(no subject)"),
+            "body": integrations._extract_body(full["payload"]) or full.get("snippet", ""),
+            "internal_ts": int(full.get("internalDate", "0")) // 1000,
+        })
+    return out
+
+
 def _graph_raw_messages(identity: dict, since_ts: int) -> list[dict]:
     import httpx
 
@@ -367,11 +388,17 @@ async def sync_identity_inbox(identity: dict) -> dict:
     pool = await get_pool()
     last_ts = identity["email_sync_last_ts"] or 0
 
+    sent_messages = []
     if identity["provider"] == "google":
         query_after = max(0, last_ts - _SYNC_LOOKBACK_SEC)
         svc = await asyncio.to_thread(_identity_gmail_service, identity["oauth_refresh_token"])
         raw_messages = await asyncio.to_thread(_gmail_raw_messages, svc, query_after)
+        if identity["status"] != "partner":
+            sent_messages = await asyncio.to_thread(_gmail_sent_messages, svc, query_after)
     elif identity["provider"] == "microsoft":
+        # Sent-folder sync is Gmail-only: Graph sends are stored under
+        # synthetic ids (no id comes back from sendMail), so they couldn't
+        # be de-duplicated against the sent folder.
         since_ts = max(0, last_ts - _SYNC_LOOKBACK_SEC)
         raw_messages = await asyncio.to_thread(_graph_raw_messages, identity, since_ts)
     else:
@@ -431,6 +458,29 @@ async def sync_identity_inbox(identity: dict) -> dict:
             lead_replies += 1
             if not msg.get("is_auto_reply"):
                 await forward_reply_to_main_inbox(identity, contact_info.get(contact_id, {}), msg)
+
+        own = identity_emails | {identity["mailbox_email"].lower(), integrations.EXPECTED_SENDER_EMAIL.lower()}
+        for msg in sent_messages:
+            newest_ts = max(newest_ts, msg["internal_ts"])
+            if await conn.fetchval("SELECT 1 FROM email_messages WHERE gmail_message_id = $1", msg["message_id"]):
+                continue
+            to_addr = next((a for a in msg["to_addrs"] if a in contact_by_email and a not in own), None)
+            if not to_addr:
+                continue  # warm-up mail, a forward to Dylan, or a non-prospect
+            contact_id = contact_by_email[to_addr]
+            thread_id = f"identity-{identity['id']}-{contact_id}"
+            if not await conn.fetchval("SELECT 1 FROM email_conversations WHERE thread_id = $1", thread_id):
+                await conn.execute(
+                    """INSERT INTO email_conversations (contact_id, thread_id, email, subject, status)
+                       VALUES ($1, $2, $3, $4, 'active')""",
+                    contact_id, thread_id, to_addr, msg["subject"],
+                )
+            await conn.execute(
+                """INSERT INTO email_messages (contact_id, thread_id, email, direction, subject, body, gmail_message_id, sent_at)
+                   VALUES ($1, $2, $3, 'outbound', $4, $5, $6, to_timestamp($7))
+                   ON CONFLICT (gmail_message_id) DO NOTHING""",
+                contact_id, thread_id, to_addr, msg["subject"], msg["body"], msg["message_id"], msg["internal_ts"],
+            )
 
         if newest_ts > last_ts:
             await conn.execute(

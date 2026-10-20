@@ -48,6 +48,9 @@ _CLOSE_DISPOSITION_TO_CONTACT_STATUS = {
 }
 
 
+_ALL_EMAILS_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+
+
 def _extract_email(header_value: str) -> str:
     """'Dylan G <dylan@digigrowthllc.com>' -> 'dylan@digigrowthllc.com' (lowercased)."""
     m = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", header_value or "")
@@ -90,7 +93,10 @@ async def _mark_bounce(conn, full: dict, contact_by_email: dict) -> bool:
 
 # ── Sync job ──────────────────────────────────────────────────────────────────
 
-async def _sync_gmail_once() -> dict:
+async def _sync_gmail_once(sent_backfill_days: int | None = None) -> dict:
+    """sent_backfill_days: one-off pass over the last N days of Sent mail
+    only (Gmail replies sent before outbound sync existed); the cursor
+    still only ever moves forward."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         # Clean up any conversations/messages left over from a looser match
@@ -113,7 +119,17 @@ async def _sync_gmail_once() -> dict:
         )
 
         contacts = await conn.fetch("SELECT id, email FROM contacts WHERE email IS NOT NULL AND trim(email) != ''")
-        contact_by_email = {c["email"].strip().lower(): c["id"] for c in contacts if c["email"] and c["email"].strip()}
+        # Our own mailboxes (this account, outreach identities, warm-up
+        # partners) can end up stored as a contact's email (a test contact,
+        # a self entry) — never treat them as a prospect, or every email
+        # Dylan sends would land in the Inbox as that "prospect" writing in.
+        own = {integrations.EXPECTED_SENDER_EMAIL.lower()} | {
+            r["mailbox_email"].lower() for r in await conn.fetch("SELECT mailbox_email FROM email_send_identities")
+        }
+        contact_by_email = {
+            c["email"].strip().lower(): c["id"] for c in contacts
+            if c["email"] and c["email"].strip() and c["email"].strip().lower() not in own
+        }
         if not contact_by_email:
             return {"fetched": 0, "matched": 0, "skipped": 0}
 
@@ -123,8 +139,10 @@ async def _sync_gmail_once() -> dict:
 
         svc = await asyncio.to_thread(integrations._business_gmail_service)
         q = f"after:{query_after}" if query_after else "newer_than:7d"
+        if sent_backfill_days:
+            q = f"in:sent newer_than:{int(sent_backfill_days)}d"
         res = await asyncio.to_thread(
-            lambda: svc.users().messages().list(userId="me", q=q, maxResults=100).execute()
+            lambda: svc.users().messages().list(userId="me", q=q, maxResults=500 if sent_backfill_days else 100).execute()
         )
         msg_ids = [m["id"] for m in res.get("messages", [])]
 
@@ -150,18 +168,23 @@ async def _sync_gmail_once() -> dict:
                 await _mark_bounce(conn, full, contact_by_email)
                 continue  # delivery-failure notices aren't real conversation messages
 
-            # Scope: only messages actually sent BY a known prospect (their
-            # stored contacts.email) land in the Inbox. We deliberately do NOT
-            # also match on the "to" header — this account's own inbox address
-            # can end up stored as *some* contact's email (e.g. a test/self
-            # entry), and matching "to" would then pull in the account owner's
-            # entire personal inbox. Outbound replies sent through the Inbox's
-            # own reply box are recorded directly by /email/send instead.
+            # Scope: messages sent BY a known prospect, plus mail Dylan sent
+            # TO one straight from Gmail (Sent label) — so a reply typed in
+            # Gmail shows in the Inbox thread too. Sends made through the
+            # Inbox's reply box are already recorded by /email/send under
+            # this same Gmail message id, so the exists check above skips
+            # them. Own addresses were dropped from contact_by_email, so the
+            # account's own mail can never match as a "prospect".
             contact_id, counterparty, direction = None, None, None
             if from_addr and from_addr in contact_by_email:
                 contact_id, counterparty, direction = contact_by_email[from_addr], from_addr, "inbound"
+            elif "SENT" in full.get("labelIds", []):
+                recipients = _ALL_EMAILS_RE.findall(f"{headers.get('to', '')},{headers.get('cc', '')}".lower())
+                to_addr = next((a for a in recipients if a in contact_by_email), None)
+                if to_addr:
+                    contact_id, counterparty, direction = contact_by_email[to_addr], to_addr, "outbound"
             if not contact_id:
-                continue  # not a known-prospect inbound message — skip per scope rule
+                continue  # not to/from a known prospect — skip per scope rule
 
             body = integrations._extract_body(full["payload"]) or full.get("snippet", "")
             matched += 1
@@ -185,8 +208,9 @@ async def _sync_gmail_once() -> dict:
                    ON CONFLICT (gmail_message_id) DO NOTHING""",
                 contact_id, thread_id, counterparty, direction, subject, body, mid, internal_ts,
             )
-            await no_show_sequence.stop_sequence_for_reply(email=counterparty)
-            await cancel_sequence.stop_sequence_for_reply(email=counterparty)
+            if direction == "inbound":
+                await no_show_sequence.stop_sequence_for_reply(email=counterparty)
+                await cancel_sequence.stop_sequence_for_reply(email=counterparty)
 
         if newest_ts > last_ts:
             await conn.execute(
@@ -208,9 +232,10 @@ async def sync_gmail_job():
 
 
 @router.post("/email/sync")
-async def manual_sync():
-    """Manual trigger for testing/verification — same code path as the scheduled job."""
-    return {"ok": True, **(await _sync_gmail_once())}
+async def manual_sync(sent_backfill_days: Optional[int] = None):
+    """Manual trigger for testing/verification — same code path as the scheduled job.
+    ?sent_backfill_days=N also pulls in the last N days of Gmail Sent mail to prospects."""
+    return {"ok": True, **(await _sync_gmail_once(sent_backfill_days))}
 
 
 # ── Authenticated API endpoints ───────────────────────────────────────────────

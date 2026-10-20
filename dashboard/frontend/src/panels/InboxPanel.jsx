@@ -16,6 +16,79 @@ function htmlToText(html) {
     .join("\n");
 }
 
+// Where a prospect's email stops being the message itself: quoted history
+// from earlier in the thread, then the signature block / legal footer.
+const QUOTE_START_RE = /^(On .{6,200}wrote:|-{2,}\s*Original Message\s*-{2,}|_{5,}|From: .+|Sent from my .+|Get Outlook for .+)$/i;
+const SIG_LINE_RE = /^\s*(--|Phone|Tel|Cell|Mobile|Fax|E-?mail|Website|Web|Address|Office)\s*[:.]?\s|^\s*--\s*$/i;
+const CREDENTIALS_RE = /^\*?\s*[A-Z][\w.'-]+(\s+[A-Z][\w.'-]+){1,3},?\s+(DPT|PT|MPT|DC|MD|DO|OCS|ATC|SCS|CSCS|OTR|PTA|MS|MBA|PhD)\b/;
+const DISCLAIMER_RE = /(this (e-?mail|message|communication)[^\n]{0,60}(confidential|intended only|privileged)|confidentiality notice)/i;
+
+// Splits an inbound email into what the prospect wrote and the rest
+// (signature, disclaimer, quoted history), and re-joins lines their mail
+// client hard-wrapped mid-sentence.
+function splitEmail(text) {
+  const lines = (text || "").replace(/\r\n?/g, "\n").split("\n");
+  let cut = lines.length;
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const withNext = `${line} ${(lines[i + 1] || "").trim()}`;  // "On ... <addr>" / "wrote:" wrapped
+    if (line.startsWith(">") || QUOTE_START_RE.test(line) || /^On .{6,250}wrote:$/i.test(withNext) || SIG_LINE_RE.test(line) ||
+        CREDENTIALS_RE.test(line) || DISCLAIMER_RE.test(line)) {
+      cut = i;
+      break;
+    }
+  }
+  const body = [];
+  for (const raw of lines.slice(0, cut)) {
+    const line = raw.trimEnd();
+    const prev = body[body.length - 1];
+    // A wrapped line ends mid-sentence: no closing punctuation, and either
+    // the next line carries on in lowercase or this one is near the wrap width.
+    if (prev && line && !/[.!?:,;]$/.test(prev) && (/^[a-z(]/.test(line.trim()) || prev.length >= 40)) {
+      body[body.length - 1] = `${prev} ${line.trim()}`;  // soft wrap
+    } else {
+      body.push(line);
+    }
+  }
+  const main = body.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const rest = lines.slice(cut).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { main: main || (text || "").trim(), rest: main ? rest : "" };
+}
+
+// **bold** (Email Handoff template markup) -> real bold.
+function withBold(text) {
+  return text.split(/(\*\*[^*\n]+\*\*)/g).map((part, i) =>
+    /^\*\*[^*\n]+\*\*$/.test(part) ? <strong key={i}>{part.slice(2, -2)}</strong> : part
+  );
+}
+
+function EmailBody({ body, inbound }) {
+  const [open, setOpen] = useState(false);
+  const text = htmlToText(body);
+  if (!inbound) return withBold(text);
+  const { main, rest } = splitEmail(text);
+  return (
+    <>
+      {withBold(main)}
+      {rest && (
+        <>
+          <button onClick={() => setOpen(o => !o)} style={{
+            display: "block", marginTop: 8, padding: 0, background: "none", border: "none", cursor: "pointer",
+            fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em", color: "#4a6a8a",
+          }}>
+            {open ? "▾ HIDE SIGNATURE & EARLIER MESSAGES" : "··· SHOW SIGNATURE & EARLIER MESSAGES"}
+          </button>
+          {open && (
+            <div style={{ marginTop: 6, paddingTop: 6, borderTop: "0.5px solid #1a2540", fontSize: 11, color: "#5a7090" }}>
+              {rest}
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
 function fmtMsgTime(ts) {
   if (!ts) return "";
   const d = new Date(ts), diff = Date.now() - d;
@@ -1251,6 +1324,9 @@ export default function InboxPanel({ initialTarget }) {
     fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
     background: "#0d1626", color: "#c4d0e8", border: "1px solid #1a2540",
     borderRadius: 6, padding: "5px 8px", cursor: "pointer",
+    // A select's min-width defaults to its longest option, so a long tag
+    // name pushed ALL TAGS past the sidebar border; let flex shrink it.
+    minWidth: 0, textOverflow: "ellipsis",
   };
 
   return (
@@ -1815,8 +1891,8 @@ export default function InboxPanel({ initialTarget }) {
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: 13, color: isOut ? "#c8dcff" : "#8aaad0", lineHeight: 1.4, whiteSpace: "pre-wrap" }}>
-                        {m.channel === "email" ? htmlToText(m.body) : m.body}
+                      <div style={{ fontSize: 13, color: isOut ? "#c8dcff" : "#8aaad0", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                        {m.channel === "email" ? <EmailBody body={m.body} inbound={!isOut} /> : m.body}
                       </div>
                       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
                                     color: isOut ? "#5a7faa" : "#4a6a8a", marginTop: 4, textAlign: isOut ? "right" : "left" }}>
