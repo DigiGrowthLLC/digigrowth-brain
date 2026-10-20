@@ -43,6 +43,9 @@ send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
   - Merge fields: {first_name}, {full_name}, {business} (alias {company}),
     {opener}, {link}, and {loom} (alias {loom_link}); single or double
     braces, any case. A touch with an unrecognised {token} is never sent.
+  - Each filled touch gets a light per-prospect rewrite (~10%) right before
+    delivery so no two emails are byte-identical — email_personalize.py,
+    which falls back to the template text if the rewrite fails its checks.
     Also: {loom}
     (the prospect's personalized video, built by outreach_video.py when
     they enroll — a touch using {loom} waits until it's ready).
@@ -68,6 +71,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 from zoneinfo import ZoneInfo
 
 import email_identities
+import email_personalize
 import integrations
 from db import get_pool
 from merge_fields import first_name_from_owner
@@ -412,6 +416,7 @@ async def send_test(contact_id: str, instance: str = "touch1",
     leftover = _LEFTOVER_RE.findall(subject + body)
     if leftover:
         raise ValueError(f"unsupported merge field(s): {', '.join(leftover)}")
+    body = await email_personalize.personalize(body, contact)
     async with pool.acquire() as conn:
         provider = await email_identities.get_cached_provider(conn, contact)
         identity = await email_identities.pick_identity(conn, provider)
@@ -462,6 +467,7 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
         return False
     if await _sent_today(conn, identity["id"]) >= DAILY_CAP_PER_IDENTITY:
         return False  # today's cap hit — queued until 8am tomorrow
+    body = await email_personalize.personalize(body, row)
 
     # Only Touch 1 is fresh outreach — it counts toward the Email Outreach
     # card's Sent/Open Rate. Touches 2/3 are follow-ups (is_automated),
@@ -497,7 +503,7 @@ async def send_due_touches():
         rows = await conn.fetch(
             """
             SELECT ehs.*, c.id, c.email, c.owner, c.business, c.opener, c.status,
-                   c.email_provider, c.email_provider_checked_at
+                   c.city, c.state, c.website, c.email_provider, c.email_provider_checked_at
             FROM email_handoff_state ehs
             JOIN contacts c ON c.id = ehs.contact_id
             WHERE c.status = $1 AND NOT c.email_opted_out AND ehs.stopped_at IS NULL
