@@ -5797,8 +5797,8 @@
     },
     "Billings, MT": {
       "status": "in_progress",
-      "term_index": 2,
-      "reviewed_count": 119,
+      "term_index": 3,
+      "reviewed_count": 138,
       "qualified_count": 5,
       "last_scraped_date": "2026-10-19"
     },
