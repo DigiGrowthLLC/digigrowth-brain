@@ -524,6 +524,13 @@ async def update_appointment(appointment_id: int, payload: dict):
 
     if time_changed:
         try:
+            # Any reminder still queued quotes the OLD time.
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                await reminder_engine.cancel_queued_reminder_emails(conn, updated["prospect_email"])
+        except Exception as e:
+            print(f"[appointments] clearing queued reminders failed for {appointment_id}: {e}")
+        try:
             await reminder_engine.send_reschedule_confirmation(dict(updated))
         except Exception as e:
             print(f"[appointments] reschedule confirmation failed for {appointment_id}: {e}")
@@ -618,6 +625,8 @@ async def cancel_appointment(appointment_id: int, notify: bool = False, cancel_c
             "WHERE id = $1 AND status = 'scheduled' RETURNING *",
             appointment_id,
         )
+        if row is not None:
+            await reminder_engine.cancel_queued_reminder_emails(conn, row["prospect_email"])
         # No longer booked once their last scheduled appointment is
         # canceled: drop the 'booked' disposition so the thread can go back
         # into sequences like DM Follow-Up (Dylan, 2026-10-16). booked_at
@@ -820,9 +829,11 @@ async def remove_from_sequence(appointment_id: int, sequence: str):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             f"UPDATE appointment_reminders SET {stopped_col} = now() "
-            f"WHERE id = $1 AND {stopped_col} IS NULL RETURNING id",
+            f"WHERE id = $1 AND {stopped_col} IS NULL RETURNING id, prospect_email",
             appointment_id,
         )
+        if row is not None and sequence == "reminder":
+            await reminder_engine.cancel_queued_reminder_emails(conn, row["prospect_email"])
     if row is None:
         raise HTTPException(404, "appointment not found or not currently active in that sequence")
     return {"ok": True}

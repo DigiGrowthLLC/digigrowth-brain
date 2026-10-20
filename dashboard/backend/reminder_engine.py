@@ -163,6 +163,25 @@ async def _send_instance(row: dict, instance: str, templates: dict, stage: str) 
     return True
 
 
+async def cancel_queued_reminder_emails(conn, email: str | None) -> int:
+    """Pull this prospect's not-yet-sent reminder emails out of email_outbox.
+    Reminders are queued (gmail_send), not sent, and the outbox only lets one
+    out every 10 min — so stopping/canceling/rescheduling an appointment must
+    also clear what's already queued, or the backlog keeps draining for
+    hours. Caught live 2026-10-20: 22 duplicate 24h reminders were still
+    queued for Kylie Dugan + Natalia Martinez after their reminders were
+    stopped. priority 0 = urgent=True, which only this module's sends use."""
+    email = (email or "").strip()
+    if not email:
+        return 0
+    result = await conn.execute(
+        "UPDATE email_outbox SET status = 'canceled', result = 'canceled: appointment reminders stopped' "
+        "WHERE status = 'queued' AND priority = 0 AND lower(to_email) = lower($1)",
+        email,
+    )
+    return int(result.split()[-1])
+
+
 async def send_reschedule_confirmation(row: dict):
     """Immediate notice sent when routers/appointments.py's edit endpoint
     changes an appointment's date/time/timezone. Doesn't touch sent-at
