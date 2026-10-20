@@ -34,8 +34,9 @@ send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
     Out-of-office autoresponders (email_messages.is_auto_reply) don't count
     as a reply; a rep's manual Replied tick in the Inbox does stop sends.
   - Sends are spaced campaign-wide (one touch at a time, MIN_SEND_SPACING
-    apart), capped per identity (DAILY_CAP_PER_IDENTITY per 24h), and skip
-    contacts who clicked the unsubscribe footer link.
+    apart), capped per identity (DAILY_CAP_PER_IDENTITY per calendar day,
+    Eastern), never before 8am Eastern (overflow queues to the next
+    morning), and skip contacts who clicked the unsubscribe footer link.
   - Merge fields: {first_name}, {full_name}, {business} (alias {company}),
     {opener}, {link}, and {loom} (alias {loom_link}); single or double
     braces, any case. A touch with an unrecognised {token} is never sent.
@@ -61,6 +62,7 @@ dm_followup_sequence.py.
 import os
 import re
 from datetime import datetime, timedelta, timezone as dt_timezone
+from zoneinfo import ZoneInfo
 
 import email_identities
 import integrations
@@ -100,9 +102,13 @@ _TOUCH3_BODY_DEFAULT = (
 # Deliverability throttle: the whole Email Handoff campaign sends at most one
 # touch every MIN_SEND_SPACING (across all identities/prospects — Dylan's
 # rule, 2026-09-24), and each identity at most DAILY_CAP_PER_IDENTITY per
-# rolling 24h. Anything over just waits for a later poll.
+# calendar day in SEND_TZ (raised from 20/rolling-24h on 2026-10-20). Nothing
+# sends before SEND_DAY_START_HOUR, so whatever didn't fit under yesterday's
+# cap is a queue that drains, oldest enrollment first, from 8am the next day.
 MIN_SEND_SPACING = timedelta(minutes=10)
-DAILY_CAP_PER_IDENTITY = 20
+DAILY_CAP_PER_IDENTITY = 25
+SEND_TZ = ZoneInfo("America/New_York")
+SEND_DAY_START_HOUR = 8
 
 # {loom} is the prospect's personalized outreach video (outreach_video.py,
 # generated server-side at enrollment). A touch whose template uses {loom}
@@ -237,11 +243,13 @@ async def _has_replied(conn, contact_id: str) -> bool:
     ))
 
 
-async def _sent_last_24h(conn, identity_id: int) -> int:
+async def _sent_today(conn, identity_id: int) -> int:
+    """Outbound sends from this identity since midnight SEND_TZ."""
+    midnight = datetime.now(SEND_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
     return await conn.fetchval(
         "SELECT COUNT(*) FROM email_messages WHERE direction = 'outbound' AND thread_id LIKE $1 "
-        "AND sent_at > now() - interval '24 hours'",
-        f"identity-{identity_id}-%",
+        "AND sent_at >= $2",
+        f"identity-{identity_id}-%", midnight,
     )
 
 
@@ -436,8 +444,8 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
     if not identity:
         print(f"[email_handoff_sequence] no active identity available for {email} — will retry next poll")
         return False
-    if await _sent_last_24h(conn, identity["id"]) >= DAILY_CAP_PER_IDENTITY:
-        return False  # throttled — retried on a later poll
+    if await _sent_today(conn, identity["id"]) >= DAILY_CAP_PER_IDENTITY:
+        return False  # today's cap hit — queued until 8am tomorrow
 
     # Only Touch 1 is fresh outreach — it counts toward the Email Outreach
     # card's Sent/Open Rate. Touches 2/3 are follow-ups (is_automated),
@@ -465,6 +473,8 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
 async def send_due_touches():
     """Poll enrolled contacts and send whichever touch is next due — at most
     one send per contact per poll. See module docstring for the algorithm."""
+    if datetime.now(SEND_TZ).hour < SEND_DAY_START_HOUR:
+        return  # the day's queue starts draining at 8am
     pool = await get_pool()
     now = datetime.now(dt_timezone.utc)
     async with pool.acquire() as conn:

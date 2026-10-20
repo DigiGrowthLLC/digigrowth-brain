@@ -54,7 +54,11 @@ from db import get_pool
 # two identities went to cold outreach on day 4/6 and got 0 replies from 27.
 # Restarted then with this schedule so both finish Fri 2026-10-16 and flip
 # to 'complete' Mon 10/19. Starts at 8, not 2 — both had ~5 days of history.
-_DEFAULT_SCHEDULE = [8, 11, 15, 20, 25, 30, 35, 40, 40, 40, 40, 40, 40, 40, 40]
+# Capped at WARMUP_DAILY_MAX (Dylan, 2026-10-20) — same 25/day ceiling as
+# the Email Handoff campaign's per-identity cap. Also clamps any schedule
+# saved in dialer_settings.
+WARMUP_DAILY_MAX = 25
+_DEFAULT_SCHEDULE = [8, 11, 15, 20, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25]
 
 # How many backlog replies a single identity may send in ONE poll tick.
 # Without this cap, a long outage (like the Graph auth bug that blocked
@@ -106,7 +110,7 @@ async def get_schedule() -> list[int]:
         try:
             parsed = json.loads(row["value"])
             if isinstance(parsed, list) and all(isinstance(x, int) for x in parsed):
-                return parsed
+                return [min(x, WARMUP_DAILY_MAX) for x in parsed]
         except Exception:
             pass
     return _DEFAULT_SCHEDULE
