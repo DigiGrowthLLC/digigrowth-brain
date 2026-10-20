@@ -23,7 +23,7 @@ const SIG_LINE_RE = /^\s*(--|Phone|Tel|Cell|Mobile|Fax|E-?mail|Website|Web|Addre
 const CREDENTIALS_RE = /^\*?\s*[A-Z][\w.'-]+(\s+[A-Z][\w.'-]+){1,3},?\s+(DPT|PT|MPT|DC|MD|DO|OCS|ATC|SCS|CSCS|OTR|PTA|MS|MBA|PhD)\b/;
 const DISCLAIMER_RE = /(this (e-?mail|message|communication)[^\n]{0,60}(confidential|intended only|privileged)|confidentiality notice)/i;
 
-// Splits an inbound email into what the prospect wrote and the rest
+// Splits an email into what the sender wrote and the rest
 // (signature, disclaimer, quoted history), and re-joins lines their mail
 // client hard-wrapped mid-sentence.
 function splitEmail(text) {
@@ -62,11 +62,11 @@ function withBold(text) {
   );
 }
 
-function EmailBody({ body, inbound }) {
+// Both directions: prospects' emails and Dylan's own Gmail replies (which
+// quote the whole thread below) get the same unwrap + fold.
+function EmailBody({ body }) {
   const [open, setOpen] = useState(false);
-  const text = htmlToText(body);
-  if (!inbound) return withBold(text);
-  const { main, rest } = splitEmail(text);
+  const { main, rest } = splitEmail(htmlToText(body));
   return (
     <>
       {withBold(main)}
@@ -1892,7 +1892,7 @@ export default function InboxPanel({ initialTarget }) {
                         )}
                       </div>
                       <div style={{ fontSize: 13, color: isOut ? "#c8dcff" : "#8aaad0", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                        {m.channel === "email" ? <EmailBody body={m.body} inbound={!isOut} /> : m.body}
+                        {m.channel === "email" ? <EmailBody body={m.body} /> : m.body}
                       </div>
                       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
                                     color: isOut ? "#5a7faa" : "#4a6a8a", marginTop: 4, textAlign: isOut ? "right" : "left" }}>
