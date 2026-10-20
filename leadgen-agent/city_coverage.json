@@ -5810,9 +5810,9 @@
       "last_scraped_date": "2026-10-19"
     },
     "Lowell, MA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 102,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 109,
       "qualified_count": 6,
       "last_scraped_date": "2026-10-20"
     },
