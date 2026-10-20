@@ -456,11 +456,20 @@ async def update_appointment(appointment_id: int, payload: dict):
     if "question_form_url" in payload:
         updates["question_form_url"] = (payload["question_form_url"] or "").strip() or None
 
-    if not updates:
+    # Mark specific reminder windows as already done so reminder_engine
+    # never sends them — e.g. re-enrolling the day before a call to get only
+    # the 1h touch, since a fresh re-arm still has lead time for the 6h one.
+    skip_reminders = payload.get("skip_reminders") or []
+    if any(w not in ("24h", "6h", "1h") for w in skip_reminders):
+        raise HTTPException(400, "skip_reminders entries must be '24h', '6h' or '1h'")
+
+    if not updates and not skip_reminders:
         return {"ok": True, "id": appointment_id}
 
     set_clauses = [f"{k} = ${i}" for i, k in enumerate(updates, start=1)]
     params = list(updates.values())
+    if not time_changed:
+        set_clauses += [f"reminder_{w}_sent_at = now()" for w in dict.fromkeys(skip_reminders)]
     if time_changed:
         set_clauses += [
             "reminder_24h_sent_at = NULL", "reminder_6h_sent_at = NULL", "reminder_1h_sent_at = NULL",
