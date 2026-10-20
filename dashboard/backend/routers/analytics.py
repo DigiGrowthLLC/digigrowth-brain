@@ -823,6 +823,80 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+_GSM7 = set(
+    "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?"
+    "¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+)
+_GSM7_EXT = set("^{}\\[~]|€\f")
+
+
+def sms_segments(body: str) -> tuple[int, bool]:
+    """(billed segments, is_unicode) — GSM-7: 160 / 153 per part; any
+    character outside GSM-7 switches the whole message to UCS-2: 70 / 67."""
+    body = body or ""
+    if all(ch in _GSM7 or ch in _GSM7_EXT for ch in body):
+        units = sum(2 if ch in _GSM7_EXT else 1 for ch in body)
+        return (1 if units <= 160 else -(-units // 153)), False
+    units = sum(2 if ord(ch) > 0xFFFF else 1 for ch in body)
+    return (1 if units <= 70 else -(-units // 67)), True
+
+
+@router.get("/analytics/sms-cost")
+async def sms_cost(days: int = 30):
+    """Read-only Twilio spend breakdown from the stored message bodies
+    (Twilio bills per segment, so segments here track the bill)."""
+    from collections import Counter, defaultdict
+
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        own = await conn.fetch(
+            "SELECT direction, body, sent_at, coalesce(stage, CASE WHEN is_automated THEN 'automated' ELSE 'manual' END) AS source "
+            "FROM sms_messages WHERE sent_at >= $1", since,
+        )
+        client = await conn.fetch(
+            "SELECT direction, body, created_at AS sent_at, 'client:' || client_id || ':' || coalesce(stage, '?') AS source "
+            "FROM client_sms_messages WHERE created_at >= $1", since,
+        )
+
+    by_source = defaultdict(lambda: {"messages": 0, "segments": 0, "unicode_messages": 0, "unicode_extra_segments": 0})
+    by_day = defaultdict(lambda: {"out_segments": 0, "in_segments": 0})
+    bad_chars, templates = Counter(), defaultdict(lambda: {"count": 0, "segments": 0})
+    totals = {"out_messages": 0, "out_segments": 0, "in_messages": 0, "in_segments": 0}
+    for r in [*own, *client]:
+        segs, uni = sms_segments(r["body"])
+        day = r["sent_at"].astimezone(ZoneInfo("America/New_York")).date().isoformat()
+        if r["direction"] == "inbound":
+            totals["in_messages"] += 1
+            totals["in_segments"] += segs
+            by_day[day]["in_segments"] += segs
+            continue
+        totals["out_messages"] += 1
+        totals["out_segments"] += segs
+        by_day[day]["out_segments"] += segs
+        s = by_source[r["source"]]
+        s["messages"] += 1
+        s["segments"] += segs
+        if uni:
+            s["unicode_messages"] += 1
+            gsm_segs, _ = sms_segments("".join(ch if ch in _GSM7 else "?" for ch in r["body"]))
+            s["unicode_extra_segments"] += segs - gsm_segs
+            bad_chars.update(ch for ch in r["body"] if ch not in _GSM7 and ch not in _GSM7_EXT)
+        key = (r["body"] or "")[:60]
+        templates[key]["count"] += 1
+        templates[key]["segments"] += segs
+
+    top = sorted(templates.items(), key=lambda kv: -kv[1]["segments"])[:15]
+    return {
+        "days": days,
+        "totals": totals,
+        "by_source": dict(sorted(by_source.items(), key=lambda kv: -kv[1]["segments"])),
+        "by_day": dict(sorted(by_day.items())),
+        "non_gsm_chars": [{"char": c, "codepoint": f"U+{ord(c):04X}", "count": n} for c, n in bad_chars.most_common(20)],
+        "top_bodies": [{"starts": k, **v} for k, v in top],
+    }
+
+
 @router.post("/analytics/email-outreach/reset")
 async def reset_email_outreach():
     """Zeroes the Email Outreach card by flagging every prospect whose
