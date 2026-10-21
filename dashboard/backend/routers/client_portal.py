@@ -41,7 +41,6 @@ import client_sms
 import integrations
 import meta_ads
 import no_show_sequence
-import onboarding_sequence
 import r2_storage
 from routers import appointments as appointments_router
 from routers import sms as sms_router
@@ -973,11 +972,9 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
                 await no_show_sequence.send_first_touch(dict(updated))
         except Exception as e:
             print(f"[client_portal] no-show touch 1 failed for {appointment_id}: {e}")
-    if updates.get("outcome_close") == "closed":
-        try:
-            await onboarding_sequence.send_kickoff(dict(updated))
-        except Exception as e:
-            print(f"[client_portal] onboarding kickoff failed for {appointment_id}: {e}")
+    # No onboarding kickoff here: a client closing one of their own
+    # patients is their sale, not DigiGrowth's — it used to email the
+    # patient "Welcome to DigiGrowth" (removed 2026-10-21).
 
     return dict(updated)
 

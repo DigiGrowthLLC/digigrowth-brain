@@ -193,6 +193,17 @@ async def send_kickoff(row: dict):
     it only needs an email address on file — no dependency on a `clients`
     row existing yet, unlike the next-morning follow-up. Always stamps
     onboarding_kickoff_sent_at so a skip never retries forever."""
+    if row.get("contact_id"):
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            is_client_lead = await conn.fetchval(
+                "SELECT client_id IS NOT NULL AND NOT is_client_anchor FROM contacts WHERE id = $1",
+                row["contact_id"],
+            )
+        if is_client_lead:
+            # A client's own patient — never DigiGrowth's welcome email.
+            print(f"[onboarding_sequence] appointment {row.get('id')} is a client's patient — no welcome email")
+            return
     if await _already_sent_to_prospect(row, "onboarding_kickoff_sent_at"):
         print(f"[onboarding_sequence] welcome email already sent to this prospect — not resending for appointment {row.get('id')}")
         return
