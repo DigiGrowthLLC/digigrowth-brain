@@ -5894,11 +5894,11 @@
       "last_scraped_date": "2026-10-20"
     },
     "West Jordan, UT": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 104,
+      "qualified_count": 7,
+      "last_scraped_date": "2026-10-20"
     },
     "New Braunfels, TX": {
       "status": "not_started",
