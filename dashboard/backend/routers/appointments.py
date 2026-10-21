@@ -448,6 +448,14 @@ async def update_appointment(appointment_id: int, payload: dict):
         updates["outcome_close"] = value
     if "outcome_notes" in payload:
         updates["outcome_notes"] = (payload["outcome_notes"] or "").strip() or None
+    # The outcome card sends its whole state on every save, so re-saving
+    # (e.g. to add call length or pricing) resent an unchanged 'closed'/
+    # 'no_show' — which re-fired the onboarding welcome email / no-show
+    # touch 1 and re-dated the outcome (Brian Murphy got the welcome email
+    # twice, 2026-10-21). Only an actual change is a new outcome.
+    for field in ("outcome_show", "outcome_close"):
+        if field in updates and updates[field] == row[field]:
+            del updates[field]
     # Agency-level sales KPIs (Dylan's own pipeline only) -- see
     # routers/analytics.py for how these feed the OS-native sales stats,
     # replacing the Google-Sheet-sourced sales_stats.json fields.
@@ -516,17 +524,12 @@ async def update_appointment(appointment_id: int, payload: dict):
         set_clauses += ["outcome_show_at = now()"]
     elif "outcome_show" in updates:
         set_clauses += ["outcome_show_at = NULL"]
-    # Onboarding kickoff bookkeeping: entering 'closed' (won) stamps
-    # outcome_close_at and clears onboarding_kickoff_sent_at so re-closing a
-    # previously-cleared appointment fires the welcome email again. Leaving
-    # 'closed' clears outcome_close_at. Same shape as the outcome_show block
-    # above — see onboarding_sequence.py.
+    # Entering 'closed' (won) stamps outcome_close_at; leaving it clears it.
+    # The onboarding_*_sent_at stamps are deliberately never cleared: a
+    # prospect gets the onboarding sequence once, ever — re-closing (here or
+    # on a later appointment) doesn't resend it (see onboarding_sequence.py).
     if updates.get("outcome_close") == "closed":
-        set_clauses += [
-            "outcome_close_at = now()",
-            "onboarding_kickoff_sent_at = NULL",
-            "onboarding_followup_sent_at = NULL",
-        ]
+        set_clauses += ["outcome_close_at = now()"]
     elif "outcome_close" in updates:
         set_clauses += ["outcome_close_at = NULL"]
     params.append(appointment_id)

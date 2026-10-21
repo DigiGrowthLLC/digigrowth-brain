@@ -4,8 +4,8 @@ being marked "Closed" (won) in the dialer UI.
 1. **Welcome email** — fires immediately, synchronously from
    routers/appointments.py's PATCH handler the moment outcome_close
    transitions to 'closed' (that handler also stamps outcome_close_at =
-   now() and clears onboarding_kickoff_sent_at/onboarding_followup_sent_at
-   on that same transition). Just a warm welcome + a heads-up that the form
+   now() on that same transition). Both touches go to a prospect once,
+   ever — see _already_sent_to_prospect(). Just a warm welcome + a heads-up that the form
    and booking link are coming tomorrow — deliberately does NOT include
    either link itself (see send_kickoff()).
 
@@ -162,6 +162,30 @@ async def ensure_client_portal(row: dict) -> str:
     return client["portal_url"]
 
 
+async def _already_sent_to_prospect(row: dict, sent_col: str) -> bool:
+    """True if this prospect already got this onboarding touch on ANY of
+    their appointments (this one included) — matched by contact, or by
+    email when the row has no contact. The sequence goes to a prospect
+    once, ever: re-closing an appointment or closing a later one (e.g. a
+    two-call close) never resends it. Brian Murphy got the welcome email
+    twice on 2026-10-21 before this guard existed."""
+    assert sent_col in ("onboarding_kickoff_sent_at", "onboarding_followup_sent_at")
+    email = (row.get("prospect_email") or "").strip().lower()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            f"""
+            SELECT EXISTS (
+                SELECT 1 FROM appointment_reminders
+                WHERE {sent_col} IS NOT NULL
+                  AND ((contact_id IS NOT NULL AND contact_id = $1)
+                       OR ($2 <> '' AND lower(prospect_email) = $2))
+            )
+            """,
+            row.get("contact_id"), email,
+        )
+
+
 async def send_kickoff(row: dict):
     """Send the welcome email immediately — called synchronously from
     appointments.py's PATCH handler the moment a rep marks an appointment
@@ -169,6 +193,10 @@ async def send_kickoff(row: dict):
     it only needs an email address on file — no dependency on a `clients`
     row existing yet, unlike the next-morning follow-up. Always stamps
     onboarding_kickoff_sent_at so a skip never retries forever."""
+    if await _already_sent_to_prospect(row, "onboarding_kickoff_sent_at"):
+        print(f"[onboarding_sequence] welcome email already sent to this prospect — not resending for appointment {row.get('id')}")
+        return
+
     templates = await _get_templates()
 
     email = (row.get("prospect_email") or "").strip()
@@ -263,9 +291,14 @@ async def send_followup_touches():
         await _followup_one(dict(record), templates)
 
 
-async def _followup_one(row: dict, templates: dict) -> str:
+async def _followup_one(row: dict, templates: dict, manual: bool = False) -> str:
+    """`manual` = Dylan's explicit resend button (send_followup_now), the
+    only path allowed past the once-per-prospect guard."""
     portal_link = await ensure_client_portal(row)
-    await _send_followup(row, templates, portal_link)
+    if not manual and await _already_sent_to_prospect(row, "onboarding_followup_sent_at"):
+        print(f"[onboarding_sequence] portal follow-up already sent to this prospect — not resending for appointment {row.get('id')}")
+    else:
+        await _send_followup(row, templates, portal_link)
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
@@ -287,4 +320,4 @@ async def send_followup_now(appointment_id: int) -> str:
         )
     if not record:
         return ""
-    return await _followup_one(dict(record), await _get_templates())
+    return await _followup_one(dict(record), await _get_templates(), manual=True)

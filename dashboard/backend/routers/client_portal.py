@@ -928,6 +928,11 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
         updates["outcome_close"] = value
     if "outcome_notes" in body:
         updates["outcome_notes"] = (body["outcome_notes"] or "").strip() or None
+    # Re-saving an outcome that didn't change isn't a new no-show/close —
+    # dropping it here keeps its touches/kickoff from firing again.
+    for field in ("outcome_show", "outcome_close"):
+        if field in updates and updates[field] == row[field]:
+            del updates[field]
     if not updates:
         return dict(row)
 
@@ -942,12 +947,10 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
         ]
     elif "outcome_show" in updates:
         set_clauses += ["outcome_show_at = NULL"]
+    # The onboarding stamps are never cleared: a prospect gets the
+    # onboarding sequence once, ever (see onboarding_sequence.py).
     if updates.get("outcome_close") == "closed":
-        set_clauses += [
-            "outcome_close_at = now()",
-            "onboarding_kickoff_sent_at = NULL",
-            "onboarding_followup_sent_at = NULL",
-        ]
+        set_clauses += ["outcome_close_at = now()"]
     elif "outcome_close" in updates:
         set_clauses += ["outcome_close_at = NULL"]
 
