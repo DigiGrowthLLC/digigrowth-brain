@@ -744,10 +744,13 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     campaign at Touch 1 send — see email_handoff_sequence._send_touch and
     campaigns.py's backfill-history. Test-status contacts excluded.
     Per prospect:
-      - replied: a real inbound email (not an out-of-office auto-reply)
-        after Touch 1
-      - positive: Email stage Engaged or Interested ticked in the Inbox
-        (email_contact_stages), the conversation marked Interested, or booked
+      - replied: same rule as the Inbox's Email "Replied" stage — Dylan's
+        explicit tick/untick wins; otherwise a real inbound email (not an
+        out-of-office auto-reply) after the send. A positive reply always
+        counts as replied.
+      - positive: Email stage Engaged (= a positive reply, Dylan) or
+        Interested ticked in the Inbox (email_contact_stages), the
+        conversation marked Interested, or booked
       - video play: pressed play on the video linked in the email they were
         sent (matched by that link's slug, so a "-test" preview or an older
         video for the same contact doesn't count), after it was sent. Watch
@@ -790,6 +793,8 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         ),
         pop AS (
             SELECT f.contact_id, f.touch1_sent_at, f.loom_url, c.email_opted_out, c.status,
+                   s.stage_replied AS replied_tick,
+                   coalesce(s.stage_engaged OR s.stage_interested, false) AS positive_tick,
                    EXISTS (SELECT 1 FROM appointment_reminders ar
                            WHERE ar.contact_id = f.contact_id AND ar.status != 'canceled'
                              AND ar.created_at >= f.touch1_sent_at
@@ -798,17 +803,17 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
                               WHERE ec.contact_id = f.contact_id AND ec.booked_at IS NOT NULL) AS is_booked
             FROM first_send f
             JOIN contacts c ON c.id = f.contact_id
+            LEFT JOIN email_contact_stages s ON s.contact_id = f.contact_id
             WHERE {" AND ".join(clauses)}
         )
         SELECT
             COUNT(*) AS sent,
-            COUNT(*) FILTER (WHERE EXISTS (
+            COUNT(*) FILTER (WHERE pop.positive_tick OR CASE WHEN pop.replied_tick IS NOT NULL THEN pop.replied_tick
+                ELSE EXISTS (
                 SELECT 1 FROM email_messages em
                 WHERE em.contact_id = pop.contact_id AND em.direction = 'inbound'
-                  AND NOT em.is_auto_reply AND em.sent_at >= pop.touch1_sent_at)) AS replied,
-            COUNT(*) FILTER (WHERE pop.is_booked
-                OR EXISTS (SELECT 1 FROM email_contact_stages s
-                           WHERE s.contact_id = pop.contact_id AND (s.stage_engaged OR s.stage_interested))
+                  AND NOT em.is_auto_reply AND em.sent_at >= pop.touch1_sent_at) END) AS replied,
+            COUNT(*) FILTER (WHERE pop.is_booked OR pop.positive_tick
                 OR EXISTS (SELECT 1 FROM email_conversations ec
                            WHERE ec.contact_id = pop.contact_id AND ec.disposition = 'interested')) AS positive,
             COUNT(*) FILTER (WHERE pop.loom_url IS NOT NULL) AS videos_sent,

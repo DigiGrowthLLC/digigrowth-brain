@@ -25,9 +25,10 @@ send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
     (a touch that's slightly late due to poll cadence doesn't compress the
     remaining schedule).
   - Touch 3 fires 4 days after touch2_sent_at.
-  - Touches 2 and 3 only go to prospects who pressed play on their
-    outreach video (_played_video); everyone else stops after Touch 1
-    unless they watch later, which un-holds Touch 2.
+  - Touches 2 and 3 only go to prospects registered as having watched the
+    video Touch 1 emailed them (_played_video); everyone else stops after
+    Touch 1 unless they watch later, which un-holds Touch 2. Ticking the
+    Email Engaged (positive reply) or Interested stage also stops them.
   - Reply detection is computed LIVE each poll from email_messages
     (direction='inbound' for this contact_id) rather than trusted from
     stage_replied alone — a rep manually clearing the checkbox must never
@@ -250,16 +251,23 @@ async def _has_replied(conn, contact_id: str) -> bool:
     ))
 
 
-async def _played_video(conn, contact_id: str) -> bool:
-    """Touch 2/3 qualifier (Dylan, 2026-10-20): only prospects who pressed
-    play on their outreach video get follow-ups. A bare page load ('view')
-    doesn't count, since email link scanners and previews fire those
-    without a human ever watching; the in-page 'play' beacon needs a real
-    click and already skips excluded (Dylan's own) IPs."""
+async def _played_video(conn, row: dict) -> bool:
+    """Touch 2/3 qualifier (Dylan, 2026-10-20): only prospects registered as
+    having watched the video Touch 1 emailed them get follow-ups. A bare
+    page load ('view') doesn't count, since email link scanners and
+    previews fire those without a human ever watching; the in-page 'play'
+    beacon needs a real click and already skips excluded (Dylan's own) IPs.
+    Matched on that video's slug and only after Touch 1 went out, so a
+    "-test" preview or a play before the send never qualifies anyone. Same
+    rule as Email analytics' video play rate (analytics.py::_email_metrics)."""
+    slug = (row.get("loom_url") or "").rstrip("/").rsplit("/", 1)[-1]
+    if not slug or not row.get("touch1_sent_at"):
+        return False
     return bool(await conn.fetchval(
-        "SELECT 1 FROM content_view_events WHERE source = 'outreach_video' AND contact_id = $1 "
-        "AND event_type IN ('play', 'progress_25', 'progress_50', 'progress_75', 'complete') LIMIT 1",
-        contact_id,
+        "SELECT 1 FROM content_view_events WHERE source = 'outreach_video' AND content_key = $1 "
+        "AND event_type IN ('play', 'progress_25', 'progress_50', 'progress_75', 'complete') "
+        "AND occurred_at >= $2 LIMIT 1",
+        slug, row["touch1_sent_at"],
     ))
 
 
@@ -503,9 +511,11 @@ async def send_due_touches():
         rows = await conn.fetch(
             """
             SELECT ehs.*, c.id, c.email, c.owner, c.business, c.opener, c.status,
-                   c.city, c.state, c.website, c.email_provider, c.email_provider_checked_at
+                   c.city, c.state, c.website, c.email_provider, c.email_provider_checked_at,
+                   coalesce(s.stage_engaged OR s.stage_interested, false) AS positive_tick
             FROM email_handoff_state ehs
             JOIN contacts c ON c.id = ehs.contact_id
+            LEFT JOIN email_contact_stages s ON s.contact_id = ehs.contact_id
             WHERE c.status = $1 AND NOT c.email_opted_out AND ehs.stopped_at IS NULL
             ORDER BY ehs.enrolled_at
             """,
@@ -535,6 +545,8 @@ async def send_due_touches():
                 continue
             if row["stage_replied"] and row["stage_replied_manual"]:
                 continue  # rep ticked Replied in the Inbox (e.g. they answered by phone) — stop sends
+            if row["positive_tick"]:
+                continue  # Email Engaged (positive reply) / Interested ticked — they're in conversation, stop sends
             if row["stage_replied"]:
                 # Auto-flagged earlier on what turned out to be an
                 # out-of-office — clear it so the funnel stays accurate.
@@ -551,7 +563,7 @@ async def send_due_touches():
                 if touch_num == 1 and row.get("send_immediately"):
                     delay = timedelta(0)  # manual enrollment — Touch 1 goes out right away
                 if (reference is not None and now >= reference + delay and not spacing_blocked
-                        and (touch_num == 1 or await _played_video(conn, contact_id))):
+                        and (touch_num == 1 or await _played_video(conn, row))):
                     sent = await _send_touch(conn, row, f"touch{touch_num}", templates)
                     if sent:
                         await conn.execute(
