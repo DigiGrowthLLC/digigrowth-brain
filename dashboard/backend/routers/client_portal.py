@@ -31,7 +31,6 @@ from models import (
     OnboardingSectionSave, ONBOARDING_SECTIONS, ActionItemComplete, TagAssign,
     ClientRequestCreate, UploadPresignRequest, UploadRecordCreate, SequenceEnabledSet,
 )
-import cancel_sequence
 import client_appointment_reminders
 import client_appointment_sequence
 import client_followup_sequence
@@ -40,7 +39,6 @@ import client_email
 import client_sms
 import integrations
 import meta_ads
-import no_show_sequence
 import r2_storage
 from routers import appointments as appointments_router
 from routers import sms as sms_router
@@ -966,10 +964,10 @@ async def portal_update_appointment_outcome(token: str, appointment_id: int, bod
             # handler — this row always belongs to a real client's own lead
             # here (portal-scoped), so this always routes through
             # client_appointment_sequence.py, never Dylan's own drip.
+            # Never falls back to Dylan's own no_show_sequence.py — the
+            # portal's appointments are always the client's.
             if await client_appointment_sequence.resolve_client_lead(updated["contact_id"]):
                 await client_appointment_sequence.send_first_touch(dict(updated), "no_show")
-            else:
-                await no_show_sequence.send_first_touch(dict(updated))
         except Exception as e:
             print(f"[client_portal] no-show touch 1 failed for {appointment_id}: {e}")
     # No onboarding kickoff here: a client closing one of their own

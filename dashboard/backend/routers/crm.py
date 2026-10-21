@@ -432,6 +432,14 @@ async def bulk_action(body: BulkAction):
             ids = [r["id"] for r in await conn.fetch(f"SELECT id FROM contacts {where}", *params)]
         else:
             ids = body.ids or []
+        # Never let a bulk action reach a client's own leads — "select all"
+        # used to pick up every contact in the table, so a select-all delete
+        # would have wiped every client's portal leads too.
+        if ids:
+            ids = [r["id"] for r in await conn.fetch(
+                "SELECT id FROM contacts WHERE id = ANY($1::text[]) AND (client_id IS NULL OR is_client_anchor)",
+                ids,
+            )]
 
         if not ids:
             return {"ok": True, "affected": 0}
@@ -655,6 +663,10 @@ async def create_contact(body: Contact):
         # clobber a different business's identity; keep whichever lead is
         # already on record.
         existing = await conn.fetchrow("SELECT * FROM contacts WHERE phone = $1", body.phone)
+        # A client's own lead (their patient) is theirs alone — never merge
+        # into it, overwrite it, or hand it back as one of Dylan's contacts.
+        if existing and existing["client_id"] and not existing["is_client_anchor"]:
+            raise HTTPException(status_code=409, detail="That phone number belongs to one of your clients' own leads")
         if existing and not _same_business(existing["business"], incoming_business):
             print(f"[contacts] phone conflict on {body.phone}: keeping "
                   f"'{existing['business']}', skipping incoming '{incoming_business}'", flush=True)
@@ -726,7 +738,11 @@ async def import_contacts(body: dict):
             # Same phone-collision guard as create_contact() — don't let a
             # different business silently overwrite an existing lead's
             # identity via ON CONFLICT just because they share a phone number.
-            existing = await conn.fetchrow("SELECT business FROM contacts WHERE phone = $1", phone)
+            existing = await conn.fetchrow("SELECT business, client_id, is_client_anchor FROM contacts WHERE phone = $1", phone)
+            if existing and existing["client_id"] and not existing["is_client_anchor"]:
+                # A client's own lead — never touched by Dylan's import.
+                skipped += 1
+                continue
             if existing and not _same_business(existing["business"], incoming_business):
                 print(f"[contacts/import] phone conflict on {phone}: keeping "
                       f"'{existing['business']}', skipping incoming '{incoming_business}'", flush=True)

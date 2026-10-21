@@ -101,8 +101,14 @@ def _phone_match(col: str, param: str) -> str:
     )
 
 
+# Dylan's own contacts only (not a client's own lead/patient). Dylan's
+# inbox threads, campaign stamps and sequences must never link to a
+# client's lead just because a phone number matches.
+_DYLAN_CONTACT = "(client_id IS NULL OR is_client_anchor)"
+
+
 async def ensure_compose_contact(conn, *, phone: str | None = None, email: str | None = None,
-                                 owner: str | None = None, business: str | None = None) -> str:
+                                 owner: str | None = None, business: str | None = None) -> str | None:
     """The Inbox's New Message box texts/emails someone who may not be in the
     CRM yet. The Inbox only lists threads tied to a contact, so a send to a
     brand-new number used to go out and then never show up. Find the contact
@@ -112,9 +118,9 @@ async def ensure_compose_contact(conn, *, phone: str | None = None, email: str |
     owner = (owner or "").strip() or None
     business = (business or "").strip() or None
     if phone:
-        row = await conn.fetchrow(f"SELECT id FROM contacts WHERE {_phone_match('phone', '$1')} LIMIT 1", phone)
+        row = await conn.fetchrow(f"SELECT id FROM contacts WHERE {_phone_match('phone', '$1')} AND {_DYLAN_CONTACT} LIMIT 1", phone)
     else:
-        row = await conn.fetchrow("SELECT id FROM contacts WHERE lower(trim(email)) = lower(trim($1)) LIMIT 1", email)
+        row = await conn.fetchrow(f"SELECT id FROM contacts WHERE lower(trim(email)) = lower(trim($1)) AND {_DYLAN_CONTACT} LIMIT 1", email)
     if row:
         await conn.execute(
             "UPDATE contacts SET owner = COALESCE(NULLIF(trim(owner), ''), $2), "
@@ -126,10 +132,15 @@ async def ensure_compose_contact(conn, *, phone: str | None = None, email: str |
         digits = "".join(c for c in phone if c.isdigit())
         phone = f"+1{digits}" if len(digits) == 10 else (f"+{digits}" if digits else phone)
     contact_id = str(uuid.uuid4())
-    await conn.execute(
-        "INSERT INTO contacts (id, owner, business, phone, email, status) VALUES ($1, $2, $3, $4, $5, 'new')",
+    inserted = await conn.fetchval(
+        "INSERT INTO contacts (id, owner, business, phone, email, status) VALUES ($1, $2, $3, $4, $5, 'new') "
+        "ON CONFLICT (phone) DO NOTHING RETURNING id",
         contact_id, owner, business, phone, (email or "").strip() or None,
     )
+    if not inserted:
+        # The phone is already on a client's own lead (contacts.phone is
+        # unique) — leave the thread unlinked rather than claim their lead.
+        return None
     return contact_id
 
 
@@ -147,7 +158,7 @@ async def _get_or_create_conversation(conn, phone: str) -> dict:
 
     contact = await conn.fetchrow(
         f"SELECT id, business, owner, city, grade, opener, phone FROM contacts "
-        f"WHERE {_phone_match('phone', '$1')}",
+        f"WHERE {_phone_match('phone', '$1')} AND {_DYLAN_CONTACT}",
         phone,
     )
     # Prefer the contact's own stored phone as the canonical key so any future
@@ -198,7 +209,7 @@ async def _store_message(conn, phone: str, role: str, body: str, stage: str | No
     direction = "inbound" if role == "user" else "outbound"
 
     contact_row = await conn.fetchrow(
-        f"SELECT id FROM contacts WHERE {_phone_match('phone', '$1')}", canonical_phone
+        f"SELECT id FROM contacts WHERE {_phone_match('phone', '$1')} AND {_DYLAN_CONTACT}", canonical_phone
     )
     contact_id = contact_row["id"] if contact_row else None
 
@@ -485,7 +496,7 @@ async def get_sequence(phone: str):
     async with pool.acquire() as conn:
         default = await conn.fetchrow("SELECT * FROM sms_sequences WHERE is_default = true LIMIT 1")
         contact = await conn.fetchrow(
-            f"SELECT owner, business, opener FROM contacts WHERE {_phone_match('phone', '$1')}",
+            f"SELECT owner, business, opener FROM contacts WHERE {_phone_match('phone', '$1')} AND {_DYLAN_CONTACT}",
             phone,
         )
 

@@ -85,7 +85,7 @@ async def _resolve_client(conn, contact_id) -> dict | None:
         FROM contacts c
         JOIN clients cl ON cl.id = c.client_id
         LEFT JOIN contacts anchor ON anchor.client_id = cl.id AND anchor.is_client_anchor
-        WHERE c.id = $1
+        WHERE c.id = $1 AND NOT c.is_client_anchor
         """,
         contact_id,
     )

@@ -64,9 +64,12 @@ async def summary(period: str = "day"):
         sms_booked = await conn.fetchval(
             "SELECT COUNT(*) FROM sms_conversations WHERE status = 'closed' AND updated_at >= $1", since,
         )
-        total_contacts = await conn.fetchval("SELECT COUNT(*) FROM contacts")
+        # Dylan's own contacts only — a client's portal leads are theirs.
+        total_contacts = await conn.fetchval(
+            "SELECT COUNT(*) FROM contacts WHERE (client_id IS NULL OR is_client_anchor)"
+        )
         new_contacts   = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts WHERE created_at >= $1", since
+            "SELECT COUNT(*) FROM contacts WHERE created_at >= $1 AND (client_id IS NULL OR is_client_anchor)", since
         )
 
         period_to_days = {"day": 1, "week": 7, "month": 30, "all": 0}

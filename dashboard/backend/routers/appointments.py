@@ -270,6 +270,19 @@ async def create_appointment_row(payload: dict) -> dict:
                 )
                 if is_follow_up:
                     return dict(row)
+                # A client's own lead: only its own status flips (their
+                # portal's follow-up sequence reads it). Dylan's Inbox
+                # threads and campaign booked credit are never touched.
+                is_client_lead = await conn.fetchval(
+                    "SELECT client_id IS NOT NULL AND NOT is_client_anchor FROM contacts WHERE id = $1",
+                    contact_id,
+                )
+                if is_client_lead:
+                    await conn.execute(
+                        "UPDATE contacts SET status = 'appointment-booked', updated_at = now() WHERE id = $1",
+                        contact_id,
+                    )
+                    return dict(row)
                 # Credit is keyed off the contact's own campaign tag, not a
                 # guess about which channel "actually" drove the booking.
                 # Self-service Calendly bookings (routers/calendly_webhooks.py)
@@ -653,7 +666,12 @@ async def cancel_appointment(appointment_id: int, notify: bool = False, cancel_c
         # into sequences like DM Follow-Up (Dylan, 2026-10-16). booked_at
         # stays — Analytics' Booked count reads that, and the booking did
         # happen. A rebooking re-stamps 'booked' via create_appointment_row.
-        if row is not None and row["contact_id"]:
+        # Dylan's own contacts only — a client's lead never has its
+        # cancellation touch Dylan's Inbox threads.
+        is_dylan_contact = row is not None and row["contact_id"] and await conn.fetchval(
+            "SELECT client_id IS NULL OR is_client_anchor FROM contacts WHERE id = $1", row["contact_id"],
+        )
+        if is_dylan_contact:
             await conn.execute(
                 """
                 UPDATE sms_conversations SET disposition = NULL, updated_at = now()
