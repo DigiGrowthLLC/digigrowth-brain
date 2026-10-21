@@ -5915,9 +5915,9 @@
       "last_scraped_date": "2026-10-20"
     },
     "Smithtown, NY": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 127,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 140,
       "qualified_count": 13,
       "last_scraped_date": "2026-10-20"
     },
