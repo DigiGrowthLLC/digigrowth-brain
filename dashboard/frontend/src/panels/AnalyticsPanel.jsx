@@ -460,7 +460,10 @@ export default function AnalyticsPanel() {
   const answeredRate = funnel.dialed      ? _pct(funnel.answered, funnel.dialed)      : null;
   const pitchedRate  = funnel.answered    ? _pct(funnel.pitched,  funnel.answered)    : null;
   const bookedRate   = funnel.pitched     ? _pct(funnel.booked,   funnel.pitched)     : null;
-  const showRate     = funnel.booked      ? _pct(funnel.shows,    funnel.booked)      : null;
+  // Shows ÷ calls with a marked outcome, not ÷ booked — upcoming and
+  // unmarked calls aren't no-shows.
+  const showOutcomes = (funnel.shows ?? 0) + (funnel.no_shows ?? 0);
+  const showRate     = showOutcomes       ? _pct(funnel.shows,    showOutcomes)       : null;
   const closeRate    = funnel.shows       ? _pct(funnel.closes,   funnel.shows)       : null;
 
   return (
@@ -535,7 +538,7 @@ export default function AnalyticsPanel() {
         <div className="grid grid-cols-2 sm:grid-cols-3" style={{ gap: 10 }}>
           <MiniStat label="Appointments Booked" value={num(sales?.discovery_calls)} color="#5a9bf0" />
           <MiniStat label="Shows"               value={num(sales?.shows)}   color="#5a9bf0" />
-          <MiniStat label="Show Rate"           value={sales?.discovery_calls ? `${Math.round((sales?.shows ?? 0) / sales.discovery_calls * 100)}%` : "—"} color="#14c882" />
+          <MiniStat label="Show Rate"           value={(sales?.shows ?? 0) + (sales?.no_shows ?? 0) > 0 ? `${Math.round(sales.show_rate)}%` : "—"} color="#14c882" />
           <MiniStat label="Close Rate"          value={sales?.close_rate != null ? `${sales.close_rate}%` : "—"} color="#14c882" />
           <MiniStat label="Total Revenue"       value={money(sales?.total_revenue)} color="#14c882" />
           <MiniStat label="Avg Deal Size"       value={money(sales?.avg_deal_size)} />

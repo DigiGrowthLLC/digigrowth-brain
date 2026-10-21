@@ -254,6 +254,19 @@ async def _os_sales_stats(conn, days: int) -> dict:
         """,
         since,
     ) or 0
+    # Same cohort/window as shows, so show rate = shows ÷ (shows + no-shows)
+    # only counts calls whose outcome is actually known. Dividing by
+    # discovery_calls instead counted every upcoming or not-yet-marked call
+    # as a no-show, and mixed windows (booked on created_at, shows on
+    # outcome_show_at) — 30D read 14/14 = 100% while hiding a real no-show.
+    no_shows = await conn.fetchval(
+        f"""
+        SELECT COUNT(*) FROM appointment_reminders ar {join}
+        WHERE {where} AND {not_follow_up} AND ar.outcome_show = 'no_show'
+        AND ($1::timestamptz IS NULL OR {show_col} >= $1)
+        """,
+        since,
+    ) or 0
     # Each closed row (first call or follow-up) is credited to its first
     # call: itself if it is one, else the contact's latest first call that
     # had started by the time this follow-up was booked. DISTINCT ON then
@@ -302,10 +315,15 @@ async def _os_sales_stats(conn, days: int) -> dict:
         shows           += baseline["shows"]
         closes          += baseline["closes"]
         revenue         += baseline["total_revenue"]
+        # The sheet only tracked booked + shows; every pre-migration call
+        # is long past, so each booked-but-not-shown one was a no-show.
+        no_shows        += max(baseline["discovery_calls"] - baseline["shows"], 0)
 
     return {
         "discovery_calls":   discovery_calls,
         "shows":             shows,
+        "no_shows":          no_shows,
+        "show_rate":         _pct(shows, shows + no_shows),
         "closes":            closes,
         "total_revenue":     revenue,
         "avg_deal_size":     round(revenue / closes) if closes else 0,
@@ -1081,6 +1099,7 @@ async def pipeline(days: int = 0):
             "pitched":  pitched,
             "booked":   booked,
             "shows":    os_sales["shows"],
+            "no_shows": os_sales["no_shows"],
             "closes":   os_sales["closes"],
         },
         "by_grade":       by_grade,
@@ -1130,6 +1149,8 @@ async def sales_stats(days: int = 0):
         "total_revenue":     revenue,
         "avg_deal_size":     os_sales["avg_deal_size"],
         "shows":             shows,
+        "no_shows":          os_sales["no_shows"],
+        "show_rate":         os_sales["show_rate"],
         "sheet_sync":        sheet_sync,
     }
 
