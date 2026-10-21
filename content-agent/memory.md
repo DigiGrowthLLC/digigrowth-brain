@@ -93,3 +93,8 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   findings), own web search (no-show baseline 23-34%, vendor reminder claims 25-50% vs. a gov't
   study's 1.6-pt non-significant drop) — 2026-10-14 — pending approval (draft pushed to
   `content-agent/pending_approvals/blog-2026-10-14.json` on `main`)
+- "Why Outreach That Runs Every Day Books More Discovery Calls" (slug: ai-outreach-more-discovery-calls)
+  — pillar: Client Acquisition Systems — topic: rotation #09 (AI outreach and booked discovery calls;
+  "3x" claim dropped, no source found), research cache stale (dated 2026-10-16, empty findings), own
+  web search (HBR 2011 study of 2,241 firms) — 2026-10-21 — pending approval (draft pushed to
+  `content-agent/pending_approvals/blog-2026-10-21.json` on `main`)
