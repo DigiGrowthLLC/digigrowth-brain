@@ -748,9 +748,15 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         after Touch 1
       - positive: Email stage Engaged or Interested ticked in the Inbox
         (email_contact_stages), the conversation marked Interested, or booked
-      - video play: pressed play on their {loom} video (watch page 'play'
-        beacon — email link scanners that only fetch the page don't count);
-        rate is out of prospects who were sent a video
+      - video play: pressed play on the video linked in the email they were
+        sent (matched by that link's slug, so a "-test" preview or an older
+        video for the same contact doesn't count), after it was sent. Watch
+        page 'play'/progress/complete beacons only: email link scanners
+        that just fetch the page don't count, and neither do Dylan's
+        excluded IPs. Same events as Email Handoff's Touch 2/3 gate
+        (email_handoff_sequence._played_video). Rate is out of prospects
+        who were sent a video. Send Info texts the same link, so a play
+        there can come from the SMS.
       - booked: an appointment (not canceled, not a follow-up call) created
         after Touch 1, or the email conversation marked booked
     """
@@ -807,9 +813,11 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
                            WHERE ec.contact_id = pop.contact_id AND ec.disposition = 'interested')) AS positive,
             COUNT(*) FILTER (WHERE pop.loom_url IS NOT NULL) AS videos_sent,
             COUNT(*) FILTER (WHERE pop.loom_url IS NOT NULL AND EXISTS (
-                SELECT 1 FROM content_view_events v JOIN watch_videos w ON w.slug = v.content_key
-                WHERE v.source = 'outreach_video' AND v.event_type = 'play'
-                  AND w.contact_id = pop.contact_id)) AS video_plays,
+                SELECT 1 FROM content_view_events v
+                WHERE v.source = 'outreach_video'
+                  AND v.event_type IN ('play', 'progress_25', 'progress_50', 'progress_75', 'complete')
+                  AND v.content_key = regexp_replace(pop.loom_url, '^.*/', '')
+                  AND v.occurred_at >= pop.touch1_sent_at)) AS video_plays,
             COUNT(*) FILTER (WHERE pop.email_opted_out) AS unsubscribed,
             COUNT(*) FILTER (WHERE pop.is_booked) AS booked,
             COUNT(*) FILTER (WHERE pop.status = 'not-interested' OR EXISTS (
