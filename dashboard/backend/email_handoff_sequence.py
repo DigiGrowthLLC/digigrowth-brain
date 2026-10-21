@@ -27,8 +27,9 @@ send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
   - Touch 3 fires 4 days after touch2_sent_at.
   - Touches 2 and 3 only go to prospects registered as having watched the
     video Touch 1 emailed them (_played_video); everyone else stops after
-    Touch 1 unless they watch later, which un-holds Touch 2. Ticking the
-    Email Engaged (positive reply) or Interested stage also stops them.
+    Touch 1 unless they watch later, which un-holds Touch 2. Ticking Email
+    Engaged (positive reply) skips Touch 2 but still sends Touch 3 (see
+    send_due_touches); ticking Interested stops both.
   - Reply detection is computed LIVE each poll from email_messages
     (direction='inbound' for this contact_id) rather than trusted from
     stage_replied alone — a rep manually clearing the checkbox must never
@@ -241,13 +242,13 @@ async def enroll(contact: dict, immediate: bool = False):
         )
 
 
-async def _has_replied(conn, contact_id: str) -> bool:
+async def _has_replied(conn, contact_id: str, since: datetime | None = None) -> bool:
     """Out-of-office/autoresponder messages don't count — see
-    email_identities._is_auto_reply."""
+    email_identities._is_auto_reply. `since` = only replies after then."""
     return bool(await conn.fetchval(
         "SELECT 1 FROM email_messages WHERE contact_id = $1 AND direction = 'inbound' "
-        "AND NOT is_auto_reply LIMIT 1",
-        contact_id,
+        "AND NOT is_auto_reply AND ($2::timestamptz IS NULL OR sent_at > $2) LIMIT 1",
+        contact_id, since,
     ))
 
 
@@ -512,7 +513,8 @@ async def send_due_touches():
             """
             SELECT ehs.*, c.id, c.email, c.owner, c.business, c.opener, c.status,
                    c.city, c.state, c.website, c.email_provider, c.email_provider_checked_at,
-                   coalesce(s.stage_engaged OR s.stage_interested, false) AS positive_tick
+                   coalesce(s.stage_engaged, false) AS email_engaged, s.stage_engaged_at AS email_engaged_at,
+                   coalesce(s.stage_interested, false) AS email_interested
             FROM email_handoff_state ehs
             JOIN contacts c ON c.id = ehs.contact_id
             LEFT JOIN email_contact_stages s ON s.contact_id = ehs.contact_id
@@ -535,6 +537,30 @@ async def send_due_touches():
             row = dict(record)
             contact_id = row["contact_id"]
 
+            if row["email_interested"]:
+                continue  # Email Interested ticked — stop sends
+            if row["email_engaged"]:
+                # Email Engaged (= a positive reply, Dylan 2026-10-20): Touch 2
+                # is skipped but Touch 3 still goes, 4 days after Touch 2 (or
+                # after the Engaged tick, if Touch 2 never went out) — the
+                # reply that made them Engaged doesn't stop it, a newer one
+                # does. Still only to prospects who watched the video.
+                engaged_at = row["email_engaged_at"] or now
+                if row["touch1_sent_at"] is None or row["touch3_sent_at"] is not None:
+                    continue
+                if await _has_replied(conn, contact_id, since=engaged_at):
+                    continue
+                if (now >= (row["touch2_sent_at"] or engaged_at) + _TOUCHES[2][3] and not spacing_blocked
+                        and await _played_video(conn, row)):
+                    if await _send_touch(conn, row, "touch3", templates):
+                        await conn.execute(
+                            "UPDATE email_handoff_state SET touch3_sent_at = now(), updated_at = now() "
+                            "WHERE contact_id = $1",
+                            contact_id,
+                        )
+                        spacing_blocked = True
+                continue
+
             if await _has_replied(conn, contact_id):
                 if not row["stage_replied"]:
                     await conn.execute(
@@ -545,8 +571,6 @@ async def send_due_touches():
                 continue
             if row["stage_replied"] and row["stage_replied_manual"]:
                 continue  # rep ticked Replied in the Inbox (e.g. they answered by phone) — stop sends
-            if row["positive_tick"]:
-                continue  # Email Engaged (positive reply) / Interested ticked — they're in conversation, stop sends
             if row["stage_replied"]:
                 # Auto-flagged earlier on what turned out to be an
                 # out-of-office — clear it so the funnel stays accurate.
