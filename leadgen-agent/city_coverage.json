@@ -5930,8 +5930,8 @@
     },
     "Waterbury, CT": {
       "status": "in_progress",
-      "term_index": 2,
-      "reviewed_count": 93,
+      "term_index": 3,
+      "reviewed_count": 95,
       "qualified_count": 5,
       "last_scraped_date": "2026-10-20"
     },
