@@ -42,3 +42,6 @@ content-agent/logs/
 
 # Per-run lead gen tally (local state, see leadgen-agent/lib.py run_tally)
 leadgen-agent/runs.json
+
+# Ad-build scratch (raw takes, frames, audio); finished creative lives one level up
+media-buying-agent/outputs/*/work/

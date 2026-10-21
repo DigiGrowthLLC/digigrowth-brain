@@ -8,8 +8,10 @@ The single source of truth for what DigiGrowth sells. Every agent, prompt, templ
 states the offer, price, guarantee or pilot terms must match this file. If the offer changes, change
 it here first, then update everything that points here.
 
-**Replaces** the 6-week free pilot (10-20 booked consults guaranteed, $600 ad spend, optional
-$1,500/month retainer) and the older flat $1,500/month package. Don't use those terms anywhere.
+**Replaces** the old terms of the 6-week free pilot (10-20 booked consults guaranteed, $600 ad spend,
+optional $1,500/month retainer) and the older flat $1,500/month package. Don't use those terms
+anywhere. The pilot itself is still free (setup and per-assessment fees waived, see Pilot terms), so
+"free pilot" is still correct wording; only what it guarantees and costs in ad spend changed.
 
 ## Who it's for
 Independent physical therapy practices of any payment model (insurance-based, cash-based or hybrid),
