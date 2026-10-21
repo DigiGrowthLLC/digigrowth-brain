@@ -218,6 +218,28 @@ async def _resolve_event_type_uri(payload: dict, token: str) -> str | None:
         return None
 
 
+async def _resolve_call_type(payload: dict, token: str) -> str:
+    """Which of Dylan's own links this booking came through, from the
+    event type's name ("Onboarding Call", "Launch Call", else his
+    "Discovery Call"). Falls back to 'discovery' if it can't be fetched, so
+    a real sales booking is never dropped from the stats."""
+    event_type_uri = await _resolve_event_type_uri(payload, token)
+    if not event_type_uri:
+        return "discovery"
+    try:
+        async with httpx.AsyncClient(timeout=10) as http:
+            resp = await http.get(event_type_uri, headers={"Authorization": f"Bearer {token}"})
+            resp.raise_for_status()
+            name = (resp.json()["resource"].get("name") or "").lower()
+    except Exception:
+        return "discovery"
+    if "onboarding" in name:
+        return "onboarding"
+    if "launch" in name:
+        return "launch"
+    return "discovery"
+
+
 async def _handle_invitee_created(payload: dict, token: str, client_id: int | None) -> dict:
     name = (payload.get("name") or "").strip() or None
     email = (payload.get("email") or "").strip() or None
@@ -239,15 +261,18 @@ async def _handle_invitee_created(payload: dict, token: str, client_id: int | No
     # the one signal available for attributing an actual CONFIRMED booking
     # to Meta, since the booking itself completes on Calendly's domain.
     tracking = payload.get("tracking") or {}
+    call_type = await _resolve_call_type(payload, token) if client_id is None else "discovery"
     return await record_booking(
         name=name, email=email, phone=phone, start_utc=start_utc, tz_name=tz_name,
         tracking=tracking, event_uri=payload.get("event"), client_id=client_id,
+        call_type=call_type,
     )
 
 
 async def record_booking(*, name: str | None, email: str | None, phone: str | None,
                          start_utc: datetime, tz_name: str, tracking: dict,
-                         event_uri: str | None, client_id: int | None) -> dict:
+                         event_uri: str | None, client_id: int | None,
+                         call_type: str = "discovery") -> dict:
     """Everything a confirmed booking triggers, independent of which booking
     tool sent it: contact match/create, ads-lead/organic-lead tag, the
     appointment_reminders row (reminders + booking alert), and the funnel's
@@ -428,6 +453,7 @@ async def record_booking(*, name: str | None, email: str | None, phone: str | No
             "time": local.strftime("%H:%M"),
             "timezone": tz_name,
             "calendly_event_uri": event_uri,
+            "call_type": call_type,
         })
 
     # "Booked Consultations" on a client's portal Website tab (see
@@ -479,14 +505,18 @@ async def _handle_invitee_canceled(payload: dict) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT id FROM appointment_reminders WHERE calendly_event_uri = $1 AND status = 'scheduled'",
+            "SELECT id, call_type FROM appointment_reminders WHERE calendly_event_uri = $1 AND status = 'scheduled'",
             event_uri,
         )
     if not row:
         return
     canceler_type = (payload.get("cancellation") or {}).get("canceler_type")
+    # The recovery drip is written for a prospect who dropped a discovery
+    # call — never send it to a client canceling an onboarding/launch call.
     try:
-        await cancel_appointment(row["id"], notify=canceler_type == "invitee")
+        await cancel_appointment(
+            row["id"], notify=canceler_type == "invitee" and row["call_type"] == "discovery",
+        )
     except HTTPException:
         pass
 

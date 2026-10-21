@@ -223,10 +223,14 @@ async def send_due_reminders():
             # show/cancellation touches so far), so client leads currently
             # get NO reminder at all rather than the wrong one. Flag to
             # Dylan as a follow-up build, not silently left as-is.
+            # Discovery calls only — the reminder copy is a sales pitch, and
+            # onboarding/launch calls with clients get no reminders (Dylan,
+            # 2026-10-21; Calendly sends its own).
             """
             SELECT ar.* FROM appointment_reminders ar
             LEFT JOIN contacts c ON c.id = ar.contact_id
             WHERE ar.status = 'scheduled' AND ar.appointment_at > now()
+            AND ar.call_type = 'discovery'
             AND ar.reminders_stopped_at IS NULL
             AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
             """

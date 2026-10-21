@@ -48,6 +48,10 @@ import reminder_engine
 
 router = APIRouter()
 
+# appointment_reminders.call_type — which of Dylan's Calendly links a
+# booking came through (see db.py). Only 'discovery' is a sales call.
+CALL_TYPES = ("discovery", "onboarding", "launch")
+
 
 def follow_up_appointment_sql(alias: str = "ar") -> str:
     """SQL predicate: TRUE when appointment row `alias` is a follow-up call
@@ -66,6 +70,7 @@ def follow_up_appointment_sql(alias: str = "ar") -> str:
         SELECT 1 FROM appointment_reminders prior_ar
         WHERE prior_ar.contact_id = {alias}.contact_id
           AND prior_ar.id != {alias}.id
+          AND prior_ar.call_type = 'discovery'
           AND prior_ar.status != 'canceled'
           AND prior_ar.outcome_show IS DISTINCT FROM 'no_show'
           AND prior_ar.appointment_at <= {alias}.created_at
@@ -190,13 +195,17 @@ async def create_appointment_row(payload: dict) -> dict:
     except ValueError:
         raise ValueError("date must be YYYY-MM-DD and time must be HH:MM")
 
+    call_type = payload.get("call_type") or "discovery"
+    if call_type not in CALL_TYPES:
+        raise ValueError(f"call_type must be one of {', '.join(CALL_TYPES)}")
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
             INSERT INTO appointment_reminders
-                (contact_id, prospect_name, prospect_phone, prospect_email, appointment_at, prospect_timezone, calendly_event_uri)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+                (contact_id, prospect_name, prospect_phone, prospect_email, appointment_at, prospect_timezone, calendly_event_uri, call_type)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
             """,
             payload.get("contact_id"),
@@ -206,6 +215,7 @@ async def create_appointment_row(payload: dict) -> dict:
             local_dt,
             tz_name,
             payload.get("calendly_event_uri"),
+            call_type,
         )
 
     # Notify the CLIENT (business owner) that a new appointment just landed
@@ -246,9 +256,11 @@ async def create_appointment_row(payload: dict) -> dict:
     # the prospect's booking was already credited on their first call, and
     # re-running this would hand a channel booked credit it never earned
     # and could knock contacts.status back to 'appointment-booked'.
+    # Onboarding/launch calls are client calls, not a prospect booking —
+    # no booked credit, same as a follow-up below.
     contact_id = payload.get("contact_id")
     channel = payload.get("channel")
-    if contact_id:
+    if contact_id and call_type == "discovery":
         try:
             pool = await get_pool()
             async with pool.acquire() as conn:
@@ -455,6 +467,10 @@ async def update_appointment(appointment_id: int, payload: dict):
         updates["call_recording_url"] = (payload["call_recording_url"] or "").strip() or None
     if "question_form_url" in payload:
         updates["question_form_url"] = (payload["question_form_url"] or "").strip() or None
+    if "call_type" in payload:
+        if payload["call_type"] not in CALL_TYPES:
+            raise HTTPException(400, f"call_type must be one of {', '.join(CALL_TYPES)}")
+        updates["call_type"] = payload["call_type"]
 
     # Mark specific reminder windows as already done so reminder_engine
     # never sends them — e.g. re-enrolling the day before a call to get only
@@ -531,7 +547,9 @@ async def update_appointment(appointment_id: int, payload: dict):
         except Exception as e:
             print(f"[appointments] clearing queued reminders failed for {appointment_id}: {e}")
         try:
-            await reminder_engine.send_reschedule_confirmation(dict(updated))
+            # No reminders of any kind on onboarding/launch calls.
+            if updated["call_type"] == "discovery":
+                await reminder_engine.send_reschedule_confirmation(dict(updated))
         except Exception as e:
             print(f"[appointments] reschedule confirmation failed for {appointment_id}: {e}")
 

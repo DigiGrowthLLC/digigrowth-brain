@@ -223,8 +223,11 @@ async def _os_sales_stats(conn, days: int) -> dict:
     """
     stats = _load_sales_stats()
     since = _since(days) if days else _os_sales_baseline_cutoff(stats)
+    # Discovery calls only — a client's onboarding/launch call is not a
+    # sales booking, show or close.
     where = (
-        "ar.status != 'canceled' AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)"
+        "ar.status != 'canceled' AND ar.call_type = 'discovery' "
+        "AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)"
     )
     join = "LEFT JOIN contacts c ON c.id = ar.contact_id"
     not_follow_up = f"NOT {follow_up_appointment_sql('ar')}"
@@ -815,6 +818,7 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
                    coalesce(s.stage_engaged OR s.stage_interested, false) AS positive_tick,
                    EXISTS (SELECT 1 FROM appointment_reminders ar
                            WHERE ar.contact_id = f.contact_id AND ar.status != 'canceled'
+                             AND ar.call_type = 'discovery'
                              AND ar.created_at >= f.touch1_sent_at
                              AND NOT {follow_up_appointment_sql('ar')})
                    OR EXISTS (SELECT 1 FROM email_conversations ec

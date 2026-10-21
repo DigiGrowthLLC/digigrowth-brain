@@ -753,6 +753,12 @@ async def _create_schema(pool: asyncpg.Pool):
             -- card alongside pricing/call_length.
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS call_recording_url TEXT;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS question_form_url TEXT;
+            -- Which of Dylan's own Calendly links a booking came through:
+            -- 'discovery' (sales call — the only type counted in sales
+            -- analytics), 'onboarding' or 'launch' (client calls). Set by
+            -- routers/calendly_webhooks.py from the event type's name;
+            -- split into separate panels on the Appointments tab.
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS call_type TEXT NOT NULL DEFAULT 'discovery';
             -- Whether a content_view_events row (a client funnel's page view,
             -- or its eventual booking conversion) is attributable to Meta
             -- (Facebook/Instagram), so a client's Website tab can report

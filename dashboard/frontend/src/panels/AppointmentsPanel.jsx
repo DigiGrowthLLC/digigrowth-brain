@@ -59,12 +59,68 @@ function OutcomeSummary({ appointment, onClick }) {
 // stays 'scheduled' in the DB either way (only an explicit Cancel flips it),
 // so this split is purely a client-side time comparison against appointment_at.
 const PAST_GRACE_MS = 60 * 60 * 1000;
-const FILTER_LABELS = { upcoming: "Upcoming Appointments", past: "Past Appointments", canceled: "Canceled Appointments", all: "All Appointments" };
+const FILTER_LABELS = { upcoming: "Upcoming", past: "Past", canceled: "Canceled", all: "All" };
+
+// One panel per Calendly link (appointment_reminders.call_type, set by the
+// Calendly webhook). Discovery is the sales table with outcomes; onboarding
+// and launch are client calls, so they get no show/close outcome — marking
+// a no-show there would fire the prospect No Show sequence.
+const CALL_TYPES = [
+  { key: "discovery",  label: "Discovery Calls",  noun: "Appointments" },
+  { key: "onboarding", label: "Onboarding Calls", noun: "Onboarding Calls" },
+  { key: "launch",     label: "Launch Calls",     noun: "Launch Calls" },
+];
+
+const thStyle = { textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" };
+const tdStyle = { padding: "10px 14px", fontSize: 12, color: "#8a9cc0" };
+
+function CancelCell({ row, onCancel }) {
+  if (row.status === "scheduled") {
+    return (
+      <button onClick={() => onCancel(row)} style={{
+        background: "rgba(220,60,60,0.1)", border: "1px solid rgba(220,60,60,0.3)",
+        color: "#dc3c3c", borderRadius: 6, padding: "4px 10px", fontSize: 11, cursor: "pointer",
+      }}>Cancel</button>
+    );
+  }
+  return row.status === "canceled" ? <span style={{ fontSize: 11, color: "#3a5a80" }}>canceled</span> : null;
+}
+
+// Onboarding / launch calls: who the client is and when — no sales
+// outcome, and no reminder columns since these calls get no reminders
+// (reminder_engine.py only sends for discovery calls).
+function ClientCallTable({ rows, loading, onCancel }) {
+  return (
+    <div className="glass-card" style={{ padding: 0, overflow: "auto" }}>
+      <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #1a2540" }}>
+            {["Client", "Business", "Call (local time)", ""].map(h => <th key={h} style={thStyle}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {!loading && rows.length === 0 && (
+            <tr><td colSpan={4} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No calls in this view.</td></tr>
+          )}
+          {rows.map(row => (
+            <tr key={row.id} style={{ borderBottom: "1px solid #131f38" }}>
+              <td style={{ ...tdStyle, color: "#f0f4ff" }}>{row.prospect_name || row.owner || "—"}</td>
+              <td style={tdStyle}>{row.business || "—"}</td>
+              <td style={tdStyle}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</td>
+              <td style={{ padding: "10px 14px" }}><CancelCell row={row} onCancel={onCancel} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function AppointmentsPanel() {
   const [rows, setRows]       = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter]   = useState("upcoming");
+  const [callType, setCallType] = useState("discovery");
   const [outcomeTarget, setOutcomeTarget] = useState(null); // the row being edited in the outcome card
 
   // "upcoming"/"past" both pull every non-canceled row from the backend
@@ -84,11 +140,14 @@ export default function AppointmentsPanel() {
 
   useEffect(() => { load(); }, [load]);
 
-  const displayRows = filter === "upcoming"
+  const periodRows = filter === "upcoming"
     ? rows.filter(r => new Date(r.appointment_at).getTime() + PAST_GRACE_MS > Date.now())
     : filter === "past"
     ? rows.filter(r => new Date(r.appointment_at).getTime() + PAST_GRACE_MS <= Date.now())
     : rows;
+  const typeOf = r => r.call_type || "discovery";
+  const displayRows = periodRows.filter(r => typeOf(r) === callType);
+  const activeType = CALL_TYPES.find(t => t.key === callType);
 
   // Our own texts/emails stay silent either way. Canceling in Calendly too
   // stops Calendly's own reminders, but Calendly always emails the invitee a
@@ -116,7 +175,22 @@ export default function AppointmentsPanel() {
     <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <div>
-          <div className="sec-label" style={{ marginBottom: 2 }}>{FILTER_LABELS[filter]}</div>
+          <div className="sec-label" style={{ marginBottom: 2 }}>{FILTER_LABELS[filter]} {activeType.noun}</div>
+        </div>
+        <div className="flex-wrap" style={{ display: "flex", gap: 6 }}>
+          {CALL_TYPES.map(t => {
+            const count = periodRows.filter(r => typeOf(r) === t.key).length;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setCallType(t.key)}
+                className={callType === t.key ? "btn btn-primary" : "btn btn-secondary"}
+                style={{ fontSize: 10, padding: "6px 14px" }}
+              >
+                {t.label}{count ? ` (${count})` : ""}
+              </button>
+            );
+          })}
         </div>
         <select className="dg-input" value={filter} onChange={e => setFilter(e.target.value)} style={{ fontSize: 12, padding: "6px 10px", width: "auto" }}>
           <option value="upcoming">Upcoming</option>
@@ -126,8 +200,11 @@ export default function AppointmentsPanel() {
         </select>
       </div>
 
-      {/* Table has 8 columns — horizontal overflow on a phone is contained
-          to this scroller, same as CRM's contact table. */}
+      {callType !== "discovery" ? (
+        <ClientCallTable rows={displayRows} loading={loading} onCancel={cancel} />
+      ) : (
+      /* Table has 8 columns — horizontal overflow on a phone is contained
+          to this scroller, same as CRM's contact table. */
       <div className="glass-card" style={{ padding: 0, overflow: "auto" }}>
         <table style={{ width: "100%", minWidth: 720, borderCollapse: "collapse" }}>
           <thead>
@@ -168,6 +245,7 @@ export default function AppointmentsPanel() {
           </tbody>
         </table>
       </div>
+      )}
 
       {outcomeTarget && (
         <AppointmentOutcomeCard
