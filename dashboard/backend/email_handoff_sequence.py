@@ -519,6 +519,8 @@ async def send_due_touches():
             JOIN contacts c ON c.id = ehs.contact_id
             LEFT JOIN email_contact_stages s ON s.contact_id = ehs.contact_id
             WHERE c.status = $1 AND NOT c.email_opted_out AND ehs.stopped_at IS NULL
+              -- never a client's own lead (their patient), however it got enrolled
+              AND (c.client_id IS NULL OR c.is_client_anchor)
             ORDER BY ehs.enrolled_at
             """,
             EMAIL_HANDOFF_STATUS,

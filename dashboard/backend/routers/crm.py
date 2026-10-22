@@ -59,8 +59,31 @@ def _same_business(a: Optional[str], b: Optional[str]) -> bool:
     return False
 
 
+async def _is_client_lead(contact: dict) -> bool:
+    """True if this is one of a client's own leads (their patient), which
+    none of Dylan's outreach (SMS opener, email handoff, Send Info,
+    gatekeeper deferral) may ever reach. A CRM select-all once flipped
+    Crosacore's Meta leads to sms-handoff and texted them Dylan's cold
+    opener (2026-10-12). Looked up fresh by id or phone, since some callers
+    pass a partial dict."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if contact.get("id"):
+            row = await conn.fetchrow("SELECT client_id, is_client_anchor FROM contacts WHERE id = $1", contact["id"])
+        elif contact.get("phone"):
+            row = await conn.fetchrow(
+                f"SELECT client_id, is_client_anchor FROM contacts WHERE {sms_router._phone_match('phone', '$1')} LIMIT 1",
+                contact["phone"],
+            )
+        else:
+            return False
+    return bool(row and row["client_id"] and not row["is_client_anchor"])
+
+
 async def _fire_handoff(contact: dict):
     """Fire the one-time SMS opener; swallow errors so a Twilio hiccup never breaks the caller's request."""
+    if await _is_client_lead(contact):
+        return
     try:
         await sms_router.send_opening_message(contact)
     except Exception as e:
@@ -72,6 +95,8 @@ async def _fire_email_handoff(contact: dict, immediate: bool = True):
     EMAIL_HANDOFF_STATUS) — see email_handoff_sequence.py. Swallow errors so
     a DB hiccup never breaks the caller's request; the actual sends happen
     later from email_handoff_sequence.send_due_touches()."""
+    if await _is_client_lead(contact):
+        return
     try:
         await email_handoff_sequence.enroll(contact, immediate=immediate)
     except Exception as e:
@@ -85,6 +110,8 @@ async def _fire_send_info(contact: dict):
     here. The actual SMS/email fires once the queue-draining local run calls
     back with the finished video (or, for a contact with no website on file,
     the headcam clip alone)."""
+    if await _is_client_lead(contact):
+        return
     try:
         await send_info_queue.enqueue(contact)
     except Exception as e:
@@ -94,6 +121,8 @@ async def _fire_send_info(contact: dict):
 async def _fire_gatekeeper_deferral(contact: dict):
     """Gatekeeper Deferral: same personalized video as Send Info, emailed
     to the address on the contact once it's ready — see send_info_queue.py."""
+    if await _is_client_lead(contact):
+        return
     try:
         await send_info_queue.enqueue(contact, kind=send_info_queue.GATEKEEPER_DEFERRAL)
     except Exception as e:
@@ -533,6 +562,7 @@ async def _enroll_from_tag(conn, contact_ids: list[str]):
         """
         SELECT c.* FROM contacts c
         WHERE c.id = ANY($1::text[])
+          AND (c.client_id IS NULL OR c.is_client_anchor)
           AND NOT (c.status = $2 AND EXISTS (
               SELECT 1 FROM email_handoff_state ehs
               WHERE ehs.contact_id = c.id AND ehs.stopped_at IS NULL))
