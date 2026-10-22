@@ -6062,10 +6062,10 @@
       "last_scraped_date": "2026-10-21"
     },
     "Concord, NC": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 123,
-      "qualified_count": 4,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 141,
+      "qualified_count": 10,
       "last_scraped_date": "2026-10-21"
     },
     "Tyler, TX": {
