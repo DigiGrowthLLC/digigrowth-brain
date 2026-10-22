@@ -6021,8 +6021,8 @@
     },
     "Everett, WA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 100,
+      "term_index": 2,
+      "reviewed_count": 118,
       "qualified_count": 8,
       "last_scraped_date": "2026-10-21"
     },
