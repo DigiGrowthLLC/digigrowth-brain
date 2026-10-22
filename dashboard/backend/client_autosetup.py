@@ -11,7 +11,10 @@ Marketing Setup tab's RUN AUTO-SETUP button (POST
 failure is recorded and the rest still run.
 
 1. Client portal: already built by ensure_client_portal(); recorded here.
-2. Landing page: scrapes the practice's own site (design-agent's
+2. Landing page: if a Patient Acquisition Blueprint was published for the
+   client as a prospect, its funnel (the one they were shown on the sales
+   call, offer, images and all) is reused as-is. Otherwise scrapes the
+   practice's own site (design-agent's
    scrape_prospect_site.py: text, computed brand colors, logo, photos) and
    has Claude write a single-page free-consultation (Google Meet) booking funnel in
    their brand (no prices or other offers unless the client's onboarding
@@ -47,6 +50,7 @@ import re
 import sys
 import tempfile
 from datetime import datetime, timezone
+from html import escape, unescape
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -537,6 +541,45 @@ Build the landing page now."""
     return text[start:end + len("</html>")]
 
 
+async def _blueprint_funnel(contact_id: str | None) -> str | None:
+    """The funnel from the client's Patient Acquisition Blueprint, if one was
+    published for them as a prospect. Blueprint rows are the ones published
+    with a chat_context (publish_landing_page.py --chat-context); the funnel
+    document is the phone preview iframe's srcdoc (build_blueprint.py)."""
+    if not contact_id:
+        return None
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        page = await conn.fetchval(
+            "SELECT html FROM landing_pages WHERE contact_id = $1 AND chat_context IS NOT NULL "
+            "AND client_id IS NULL ORDER BY created_at DESC LIMIT 1",
+            contact_id,
+        )
+    m = re.search(r'id="phoneFrame"[^>]*?srcdoc="([^"]*)"', page or "")
+    return unescape(m.group(1)) if m else None
+
+
+_DEAD_LINK = re.compile(r'<a\b([^>]*?)\s*\bhref="#"([^>]*)>(.*?)</a>', re.S)
+
+
+def _adapt_blueprint_funnel(doc: str, book_url: str, business: str) -> str:
+    """The blueprint shows the funnel as a preview: its links go nowhere
+    (href="#") and the scrollbar is hidden inside the phone frame. Points
+    every booking button at /lp/{slug}/book, takes the href off any other
+    dead link (e.g. an address chip), and gives it a <title>."""
+    def relink(m: re.Match) -> str:
+        before, after, inner = m.group(1), m.group(2), m.group(3)
+        is_cta = re.search(r'class="[^"]*\b(btn|cta|button)', before + after) or re.search(r"\bbook", inner, re.I)
+        href = f' href="{book_url}"' if is_cta else ""
+        return f"<a{before}{href}{after}>{inner}</a>"
+
+    doc = _DEAD_LINK.sub(relink, doc)
+    doc = re.sub(r"html\{scrollbar-width:none\}|html::-webkit-scrollbar\{display:none\}", "", doc)
+    if "<title>" not in doc:
+        doc = doc.replace("<head>", f"<head><title>{escape(business)}</title>", 1)
+    return doc
+
+
 async def _step_landing_page(client_id: int, ctx: dict) -> tuple[str, str]:
     pages_base = (os.environ.get("LANDING_PAGES_URL") or _DASHBOARD_URL).rstrip("/")
     pool = await get_pool()
@@ -546,20 +589,26 @@ async def _step_landing_page(client_id: int, ctx: dict) -> tuple[str, str]:
         ctx["book_url"] = f"{pages_base}/lp/{slug}/book"
     if ctx["cfg"].get("landing_page_url"):
         return "skipped", f"Already set: {ctx['cfg']['landing_page_url']}"
-    if not ctx["site"] or not (ctx["site"].get("text") or "").strip():
+    blueprint = await _blueprint_funnel(ctx["anchor"].get("id"))
+    if not blueprint and (not ctx["site"] or not (ctx["site"].get("text") or "").strip()):
         return "error", "No website on file (or it couldn't be read) to build the page from. Add it to the linked contact and re-run."
 
     slug = slug or f"{_slugify(ctx['business'])}-{client_id}"
     page_url = f"{pages_base}/lp/{slug}"
     ctx["book_url"] = f"{page_url}/book"
 
-    html = await _generate_page_html(ctx)
-    site = ctx["site"]
-    html = html.replace("{{BOOK_URL}}", ctx["book_url"])
-    if site.get("logo"):
-        html = html.replace("{{LOGO}}", site["logo"])
-    for i, uri in enumerate(site.get("photos") or [], start=1):
-        html = html.replace(f"{{{{PHOTO_{i}}}}}", uri)
+    if blueprint:
+        html = _adapt_blueprint_funnel(blueprint, ctx["book_url"], ctx["business"])
+        built = "Reused the funnel from their Patient Acquisition Blueprint, live"
+    else:
+        html = await _generate_page_html(ctx)
+        site = ctx["site"]
+        html = html.replace("{{BOOK_URL}}", ctx["book_url"])
+        if site.get("logo"):
+            html = html.replace("{{LOGO}}", site["logo"])
+        for i, uri in enumerate(site.get("photos") or [], start=1):
+            html = html.replace(f"{{{{PHOTO_{i}}}}}", uri)
+        built = "Built and live"
 
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -585,7 +634,7 @@ async def _step_landing_page(client_id: int, ctx: dict) -> tuple[str, str]:
     booking = "" if (ctx["client"].get("calendly_url") or ctx["cfg"].get("calendly_event_type_url")) else (
         " Its book buttons go to their website until their Calendly is connected."
     )
-    return "done", f"Built and live at {page_url}. Review it before ads run.{booking}"
+    return "done", f"{built} at {page_url}. Review it before ads run.{booking}"
 
 
 # ---------------------------------------------------------------- automations
