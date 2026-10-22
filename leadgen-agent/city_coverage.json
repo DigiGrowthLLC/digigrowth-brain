@@ -5985,11 +5985,11 @@
       "last_scraped_date": "2026-10-21"
     },
     "Lansing, MI": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 97,
+      "qualified_count": 8,
+      "last_scraped_date": "2026-10-21"
     },
     "Buckeye, AZ": {
       "status": "not_started",
