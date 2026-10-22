@@ -6020,9 +6020,9 @@
       "last_scraped_date": "2026-10-21"
     },
     "Everett, WA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 162,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 168,
       "qualified_count": 9,
       "last_scraped_date": "2026-10-21"
     },
