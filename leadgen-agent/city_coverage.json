@@ -5978,10 +5978,10 @@
       "last_scraped_date": "2026-10-20"
     },
     "Greeley, CO": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 144,
-      "qualified_count": 3,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 149,
+      "qualified_count": 5,
       "last_scraped_date": "2026-10-21"
     },
     "Lansing, MI": {
