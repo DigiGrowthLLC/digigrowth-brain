@@ -5999,9 +5999,9 @@
       "last_scraped_date": "2026-10-21"
     },
     "Tuscaloosa, AL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 117,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 125,
       "qualified_count": 4,
       "last_scraped_date": "2026-10-21"
     },
