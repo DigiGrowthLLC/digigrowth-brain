@@ -6034,11 +6034,11 @@
       "last_scraped_date": "2026-10-21"
     },
     "Beaumont, TX": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 96,
       "qualified_count": 0,
-      "last_scraped_date": null
+      "last_scraped_date": "2026-10-21"
     },
     "Murrieta, CA": {
       "status": "not_started",
