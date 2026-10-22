@@ -6034,9 +6034,9 @@
       "last_scraped_date": "2026-10-21"
     },
     "Beaumont, TX": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 120,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 122,
       "qualified_count": 1,
       "last_scraped_date": "2026-10-21"
     },
