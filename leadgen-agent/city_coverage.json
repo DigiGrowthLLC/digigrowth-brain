@@ -6027,10 +6027,10 @@
       "last_scraped_date": "2026-10-21"
     },
     "Springfield, IL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 98,
-      "qualified_count": 4,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 106,
+      "qualified_count": 5,
       "last_scraped_date": "2026-10-21"
     },
     "Beaumont, TX": {
