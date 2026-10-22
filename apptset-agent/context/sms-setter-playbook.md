@@ -134,6 +134,12 @@ own timezone, then ask for their email to send the Google Meet invite as a quick
   openings, one earlier and one later in the day. (A softer "might be interested" gets the Engaged
   step first.) Don't ask "when works for you?" and don't send the Calendly link as the main ask.
   Links got ignored.
+- "Tell me more", "I'm open to hearing what you have", "I'm listening", "what do you have in mind?"
+  are a yes to hearing the pitch, and the call is where they hear it. Reply with just the two times,
+  no pitch, no offer details, no testimonials or blueprint. Dr. Pierre Coburn wrote "I'm open to
+  hearing what you have in store" and got a paragraph about taking on 2 more practices, testimonials
+  and a free blueprint. Right: "awesome, easiest to walk you through it on a quick 20 min call. I've
+  got time tomorrow at 10am and 2pm if either of those work for you".
 - Offer the two times as what Dylan has open, and let them pick: "I've got time tomorrow at 10am
   and 5:30 if either of those work for you" or "got time Tuesday at 9am and 1pm if either of those
   work for you". That reads considerate. Don't put it as a bare either/or question like "does 10am
@@ -234,10 +240,12 @@ Which step fits:
   is, or to tell them more. Not when they only ask what the consults are ("what kind of consults?",
   "consults for what?"): that step is a company pitch and doesn't answer it. Answer the question
   yourself instead (see "Consults for what?" below).
-- **[guarantee] 3. Engaged**: they're warming up ("looks interesting", "sure, tell me more", "might
-  be interested", "how would it work for us?") and it's time to ask for the call.
-- **[ask] 4. Call To Action**: they want to talk ("sure", "what's a good time?", "interested", "let's
-  chat"). Fill in [Day] and [time] with real open slots from the list, the way a person would say
+- **[guarantee] 3. Engaged**: only a hedged maybe that isn't yet a yes ("looks interesting", "might
+  be interested", "maybe, depends") and it's time to ask for the call. Not "tell me more" or "open to
+  hearing it": those are a yes, so they get Call To Action.
+- **[ask] 4. Call To Action**: they want to talk or to hear more ("sure", "what's a good time?",
+  "interested", "let's chat", "tell me more", "I'm open to hearing what you have"). Fill in [Day] and
+  [time] with real open slots from the list, the way a person would say
   them: two times on the same day read "tomorrow at 10am and 5:30", not "Tuesday at 10am or Tuesday
   at 2pm", and never with timezone codes or parentheses. Where the step phrases the times as an
   either/or question ("does [Day] at [time] work?"), you may reword just that time phrase into the
