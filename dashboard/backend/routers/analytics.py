@@ -822,8 +822,9 @@ async def _email_metrics(conn, since=None, campaign_id=None, until=None) -> dict
         page 'play'/progress/complete beacons only: email link scanners
         that just fetch the page don't count, and neither do Dylan's
         excluded IPs. Same events as Email Handoff's Touch 2/3 gate
-        (email_handoff_sequence._played_video). Rate is out of prospects
-        who were sent a video. Send Info texts the same link, so a play
+        (email_handoff_sequence._played_video). Rate is out of Sent (this
+        card's email cohort, Dylan), never the SMS/Loom video totals. Send
+        Info texts the same link, so a play
         there can come from the SMS.
       - booked: an appointment (not canceled, not a follow-up call) created
         after Touch 1, or the email conversation marked booked
@@ -914,7 +915,7 @@ async def _email_metrics(conn, since=None, campaign_id=None, until=None) -> dict
         "positive_reply_rate": _pct(row["positive"], sent),
         "videos_sent":         row["videos_sent"] or 0,
         "video_plays":         row["video_plays"] or 0,
-        "video_play_rate":     _pct(row["video_plays"], row["videos_sent"]),
+        "video_play_rate":     _pct(row["video_plays"], sent),
         "unsubscribed":        row["unsubscribed"] or 0,
         "unsubscribe_rate":    _pct(row["unsubscribed"], sent),
         "booked":              row["booked"] or 0,
