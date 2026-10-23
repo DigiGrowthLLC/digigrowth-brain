@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { API } from "../api.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
+import DatePickerButton, { formatPickedDate } from "../components/DatePickerButton.jsx";
 import CampaignModal from "../CampaignModal.jsx";
 
 function pct(v) { return v != null ? `${v}%` : "—"; }
@@ -104,7 +105,7 @@ function fmtCampaignDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function CampaignsView({ days }) {
+function CampaignsView({ days, date }) {
   const [channel, setChannel]         = useState("sms");
   const [campaigns, setCampaigns]     = useState([]);
   const [selectedId, setSelectedId]   = useState(null);
@@ -129,13 +130,13 @@ function CampaignsView({ days }) {
 
   useEffect(() => {
     if (!selectedId) return;
-    fetch(API(`/analytics/campaign/${selectedId}?days=${days}`)).then(r => r.ok ? r.json() : null).then(setDetail);
-  }, [selectedId, days]);
+    fetch(API(`/analytics/campaign/${selectedId}?days=${days}${date ? `&date=${date}` : ""}`)).then(r => r.ok ? r.json() : null).then(setDetail);
+  }, [selectedId, days, date]);
 
   async function reactivate(id) {
     await fetch(API(`/campaigns/${id}/activate`), { method: "POST" });
     loadCampaigns(channel, selectedId);
-    fetch(API(`/analytics/campaign/${selectedId}?days=${days}`)).then(r => r.ok ? r.json() : null).then(setDetail);
+    fetch(API(`/analytics/campaign/${selectedId}?days=${days}${date ? `&date=${date}` : ""}`)).then(r => r.ok ? r.json() : null).then(setDetail);
   }
 
   function onCampaignCreated(campaign) {
@@ -209,9 +210,9 @@ function CampaignsView({ days }) {
             )}
           </div>
 
-          {channel === "sms" && days !== 0 && (
+          {channel === "sms" && (days !== 0 || date) && (
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a8a", letterSpacing: "0.04em" }}>
-              DM Reached / Primed / Engaged / Interested narrow to {ANALYTICS_PERIOD_OPTIONS.find(([d]) => d === days)?.[1] || "this period"} using when each was actually checked — a conversation whose checkbox was set before that tracking existed won't show up in a period filter, since there's no accurate historical record for it. All-Time still reflects everyone.
+              DM Reached / Primed / Engaged / Interested narrow to {date ? formatPickedDate(date) : ANALYTICS_PERIOD_OPTIONS.find(([d]) => d === days)?.[1] || "this period"} using when each was actually checked — a conversation whose checkbox was set before that tracking existed won't show up in a period filter, since there's no accurate historical record for it. All-Time still reflects everyone.
             </div>
           )}
           {channel === "sms" && <SmsOutreachCard outreach={outreachShape} tab="campaign" />}
@@ -438,20 +439,25 @@ const ANALYTICS_VIEW_TABS = [
 export default function AnalyticsPanel() {
   const [view, setView]               = useState("overview");
   const [days, setDays]               = useState(0);
+  const [date, setDate]               = useState(null); // a picked day overrides `days`
   const [outreach, setOutreach]       = useState(null);
   const [pipeline, setPipeline]       = useState(null);
   const [sales, setSales]             = useState(null);
 
+  const dateQs = date ? `&date=${date}` : "";
+  const pickPeriod = (d) => { setDays(d); setDate(null); };
+  const outreachTab = days === 0 && !date ? "all_time" : "period";
+
   useEffect(() => {
-    fetch(API(`/analytics/outreach?days=${days}`)).then(r => r.ok ? r.json() : null).then(setOutreach);
-  }, [days]);
+    fetch(API(`/analytics/outreach?days=${days}${dateQs}`)).then(r => r.ok ? r.json() : null).then(setOutreach);
+  }, [days, date]);
 
   useEffect(() => {
     Promise.all([
-      fetch(API(`/analytics/pipeline?days=${days}`)).then(r => r.ok ? r.json() : null),
-      fetch(API(`/analytics/sales?days=${days}`)).then(r => r.ok ? r.json() : null),
+      fetch(API(`/analytics/pipeline?days=${days}${dateQs}`)).then(r => r.ok ? r.json() : null),
+      fetch(API(`/analytics/sales?days=${days}${dateQs}`)).then(r => r.ok ? r.json() : null),
     ]).then(([p, s]) => { setPipeline(p); setSales(s); });
-  }, [days]);
+  }, [days, date]);
 
   const funnel = pipeline?.funnel ?? {};
 
@@ -479,7 +485,10 @@ export default function AnalyticsPanel() {
             OUTREACH & ACQUISITION
           </div>
         </div>
-        <PeriodToggle days={days} setDays={setDays} options={ANALYTICS_PERIOD_OPTIONS} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <PeriodToggle days={date ? null : days} setDays={pickPeriod} options={ANALYTICS_PERIOD_OPTIONS} />
+          <DatePickerButton date={date} setDate={setDate} />
+        </div>
       </div>
 
       {/* ── Overview / Campaigns sub-tabs ────────────────────────────── */}
@@ -497,7 +506,7 @@ export default function AnalyticsPanel() {
       </div>
 
       {view === "campaigns" ? (
-        <CampaignsView days={days} />
+        <CampaignsView days={days} date={date} />
       ) : (
       <>
 
@@ -526,9 +535,9 @@ export default function AnalyticsPanel() {
       <div>
         <SecLabel>Outreach & Appointment Setting</SecLabel>
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 4 }}>
-          <ColdCallingCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
-          <SmsOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
-          <EmailOutreachCard outreach={outreach} tab={days === 0 ? "all_time" : "period"} />
+          <ColdCallingCard outreach={outreach} tab={outreachTab} />
+          <SmsOutreachCard outreach={outreach} tab={outreachTab} />
+          <EmailOutreachCard outreach={outreach} tab={outreachTab} />
         </div>
       </div>
 

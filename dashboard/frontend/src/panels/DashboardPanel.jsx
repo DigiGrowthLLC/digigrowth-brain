@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { API } from "../api.js";
 import { linkify, inboxLinkFrom, InboxLinkButton } from "../linkify.jsx";
+import DatePickerButton, { formatPickedDate } from "../components/DatePickerButton.jsx";
 
 function timeAgo(ts) {
   if (!ts) return "";
@@ -295,6 +296,7 @@ function CalendarWidget({ events, loading, error }) {
 
 export default function DashboardPanel({ onNavigate }) {
   const [period, setPeriod]       = useState("all");
+  const [date, setDate]           = useState(null); // a picked day overrides `period`
   const [stats, setStats]         = useState(null);
   const [agentMsgs, setAgentMsgs]   = useState([]);
   const [clientMsgs, setClientMsgs] = useState([]);
@@ -318,10 +320,11 @@ export default function DashboardPanel({ onNavigate }) {
   };
 
   const PERIOD_LABEL = { day: "TODAY", week: "THIS WEEK", month: "THIS MONTH", all: "ALL TIME" };
+  const periodLabel = date ? formatPickedDate(date).toUpperCase() : PERIOD_LABEL[period];
 
-  const load = async (p = period) => {
+  const load = async (p = period, d = date) => {
     const [s, a, c] = await Promise.all([
-      fetch(API(`/dashboard/summary?period=${p}`)),
+      fetch(API(`/dashboard/summary?period=${p}${d ? `&date=${d}` : ""}`)),
       fetch(API("/dashboard/agent-messages")),
       fetch(API("/dashboard/client-messages")),
     ]);
@@ -330,12 +333,12 @@ export default function DashboardPanel({ onNavigate }) {
     if (c.ok) setClientMsgs(await c.json());
   };
 
-  useEffect(() => { load(period); }, [period]);
+  useEffect(() => { load(period, date); }, [period, date]);
   useEffect(() => { loadCalendar(); }, []);
   useEffect(() => {
-    const id = setInterval(() => load(period), 30000);
+    const id = setInterval(() => load(period, date), 30000);
     return () => clearInterval(id);
-  }, [period]);
+  }, [period, date]);
 
   const markRead = async (id) => {
     setAgentMsgs(p => p.filter(m => m.id !== id));
@@ -377,21 +380,24 @@ export default function DashboardPanel({ onNavigate }) {
             {today.toUpperCase()}
           </div>
         </div>
-        {/* Period toggle */}
+        {/* Period toggle + date picker */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <div className="flex-wrap" style={{
           display: "flex", background: "rgba(10,18,48,0.7)",
           border: "1px solid rgba(58,123,213,0.1)", borderRadius: 12, padding: 4, gap: 2,
         }}>
           {[["day","Today"],["week","Week"],["month","Month"],["all","All Time"]].map(([p, label]) => (
-            <button key={p} onClick={() => setPeriod(p)} style={{
+            <button key={p} onClick={() => { setPeriod(p); setDate(null); }} style={{
               fontFamily: "'Space Grotesk', sans-serif",
               fontSize: 12, fontWeight: 500, padding: "6px 16px",
               borderRadius: 9, border: "none", cursor: "pointer", transition: "all 0.15s",
-              background: period === p ? "linear-gradient(135deg, #2857a0 0%, #3a7bd5 100%)" : "transparent",
-              color: period === p ? "#fff" : "#4a6080",
-              boxShadow: period === p ? "0 2px 10px rgba(58,123,213,0.4)" : "none",
+              background: !date && period === p ? "linear-gradient(135deg, #2857a0 0%, #3a7bd5 100%)" : "transparent",
+              color: !date && period === p ? "#fff" : "#4a6080",
+              boxShadow: !date && period === p ? "0 2px 10px rgba(58,123,213,0.4)" : "none",
             }}>{label}</button>
           ))}
+        </div>
+        <DatePickerButton date={date} setDate={setDate} />
         </div>
       </div>
 
@@ -435,7 +441,7 @@ export default function DashboardPanel({ onNavigate }) {
               Outreach Overview
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882", letterSpacing: "0.1em", marginTop: 3 }}>
-              {PERIOD_LABEL[period]}
+              {periodLabel}
             </div>
           </div>
           {(() => {
@@ -479,7 +485,7 @@ export default function DashboardPanel({ onNavigate }) {
           </div>
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5",
                         letterSpacing: "0.1em", marginBottom: 18 }}>
-            {PERIOD_LABEL[period]}
+            {periodLabel}
           </div>
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={barData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>

@@ -4,14 +4,17 @@ Analytics router — mirrors the Notion KPI structure.
 GET /analytics/outreach?days=30  — per-channel table (calling + SMS + content), all-time + period
 GET /analytics/pipeline           — 6-stage acquisition funnel + grade breakdown + top states
 GET /analytics/sales              — sales statistics (reads sales_stats.json + DB)
+
+Every endpoint also takes ?date=YYYY-MM-DD (the date picker next to the
+period toggle): that one Eastern calendar day, overriding `days`.
 """
 
 import json
 import pathlib
-from datetime import datetime, timedelta, timezone
+from datetime import date as date_cls, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from db import get_pool
 from routers.content_tracking import vsl_funnel, loom_outreach_funnel
 from routers.appointments import follow_up_appointment_sql
@@ -39,6 +42,27 @@ def _since(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
 
 
+def _day_window(day: str | None) -> tuple[datetime, datetime] | None:
+    """A picked Eastern calendar day (YYYY-MM-DD) as [midnight, next
+    midnight), or None when no day is picked."""
+    if not day:
+        return None
+    try:
+        d = date_cls.fromisoformat(day)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+    start = datetime(d.year, d.month, d.day, tzinfo=_ET)
+    # Aware + timedelta is wall-clock arithmetic, so this is the next
+    # midnight even across a DST change.
+    return start, start + timedelta(days=1)
+
+
+def _in_window(col: str, since: str, until: str) -> str:
+    """SQL for col inside [since, until), with until optional (NULL = open
+    ended). since/until are placeholders like "$1"."""
+    return f"({col} >= {since} AND ({until}::timestamptz IS NULL OR {col} < {until}))"
+
+
 def _stat_is_stale(iso_ts: str, days: int) -> bool:
     try:
         last_changed = datetime.fromisoformat(iso_ts)
@@ -62,8 +86,10 @@ _DAILY_FIELD_MAP = {
 }
 
 
-def _sheet_stat(stats: dict, base_key: str, days: int) -> int:
+def _sheet_stat(stats: dict, base_key: str, days: int, day: str | None = None) -> int:
     """Return the right period bucket from sales_stats.json.
+    day    → that day's entry in the per-day breakdown (the date picker);
+             0 for fields the breakdown doesn't carry
     days=0 → all-time (base_key)
     days=1 → today's entry in the per-day breakdown (base_key in
              _DAILY_FIELD_MAP only — there's no base_key_1d bucket)
@@ -86,12 +112,13 @@ def _sheet_stat(stats: dict, base_key: str, days: int) -> int:
     handler only when fresh sheet_* data actually comes in (unlike
     `last_sheet_sync`, which bumps on every digest run including no-ops).
     """
+    if day or (days == 1 and base_key in _DAILY_FIELD_MAP):
+        if base_key not in _DAILY_FIELD_MAP:
+            return 0
+        day_fields = (stats.get("daily") or {}).get(day or _et_today().isoformat()) or {}
+        return day_fields.get(_DAILY_FIELD_MAP[base_key], 0) or 0
     if days == 0:
         return stats.get(base_key, 0) or 0
-    if days == 1 and base_key in _DAILY_FIELD_MAP:
-        today_key = _et_today().isoformat()
-        day_fields = (stats.get("daily") or {}).get(today_key) or {}
-        return day_fields.get(_DAILY_FIELD_MAP[base_key], 0) or 0
     if base_key.startswith("sheet_"):
         last_changed = stats.get("sheet_data_last_changed")
         if not last_changed or _stat_is_stale(last_changed, days):
@@ -177,7 +204,7 @@ def _os_sales_baseline_cutoff(stats: dict):
         return None
 
 
-async def _os_sales_stats(conn, days: int) -> dict:
+async def _os_sales_stats(conn, days: int, window: tuple | None = None) -> dict:
     """
     OS-native sales KPIs computed straight from appointment_reminders —
     discovery_calls/shows/closes/total_revenue/avg_deal_size — replacing
@@ -220,9 +247,16 @@ async def _os_sales_stats(conn, days: int) -> dict:
     outcome_*_at against the cutoff naturally excludes exactly the rows
     the baseline already covers (their timestamps predate the cutoff)
     while still picking up any new booking or freshly-marked outcome.
+
+    `window` (a picked day, see _day_window) overrides `days` and windows
+    like a period, with an end bound as well.
     """
     stats = _load_sales_stats()
-    since = _since(days) if days else _os_sales_baseline_cutoff(stats)
+    period = bool(days or window)
+    if window:
+        since, until = window
+    else:
+        since, until = (_since(days) if days else _os_sales_baseline_cutoff(stats)), None
     # Discovery calls only — a client's onboarding/launch call is not a
     # sales booking, show or close.
     where = (
@@ -237,8 +271,9 @@ async def _os_sales_stats(conn, days: int) -> dict:
         SELECT COUNT(*) FROM appointment_reminders ar {join}
         WHERE {where} AND {not_follow_up}
         AND ($1::timestamptz IS NULL OR ar.created_at >= $1)
+        AND ($2::timestamptz IS NULL OR ar.created_at < $2)
         """,
-        since,
+        since, until,
     ) or 0
     # All-time: shows/closes window on the APPOINTMENT's created_at vs the
     # baseline cutoff, not on when the outcome was marked. Appointments
@@ -248,14 +283,15 @@ async def _os_sales_stats(conn, days: int) -> dict:
     # Treadwell's and Brandon Crosdale's shows + Brandon's close, fixed
     # 2026-09-24). Period windows (days>0) still use when the outcome was
     # marked, since there's no baseline to overlap with.
-    show_col = "ar.created_at" if not days else "ar.outcome_show_at"
+    show_col = "ar.created_at" if not period else "ar.outcome_show_at"
     shows = await conn.fetchval(
         f"""
         SELECT COUNT(*) FROM appointment_reminders ar {join}
         WHERE {where} AND {not_follow_up} AND ar.outcome_show = 'show'
         AND ($1::timestamptz IS NULL OR {show_col} >= $1)
+        AND ($2::timestamptz IS NULL OR {show_col} < $2)
         """,
-        since,
+        since, until,
     ) or 0
     # Same cohort/window as shows, so show rate = shows ÷ (shows + no-shows)
     # only counts calls whose outcome is actually known. Dividing by
@@ -267,8 +303,9 @@ async def _os_sales_stats(conn, days: int) -> dict:
         SELECT COUNT(*) FROM appointment_reminders ar {join}
         WHERE {where} AND {not_follow_up} AND ar.outcome_show = 'no_show'
         AND ($1::timestamptz IS NULL OR {show_col} >= $1)
+        AND ($2::timestamptz IS NULL OR {show_col} < $2)
         """,
-        since,
+        since, until,
     ) or 0
     # Each closed row (first call or follow-up) is credited to its first
     # call: itself if it is one, else the contact's latest first call that
@@ -278,7 +315,7 @@ async def _os_sales_stats(conn, days: int) -> dict:
     # show was never marked), so a call-2 close lands in the same period
     # as the call-1 show it converts.
     window_col = (
-        "COALESCE(f.created_at, x.created_at)" if not days
+        "COALESCE(f.created_at, x.created_at)" if not period
         else "COALESCE(f.outcome_show_at, x.outcome_close_at)"
     )
     close_row = await conn.fetchrow(
@@ -305,14 +342,15 @@ async def _os_sales_stats(conn, days: int) -> dict:
         )
         SELECT COUNT(*) AS closes, COALESCE(SUM(pricing), 0) AS revenue
         FROM credited
-        WHERE $1::timestamptz IS NULL OR window_at >= $1
+        WHERE ($1::timestamptz IS NULL OR window_at >= $1)
+          AND ($2::timestamptz IS NULL OR window_at < $2)
         """,
-        since,
+        since, until,
     )
     closes  = close_row["closes"] or 0
     revenue = float(close_row["revenue"] or 0)
 
-    if not days:
+    if not period:
         baseline = _os_sales_baseline(stats)
         discovery_calls += baseline["discovery_calls"]
         shows           += baseline["shows"]
@@ -353,16 +391,16 @@ def _load_content_stats() -> dict:
         }
 
 
-def _content_metrics(stats: dict, days: int) -> dict:
+def _content_metrics(stats: dict, days: int, day: str | None = None) -> dict:
     return {
-        "posts_published":    _sheet_stat(stats, "posts_published", days),
-        "videos_published":   _sheet_stat(stats, "videos_published", days),
-        "total_views":        _sheet_stat(stats, "total_views", days),
-        "leads_from_content": _sheet_stat(stats, "leads_from_content", days),
+        "posts_published":    _sheet_stat(stats, "posts_published", days, day),
+        "videos_published":   _sheet_stat(stats, "videos_published", days, day),
+        "total_views":        _sheet_stat(stats, "total_views", days, day),
+        "leads_from_content": _sheet_stat(stats, "leads_from_content", days, day),
     }
 
 
-def _calling_metrics(stats: dict, days: int) -> dict:
+def _calling_metrics(stats: dict, days: int, day: str | None = None) -> dict:
     """Cold calling metrics — sourced from the daily Sheets Digest (sales_stats.json),
     not the dialer DB, since the sheets are the system of record for cold calling.
 
@@ -372,11 +410,11 @@ def _calling_metrics(stats: dict, days: int) -> dict:
                                 (the sheet's own Totals row calls contacts_reached "Pitches")
       - Resonation Rate (RR) = resonations ÷ contacts_reached
     """
-    calls_made          = _sheet_stat(stats, "sheet_calls_made", days)
-    calls_answered      = _sheet_stat(stats, "sheet_calls_answered", days)
-    contacts_reached    = _sheet_stat(stats, "sheet_contacts_reached", days)
-    resonations         = _sheet_stat(stats, "sheet_resonations", days)
-    appointments_booked = _sheet_stat(stats, "sheet_appointments_booked", days)
+    calls_made          = _sheet_stat(stats, "sheet_calls_made", days, day)
+    calls_answered      = _sheet_stat(stats, "sheet_calls_answered", days, day)
+    contacts_reached    = _sheet_stat(stats, "sheet_contacts_reached", days, day)
+    resonations         = _sheet_stat(stats, "sheet_resonations", days, day)
+    appointments_booked = _sheet_stat(stats, "sheet_appointments_booked", days, day)
     return {
         "total":            calls_made,
         "answer_rate":      _pct(calls_answered, calls_made),
@@ -389,7 +427,7 @@ def _calling_metrics(stats: dict, days: int) -> dict:
     }
 
 
-def _calling_metrics_for_campaign(stats: dict, periods: list, since=None) -> dict:
+def _calling_metrics_for_campaign(stats: dict, periods: list, since=None, until=None) -> dict:
     """
     Same source and formulas as _calling_metrics(), but summed over the
     campaign's active date range(s) from the Sheets Digest's per-day
@@ -401,16 +439,20 @@ def _calling_metrics_for_campaign(stats: dict, periods: list, since=None) -> dic
 
     `since`, when given, further narrows to days on/after it (the Analytics
     tab's Today/7D/30D/All Time toggle, applied on top of the campaign's own
-    date range) — unlike the SMS/email campaign metrics, this data is
+    date range), and `until` (exclusive) ends it there (a picked day) —
+    unlike the SMS/email campaign metrics, this data is
     already day-granular, so unlike stage-boolean SMS metrics there's no
     accuracy gap here.
     """
     daily = stats.get("daily") or {}
     today = _et_today()
     since_date = since.date() if since else None
+    until_date = until.date() if until else None
 
     def _in_any_period(day) -> bool:
         if since_date and day < since_date:
+            return False
+        if until_date and day >= until_date:
             return False
         for started_at, ended_at in periods:
             start_date = started_at.date() if hasattr(started_at, "date") else started_at
@@ -442,7 +484,7 @@ def _calling_metrics_for_campaign(stats: dict, periods: list, since=None) -> dic
     }
 
 
-async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
+async def _sms_metrics(conn, since=None, campaign_id=None, until=None) -> dict:
     """
     Return SMS funnel metrics. If since is None, returns all-time. If
     campaign_id is given, a campaign is already its own time boundary (see
@@ -499,6 +541,8 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     (bumped when disposition is set) — an approximation, since updated_at
     bumps on other edits too, but a disposition set is rare enough after
     the fact that this is close enough.
+
+    `until` (exclusive, a picked day's end) caps every window `since` opens.
     """
     if campaign_id is not None:
         contacted_row = await conn.fetchrow(
@@ -507,14 +551,14 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
             FROM sms_messages sm
             JOIN sms_conversations sc ON sc.phone = sm.phone
             WHERE sc.campaign_id = $1 AND NOT sm.is_automated
-            """ + (" AND sm.sent_at >= $2" if since else ""),
-            *([campaign_id, since] if since else [campaign_id]),
+              AND ($2::timestamptz IS NULL OR """ + _in_window("sm.sent_at", "$2", "$3") + ")",
+            campaign_id, since, until,
         )
         # Total Outreach — each phone's first-ever non-automated outbound
         # message in this campaign only, not every message (see
         # _sms_metrics' module docstring for why).
         total_outreach = await conn.fetchval(
-            """
+            f"""
             SELECT COUNT(*) FROM (
                 SELECT sm.phone, MIN(sm.sent_at) AS first_sent
                 FROM sms_messages sm
@@ -522,9 +566,9 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
                 WHERE sc.campaign_id = $1 AND sm.direction = 'outbound' AND NOT sm.is_automated
                 GROUP BY sm.phone
             ) first_touch
-            WHERE $2::timestamptz IS NULL OR first_sent >= $2
+            WHERE $2::timestamptz IS NULL OR {_in_window("first_sent", "$2", "$3")}
             """,
-            campaign_id, since,
+            campaign_id, since, until,
         )
         # Narrowed by stage_{x}_at, now that it exists (stamped in
         # email_inbox.py's set_contact_stage()) — pre-existing conversations
@@ -561,29 +605,29 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
         # "this milestone is still current" evidence, same reasoning as
         # DM Reached.
         stage_row = await conn.fetchrow(
-            """
+            f"""
             SELECT
                 COUNT(*) FILTER (WHERE stage_replied      AND ($2::timestamptz IS NULL
-                                                                OR stage_replied_at    >= $2
-                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.direction = 'inbound' AND sm.sent_at >= $2))) AS replied,
+                                                                OR {_in_window("stage_replied_at", "$2", "$3")}
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.direction = 'inbound' AND {_in_window("sm.sent_at", "$2", "$3")}))) AS replied,
                 COUNT(*) FILTER (WHERE stage_dm_reached   AND ($2::timestamptz IS NULL
-                                                                OR stage_dm_reached_at >= $2
-                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS dm_reached,
+                                                                OR {_in_window("stage_dm_reached_at", "$2", "$3")}
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND {_in_window("sm.sent_at", "$2", "$3")}))) AS dm_reached,
                 COUNT(*) FILTER (WHERE stage_primed       AND ($2::timestamptz IS NULL
-                                                                OR stage_primed_at     >= $2
-                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS primed,
+                                                                OR {_in_window("stage_primed_at", "$2", "$3")}
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND {_in_window("sm.sent_at", "$2", "$3")}))) AS primed,
                 COUNT(*) FILTER (WHERE stage_engaged      AND ($2::timestamptz IS NULL
-                                                                OR stage_engaged_at    >= $2
-                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS engaged,
+                                                                OR {_in_window("stage_engaged_at", "$2", "$3")}
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND {_in_window("sm.sent_at", "$2", "$3")}))) AS engaged,
                 COUNT(*) FILTER (WHERE stage_interested   AND ($2::timestamptz IS NULL
-                                                                OR stage_interested_at >= $2
-                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $2))) AS interested,
-                COUNT(*) FILTER (WHERE booked_at IS NOT NULL          AND ($2::timestamptz IS NULL OR booked_at >= $2)) AS booked,
-                COUNT(*) FILTER (WHERE disposition = 'not_interested' AND ($2::timestamptz IS NULL OR updated_at >= $2)) AS not_interested
+                                                                OR {_in_window("stage_interested_at", "$2", "$3")}
+                                                                OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND {_in_window("sm.sent_at", "$2", "$3")}))) AS interested,
+                COUNT(*) FILTER (WHERE booked_at IS NOT NULL          AND ($2::timestamptz IS NULL OR {_in_window("booked_at", "$2", "$3")})) AS booked,
+                COUNT(*) FILTER (WHERE disposition = 'not_interested' AND ($2::timestamptz IS NULL OR {_in_window("updated_at", "$2", "$3")})) AS not_interested
             FROM sms_conversations sc
             WHERE campaign_id = $1
             """,
-            campaign_id, since,
+            campaign_id, since, until,
         )
         contacted = contacted_row["contacted"]
         replied, primed, engaged, interested = stage_row["replied"], stage_row["primed"], stage_row["engaged"], stage_row["interested"]
@@ -612,8 +656,8 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     # sequence sends from outreach-volume metrics — those are follow-up on
     # an existing relationship, not fresh outreach (see
     # routers/sms.py::_store_message).
-    msg_filter = "AND NOT is_automated" + (" AND sent_at >= $1" if since else "")
-    params = [since] if since else []
+    msg_filter = "AND NOT is_automated" + (f" AND {_in_window('sent_at', '$1', '$2')}" if since else "")
+    params = [since, until] if since else []
 
     # Not Interested is windowed by updated_at (bumped when disposition is
     # set), not created_at (when the conversation first started) — same fix
@@ -624,8 +668,8 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     # never counted, no matter how recent the change itself was. Booked
     # uses its own booked_at column instead (see _sms_metrics' docstring)
     # so it isn't affected by a later disposition change at all.
-    booked_filter = "AND booked_at >= $1" if since else ""
-    not_interested_filter = "AND updated_at >= $1" if since else ""
+    booked_filter = f"AND {_in_window('booked_at', '$1', '$2')}" if since else ""
+    not_interested_filter = f"AND {_in_window('updated_at', '$1', '$2')}" if since else ""
 
     # Total Outreach — each phone's first-ever non-automated outbound
     # message only (MIN(sent_at) across all history), not every message —
@@ -633,16 +677,16 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     # period filter" (All Time — every phone that's ever gotten a first
     # message counts).
     total_outreach = await conn.fetchval(
-        """
+        f"""
         SELECT COUNT(*) FROM (
             SELECT phone, MIN(sent_at) AS first_sent
             FROM sms_messages
             WHERE direction='outbound' AND NOT is_automated
             GROUP BY phone
         ) first_touch
-        WHERE $1::timestamptz IS NULL OR first_sent >= $1
+        WHERE $1::timestamptz IS NULL OR {_in_window("first_sent", "$1", "$2")}
         """,
-        since,
+        since, until,
     )
 
     contacted = await conn.fetchval(
@@ -662,13 +706,13 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     # many times they replied again today.
     if since:
         replied = await conn.fetchval(
-            """
+            f"""
             SELECT COUNT(*) FROM sms_conversations sc
             WHERE stage_replied
-              AND (stage_replied_at >= $1
-                   OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.direction = 'inbound' AND sm.sent_at >= $1))
+              AND ({_in_window("stage_replied_at", "$1", "$2")}
+                   OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.direction = 'inbound' AND {_in_window("sm.sent_at", "$1", "$2")}))
             """,
-            since,
+            since, until,
         )
     else:
         replied = await conn.fetchval("SELECT COUNT(*) FROM sms_conversations WHERE stage_replied")
@@ -681,13 +725,13 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     # means for an active day of outreach.
     if since:
         dm_reached = await conn.fetchval(
-            """
+            f"""
             SELECT COUNT(*) FROM sms_conversations sc
             WHERE stage_dm_reached
-              AND (stage_dm_reached_at >= $1
-                   OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $1))
+              AND ({_in_window("stage_dm_reached_at", "$1", "$2")}
+                   OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND {_in_window("sm.sent_at", "$1", "$2")}))
             """,
-            since,
+            since, until,
         )
     else:
         dm_reached = await conn.fetchval("SELECT COUNT(*) FROM sms_conversations WHERE stage_dm_reached")
@@ -709,10 +753,10 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
             f"""
             SELECT COUNT(*) FROM sms_conversations sc
             WHERE {column}
-              AND ({column}_at >= $1
-                   OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND sm.sent_at >= $1))
+              AND ({_in_window(column + "_at", "$1", "$2")}
+                   OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND {_in_window("sm.sent_at", "$1", "$2")}))
             """,
-            since,
+            since, until,
         )
 
     primed      = await _stage_count_with_activity_fallback("stage_primed")
@@ -749,7 +793,7 @@ async def _sms_metrics(conn, since=None, campaign_id=None) -> dict:
     }
 
 
-async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
+async def _email_metrics(conn, since=None, campaign_id=None, until=None) -> dict:
     """
     Email Outreach analytics = the Email Handoff sequence (Dylan,
     2026-09-24) plus, from 2026-10-20, the Send Info and Gatekeeper Deferral
@@ -783,6 +827,8 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
         there can come from the SMS.
       - booked: an appointment (not canceled, not a follow-up call) created
         after Touch 1, or the email conversation marked booked
+
+    `until` (exclusive, a picked day's end) caps the first-send window.
     """
     handoff_clauses, clauses, args = ["ehs.touch1_sent_at IS NOT NULL", "NOT ehs.exclude_from_analytics"], [
         "c.status IS DISTINCT FROM 'test'",
@@ -790,6 +836,9 @@ async def _email_metrics(conn, since=None, campaign_id=None) -> dict:
     if since:
         args.append(since)
         clauses.append(f"f.touch1_sent_at >= ${len(args)}")
+    if until:
+        args.append(until)
+        clauses.append(f"f.touch1_sent_at < ${len(args)}")
     if campaign_id is not None:
         args.append(campaign_id)
         handoff_clauses.append(f"ehs.campaign_id = ${len(args)}")
@@ -967,23 +1016,24 @@ async def reset_email_outreach():
 
 
 @router.get("/analytics/outreach")
-async def outreach(days: int = 30):
+async def outreach(days: int = 30, date: str | None = None):
     pool  = await get_pool()
-    since = _since(days)
+    since, until = _day_window(date) or (_since(days), None)
     cs    = _load_content_stats()
     sales = _load_sales_stats()
 
     async with pool.acquire() as conn:
         sms_all        = await _sms_metrics(conn)
-        sms_period     = await _sms_metrics(conn, since)
+        sms_period     = await _sms_metrics(conn, since, until=until)
         email_all      = await _email_metrics(conn)
-        email_period   = await _email_metrics(conn, since)
+        email_period   = await _email_metrics(conn, since, until=until)
 
     return {
         "period_days": days,
+        "period_date": date,
         "calling": {
             "all_time": _calling_metrics(sales, 0),
-            "period":   _calling_metrics(sales, days),
+            "period":   _calling_metrics(sales, days, date),
         },
         "sms": {
             "all_time": sms_all,
@@ -995,16 +1045,18 @@ async def outreach(days: int = 30):
         },
         "content": {
             "all_time": _content_metrics(cs, 0),
-            "period":   _content_metrics(cs, days),
+            "period":   _content_metrics(cs, days, date),
         },
     }
 
 
 @router.get("/analytics/pipeline")
-async def pipeline(days: int = 0):
+async def pipeline(days: int = 0, date: str | None = None):
     pool  = await get_pool()
     sales = _load_sales_stats()
-    all_time = (days == 0)
+    window = _day_window(date)
+    all_time = (days == 0 and not window)
+    since, until = window or ((None, None) if all_time else (_since(days), None))
     week_ago  = _since(7)
     month_ago = _since(30)
 
@@ -1021,13 +1073,13 @@ async def pipeline(days: int = 0):
         # dialer.py's queue.
         total_leads = await conn.fetchval(
             "SELECT COUNT(*) FROM contacts WHERE (client_id IS NULL OR is_client_anchor)" if all_time
-            else "SELECT COUNT(*) FROM contacts WHERE created_at >= $1 AND (client_id IS NULL OR is_client_anchor)",
-            *([] if all_time else [_since(days)]),
+            else f"SELECT COUNT(*) FROM contacts WHERE {_in_window('created_at', '$1', '$2')} AND (client_id IS NULL OR is_client_anchor)",
+            *([] if all_time else [since, until]),
         )
         new_week    = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1 AND (client_id IS NULL OR is_client_anchor)", week_ago)
         new_month   = await conn.fetchval("SELECT COUNT(*) FROM contacts WHERE created_at >= $1 AND (client_id IS NULL OR is_client_anchor)", month_ago)
-        sms         = await _sms_metrics(conn, None if all_time else _since(days))
-        email       = await _email_metrics(conn, None if all_time else _since(days))
+        sms         = await _sms_metrics(conn, since, until=until)
+        email       = await _email_metrics(conn, since, until=until)
         grade_rows  = await conn.fetch(
             """
             SELECT grade,
@@ -1051,7 +1103,7 @@ async def pipeline(days: int = 0):
             GROUP BY state
             """
         )
-        os_sales = await _os_sales_stats(conn, days)
+        os_sales = await _os_sales_stats(conn, days, window)
 
     by_grade = [
         {"grade": r["grade"], "cnt": r["cnt"], "booked": r["booked"], "book_rate": _pct(r["booked"], r["cnt"])}
@@ -1090,9 +1142,9 @@ async def pipeline(days: int = 0):
     # _sms_metrics'/_email_metrics' docstrings for why that distinction
     # matters: a rep's later sequence steps or a newsletter to an existing
     # contact aren't new prospects reached.
-    dialed   = _sheet_stat(sales, "sheet_calls_made",       days) + sms["total_outreach"] + email["total_outreach"]
-    answered = _sheet_stat(sales, "sheet_calls_answered",   days) + sms["replied"]      + email["replied"]
-    pitched  = _sheet_stat(sales, "sheet_contacts_reached", days) + sms["dm_reached"] + email["video_plays"]
+    dialed   = _sheet_stat(sales, "sheet_calls_made",       days, date) + sms["total_outreach"] + email["total_outreach"]
+    answered = _sheet_stat(sales, "sheet_calls_answered",   days, date) + sms["replied"]      + email["replied"]
+    pitched  = _sheet_stat(sales, "sheet_contacts_reached", days, date) + sms["dm_reached"] + email["video_plays"]
     booked   = os_sales["discovery_calls"]
 
     return {
@@ -1114,7 +1166,7 @@ async def pipeline(days: int = 0):
 
 
 @router.get("/analytics/sales")
-async def sales_stats(days: int = 0):
+async def sales_stats(days: int = 0, date: str | None = None):
     pool  = await get_pool()
     stats = _load_sales_stats()
 
@@ -1122,7 +1174,7 @@ async def sales_stats(days: int = 0):
         total_leads = await conn.fetchval(
             "SELECT COUNT(*) FROM contacts WHERE (client_id IS NULL OR is_client_anchor)"
         )
-        os_sales = await _os_sales_stats(conn, days)
+        os_sales = await _os_sales_stats(conn, days, _day_window(date))
 
     discovery = os_sales["discovery_calls"]
     closes    = os_sales["closes"]
@@ -1160,12 +1212,14 @@ async def sales_stats(days: int = 0):
 
 
 @router.get("/analytics/campaign/{campaign_id}")
-async def campaign_analytics(campaign_id: int, days: int = 0):
+async def campaign_analytics(campaign_id: int, days: int = 0, date: str | None = None):
     """`days` narrows the campaign's own metrics with the Analytics tab's
     Today/7D/30D/All Time toggle (days=0 means no narrowing — the whole
-    campaign). See _sms_metrics/_email_metrics/_calling_metrics_for_campaign
-    docstrings for what can and can't be narrowed accurately per channel."""
-    since = _since(days) if days else None
+    campaign), `date` to one picked day. See _sms_metrics/_email_metrics/
+    _calling_metrics_for_campaign docstrings for what can and can't be
+    narrowed accurately per channel. VSL/Loom funnels only take a start, so
+    a picked day runs from that day on for those."""
+    since, until = _day_window(date) or ((_since(days) if days else None), None)
     pool = await get_pool()
     async with pool.acquire() as conn:
         campaign = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
@@ -1178,9 +1232,9 @@ async def campaign_analytics(campaign_id: int, days: int = 0):
         periods = [{"started_at": p["started_at"], "ended_at": p["ended_at"]} for p in period_rows]
 
         if campaign["channel"] == "sms":
-            metrics = await _sms_metrics(conn, since=since, campaign_id=campaign_id)
+            metrics = await _sms_metrics(conn, since=since, campaign_id=campaign_id, until=until)
         elif campaign["channel"] == "email":
-            metrics = await _email_metrics(conn, since=since, campaign_id=campaign_id)
+            metrics = await _email_metrics(conn, since=since, campaign_id=campaign_id, until=until)
         elif campaign["channel"] == "vsl":
             metrics = await vsl_funnel(campaign_id=campaign_id, since_override=since)
         elif campaign["channel"] == "loom":
@@ -1188,7 +1242,7 @@ async def campaign_analytics(campaign_id: int, days: int = 0):
         else:
             sales = _load_sales_stats()
             metrics = _calling_metrics_for_campaign(
-                sales, [(p["started_at"], p["ended_at"]) for p in period_rows], since=since,
+                sales, [(p["started_at"], p["ended_at"]) for p in period_rows], since=since, until=until,
             )
 
     return {

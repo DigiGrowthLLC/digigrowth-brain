@@ -1,7 +1,8 @@
 """
 Dashboard router — homepage stats, agent messages, client messages, todos.
 
-GET  /dashboard/summary?period=day|week|month|all — calling + SMS stats
+GET  /dashboard/summary?period=day|week|month|all[&date=YYYY-MM-DD] — calling + SMS stats
+     (date: one picked Eastern day, overriding period)
 GET  /dashboard/agent-messages                 — agent activity feed
 POST /dashboard/agent-messages                 — post a message (called by agents)
 POST /dashboard/agent-messages/{id}/read       — mark read
@@ -23,7 +24,9 @@ from datetime import datetime, timedelta, timezone, date
 from fastapi import APIRouter, HTTPException
 
 from db import get_pool
-from routers.analytics import _sms_metrics, _email_metrics, _os_sales_stats, _sheet_stat, _since
+from routers.analytics import (
+    _sms_metrics, _email_metrics, _os_sales_stats, _sheet_stat, _since, _day_window, _in_window,
+)
 
 _SALES_STATS_PATH = pathlib.Path(__file__).parent.parent / "sales_stats.json"
 _TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")  # HH:MM, 24-hour
@@ -48,8 +51,9 @@ def _period_start(period: str) -> datetime:
 # ── Summary stats ─────────────────────────────────────────────────────────────
 
 @router.get("/dashboard/summary")
-async def summary(period: str = "day"):
-    since = _period_start(period)
+async def summary(period: str = "day", date: str | None = None):
+    window = _day_window(date)
+    since, until = window or (_period_start(period), None)
     pool  = await get_pool()
 
     try:
@@ -62,21 +66,24 @@ async def summary(period: str = "day"):
             "SELECT COUNT(*) FROM sms_conversations WHERE status = 'active'"
         )
         sms_booked = await conn.fetchval(
-            "SELECT COUNT(*) FROM sms_conversations WHERE status = 'closed' AND updated_at >= $1", since,
+            f"SELECT COUNT(*) FROM sms_conversations WHERE status = 'closed' AND {_in_window('updated_at', '$1', '$2')}",
+            since, until,
         )
         # Dylan's own contacts only — a client's portal leads are theirs.
         total_contacts = await conn.fetchval(
             "SELECT COUNT(*) FROM contacts WHERE (client_id IS NULL OR is_client_anchor)"
         )
         new_contacts   = await conn.fetchval(
-            "SELECT COUNT(*) FROM contacts WHERE created_at >= $1 AND (client_id IS NULL OR is_client_anchor)", since
+            f"SELECT COUNT(*) FROM contacts WHERE {_in_window('created_at', '$1', '$2')} AND (client_id IS NULL OR is_client_anchor)",
+            since, until,
         )
 
         period_to_days = {"day": 1, "week": 7, "month": 30, "all": 0}
         p_days = period_to_days.get(period, 0)
-        sms_funnel   = await _sms_metrics(conn, None if p_days == 0 else since)
-        email_funnel = await _email_metrics(conn, None if p_days == 0 else since)
-        os_sales     = await _os_sales_stats(conn, p_days)
+        open_ended = p_days == 0 and not window
+        sms_funnel   = await _sms_metrics(conn, None if open_ended else since, until=until)
+        email_funnel = await _email_metrics(conn, None if open_ended else since, until=until)
+        os_sales     = await _os_sales_stats(conn, p_days, window)
 
     # "Today" (period=day, p_days=1) has no base_key_1d bucket in
     # sales_stats.json — the Sheets Digest only tracks fixed 7d/30d/
@@ -86,7 +93,7 @@ async def summary(period: str = "day"):
     # key that never existed, so Total Reached silently dropped the calling
     # side to 0 every time "Today" was selected.
     def _sheet(key):
-        return _sheet_stat(stats, key, p_days)
+        return _sheet_stat(stats, key, p_days, date)
 
     calls_made     = _sheet("sheet_calls_made")
     calls_answered = _sheet("sheet_calls_answered")
