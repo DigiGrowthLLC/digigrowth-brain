@@ -6083,10 +6083,10 @@
       "last_scraped_date": "2026-10-21"
     },
     "South Fulton, GA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 189,
-      "qualified_count": 17,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 234,
+      "qualified_count": 21,
       "last_scraped_date": "2026-10-22"
     },
     "Peoria, IL": {
