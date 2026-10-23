@@ -6133,9 +6133,9 @@
     },
     "Edison, NJ": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 104,
-      "qualified_count": 8,
+      "term_index": 2,
+      "reviewed_count": 132,
+      "qualified_count": 10,
       "last_scraped_date": "2026-10-22"
     },
     "Sugar Land, TX": {
