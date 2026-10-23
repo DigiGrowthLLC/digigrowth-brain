@@ -6132,9 +6132,9 @@
       "last_scraped_date": "2026-10-22"
     },
     "Edison, NJ": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 136,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 141,
       "qualified_count": 10,
       "last_scraped_date": "2026-10-22"
     },
