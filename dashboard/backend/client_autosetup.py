@@ -34,6 +34,12 @@ failure is recorded and the rest still run.
    follow-up copy seeded on client creation (routers/clients.py, already
    written around the free consultation) is in place; it sends from the
    client's own number/mailbox with no further wiring.
+
+With a blueprint, the client's offer is whatever that funnel sells, so
+_offer_copy() has Claude rewrite the free-consult wording in the Response
+AI's sequence + price rule (step 4) and in every seeded message still at
+its default text (step 5) around it, and the blueprint's verified practice
+facts (its demo chat's context) go into the Response AI context.
 6. Email marketing: picks the outreach subdomain (mail.<their domain>). The
    DNS records need the client's registrar, so the rest stays manual.
 
@@ -188,6 +194,13 @@ async def run(client_id: int, force: bool = False) -> None:
         ctx = await _load(client_id)
         print(f"[autosetup] client {client_id} ({ctx['business']}): starting")
         ctx["site"] = await _scrape(ctx["website"]) if ctx["website"] else None
+        ctx["blueprint"] = await _blueprint(ctx["anchor"].get("id"))
+        if ctx["blueprint"]:
+            try:
+                ctx["offer_copy"] = await _offer_copy(client_id, ctx)
+            except Exception as e:
+                ctx["offer_copy_error"] = f"{type(e).__name__}: {e}"
+                print(f"[autosetup] client {client_id}: blueprint offer copy failed: {ctx['offer_copy_error']}")
 
         steps = [
             ("client_portal", _step_portal),
@@ -328,39 +341,61 @@ _DEFAULT_SEQUENCE = [
     "confirm it back in one message and set expectations for what happens next.",
 ]
 
-_DEFAULT_RULES = (
+_BASE_RULES = (
     "1. Keep every text to 30 words or fewer. Short, natural, and easy to read on a phone. If more needs "
     "to be said, send it as a natural follow-up text rather than one long message.\n"
     "2. Never use em dashes, curly quotes, or emoji.\n"
     "3. Never sound scripted or repeat the same phrasing twice in one conversation.\n"
     "4. Never ask two questions in one text.\n"
+)
+_DEFAULT_PRICE_RULE = (
     "5. Never quote prices or mention any discount or special. Steer pricing questions to the free "
     "consultation, where the team goes over specifics."
 )
+_DEFAULT_RULES = _BASE_RULES + _DEFAULT_PRICE_RULE
+
+
+def _blueprint_note(ctx: dict) -> str:
+    if ctx.get("offer_copy_error"):
+        return (f" Rewriting it for their blueprint's offer failed ({ctx['offer_copy_error'][:200]}), so it's still "
+                "the free-consult default: fix it by hand before it goes live.")
+    return ""
 
 
 async def _step_response_ai(client_id: int, ctx: dict) -> tuple[str, str]:
     cfg = ctx["cfg"]
+    offer = ctx.get("offer_copy")
     done = []
     updates: dict = {}
     if not (cfg.get("response_ai_context") or "").strip():
         site_text = (ctx["site"] or {}).get("text")
-        context = await context_gen.generate_context(client_id, website_text=site_text, auto=True)
+        source_text = site_text
+        if ctx.get("blueprint") and ctx["blueprint"]["chat_context"]:
+            # First, so the website cap in context_gen never cuts it.
+            source_text = (
+                "Verified practice facts and offer (from their Patient Acquisition Blueprint):\n"
+                f"{ctx['blueprint']['chat_context']}\n\n{site_text or ''}"
+            )
+        context = await context_gen.generate_context(client_id, website_text=source_text, auto=True)
         book_url = ctx.get("book_url")
         if book_url:
             context += (
-                f"\n\n## Booking link\nSend this when they're ready to book their free consultation: {book_url}"
+                f"\n\n## Booking link\nSend this when they're ready to book their "
+                f"{offer['offer_name'] if offer else 'free consultation'}: {book_url}"
             )
         updates["response_ai_context"] = context
-        done.append("context written" + (" from their website" if site_text else " (no website on file)"))
+        done.append("context written" + (" from their blueprint and website" if source_text != site_text
+                                         else " from their website" if site_text else " (no website on file)"))
     seq = cfg.get("response_ai_sequence")
     if isinstance(seq, str):
         seq = json.loads(seq)
     if not seq:
-        updates["response_ai_sequence"] = [s.replace("{business}", ctx["business"] or "the practice") for s in _DEFAULT_SEQUENCE]
-        done.append("5-stage sequence")
+        updates["response_ai_sequence"] = offer["sequence"] if offer else [
+            s.replace("{business}", ctx["business"] or "the practice") for s in _DEFAULT_SEQUENCE
+        ]
+        done.append("5-stage sequence" + (f" for the {offer['offer_name']}" if offer else ""))
     if not (cfg.get("response_ai_rules") or "").strip():
-        updates["response_ai_rules"] = _DEFAULT_RULES
+        updates["response_ai_rules"] = _BASE_RULES + offer["price_rule"] if offer else _DEFAULT_RULES
         updates["response_ai_max_words"] = cfg.get("response_ai_max_words") or 30
         updates["response_ai_min_delay_seconds"] = cfg.get("response_ai_min_delay_seconds") or 15
         done.append("rules (30 words, 15s delay)")
@@ -373,7 +408,7 @@ async def _step_response_ai(client_id: int, ctx: dict) -> tuple[str, str]:
     await _check_guide_steps(client_id, "response_ai", [0, 2, 3, 4])
     note = "" if updates.get("response_ai_enabled") or cfg.get("response_ai_enabled") else " Not switched on: no SMS number yet."
     summary = ", ".join(done)
-    return "done", summary[:1].upper() + summary[1:] + "." + note + (
+    return "done", summary[:1].upper() + summary[1:] + "." + note + _blueprint_note(ctx) + (
         " Still manual: connect their Calendly and Facebook Page (Lead Ads), then test."
     )
 
@@ -541,22 +576,120 @@ Build the landing page now."""
     return text[start:end + len("</html>")]
 
 
-async def _blueprint_funnel(contact_id: str | None) -> str | None:
-    """The funnel from the client's Patient Acquisition Blueprint, if one was
-    published for them as a prospect. Blueprint rows are the ones published
-    with a chat_context (publish_landing_page.py --chat-context); the funnel
-    document is the phone preview iframe's srcdoc (build_blueprint.py)."""
+async def _blueprint(contact_id: str | None) -> dict | None:
+    """The client's Patient Acquisition Blueprint, if one was published for
+    them as a prospect: its funnel document (the phone preview iframe's
+    srcdoc, build_blueprint.py) and its demo chat's practice facts. Blueprint
+    rows are the ones published with a chat_context
+    (publish_landing_page.py --chat-context)."""
     if not contact_id:
         return None
     pool = await get_pool()
     async with pool.acquire() as conn:
-        page = await conn.fetchval(
-            "SELECT html FROM landing_pages WHERE contact_id = $1 AND chat_context IS NOT NULL "
+        row = await conn.fetchrow(
+            "SELECT html, chat_context FROM landing_pages WHERE contact_id = $1 AND chat_context IS NOT NULL "
             "AND client_id IS NULL ORDER BY created_at DESC LIMIT 1",
             contact_id,
         )
-    m = re.search(r'id="phoneFrame"[^>]*?srcdoc="([^"]*)"', page or "")
-    return unescape(m.group(1)) if m else None
+    m = re.search(r'id="phoneFrame"[^>]*?srcdoc="([^"]*)"', row["html"] or "") if row else None
+    return {"funnel": unescape(m.group(1)), "chat_context": row["chat_context"]} if m else None
+
+
+_MERGE_FIELD = re.compile(r"\{[a-z_]+\}")
+
+_OFFER_COPY_SYSTEM = """You adapt a physical therapy practice's patient-facing texts and emails to the offer \
+its Meta ads funnel sells. The copy below was written around a default offer (a free consultation held as a \
+Google Meet video call). The practice's real offer is in the material: its funnel page and the facts behind it. \
+Rewrite only what's about the offer: what it's called, what it is, whether it's in person or a video call, where \
+it happens, and its price if the material states one. Keep everything else (tone, length, structure, the job of \
+each message) as it is.
+
+Hard rules:
+- Ground every fact in the material. Never invent a price, duration, address, policy (refunds, insurance, \
+cancellations) or claim.
+- Keep every merge field ({first_name}, {business}, {date}, {time}, {link}) exactly as written in each \
+message; add none and drop none.
+- No em dashes, en dashes, curly quotes or emoji anywhere. SMS bodies stay short and plain.
+- Reminders for an in-person visit say where to come if the material gives the address, instead of a video link.
+
+Return only a JSON object:
+{"offer_name": "<what patients book, as the funnel names it, e.g. \\"$49 Discovery Visit\\">",
+ "sequence": ["<the 5 conversation stages for the text agent, rewritten>"],
+ "price_rule": "5. <rule 5 for the text agent, rewritten for this offer>",
+ "steps": [{"id": <id>, "subject": "<email subject, or null for SMS>", "body": "<message>"}]}"""
+
+
+def _plain(text: str) -> str:
+    """No em/en dashes or curly quotes: in SMS they force UCS-2, doubling
+    Twilio's per-segment cost."""
+    text = re.sub(r"\s*[—–]\s*", ", ", text)
+    return text.translate(str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"'}))
+
+
+async def _offer_copy(client_id: int, ctx: dict) -> dict:
+    """Rewrites the free-consult defaults around the blueprint funnel's offer:
+    the Response AI's sequence + price rule, and the seeded messages that are
+    still exactly their default text (anything edited by hand is left alone)."""
+    from routers.clients import _DEFAULT_SEQUENCE_STEPS
+
+    defaults = {(key, order): body for key, order, _label, _channel, _subject, body in _DEFAULT_SEQUENCE_STEPS}
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT id, sequence_key, step_order, channel, subject, body FROM client_sequence_steps WHERE client_id = $1",
+            client_id,
+        )
+    steps = {r["id"]: dict(r) for r in rows if defaults.get((r["sequence_key"], r["step_order"])) == r["body"]}
+
+    funnel_text = re.sub(r"<(style|script)\b.*?</\1>", " ", ctx["blueprint"]["funnel"], flags=re.S | re.I)
+    funnel_text = re.sub(r"\s+", " ", unescape(re.sub(r"<[^>]+>", " ", funnel_text))).strip()
+    business = ctx["business"] or "the practice"
+    brief = f"""Practice: {business}
+
+--- Practice facts and offer (verified) ---
+{ctx['blueprint']['chat_context'] or '(none)'}
+
+--- Funnel page text ---
+{funnel_text[:15000]}
+
+--- Text agent conversation stages (default) ---
+{json.dumps([s.replace('{business}', business) for s in _DEFAULT_SEQUENCE], indent=1)}
+
+--- Text agent rule 5 (default) ---
+{_DEFAULT_PRICE_RULE}
+
+--- Messages (default) ---
+{json.dumps([{k: s[k] for k in ('id', 'sequence_key', 'channel', 'subject', 'body')} for s in steps.values()], indent=1)}"""
+
+    client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    async with client.messages.stream(
+        model=_MODEL,
+        max_tokens=32000,
+        output_config={"effort": "medium"},
+        system=_OFFER_COPY_SYSTEM,
+        messages=[{"role": "user", "content": brief}],
+    ) as stream:
+        message = await stream.get_final_message()
+    text = "".join(b.text for b in message.content if b.type == "text")
+    data = json.loads(text[text.find("{"):text.rfind("}") + 1])
+
+    sequence = [_plain(s) for s in data.get("sequence") or [] if isinstance(s, str) and s.strip()]
+    price_rule = _plain(data.get("price_rule") or "").strip()
+    offer_name = _plain(data.get("offer_name") or "").strip()
+    if len(sequence) != 5 or not price_rule.startswith("5.") or not offer_name:
+        raise ValueError("Claude's offer copy was incomplete")
+    rewritten = {}
+    for s in data.get("steps") or []:
+        orig = steps.get(s.get("id"))
+        body = _plain(s.get("body") or "").strip()
+        # A dropped or invented merge field would send broken text: keep the default.
+        if not orig or not body or set(_MERGE_FIELD.findall(body)) != set(_MERGE_FIELD.findall(orig["body"])):
+            continue
+        subject = _plain(s.get("subject") or "").strip() if orig["channel"] == "email" else ""
+        if not subject or set(_MERGE_FIELD.findall(subject)) != set(_MERGE_FIELD.findall(orig["subject"] or "")):
+            subject = orig["subject"]
+        rewritten[orig["id"]] = (subject, body)
+    return {"offer_name": offer_name, "sequence": sequence, "price_rule": price_rule, "steps": rewritten}
 
 
 _DEAD_LINK = re.compile(r'<a\b([^>]*?)\s*\bhref="#"([^>]*)>(.*?)</a>', re.S)
@@ -589,7 +722,7 @@ async def _step_landing_page(client_id: int, ctx: dict) -> tuple[str, str]:
         ctx["book_url"] = f"{pages_base}/lp/{slug}/book"
     if ctx["cfg"].get("landing_page_url"):
         return "skipped", f"Already set: {ctx['cfg']['landing_page_url']}"
-    blueprint = await _blueprint_funnel(ctx["anchor"].get("id"))
+    blueprint = (ctx.get("blueprint") or {}).get("funnel")
     if not blueprint and (not ctx["site"] or not (ctx["site"].get("text") or "").strip()):
         return "error", "No website on file (or it couldn't be read) to build the page from. Add it to the linked contact and re-run."
 
@@ -640,18 +773,29 @@ async def _step_landing_page(client_id: int, ctx: dict) -> tuple[str, str]:
 # ---------------------------------------------------------------- automations
 
 async def _step_automations(client_id: int, ctx: dict) -> tuple[str, str]:
-    """The seeded copy is already written around the free consultation,
-    so there's nothing to rewrite: confirm it's there and tick the guide."""
+    """The seeded copy is already written around the free consultation, so
+    without a blueprint there's nothing to rewrite: confirm it's there and
+    tick the guide. With one, _offer_copy()'s rewrites for its offer go in."""
+    offer = ctx.get("offer_copy")
     pool = await get_pool()
     async with pool.acquire() as conn:
         count = await conn.fetchval(
             "SELECT count(*) FROM client_sequence_steps WHERE client_id = $1", client_id,
         )
+        if count and offer:
+            for step_id, (subject, body) in offer["steps"].items():
+                await conn.execute(
+                    "UPDATE client_sequence_steps SET subject = $3, body = $4, updated_at = now() "
+                    "WHERE id = $1 AND client_id = $2",
+                    step_id, client_id, subject, body,
+                )
     if not count:
         return "error", "No sequence copy found for this client (it's normally seeded when the client is created)"
     await _check_guide_steps(client_id, "automations", [1, 2])
+    what = (f"{len(offer['steps'])} of {count} messages rewritten for their {offer['offer_name']}; "
+            f"reminder / no-show / cancellation / follow-up copy" if offer
+            else f"{count} free-consultation reminder / no-show / cancellation / follow-up messages")
     return "done", (
-        f"{count} free-consultation reminder / no-show / cancellation / follow-up messages in place on the "
-        "Sequences tab. They send from the client's own number now; email copy starts sending once the "
-        "mailbox is connected."
+        f"{what} in place on the Sequences tab. They send from the client's own number now; email copy starts "
+        "sending once the mailbox is connected." + _blueprint_note(ctx)
     )
