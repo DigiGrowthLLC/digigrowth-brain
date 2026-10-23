@@ -197,17 +197,32 @@ def _fill(template: str, row: dict) -> str:
     )
 
 
-async def _send_touch(conn, row: dict, instance: str, templates: dict, stage: str):
+async def _send_touch(conn, row: dict, instance: str, templates: dict, stage: str) -> bool:
+    """True when the touch is done with: sent, or refused by Twilio for good
+    (opted out, invalid or landline number), where retrying can't help.
+    False to retry on a later poll. A failed send used to be marked sent all
+    the same, so ~320 touches (Oct 14-15 and 20) silently never went out."""
     from routers import sms as sms_router
+    from twilio.base.exceptions import TwilioRestException
 
     sms_text = _fill(templates[f"dm_followup_{instance}_sms"], row)
     phone = row["phone"]
-    if sms_text.strip():
-        try:
-            sms_router._send_twilio(phone, sms_text)
-            await sms_router._store_message(conn, phone, "assistant", sms_text, stage=stage, is_automated=True)
-        except Exception as e:
-            print(f"[dm_followup_sequence] SMS failed for {phone}: {e}")
+    if not sms_text.strip():
+        return True
+    try:
+        sms_router._send_twilio(phone, sms_text)
+    except TwilioRestException as e:
+        print(f"[dm_followup_sequence] Twilio refused {instance} for {phone}: {e.status} {e.code} {e.msg}")
+        return 400 <= (e.status or 0) < 500 and e.status != 429
+    except Exception as e:
+        print(f"[dm_followup_sequence] {instance} failed for {phone}, retrying next poll: {type(e).__name__}: {e}")
+        return False
+    try:
+        await sms_router._store_message(conn, phone, "assistant", sms_text, stage=stage, is_automated=True)
+    except Exception as e:
+        # It went out, so it still counts as sent: resending would double-text.
+        print(f"[dm_followup_sequence] {instance} sent to {phone} but not stored: {type(e).__name__}: {e}")
+    return True
 
 
 def enroll_eligible(row: dict) -> bool:
@@ -272,6 +287,32 @@ async def auto_enroll(conn) -> int:
             "UPDATE sms_conversations SET dm_followup_enrolled_at = now() WHERE id = ANY($1::int[])", ids,
         )
     return len(ids)
+
+
+async def _awaiting_answer(conn, phone: str) -> bool:
+    """enroll_eligible() for the thread's current last text. Enrollment
+    checks it once, but a cycle restarts on every new silence, so Touch 1
+    checks it again: after a sign-off ("all good, I'll check back in a
+    couple weeks") or a hand-off it used to ask "checking you got that last
+    message" the next day. Stages enroll_eligible() doesn't judge (an
+    opener, say, on a thread Dylan added by hand) still get Touch 1."""
+    row = await conn.fetchrow(
+        """
+        SELECT lo.stage AS last_stage, lo.body AS last_body,
+               (SELECT action FROM sms_ai_drafts d WHERE d.phone = $1 AND d.status IN ('sent', 'auto_sent')
+                ORDER BY d.decided_at DESC NULLS LAST, d.created_at DESC LIMIT 1) AS last_ai_action,
+               (SELECT string_agg(body, ' || ') FROM sms_messages m
+                WHERE m.phone = $1 AND m.direction = 'inbound') AS inbound_text
+        FROM (SELECT stage, body FROM sms_messages m WHERE m.phone = $1 AND m.direction = 'outbound'
+              ORDER BY m.sent_at DESC LIMIT 1) lo
+        """,
+        phone,
+    )
+    if not row:
+        return False
+    stage = row["last_stage"] or ""
+    judged = not stage or stage in _PITCH_STAGES or stage == "ai_setter" or stage.startswith("dm_followup")
+    return enroll_eligible(dict(row)) if judged else not _OPTED_OUT.search(_BOILERPLATE.sub(" ", row["inbound_text"] or ""))
 
 
 async def _setter_judgment(conn, phone: str, last_inbound_at) -> str | None:
@@ -417,10 +458,13 @@ async def send_due_touches():
                 # reference is None here only if the previous touch hasn't
                 # sent yet — nothing to do this poll, wait for it.
                 if (reference is not None and now >= reference + delay
-                        and sent_this_poll < MAX_SENDS_PER_POLL and _in_send_hours(phone, row["city"], row["state"], now)):
-                    await _send_touch(conn, row, f"touch{touch_num}", templates, f"dm_followup_touch{touch_num}")
-                    await conn.execute(
-                        f"UPDATE sms_conversations SET {sent_col} = now() WHERE id = $1", row["id"],
-                    )
+                        and sent_this_poll < MAX_SENDS_PER_POLL and _in_send_hours(phone, row["city"], row["state"], now)
+                        and (touch_num > 1 or await _awaiting_answer(conn, phone))):
+                    # Attempts count toward the cap too, so a failing send
+                    # can't retry more than MAX_SENDS_PER_POLL rows a poll.
                     sent_this_poll += 1
+                    if await _send_touch(conn, row, f"touch{touch_num}", templates, f"dm_followup_touch{touch_num}"):
+                        await conn.execute(
+                            f"UPDATE sms_conversations SET {sent_col} = now() WHERE id = $1", row["id"],
+                        )
                 break
