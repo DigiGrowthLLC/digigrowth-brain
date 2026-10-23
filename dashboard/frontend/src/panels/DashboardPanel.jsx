@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { easternToday, isTodoDue } from "../easternTime.js";
 import {
   LineChart, Line,
@@ -322,13 +322,18 @@ export default function DashboardPanel({ onNavigate }) {
   const PERIOD_LABEL = { day: "TODAY", week: "THIS WEEK", month: "THIS MONTH", all: "ALL TIME" };
   const periodLabel = date ? formatPickedDate(date).toUpperCase() : PERIOD_LABEL[period];
 
+  // Only the latest load may set stats: a slow All Time response must not
+  // land on top of a day picked after it.
+  const latestLoad = useRef(0);
   const load = async (p = period, d = date) => {
+    const seq = ++latestLoad.current;
     const [s, a, c] = await Promise.all([
       fetch(API(`/dashboard/summary?period=${p}${d ? `&date=${d}` : ""}`)),
       fetch(API("/dashboard/agent-messages")),
       fetch(API("/dashboard/client-messages")),
     ]);
-    if (s.ok) setStats(await s.json());
+    const summary = s.ok ? await s.json() : null;
+    if (summary && seq === latestLoad.current) setStats(summary);
     if (a.ok) setAgentMsgs((await a.json()).filter(m => !m.read));
     if (c.ok) setClientMsgs(await c.json());
   };

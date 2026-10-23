@@ -130,7 +130,9 @@ function CampaignsView({ days, date }) {
 
   useEffect(() => {
     if (!selectedId) return;
-    fetch(API(`/analytics/campaign/${selectedId}?days=${days}${date ? `&date=${date}` : ""}`)).then(r => r.ok ? r.json() : null).then(setDetail);
+    let stale = false;
+    fetch(API(`/analytics/campaign/${selectedId}?days=${days}${date ? `&date=${date}` : ""}`)).then(r => r.ok ? r.json() : null).then(d => { if (!stale) setDetail(d); });
+    return () => { stale = true; };
   }, [selectedId, days, date]);
 
   async function reactivate(id) {
@@ -448,15 +450,20 @@ export default function AnalyticsPanel() {
   const pickPeriod = (d) => { setDays(d); setDate(null); };
   const outreachTab = days === 0 && !date ? "all_time" : "period";
 
+  // `stale` drops a response that lands after the period changed again.
   useEffect(() => {
-    fetch(API(`/analytics/outreach?days=${days}${dateQs}`)).then(r => r.ok ? r.json() : null).then(setOutreach);
+    let stale = false;
+    fetch(API(`/analytics/outreach?days=${days}${dateQs}`)).then(r => r.ok ? r.json() : null).then(o => { if (!stale) setOutreach(o); });
+    return () => { stale = true; };
   }, [days, date]);
 
   useEffect(() => {
+    let stale = false;
     Promise.all([
       fetch(API(`/analytics/pipeline?days=${days}${dateQs}`)).then(r => r.ok ? r.json() : null),
       fetch(API(`/analytics/sales?days=${days}${dateQs}`)).then(r => r.ok ? r.json() : null),
-    ]).then(([p, s]) => { setPipeline(p); setSales(s); });
+    ]).then(([p, s]) => { if (!stale) { setPipeline(p); setSales(s); } });
+    return () => { stale = true; };
   }, [days, date]);
 
   const funnel = pipeline?.funnel ?? {};
