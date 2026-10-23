@@ -6160,9 +6160,9 @@
       "last_scraped_date": "2026-10-22"
     },
     "Costa Mesa, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 192,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 217,
       "qualified_count": 22,
       "last_scraped_date": "2026-10-22"
     },
