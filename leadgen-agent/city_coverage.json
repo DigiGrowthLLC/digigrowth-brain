@@ -6216,11 +6216,11 @@
       "last_scraped_date": "2026-10-23"
     },
     "Palm Coast, FL": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 66,
+      "qualified_count": 5,
+      "last_scraped_date": "2026-10-23"
     },
     "Lee's Summit, MO": {
       "status": "not_started",
