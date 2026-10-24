@@ -6202,11 +6202,11 @@
       "last_scraped_date": "2026-10-23"
     },
     "West Covina, CA": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 69,
       "qualified_count": 0,
-      "last_scraped_date": null
+      "last_scraped_date": "2026-10-23"
     },
     "Boulder, CO": {
       "status": "not_started",
