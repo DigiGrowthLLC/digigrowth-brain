@@ -6181,9 +6181,9 @@
       "last_scraped_date": "2026-10-23"
     },
     "Spokane Valley, WA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 148,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 171,
       "qualified_count": 0,
       "last_scraped_date": "2026-10-23"
     },
