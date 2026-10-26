@@ -157,7 +157,7 @@ def main():
             system_prompt = response_ai._build_system_prompt(
                 clients[args.client]["name"], config.get("response_ai_context") or "", sequence,
                 config.get("response_ai_max_words"), config.get("response_ai_rules") or "",
-                f"{local:%A, %B} {local.day}, {local.year}",
+                f"{local:%A, %B} {local.day}, {local.year}", lead_phone=lead,
             )
             try:
                 draft, calls = run_turn(api, model, system_prompt, history, at, tz)

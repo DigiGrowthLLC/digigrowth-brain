@@ -45,7 +45,7 @@ _JSONB_FIELDS = ("ad_creative_status", "guide_progress", "response_ai_sequence",
 # truthy, so the admin UI's "connected" checks work), and a mask sent back on
 # save is ignored so it can't overwrite the real value. Found 2026-10-12:
 # GET marketing-config was returning all of these in plain JSON.
-_SECRET_FIELDS = ("gmail_refresh_token", "calendly_api_token", "twilio_api_key_secret", "calendly_webhook_signing_key")
+_SECRET_FIELDS = ("gmail_refresh_token", "calendly_api_token", "ghl_api_token", "twilio_api_key_secret", "calendly_webhook_signing_key")
 _MASK_PREFIX = "•••• "
 
 

@@ -63,10 +63,12 @@ import anthropic
 
 import calendly_integration
 import client_sms
+import ghl_integration
 import lead_flags
 import scheduler_registry
 from db import get_pool
 from routers.appointments import create_appointment_row
+from routers.calendly_webhooks import record_booking
 from sms_text import gsm7_safe
 from timezone_lookup import guess_timezone
 
@@ -454,6 +456,7 @@ def _today_str(tz_name: str) -> str:
 def _build_system_prompt(
     business_name: str, context: str, sequence: list[str], max_words: int | None, rules: str,
     today_str: str, booked_for: str | None = None, lessons: list[str] | None = None,
+    lead_phone: str | None = None,
 ) -> str:
     # Order matters here: business context and the conversation arc come
     # first (background the model reasons with), and the mandatory rules
@@ -467,6 +470,8 @@ def _build_system_prompt(
         f"\nToday is {today_str} (the lead's local date/day of week). Use this to resolve "
         "relative dates like \"tomorrow\" or \"next Tuesday\" into an actual YYYY-MM-DD yourself — "
         "never ask the lead to spell out a date they already gave you in relative terms.\n",
+        # Rules like "a 512 number means they're local" need the number itself.
+        f"The lead is texting from {lead_phone}.\n" if lead_phone else "",
         f"\n--- Business: {business_name} ---\n{context.strip()}\n",
     ]
 
@@ -680,6 +685,7 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
             today_str, booked_for=_format_booking(booking) if booking else None, lessons=lessons,
+            lead_phone=from_phone,
         )
         waited = datetime.now(timezone.utc) - latest["created_at"] if latest else timedelta(0)
         if waited > timedelta(minutes=60):
@@ -865,7 +871,7 @@ async def _open_conversation(client_id: int, phone: str, lead_name: str | None, 
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
-            today_str,
+            today_str, lead_phone=phone,
         ) + _PROACTIVE_PREAMBLE_ADDITION
 
         note = (
@@ -975,7 +981,7 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
-            _today_str(guess_timezone(phone)), lessons=lessons,
+            _today_str(guess_timezone(phone)), lessons=lessons, lead_phone=phone,
         ) + _FOLLOWUP_PREAMBLE_ADDITION
         if checkin_note is not None:
             messages.append({"role": "user", "content": (
@@ -1050,23 +1056,55 @@ async def _run_agent_turn(client_id: int, from_phone: str, system_prompt: str, m
     return "\n".join(text_parts).strip() or None
 
 
+async def _calendar_config(conn, client_id: int):
+    """Booking-calendar settings: Calendly (token + event type) wins; a
+    GHL token plus the GHL booking link in clients.calendly_url is the
+    fallback (ghl_integration.py)."""
+    return await conn.fetchrow(
+        "SELECT cmc.calendly_api_token, cmc.calendly_event_type_url, cmc.ghl_api_token, cl.calendly_url "
+        "FROM client_marketing_config cmc JOIN clients cl ON cl.id = cmc.client_id WHERE cmc.client_id = $1",
+        client_id,
+    )
+
+
+def _format_openings(day_times: list[datetime]) -> str:
+    """One day's slots (local, sorted) -> the earliest and latest as an
+    either/or: two options 30 minutes apart aren't a real choice."""
+    day_label = f"{day_times[0]:%A, %B} {day_times[0].day}"
+    picks = [day_times[0], day_times[-1]] if len(day_times) >= 2 else day_times[:1]
+    times = [t.strftime("%I:%M %p").lstrip("0") for t in picks]
+    return f"Earliest real openings (lead's local time): {day_label} at {' or '.join(times)}"
+
+
 async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_input: dict) -> str:
     pool = await get_pool()
 
     if tool_name == "check_availability":
         async with pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT calendly_api_token, calendly_event_type_url FROM client_marketing_config "
-                "WHERE client_id = $1", client_id,
-            )
+            row = await _calendar_config(conn, client_id)
         token = row["calendly_api_token"] if row else None
         event_type_url = row["calendly_event_type_url"] if row else None
-        if not token or not event_type_url:
+        ghl_calendar = ghl_integration.calendar_id_from_url(row["calendly_url"]) if row else None
+        use_ghl = not (token and event_type_url) and bool(row and row["ghl_api_token"] and ghl_calendar)
+        if not (token and event_type_url) and not use_ghl:
             return "Calendar isn't connected for this business — ask the lead for their preferred day and time instead."
         after_date = (tool_input.get("after_date") or "").strip()
         try:
             tz_name = guess_timezone(from_phone)
             tz = ZoneInfo(tz_name)
+            if use_ghl:
+                start = (datetime.strptime(after_date, "%Y-%m-%d").replace(tzinfo=tz) if after_date
+                         else datetime.now(tz) + timedelta(minutes=15))
+                day_times = [s.astimezone(tz) for s in await ghl_integration.find_earliest_available_times(
+                    row["ghl_api_token"], ghl_calendar, start, tz_name,
+                )]
+                if not day_times:
+                    return (
+                        "No open times found in the next 30 days — this calendar likely hasn't had "
+                        "availability set further out yet. Let the lead know you'll follow up once a "
+                        "slot opens, or offer to have a human confirm timing with them."
+                    )
+                return _format_openings(day_times)
             # Calendly requires start_time to be strictly in the future at
             # the moment IT processes the request, not when this code reads
             # the clock — a timestamp that's "now" here can already be past
@@ -1107,11 +1145,7 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 if day_label != earliest_day:
                     break
                 day_times.append(local)
-            if len(day_times) >= 2:
-                times = [day_times[0].strftime("%-I:%M %p"), day_times[-1].strftime("%-I:%M %p")]
-            else:
-                times = [day_times[0].strftime("%-I:%M %p")]
-            return f"Earliest real openings (lead's local time): {earliest_day} at {' or '.join(times)}"
+            return _format_openings(day_times)
         except Exception as e:
             # This failure was previously silent to Dylan — the model just
             # got a graceful fallback string and asked for a day instead,
@@ -1149,12 +1183,11 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 })
 
             async with pool.acquire() as conn:
-                cal_row = await conn.fetchrow(
-                    "SELECT calendly_api_token, calendly_event_type_url FROM client_marketing_config "
-                    "WHERE client_id = $1", client_id,
-                )
+                cal_row = await _calendar_config(conn, client_id)
             token = cal_row["calendly_api_token"] if cal_row else None
             event_type_url = cal_row["calendly_event_type_url"] if cal_row else None
+            ghl_calendar = ghl_integration.calendar_id_from_url(cal_row["calendly_url"]) if cal_row else None
+            use_ghl = not (token and event_type_url) and bool(cal_row and cal_row["ghl_api_token"] and ghl_calendar)
 
             # Name/email come from the matched CRM contact (a Meta lead has
             # both from the form). Only when one is genuinely missing does
@@ -1170,6 +1203,41 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                         "updated_at = now() WHERE id = $1",
                         contact_id, name, email,
                     )
+
+            if use_ghl:
+                # GHL calendar: book straight onto it, then record it here
+                # under the same ghl:<id> key the client's booking workflow
+                # webhook uses (ghl_webhooks.py), so that webhook skips it as
+                # already recorded instead of duplicating it.
+                missing = [label for label, value in (("name", name), ("email", email)) if not value]
+                if missing:
+                    return (
+                        f"Not booked yet — the calendar needs the lead's {' and '.join(missing)}, which "
+                        "isn't on file (the video call link is emailed to them). Ask them for just that in "
+                        "one short message (keep the time they picked), then call propose_appointment again "
+                        "with the same date/time plus " + " and ".join(f"lead_{m}" for m in missing) + "."
+                    )
+                try:
+                    appt = await ghl_integration.create_appointment(
+                        cal_row["ghl_api_token"], ghl_calendar, tool_input.get("date"), tool_input.get("time"), tz,
+                        name, email, from_phone, reason,
+                    )
+                except Exception as e:
+                    print(f"[response_ai] GHL create_appointment failed for client={client_id}: {e}", flush=True)
+                    return (
+                        f"Couldn't book {tool_input.get('date')} {tool_input.get('time')} — the calendar "
+                        "rejected it (most likely that slot was just taken). Don't tell them they're booked. "
+                        "Call check_availability again and offer them the next open times instead."
+                    )
+                await record_booking(
+                    name=name, email=email, phone=from_phone, start_utc=appt["start_utc"], tz_name=tz_name,
+                    tracking={}, event_uri=f"ghl:{appt['id']}", client_id=client_id,
+                )
+                await _mark_booked()
+                return (
+                    f"Confirmed on the calendar for {tool_input.get('date')} {tool_input.get('time')} "
+                    f"({tz_name}) — they'll get a confirmation email with the video call link. Tell them they're all set."
+                )
 
             if token and event_type_url:
                 # Calendar connected: book straight onto it, never a tap-to-

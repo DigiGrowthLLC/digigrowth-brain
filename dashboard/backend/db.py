@@ -790,6 +790,9 @@ async def _create_schema(pool: asyncpg.Pool):
             -- Last authenticated GoHighLevel booking webhook for this client
             -- (routers/ghl_webhooks.py) — proof the GHL workflow is live.
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS ghl_last_webhook_at TIMESTAMPTZ;
+            -- GHL Private Integration token (ghl_integration.py): lets the client's
+            -- AI agent see real open slots and book onto their GHL calendar.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS ghl_api_token TEXT;
         """)
         # One-time cleanup: an earlier deploy briefly seeded these 6 rows
         # into onboarding_action_items (the client-completed "Next Steps"

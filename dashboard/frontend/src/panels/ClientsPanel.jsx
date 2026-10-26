@@ -2000,7 +2000,7 @@ const MARKETING_GUIDES = {
         link: "https://developers.facebook.com/tools/lead-ads-testing", linkLabel: "Meta Lead Ads Testing Tool" },
       // Appended 2026-10-16. Calendly (step 6) is the default; steps 14-16 are
       // ONLY for a client who explicitly books on GoHighLevel.
-      { text: "ONLY if the client explicitly says they book on GoHighLevel (Calendly, step 6, is the default; skip 14-16 otherwise). Get added to their GHL sub-account as Admin. If the invite lands you in another agency's account (one email can only be one GHL user), have them invite dylanrg+<client>@digigrowthllc.com instead and open it in an incognito window. Create a calendar for the free consultation: name it to match the funnel (\"Free Consultation\"), no in-person group, Google Meet location (needs their Google account connected under Calendars → Connections), 20 min + 10 min buffer, their business hours in their time zone, 2 hr minimum notice, form asks first/last name + phone + email. If the custom URL says the slug is taken, use any unique slug: the booking link uses the calendar ID anyway (api.leadconnectorhq.com/widget/booking/<calendarId>). Notifications: Email ON for \"Appointment booked (Confirmed)\" to the contact (that's how leads get the Meet link); leave GHL Reminder/Follow-Up/Cancellation OFF since this dashboard sends those. Paste the booking link as the Calendly event link in Set Up Client Portal step 1 (it drives the funnel's Book button, the AI's booking link and the follow-up texts)." },
+      { text: "ONLY if the client explicitly says they book on GoHighLevel (Calendly, step 6, is the default; skip 14-16 otherwise). Get added to their GHL sub-account as Admin. If the invite lands you in another agency's account (one email can only be one GHL user), have them invite dylanrg+<client>@digigrowthllc.com instead and open it in an incognito window. Create a calendar for the free consultation: name it to match the funnel (\"Free Consultation\"), no in-person group, Google Meet location (needs their Google account connected under Calendars → Connections), 20 min + 10 min buffer, their business hours in their time zone, 2 hr minimum notice, form asks first/last name + phone + email. If the custom URL says the slug is taken, use any unique slug: the booking link uses the calendar ID anyway (api.leadconnectorhq.com/widget/booking/<calendarId>). Notifications: Email ON for \"Appointment booked (Confirmed)\" to the contact (that's how leads get the Meet link); leave GHL Reminder/Follow-Up/Cancellation OFF since this dashboard sends those. Paste the booking link as the Calendly event link in Set Up Client Portal step 1 (it drives the funnel's Book button, the AI's booking link and the follow-up texts). Then create a Private Integration token (Settings → Private Integrations; scopes View Calendars, Edit Calendar Events, Edit Contacts) and paste it under the agent's \"Calendar (GoHighLevel)\" so it offers real open times and books straight onto this calendar." },
       { text: "ONLY for a GoHighLevel client: sync their bookings into this dashboard (portal appointment, 24h/6h/1h reminders, booking alert, ads-lead tag, funnel conversion). In GHL → Automation → Workflows → new workflow: trigger \"Customer Booked Appointment\" filtered to that calendar, second trigger \"Appointment Status\" filtered to that calendar + status Cancelled, then action Webhook (under Send Data, not Custom Webhook) POST to the URL below, no headers or custom data. Name it \"DigiGrowth booking sync\" and Publish. Bookings from their other calendars are ignored automatically.",
         ghlWebhookAction: true },
       { text: "Test bookings without notifying the client: turn off the client's booking alert and the calendar's own notifications, book one slot with your own details, confirm it shows in their portal Appointments (the onboarding agent can check), cancel it, delete the test lead, reset the funnel's conversions (Website stats), then turn every notification back on." },
@@ -2740,6 +2740,54 @@ function CalendlyWebhookConnect({ clientId, connected, autoError }) {
   );
 }
 
+// GoHighLevel counterpart of the Calendly token above (ghl_integration.py),
+// for a client who books on GHL. Same never-pre-filled secret field. The
+// calendar is the GHL booking link already saved as the client's booking
+// link, so the token is the only thing to set.
+function AgentGhlConnect({ config, onSaveFields }) {
+  const [token, setToken] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const connected = Boolean(config?.ghl_api_token);
+
+  const save = async (value) => {
+    setSaving(true);
+    setSaved(false);
+    setSaveError("");
+    const result = await onSaveFields({ ghl_api_token: value });
+    setSaving(false);
+    if (result?.ok) { setSaved(true); setToken(""); } else setSaveError(result?.error || "Save failed");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 12, color: "#8aaad0" }}>
+        Only for a client who books on GoHighLevel. In their GHL sub-account: Settings → Private Integrations → Create, with scopes View Calendars, Edit Calendar Events and Edit Contacts, then paste the token below. The agent books onto the calendar in the client's GHL booking link. Calendly wins if both are connected. {connected ? "Connected — paste a new token below to replace it." : "Not connected."}
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          type="password" autoComplete="off" className="dg-input" style={{ fontSize: 12, flex: 1, boxSizing: "border-box" }}
+          value={token} placeholder={connected ? "Paste a new token to replace the connected one" : "GHL Private Integration token"}
+          onChange={(e) => { setToken(e.target.value); setSaved(false); setSaveError(""); }}
+        />
+        {connected && (
+          <button className="btn btn-danger" style={{ fontSize: 10 }} disabled={saving}
+            onClick={() => window.confirm("Disconnect GoHighLevel for this client?") && save(null)}>
+            DISCONNECT
+          </button>
+        )}
+      </div>
+      <button className="btn btn-primary" style={{ fontSize: 10, alignSelf: "flex-start" }} onClick={() => save(token.trim())} disabled={saving || !token.trim()}>
+        {saving ? "SAVING…" : saved ? "SAVED ✓" : "SAVE"}
+      </button>
+      {saveError && (
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{saveError}</div>
+      )}
+    </div>
+  );
+}
+
 function AgentCalendlyConnect({ config, onSaveFields, clientId }) {
   // Deliberately NEVER pre-fill this with the existing token (unlike every
   // other field in this file) — a password-type input silently holding the
@@ -3011,6 +3059,11 @@ function ClientAgentSetup({ clientId }) {
           "Calendar (Calendly)",
           "Optional — lets the agent check real availability before proposing a time, instead of asking blind.",
           <AgentCalendlyConnect config={config} onSaveFields={saveFields} clientId={clientId} />
+        )}
+        {section(
+          "Calendar (GoHighLevel)",
+          "Same as Calendly, for a client who books on a GHL calendar.",
+          <AgentGhlConnect config={config} onSaveFields={saveFields} />
         )}
         {section(
           "Performance",

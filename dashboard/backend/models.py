@@ -226,6 +226,7 @@ class ClientMarketingConfigUpdate(BaseModel):
     response_ai_rules: Optional[str] = None
     calendly_api_token: Optional[str] = None
     calendly_event_type_url: Optional[str] = None
+    ghl_api_token: Optional[str] = None
     landing_page_url: Optional[str] = None
     meta_pixel_id: Optional[str] = None
     meta_ad_account_id: Optional[str] = None
