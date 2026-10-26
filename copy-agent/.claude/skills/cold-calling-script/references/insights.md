@@ -2,13 +2,19 @@
 
 *Source: Dylan's Google Drive cold-calling corpus (scripts, notes, call reviews, rebuttal vault, playbooks, metrics). Compiled 2026-07-30 as a pre-read before building the `cold-calling-script` skill.*
 
-`Last resync: 2026-10-19`
+`Last resync: 2026-10-26`
 
 ---
 
 ## Update Log
 
 Reverse-chronological. Each entry is tagged `(automated resync)` (weekly, via `executive-assistant/.claude/skills/cold-calling-resync/SKILL.md`) or `(Dylan, in conversation)` (reactive, added the moment new data/notes come up). Check here first before leaning on the Baseline below — an entry may supersede a stale number or contradict a stated principle (the way March 2026's real booking rate contradicted the "V.1.9 was an improvement" narrative — see Baseline §7-8).
+
+### 2026-10-26 (automated resync)
+- **Drive:** No new or changed cold-calling docs since the last resync (2026-10-19) — files modified in that window (Nightly Reflection, October Daily Input Tracker, 90 Day Attack Plan, Goal Tracker, Morning Protocol, personal-brand video/transcript uploads) match none of the known cold-calling title patterns.
+- **Metrics:** No October 2026 Cold Calling Metrics sheet exists yet; the September 2026 sheet is unchanged since 2026-09-16 and effectively empty (no booking rate). Most recent sheet with real data is still July 2026 (per Baseline §7).
+- **OS dialer:** Could not check — `curl` to `GET /api/dialer/stats` returned no response (HTTP 000, curl exit 56, connection failed at the egress proxy) for `digigrowth-brain-production.up.railway.app`. Not circumvented. Same recommendation as prior entries: allow this host in the cloud environment's network policy, and keep the credential in Doppler rather than the routine prompt.
+- **Changes the picture?** No — no new signal from the reachable sources; the OS dialer gap remains a network-policy issue.
 
 ### 2026-10-19 (automated resync)
 - **Drive:** No new or changed cold-calling docs since the last resync (2026-10-12) — files modified in that window (Nightly Reflection, Daily Input Tracker, 90 Day Attack Plan, Morning Protocol, etc.) match none of the known cold-calling title patterns.
