@@ -102,12 +102,13 @@ the scan; check the route in `dashboard/backend/routers/clients.py` before calli
   DigiGrowth's Workspace, then TXT verify + MX `smtp.google.com` + SPF at the DNS host,
   host `mail`; never touch the root `@` records.
 - **Funnel domain (default for every client, 2026-10-26)**: the funnel stays in the OS
-  (`/lp/<slug>`) and is also served on the client's own `go.<their domain>`; no Vercel copy.
-  Save it as `funnel_domain` (`PUT /api/clients/{id}/marketing-config`), add it to the
-  Railway service (`railway domain go.<domain>` from the repo root prints the CNAME + any
-  `_railway-verify` TXT), add those at the DNS host, then wait for
-  `https://go.<domain>/` to serve the funnel (autocheck ticks landing_page:2 by itself).
-  Update the portal Website tab URL to the new domain so the client sees it.
+  (`/lp/<slug>`) and is also served on the client's own `go.<their domain>` through the
+  shared `client-funnels` Vercel project (a proxy, not a copy; Railway's plan caps custom
+  domains). Save it as `funnel_domain` (`PUT /api/clients/{id}/marketing-config`), run
+  `doppler run --project digigrowth --config prd -- python onboarding-agent/scripts/deploy_client_funnels.py`,
+  then add a CNAME `go` -> `cname.vercel-dns.com` at the DNS host. Autocheck ticks
+  landing_page:2 once `https://go.<domain>/` serves the funnel. Update the portal Website
+  tab URL to the new domain so the client sees it.
 - **GoHighLevel (only when the client said so)**: one email = one GHL user, so if the
   invite lands in another agency, ask for an invite to `dylanrg+<client>@digigrowthllc.com`
   and open it in incognito. Calendar slugs are global (pick any unique one, the link uses
