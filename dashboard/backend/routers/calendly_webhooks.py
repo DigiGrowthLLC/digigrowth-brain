@@ -371,6 +371,10 @@ async def record_booking(*, name: str | None, email: str | None, phone: str | No
                     "WHERE id = $2 AND NOT ('ads-lead' = ANY(tags)) AND NOT ('organic-lead' = ANY(tags))",
                     lead_tag, contact_id,
                 )
+                await conn.execute(
+                    "UPDATE contacts SET lead_source = $1 WHERE id = $2 AND lead_source IS NULL",
+                    "funnel" if lead_tag == "ads-lead" else "website", contact_id,
+                )
         else:
             # Dylan's own pipeline — match an existing CRM contact by phone
             # (falling back to email — Calendly's default booking form only

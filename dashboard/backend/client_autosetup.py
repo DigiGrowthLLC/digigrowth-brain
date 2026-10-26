@@ -41,7 +41,7 @@ AI's sequence + price rule (step 4) and in every seeded message still at
 its default text (step 5) around it, and the blueprint's verified practice
 facts (its demo chat's context) go into the Response AI context.
 6. Email marketing: picks the outreach subdomain (mail.<their domain>). The
-   DNS records need the client's registrar, so the rest stays manual.
+   DNS records need access to the client's DNS host, so the rest stays manual.
 
 Paid ad creatives are left alone (they need the client's ad account).
 Steps that already have a value (a number, a context, a URL) are skipped,
@@ -424,7 +424,7 @@ async def _step_email(client_id: int, ctx: dict) -> tuple[str, str]:
     await _set_config(client_id, email_subdomain=sub)
     await _check_guide_steps(client_id, "email", [0])
     return "done", (
-        f"Outreach subdomain set to {sub}. Still manual: the DNS records at the client's registrar, "
+        f"Outreach subdomain set to {sub}. Still manual: the DNS records at the client's DNS host, "
         "the mailbox, and the refresh token."
     )
 

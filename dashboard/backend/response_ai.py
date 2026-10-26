@@ -372,7 +372,7 @@ async def _get_or_create_contact(conn, client_id: int, phone: str) -> dict | Non
     and propose_appointment uses it to pre-fill the Calendly link instead
     of sending the lead a blank form to fill out again."""
     existing = await conn.fetchrow(
-        "SELECT id, client_id, is_client_anchor, owner, email FROM contacts "
+        "SELECT id, client_id, is_client_anchor, owner, email, lead_source, source_detail, created_at FROM contacts "
         "WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = right(regexp_replace($1, '\\D', '', 'g'), 10) "
         "ORDER BY (client_id = $2) DESC, created_at ASC LIMIT 1",
         phone, client_id,
@@ -380,12 +380,22 @@ async def _get_or_create_contact(conn, client_id: int, phone: str) -> dict | Non
     if existing:
         if existing["is_client_anchor"] or (existing["client_id"] is not None and existing["client_id"] != client_id):
             return None
-        return {"id": existing["id"], "owner": existing["owner"], "email": existing["email"]}
+        return {
+            "id": existing["id"], "owner": existing["owner"], "email": existing["email"],
+            "lead_source": existing["lead_source"], "source_detail": existing["source_detail"],
+            "created_at": existing["created_at"],
+        }
+    # Unknown number texting the client's line: they found the number on
+    # their own (a callback, a card, the website).
     row = await conn.fetchrow(
-        "INSERT INTO contacts (id, phone, status, client_id) VALUES ($1, $2, 'new', $3) RETURNING id",
-        str(uuid.uuid4()), phone, client_id,
+        "INSERT INTO contacts (id, phone, status, client_id, lead_source, tags) VALUES ($1, $2, 'new', $3, 'inbound_sms', $4) "
+        "RETURNING id, created_at",
+        str(uuid.uuid4()), phone, client_id, lead_flags.SOURCE_TAGS["inbound_sms"],
     )
-    return {"id": row["id"], "owner": None, "email": None}
+    return {
+        "id": row["id"], "owner": None, "email": None,
+        "lead_source": "inbound_sms", "source_detail": None, "created_at": row["created_at"],
+    }
 
 
 async def _load_recent_messages(conn, client_id: int, phone: str) -> list[dict]:
@@ -453,10 +463,88 @@ def _today_str(tz_name: str) -> str:
     return f"{now:%A, %B} {now.day}, {now.year}"
 
 
+# How the agent should treat a lead, by contacts.lead_source. A past
+# patient or an old inquiry is not a fresh ad lead: re-pitching the
+# business to someone the clinic already treated reads as a mass blast.
+_ORIGIN_NOTES = {
+    "meta_form": "They filled out this business's Facebook/Instagram ad form, so they asked about the "
+                 "offer in that ad. Treat them as a new inquiry.",
+    "funnel": "They came through this business's ad landing page. Treat them as a new inquiry.",
+    "website": "They found this business on its own website. Treat them as a new inquiry.",
+    "inbound_sms": "They texted this number on their own. You don't know yet how they found the "
+                   "business, so find out what they need before anything else.",
+    "manual": "The business added them by hand. Treat them as an inquiry.",
+    "ig_dm": "They messaged this business on Instagram.",
+    "fb_dm": "They messaged this business on Facebook.",
+    "past_patient": "They are a PAST PATIENT of this business: the clinic has treated them before. Talk "
+                    "to them like the front desk would to someone they know: never introduce the "
+                    "business as if they've never heard of it, never pitch them like a stranger, and "
+                    "never thank them for their interest. The goal is a warm check-in on how they're "
+                    "doing (the old issue, or anything new) and getting them back on the schedule if "
+                    "they want it. Never mention diagnoses or treatment details beyond what they bring up.",
+    "old_inquiry": "They reached out to this business a while back but never booked. They've heard of "
+                   "the business but may not remember the exact conversation, so don't pretend to. "
+                   "Acknowledge it's been a while, ask whether the issue is still bothering them, and "
+                   "make getting in easy.",
+    "import": "They're on an older contact list the business imported, not a new inquiry. Don't treat "
+              "them as someone who just asked about an ad; keep it low-pressure and find out whether "
+              "they still need help.",
+}
+
+
+def _origin_block(origin: dict | None) -> str:
+    """The "who is this lead" section of the prompt, from the contact's
+    lead_source/source_detail (+ the reactivation campaign that reached
+    out to them, if any). Empty when nothing is known."""
+    if not origin:
+        return ""
+    note = _ORIGIN_NOTES.get(origin.get("lead_source") or "", "")
+    lines = []
+    if note:
+        lines.append(note)
+    if origin.get("source_detail"):
+        lines.append(f"What the business knows about them: {origin['source_detail'].strip()}")
+    if origin.get("campaign_angle"):
+        lines.append(
+            "This conversation started because the business reached out to them first, as part of "
+            f"re-contacting its existing patients and leads. The angle of that outreach: {origin['campaign_angle'].strip()}"
+        )
+    if not lines:
+        return ""
+    return "\n--- Who this lead is ---\n" + "\n".join(lines) + "\n"
+
+
+async def _lead_origin(conn, client_id: int, phone: str, contact: dict | None = None) -> dict | None:
+    """lead_source/source_detail for this client's lead on that phone, plus
+    the angle of the newest reactivation campaign that texted them. Pass
+    `contact` when it's already loaded (handle_inbound_sms) to skip the
+    contact lookup."""
+    if contact is None:
+        contact = await conn.fetchrow(
+            "SELECT id, lead_source, source_detail FROM contacts "
+            "WHERE client_id = $1 AND NOT is_client_anchor AND coalesce(phone, '') != '' "
+            "AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = right(regexp_replace($2, '\\D', '', 'g'), 10) "
+            "ORDER BY created_at ASC LIMIT 1",
+            client_id, phone,
+        )
+        contact = dict(contact) if contact else None
+    if not contact:
+        return None
+    angle = await conn.fetchval(
+        "SELECT rc.angle FROM reactivation_enrollments re JOIN reactivation_campaigns rc ON rc.id = re.campaign_id "
+        "WHERE re.contact_id = $1 AND re.touches_sent > 0 ORDER BY re.last_touch_at DESC NULLS LAST LIMIT 1",
+        contact["id"],
+    )
+    return {
+        "lead_source": contact.get("lead_source"), "source_detail": contact.get("source_detail"),
+        "campaign_angle": angle,
+    }
+
+
 def _build_system_prompt(
     business_name: str, context: str, sequence: list[str], max_words: int | None, rules: str,
     today_str: str, booked_for: str | None = None, lessons: list[str] | None = None,
-    lead_phone: str | None = None,
+    lead_phone: str | None = None, origin: dict | None = None,
 ) -> str:
     # Order matters here: business context and the conversation arc come
     # first (background the model reasons with), and the mandatory rules
@@ -473,6 +561,9 @@ def _build_system_prompt(
         # Rules like "a 512 number means they're local" need the number itself.
         f"The lead is texting from {lead_phone}.\n" if lead_phone else "",
         f"\n--- Business: {business_name} ---\n{context.strip()}\n",
+        # Right after the business context: who this person is to the
+        # business changes how the whole arc below should sound.
+        _origin_block(origin),
     ]
 
     if sequence:
@@ -668,6 +759,7 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
                 messages = await _load_recent_messages(conn, client_id, from_phone)
                 booking = await _upcoming_booking(conn, from_phone, (contact or {}).get("email"))
                 lessons = await _active_lessons(conn, client_id)
+                origin = await _lead_origin(conn, client_id, from_phone, contact) if contact else None
         if cap_hit:
             await _send_pending_escalation_alert(client_id, from_phone)
             return
@@ -685,7 +777,7 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
             today_str, booked_for=_format_booking(booking) if booking else None, lessons=lessons,
-            lead_phone=from_phone,
+            lead_phone=from_phone, origin=origin,
         )
         waited = datetime.now(timezone.utc) - latest["created_at"] if latest else timedelta(0)
         if waited > timedelta(minutes=60):
@@ -971,6 +1063,7 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
                 return None
             messages = await _load_recent_messages(conn, client_id, phone)
             lessons = await _active_lessons(conn, client_id)
+            origin = await _lead_origin(conn, client_id, phone)
         if not messages:
             return None
 
@@ -981,7 +1074,7 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
-            _today_str(guess_timezone(phone)), lessons=lessons, lead_phone=phone,
+            _today_str(guess_timezone(phone)), lessons=lessons, lead_phone=phone, origin=origin,
         ) + _FOLLOWUP_PREAMBLE_ADDITION
         if checkin_note is not None:
             messages.append({"role": "user", "content": (
@@ -1006,6 +1099,92 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
         return await _complete_followup(system_prompt, messages, max_words)
     except Exception as e:
         print(f"[response_ai] write_followup_text failed for client={client_id} phone={phone}: {e}")
+        return None
+
+
+_REACTIVATION_PREAMBLE_ADDITION = (
+    "\nYou are reaching out FIRST to someone already in this business's records (see \"Who this lead "
+    "is\" above): they did not just contact the business. Write ONE short text, the way a person at the "
+    "front desk who knows them would:\n"
+    "- Sound like one person texting one person, never a broadcast. Use their first name if you have it.\n"
+    "- End with one easy question they can answer in a word or two. Never send a link, never list "
+    "prices, never invent urgency, scarcity, discounts or deadlines the business's template doesn't state.\n"
+    "- If this isn't the first text in this outreach, build on the earlier one(s) instead of restarting, "
+    "and never repeat their wording.\n"
+    "- Mention their old issue only in the plain words the business has on file (\"your shoulder\"), "
+    "never a diagnosis.\n"
+    "Reply with only the text itself, nothing else.\n"
+)
+
+
+async def write_outreach_text(client_id: int, phone: str, brief: str, preamble: str) -> str | None:
+    """One first-contact text written from `brief` under `preamble` (the
+    lead's origin block, lessons and rules included), for outreach that isn't
+    a reply: client_dm_agent's SMS handoff. None on any failure."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT cmc.response_ai_enabled, cmc.response_ai_context, cmc.response_ai_max_words, "
+                "cmc.response_ai_rules, c.name FROM client_marketing_config cmc "
+                "JOIN clients c ON c.id = cmc.client_id WHERE cmc.client_id = $1",
+                client_id,
+            )
+            if not row or not row["response_ai_enabled"]:
+                return None
+            lessons = await _active_lessons(conn, client_id)
+            origin = await _lead_origin(conn, client_id, phone)
+        system_prompt = _build_system_prompt(
+            row["name"], row["response_ai_context"] or "", [], row["response_ai_max_words"], row["response_ai_rules"] or "",
+            _today_str(guess_timezone(phone)), lessons=lessons, lead_phone=phone, origin=origin,
+        ) + preamble
+        messages = [{"role": "user", "content": f"[System note: write the text now. {brief}]"}]
+        return await _complete_followup(system_prompt, messages, row["response_ai_max_words"])
+    except Exception as e:
+        print(f"[response_ai] write_outreach_text failed for client={client_id} phone={phone}: {e}")
+        return None
+
+
+async def write_reactivation_text(client_id: int, phone: str, template: str, touch_num: int, total: int) -> str | None:
+    """One database-reactivation touch (client_reactivation.py), written for
+    this lead from what the business knows about them (lead_source,
+    source_detail, the campaign's angle) and any history on the thread.
+    `template` is the campaign's copy for this touch, filled: the brief, and
+    what the caller sends unchanged when this returns None (agent off, API
+    error, runaway length). No tools: an outreach text never books."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT cmc.response_ai_enabled, cmc.response_ai_context, cmc.response_ai_max_words, "
+                "cmc.response_ai_rules, c.name FROM client_marketing_config cmc "
+                "JOIN clients c ON c.id = cmc.client_id WHERE cmc.client_id = $1",
+                client_id,
+            )
+            if not row or not row["response_ai_enabled"]:
+                return None
+            messages = await _load_recent_messages(conn, client_id, phone)
+            lessons = await _active_lessons(conn, client_id)
+            origin = await _lead_origin(conn, client_id, phone)
+        max_words = row["response_ai_max_words"]
+        # No conversation arc: that's the booking flow for once they reply.
+        system_prompt = _build_system_prompt(
+            row["name"], row["response_ai_context"] or "", [], max_words, row["response_ai_rules"] or "",
+            _today_str(guess_timezone(phone)), lessons=lessons, lead_phone=phone, origin=origin,
+        ) + _REACTIVATION_PREAMBLE_ADDITION
+        goal = (
+            "This is the LAST text in this outreach: keep the door open warmly and say you won't keep "
+            "texting." if touch_num == total else
+            "This is the first text in this outreach." if touch_num == 1 else
+            f"This is text {touch_num} of {total}; they haven't replied to the earlier one(s)."
+        )
+        messages.append({"role": "user", "content": (
+            f"[System note: write the outreach text now. {goal} The business's template for this text, "
+            f"as a guide to its purpose and offer: \"{template}\"]"
+        )})
+        return await _complete_followup(system_prompt, messages, max_words)
+    except Exception as e:
+        print(f"[response_ai] write_reactivation_text failed for client={client_id} phone={phone}: {e}")
         return None
 
 

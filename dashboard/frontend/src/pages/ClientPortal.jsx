@@ -1982,6 +1982,10 @@ function AppointmentsTab({ token }) {
 // last since "name"/"contact" are the most generic, collision-prone terms.
 const LEAD_CSV_FIELD_KEYWORDS = [
   ["phone", ["phone", "mobile", "cell", "telephone"]],
+  // Read by the reactivation agent ("your shoulder", "last in March"), so
+  // it can talk to a past patient like the clinic knows them.
+  ["last_visit", ["last visit", "last appointment", "last seen", "discharge"]],
+  ["condition", ["condition", "injury", "complaint", "reason", "body part"]],
   ["business", ["business", "company"]],
   ["email", ["email"]],
   ["website", ["website", "url", "site", "web"]],
@@ -2477,6 +2481,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
   const [importing, setImporting] = useState(false);
   const [importTags, setImportTags] = useState([]); // tag names to stamp on every imported/updated row
   const [newTagName, setNewTagName] = useState("");
+  const [importListType, setImportListType] = useState("import"); // contacts.lead_source for the whole file
 
   // Tagging — mirrors the internal CRM's tag system (routers/tags.py +
   // routers/crm.py's per-contact tag endpoints), scoped to this client's
@@ -2556,7 +2561,14 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
     setImporting(true);
     const r = await fetch(`/portal-api/${token}/leads/import`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contacts: parsed, tags: importTags }),
+      body: JSON.stringify({
+        contacts: parsed.map(({ condition, last_visit, ...row }) => ({
+          ...row,
+          source_detail: [condition, last_visit && `last visit ${last_visit}`].filter(Boolean).join(", "),
+        })),
+        tags: importTags,
+        lead_source: importListType,
+      }),
     });
     if (r.ok) { setImportResult(await r.json()); load(); }
     setImporting(false);
@@ -2625,7 +2637,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
           ) : (
             <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => setShowNewTag(true)}>+ NEW TAG</button>
           )}
-          <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => { setShowImport((s) => !s); setShowAdd(false); setParsed(null); setImportResult(null); setImportTags([]); }}>
+          <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => { setShowImport((s) => !s); setShowAdd(false); setParsed(null); setImportResult(null); setImportTags([]); setImportListType("import"); }}>
             {showImport ? "CANCEL" : "IMPORT CSV"}
           </button>
           <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={() => { setShowAdd((s) => !s); setShowImport(false); }}>
@@ -2660,7 +2672,15 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
       {showImport && (
         <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 20, display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontSize: 12, color: "#8aaad0", lineHeight: 1.6 }}>
-            CSV with a <strong>phone</strong> column required. Recognized headers: business, owner, phone, email, website, city, state, notes.
+            CSV with a <strong>phone</strong> column required. Recognized headers: business, owner, phone, email, website, city, state, notes, condition, last visit.
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: "#8aaad0" }}>What kind of list is this?</span>
+            <select className="dg-input" value={importListType} onChange={(e) => setImportListType(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 240 }}>
+              <option value="past_patient">Past patients</option>
+              <option value="old_inquiry">Old inquiries that never booked</option>
+              <option value="import">Other contacts</option>
+            </select>
           </div>
           <input type="file" accept=".csv,text/csv" onChange={handleFile} />
           {parsed && !importResult && (

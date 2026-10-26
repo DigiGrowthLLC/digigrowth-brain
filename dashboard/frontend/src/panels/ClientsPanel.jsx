@@ -1954,12 +1954,12 @@ const MARKETING_GUIDES = {
       { text: "Never send outreach from the client's own root domain, even a mailbox they don't use daily (e.g. contact@) — it shares reputation with their real business mailbox. Instead, pick a dedicated outreach SUBDOMAIN for this client (e.g. mail.clientdomain.com or go.clientdomain.com).",
         fields: [{ key: "email_subdomain", label: "Outreach subdomain", placeholder: "mail.clientdomain.com" }] },
       { text: "In DigiGrowth's own Workspace Admin (NOT the client's) — Account → Domains → Add a domain — add that subdomain as a Secondary Domain. Check the domain-count limit on DigiGrowth's Workspace plan first if you've added several of these already.", link: "https://admin.google.com/ac/domains", linkLabel: "Google Admin Console (digigrowthllc.com) → Domains" },
-      { text: "Verify ownership: Google gives you a TXT record (Name matches your subdomain, e.g. \"mail\") — add it at the CLIENT's registrar. This is the only step that needs the client's registrar access, not their Workspace login.", registrar: true },
-      { text: "Once verified, Google shows an MX activation code. Add it at the client's registrar as a new record — Type MX, Name = your subdomain label (e.g. \"mail\"), Priority 1, Data smtp.google.com, TTL lowest available. Do NOT touch or delete the client's existing root-domain (\"@\") MX record — that's their real business email.", registrar: true },
+      { text: "Verify ownership: Google gives you a TXT record (Name matches your subdomain, e.g. \"mail\") — add it at the CLIENT's DNS host (wherever their nameservers point, often not the registrar; see DNS host in Resources). This is the only step that needs access to the client's DNS host, not their Workspace login.", registrar: true },
+      { text: "Once verified, Google shows an MX activation code. Add it at the client's DNS host as a new record — Type MX, Name = your subdomain label (e.g. \"mail\"), Priority 1, Data smtp.google.com, TTL lowest available. Do NOT touch or delete the client's existing root-domain (\"@\") MX record — that's their real business email.", registrar: true },
       { text: "Add an SPF TXT record for the subdomain — Name = same subdomain label, value exactly \"v=spf1 include:_spf.google.com ~all\" (the v=spf1 prefix is required, easy to accidentally omit).", registrar: true },
       { text: "Wait 24-72 hours after the MX record goes live before generating DKIM — Google enforces this wait; generating earlier can produce an invalid key you'd have to redo." },
       { text: "After the wait, go to Apps → Google Workspace → Gmail → Authenticate email, select the subdomain specifically (not the root domain), and Generate a new DKIM record (2048-bit, \"google\" prefix are fine defaults).", link: "https://admin.google.com/ac/apps/gmail/authenticateemail", linkLabel: "Google Admin Console → Gmail → Authenticate email" },
-      { text: "Add the generated DKIM TXT record at the client's registrar, wait for it to propagate, then click Start Authentication in the Admin console.", registrar: true },
+      { text: "Add the generated DKIM TXT record at the client's DNS host, wait for it to propagate, then click Start Authentication in the Admin console.", registrar: true },
       { text: "Create the sending mailbox on the subdomain under DigiGrowth's Workspace (e.g. contact@mail.clientdomain.com).", link: "https://admin.google.com/ac/users", linkLabel: "Google Admin Console → Users → Add new user" },
       { text: "Locally run reauth_google.py (repo root), logged into GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (Railway variables on the digigrowth-brain service), signed in as the new mailbox, to generate a refresh token. (Local script — no link.)" },
       { text: "Paste the refresh token and sender email below — the subdomain field above is reused automatically.",
@@ -2129,10 +2129,10 @@ const SETUP_ORDER_GUIDE = {
 
 // What's realistically automatable end-to-end vs. what always needs a human
 // in the loop (an account login, a legal/compliance review, a DNS change at
-// a registrar we don't control). Shown once at the top of the Marketing
+// a DNS host we don't control). Shown once at the top of the Marketing
 // Setup tab so it's obvious which steps are worth building automation for.
 const AUTOMATION_CANDIDATES = [
-  { step: "Auto-Setup (on Closed)", note: "Marking a discovery call Closed builds the client portal, then in the background (client_autosetup.py): a free-consultation landing page from the client's scraped site, their Twilio number, the Response AI context/sequence/rules (switched on), a check that the seeded free-consultation reminder/no-show/cancellation/follow-up copy is in place, and their email outreach subdomain. Still manual: A2P 10DLC (needs EIN), registrar DNS for email and a custom funnel domain, Calendly, Facebook Page/ad account access. Re-run from the Auto-Setup card; it only fills gaps." },
+  { step: "Auto-Setup (on Closed)", note: "Marking a discovery call Closed builds the client portal, then in the background (client_autosetup.py): a free-consultation landing page from the client's scraped site, their Twilio number, the Response AI context/sequence/rules (switched on), a check that the seeded free-consultation reminder/no-show/cancellation/follow-up copy is in place, and their email outreach subdomain. Still manual: A2P 10DLC (needs EIN), DNS records at the client's DNS host for email and a custom funnel domain, Calendly, Facebook Page/ad account access. Re-run from the Auto-Setup card; it only fills gaps." },
   { step: "Landing Page", note: "Automated by Auto-Setup (see above), hosted on the pages domain with every CTA routed through /lp/<slug>/book to the client's Calendly. Still needs a human review before ad spend, and the client's own subdomain if wanted." },
   { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automated here yet. Automated already: once the Page ID is saved, Instant Form leads flow into the client's CRM and get texted by their agent (Make relay, built automatically)." },
   { step: "SMS / Email / Response AI", note: "SMS and Email still need a one-time human setup step outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent) that no API lets us do on someone's behalf. Response AI is fully self-built and automated once enabled — response_ai.py replies to inbound SMS itself, no third-party account needed, just per-client context/sequence/rules written on the Agent tab. What's already automated across all three: the number/mailbox setup itself, every send/receive once connected, and the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats)." },
@@ -2905,11 +2905,473 @@ function AgentCalendlyEventType({ config, onSaveFields }) {
   );
 }
 
+// Database reactivation (client_reactivation.py): campaigns that text this
+// client's EXISTING leads — past patients, old inquiries, quiet leads —
+// never fresh ad leads. Each campaign = an audience (lead sources + tags)
+// and its own touches; the agent rewrites each touch for the person.
+const LEAD_SOURCE_LABELS = {
+  past_patient: "Past patients", old_inquiry: "Old inquiries", import: "Imported lists",
+  manual: "Added by hand", website: "Website bookings", inbound_sms: "Texted in on their own",
+  meta_form: "Meta form leads (30+ days old)", funnel: "Funnel leads (30+ days old)",
+};
+const REACTIVATION_STATUS_COLOR = {
+  draft: "#5a7aa0", active: "#4ade80", paused: "#f0b429", done: "#6ab0ff",
+  queued: "#5a7aa0", replied: "#6ab0ff", booked: "#4ade80", completed: "#5a7aa0",
+  opted_out: "#dc3c3c", excluded: "#5a7aa0",
+};
+
+function ReactivationChip({ label, count, on, onClick }) {
+  return (
+    <span
+      onClick={onClick}
+      style={{
+        cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5,
+        padding: "3px 9px", borderRadius: 999, fontSize: 10.5,
+        fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+        color: on ? "#e8f0ff" : "#8aaad0",
+        background: on ? "rgba(58,123,213,0.35)" : "rgba(58,123,213,0.08)",
+        border: `1px solid ${on ? "rgba(106,176,255,0.7)" : "rgba(58,123,213,0.25)"}`,
+      }}
+    >
+      {label}<span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, opacity: 0.8 }}>{count}</span>
+    </span>
+  );
+}
+
+function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCancel }) {
+  const [name, setName] = useState(campaign?.name || "");
+  const [sources, setSources] = useState(campaign?.audience_sources || []);
+  const [tags, setTags] = useState(campaign?.audience_tags || []);
+  const [angle, setAngle] = useState(campaign?.angle || "");
+  const [dailyCap, setDailyCap] = useState(campaign?.daily_cap || 30);
+  const [touches, setTouches] = useState(campaign?.touches || options.default_touches);
+  const [preview, setPreview] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const toggle = (list, setList, value) => {
+    setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
+    setPreview(null);
+  };
+  const setTouch = (i, field, value) => setTouches(touches.map((t, j) => (j === i ? { ...t, [field]: value } : t)));
+
+  const runPreview = async () => {
+    const r = await fetch(API(`/clients/${clientId}/reactivation/preview`), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ audience_sources: sources, audience_tags: tags }),
+    });
+    if (r.ok) setPreview(await r.json());
+  };
+
+  const save = async () => {
+    setSaving(true); setError("");
+    const body = {
+      name, audience_sources: sources, audience_tags: tags, angle, daily_cap: Number(dailyCap) || 30,
+      touches: touches.map((t) => ({ day: Number(t.day) || 0, body: t.body })),
+    };
+    const r = await fetch(API(campaign ? `/clients/${clientId}/reactivation/campaigns/${campaign.id}` : `/clients/${clientId}/reactivation/campaigns`), {
+      method: campaign ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    setSaving(false);
+    if (!r.ok) { setError((await r.json().catch(() => null))?.detail || "Failed to save"); return; }
+    onSaved();
+  };
+
+  const label = (text) => (
+    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", letterSpacing: "0.06em", margin: "12px 0 6px" }}>{text}</div>
+  );
+
+  return (
+    <div style={{ padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.15)" }}>
+      {label("CAMPAIGN NAME")}
+      <input className="dg-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Past patients, fall check-in" style={{ width: "100%", fontSize: 12 }} />
+
+      {label("WHO IT TEXTS: ANY LEAD MATCHING ONE OF THESE")}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {options.sources.map((s) => (
+          <ReactivationChip key={s.source} label={LEAD_SOURCE_LABELS[s.source] || s.source} count={s.count}
+            on={sources.includes(s.source)} onClick={() => toggle(sources, setSources, s.source)} />
+        ))}
+      </div>
+      {options.tags.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+          {options.tags.map((t) => (
+            <ReactivationChip key={t.tag} label={`#${t.tag}`} count={t.count}
+              on={tags.includes(t.tag)} onClick={() => toggle(tags, setTags, t.tag)} />
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6, lineHeight: 1.5 }}>
+        Always skipped: anyone booked (upcoming or in the last 60 days), recent ad leads (last 30 days), anyone texted in the last 30 days, anyone in the regular follow-up, Unqualified, opted out, or already in another open campaign.
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={runPreview} disabled={!sources.length && !tags.length}>PREVIEW AUDIENCE</button>
+        {preview && (
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10.5, color: "#6ab0ff" }}>
+            {preview.count} would be texted
+          </span>
+        )}
+      </div>
+      {preview?.sample?.length > 0 && (
+        <div style={{ marginTop: 6, fontSize: 11, color: "#8aaad0", lineHeight: 1.6 }}>
+          {preview.sample.map((p) => (
+            <div key={p.phone}>{p.name} · {LEAD_SOURCE_LABELS[p.lead_source] || p.lead_source || "no source"}{p.source_detail ? ` · ${p.source_detail}` : ""}</div>
+          ))}
+        </div>
+      )}
+
+      {label("ANGLE (WHAT THIS OUTREACH IS ABOUT, AND THE OFFER IF ANY)")}
+      <textarea className="dg-input" rows={2} value={angle} onChange={(e) => setAngle(e.target.value)}
+        placeholder="e.g. Seasonal check-in for discharged patients; offer a returning-patient visit at the client's agreed price"
+        style={{ width: "100%", fontSize: 12, resize: "vertical" }} />
+
+      {label("NEW PEOPLE TEXTED PER DAY")}
+      <input className="dg-input" type="number" min={1} value={dailyCap} onChange={(e) => setDailyCap(e.target.value)} style={{ width: 90, fontSize: 12 }} />
+
+      {label("TOUCHES (THE AGENT PERSONALIZES EACH ONE; SENT AS WRITTEN IF THE AGENT IS OFF)")}
+      {touches.map((t, i) => (
+        <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, color: "#5a7aa0" }}>DAY</span>
+            <input className="dg-input" type="number" min={0} value={t.day} onChange={(e) => setTouch(i, "day", e.target.value)} style={{ width: 54, fontSize: 12 }} />
+          </div>
+          <textarea className="dg-input" rows={2} value={t.body} onChange={(e) => setTouch(i, "body", e.target.value)} style={{ flex: 1, fontSize: 12, resize: "vertical" }} />
+          <button className="btn btn-secondary" style={{ fontSize: 10, padding: "4px 8px" }} onClick={() => setTouches(touches.filter((_, j) => j !== i))}>✕</button>
+        </div>
+      ))}
+      <button className="btn btn-secondary" style={{ fontSize: 10 }}
+        onClick={() => setTouches([...touches, { day: (Number(touches[touches.length - 1]?.day) || 0) + 7, body: "" }])}>
+        + ADD TOUCH
+      </button>
+      <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6 }}>
+        Use {"{first_name}"} and {"{business}"}. "Reply STOP to opt out." is added to the first text automatically. Sends 10am-6pm, Monday-Saturday, in each lead's time zone.
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+        <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={save} disabled={saving || !name.trim()}>{saving ? "SAVING…" : "SAVE"}</button>
+        <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={onCancel}>CANCEL</button>
+      </div>
+      {error && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c", marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
+
+function ReactivationPeople({ clientId, campaignId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    fetch(API(`/clients/${clientId}/reactivation/campaigns/${campaignId}/enrollments`))
+      .then((r) => (r.ok ? r.json() : [])).then(setRows);
+  }, [clientId, campaignId]);
+  if (!rows) return <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  if (!rows.length) return <div style={{ fontSize: 12, color: "#5a7aa0" }}>Nobody enrolled yet. Start the campaign to enroll its audience.</div>;
+  return (
+    <div style={{ maxHeight: 320, overflowY: "auto", marginTop: 8 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+        <thead>
+          <tr>
+            {["Name", "Phone", "Status", "Texts", "Last text", "Note"].map((h) => (
+              <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} style={{ borderTop: "1px solid rgba(58,123,213,0.08)" }}>
+              <td style={{ padding: "6px 8px", color: "#d0e8ff" }}>{r.owner || "—"}</td>
+              <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{r.phone}</td>
+              <td style={{ padding: "6px 8px", color: REACTIVATION_STATUS_COLOR[r.status] || "#8aaad0", fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5 }}>{r.status.replace("_", " ").toUpperCase()}</td>
+              <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{r.touches_sent}</td>
+              <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{r.last_touch_at ? new Date(r.last_touch_at).toLocaleDateString() : "—"}</td>
+              <td style={{ padding: "6px 8px", color: "#5a7aa0" }}>{r.end_reason || r.source_detail || ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReactivationAgent({ clientId, agentEnabled }) {
+  const [options, setOptions] = useState(null);
+  const [campaigns, setCampaigns] = useState([]);
+  const [editing, setEditing] = useState(null); // "new" | campaign id | null
+  const [peopleFor, setPeopleFor] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const [message, setMessage] = useState("");
+
+  const load = async () => {
+    const [o, c] = await Promise.all([
+      fetch(API(`/clients/${clientId}/reactivation/options`)),
+      fetch(API(`/clients/${clientId}/reactivation/campaigns`)),
+    ]);
+    if (o.ok) setOptions(await o.json());
+    if (c.ok) setCampaigns(await c.json());
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const act = async (campaign, action) => {
+    if (action === "start" && !window.confirm(`Start "${campaign.name}"? It begins texting its audience (up to ${campaign.daily_cap} new people a day) from this client's number.`)) return;
+    if (action === "delete" && !window.confirm(`Delete "${campaign.name}"?`)) return;
+    setBusy(campaign.id); setMessage("");
+    const r = await fetch(
+      API(`/clients/${clientId}/reactivation/campaigns/${campaign.id}${action === "delete" ? "" : `/${action}`}`),
+      { method: action === "delete" ? "DELETE" : "POST" },
+    );
+    const data = await r.json().catch(() => null);
+    if (!r.ok) setMessage(data?.detail || "Failed");
+    else if (action === "start") setMessage(`"${campaign.name}" is running. ${data.added} ${data.added === 1 ? "person" : "people"} added.`);
+    setBusy(null);
+    await load();
+  };
+
+  if (!options) return <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {!agentEnabled && (
+        <div style={{ fontSize: 11.5, color: "#f0b429" }}>
+          The Facebook Leads Agent is off for this client, so touches go out exactly as written and replies wait for a human. Turn it on to have the agent personalize touches and answer replies.
+        </div>
+      )}
+      {campaigns.length === 0 && editing !== "new" && (
+        <div style={{ fontSize: 12, color: "#5a7aa0" }}>
+          No campaigns yet. Import the client's past patients or old inquiries from their portal (Leads → Import CSV, pick the list type), then create a campaign for that audience.
+        </div>
+      )}
+      {campaigns.map((c) => (
+        editing === c.id ? (
+          <ReactivationCampaignEditor key={c.id} clientId={clientId} options={options} campaign={c}
+            onSaved={() => { setEditing(null); load(); }} onCancel={() => setEditing(null)} />
+        ) : (
+          <div key={c.id} style={{ padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.12)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 12.5, color: "#d0e8ff" }}>{c.name}</div>
+              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: REACTIVATION_STATUS_COLOR[c.status], letterSpacing: "0.06em" }}>{c.status.toUpperCase()}</span>
+            </div>
+            <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 4 }}>
+              {[...c.audience_sources.map((s) => LEAD_SOURCE_LABELS[s] || s), ...c.audience_tags.map((t) => `#${t}`)].join(", ") || "No audience picked"}
+              {" · "}{c.touches.length} touches · {c.daily_cap}/day
+            </div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8aaad0", marginTop: 6 }}>
+              {c.stats.enrolled} enrolled · {c.stats.texted} texted · {c.stats.replied} replied · {c.stats.booked} booked · {c.stats.opted_out} opted out
+            </div>
+            <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+              {c.status !== "active" && (
+                <button className="btn btn-primary" style={{ fontSize: 10 }} disabled={busy === c.id} onClick={() => act(c, "start")}>
+                  {c.status === "draft" ? "START" : c.status === "paused" ? "RESUME" : "ADD NEWLY ELIGIBLE"}
+                </button>
+              )}
+              {c.status === "active" && (
+                <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={busy === c.id} onClick={() => act(c, "pause")}>PAUSE</button>
+              )}
+              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setEditing(c.id)}>EDIT</button>
+              <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setPeopleFor(peopleFor === c.id ? null : c.id)}>
+                {peopleFor === c.id ? "HIDE PEOPLE" : "PEOPLE"}
+              </button>
+              {c.stats.texted === 0 && (
+                <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={busy === c.id} onClick={() => act(c, "delete")}>DELETE</button>
+              )}
+            </div>
+            {peopleFor === c.id && <ReactivationPeople clientId={clientId} campaignId={c.id} />}
+          </div>
+        )
+      ))}
+      {editing === "new" ? (
+        <ReactivationCampaignEditor clientId={clientId} options={options} campaign={null}
+          onSaved={() => { setEditing(null); load(); }} onCancel={() => setEditing(null)} />
+      ) : (
+        <button className="btn btn-secondary" style={{ fontSize: 11, alignSelf: "flex-start" }} onClick={() => setEditing("new")}>+ NEW CAMPAIGN</button>
+      )}
+      {message && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#6ab0ff" }}>{message}</div>}
+    </div>
+  );
+}
+
+// Social media conversation agent (client_dm_agent.py): answers Instagram and
+// Facebook DMs, gets a number or a booking inside Meta's 24-hour window.
+const DM_STATUS_COLOR = {
+  ai_active: "#4ade80", booked: "#6ab0ff", escalated: "#f0b429", closed: "#5a7aa0", unqualified: "#9aa3b2",
+};
+
+function DmTestChat({ clientId }) {
+  const [platform, setPlatform] = useState("instagram");
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [phone, setPhone] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text) return;
+    const next = [...messages, { role: "user", content: text }];
+    setMessages(next); setDraft(""); setSending(true); setError("");
+    const r = await fetch(API(`/clients/${clientId}/dm-agent/test`), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform, messages: next, phone }),
+    });
+    const data = await r.json().catch(() => null);
+    setSending(false);
+    if (!r.ok) { setError(data?.detail || "Failed"); return; }
+    if (data.phone) setPhone(data.phone);
+    setMessages([...next, { role: "assistant", content: data.reply || "(no reply)" }]);
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+        <select className="dg-input" value={platform} onChange={(e) => setPlatform(e.target.value)} style={{ fontSize: 11, padding: "5px 8px", width: 130 }}>
+          <option value="instagram">Instagram</option>
+          <option value="facebook">Facebook</option>
+        </select>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setMessages([]); setPhone(null); setError(""); }}>RESET</button>
+        {phone && <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#6ab0ff" }}>number captured: {phone}</span>}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto", marginBottom: 8 }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{
+            alignSelf: m.role === "user" ? "flex-start" : "flex-end", maxWidth: "80%", whiteSpace: "pre-wrap",
+            padding: "7px 10px", borderRadius: 10, fontSize: 12, lineHeight: 1.45,
+            background: m.role === "user" ? "rgba(255,255,255,0.05)" : "rgba(58,123,213,0.25)", color: "#d0e8ff",
+          }}>{m.content}</div>
+        ))}
+        {sending && <div style={{ alignSelf: "flex-end", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>TYPING…</div>}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input className="dg-input" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Message the agent as a lead would…"
+          onKeyDown={(e) => { if (e.key === "Enter" && !sending) send(); }} style={{ flex: 1, fontSize: 12 }} />
+        <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={send} disabled={sending || !draft.trim()}>SEND</button>
+      </div>
+      <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6 }}>
+        Test mode reads the real calendar but saves, books and escalates nothing.
+      </div>
+      {error && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c", marginTop: 4 }}>{error}</div>}
+    </div>
+  );
+}
+
+function DmThreads({ clientId }) {
+  const [threads, setThreads] = useState(null);
+  const [openId, setOpenId] = useState(null);
+  const [messages, setMessages] = useState([]);
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/dm-agent/threads`));
+    if (r.ok) setThreads(await r.json());
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+
+  const open = async (id) => {
+    if (openId === id) { setOpenId(null); return; }
+    setOpenId(id); setMessages([]);
+    const r = await fetch(API(`/clients/${clientId}/dm-agent/threads/${id}/messages`));
+    if (r.ok) setMessages(await r.json());
+  };
+  const handBack = async (id) => {
+    await fetch(API(`/clients/${clientId}/dm-agent/threads/${id}/hand-back`), { method: "POST" });
+    await load();
+  };
+
+  if (!threads) return <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  if (!threads.length) return <div style={{ fontSize: 12, color: "#5a7aa0" }}>No DMs yet.</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {threads.map((t) => (
+        <div key={t.id} style={{ padding: 10, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.12)" }}>
+          <div onClick={() => open(t.id)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 8 }}>
+            <div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 12.5, color: "#d0e8ff" }}>
+                {t.sender_name || "Unknown"} <span style={{ fontSize: 10.5, color: "#5a7aa0", fontWeight: 400 }}>· {t.platform === "instagram" ? "Instagram" : "Facebook"}{t.phone ? ` · ${t.phone}` : ""}</span>
+              </div>
+              <div style={{ fontSize: 11, color: "#8aaad0", marginTop: 2 }}>{(t.last_body || "").slice(0, 90)}</div>
+            </div>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: DM_STATUS_COLOR[t.status] || "#8aaad0", whiteSpace: "nowrap" }}>
+              {t.status.replace("_", " ").toUpperCase()}
+            </span>
+          </div>
+          {openId === t.id && (
+            <div style={{ marginTop: 8 }}>
+              {t.status_reason && <div style={{ fontSize: 11, color: "#f0b429", marginBottom: 6 }}>{t.status_reason}</div>}
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 260, overflowY: "auto" }}>
+                {messages.map((m) => (
+                  <div key={m.id} style={{
+                    alignSelf: m.direction === "inbound" ? "flex-start" : "flex-end", maxWidth: "80%", whiteSpace: "pre-wrap",
+                    padding: "6px 9px", borderRadius: 9, fontSize: 11.5,
+                    background: m.direction === "inbound" ? "rgba(255,255,255,0.05)" : m.sender === "human" ? "rgba(240,180,41,0.2)" : "rgba(58,123,213,0.25)",
+                    color: "#d0e8ff",
+                  }}>
+                    {m.body}
+                    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, color: "#5a7aa0", marginTop: 2 }}>
+                      {m.sender === "human" ? "CLINIC STAFF · " : m.sender === "ai" ? "AI · " : ""}{new Date(m.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {(t.status !== "ai_active" || t.human_last_at) && (
+                <button className="btn btn-secondary" style={{ fontSize: 10, marginTop: 8 }} onClick={() => handBack(t.id)}>HAND BACK TO AI</button>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SocialMediaAgent({ clientId, config, onSaveFields }) {
+  const [connecting, setConnecting] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const connect = async () => {
+    setConnecting(true); setResult(null);
+    const r = await fetch(API(`/clients/${clientId}/dm-agent/connect`), { method: "POST" });
+    setResult(await r.json().catch(() => ({ ok: false, error: "Failed" })));
+    setConnecting(false);
+    await onSaveFields({});
+  };
+
+  const block = (title, children) => (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", letterSpacing: "0.06em", marginBottom: 6 }}>{title}</div>
+      {children}
+    </div>
+  );
+  const row = (label, value, ok) => (
+    <div style={{ fontSize: 11.5, color: ok ? "#8aaad0" : "#f0b429", marginBottom: 3 }}>{ok ? "✓" : "○"} {label}{value ? `: ${value}` : ""}</div>
+  );
+
+  return (
+    <div>
+      {block("STATUS", (
+        <div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#d0e8ff", marginBottom: 10, cursor: "pointer" }}>
+            <input type="checkbox" checked={Boolean(config?.dm_agent_enabled)} onChange={(e) => onSaveFields({ dm_agent_enabled: e.target.checked })} />
+            Agent replies to DMs
+          </label>
+          {row("Facebook Page ID", config?.meta_page_id, Boolean(config?.meta_page_id))}
+          {row("Instagram account linked to the Page", config?.instagram_account_id, Boolean(config?.instagram_account_id))}
+          {row("Page subscribed to DMs", config?.dm_connected_at ? new Date(config.dm_connected_at).toLocaleDateString() : null, Boolean(config?.dm_connected_at))}
+          {config?.dm_connect_error && <div style={{ fontSize: 11, color: "#e05c5c", marginTop: 4 }}>{config.dm_connect_error}</div>}
+          <button className="btn btn-secondary" style={{ fontSize: 10, marginTop: 8 }} onClick={connect} disabled={connecting}>
+            {connecting ? "CONNECTING…" : config?.dm_connected_at ? "RECONNECT" : "CONNECT DMS"}
+          </button>
+          {result && !result.ok && <div style={{ fontSize: 11, color: "#e05c5c", marginTop: 4 }}>{result.error}</div>}
+          <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 8, lineHeight: 1.55 }}>
+            One-time Meta setup: the System User token needs pages_messaging, instagram_basic and instagram_manage_messages; in the Meta app's Webhooks settings, subscribe the Page object to messages + message_echoes and the Instagram object to messages, both pointing at /webhooks/meta-leadgen; and in Meta Business Suite turn off automated replies (so they don't double-answer). Real DMs from the public need those permissions approved in Meta App Review; until then only people with a role on the app get through.
+          </div>
+        </div>
+      ))}
+      {block("TEST CHAT", <DmTestChat clientId={clientId} />)}
+      {block("CONVERSATIONS", <DmThreads clientId={clientId} />)}
+    </div>
+  );
+}
+
 // Dedicated "Agents" tab — an accordion of every AI agent running for this
 // client. The Facebook Leads Agent (response_ai.py's full admin surface:
-// context, sequence, rules) is a fixed first row; additional rows are
-// placeholder agent slots (client_agents table) named ahead of being built,
-// e.g. a future database-reactivation agent. Fetches/saves through the
+// context, sequence, rules) and the Database Reactivation Agent are fixed
+// rows; additional rows are placeholder agent slots (client_agents table)
+// named ahead of being built. Fetches/saves through the
 // same generic marketing-config endpoint every other per-client config
 // field in this file already uses.
 // One collapsible row in the Agents tab's accordion — click the header to
@@ -3088,6 +3550,24 @@ function ClientAgentSetup({ clientId }) {
         )}
       </AgentAccordionItem>
 
+      <AgentAccordionItem
+        title="Database Reactivation Agent"
+        subtitle="Texts the client's existing leads (past patients, old inquiries, quiet leads), never fresh ad leads. Replies go to the agent above."
+        open={openAgent === "reactivation"}
+        onToggle={() => setOpenAgent(openAgent === "reactivation" ? null : "reactivation")}
+      >
+        <ReactivationAgent clientId={clientId} agentEnabled={Boolean(config?.response_ai_enabled)} />
+      </AgentAccordionItem>
+
+      <AgentAccordionItem
+        title="Social Media Conversation Agent"
+        subtitle="Answers Instagram and Facebook DMs and books them, getting their number inside Meta's 24-hour window."
+        open={openAgent === "social"}
+        onToggle={() => setOpenAgent(openAgent === "social" ? null : "social")}
+      >
+        <SocialMediaAgent clientId={clientId} config={config} onSaveFields={saveFields} />
+      </AgentAccordionItem>
+
       {agents.map((a) => (
         <AgentAccordionItem
           key={a.id}
@@ -3247,7 +3727,7 @@ function GuideModal({
                     registrarIsUrl ? (
                       <a href={registrar} target="_blank" rel="noreferrer"
                         style={{ display: "inline-block", marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5" }}>
-                        → Open this client's registrar
+                        → Open this client's registrar (check DNS host in Resources: DNS may live elsewhere)
                       </a>
                     ) : registrar ? (
                       <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#9cc4f5" }}>

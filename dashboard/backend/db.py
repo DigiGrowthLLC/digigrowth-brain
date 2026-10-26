@@ -2127,8 +2127,124 @@ async def _create_schema(pool: asyncpg.Pool):
             # Stamped when a lead finishes the prospect follow-up, no-show or
             # cancellation sequence with no reply (lead_flags.py).
             ("Database Reactivation", "#3a7bd5"),
+            # Stamped when a lead texts STOP to the client's number; blocks
+            # automated texts to them (lead_flags.py).
+            ("SMS Opted Out", "#7a2a2a"),
         ]:
             await conn.execute("INSERT INTO tags (name, color) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING", _tag_name, _tag_color)
+
+        # Where a client's lead came from, so every agent can talk to them in
+        # the right context (response_ai._ORIGIN_NOTES): meta_form, funnel,
+        # website, inbound_sms, manual, past_patient, old_inquiry, import.
+        # Set once, when the lead first lands (COALESCE on every later
+        # write); source_detail is free text (their condition, last visit,
+        # the reason they reached out) the agent can reference.
+        await conn.execute("""
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS lead_source TEXT;
+            ALTER TABLE contacts ADD COLUMN IF NOT EXISTS source_detail TEXT;
+        """)
+        # Backfill from the tags older leads already carry. Only touches rows
+        # with no source yet, so it's a one-time fill that never overwrites.
+        await conn.execute("""
+            UPDATE contacts SET lead_source = CASE
+                WHEN 'meta_lead' = ANY(tags) THEN 'meta_form'
+                WHEN 'ads-lead' = ANY(tags) THEN 'funnel'
+                WHEN 'organic-lead' = ANY(tags) THEN 'website'
+                WHEN 'Previous Patient' = ANY(tags) THEN 'past_patient'
+            END
+            WHERE client_id IS NOT NULL AND NOT is_client_anchor AND lead_source IS NULL
+              AND (tags && ARRAY['meta_lead', 'ads-lead', 'organic-lead', 'Previous Patient'])
+        """)
+        # Source auto-tags (lead_flags.SOURCE_TAGS): catalog entries, then a
+        # backfill onto every existing client lead whose source is known.
+        import lead_flags
+        await conn.execute("INSERT INTO tags (name, color) VALUES ('meta_lead', '#1877f2') ON CONFLICT (name) DO NOTHING")
+        await conn.execute("INSERT INTO tags (name, color) VALUES ($1, '#2dd4bf') ON CONFLICT (name) DO NOTHING", lead_flags.INBOUND_TAG)
+        await conn.execute("INSERT INTO tags (name, color) VALUES ($1, '#e1306c') ON CONFLICT (name) DO NOTHING", lead_flags.SOCIAL_TAG)
+        for _source, _source_tags in lead_flags.SOURCE_TAGS.items():
+            for _tag in _source_tags:
+                await conn.execute(
+                    "UPDATE contacts SET tags = array_append(coalesce(tags, '{}'), $2) "
+                    "WHERE client_id IS NOT NULL AND NOT is_client_anchor AND lead_source = $1 "
+                    "AND NOT ($2 = ANY(coalesce(tags, '{}')))",
+                    _source, _tag,
+                )
+
+        # Database reactivation (client_reactivation.py): a campaign is one
+        # audience of a client's EXISTING leads (by lead_source and/or tag)
+        # with its own 4 SMS touches; enrollments are the snapshot of who it
+        # texts, taken when the campaign starts.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS reactivation_campaigns (
+                id            SERIAL PRIMARY KEY,
+                client_id     INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                name          TEXT NOT NULL,
+                audience_sources TEXT[] NOT NULL DEFAULT '{}',
+                audience_tags TEXT[] NOT NULL DEFAULT '{}',
+                angle         TEXT NOT NULL DEFAULT '',
+                touches       JSONB NOT NULL DEFAULT '[]',
+                daily_cap     INTEGER NOT NULL DEFAULT 30,
+                status        TEXT NOT NULL DEFAULT 'draft',
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                started_at    TIMESTAMPTZ
+            );
+            CREATE TABLE IF NOT EXISTS reactivation_enrollments (
+                id            SERIAL PRIMARY KEY,
+                campaign_id   INTEGER NOT NULL REFERENCES reactivation_campaigns(id) ON DELETE CASCADE,
+                contact_id    TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+                status        TEXT NOT NULL DEFAULT 'queued',
+                touches_sent  INTEGER NOT NULL DEFAULT 0,
+                first_touch_at TIMESTAMPTZ,
+                last_touch_at TIMESTAMPTZ,
+                ended_at      TIMESTAMPTZ,
+                end_reason    TEXT,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (campaign_id, contact_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_reactivation_enrollments_status ON reactivation_enrollments(campaign_id, status);
+        """)
+
+        # Social media conversation agent (client_dm_agent.py): Instagram and
+        # Facebook Page DMs to a client, one thread per person per platform
+        # (Meta's page-scoped sender id). contact_id fills in once the agent
+        # gets their mobile number, which is what lets the booking and SMS
+        # follow-up take over after Meta's 24-hour messaging window closes.
+        await conn.execute("""
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS dm_agent_enabled BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS instagram_account_id TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS dm_connected_at TIMESTAMPTZ;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS dm_connect_error TEXT;
+            CREATE TABLE IF NOT EXISTS client_dm_threads (
+                id              SERIAL PRIMARY KEY,
+                client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                platform        TEXT NOT NULL,
+                sender_id       TEXT NOT NULL,
+                sender_name     TEXT,
+                contact_id      TEXT REFERENCES contacts(id) ON DELETE SET NULL,
+                phone           TEXT,
+                status          TEXT NOT NULL DEFAULT 'ai_active',
+                status_reason   TEXT,
+                last_inbound_at TIMESTAMPTZ,
+                last_outbound_at TIMESTAMPTZ,
+                human_last_at   TIMESTAMPTZ,
+                reply_due_at    TIMESTAMPTZ,
+                nudges_sent     INTEGER NOT NULL DEFAULT 0,
+                sms_handoff_at  TIMESTAMPTZ,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (client_id, platform, sender_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_dm_threads_due ON client_dm_threads(reply_due_at) WHERE reply_due_at IS NOT NULL;
+            CREATE TABLE IF NOT EXISTS client_dm_messages (
+                id         SERIAL PRIMARY KEY,
+                thread_id  INTEGER NOT NULL REFERENCES client_dm_threads(id) ON DELETE CASCADE,
+                direction  TEXT NOT NULL,
+                sender     TEXT NOT NULL,
+                body       TEXT NOT NULL,
+                mid        TEXT UNIQUE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_dm_messages_thread ON client_dm_messages(thread_id, created_at);
+        """)
 
         # Placeholder agent slots an admin can name ahead of building them
         # (e.g. a future database-reactivation agent) — the existing

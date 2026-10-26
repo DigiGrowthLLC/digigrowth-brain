@@ -33,6 +33,30 @@ CANCELED_TAG = "Cancelled Appointment"
 # A lead who reached the last touch of the prospect follow-up, no-show or
 # cancellation sequence without replying: the pool for database reactivation.
 REACTIVATION_TAG = "Database Reactivation"
+# A lead who texted STOP (or another carrier opt-out keyword) to the
+# client's number. Twilio already blocks texts to them at the carrier
+# level; the tag keeps every automated send from even trying, and keeps
+# them out of reactivation audiences. START/UNSTOP removes it.
+OPTED_OUT_TAG = "SMS Opted Out"
+OPT_OUT_KEYWORDS = {"stop", "stopall", "unsubscribe", "cancel", "end", "quit", "optout", "revoke"}
+OPT_IN_KEYWORDS = {"start", "unstop", "yes"}
+# Auto-tags by where a client's lead came from (contacts.lead_source), so
+# every lead carries a tag agents can later be routed on. Applied when the
+# lead is created (each entry point) and backfilled in db.py.
+INBOUND_TAG = "Inbound Lead"
+SOCIAL_TAG = "Social Media"
+SOURCE_TAGS = {
+    "meta_form": ["meta_lead"],
+    "funnel": ["ads-lead"],
+    "website": ["organic-lead"],
+    "inbound_sms": [INBOUND_TAG],
+    "ig_dm": [SOCIAL_TAG],
+    "fb_dm": [SOCIAL_TAG],
+    "manual": [REACTIVATION_TAG],
+    "import": [REACTIVATION_TAG],
+    "old_inquiry": [REACTIVATION_TAG],
+    "past_patient": [REACTIVATION_TAG, "Previous Patient"],
+}
 QUIET_START_HOUR = 21  # 9pm local
 QUIET_END_HOUR = 8     # 8am local
 
@@ -43,6 +67,81 @@ UNQUALIFIED_SQL = r"""EXISTS (
     SELECT 1 FROM unnest(coalesce(c.tags, '{}')) ut
     WHERE lower(regexp_replace(ut, '[^A-Za-z]', '', 'g')) = 'unqualified'
 )"""
+
+OPTED_OUT_SQL = r"""EXISTS (
+    SELECT 1 FROM unnest(coalesce(c.tags, '{}')) ot
+    WHERE lower(regexp_replace(ot, '[^A-Za-z]', '', 'g')) = 'smsoptedout'
+)"""
+
+
+def opt_keyword(body: str) -> str | None:
+    """'out' / 'in' when the whole text is a carrier opt-out / opt-in
+    keyword ("STOP", "Stop.", "unstop"), else None. Only a bare keyword
+    counts: "stop calling me at work" is a conversation, not an opt-out.
+    "yes" only re-opts-in a lead who is currently opted out (the caller
+    checks), since it's an ordinary reply everywhere else."""
+    word = "".join(ch for ch in (body or "").lower() if ch.isalpha())
+    if word in OPT_OUT_KEYWORDS:
+        return "out"
+    if word in OPT_IN_KEYWORDS:
+        return "in"
+    return None
+
+
+async def set_opted_out(client_id: int, phone: str, opted_out: bool) -> None:
+    """Tag (or untag) this client's lead with that phone as SMS Opted Out.
+    Never raises."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            if opted_out:
+                await conn.execute(
+                    r"""
+                    UPDATE contacts c SET tags = array_append(coalesce(c.tags, '{}'), $3), updated_at = now()
+                    WHERE c.client_id = $1 AND NOT c.is_client_anchor AND coalesce(c.phone, '') != ''
+                      AND right(regexp_replace(c.phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                      AND NOT """ + OPTED_OUT_SQL,
+                    client_id, phone, OPTED_OUT_TAG,
+                )
+            else:
+                await conn.execute(
+                    r"""
+                    UPDATE contacts c SET tags = array(
+                        SELECT t FROM unnest(c.tags) t
+                        WHERE lower(regexp_replace(t, '[^A-Za-z]', '', 'g')) != 'smsoptedout'
+                    ), updated_at = now()
+                    WHERE c.client_id = $1 AND NOT c.is_client_anchor AND coalesce(c.phone, '') != ''
+                      AND right(regexp_replace(c.phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                      AND """ + OPTED_OUT_SQL,
+                    client_id, phone,
+                )
+    except Exception as e:
+        print(f"[lead_flags] opt-out update failed for client={client_id} phone={phone}: {e}")
+
+
+async def is_opted_out(client_id: int, phone: str | None) -> bool:
+    """Whether this client's lead with that phone texted STOP. Never raises
+    (False on a lookup failure, same as is_unqualified)."""
+    phone = (phone or "").strip()
+    if not phone:
+        return False
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            return bool(await conn.fetchval(
+                rf"""
+                SELECT EXISTS (
+                    SELECT 1 FROM contacts c
+                    WHERE c.client_id = $1 AND NOT c.is_client_anchor AND {OPTED_OUT_SQL}
+                      AND coalesce(c.phone, '') != ''
+                      AND right(regexp_replace(c.phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                )
+                """,
+                client_id, phone,
+            ))
+    except Exception as e:
+        print(f"[lead_flags] opt-out lookup failed for client={client_id}: {e}")
+        return False
 
 
 async def is_unqualified(client_id: int, phone: str | None = None, email: str | None = None) -> bool:

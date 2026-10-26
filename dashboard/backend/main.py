@@ -24,6 +24,7 @@ import email_warmup
 import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
+from routers import reactivation, dm_agent
 from routers import crm, sms, sms_sequences, sms_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin, ghl_webhooks
 import call_reminders
 import cancel_sequence
@@ -31,6 +32,8 @@ import client_appointment_reminders
 import client_ai_lessons
 import client_appointment_sequence
 import client_followup_sequence
+import client_reactivation
+import client_dm_agent
 import daily_sms_handoff
 import domain_health
 import dm_followup_sequence
@@ -475,6 +478,20 @@ async def lifespan(app: FastAPI):
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=20),
     )
     scheduler.add_job(
+        client_dm_agent.process_due,
+        IntervalTrigger(seconds=15),
+        id="client-dm-agent",
+        replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
+    )
+    scheduler.add_job(
+        client_reactivation.send_due,
+        IntervalTrigger(minutes=5),
+        id="client-reactivation",
+        replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=40),
+    )
+    scheduler.add_job(
         response_ai.retry_unanswered,
         IntervalTrigger(minutes=5),
         id="response-ai-retry-unanswered",
@@ -654,6 +671,8 @@ app.include_router(newsletter.router, prefix="/api")  # no auth — clicked from
 app.include_router(email_tracking.router, prefix="/api")  # no auth — pixel + unsubscribe links, clicked from outreach emails
 app.include_router(client_portal.router)  # no auth — client-facing, scoped by unguessable token
 app.include_router(client_marketing.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(reactivation.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(dm_agent.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(client_finance.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(client_sms_webhooks.router)  # no auth — Twilio webhooks for each client's own number
 app.include_router(client_voice_webhooks.router)  # no auth — Twilio voice webhooks for the client portal's "Call Now" button

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 from fastapi import APIRouter, Request, Response
 
 import client_appointment_sequence
+import lead_flags
 import response_ai
 import scheduler_registry
 from db import get_pool
@@ -51,6 +52,16 @@ async def client_sms_inbound(client_id: int, request: Request):
         )
 
     await client_appointment_sequence.stop_sequence_for_reply(phone=from_phone)
+
+    # A bare STOP/START: Twilio itself blocks (or unblocks) the number and
+    # sends the carrier's confirmation, so the agent stays out of it.
+    opt = lead_flags.opt_keyword(body)
+    if opt == "out":
+        await lead_flags.set_opted_out(client_id, from_phone, True)
+        return Response(content="", media_type="text/plain")
+    if opt == "in" and await lead_flags.is_opted_out(client_id, from_phone):
+        await lead_flags.set_opted_out(client_id, from_phone, False)
+        return Response(content="", media_type="text/plain")
 
     if client["response_ai_enabled"]:
         delay = client["response_ai_min_delay_seconds"] or 0

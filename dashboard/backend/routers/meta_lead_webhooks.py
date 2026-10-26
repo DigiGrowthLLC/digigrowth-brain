@@ -53,6 +53,7 @@ import uuid
 import httpx
 from fastapi import APIRouter, Request, Response
 
+import client_dm_agent
 import response_ai
 from db import get_pool
 
@@ -182,12 +183,13 @@ async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[
 
         row = await conn.fetchrow(
             """
-            INSERT INTO contacts (id, business, owner, phone, email, status, client_id, tags)
-            VALUES ($1, NULL, $2, $3, $4, 'new', $5, ARRAY['meta_lead'])
+            INSERT INTO contacts (id, business, owner, phone, email, status, client_id, tags, lead_source)
+            VALUES ($1, NULL, $2, $3, $4, 'new', $5, ARRAY['meta_lead'], 'meta_form')
             ON CONFLICT (phone) DO UPDATE SET
                 owner      = COALESCE(EXCLUDED.owner, contacts.owner),
                 email      = COALESCE(EXCLUDED.email, contacts.email),
                 client_id  = COALESCE(contacts.client_id, EXCLUDED.client_id),
+                lead_source = COALESCE(contacts.lead_source, EXCLUDED.lead_source),
                 tags       = CASE WHEN 'meta_lead' = ANY(contacts.tags) THEN contacts.tags
                                    ELSE array_append(contacts.tags, 'meta_lead') END,
                 updated_at = now()
@@ -241,7 +243,13 @@ async def meta_leadgen_inbound(request: Request):
     payload = await request.json()
 
     pool = await get_pool()
+    # One callback URL per webhook object, so Page DMs (object "page") and
+    # Instagram DMs (object "instagram") arrive here too, as `messaging`
+    # events: they go to the social media conversation agent.
+    platform = "instagram" if payload.get("object") == "instagram" else "facebook"
     for entry in payload.get("entry", []):
+        if entry.get("messaging"):
+            await client_dm_agent.handle_webhook_entry(platform, entry)
         for change in entry.get("changes", []):
             if change.get("field") != "leadgen":
                 continue

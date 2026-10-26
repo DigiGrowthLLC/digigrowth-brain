@@ -153,7 +153,7 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
 # Stages of texts that are part of the live conversation rather than a
 # sequence. None covers rows logged before AI and manual replies got their
 # own stage.
-CONVERSATIONAL_STAGES = (None, "ai_reply", "manual_reply", "meta_lead_opener")
+CONVERSATIONAL_STAGES = (None, "ai_reply", "manual_reply", "meta_lead_opener", "dm_handoff")
 
 
 async def send_client_sms(client_id: int, to_number: str, body: str, stage: str | None = None,
@@ -172,6 +172,9 @@ async def send_client_sms(client_id: int, to_number: str, body: str, stage: str 
     import lead_flags
     if not manual and await lead_flags.is_unqualified(client_id, phone=to_number):
         print(f"[client_sms] {to_number} (client={client_id}) is tagged Unqualified — skipping automated SMS ({stage or 'reply'})")
+        return
+    if not manual and await lead_flags.is_opted_out(client_id, to_number):
+        print(f"[client_sms] {to_number} (client={client_id}) texted STOP — skipping automated SMS ({stage or 'reply'})")
         return
     pool = await get_pool()
     async with pool.acquire() as conn:

@@ -233,6 +233,8 @@ class ClientMarketingConfigUpdate(BaseModel):
     meta_pixel_id: Optional[str] = None
     meta_ad_account_id: Optional[str] = None
     meta_page_id: Optional[str] = None
+    dm_agent_enabled: Optional[bool] = None
+    instagram_account_id: Optional[str] = None
     call_forward_number: Optional[str] = None
     ad_creative_status: Optional[dict] = None
     guide_progress: Optional[dict] = None

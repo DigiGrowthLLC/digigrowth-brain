@@ -39,6 +39,7 @@ import client_dialer
 import client_email
 import client_sms
 import integrations
+import lead_flags
 import meta_ads
 import r2_storage
 from routers import appointments as appointments_router
@@ -1323,9 +1324,10 @@ async def portal_create_lead(token: str, body: dict):
 
         row = await conn.fetchrow(
             """
-            INSERT INTO contacts (id, business, owner, phone, email, website, city, state, notes, status, client_id)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10)
+            INSERT INTO contacts (id, business, owner, phone, email, website, city, state, notes, status, client_id, lead_source, tags)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10,'manual',$11)
             ON CONFLICT (phone) DO UPDATE SET
+                lead_source = COALESCE(contacts.lead_source, EXCLUDED.lead_source),
                 business  = COALESCE(EXCLUDED.business, contacts.business),
                 owner     = COALESCE(EXCLUDED.owner, contacts.owner),
                 email     = COALESCE(EXCLUDED.email, contacts.email),
@@ -1347,8 +1349,12 @@ async def portal_create_lead(token: str, body: dict):
             (body.get("state") or "").strip() or None,
             (body.get("notes") or "").strip() or None,
             client["id"],
+            lead_flags.SOURCE_TAGS["manual"],
         )
     return dict(row)
+
+
+IMPORT_LEAD_SOURCES = {"past_patient", "old_inquiry", "import"}
 
 
 @router.post("/{token}/leads/import")
@@ -1364,6 +1370,11 @@ async def portal_import_leads(token: str, body: dict):
     if not rows:
         raise HTTPException(status_code=400, detail="No contacts provided")
     import_tags = [t.strip() for t in (body.get("tags") or []) if t.strip()]
+    # What kind of list this is decides how the agents talk to these people
+    # (response_ai._ORIGIN_NOTES): past patients, old inquiries, or a
+    # generic import.
+    lead_source = body.get("lead_source") if body.get("lead_source") in IMPORT_LEAD_SOURCES else "import"
+    import_tags = list(dict.fromkeys(import_tags + lead_flags.SOURCE_TAGS[lead_source]))
 
     pool = await get_pool()
     inserted = updated = skipped = 0
@@ -1383,9 +1394,15 @@ async def portal_import_leads(token: str, body: dict):
 
             result = await conn.fetchrow(
                 """
-                INSERT INTO contacts (id, business, owner, phone, email, website, city, state, notes, status, client_id, tags)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10,$11)
+                INSERT INTO contacts (id, business, owner, phone, email, website, city, state, notes, status, client_id, tags,
+                                      lead_source, source_detail)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10,$11,$12,$13)
                 ON CONFLICT (phone) DO UPDATE SET
+                    -- Being on the clinic's patient list outranks how they
+                    -- first reached us: a past patient is talked to as one.
+                    lead_source = CASE WHEN EXCLUDED.lead_source = 'past_patient' THEN 'past_patient'
+                                       ELSE COALESCE(contacts.lead_source, EXCLUDED.lead_source) END,
+                    source_detail = COALESCE(EXCLUDED.source_detail, contacts.source_detail),
                     business  = COALESCE(EXCLUDED.business, contacts.business),
                     owner     = COALESCE(EXCLUDED.owner, contacts.owner),
                     email     = COALESCE(EXCLUDED.email, contacts.email),
@@ -1409,6 +1426,8 @@ async def portal_import_leads(token: str, body: dict):
                 (c.get("notes") or "").strip() or None,
                 client["id"],
                 import_tags,
+                lead_source,
+                (c.get("source_detail") or "").strip() or None,
             )
             if result["was_inserted"]:
                 inserted += 1
