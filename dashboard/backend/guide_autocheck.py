@@ -16,6 +16,8 @@ onboarding agent's service-delivery-setup skill calls it after each step).
 import json
 import re
 
+import httpx
+
 from db import get_pool
 
 
@@ -26,6 +28,20 @@ def _decode(value, default):
         except ValueError:
             return default
     return value if value is not None else default
+
+
+async def _funnel_domain_live(domain: str | None) -> bool:
+    """The client's funnel domain serves our funnel (main.py funnel_host_router):
+    DNS, Railway's certificate and the host mapping are all in place."""
+    host = re.sub(r"^https?://", "", (domain or "").strip()).split("/")[0]
+    if not host:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as http:
+            r = await http.get(f"https://{host}/")
+        return r.status_code == 200 and "/track/view-event" in r.text
+    except httpx.HTTPError:
+        return False
 
 
 async def _signals(conn, client_id: int) -> dict[str, list[int]]:
@@ -81,8 +97,11 @@ async def _signals(conn, client_id: int) -> dict[str, list[int]]:
     mark("response_ai", 10, when=bool(cfg.get("make_scenario_id") and not cfg.get("lead_ads_error")))
     mark("response_ai", 15, when=on_ghl and ghl_live)
 
-    # landing_page: 0 built, 3 live URL saved
+    # landing_page: 0 built, 3 live URL saved, 1 live on the pages domain,
+    # 2 the client's own funnel domain actually serves it
     mark("landing_page", 0, 3, when=bool(cfg.get("landing_page_url")))
+    mark("landing_page", 1, when="/lp/" in (cfg.get("landing_page_url") or ""))
+    mark("landing_page", 2, when=await _funnel_domain_live(cfg.get("funnel_domain")))
 
     # ad_creatives: 1 pixel ID saved, 3 ad account + Page saved, 6 ad account saved, 7 Page saved
     mark("ad_creatives", 1, when=bool(cfg.get("meta_pixel_id")))

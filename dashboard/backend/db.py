@@ -669,6 +669,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE watch_videos ADD COLUMN IF NOT EXISTS r2_key TEXT;
             CREATE INDEX IF NOT EXISTS idx_content_view_events_lookup ON content_view_events (source, content_key, contact_id);
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS guide_progress JSONB NOT NULL DEFAULT '{}';
+            -- Client's own funnel host (e.g. go.clientdomain.com), served by main.py's funnel_host_router
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS funnel_domain TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_refresh_token TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_sender_email TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS email_sync_last_ts BIGINT NOT NULL DEFAULT 0;

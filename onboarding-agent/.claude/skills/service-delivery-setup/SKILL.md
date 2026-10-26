@@ -101,6 +101,13 @@ the scan; check the route in `dashboard/backend/routers/clients.py` before calli
   GoDaddy account, and it expires in 48 h. Email DNS = Google Admin secondary domain on
   DigiGrowth's Workspace, then TXT verify + MX `smtp.google.com` + SPF at the DNS host,
   host `mail`; never touch the root `@` records.
+- **Funnel domain (default for every client, 2026-10-26)**: the funnel stays in the OS
+  (`/lp/<slug>`) and is also served on the client's own `go.<their domain>`; no Vercel copy.
+  Save it as `funnel_domain` (`PUT /api/clients/{id}/marketing-config`), add it to the
+  Railway service (`railway domain go.<domain>` from the repo root prints the CNAME + any
+  `_railway-verify` TXT), add those at the DNS host, then wait for
+  `https://go.<domain>/` to serve the funnel (autocheck ticks landing_page:2 by itself).
+  Update the portal Website tab URL to the new domain so the client sees it.
 - **GoHighLevel (only when the client said so)**: one email = one GHL user, so if the
   invite lands in another agency, ask for an invite to `dylanrg+<client>@digigrowthllc.com`
   and open it in incognito. Calendar slugs are global (pick any unique one, the link uses

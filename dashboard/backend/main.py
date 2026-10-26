@@ -2,7 +2,9 @@ import asyncio
 import json
 import os
 import pathlib
+import re
 import secrets
+import time
 from contextlib import asynccontextmanager
 
 import httpx
@@ -608,6 +610,68 @@ async def watch_host_router(request, call_next):
         new_path = "/watch/" + "/".join(parts)
         request.scope["path"] = new_path
         request.scope["raw_path"] = new_path.encode()
+        return await call_next(request)
+    return PlainTextResponse("Not found", status_code=404)
+
+
+_funnel_hosts: dict[str, str] = {}
+_funnel_hosts_at = 0.0
+
+
+def _bare_host(value: str) -> str:
+    value = re.sub(r"^https?://", "", (value or "").strip().lower())
+    return value.split("/")[0].split(":")[0]
+
+
+async def _funnel_host_map() -> dict[str, str]:
+    """{client funnel host: landing page slug}, from client_marketing_config.funnel_domain.
+    The slug is the one in the client's landing_page_url, else their newest page.
+    Cached for a minute so the lookup isn't a query per request."""
+    global _funnel_hosts, _funnel_hosts_at
+    if time.monotonic() - _funnel_hosts_at < 60:
+        return _funnel_hosts
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT cmc.funnel_domain, cmc.landing_page_url,
+                      (SELECT slug FROM landing_pages lp WHERE lp.client_id = cmc.client_id
+                       ORDER BY created_at DESC LIMIT 1) AS newest_slug
+               FROM client_marketing_config cmc
+               WHERE coalesce(cmc.funnel_domain, '') <> ''"""
+        )
+    hosts = {}
+    for r in rows:
+        m = re.search(r"/lp/([^/?#]+)", r["landing_page_url"] or "")
+        slug = m.group(1) if m else r["newest_slug"]
+        if slug:
+            hosts[_bare_host(r["funnel_domain"])] = slug
+    _funnel_hosts, _funnel_hosts_at = hosts, time.monotonic()
+    return hosts
+
+
+@app.middleware("http")
+async def funnel_host_router(request, call_next):
+    """A client's own funnel domain (e.g. go.advantagetherapy.vegas, added as a
+    Railway custom domain + CNAME at their DNS host) serves their funnel at /,
+    plus the funnel's own /lp/... routes (book, chat, images) and the view
+    beacon. Everything else on that host is a 404, so a client's domain never
+    exposes the internal app."""
+    from fastapi.responses import PlainTextResponse
+
+    host = _bare_host(request.headers.get("x-forwarded-host") or request.headers.get("host") or "")
+    if not host or host in ("localhost", "127.0.0.1") or host.endswith((".railway.app", "digigrowthllc.com")):
+        return await call_next(request)
+    slug = (await _funnel_host_map()).get(host)
+    if not slug:
+        return await call_next(request)
+
+    path = request.url.path
+    if path in ("", "/"):
+        new_path = f"/lp/{slug}"
+        request.scope["path"] = new_path
+        request.scope["raw_path"] = new_path.encode()
+        return await call_next(request)
+    if path.startswith("/lp/") or path == "/track/view-event":
         return await call_next(request)
     return PlainTextResponse("Not found", status_code=404)
 

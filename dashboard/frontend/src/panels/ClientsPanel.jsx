@@ -2010,8 +2010,11 @@ const MARKETING_GUIDES = {
     title: "Create Landing Page",
     steps: [
       { text: "Automated: Auto-Setup builds a free-consultation funnel from the client's own site when the deal is marked Closed, hosts it on the pages domain, registers it in their portal Website tab, and fills the Live URL below. Review it before ads run. For a hand-built version instead: build the funnel with the design-agent's funnel-building skill (\"build the funnel for <client>\"): it scrapes the client's own site for brand, photos and reviews, so it doesn't need onboarding answers. It also registers the page in the client's portal Website tab with tracking." },
-      { text: "Push it live as its own Vercel project (not a route on the corporate site). The *.vercel.app URL works right away, before any client DNS.", link: "https://vercel.com/new", linkLabel: "Vercel → New Project" },
-      { text: "Point the client's domain/subdomain at it via their registrar's DNS settings.", registrar: true },
+      // Rewritten 2026-10-26: funnels are served by the dashboard itself
+      // (pages domain + the client's own subdomain via main.py funnel_host_router), no Vercel.
+      { text: "Automated: the funnel is live on the pages domain (pages.digigrowthllc.com/lp/<slug>) as soon as it's built. No Vercel project needed." },
+      { text: "Put it on the client's own subdomain (default go.<their domain>, e.g. go.advantagetherapy.vegas): (1) enter it below and save; (2) Railway → digigrowth-brain service → Settings → Networking → Custom Domain → add it and copy the CNAME target (plus the _railway-verify TXT record if Railway shows one); (3) at the client's DNS host (see DNS host in Resources, often not the registrar) add a CNAME, host = the label (\"go\"), value = Railway's target, and the TXT if given. Never touch the root @ records. Railway issues the certificate itself; this step ticks automatically once https://<subdomain>/ serves the funnel. The bare domain shows the funnel, every other path 404s, so the dashboard is never exposed on it. Use this URL in the ads.", registrar: true,
+        fields: [{ key: "funnel_domain", label: "Funnel domain", placeholder: "go.clientdomain.com" }] },
       { text: "Paste the live URL below.",
         fields: [{ key: "landing_page_url", label: "Live URL", placeholder: "https://…" }] },
     ],
