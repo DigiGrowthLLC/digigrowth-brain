@@ -120,8 +120,20 @@ sacrifice).
 - **Risk reversal:** guarantee the *experience*, never a health outcome. E.g. "If you don't leave
   with a clear plan, the visit is free" or "full refund, no questions." Never "pain-free or your
   money back."
-- **Real urgency or scarcity:** the actual weekly capacity ("4 new-patient spots a week"), never
-  invented. Skip it for no-pressure brands.
+- **Urgency or scarcity, explored for every candidate by default (Dylan, 2026-10-26).** It
+  makes the offer sharper and gives a reason to book now instead of "someday". Don't leave it
+  out. Pick the strongest honest lever for each candidate and write the exact wording:
+  - *Time-limited offer:* "free for a limited time only". The default when capacity is open. It's
+    true because the campaign offer does end. Used for Advantage Therapy across ads, the end card,
+    the funnel, the AI text agent and the booking-invite texts.
+  - *Real capacity:* "4 new-patient spots a week", from the client's actual weekly number.
+  - *Bonus deadline:* the bonus (home-routine video, written plan) only for people who book this
+    week or this month.
+  - *A dated window:* a launch, a season ("before ski season", "New Year reset") or a set end date
+    the client agrees to keep.
+  - *Price rising:* "free until <date>, then $X", only when the client really will charge after.
+  For a no-pressure brand, use the softest version ("free for a limited time") rather than none.
+  Never a made-up countdown, a fake "only 2 spots left", or a deadline that quietly resets.
 - **Bonuses** that cost the clinic little and raise perceived value (a home exercise video, a
   posture setup guide, a second check-in).
 
@@ -132,6 +144,8 @@ sacrifice).
 - *Anchoring:* show the eval's normal value next to the offer's price, only with a real number.
 - *Loss aversion:* frame what they keep losing by waiting (runs, sleep, work) and what the visit
   protects.
+- *Urgency / scarcity:* a reason to act now (the lever chosen in b). Pairs with loss aversion:
+  waiting costs them the pain *and* the free offer.
 - *Reciprocity:* give something useful up front (a written plan, a take-home routine).
 - *Specificity:* specific names, times and contents read as more credible than vague ones.
 - *Social proof and authority:* review volume, DPT credentials, the founder's own story.
@@ -143,7 +157,8 @@ sacrifice).
 - Is it Meta-compliant (no health outcome promises, no condition assertions)?
 
 **Score each candidate** (1-5) on: value equation, fit to the audience's top objections, proof
-from the market (longevity), lead quality vs. volume, ease of delivery. Present the scores with
+from the market (longevity), urgency (how strong and honest its reason to book now is), lead
+quality vs. volume, ease of delivery. Present the scores with
 the reasoning. Recommend one, and say what it gives up.
 
 **GATE O2:** Dylan picks one (or a mix), edits it, or asks for new candidates. With a small budget
@@ -152,9 +167,13 @@ the reasoning. Recommend one, and say what it gives up.
 ### 4. Final offer one-pager → GATE O3
 
 Write `outputs/offer-<slug>-<date>/offer.md` (or inside the campaign folder):
-- **Name**, who it's for, what's included, price (or free), risk reversal, urgency/scarcity (and
-  the real capacity behind it), bonuses
-- **The one-line pitch** for ads, and the CTA wording
+- **Name**, who it's for, what's included, price (or free), risk reversal, urgency/scarcity (the
+  exact wording and what makes it true), bonuses
+- **The one-line pitch** for ads, and the CTA wording, with the urgency line in it (e.g. "For a
+  limited time, book a free 15-minute call")
+- **Where the urgency goes:** ad CTAs, one headline per ad, the video end card, the Instant Form
+  or funnel, the AI text agent brief, and the booking-invite follow-up texts. Not in reminders
+  for people who already booked.
 - **Objections it answers**, each with the quote from deep-research
 - **What has to change to deliver it:** booking link or event, payment collection, Response AI
   context, landing page or Instant Form copy, front-desk script, confirmation and reminder texts
@@ -182,8 +201,9 @@ Once approved by Dylan and the client:
 
 - **Guarantee the experience, never a health outcome.** No "pain-free or your money back", no
   "fixed in 3 visits." Outcome stories come only from real reviews.
-- **No invented scarcity or fake discounts.** Scarcity comes from real capacity, and an anchor
-  price is the real normal price.
+- **Urgency by default, never invented.** Every offer gets a reason to book now (step 3b), but
+  spot counts come from real capacity, dates are ones the client will keep, and an anchor price
+  is the real normal price. "For a limited time" is the honest fallback when capacity is open.
 - **Default when nothing is approved:** the free consult (the 2026-10-07 client-funnel rule). An
   approved offer in `client-context.md` replaces it for that client only.
 - **The client has the final say on their offer.** Dylan approves the design, the client approves
