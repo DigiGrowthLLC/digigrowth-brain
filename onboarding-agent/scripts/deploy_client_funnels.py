@@ -74,6 +74,10 @@ def main():
         r = vercel("link", "--yes", "--project", PROJECT)
         if r.returncode:
             sys.exit(r.stderr)
+    # `vercel link` inside this repo connects the project to GitHub, and the next
+    # push then deploys the WHOLE repo as static files (happened 2026-10-26).
+    # Deploys only ever come from this script.
+    vercel("git", "disconnect", "--yes")
     r = vercel("deploy", "--prod", "--yes")
     if r.returncode:
         sys.exit(r.stderr)
