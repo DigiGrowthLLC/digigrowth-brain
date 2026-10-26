@@ -1,0 +1,22 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "go.advantagetherapy.vegas"
+        }
+      ],
+      "destination": "https://pages.digigrowthllc.com/lp/advantage-therapy-manual-physical-therapy-las-ve-4"
+    },
+    {
+      "source": "/lp/:path*",
+      "destination": "https://pages.digigrowthllc.com/lp/:path*"
+    },
+    {
+      "source": "/track/view-event",
+      "destination": "https://pages.digigrowthllc.com/track/view-event"
+    }
+  ]
+}
