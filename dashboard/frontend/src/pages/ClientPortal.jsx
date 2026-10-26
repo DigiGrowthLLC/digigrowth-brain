@@ -978,6 +978,54 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
   );
 }
 
+// The text the CLIENT gets on every new booking (client_booking_notification.py),
+// not a patient-facing message. Off = silent test bookings.
+function BookingAlertSection({ token }) {
+  const [alert, setAlert] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetch(`/portal-api/${token}/booking-alert`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setAlert)
+      .catch(() => {});
+  }, [token]);
+
+  if (!alert) return null;
+
+  const setEnabled = async (enabled) => {
+    setBusy(true);
+    const r = await fetch(`/portal-api/${token}/booking-alert/enabled`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    if (r.ok) setAlert((a) => ({ ...a, enabled }));
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <SectionHeading>Appointment Confirmation (texted to you)</SectionHeading>
+        </div>
+        <OnOffSwitch on={alert.enabled} onChange={setEnabled} busy={busy} />
+      </div>
+      <div className="glass-card-sm" style={{ padding: 16, maxWidth: 520, opacity: alert.enabled ? 1 : 0.55 }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.08em", marginBottom: 8 }}>
+          SMS{alert.phone ? ` TO ${alert.phone}` : ""} · SENT THE MOMENT A NEW APPOINTMENT IS BOOKED
+        </div>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{alert.body}</div>
+        {!alert.enabled && (
+          <div style={{ fontSize: 11, color: "#e0a040", marginTop: 8 }}>
+            Off: new bookings still show up in your portal, you just won't get the text.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const SEQUENCE_MODAL_KEY = { prospect_followup: "followup", appointment_reminder: "reminder", no_show: "no_show", cancellation: "cancel" };
 
 function SequencesTab({ token }) {
@@ -1027,6 +1075,8 @@ function SequencesTab({ token }) {
           any single message, or a whole sequence, and it stops before its next send.
         </div>
       </div>
+
+      <BookingAlertSection token={token} />
 
       {SEQUENCE_ORDER.map((key) => {
         const group = steps.filter((s) => s.sequence_key === key);

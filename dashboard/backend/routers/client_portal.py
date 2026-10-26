@@ -416,6 +416,35 @@ async def portal_set_sequence_enabled(token: str, sequence_key: str, body: Seque
     return {"ok": True, "enabled": body.enabled}
 
 
+@router.get("/{token}/booking-alert")
+async def portal_booking_alert(token: str):
+    """The "you just got a booking" text this client gets on every new
+    appointment (client_booking_notification.py), with its on/off state.
+    Copy is shared across clients (Outreach Templates), so it's shown with
+    the client's own first name and placeholders for the lead and time."""
+    import client_booking_notification
+    from merge_fields import first_name_from_owner
+    client = await get_client_from_token(token)
+    template = (await client_booking_notification._get_templates())["client_booking_notification_sms"]
+    body = client_booking_notification._fill(
+        template, first_name_from_owner(client.get("contact_name")), "[patient name]", "[time and date]",
+    )
+    return {"enabled": bool(client.get("booking_notification_enabled")), "body": body,
+            "phone": client.get("phone") or ""}
+
+
+@router.put("/{token}/booking-alert/enabled")
+async def portal_set_booking_alert(token: str, body: SequenceEnabledSet):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE clients SET booking_notification_enabled = $2 WHERE id = $1",
+            client["id"], body.enabled,
+        )
+    return {"ok": True, "enabled": body.enabled}
+
+
 # ---------------- Client requests ("something I want fixed/done") ----------------
 
 @router.get("/{token}/requests")
