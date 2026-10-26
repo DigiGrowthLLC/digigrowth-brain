@@ -30,6 +30,7 @@ from db import get_pool
 from models import (
     OnboardingSectionSave, ONBOARDING_SECTIONS, ActionItemComplete, TagAssign,
     ClientRequestCreate, UploadPresignRequest, UploadRecordCreate, SequenceEnabledSet,
+    BookingAlertNameSet,
 )
 import client_appointment_reminders
 import client_appointment_sequence
@@ -423,14 +424,24 @@ async def portal_booking_alert(token: str):
     Copy is shared across clients (Outreach Templates), so it's shown with
     the client's own first name and placeholders for the lead and time."""
     import client_booking_notification
-    from merge_fields import first_name_from_owner
     client = await get_client_from_token(token)
     template = (await client_booking_notification._get_templates())["client_booking_notification_sms"]
-    body = client_booking_notification._fill(
-        template, first_name_from_owner(client.get("contact_name")), "[patient name]", "[time and date]",
-    )
+    name = client_booking_notification.alert_first_name(client)
+    body = client_booking_notification._fill(template, name, "[patient name]", "[time and date]")
     return {"enabled": bool(client.get("booking_notification_enabled")), "body": body,
-            "phone": client.get("phone") or ""}
+            "name": name, "phone": client.get("phone") or ""}
+
+
+@router.put("/{token}/booking-alert/name")
+async def portal_set_booking_alert_name(token: str, body: BookingAlertNameSet):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE clients SET booking_notification_name = $2 WHERE id = $1",
+            client["id"], body.name.strip() or None,
+        )
+    return await portal_booking_alert(token)
 
 
 @router.put("/{token}/booking-alert/enabled")

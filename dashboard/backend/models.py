@@ -157,6 +157,7 @@ class ClientUpdate(BaseModel):
     is_test: Optional[bool] = None
     calendly_url: Optional[str] = None
     booking_notification_enabled: Optional[bool] = None
+    booking_notification_name: Optional[str] = None
     ads_manager_resource: Optional[str] = None
     registrar_resource: Optional[str] = None
     hosting_resource: Optional[str] = None
@@ -259,6 +260,10 @@ class SequenceStepUpdate(BaseModel):
 
 class SequenceEnabledSet(BaseModel):
     enabled: bool
+
+
+class BookingAlertNameSet(BaseModel):
+    name: str
 
 
 class ClientRequestCreate(BaseModel):

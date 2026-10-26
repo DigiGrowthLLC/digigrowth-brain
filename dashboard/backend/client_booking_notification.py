@@ -60,6 +60,13 @@ def _format_when(appointment_at: datetime, tz_name: str) -> str:
     return local.strftime(f"%-I:%M %p on %A, %B {day}{suffix}")
 
 
+def alert_first_name(client: dict) -> str:
+    """Who the alert greets: booking_notification_name when set (the person
+    who actually takes these bookings), else the owner's first name."""
+    override = (client.get("booking_notification_name") or "").strip()
+    return override.split()[0] if override else first_name_from_owner(client.get("contact_name"))
+
+
 def _fill(template: str, client_first_name: str, lead_name: str, when: str) -> str:
     return (
         template
@@ -80,7 +87,7 @@ async def _resolve_client(conn, contact_id) -> dict | None:
     row = await conn.fetchrow(
         """
         SELECT cl.id, cl.contact_name, cl.phone AS client_phone,
-               cl.booking_notification_enabled,
+               cl.booking_notification_enabled, cl.booking_notification_name,
                anchor.phone AS anchor_phone
         FROM contacts c
         JOIN clients cl ON cl.id = c.client_id
@@ -120,7 +127,7 @@ async def send_booking_notification(row: dict):
                 sms_template = templates["client_booking_notification_sms"]
                 if sms_template.strip():
                     try:
-                        client_first_name = first_name_from_owner(client["contact_name"])
+                        client_first_name = alert_first_name(client)
                         lead_name = (row.get("prospect_name") or "").strip() or "your lead"
                         when = _format_when(row["appointment_at"], row["prospect_timezone"])
                         text = _fill(sms_template, client_first_name, lead_name, when)

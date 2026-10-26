@@ -983,13 +983,24 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
 function BookingAlertSection({ token }) {
   const [alert, setAlert] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [name, setName] = useState("");
 
   useEffect(() => {
     fetch(`/portal-api/${token}/booking-alert`)
       .then((r) => (r.ok ? r.json() : null))
-      .then(setAlert)
+      .then((a) => { setAlert(a); if (a) setName(a.name || ""); })
       .catch(() => {});
   }, [token]);
+
+  const saveName = async () => {
+    setBusy(true);
+    const r = await fetch(`/portal-api/${token}/booking-alert/name`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (r.ok) { const a = await r.json(); setAlert(a); setName(a.name || ""); }
+    setBusy(false);
+  };
 
   if (!alert) return null;
 
@@ -1016,6 +1027,19 @@ function BookingAlertSection({ token }) {
           SMS{alert.phone ? ` TO ${alert.phone}` : ""} · SENT THE MOMENT A NEW APPOINTMENT IS BOOKED
         </div>
         <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{alert.body}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.08em" }}>GREETS</span>
+          <input
+            value={name} onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") saveName(); }}
+            placeholder="First name" className="dg-input" style={{ width: 160, fontSize: 12, padding: "5px 8px" }}
+          />
+          {name.trim() !== (alert.name || "") && (
+            <button onClick={saveName} disabled={busy} className="btn btn-secondary" style={{ fontSize: 10, padding: "5px 10px" }}>
+              Save
+            </button>
+          )}
+        </div>
         {!alert.enabled && (
           <div style={{ fontSize: 11, color: "#e0a040", marginTop: 8 }}>
             Off: new bookings still show up in your portal, you just won't get the text.

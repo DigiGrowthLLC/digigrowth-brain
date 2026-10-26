@@ -637,6 +637,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS pricing NUMERIC;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS call_length TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS booking_notification_enabled BOOLEAN NOT NULL DEFAULT true;
+            -- First name the booking alert greets, when it's not the owner (e.g. the spouse who books)
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS booking_notification_name TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS ads_manager_resource TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS registrar_resource TEXT;
             ALTER TABLE clients ADD COLUMN IF NOT EXISTS hosting_resource TEXT;
