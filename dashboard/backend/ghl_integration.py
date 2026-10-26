@@ -14,8 +14,7 @@ one routers/ghl_webhooks.py records bookings for, so there's nothing else
 to configure.
 
 create_appointment() leaves toNotify on, so the calendar's own confirmation
-email (it carries the Google Meet link) and the client's booking workflow
-both still fire. That workflow posts the booking back to ghl_webhooks.py,
+and the client's booking workflow both still fire. That workflow posts the booking back to ghl_webhooks.py,
 which skips it as "already recorded" because response_ai.py records it
 under the same ghl:<appointmentId> key first.
 """
@@ -78,7 +77,7 @@ async def find_earliest_available_times(
 
 async def create_appointment(
     token: str, calendar_id: str, date_str: str, time_str: str, tz,
-    name: str, email: str, phone: str, reason: str,
+    name: str, email: str | None, phone: str, reason: str,
 ) -> dict:
     """Upserts the lead as a GHL contact and books them a confirmed
     appointment. GHL validates the slot itself, so a time that was just
@@ -96,7 +95,7 @@ async def create_appointment(
             headers={**_headers(token), "Version": "2021-07-28"},
             json={
                 "locationId": location_id, "name": name, "firstName": first or None,
-                "lastName": last or None, "email": email, "phone": phone, "source": "AI text agent",
+                "lastName": last or None, "email": email or None, "phone": phone, "source": "AI text agent",
             },
         )
         _raise_with_context(resp)

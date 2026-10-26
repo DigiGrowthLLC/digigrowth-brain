@@ -1209,13 +1209,14 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 # under the same ghl:<id> key the client's booking workflow
                 # webhook uses (ghl_webhooks.py), so that webhook skips it as
                 # already recorded instead of duplicating it.
-                missing = [label for label, value in (("name", name), ("email", email)) if not value]
-                if missing:
+                # GHL keys the contact on the phone, so only the name is
+                # required; the email just lets the calendar send its own
+                # confirmation.
+                if not name:
                     return (
-                        f"Not booked yet — the calendar needs the lead's {' and '.join(missing)}, which "
-                        "isn't on file (the video call link is emailed to them). Ask them for just that in "
-                        "one short message (keep the time they picked), then call propose_appointment again "
-                        "with the same date/time plus " + " and ".join(f"lead_{m}" for m in missing) + "."
+                        "Not booked yet — the calendar needs the lead's name, which isn't on file. Ask them "
+                        "for just that in one short message (keep the time they picked), then call "
+                        "propose_appointment again with the same date/time plus lead_name."
                     )
                 try:
                     appt = await ghl_integration.create_appointment(
@@ -1236,7 +1237,7 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 await _mark_booked()
                 return (
                     f"Confirmed on the calendar for {tool_input.get('date')} {tool_input.get('time')} "
-                    f"({tz_name}) — they'll get a confirmation email with the video call link. Tell them they're all set."
+                    f"({tz_name}). Tell them they're all set."
                 )
 
             if token and event_type_url:
