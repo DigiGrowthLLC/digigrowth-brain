@@ -134,6 +134,16 @@ FOLLOW_UP_DEFAULT_HOURS = 24   # "check back later" with no time given
 FOLLOW_UP_MIN_HOURS = 1
 FOLLOW_UP_MAX_DAYS = 120
 _FOLLOW_UP_DEFAULT_CLOCK = "10:00"   # a date with no time of day
+# iPhone tapbacks as they arrive over SMS: 'Reacted 👍🏻 to "..."',
+# 'Loved “...”', '❤️ to “...”'. Not a reply: Sienna Clark's 👍 on "I'll
+# check back in next week" silently cancelled that check-in. Also used in
+# SQL (Postgres regex), so keep it to syntax both understand.
+TAPBACK_PATTERN = r'^\s*(?:(?:Reacted .{1,20}|[^\w\s]{1,12}) to |(?:Loved|Liked|Disliked|Laughed at|Emphasized|Questioned) )["“]'
+_TAPBACK = re.compile(TAPBACK_PATTERN)
+
+
+def is_tapback(body: str | None) -> bool:
+    return bool(_TAPBACK.match(body or ""))
 
 _SYSTEM_PREAMBLE = """You draft the next SMS in a cold outreach conversation for Dylan at \
 DigiGrowth. Read the whole transcript, decide what should happen next, and return it in the \
@@ -732,27 +742,27 @@ async def build_queue(conn, limit: int = 5, phone: str | None = None) -> list[di
 async def _due_follow_ups(conn, limit: int):
     """Threads whose scheduled check-in is due and still wanted: the
     prospect hasn't texted since it was scheduled (a reply supersedes it —
-    submit_draft clears it then anyway) and the thread is still open with
+    submit_draft clears it then anyway; a tapback isn't a reply) and the
+    thread is still open with
     no booked/not-interested disposition — except one Dylan scheduled
     himself, which may well be a post-call check-in on a booked prospect."""
-    return await conn.fetch(
+    rows = await conn.fetch(
         """
         SELECT sc.phone, sc.status, sc.campaign_id, sc.contact_id, sc.ai_followup_note, sc.ai_followup_by,
-               c.business, c.owner, c.city, c.state, c.email, c.opener
+               c.business, c.owner, c.city, c.state, c.email, c.opener,
+               ARRAY(
+                   SELECT COALESCE(m.body, '') FROM sms_messages m
+                   WHERE m.phone = sc.phone AND m.direction = 'inbound' AND m.sent_at > sc.ai_followup_set_at
+               ) AS since_set
         FROM sms_conversations sc
         LEFT JOIN contacts c ON c.id = sc.contact_id
         WHERE sc.ai_followup_due_at IS NOT NULL AND sc.ai_followup_due_at <= now()
           AND sc.status <> 'closed' AND (sc.disposition IS NULL OR sc.ai_followup_by = 'dylan')
           AND (c.client_id IS NULL OR c.is_client_anchor)
-          AND NOT EXISTS (
-              SELECT 1 FROM sms_messages m
-              WHERE m.phone = sc.phone AND m.direction = 'inbound' AND m.sent_at > sc.ai_followup_set_at
-          )
         ORDER BY sc.ai_followup_due_at
-        LIMIT $1
         """,
-        limit,
     )
+    return [r for r in rows if all(is_tapback(b) for b in r["since_set"])][:limit]
 
 
 async def _is_follow_up_turn(conn, phone: str, current_inbound: datetime | None) -> dict | None:
@@ -767,6 +777,15 @@ async def _is_follow_up_turn(conn, phone: str, current_inbound: datetime | None)
     if current_inbound is not None and fu["ai_followup_set_at"] and current_inbound > fu["ai_followup_set_at"]:
         return None
     return dict(fu)
+
+
+async def _check_in_pending(conn, phone: str, current_reply: datetime | None) -> bool:
+    """A check-in is scheduled and the prospect hasn't really replied since."""
+    set_at = await conn.fetchval(
+        "SELECT ai_followup_set_at FROM sms_conversations WHERE phone = $1 AND ai_followup_due_at IS NOT NULL",
+        phone,
+    )
+    return set_at is not None and (current_reply is None or current_reply <= set_at)
 
 
 async def schedule_follow_up(conn, phone: str, due: datetime | None, note: str | None = None,
@@ -1151,7 +1170,12 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
                                      "email_from", "follow_up_date", "follow_up_time", "offered_times")}
     if draft["action"] in NOT_INTERESTED_ACTIONS:
         await release_holds(conn, conv["phone"])
-    is_check_in = await _is_follow_up_turn(conn, conv["phone"], current_inbound)
+    # Tapbacks don't count as replying, so they neither cancel a check-in
+    # nor stop this draft from being it.
+    current_reply = max(
+        (m["sent_at"] for m in msgs if m["direction"] == "inbound" and not is_tapback(m["body"])), default=None,
+    )
+    is_check_in = await _is_follow_up_turn(conn, conv["phone"], current_reply)
     if is_check_in:
         details["scheduled_followup"] = True
     details["stages_marked"] = await apply_stages(conn, conv["phone"], conv["contact_id"], draft)
@@ -1165,6 +1189,8 @@ async def submit_draft(conn, phone: str, last_inbound_at: str | None, result: di
         due = follow_up_due(draft, tz_name, datetime.now(timezone.utc))
         details["follow_up_at"] = due.isoformat()
         await schedule_follow_up(conn, conv["phone"], due, draft["rationale"])
+    elif draft["action"] == "none" and not is_check_in and await _check_in_pending(conn, conv["phone"], current_reply):
+        pass  # a tapback on "I'll check back next week": nothing to say, keep that check-in
     else:
         await schedule_follow_up(conn, conv["phone"], None)
 
