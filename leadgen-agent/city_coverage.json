@@ -6293,8 +6293,8 @@
       "last_scraped_date": "2026-10-26"
     },
     "Vacaville, CA": {
-      "status": "in_progress",
-      "term_index": 3,
+      "status": "covered",
+      "term_index": 4,
       "reviewed_count": 92,
       "qualified_count": 2,
       "last_scraped_date": "2026-10-26"
