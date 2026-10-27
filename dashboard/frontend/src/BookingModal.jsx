@@ -42,6 +42,20 @@ function CopyableField({ label, value }) {
   );
 }
 
+// IANA name (what guess-timezone returns) -> the name Calendly's timezone
+// picker actually lists, so the rep can search/paste it straight into
+// Calendly. Covers every zone in timezone_lookup.US_TIMEZONES; anything
+// else falls back to the raw IANA name.
+const CALENDLY_TZ_NAMES = {
+  "America/New_York":    "Eastern Time - US & Canada",
+  "America/Chicago":     "Central Time - US & Canada",
+  "America/Denver":      "Mountain Time - US & Canada",
+  "America/Phoenix":     "Arizona, Yukon Time",
+  "America/Los_Angeles": "Pacific Time - US & Canada",
+  "America/Anchorage":   "Alaska Time",
+  "Pacific/Honolulu":    "Hawaii Time",
+};
+
 // Sits alongside the Calendly iframe + BookingForm so the rep can see (and
 // copy/paste) the prospect's own details while actually booking them into
 // Calendly, instead of the info being hidden behind this full-screen modal.
@@ -60,7 +74,7 @@ function ProspectInfoPanel({ name, phone, email, contact }) {
     if (contact?.state) params.set('state', contact.state);
     fetch(API(`/appointment-reminders/guess-timezone?${params}`))
       .then(r => r.json())
-      .then(d => setTimezone(d.timezone || null))
+      .then(d => setTimezone(d.timezone ? (CALENDLY_TZ_NAMES[d.timezone] || d.timezone) : null))
       .catch(() => {});
   }, [phone, contact?.city, contact?.state]);
 
