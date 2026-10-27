@@ -6294,9 +6294,9 @@
     },
     "Vacaville, CA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 64,
-      "qualified_count": 1,
+      "term_index": 2,
+      "reviewed_count": 87,
+      "qualified_count": 2,
       "last_scraped_date": "2026-10-26"
     },
     "Fishers, IN": {
