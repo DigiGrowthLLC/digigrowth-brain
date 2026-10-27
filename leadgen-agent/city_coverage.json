@@ -6371,9 +6371,9 @@
     },
     "San Mateo, CA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 107,
-      "qualified_count": 6,
+      "term_index": 2,
+      "reviewed_count": 145,
+      "qualified_count": 8,
       "last_scraped_date": "2026-10-26"
     },
     "Chico, CA": {
