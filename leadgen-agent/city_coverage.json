@@ -6321,9 +6321,9 @@
       "last_scraped_date": "2026-10-26"
     },
     "Yuma, AZ": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 88,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 95,
       "qualified_count": 5,
       "last_scraped_date": "2026-10-26"
     },
