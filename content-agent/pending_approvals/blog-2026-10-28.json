@@ -1,0 +1,39 @@
+{
+  "title": "How to Know a Lead Is Worth Your Time Before You Ever Pick Up the Phone",
+  "summary": "Three pre-call checks (service area, job type, timeline) that an AI assistant can run in minutes so your calls go to leads that can actually book.",
+  "payload": {"post": {
+    "slug": "ai-qualify-leads-before-you-call",
+    "title": "How to Know a Lead Is Worth Your Time Before You Ever Pick Up the Phone",
+    "metaDescription": "Stop dialing leads that were never going to book. Three pre-call checks an AI assistant can run in minutes, so your calls go to people who can say yes.",
+    "date": "2026-10-28",
+    "thumbnailIcon": "ai",
+    "intro": [
+      "It's 4:40 on a Thursday. You have forty minutes before your next job, and six new leads in your inbox. You call the first one. Wrong city. You call the second. Voicemail. The third wanted a quote for something you don't do. By the time you reach someone who is ready to book, the window is gone.",
+      "None of those calls were a failure of effort. They were a failure of sorting. Someone, or something, needs to separate the six leads into 'call now,' 'text first,' and 'skip' before you spend a minute of your day on them.",
+      "That sorting is exactly what an AI assistant is good at, and it takes less setup than you'd expect. Here is what changes for you when it runs before you dial."
+    ],
+    "sections": [
+      {"heading": "The calls you're making now aren't the problem", "paragraphs": [
+        "Most owners assume the answer to a thin pipeline is more calls. The data points at a different gap. An HVAC trade-press report on contractor lead handling found that only 2% of sales closed on the first phone call, while more than 60% of leads were never contacted again after that first attempt.",
+        "Read that carefully. The first call rarely closes, and most leads never get a second touch. A single call spent on a lead that was out of your service area is a call you didn't spend following up with one that wasn't.",
+        "Sources vary on exactly how much sales time goes to unqualified leads, and many of the big percentages you'll see online have no traceable origin. The direction is not in doubt: every minute on a lead that can't buy is a minute not spent on one that can."
+      ]},
+      {"heading": "Three checks that decide who gets your phone call", "paragraphs": [
+        "You don't need a complicated scoring model. For an independent service business, three questions sort most leads:",
+        "1. Can you serve them? Service area and job type. If the zip code is outside your range or the request is something you don't offer, they get a polite text with a referral, not a call.",
+        "2. Do they have a real need and a real timeline? 'I need this fixed this week' and 'just browsing prices' are different people. A single reply to an automatic first text usually tells you which.",
+        "3. Can they say yes? For many practices that means budget or payment fit; for others it's decision-maker access. If the person filling out the form isn't the one who decides, you want to know before the call."
+      ]},
+      {"heading": "What the AI actually does, step by step", "paragraphs": [
+        "The moment a lead comes in, an AI assistant texts them. It asks the two or three questions above in plain language, reads the replies, and tags the lead: ready, needs a nudge, or not a fit.",
+        "Ready leads land on your phone with a one-line summary: 'Needs a repair this week, in your area, replied in four minutes.' That's the call worth making. Not-a-fit leads get a kind reply and drop off your list. Leads that went quiet get a follow-up sequence, so they aren't lost.",
+        "Notice what you're not doing: you aren't writing messages, checking zip codes, or guessing who's serious. You're calling people who already told you what they need.",
+        "If you want to see how this fits into a wider system, the [FAQ](/faq) covers how follow-up and booking work together."
+      ]},
+      {"heading": "Where to start this week", "paragraphs": [
+        "Pull the last twenty leads you didn't book. For each, ask which of the three checks would have flagged it. You'll likely find a pattern, and that pattern is your first qualification question.",
+        "Write that one question down. Add it to your first reply. Then add a second. You don't need a perfect filter; you need one that stops the obvious wrong calls so your best hours go to the leads that can book."
+      ]}
+    ]
+  }}
+}

@@ -98,3 +98,9 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   "3x" claim dropped, no source found), research cache stale (dated 2026-10-16, empty findings), own
   web search (HBR 2011 study of 2,241 firms) — 2026-10-21 — pending approval (draft pushed to
   `content-agent/pending_approvals/blog-2026-10-21.json` on `main`)
+- "How to Know a Lead Is Worth Your Time Before You Ever Pick Up the Phone" (slug:
+  ai-qualify-leads-before-you-call) — pillar: Lead Follow-Up & Automation — topic: rotation #10
+  (AI qualifies leads before you pick up the phone), research cache stale (dated 2026-10-16, empty
+  findings), own web search (ACHR News HVAC lead-handling figures: 2% first-call close, 60%+ never
+  re-contacted; vendor "50% of time on unqualified leads" claims unsourced, not used) — 2026-10-28 —
+  pending approval (draft pushed to `content-agent/pending_approvals/blog-2026-10-28.json` on `main`)
