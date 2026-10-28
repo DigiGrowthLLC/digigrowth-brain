@@ -6440,9 +6440,9 @@
       "last_scraped_date": "2026-10-27"
     },
     "Albany, NY": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 133,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 169,
       "qualified_count": 13,
       "last_scraped_date": "2026-10-27"
     },
