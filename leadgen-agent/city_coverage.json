@@ -6392,8 +6392,8 @@
     },
     "Wichita Falls, TX": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 63,
+      "term_index": 2,
+      "reviewed_count": 85,
       "qualified_count": 0,
       "last_scraped_date": "2026-10-27"
     },
