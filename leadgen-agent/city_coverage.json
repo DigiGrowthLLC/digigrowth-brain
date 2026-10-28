@@ -6377,9 +6377,9 @@
       "last_scraped_date": "2026-10-26"
     },
     "Chico, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 116,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 118,
       "qualified_count": 8,
       "last_scraped_date": "2026-10-27"
     },
