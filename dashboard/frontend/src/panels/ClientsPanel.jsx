@@ -2040,6 +2040,10 @@ const MARKETING_GUIDES = {
         fields: [{ key: "meta_ad_account_id", label: "Meta Ad Account ID", placeholder: "123456789012345" }] },
       { text: "Get their Facebook Page and Instagram assigned to you. A \"Partial access: Basic\" portfolio role can't self-assign, so the client does it: Business Settings → Users → People → your name → Assign assets → their Page and Instagram, Full control (or makes you a full-control admin). Then save the Page ID: that builds the Lead Ads relay (Set Up Response AI step 11).",
         fields: [{ key: "meta_page_id", label: "Meta Page ID", placeholder: "987654321098765" }] },
+      // Appended 2026-10-28.
+      { text: "Share the ad account the campaign actually runs from with DigiGrowth's system user, or the portal shows no spend/clicks/CPL. Redo this whenever the saved ad account ID changes. 1) Client's Business Settings → Accounts → Ad accounts → that ad account → Assign partners → DigiGrowth business ID 695946576605909, View performance. 2) DigiGrowth's Business Settings → Users → System users → the system user → Assign assets → that ad account, View performance. 3) Click SYNC NOW: it must succeed, not return a permissions (#200) error.",
+        link: "https://business.facebook.com/settings/ad-accounts", linkLabel: "Business Settings → Ad Accounts",
+        testAction: "meta_ads" },
     ],
   },
   automations: {
@@ -2110,7 +2114,7 @@ const SETUP_ORDER_PHASES = {
     note: "End-to-end tests, then creatives go into the ad account.",
     steps: [["response_ai", 6], ["response_ai", 15], ["response_ai", 12],
       ["automations", 0], ["automations", 2], ["automations", 3],
-      ["ad_creatives", 5],
+      ["ad_creatives", 5], ["ad_creatives", 8],
       ["client_portal", 2], ["client_portal", 3], ["client_portal", 4], ["client_portal", 5], ["automations", 4],
       ["client_portal", 6]],
   },
