@@ -762,6 +762,7 @@ const ONBOARDING_FIELD_KEYS = [
   "onboarding_welcome_email_subject", "onboarding_welcome_email_body",
   "onboarding_followup_email_subject", "onboarding_followup_email_body",
   "onboarding_followup_sms",
+  "onboarding_nudge_email_subject", "onboarding_nudge_email_body",
 ];
 
 function OnboardingKickoffEditor({ categories, onCategoryChange }) {
@@ -845,7 +846,7 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
         <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Welcome email fires immediately when a rep marks an appointment's outcome <strong style={{ color: "#a080f0" }}>Closed</strong> (won). The onboarding email + SMS fire the next morning (8am ET). Edits apply to the very next send.
+          Welcome email fires immediately when a rep marks an appointment's outcome <strong style={{ color: "#a080f0" }}>Closed</strong> (won). The onboarding email + SMS fire the next morning (8am ET), and the reminder email 3 days later if no onboarding step is done yet. Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -926,6 +927,34 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
             onChange={e => setValues(v => ({ ...v, onboarding_followup_sms: e.target.value }))}
             rows={4}
             placeholder="Hey {first_name}, here's your client portal: {portal_link}"
+            style={fieldStyle}
+          />
+          <div style={hintStyle}>
+            Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the client's first name and{" "}
+            <code style={{ color: "#6ab0ff" }}>{"{portal_link}"}</code> for their client portal link.
+          </div>
+        </div>
+
+        <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
+          <label style={headingStyle}>3. Onboarding Reminder Email (3 days after the portal email)</label>
+          <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>
+            Only sent if the client hasn't completed <strong style={{ color: "#a080f0" }}>any</strong> onboarding step in their portal yet (no Next Steps item ticked, no intake form section completed). Email only.
+          </div>
+          <label style={{ ...labelStyle, marginTop: 4 }}>EMAIL SUBJECT</label>
+          <input
+            value={values.onboarding_nudge_email_subject || ""}
+            onChange={e => setValues(v => ({ ...v, onboarding_nudge_email_subject: e.target.value }))}
+            placeholder="Quick reminder about your onboarding, {first_name}"
+            style={fieldStyle}
+          />
+          <div style={{ ...hintStyle, marginBottom: 14 }}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the client's first name.</div>
+
+          <label style={labelStyle}>EMAIL BODY</label>
+          <textarea
+            value={values.onboarding_nudge_email_body || ""}
+            onChange={e => setValues(v => ({ ...v, onboarding_nudge_email_body: e.target.value }))}
+            rows={10}
+            placeholder={"Hey {first_name},\n\nJust a quick reminder to fill out your onboarding steps: {portal_link}"}
             style={fieldStyle}
           />
           <div style={hintStyle}>

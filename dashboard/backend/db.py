@@ -598,6 +598,7 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS outcome_notes TEXT;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS onboarding_kickoff_sent_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS onboarding_followup_sent_at TIMESTAMPTZ;
+            ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS onboarding_nudge_sent_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS client_booking_notification_sent_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS client_no_show_sequence_sent_at TIMESTAMPTZ;
             ALTER TABLE appointment_reminders ADD COLUMN IF NOT EXISTS client_cancel_sequence_sent_at TIMESTAMPTZ;

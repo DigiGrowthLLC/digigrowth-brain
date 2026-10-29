@@ -28,6 +28,12 @@ being marked "Closed" (won) in the dialer UI.
    touch is skipped (logged) and onboarding_followup_sent_at still gets
    stamped so it never retries; send_followup_now() is the manual resend.
 
+3. **Reminder email** — 3 days after the portal email (the 8:05am ET poll on
+   the third calendar day after it), and ONLY if the client hasn't completed
+   a single onboarding step in their portal yet: no "Next Steps" checklist
+   item ticked and no intake form section completed (Dylan, 2026-10-29).
+   Email only. See send_nudge_touches().
+
 Editable from Business Resources → Outreach Templates → Onboarding Kickoff,
 same dialer_settings-backed pattern as every other sequence module here (see
 no_show_sequence.py's module docstring for the shared mechanism). Templates
@@ -72,6 +78,17 @@ _FOLLOWUP_SMS_DEFAULT = (
     "Hey {first_name} — here's your client portal, everything you need to get set up: {portal_link}"
 )
 
+_NUDGE_SUBJECT_DEFAULT = "Quick reminder about your onboarding, {first_name}"
+_NUDGE_BODY_DEFAULT = (
+    "Hey {first_name},\n\n"
+    "Just a quick reminder to fill out your onboarding steps when you get a chance. "
+    "That's where we get all the information we need to build out your campaign, "
+    "so the sooner it's in, the sooner we can launch.\n\n"
+    "Everything is in your client portal:\n\n"
+    "{portal_link}\n\n"
+    "Talk soon,\nDylan"
+)
+
 # dialer_settings key -> hardcoded fallback, shared by GET/PUT
 # /dialer/onboarding-template and the templated sends below.
 TEMPLATE_DEFAULTS = {
@@ -80,6 +97,8 @@ TEMPLATE_DEFAULTS = {
     "onboarding_followup_email_subject": _FOLLOWUP_SUBJECT_DEFAULT,
     "onboarding_followup_email_body": _FOLLOWUP_BODY_DEFAULT,
     "onboarding_followup_sms": _FOLLOWUP_SMS_DEFAULT,
+    "onboarding_nudge_email_subject": _NUDGE_SUBJECT_DEFAULT,
+    "onboarding_nudge_email_body": _NUDGE_BODY_DEFAULT,
 }
 
 
@@ -169,7 +188,7 @@ async def _already_sent_to_prospect(row: dict, sent_col: str) -> bool:
     once, ever: re-closing an appointment or closing a later one (e.g. a
     two-call close) never resends it. Brian Murphy got the welcome email
     twice on 2026-10-21 before this guard existed."""
-    assert sent_col in ("onboarding_kickoff_sent_at", "onboarding_followup_sent_at")
+    assert sent_col in ("onboarding_kickoff_sent_at", "onboarding_followup_sent_at", "onboarding_nudge_sent_at")
     email = (row.get("prospect_email") or "").strip().lower()
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -317,6 +336,70 @@ async def _followup_one(row: dict, templates: dict, manual: bool = False) -> str
             row["id"],
         )
     return portal_link
+
+
+async def send_nudge_touches():
+    """Polled once daily at 8:05am ET (main.py's scheduler), after the
+    portal follow-ups. Emails the onboarding reminder to every closed
+    appointment whose portal email went out on the third calendar day (ET)
+    before today or earlier, but only if that client hasn't completed any
+    onboarding step yet. Portal emails older than 7 days are left alone so
+    this never backfills clients who closed long before it existed. Always
+    stamps onboarding_nudge_sent_at, so each prospect is checked once."""
+    today_start_et = datetime.now(ZoneInfo("America/New_York")).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT ar.*, cl.id AS nudge_client_id, cl.portal_token AS nudge_portal_token,
+                   (EXISTS (SELECT 1 FROM client_action_item_completions WHERE client_id = cl.id)
+                    OR EXISTS (SELECT 1 FROM client_onboarding_responses
+                               WHERE client_id = cl.id AND completed_at IS NOT NULL)) AS any_step_done
+            FROM appointment_reminders ar
+            LEFT JOIN contacts c ON c.id = ar.contact_id AND c.is_client_anchor
+            LEFT JOIN clients cl ON cl.id = c.client_id
+            WHERE ar.outcome_close = 'closed'
+              AND ar.onboarding_followup_sent_at < $1 - interval '2 days'
+              AND ar.onboarding_followup_sent_at >= $1 - interval '7 days'
+              AND ar.onboarding_nudge_sent_at IS NULL
+            """,
+            today_start_et,
+        )
+    if not rows:
+        return
+
+    templates = await _get_templates()
+    for record in rows:
+        row = dict(record)
+        email = (row.get("prospect_email") or "").strip()
+        if not row["nudge_client_id"]:
+            print(f"[onboarding_sequence] appointment {row['id']} has no client portal — no onboarding reminder")
+        elif row["any_step_done"]:
+            print(f"[onboarding_sequence] client {row['nudge_client_id']} already started onboarding — no reminder needed")
+        elif await _already_sent_to_prospect(row, "onboarding_nudge_sent_at"):
+            print(f"[onboarding_sequence] onboarding reminder already sent to this prospect — not resending for appointment {row['id']}")
+        elif not email:
+            print(f"[onboarding_sequence] no prospect_email on appointment {row['id']} — skipping onboarding reminder")
+        else:
+            portal_link = f"{_DASHBOARD_URL}/portal/{row['nudge_portal_token']}"
+            subject_template = templates["onboarding_nudge_email_subject"]
+            body_template = templates["onboarding_nudge_email_body"]
+            if subject_template.strip() and body_template.strip():
+                try:
+                    subject = _fill(subject_template, row, portal_link)
+                    body = _fill(body_template, row, portal_link)
+                    result = await asyncio.to_thread(integrations.gmail_send, email, subject, body, is_automated=True)
+                    if not result.startswith("Sent email"):
+                        print(f"[onboarding_sequence] onboarding reminder to {email} did not send: {result}")
+                except Exception as e:
+                    print(f"[onboarding_sequence] onboarding reminder failed for {email}: {e}")
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE appointment_reminders SET onboarding_nudge_sent_at = now() WHERE id = $1",
+                row["id"],
+            )
 
 
 async def send_followup_now(appointment_id: int) -> str:
