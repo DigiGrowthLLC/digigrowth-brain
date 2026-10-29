@@ -34,11 +34,25 @@ _WINDOWS = [
     ("6h",  "reminder_6h_sent_at", 6,  "6h"),
     ("1h",  "reminder_1h_sent_at", 1,  "1h"),
 ]
+# Onboarding/launch calls: the 1h window only, with the client copy.
+_CLIENT_WINDOWS = [
+    ("1h",  "reminder_1h_sent_at", 1,  "client_1h"),
+]
+
+
+def windows_for(call_type: str) -> list:
+    return _WINDOWS if call_type == "discovery" else _CLIENT_WINDOWS
 
 _24H_SMS_DEFAULT = "Hey {first_name}, quick reminder — your call with DigiGrowth is tomorrow ({when}). Talk soon!"
 _6H_SMS_DEFAULT  = "Hey {first_name}, quick reminder — your call with DigiGrowth is in a few hours ({when}). Talk soon!"
 _1H_SMS_DEFAULT  = "Hey {first_name}, quick reminder — your call with DigiGrowth is in about an hour ({when}). Talk soon!"
 _REMINDER_SUBJECT_DEFAULT = "Reminder: your upcoming call with DigiGrowth"
+
+# Onboarding/launch calls with clients get this one reminder and nothing else
+# (Dylan, 2026-10-29): 1h out, carrying the meeting link. Its own instance so
+# the discovery 1h copy (a sales reminder) never reaches a client.
+_CLIENT_1H_SMS_DEFAULT = "Hey {first_name}, our call starts in about an hour ({when}). Here's the meeting link: {Meeting_Link}"
+_CLIENT_1H_SUBJECT_DEFAULT = "Meeting link for our call in 1 hour"
 
 _RESCHEDULE_SMS_DEFAULT = "Hey {first_name}, heads up — your call with DigiGrowth has been rescheduled to {when}. See you then!"
 _RESCHEDULE_EMAIL_BODY_DEFAULT = _RESCHEDULE_SMS_DEFAULT
@@ -52,6 +66,7 @@ TEMPLATE_INSTANCES = {
     "24h":          (_24H_SMS_DEFAULT, _REMINDER_SUBJECT_DEFAULT, _24H_SMS_DEFAULT),
     "6h":           (_6H_SMS_DEFAULT, _REMINDER_SUBJECT_DEFAULT, _6H_SMS_DEFAULT),
     "1h":           (_1H_SMS_DEFAULT, _REMINDER_SUBJECT_DEFAULT, _1H_SMS_DEFAULT),
+    "client_1h":    (_CLIENT_1H_SMS_DEFAULT, _CLIENT_1H_SUBJECT_DEFAULT, _CLIENT_1H_SMS_DEFAULT),
     "reschedule":   (_RESCHEDULE_SMS_DEFAULT, _RESCHEDULE_SUBJECT_DEFAULT, _RESCHEDULE_EMAIL_BODY_DEFAULT),
 }
 
@@ -117,7 +132,15 @@ async def _send_instance(row: dict, instance: str, templates: dict, stage: str) 
     # below. Looked up once per send rather than once per template field.
     meeting_link = await asyncio.to_thread(
         integrations.find_appointment_meeting_link, row["appointment_at"], row.get("prospect_email"),
-    ) or integrations.CALENDLY_URL
+    )
+    if not meeting_link:
+        # The Calendly booking URL is not a join link; a client who's told
+        # "here's the meeting link" needs to be pointed at their invite instead.
+        if instance == "client_1h":
+            print(f"[reminder_engine] no meeting link found for appointment {row.get('id')}, pointing client to their invite")
+            meeting_link = "the link in your calendar invite"
+        else:
+            meeting_link = integrations.CALENDLY_URL
 
     sms_text    = _fill(templates[f"reminder_{instance}_sms"], row, meeting_link)
     subject     = _fill(templates[f"reminder_{instance}_email_subject"], row, meeting_link)
@@ -223,14 +246,13 @@ async def send_due_reminders():
             # show/cancellation touches so far), so client leads currently
             # get NO reminder at all rather than the wrong one. Flag to
             # Dylan as a follow-up build, not silently left as-is.
-            # Discovery calls only — the reminder copy is a sales pitch, and
-            # onboarding/launch calls with clients get no reminders (Dylan,
-            # 2026-10-21; Calendly sends its own).
+            # Discovery calls get the full 24h/6h/1h set; onboarding/launch
+            # calls with clients get only the 1h meeting-link reminder
+            # (Dylan, 2026-10-29; see windows_for()).
             """
             SELECT ar.* FROM appointment_reminders ar
             LEFT JOIN contacts c ON c.id = ar.contact_id
             WHERE ar.status = 'scheduled' AND ar.appointment_at > now()
-            AND ar.call_type = 'discovery'
             AND ar.reminders_stopped_at IS NULL
             AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
             """
@@ -243,7 +265,7 @@ async def send_due_reminders():
     for record in rows:
         row = dict(record)
         lead_time = row["appointment_at"] - row["reminders_armed_at"]
-        for window_label, sent_col, hours_before, instance in _WINDOWS:
+        for window_label, sent_col, hours_before, instance in windows_for(row["call_type"]):
             if row[sent_col] is not None:
                 continue
             if lead_time < timedelta(hours=hours_before):

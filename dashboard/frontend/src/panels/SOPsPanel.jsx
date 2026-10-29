@@ -1791,6 +1791,11 @@ const REMINDER_FIELDS = [
   { heading: "6-Hour Reminder", hint: null, instance: "6h" },
   { heading: "1-Hour Reminder", hint: null, instance: "1h" },
   {
+    heading: "Onboarding / Launch Call: 1-Hour Reminder",
+    hint: "The only reminder onboarding and launch calls get. Include {Meeting_Link}.",
+    instance: "client_1h",
+  },
+  {
     heading: "Reschedule Notice", hint: "Sent immediately when a rep reschedules a booked appointment.",
     instance: "reschedule",
   },

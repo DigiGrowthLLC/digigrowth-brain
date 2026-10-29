@@ -132,7 +132,7 @@ def _reminder_progress(row: dict) -> dict:
     """24h/6h/1h reminder-window progress, mirroring reminder_engine.py's
     own lead-time logic so the displayed 'next due' matches what will
     actually fire."""
-    windows = [("24h", "reminder_24h_sent_at", 24), ("6h", "reminder_6h_sent_at", 6), ("1h", "reminder_1h_sent_at", 1)]
+    windows = [(label, col, hours) for label, col, hours, _ in reminder_engine.windows_for(row["call_type"])]
     sent_labels = [label for label, col, _ in windows if row.get(col) is not None]
     appt_at = row["appointment_at"]
     lead_time = appt_at - row["reminders_armed_at"]
@@ -144,7 +144,7 @@ def _reminder_progress(row: dict) -> dict:
         break
     return {
         "touches_sent": len(sent_labels),
-        "touches_total": 3,
+        "touches_total": len(windows),
         "step_label": f"Sent: {', '.join(sent_labels)}" if sent_labels else "None sent yet",
         "next_touch_due_at": next_due,
     }
