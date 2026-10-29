@@ -909,6 +909,11 @@ async def _create_schema(pool: asyncpg.Pool):
         )
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_sms_messages_stage ON sms_messages(stage) WHERE stage IS NOT NULL;
+            -- The Inbox list looks up each conversation's latest/unread message by
+            -- phone (SMS) and thread_id (email); without these every 15s poll
+            -- scanned the whole messages table once per conversation.
+            CREATE INDEX IF NOT EXISTS idx_sms_messages_phone_sent ON sms_messages(phone, sent_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_email_messages_thread_sent ON email_messages(thread_id, sent_at DESC);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_email_messages_tracking_token ON email_messages(tracking_token) WHERE tracking_token IS NOT NULL;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_sequences_single_default ON sms_sequences (is_default) WHERE is_default;
             CREATE UNIQUE INDEX IF NOT EXISTS idx_cold_call_scripts_single_default ON cold_call_scripts (is_default) WHERE is_default;
@@ -1912,7 +1917,10 @@ async def _create_schema(pool: asyncpg.Pool):
         # Prospect follow-up + appointment reminders use the even step_order of
         # each touch's pair (0, 2, 4, 6), same as no-show/cancellation. The
         # odd slots were the email half, gone since DigiGrowth stopped
-        # offering client email (2026-10-28).
+        # offering client email (2026-10-28) — delete the leftover email rows
+        # so no client sequence carries email copy anymore. Nothing is seeded
+        # as email, so this only ever matches legacy rows.
+        await conn.execute("DELETE FROM client_sequence_steps WHERE channel = 'email'")
         await conn.execute(
             """
             UPDATE client_sequence_steps SET label = CASE

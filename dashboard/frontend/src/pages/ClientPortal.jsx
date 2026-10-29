@@ -614,15 +614,19 @@ function OnboardingTab({ token, onGoToTab }) {
   );
 }
 
-// Read-only preview of this client's outreach copy — DigiGrowth staff edit
-// this from the Clients admin panel. Not wired to any real send yet (see
-// client_sequence_steps in db.py); the client just sees a preview of what
-// their messaging will look like once it's live.
+// This client's live SMS copy (client_sequence_steps) — DigiGrowth staff edit
+// it from the Clients admin panel; the client can switch texts on/off here.
 const SEQUENCE_LABELS = {
   prospect_followup: "Prospect Follow-Up",
   appointment_reminder: "Appointment Reminders",
   no_show: "No Show Follow-Up",
   cancellation: "Cancellation Follow-Up",
+};
+const SEQUENCE_SUMMARY = {
+  prospect_followup: "Texts leads who go quiet, until they reply or book.",
+  appointment_reminder: "Reminds patients before their appointment.",
+  no_show: "Gets patients who miss their appointment back on the schedule.",
+  cancellation: "Gets patients who cancel back on the schedule.",
 };
 const SEQUENCE_ORDER = ["prospect_followup", "appointment_reminder", "no_show", "cancellation"];
 
@@ -680,27 +684,40 @@ function OnOffSwitch({ on, onChange, busy, text }) {
   );
 }
 
-function SequenceStepCard({ step, hideLabel, onToggle, busy }) {
+// One messaging block on the Your Messaging tab: title + one-line summary and
+// its controls on top, a divider, then the messages themselves.
+function MessagingSection({ title, summary, controls, children }) {
   return (
-    <div className="glass-card-sm" style={{ padding: 16, opacity: step.enabled === false ? 0.55 : 1 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#d0e8ff", flex: 1 }}>
-          {hideLabel ? "" : step.label}
-        </span>
-        {onToggle && <OnOffSwitch on={step.enabled !== false} onChange={onToggle} busy={busy} />}
-        <span style={{
-          fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
-          padding: "3px 8px", borderRadius: 999, color: "#6ab0ff",
-          background: "rgba(58,123,213,0.1)", border: "1px solid rgba(58,123,213,0.25)",
-        }}>
-          {step.channel.toUpperCase()}
-        </span>
-      </div>
-      {step.subject && (
-        <div style={{ fontSize: 11.5, color: "#5a7096", marginBottom: 6 }}>
-          Subject: <span style={{ color: "#8aaad0" }}>{step.subject}</span>
+    <div className="glass-card" style={{ padding: "20px 24px", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>{title}</div>
+          {summary && <div style={{ fontSize: 12, color: "#6a84a8", marginTop: 3 }}>{summary}</div>}
         </div>
-      )}
+        {controls}
+      </div>
+      <div className="dg-divider" style={{ margin: "16px 0" }} />
+      {children}
+    </div>
+  );
+}
+
+// One touch: its title + send timing and on/off switch, then the text itself.
+function SequenceStepCard({ title, timing, step, onToggle, busy }) {
+  return (
+    <div className="glass-card-sm" style={{ padding: 16, display: "flex", flexDirection: "column", opacity: step.enabled === false ? 0.55 : 1 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#e8f0ff" }}>{title}</div>
+          {timing && (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.06em", marginTop: 3 }}>
+              {timing.toUpperCase()}
+            </div>
+          )}
+        </div>
+        {onToggle && <OnOffSwitch on={step.enabled !== false} onChange={onToggle} busy={busy} />}
+      </div>
+      <div className="dg-divider" style={{ margin: "12px 0" }} />
       <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{step.body}</div>
     </div>
   );
@@ -1016,19 +1033,15 @@ function BookingAlertSection({ token }) {
   };
 
   return (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <SectionHeading>Appointment Confirmation (texted to you)</SectionHeading>
-        </div>
-        <OnOffSwitch on={alert.enabled} onChange={setEnabled} busy={busy} />
-      </div>
+    <MessagingSection
+      title="Appointment Confirmation"
+      summary={`Texted to you${alert.phone ? ` at ${alert.phone}` : ""} the moment a new appointment is booked.`}
+      controls={<OnOffSwitch on={alert.enabled} onChange={setEnabled} busy={busy} />}
+    >
       <div className="glass-card-sm" style={{ padding: 16, maxWidth: 520, opacity: alert.enabled ? 1 : 0.55 }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.08em", marginBottom: 8 }}>
-          SMS{alert.phone ? ` TO ${alert.phone}` : ""} · SENT THE MOMENT A NEW APPOINTMENT IS BOOKED
-        </div>
         <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{alert.body}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+        <div className="dg-divider" style={{ margin: "12px 0" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.08em" }}>GREETS</span>
           <input
             value={name} onChange={(e) => setName(e.target.value)}
@@ -1047,7 +1060,7 @@ function BookingAlertSection({ token }) {
           </div>
         )}
       </div>
-    </div>
+    </MessagingSection>
   );
 }
 
@@ -1095,9 +1108,9 @@ function SequencesTab({ token }) {
           Your Patient Messaging
         </div>
         <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
-          Your appointment reminders and follow-ups are live, sending from your own number.
-          Below is the copy for each, plus who's currently in each sequence. Switch off
-          any single message, or a whole sequence, and it stops before its next send.
+          Your appointment reminders and follow-ups are live, texting from your own number.
+          Below is every message, plus who's in each sequence right now. Switch off a single
+          text, or a whole sequence, and it stops before its next send.
         </div>
       </div>
 
@@ -1108,58 +1121,41 @@ function SequencesTab({ token }) {
         if (group.length === 0) return null;
         const modalKey = SEQUENCE_MODAL_KEY[key];
         const onCount = group.filter((s) => s.enabled !== false).length;
+        const cols = sequenceColumns(key, group);
         return (
-          <div key={key} style={{ marginBottom: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <SectionHeading>{SEQUENCE_LABELS[key] || key}</SectionHeading>
-              </div>
-              <OnOffSwitch
-                on={onCount > 0}
-                onChange={(enabled) => setSequenceEnabled(key, enabled)}
-                busy={busy === key}
-                text={onCount === group.length ? "ALL ON" : onCount === 0 ? "ALL OFF" : `${onCount}/${group.length} ON`}
-              />
-              {modalKey && (
-                <button
-                  onClick={() => setOpenQueue(modalKey)}
-                  className="btn btn-secondary"
-                  style={{ fontSize: 10.5, padding: "6px 12px", whiteSpace: "nowrap" }}
-                >
-                  {key === "prospect_followup" ? "View Active Prospects" : "View Active Patients"}
-                </button>
-              )}
+          <MessagingSection
+            key={key}
+            title={SEQUENCE_LABELS[key] || key}
+            summary={`${SEQUENCE_SUMMARY[key] || ""} ${cols.length} text${cols.length === 1 ? "" : "s"}.`.trim()}
+            controls={
+              <>
+                <OnOffSwitch
+                  on={onCount > 0}
+                  onChange={(enabled) => setSequenceEnabled(key, enabled)}
+                  busy={busy === key}
+                  text={onCount === group.length ? "ALL ON" : onCount === 0 ? "ALL OFF" : `${onCount}/${group.length} ON`}
+                />
+                {modalKey && (
+                  <button
+                    onClick={() => setOpenQueue(modalKey)}
+                    className="btn btn-secondary"
+                    style={{ fontSize: 10.5, padding: "6px 12px", whiteSpace: "nowrap" }}
+                  >
+                    {key === "prospect_followup" ? "View Active Prospects" : "View Active Patients"}
+                  </button>
+                )}
+              </>
+            }
+          >
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
+              {cols.flatMap((col) => col.steps.map((step) => (
+                <SequenceStepCard
+                  key={step.id} title={col.title} timing={col.timing} step={step}
+                  onToggle={(enabled) => setStepEnabled(step.id, enabled)} busy={busy === step.id}
+                />
+              )))}
             </div>
-            {(() => {
-              const cols = sequenceColumns(key, group);
-              return (
-                <div style={{ overflowX: "auto" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols.length}, minmax(260px, 1fr))`, gap: 14 }}>
-                    {cols.map((col) => (
-                      <div key={col.title} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "0 2px" }}>
-                          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13.5, color: "#e8f0ff" }}>
-                            {col.title}
-                          </span>
-                          {col.timing && (
-                            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.04em" }}>
-                              {col.timing.toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-                        {col.steps.map((step) => (
-                          <SequenceStepCard
-                            key={step.id} step={step} hideLabel
-                            onToggle={(enabled) => setStepEnabled(step.id, enabled)} busy={busy === step.id}
-                          />
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
+          </MessagingSection>
         );
       })}
 
