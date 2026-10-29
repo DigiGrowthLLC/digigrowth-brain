@@ -11,7 +11,7 @@ weak offer in front of a great ad. So this step comes *before* concepts and copy
 afterwards sells the approved offer.
 
 **Not to be confused with `context/offer.md`.** That file is DigiGrowth's offer *to clinics*
-(pay per booking, the 6-week guarantee). This skill designs the *clinic's* offer *to patients*.
+(pay per booking, the 30-day guarantee). This skill designs the *clinic's* offer *to patients*.
 
 ---
 

@@ -372,7 +372,7 @@ def main():
         "MATH_PKG": esc(inc.get("package_name") or "the program"), "MATH_JSON": math_json,
         "INCLUDED_PRICE_HTML": price_html,
         "SPEC_TARGET_K": "Target" if growth else "Package",
-        "SPEC_TARGET_V": "7-10 paid assessments in 6 weeks" if growth else esc(inc.get("package_name") or "Foundations"),
+        "SPEC_TARGET_V": "7-10 paid assessments in 30 days" if growth else esc(inc.get("package_name") or "Foundations"),
         "SPEC_MODULES": "Ads · Funnel · Agent · Reactivation · Recovery" if growth else (
             ("Funnel · " if has_funnel else "") + "AI Agent · Reactivation · Recovery"),
         "SRC2_T1": "New Leads" if growth else "New",

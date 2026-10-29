@@ -10,10 +10,10 @@ DigiGrowth books **prepaid patients** directly into a practice's evaluation sche
 practice **pays per booking instead of a monthly retainer**.
 
 - Ads promote a **$49 assessment (normally $150)**, paid at booking; the clinic keeps the $49
-- **Standard:** $1,000 setup + **$100 per paid assessment**; clinic funds $1,000/month ad spend
-- **Pilot (3 clinics):** setup and booking fees waived for the first 6 weeks; continue on standard
-  pricing (setup waived with a 90-day commitment) or end at 6 weeks
-- **Result:** 7-10 paid assessments in the first 6 weeks, **7 guaranteed** (no booking fees until 7 are delivered)
+- **Standard:** $1,000 setup + **$100 per paid assessment**; clinic funds a $1,000/month marketing budget ($900 ad spend at $30/day + $100 software)
+- **Pilot (3 clinics):** setup and booking fees waived for the first 30 days; continue on standard
+  pricing (setup waived with a 90-day commitment) or end at 30 days
+- **Result:** 7-10 paid assessments in the first 30 days, **7 guaranteed** (no booking fees until 7 are delivered)
 - Includes Meta ads, booking funnel + checkout, AI SMS follow-up in under 5 minutes, reminders,
   database reactivation, weekly reporting
 

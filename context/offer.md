@@ -1,14 +1,15 @@
-# DigiGrowth Offer: PT Patient Acquisition (current as of 2026-10-06)
+# DigiGrowth Offer: PT Patient Acquisition (current as of 2026-10-29)
 
-> Timeline: the guarantee and the pilot run **6 weeks** (Dylan changed this from the 30 days in his
-> original offer doc on 2026-10-06, to match the earlier 6-week offer). Per-month figures below
-> (ad spend, projections) are still per month.
+> Timeline: the guarantee and the pilot run **30 days** (Dylan changed this back from 6 weeks on
+> 2026-10-29; it was 30 days in his original offer doc, then 6 weeks from 2026-10-06).
+> Budget (2026-10-29): the practice's $1,000/month marketing budget is **$900 ad spend ($30/day for
+> 30 days, paid to Meta) + $100 software**. Earlier versions put the full $1,000 into ads.
 
 The single source of truth for what DigiGrowth sells. Every agent, prompt, template and page that
 states the offer, price, guarantee or pilot terms must match this file. If the offer changes, change
 it here first, then update everything that points here.
 
-**Replaces** the old terms of the 6-week free pilot (10-20 booked consults guaranteed, $600 ad spend,
+**Replaces** the old terms of the earlier 6-week free pilot (10-20 booked consults guaranteed, $600 ad spend,
 optional $1,500/month retainer) and the older flat $1,500/month package. Don't use those terms
 anywhere. The pilot itself is still free (setup and per-assessment fees waived, see Pilot terms), so
 "free pilot" is still correct wording; only what it guarantees and costs in ad spend changed.
@@ -44,12 +45,12 @@ Included:
 6. **Weekly reporting.** Spend, leads, bookings and pacing against the guarantee.
 
 ## The guarantee
-**7-10 paid assessments booked in the first 6 weeks, with 7 guaranteed.** 7-10 is the expected
+**7-10 paid assessments booked in the first 30 days, with 7 guaranteed.** 7-10 is the expected
 range; 7 is the guarantee. If DigiGrowth falls short of 7, it keeps running the campaigns and the
 practice pays no booking fees until it has received 7.
 
-**How to say it to prospects (website, texts, emails, pages):** "7-10 paid assessments within 6
-weeks, guaranteed." Don't say "7 guaranteed" in customer-facing copy; the 7 floor
+**How to say it to prospects (website, texts, emails, pages):** "7-10 paid assessments within 30
+days, guaranteed." Don't say "7 guaranteed" in customer-facing copy; the 7 floor
 is the internal definition of the guarantee and goes in contracts and the call, not headlines. The practice keeps funding
 the ad spend directly.
 
@@ -58,23 +59,25 @@ Bookings from database reactivation count toward the 7.
 
 ## Pricing
 
-| | Standard | Pilot (first 6 weeks) |
+| | Standard | Pilot (first 30 days) |
 |---|---|---|
 | Setup fee | $1,000 one-time | Waived |
 | Per paid assessment | $100 | Waived |
-| Ad spend (paid by the practice to Meta) | $1,000/month | $1,000/month |
-| Result | 7-10 paid assessments in 6 weeks, 7 guaranteed | 7-10 paid assessments in 6 weeks, 7 guaranteed |
+| Marketing budget (funded by the practice) | $1,000/month: $900 ad spend ($30/day, paid to Meta) + $100 software | $1,000/month: $900 ad spend ($30/day, paid to Meta) + $100 software |
+| Result | 7-10 paid assessments in 30 days, 7 guaranteed | 7-10 paid assessments in 30 days, 7 guaranteed |
 | If the guarantee is missed | No booking fees until 7 are delivered | DigiGrowth keeps working free until 7 are delivered |
-| After 6 weeks | $100 per paid assessment | Standard pricing; setup fee waived with a 90-day commitment |
+| After 30 days | $100 per paid assessment | Standard pricing; setup fee waived with a 90-day commitment |
 | Availability | Open | 3 clinics |
 
 The practice keeps the $49 each patient pays, so its net cost per booking on the standard program is
 $51.
 
 ## KPIs (start to finish)
-At $1,000/month, 6 weeks is about $1,400 of ad spend. At a $25 cost per lead and a 17.5% booking
-rate that's ~56 leads and ~10 paid assessments, so the 7 guaranteed have a cushion (7 needs 40 leads,
-which the targets reach in about a month).
+30 days at $30/day is $900 of ad spend ($100 of the $1,000 budget goes to software). At a $25 cost
+per lead and a 17.5% booking rate that's ~36 leads and ~6 paid assessments, **one short of the 7
+guaranteed**. The 7 needs 40 leads, i.e. a cost per lead of $22.50 or less, a higher booking rate,
+or database reactivation bookings (which count toward the 7). 10 in 30 days needs ~57 leads, a cost
+per lead near $15.75. So the week-2 checkpoint and week-one reactivation carry the guarantee.
 
 **Ad performance (DigiGrowth)**
 | KPI | Target | Signals a problem with |
@@ -99,19 +102,19 @@ which the targets reach in about a month).
 | Show rate | ≥ 80% |
 | Assessment → plan of care | ≥ 35% |
 
-**6-week pacing** (at $1,000/month, about $233/week)
+**30-day pacing** (at $30/day, $210/week; leads at a $22.50 cost per lead, the rate the 7 needs)
 | Checkpoint | Ad spend | Leads | Paid assessments |
 |---|---|---|---|
-| End of week 1 | $250 | 10 | 2 |
-| End of week 2 | $500 | 20 | 3-4 |
-| End of week 4 | $1,000 | 40 | 7 |
-| End of week 6 | $1,400 | 56 | 7-10 (7 guaranteed) |
+| End of week 1 | $210 | 9 | 1-2 |
+| End of week 2 | $420 | 19 | 3 |
+| End of week 3 | $630 | 28 | 5 |
+| Day 30 | $900 | 40 | 7-10 (7 guaranteed) |
 
 Under 3 bookings at the end of week 2 triggers a fix: new creative if cost per lead is high, tighter
 follow-up if booking rate is low.
 
-## Projected results per month of spend (at $1,000 ad spend)
-These are the original per-month projections (one month = $1,000 of ad spend). At 7 paid
+## Projected results per month (at the $1,000 marketing budget)
+These are the original per-month projections (one month = the $1,000 budget: $900 ads + $100 software). At 7 paid
 assessments in a month, the practice's return on total cost is 1.22x on the standard program and
 3.28x in the pilot.
 
@@ -127,13 +130,14 @@ $3,283 in revenue, a 1.93x return.
 Assumptions: 80% show rate, 35% of assessments start a plan of care worth $1,500, and $49 collected
 per booking. Clinic revenue counts the $49 payments plus plan-of-care value. Plan revenue is
 collected over 4-6 weeks of visits unless the practice sells prepaid packages. ROAS = clinic revenue
-÷ $1,000 ad spend. These are projections from stated assumptions, not results; never present them
+÷ the $1,000 marketing budget. These are projections from stated assumptions, not results; never present them
 as what past clients got.
 
 ## Requirements
 The guarantee applies to clinics that meet these:
 - Average plan of care worth $1,500 or more (insurance-based, cash-based or hybrid all qualify).
-- $1,000/month ad spend, paid directly to Meta from the practice's ad account, for at least 6 weeks.
+- $1,000/month marketing budget for at least 30 days: $900 ad spend ($30/day) paid directly to Meta from
+  the practice's ad account, plus $100 software.
 - Capacity to see at least 7 new assessments a month.
 
 The practice commits to:
@@ -142,10 +146,10 @@ The practice commits to:
 - Report show and plan-of-care outcomes weekly so DigiGrowth can optimize lead quality.
 
 ## Pilot terms (3 clinics)
-- Setup fee and per-assessment fees waived for the first 6 weeks.
+- Setup fee and per-assessment fees waived for the first 30 days.
 - Weekly show and conversion data shared with DigiGrowth.
 - A case study and testimonial if the guarantee is hit.
-- At 6 weeks, continue on standard pricing (setup waived with a 90-day commitment) or end the program.
+- At 30 days, continue on standard pricing (setup waived with a 90-day commitment) or end the program.
 
 ## Next steps (for prospects)
 1. Book a 30-minute call: calendly.com/dylanrg-digigrowthllc/30min
