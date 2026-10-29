@@ -34,7 +34,7 @@ Fixed by `design-agent/references/blueprint-template.html` (DigiGrowth navy/glas
 7. **5 · Nothing leaks**: missed-call text-back, unbooked follow-up, no-show recovery.
 8. **The guarantee** (7-10 paid assessments in the first 30 days, 7 guaranteed, three cards; terms in `context/offer.md`). The page ends here.
 
-Per prospect you write `blueprint.json` (all copy, ad data, SMS/email examples, chat greeting/chips, `chat_context`; schema in `design-agent/tools/build_blueprint.py`'s docstring), `funnel.html`, and the ad media. `build_blueprint.py` fills the template, inlines images and the funnel, and copies videos to `out/assets/` for upload. The live chat posts to `/lp/<slug>/chat` (`dashboard/backend/routers/landing_pages.py` → `dashboard/backend/blueprint_chat.py`), answering from `chat_context` stored on the page's `landing_pages` row. **Booking in the demo chat is simulated:** made-up open times, nothing written to any calendar, nobody texted.
+Per prospect you write `blueprint.json` (all copy, ad data, SMS examples, chat greeting/chips, `chat_context`; schema in `design-agent/tools/build_blueprint.py`'s docstring), `funnel.html`, and the ad media. `build_blueprint.py` fills the template, inlines images and the funnel, and copies videos to `out/assets/` for upload. The live chat posts to `/lp/<slug>/chat` (`dashboard/backend/routers/landing_pages.py` → `dashboard/backend/blueprint_chat.py`), answering from `chat_context` stored on the page's `landing_pages` row. **Booking in the demo chat is simulated:** made-up open times, nothing written to any calendar, nobody texted.
 
 If the page itself needs a design change, change `blueprint-template.html` (or the build script) so every future blueprint gets it, and rebuild. Don't hand-edit a built page.
 

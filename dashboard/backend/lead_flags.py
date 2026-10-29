@@ -1,15 +1,15 @@
 """Shared guards for a CLIENT's own lead messaging — the "Unqualified" stop
 and the quiet-hours window — used by every automated client send
-(client_sms.py, client_email.py, response_ai.py, client_followup_sequence.py,
+(client_sms.py, response_ai.py, client_followup_sequence.py,
 client_appointment_reminders.py, client_appointment_sequence.py).
 
 Unqualified: the client's response AI tags a lead "Unqualified"
 (response_ai.py's mark_unqualified tool — e.g. they live outside the service
-area) and from then on NO automated text or email reaches them: no AI
+area) and from then on NO automated text reaches them: no AI
 replies, no follow-up touches, no reminders, no no-show/cancellation drips.
 The tag is the single source of truth, so a client who removes it in the
 portal re-enables everything. Manual replies typed by the client in the
-portal inbox still send (send_client_sms/send_client_email manual=True) —
+portal inbox still send (send_client_sms manual=True) —
 a human deciding to reach out is never blocked.
 
 Quiet hours: delayed automated touches never land outside 8am-9pm in the

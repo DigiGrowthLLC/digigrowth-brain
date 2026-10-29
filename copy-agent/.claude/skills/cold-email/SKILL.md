@@ -19,7 +19,9 @@ Sources:
 ## Trigger
 
 Use this skill when Dylan asks to:
-- Write a new cold email campaign/sequence (any niche, DigiGrowth or a client)
+- Write a new cold email campaign/sequence for DigiGrowth's own outreach (any niche). DigiGrowth
+  doesn't run email marketing for clients (dropped 2026-10-28), so never write a client's email
+  campaign
 - Rewrite or improve the live **Email Handoff** sequence in the dashboard
 - Generate subject lines, openers, P.S. lines, or A/B variants
 - Diagnose why a campaign isn't getting opens/replies/bookings and fix the copy

@@ -637,9 +637,10 @@ const SEQUENCE_TIMING = {
 };
 const REMINDER_TITLES = ["24 Hour Reminder", "6 Hour Reminder", "1 Hour Reminder"];
 
-// One column per touch: every sequence is an SMS + email pair per touch
-// (step_order 0-1 = Touch 1, 2-3 = Touch 2…), grouped from step_order rather
-// than the label so a renamed step still lands in the right column.
+// One column per touch: each touch owns a step_order pair (0-1 = Touch 1,
+// 2-3 = Touch 2…; only the SMS step is left in it now), grouped from
+// step_order rather than the label so a renamed step still lands in the
+// right column.
 function sequenceColumns(key, group) {
   const sorted = [...group].sort((a, b) => a.step_order - b.step_order);
   const cols = [];
@@ -720,7 +721,7 @@ const CLIENT_SEQUENCE_COPY = {
     removeLabel: "Stop Sequence",
     removeConfirm: (name) => `Stop the follow-up sequence for ${name}? They'll get no more follow-up texts unless you or your assistant text them again.`,
     addTitle: "Add Prospect to Follow-Up",
-    addHint: "Booked or Unqualified leads can't be added. The 4 touches (a text plus an email) go out 3 hours, 27 hours, about 4 days, and about 11 days after your last unanswered message, never overnight, and stop the moment they reply.",
+    addHint: "Booked or Unqualified leads can't be added. The 4 texts go out 3 hours, 27 hours, about 4 days, and about 11 days after your last unanswered message, never overnight, and stop the moment they reply.",
     addLabel: "+ Add Prospect",
   },
   no_show: {
@@ -1094,8 +1095,8 @@ function SequencesTab({ token }) {
           Your Patient Messaging
         </div>
         <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
-          Your appointment reminders and follow-ups are live, sending from your own number and
-          mailbox. Below is the copy for each, plus who's currently in each sequence. Switch off
+          Your appointment reminders and follow-ups are live, sending from your own number.
+          Below is the copy for each, plus who's currently in each sequence. Switch off
           any single message, or a whole sequence, and it stops before its next send.
         </div>
       </div>
@@ -1487,15 +1488,11 @@ function DashboardTab({ token, contactName }) {
   const channelData = [
     { name: "SMS Sent", value: stats.sms.sent, fill: "#3a7bd5" },
     { name: "SMS Replies", value: stats.sms.replies, fill: "#14c882" },
-    { name: "Email Sent", value: stats.email.sent, fill: "#f0a028" },
-    { name: "Email Replies", value: stats.email.replies, fill: "#a080f0" },
-    // Sent/received through the client's OWN provisioned Twilio number and
-    // Gmail mailbox (client_sms.py/client_email.py) — a separate rollup
-    // from the four above, which come from DigiGrowth's own outreach system.
+    // Sent/received through the client's OWN provisioned Twilio number
+    // (client_sms.py) — a separate rollup from the two above, which come
+    // from DigiGrowth's own outreach system.
     { name: "Your Number — Sent", value: stats.campaign_sms?.sent || 0, fill: "#5ad1c8" },
     { name: "Your Number — Received", value: stats.campaign_sms?.received || 0, fill: "#5ad1c8" },
-    { name: "Your Mailbox — Sent", value: stats.campaign_email?.sent || 0, fill: "#d15a9c" },
-    { name: "Your Mailbox — Received", value: stats.campaign_email?.received || 0, fill: "#d15a9c" },
   ];
 
   return (
@@ -1558,7 +1555,7 @@ function DashboardTab({ token, contactName }) {
             Channel Activity
           </div>
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.1em", marginBottom: 18 }}>
-            SMS &amp; EMAIL
+            SMS
           </div>
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={channelData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
@@ -1619,7 +1616,7 @@ function DashboardTab({ token, contactName }) {
 
 // ── Analytics tab — deeper, optimization-oriented rollup on top of the same
 // /stats payload the Dashboard tab uses. Every number here is derived
-// straight from real DB-backed counts (leads/appointments/sms/email/ad
+// straight from real DB-backed counts (leads/appointments/sms/ad
 // spend) — nothing is invented. Revenue/avg-deal-size are deliberately left
 // out: DigiGrowth doesn't track a per-client dollar value for a closed deal
 // anywhere in this DB (the agency's own revenue numbers come from a separate
@@ -1694,21 +1691,14 @@ function AnalyticsTab({ token }) {
   // (Dylan's explicit call, 2026-09-14) — "SMS Sent" means how many leads
   // got at least one SMS, not a raw message count — computed server-side
   // in portal_stats() across BOTH DigiGrowth's own agency-outreach system
-  // and the client's own Twilio/Gmail activity combined, so a lead reached
-  // through either (or both, for the "Total" figures) counts exactly once.
+  // and the client's own Twilio activity combined, so a lead reached
+  // through either counts exactly once.
   const smsSent = stats.outreach.sms_sent;
   const smsReplies = stats.outreach.sms_replies;
-  const emailSent = stats.outreach.email_sent;
-  const emailReplies = stats.outreach.email_replies;
   const smsReplyRate = smsSent > 0 ? Math.round((smsReplies / smsSent) * 1000) / 10 : null;
-  const emailReplyRate = emailSent > 0 ? Math.round((emailReplies / emailSent) * 1000) / 10 : null;
-  const totalSent = stats.outreach.total_sent;
-  const totalReplies = stats.outreach.total_replies;
-  const overallReplyRate = totalSent > 0 ? Math.round((totalReplies / totalSent) * 1000) / 10 : null;
-  // Distinct real leads with any activity, computed server-side (not summed
-  // per-channel here) — summing would double-count a lead active on both
-  // SMS and email, and the old version also pulled in unrelated legacy rows
-  // from DigiGrowth's own agency-outreach system. See portal_stats().
+  // Distinct real leads with any activity, computed server-side — the old
+  // version also pulled in unrelated legacy rows from DigiGrowth's own
+  // agency-outreach system. See portal_stats().
   const activeConvos = stats.active_conversations || 0;
 
   // ad_campaign_stats rows — real once meta_ads.py is wired up per client,
@@ -1755,16 +1745,10 @@ function AnalyticsTab({ token }) {
       <div>
         <SectionHeading>Outreach Performance</SectionHeading>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-          <AnalyticsStat label="Total Outreach Sent" value={totalSent} sublabel="SMS + EMAIL" iconKey="upcoming" />
-          <AnalyticsStat label="Total Replies" value={totalReplies} iconKey="upcoming" />
-          <AnalyticsStat label="Overall Reply Rate" value={overallReplyRate != null ? `${overallReplyRate}%` : "—"} iconKey="rate" />
-          <AnalyticsStat label="Active Conversations" value={activeConvos} sublabel="SMS + EMAIL THREADS" iconKey="upcoming" />
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginTop: 16 }}>
           <AnalyticsStat label="SMS Sent" value={smsSent} iconKey="upcoming" />
-          <AnalyticsStat label="SMS Reply Rate" value={smsReplyRate != null ? `${smsReplyRate}%` : "—"} sublabel={`${smsReplies} replies`} iconKey="rate" />
-          <AnalyticsStat label="Email Sent" value={emailSent} iconKey="upcoming" />
-          <AnalyticsStat label="Email Reply Rate" value={emailReplyRate != null ? `${emailReplyRate}%` : "—"} sublabel={`${emailReplies} replies`} iconKey="rate" />
+          <AnalyticsStat label="SMS Replies" value={smsReplies} iconKey="upcoming" />
+          <AnalyticsStat label="SMS Reply Rate" value={smsReplyRate != null ? `${smsReplyRate}%` : "—"} iconKey="rate" />
+          <AnalyticsStat label="Active Conversations" value={activeConvos} sublabel="SMS THREADS" iconKey="upcoming" />
         </div>
       </div>
 
@@ -2444,7 +2428,7 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 14px", borderTop: "1px solid #1a2540" }}>
             {stopped ? (
               <div style={{ fontSize: 12, color: "#f0a028", fontFamily: "'Space Grotesk', sans-serif" }}>
-                Reminders stopped for this appointment — it's still on the books, it just won't text/email the lead.
+                Reminders stopped for this appointment — it's still on the books, it just won't text the lead.
               </div>
             ) : appointment ? (
               <>
@@ -2823,7 +2807,6 @@ function fmtMsgTime(iso) {
 function InboxThread({ token, contactId, onSent, onBack }) {
   const [thread, setThread] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [channel, setChannel] = useState("sms");
   const [draft, setDraft] = useState("");
   const [notice, setNotice] = useState(null);
   const [sending, setSending] = useState(false);
@@ -2832,9 +2815,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
     setLoading(true);
     const r = await fetch(`/portal-api/${token}/inbox/${contactId}`);
     if (r.ok) {
-      const data = await r.json();
-      setThread(data);
-      setChannel(data.contact.phone ? "sms" : "email");
+      setThread(await r.json());
     }
     setLoading(false);
   };
@@ -2859,7 +2840,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
   const send = async () => {
     if (!draft.trim()) return;
     setSending(true);
-    // Backend now times out a hung Gmail/Twilio call after 20s (see
+    // Backend now times out a hung Twilio call after 20s (see
     // client_portal.py's portal_send_message), but this client-side
     // AbortController is the actual fix for the reported "freeze" — the
     // fetch itself had no timeout at all before, so if the request somehow
@@ -2870,7 +2851,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
     try {
       const r = await fetch(`/portal-api/${token}/inbox/${contactId}/send`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel, body: draft.trim() }),
+        body: JSON.stringify({ channel: "sms", body: draft.trim() }),
         signal: controller.signal,
       });
       const data = await r.json().catch(() => ({}));
@@ -2893,14 +2874,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
   if (loading) return <div style={{ padding: 40, color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>LOADING...</div>;
   if (!thread) return null;
 
-  const { contact } = thread;
-  // The SMS/EMAIL buttons below double as the reply channel AND a filter
-  // on the thread itself — previously they only set the send channel, so
-  // clicking them visibly changed nothing in the message list, which read
-  // as "doesn't do anything." Only filters when the contact actually has
-  // both channels present; otherwise there's nothing to filter.
-  const hasBothChannels = Boolean(contact.phone) && Boolean(contact.email);
-  const messages = hasBothChannels ? thread.messages.filter((m) => m.channel === channel) : thread.messages;
+  const { contact, messages } = thread;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -2912,7 +2886,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
           {contact.owner || contact.business || "—"}
         </div>
         <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>
-          {[contact.phone, contact.email].filter(Boolean).join(" · ")}
+          {contact.phone || "No phone number on file"}
         </div>
       </div>
 
@@ -2963,7 +2937,6 @@ function InboxThread({ token, contactId, onSent, onBack }) {
                   <span className="mono" style={{ fontSize: 9, color: "#3a7bd5", letterSpacing: "0.06em" }}>{m.channel.toUpperCase()}</span>
                   <span style={{ fontSize: 9, color: "#3a5a80" }}>{fmtMsgTime(m.sent_at)}</span>
                 </div>
-                {m.subject && <div style={{ fontSize: 12, fontWeight: 600, color: "#c4d0e8", marginBottom: 3 }}>{m.subject}</div>}
                 <div style={{ fontSize: 13, color: "#d0e8ff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
               </div>
             </div>
@@ -2975,16 +2948,8 @@ function InboxThread({ token, contactId, onSent, onBack }) {
         {notice && (
           <div style={{ fontSize: 11.5, color: "#f0a028", marginBottom: 10, lineHeight: 1.5 }}>{notice}</div>
         )}
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          {contact.phone && (
-            <button onClick={() => setChannel("sms")} className="btn btn-secondary" style={{ fontSize: 10, opacity: channel === "sms" ? 1 : 0.5 }}>SMS</button>
-          )}
-          {contact.email && (
-            <button onClick={() => setChannel("email")} className="btn btn-secondary" style={{ fontSize: 10, opacity: channel === "email" ? 1 : 0.5 }}>EMAIL</button>
-          )}
-        </div>
         <textarea
-          className="dg-input" rows={2} placeholder="Type a reply..."
+          className="dg-input" rows={2} placeholder="Type a text reply..."
           value={draft} onChange={(e) => setDraft(e.target.value)}
           style={{ width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
         />
@@ -2996,36 +2961,31 @@ function InboxThread({ token, contactId, onSent, onBack }) {
   );
 }
 
-// Filter bar mirrors the internal InboxPanel's shape (channel/since/tag
-// query params against email_inbox.py) — see client_portal.py's
+// Filter bar mirrors the internal InboxPanel's shape (since/tag query
+// params against email_inbox.py) — see client_portal.py's
 // portal_inbox_list for the matching backend params. `status` (contact
 // pipeline status — "dialer-lead", "gatekeeper-blocked", etc.) is
 // deliberately left out of the client-facing UI even though the backend
 // accepts it: those are DigiGrowth's own internal sales-pipeline labels,
 // not something meaningful to show a client about their own leads — same
 // reasoning as excluding the anchor contact elsewhere in this file.
-const INBOX_CHANNEL_OPTIONS = [["all", "All Channels"], ["sms", "SMS"], ["email", "Email"]];
-
-// Read-only RAW feed of every message sent/received through the client's
-// OWN provisioned Twilio number and Gmail mailbox (client_sms.py/
-// client_email.py), unfiltered by lead — a flat, most-recent-first log
-// (anything that hit the number/mailbox, matched to a lead or not).
-// InboxTab/InboxThread above it is the real per-lead inbox (same
-// underlying client_sms_messages/client_email_messages tables, but
-// matched to a contact and reply-capable) — this panel stays as a raw
-// "did anything come through at all" sanity check, collapsed by default.
+// Read-only RAW feed of every text sent/received through the client's OWN
+// provisioned Twilio number (client_sms.py), unfiltered by lead — a flat,
+// most-recent-first log (anything that hit the number, matched to a lead or
+// not). InboxTab/InboxThread below is the real per-lead inbox (same
+// underlying client_sms_messages table, but matched to a contact and
+// reply-capable) — this panel stays as a raw "did anything come through at
+// all" sanity check, collapsed by default.
 function CampaignActivityPanel({ token }) {
   const [open, setOpen] = useState(false);
   const [sms, setSms] = useState([]);
-  const [emails, setEmails] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!open || loaded) return;
-    Promise.all([
-      fetch(`/portal-api/${token}/campaign-sms`).then((r) => (r.ok ? r.json() : [])),
-      fetch(`/portal-api/${token}/campaign-email`).then((r) => (r.ok ? r.json() : [])),
-    ]).then(([s, e]) => { setSms(s); setEmails(e); setLoaded(true); });
+    fetch(`/portal-api/${token}/campaign-sms`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((s) => { setSms(s); setLoaded(true); });
   }, [open, loaded, token]);
 
   return (
@@ -3035,53 +2995,28 @@ function CampaignActivityPanel({ token }) {
         style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 8, width: "100%" }}
       >
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: "#d0e8ff" }}>
-          Your Number & Mailbox Activity
+          Your Number Activity
         </span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
           {open ? "▾ HIDE" : "▸ SHOW"}
         </span>
       </button>
       {open && (
-        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.06em", marginBottom: 8 }}>
-              SMS (YOUR NUMBER)
+        <div style={{ marginTop: 14 }}>
+          {sms.length === 0 && (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
+              {loaded ? "NO MESSAGES YET" : "LOADING…"}
             </div>
-            {sms.length === 0 && (
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
-                {loaded ? "NO MESSAGES YET" : "LOADING…"}
-              </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
-              {sms.map((m) => (
-                <div key={m.id} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)" }}>
-                  <div style={{ fontSize: 11, color: "#d0e8ff" }}>{m.body}</div>
-                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 3 }}>
-                    {m.direction === "outbound" ? `→ ${m.to_number}` : `← ${m.from_number}`} · {new Date(m.created_at).toLocaleString()}
-                  </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+            {sms.map((m) => (
+              <div key={m.id} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)" }}>
+                <div style={{ fontSize: 11, color: "#d0e8ff" }}>{m.body}</div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 3 }}>
+                  {m.direction === "outbound" ? `→ ${m.to_number}` : `← ${m.from_number}`} · {new Date(m.created_at).toLocaleString()}
                 </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.06em", marginBottom: 8 }}>
-              EMAIL (YOUR MAILBOX)
-            </div>
-            {emails.length === 0 && (
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>
-                {loaded ? "NO EMAILS YET" : "LOADING…"}
               </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
-              {emails.map((m) => (
-                <div key={m.id} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)" }}>
-                  <div style={{ fontSize: 11, color: "#d0e8ff", fontWeight: 600 }}>{m.subject}</div>
-                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 3 }}>
-                    {m.direction === "inbound" ? `← ${m.to_email}` : `→ ${m.to_email}`} · {new Date(m.created_at).toLocaleString()}
-                  </div>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
       )}
@@ -3113,7 +3048,6 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
   const [convos, setConvos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
-  const [channelFilter, setChannelFilter] = useState("all");
   const [sinceFilter, setSinceFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("");
   const [allTags, setAllTags] = useState([]);
@@ -3127,19 +3061,19 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
 
   const load = async () => {
     setLoading(true);
-    const params = new URLSearchParams({ channel: channelFilter, since: sinceFilter });
+    const params = new URLSearchParams({ since: sinceFilter });
     if (tagFilter) params.set("tag", tagFilter);
     const r = await fetch(`/portal-api/${token}/inbox?${params.toString()}`);
     if (r.ok) setConvos(await r.json());
     setLoading(false);
   };
 
-  // Same background refetch as InboxThread — new leads texting/emailing in
+  // Same background refetch as InboxThread — new leads texting in
   // (or the response AI's reply landing) should surface here without the
   // client having to reload the page. Skips setLoading to avoid flashing
   // "LOADING..." over an already-populated list every tick.
   const refreshSilently = async () => {
-    const params = new URLSearchParams({ channel: channelFilter, since: sinceFilter });
+    const params = new URLSearchParams({ since: sinceFilter });
     if (tagFilter) params.set("tag", tagFilter);
     const r = await fetch(`/portal-api/${token}/inbox?${params.toString()}`);
     if (r.ok) setConvos(await r.json());
@@ -3149,13 +3083,13 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
     fetch(`/portal-api/${token}/tags`).then((r) => r.ok && r.json()).then((d) => d && setAllTags(d));
     /* eslint-disable-next-line */
   }, [token]);
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token, channelFilter, sinceFilter, tagFilter]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [token, sinceFilter, tagFilter]);
 
   useEffect(() => {
     const id = setInterval(refreshSilently, 10000);
     return () => clearInterval(id);
     /* eslint-disable-next-line */
-  }, [token, channelFilter, sinceFilter, tagFilter]);
+  }, [token, sinceFilter, tagFilter]);
 
   // Jumped here from a lead's "Message" button — open that contact's
   // thread directly even if it has no prior messages yet (InboxThread/the
@@ -3192,9 +3126,6 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ fontSize: 11, padding: "6px 10px", width: narrow ? "100%" : 220 }}
           />
-          <select className="dg-input" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 130 }}>
-            {INBOX_CHANNEL_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-          </select>
           <select className="dg-input" value={readFilter} onChange={(e) => setReadFilter(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 110 }}>
             <option value="all">All</option>
             <option value="unread">Unread</option>
@@ -3213,7 +3144,7 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
           {loading && <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
           {!loading && visibleConvos.length === 0 && (
             <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", lineHeight: 1.6 }}>
-              {q || readFilter !== "all" ? "NO MATCHES" : "NO CONVERSATIONS YET — this fills in once your SMS/email account is connected."}
+              {q || readFilter !== "all" ? "NO MATCHES" : "NO CONVERSATIONS YET — this fills in once your texting number is connected."}
             </div>
           )}
           {visibleConvos.map((c) => {

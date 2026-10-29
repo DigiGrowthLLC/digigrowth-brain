@@ -674,9 +674,6 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS guide_progress JSONB NOT NULL DEFAULT '{}';
             -- Client's own funnel host (e.g. go.clientdomain.com), served by main.py's funnel_host_router
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS funnel_domain TEXT;
-            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_refresh_token TEXT;
-            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS gmail_sender_email TEXT;
-            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS email_sync_last_ts BIGINT NOT NULL DEFAULT 0;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_enabled BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_context TEXT;
             -- Ordered array of short stage descriptions ("first text" through
@@ -733,7 +730,6 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS twilio_twiml_app_sid TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS twilio_api_key_sid TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS twilio_api_key_secret TEXT;
-            ALTER TABLE client_email_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'outbound';
             ALTER TABLE contacts ADD COLUMN IF NOT EXISTS client_channel_last_read_at TIMESTAMPTZ;
             -- Per-step sent tracking for client_appointment_reminders.py's
             -- scheduled 24h/day-of reminder sends to a CLIENT's own lead
@@ -820,7 +816,6 @@ async def _create_schema(pool: asyncpg.Pool):
             INSERT INTO launch_checklist_items (title, phase, sort_order)
             SELECT title, 'prelaunch', ord FROM (VALUES
                 ('Set up client portal', 0),
-                ('Set up email marketing', 1),
                 ('Set up SMS marketing', 2),
                 ('Set up response AI', 3),
                 ('Create landing page', 4),
@@ -841,18 +836,14 @@ async def _create_schema(pool: asyncpg.Pool):
             SELECT c.id, s.sequence_key, s.step_order, s.label, s.channel, s.subject, s.body
             FROM clients c
             CROSS JOIN (VALUES
-                ('appointment_reminder', 0, '24 Hour Reminder', 'sms', NULL,
+                ('appointment_reminder', 0, '24 Hour Reminder (SMS)', 'sms', NULL,
                  'Hi {first_name}, a friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. We''ll call you at this number. Reply CONFIRM to confirm, or let us know if you need to reschedule.'),
-                ('appointment_reminder', 1, 'Day-Of Reminder', 'sms', NULL,
+                ('appointment_reminder', 2, '6 Hour Reminder (SMS)', 'sms', NULL,
                  'Hi {first_name}, just a reminder, your consultation with {business} is today at {time}. We''ll give you a call at this number. Talk soon!'),
                 ('no_show', 0, 'Touch 1 (SMS)', 'sms', NULL,
                  'Hi {first_name}, sorry we missed you for your consultation with {business} today. No worries, these things happen! Reply here or give us a call and we''ll find a new time that works for you.'),
-                ('no_show', 1, 'Touch 1 (Email)', 'email', 'We missed you today',
-                 E'Hi {first_name},\n\nWe weren''t able to connect for your consultation today. No problem at all, we''d love to find a new time that works for you.\n\nReply to this email or give us a call whenever works.\n\nTalk soon,\n{business}'),
                 ('cancellation', 0, 'Touch 1 (SMS)', 'sms', NULL,
-                 'Hi {first_name}, we''ve canceled your consultation as requested. Whenever you''re ready, just reply here or give us a call to grab a new time.'),
-                ('cancellation', 1, 'Touch 1 (Email)', 'email', 'Your consultation has been canceled',
-                 E'Hi {first_name},\n\nThis confirms your upcoming consultation with {business} has been canceled.\n\nIf you''d like to reschedule, just reply to this email or call us, and we''ll find a time that works for you.\n\nTake care,\n{business}')
+                 'Hi {first_name}, we''ve canceled your consultation as requested. Whenever you''re ready, just reply here or give us a call to grab a new time.')
             ) AS s(sequence_key, step_order, label, channel, subject, body)
             WHERE NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id)
             """
@@ -873,20 +864,12 @@ async def _create_schema(pool: asyncpg.Pool):
             CROSS JOIN (VALUES
                 ('no_show', 2, 'Touch 2 (SMS)', 'sms', NULL,
                  'Hi {first_name}, still happy to get you back on the schedule at {business} whenever works for you — just reply here or give us a call.'),
-                ('no_show', 3, 'Touch 2 (Email)', 'email', 'Still here when you''re ready',
-                 E'Hi {first_name},\n\nThings come up — no worries at all. Whenever you''re ready to get back on track, just reply to this email or give {business} a call and we''ll find a time that fits.\n\nTalk soon,\n{business}'),
                 ('no_show', 4, 'Touch 3 (SMS)', 'sms', NULL,
                  '{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know.'),
-                ('no_show', 5, 'Touch 3 (Email)', 'email', 'Closing your file',
-                 E'Hi {first_name},\n\nHaven''t heard back, so we''ll close this out on our end unless we hear from you. If timing''s just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}'),
                 ('cancellation', 2, 'Touch 2 (SMS)', 'sms', NULL,
                  'Hi {first_name}, if timing''s better now, still happy to get you a new time at {business} — just reply here or give us a call.'),
-                ('cancellation', 3, 'Touch 2 (Email)', 'email', 'Still worth getting back on the schedule?',
-                 E'Hi {first_name},\n\nPlans change, that''s normal. If it''s still worth getting back on the schedule at {business}, just reply to this email or give us a call.\n\nTalk soon,\n{business}'),
                 ('cancellation', 4, 'Touch 3 (SMS)', 'sms', NULL,
-                 '{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know.'),
-                ('cancellation', 5, 'Touch 3 (Email)', 'email', 'Closing your file',
-                 E'Hi {first_name},\n\nHaven''t heard back, so we''ll close this out on our end unless we hear from you. If timing''s just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}')
+                 '{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know.')
             ) AS s(sequence_key, step_order, label, channel, subject, body)
             WHERE EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key)
             AND NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key AND step_order = s.step_order)
@@ -1156,7 +1139,7 @@ async def _create_schema(pool: asyncpg.Pool):
         # own outreach machinery, gated so only an is_test client can touch
         # DigiGrowth's shared Twilio/Gmail credentials. This block is the
         # opposite: it provisions each real client's OWN Twilio number, own
-        # email-sending domain, own self-built AI response agent
+        # self-built AI response agent
         # (response_ai.py), own landing page, and own ad creatives —
         # infrastructure that belongs to the client, not to DigiGrowth, and
         # must never share a table or a send credential with the internal
@@ -1166,69 +1149,11 @@ async def _create_schema(pool: asyncpg.Pool):
                 client_id              INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
                 twilio_subaccount_sid  TEXT,
                 twilio_number          TEXT,
-                email_subdomain        TEXT,
-                email_dns_status       TEXT NOT NULL DEFAULT 'pending',
-                gmail_refresh_token    TEXT,
-                gmail_sender_email     TEXT,
                 landing_page_url       TEXT,
                 meta_pixel_id          TEXT,
                 ad_creative_status     JSONB NOT NULL DEFAULT '{}',
                 updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
             );
-
-            -- Outbound/inbound email sent through the CLIENT's own Google
-            -- Workspace mailbox (client_marketing_config.gmail_refresh_token),
-            -- mirroring email_messages but for the client's own mailbox, never
-            -- DigiGrowth's shared one. Inbound rows come from
-            -- client_email.py's polling sync (mirrors email_inbox.py's
-            -- internal Gmail sync) — to_email holds the other party's
-            -- address either way (the send target when outbound, the
-            -- sender when inbound), matching client_sms_messages' shape.
-            CREATE TABLE IF NOT EXISTS client_email_messages (
-                id           SERIAL PRIMARY KEY,
-                client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-                to_email     TEXT NOT NULL,
-                subject      TEXT NOT NULL,
-                body         TEXT NOT NULL,
-                gmail_message_id TEXT,
-                direction    TEXT NOT NULL DEFAULT 'outbound',
-                created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-            );
-            CREATE INDEX IF NOT EXISTS idx_client_email_messages_client ON client_email_messages(client_id, created_at DESC);
-
-            -- Email warm-up ramp state for a client's own mailbox (one row
-            -- per client, created on first "Start Warm-Up" click). Sends
-            -- made here go to a fixed internal seed list, not real
-            -- prospects, so they're logged separately in
-            -- client_email_warmup_log rather than client_email_messages —
-            -- that table feeds the client portal's Inbox Activity panel and
-            -- dashboard/analytics stats, which warm-up noise has no business
-            -- appearing in. sent_today/last_sent_date also get bumped by a
-            -- REAL send through the same mailbox (see client_email.py's
-            -- send_client_email), so real outreach that starts mid-warmup
-            -- counts toward that day's ramp target instead of stacking
-            -- redundant seed volume on top.
-            CREATE TABLE IF NOT EXISTS client_email_warmup (
-                client_id      INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
-                status         TEXT NOT NULL DEFAULT 'not_started',
-                started_at     TIMESTAMPTZ,
-                completed_at   TIMESTAMPTZ,
-                current_day    INTEGER NOT NULL DEFAULT 0,
-                sent_today     INTEGER NOT NULL DEFAULT 0,
-                last_sent_date DATE,
-                last_sent_at   TIMESTAMPTZ,
-                seed_cursor    INTEGER NOT NULL DEFAULT 0,
-                updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
-            );
-            CREATE TABLE IF NOT EXISTS client_email_warmup_log (
-                id               SERIAL PRIMARY KEY,
-                client_id        INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-                day_number       INTEGER NOT NULL,
-                to_email         TEXT NOT NULL,
-                gmail_message_id TEXT,
-                sent_at          TIMESTAMPTZ NOT NULL DEFAULT now()
-            );
-            CREATE INDEX IF NOT EXISTS idx_client_email_warmup_log_client ON client_email_warmup_log(client_id, sent_at DESC);
 
             -- The client's own outbound SMS sequence template, shaped like
             -- sms_sequences.py's stage model but intentionally a separate
@@ -1248,7 +1173,7 @@ async def _create_schema(pool: asyncpg.Pool):
 
             -- Internal (DigiGrowth-owned) cold-outreach email infrastructure
             -- — NOT client-owned, and deliberately separate from
-            -- client_marketing_config/client_email_*. These are dedicated
+            -- client_marketing_config. These are dedicated
             -- mailboxes on subdomains of digigrowthllc.com used to send the
             -- email_handoff_sequence.py 3-touch sequence, auto-routed per
             -- lead by MX-detecting whether the recipient is Google- or
@@ -1273,10 +1198,9 @@ async def _create_schema(pool: asyncpg.Pool):
             CREATE INDEX IF NOT EXISTS idx_email_send_identities_provider_status
                 ON email_send_identities(provider, status);
 
-            -- Per-identity warm-up ramp state (mirrors client_email_warmup's
-            -- shape, but this engine cross-warms identities against EACH
-            -- OTHER with real threaded opener+reply email exchanges instead
-            -- of one-way sends to a fixed seed list — see identity_warmup.py).
+            -- Per-identity warm-up ramp state: this engine cross-warms
+            -- identities against EACH OTHER with real threaded opener+reply
+            -- email exchanges — see identity_warmup.py.
             CREATE TABLE IF NOT EXISTS identity_warmup (
                 identity_id     INTEGER PRIMARY KEY REFERENCES email_send_identities(id) ON DELETE CASCADE,
                 status          TEXT NOT NULL DEFAULT 'not_started',  -- 'not_started' | 'running' | 'complete'
@@ -1611,25 +1535,9 @@ async def _create_schema(pool: asyncpg.Pool):
             "on-brand, booking a time creates a real appointment, and asking "
             "for a human stops it from auto-replying to that thread.",
         )
-        await conn.execute(
-            """
-            UPDATE launch_checklist_items SET description = $2
-            WHERE title = $1 AND (description IS NULL OR description = '')
-            """,
-            "Set up email marketing",
-            "1) Confirm the client has (or buy them) Google Workspace on "
-            "their own domain -- this is the real sending mailbox, not "
-            "DigiGrowth's Gmail. "
-            "2) Locally run reauth_google.py logged into that mailbox to "
-            "generate a refresh token. "
-            "3) Paste the refresh token and sender email into this client's "
-            "Marketing Setup tab. "
-            "4) Send a test email from the tab and confirm it lands (check "
-            "spam too). "
-            "5) Confirm SPF/DKIM/DMARC are set at the client's registrar per "
-            "Workspace's setup wizard -- required for real deliverability, "
-            "not just for sends to succeed.",
-        )
+        # DigiGrowth stopped offering client email marketing (2026-10-28):
+        # drop the item from every client's To Do (status rows cascade).
+        await conn.execute("DELETE FROM launch_checklist_items WHERE title = 'Set up email marketing'")
         # One-time cleanup: a since-reverted change briefly seeded "Set up
         # SMS/email automations" / "Verify & hook up analytics" into this
         # (DigiGrowth-agency-run) launch checklist -- they belong as
@@ -1980,7 +1888,7 @@ async def _create_schema(pool: asyncpg.Pool):
             );
             CREATE INDEX IF NOT EXISTS idx_client_ai_lessons_client ON client_ai_lessons(client_id, status);
         """)
-        # Default copy for it — one SMS per touch (step_order 0/1/2). Seeded
+        # Default copy for it — one SMS per touch (step_order 0/2/4). Seeded
         # per sequence_key, so it reaches existing clients without touching
         # any copy they already have. Same values as routers/clients.py's
         # _DEFAULT_SEQUENCE_STEPS (duplicated there for brand-new clients).
@@ -1992,32 +1900,19 @@ async def _create_schema(pool: asyncpg.Pool):
             CROSS JOIN (VALUES
                 ('prospect_followup', 0, 'Touch 1 (SMS)', 'sms', NULL,
                  'Hey {first_name}, just following up, checking you got that last message?'),
-                ('prospect_followup', 1, 'Touch 2 (SMS)', 'sms', NULL,
+                ('prospect_followup', 2, 'Touch 2 (SMS)', 'sms', NULL,
                  '{first_name}, still got a couple slots for our free consultation this month. You got 15 minutes?'),
-                ('prospect_followup', 2, 'Touch 3 (SMS)', 'sms', NULL,
+                ('prospect_followup', 4, 'Touch 3 (SMS)', 'sms', NULL,
                  '{first_name}, last one from me. Not sure if there''ll be any slots left, but feel free to check in whenever you''re free: {link}')
             ) AS s(sequence_key, step_order, label, channel, subject, body)
             WHERE NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key)
             """
         )
 
-        # Prospect follow-up + appointment reminders gained an email step per
-        # touch (2026-10-06), same SMS + email pairing as no-show/cancellation
-        # (step_order 0-1 = touch 1, 2-3 = touch 2, 4-5 = touch 3). Existing
-        # SMS-only rows are renumbered 0/1/2 -> 0/2/4 — only for a client with
-        # no email step in that sequence yet, so this runs exactly once per
-        # client and keeps whatever copy they've edited — then the missing
-        # steps are filled in from the defaults (never overwriting a row).
-        await conn.execute(
-            """
-            UPDATE client_sequence_steps s SET step_order = s.step_order * 2
-            WHERE s.sequence_key IN ('prospect_followup', 'appointment_reminder')
-              AND NOT EXISTS (
-                  SELECT 1 FROM client_sequence_steps e
-                  WHERE e.client_id = s.client_id AND e.sequence_key = s.sequence_key AND e.channel = 'email'
-              )
-            """
-        )
+        # Prospect follow-up + appointment reminders use the even step_order of
+        # each touch's pair (0, 2, 4, 6), same as no-show/cancellation. The
+        # odd slots were the email half, gone since DigiGrowth stopped
+        # offering client email (2026-10-28).
         await conn.execute(
             """
             UPDATE client_sequence_steps SET label = CASE
@@ -2033,24 +1928,10 @@ async def _create_schema(pool: asyncpg.Pool):
             SELECT c.id, s.sequence_key, s.step_order, s.label, s.channel, s.subject, s.body
             FROM clients c
             CROSS JOIN (VALUES
-                ('prospect_followup', 1, 'Touch 1 (Email)', 'email', 'Following up',
-                 E'Hi {first_name},\n\nJust following up on my text in case it got buried. Happy to answer any questions or get you set up with a free consultation.\n\nJust reply here whenever works.\n\n{business}'),
-                ('prospect_followup', 3, 'Touch 2 (Email)', 'email', 'Still have a couple of openings',
-                 E'Hi {first_name},\n\nWe still have a couple of openings for a free consultation this month. It only takes 15 minutes and it''s an easy way to see if we''re a good fit.\n\nReply to this email and we''ll find a time.\n\n{business}'),
-                ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Almost out of slots this week',
-                 E'Hi {first_name},\n\nWe''re almost out of slots this week, and I just wanted to let you know so you don''t miss out.\n\nLet me know and I can get you set up for your free consultation whenever the timing works for you. Just reply to this email.\n\n{business}'),
                 ('prospect_followup', 6, 'Touch 4 (SMS)', 'sms', NULL,
                  '{first_name}, last one from me. Not sure if there''ll be any slots left, but feel free to check in whenever you''re free: {link}'),
-                ('prospect_followup', 7, 'Touch 4 (Email)', 'email', 'Last note from me',
-                 E'Hi {first_name},\n\nThis is my last follow-up. If the timing isn''t right, no worries at all. Whenever you''re ready, just reply to this email and we''ll get you on the schedule.\n\nTake care,\n{business}'),
-                ('appointment_reminder', 1, '24 Hour Reminder (Email)', 'email', 'Reminder: your consultation tomorrow',
-                 E'Hi {first_name},\n\nA friendly reminder about your free consultation with {business} tomorrow, {date} at {time}.\n\nIf you need to reschedule, just reply to this email.\n\nSee you then,\n{business}'),
-                ('appointment_reminder', 3, '6 Hour Reminder (Email)', 'email', 'Today: your consultation at {time}',
-                 E'Hi {first_name},\n\nJust a reminder that your consultation with {business} is today at {time}.\n\nNeed to reschedule? Reply to this email and we''ll sort it out.\n\n{business}'),
                 ('appointment_reminder', 4, '1 Hour Reminder (SMS)', 'sms', NULL,
-                 'Hi {first_name}, your consultation with {business} starts in about an hour, at {time}. Talk soon!'),
-                ('appointment_reminder', 5, '1 Hour Reminder (Email)', 'email', 'Starting in an hour',
-                 E'Hi {first_name},\n\nQuick heads-up: your consultation with {business} starts in about an hour, at {time}.\n\nTalk soon,\n{business}')
+                 'Hi {first_name}, your consultation with {business} starts in about an hour, at {time}. Talk soon!')
             ) AS s(sequence_key, step_order, label, channel, subject, body)
             WHERE EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key)
             AND NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = s.sequence_key AND step_order = s.step_order)
@@ -2068,13 +1949,6 @@ async def _create_schema(pool: asyncpg.Pool):
               AND body = '{first_name}, last one from me. Not sure if there''ll be any slots left, but feel free to check in whenever you''re free: {link}'
             """
         )
-        await conn.execute(
-            """
-            UPDATE client_sequence_steps SET subject = 'Almost out of slots this week', body = E'Hi {first_name},\n\nWe''re almost out of slots this week, and I just wanted to let you know so you don''t miss out.\n\nLet me know and I can get you set up for your free consultation whenever the timing works for you. Just reply to this email.\n\n{business}'
-            WHERE sequence_key = 'prospect_followup' AND step_order = 5 AND channel = 'email'
-              AND subject = 'Last note from me' AND body = E'Hi {first_name},\n\nThis is my last follow-up. If the timing isn''t right, no worries at all. Whenever you''re ready, just reply to this email and we''ll get you on the schedule.\n\nTake care,\n{business}'
-            """
-        )
         # Touch 3 became a scarcity nudge (2026-10-06, right after a brief
         # check-in version shipped). Clients still on that exact check-in default
         # move to the scarcity copy; edited copy is never touched.
@@ -2083,13 +1957,6 @@ async def _create_schema(pool: asyncpg.Pool):
             UPDATE client_sequence_steps SET body = 'Hey {first_name}, we''re almost out of slots this week. Just wanted to let you know so you don''t miss out. Let me know and I can get you set up whenever the timing works for you.'
             WHERE sequence_key = 'prospect_followup' AND step_order = 4 AND channel = 'sms'
               AND body = '{first_name}, just checking in. Still happy to get you set up with a free consult whenever the timing works for you.'
-            """
-        )
-        await conn.execute(
-            """
-            UPDATE client_sequence_steps SET subject = 'Almost out of slots this week', body = E'Hi {first_name},\n\nWe''re almost out of slots this week, and I just wanted to let you know so you don''t miss out.\n\nLet me know and I can get you set up for your free consultation whenever the timing works for you. Just reply to this email.\n\n{business}'
-            WHERE sequence_key = 'prospect_followup' AND step_order = 5 AND channel = 'email'
-              AND subject = 'Checking in' AND body = E'Hi {first_name},\n\nJust checking in. If you still have questions or want to see whether we''re a good fit, we''re happy to set up a free 15-minute consultation.\n\nReply to this email whenever works.\n\n{business}'
             """
         )
         # Appointments already mid-reminders when the pairing shipped got their

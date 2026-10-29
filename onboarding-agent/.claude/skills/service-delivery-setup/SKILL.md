@@ -47,7 +47,7 @@ that step. Order:
    (written for the client: plain characters only, no em dashes or curly quotes, per the
    SMS GSM-7 rule; short). Don't text the client yourself (memory "Don't Text Clients
    Unless Necessary").
-3. Time-gated steps (A2P review, DKIM 24-72 h after MX) get started as early as possible.
+3. Time-gated steps (A2P review, DNS propagation) get started as early as possible.
 4. Tests, then pre-launch cleanup, then hand off to the campaign build.
 
 **Booking: Calendly is the default.** Take the GoHighLevel path (Response AI steps 14-16)
@@ -98,9 +98,7 @@ the scan; check the route in `dashboard/backend/routers/clients.py` before calli
 - **DNS**: edit records where the nameservers point (the DNS host resource), not
   necessarily the registrar. Wix needs Admin (Co-Owner) because domains count as billing
   permissions. A GoDaddy delegate invite can't be accepted when your login is the same
-  GoDaddy account, and it expires in 48 h. Email DNS = Google Admin secondary domain on
-  DigiGrowth's Workspace, then TXT verify + MX `smtp.google.com` + SPF at the DNS host,
-  host `mail`; never touch the root `@` records.
+  GoDaddy account, and it expires in 48 h. Never touch the root `@` records.
 - **Funnel domain (default for every client, 2026-10-26)**: the funnel stays in the OS
   (`/lp/<slug>`) and is also served on the client's own `go.<their domain>` through the
   shared `client-funnels` Vercel project (a proxy, not a copy; Railway's plan caps custom
@@ -123,15 +121,15 @@ the scan; check the route in `dashboard/backend/routers/clients.py` before calli
   /api/clients/{id}/websites/{wid}/stats` `{"views": <current>, "conversions": 0}`, and turn the
   alert back on. Booking from a phone that belongs to another client's contact still lands
   in this client (fixed 2026-10-16).
-- **Sequences**: the Sequences tab has on/off switches per message and per sequence; turn
-  email steps off until the mailbox is connected, and make the copy match how the client
-  works (no "give us a call" if they don't take calls).
+- **Sequences**: the Sequences tab has on/off switches per message and per sequence. All
+  client sequences are SMS only (no client email since 2026-10-28); make the copy match how
+  the client works (no "give us a call" if they don't take calls).
 - **Calls**: the onboarding Ops question asks where calls should forward; a phone number in
   the answer fills `call_forward_number` automatically. Until answered, calls forward to the
   client's phone on file.
 
 ## Done = ready for the campaign
 
-Every Setup Order step ticked, except ones that are genuinely waiting on time (A2P review, DKIM, warm-up). Tell Dylan that clearly, list anything still waiting, and
+Every Setup Order step ticked, except ones that are genuinely waiting on time (A2P review, DNS propagation). Tell Dylan that clearly, list anything still waiting, and
 offer to start `build-campaign-plan` for the client (media-buying agent, gated). Don't start
 it unasked.

@@ -16,9 +16,7 @@ onto them risked breaking that. This is a simpler, self-contained rollup
 purpose-built for the portal's basic infrastructure pass.
 """
 import asyncio
-import html
 import json
-import re
 import uuid
 from typing import Optional
 
@@ -36,7 +34,6 @@ import client_appointment_reminders
 import client_appointment_sequence
 import client_followup_sequence
 import client_dialer
-import client_email
 import client_sms
 import integrations
 import lead_flags
@@ -70,24 +67,6 @@ def _pct(num, denom) -> float:
     if not denom:
         return 0.0
     return round(num / denom * 100, 1)
-
-
-_HTML_TAG_RE = re.compile(r"<[^>]+>")
-
-
-def _strip_html(text: str | None) -> str:
-    """Some outbound emails are composed as full HTML (gmail_send_html /
-    the tracked-outreach wrapper in integrations.py's _wrap_outreach_html)
-    and email_messages.body stores exactly what went out — showing that
-    raw markup (`<div style="max-width:600px;...`) straight in the portal
-    inbox is unreadable. Plain-text SMS bodies pass through unchanged
-    (no tags to strip), so this is safe to apply universally rather than
-    branching on channel."""
-    if not text:
-        return text
-    stripped = _HTML_TAG_RE.sub(" ", text)
-    stripped = html.unescape(stripped)
-    return re.sub(r"\s+", " ", stripped).strip()
 
 
 async def get_client_from_token(token: str) -> dict:
@@ -382,7 +361,8 @@ async def portal_sequences(token: str):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             "SELECT id, sequence_key, step_order, label, channel, subject, body, enabled "
-            "FROM client_sequence_steps WHERE client_id = $1 ORDER BY sequence_key, step_order, id",
+            "FROM client_sequence_steps WHERE client_id = $1 AND channel = 'sms' "
+            "ORDER BY sequence_key, step_order, id",
             client["id"],
         )
     return [dict(r) for r in rows]
@@ -563,7 +543,6 @@ async def portal_stats(token: str, period: str = "all"):
         raise HTTPException(status_code=400, detail="period must be 'all', 'today', 'week', or 'month'")
     interval = _PERIOD_INTERVAL.get(period)
     sms_since_clause   = f"AND sm.sent_at >= now() - interval '{interval}'" if interval else ""
-    email_since_clause = f"AND em.sent_at >= now() - interval '{interval}'" if interval else ""
     leads_since_clause = f"AND created_at >= now() - interval '{interval}'" if interval else ""
 
     client = await get_client_from_token(token)
@@ -603,28 +582,15 @@ async def portal_stats(token: str, period: str = "all"):
             """,
             client["id"],
         )
-        email_row = await conn.fetchrow(
-            f"""
-            SELECT
-                COUNT(DISTINCT ec.id) AS conversations,
-                COALESCE(SUM((em.direction = 'outbound')::int), 0) AS sent,
-                COALESCE(SUM((em.direction = 'inbound')::int), 0) AS replies
-            FROM email_conversations ec
-            JOIN contacts c ON c.id = ec.contact_id
-            LEFT JOIN email_messages em ON em.contact_id = ec.contact_id {email_since_clause}
-            WHERE c.client_id = $1 AND NOT c.is_client_anchor
-            """,
-            client["id"],
-        )
         ad_rows = await conn.fetch(
             "SELECT * FROM ad_campaign_stats WHERE client_id = $1 AND platform = 'meta' "
             "ORDER BY stat_date DESC LIMIT 30",
             client["id"],
         )
-        # This client's OWN provisioned Twilio number / Gmail mailbox
-        # (client_marketing.py/client_sms.py/client_email.py) — deliberately
-        # a separate rollup from sms_row/email_row above, which are
-        # DigiGrowth's own outreach system's tables. Never merged into the
+        # This client's OWN provisioned Twilio number
+        # (client_marketing.py/client_sms.py) — deliberately
+        # a separate rollup from sms_row above, which is
+        # DigiGrowth's own outreach system's table. Never merged into the
         # same counters so "sent" here can never be confused with DigiGrowth
         # cold-outreach volume.
         campaign_sms_row = await conn.fetchrow(
@@ -638,27 +604,15 @@ async def portal_stats(token: str, period: str = "all"):
             """,
             client["id"],
         )
-        campaign_email_row = await conn.fetchrow(
-            f"""
-            SELECT
-                COALESCE(SUM((direction = 'outbound')::int), 0) AS sent,
-                COALESCE(SUM((direction = 'inbound')::int), 0) AS received,
-                COUNT(DISTINCT to_email) AS conversations
-            FROM client_email_messages
-            WHERE client_id = $1 {email_since_clause.replace('em.sent_at', 'created_at')}
-            """,
-            client["id"],
-        )
         # Per Dylan's explicit call (2026-09-14): every outreach figure caps
         # at 1 per prospect — "SMS Sent" means how many distinct leads got at
-        # least one SMS, not a raw message count, and same for replies/email/
-        # the totals. Gathers every (contact, channel, direction) touch from
+        # least one SMS, not a raw message count, and same for replies/the
+        # totals. Gathers every (contact, channel, direction) touch from
         # BOTH systems (DigiGrowth's own agency-outreach tables and the
-        # client's own Twilio/Gmail activity) into one set, then counts
+        # client's own Twilio activity) into one set, then counts
         # distinct contacts per bucket — this is also what "Active
         # Conversations" (any activity, either direction/channel) reduces to.
         sms_client_since = sms_since_clause.replace("sm.sent_at", "csm.created_at")
-        email_client_since = email_since_clause.replace("em.sent_at", "cem.created_at")
         outreach_row = await conn.fetchrow(
             f"""
             WITH csm AS ({_client_sms_counterparty_sql('$1')}),
@@ -674,24 +628,10 @@ async def portal_stats(token: str, period: str = "all"):
                 JOIN csm ON {sms_router._phone_match('csm.counterparty', 'c.phone')}
                 WHERE c.client_id = $1 AND NOT c.is_client_anchor
                     AND c.phone IS NOT NULL AND trim(c.phone) != '' {sms_client_since}
-                UNION ALL
-                SELECT c.id, 'email', em.direction
-                FROM email_conversations ec
-                JOIN contacts c ON c.id = ec.contact_id
-                JOIN email_messages em ON em.contact_id = ec.contact_id
-                WHERE c.client_id = $1 AND NOT c.is_client_anchor {email_since_clause}
-                UNION ALL
-                SELECT c.id, 'email', cem.direction
-                FROM contacts c
-                JOIN client_email_messages cem ON lower(cem.to_email) = lower(c.email)
-                WHERE c.client_id = $1 AND NOT c.is_client_anchor AND cem.client_id = $1
-                    AND c.email IS NOT NULL AND trim(c.email) != '' {email_client_since}
             )
             SELECT
                 COUNT(DISTINCT CASE WHEN channel = 'sms' AND direction = 'outbound' THEN contact_id END) AS sms_sent,
                 COUNT(DISTINCT CASE WHEN channel = 'sms' AND direction = 'inbound' THEN contact_id END) AS sms_replies,
-                COUNT(DISTINCT CASE WHEN channel = 'email' AND direction = 'outbound' THEN contact_id END) AS email_sent,
-                COUNT(DISTINCT CASE WHEN channel = 'email' AND direction = 'inbound' THEN contact_id END) AS email_replies,
                 COUNT(DISTINCT CASE WHEN direction = 'outbound' THEN contact_id END) AS total_sent,
                 COUNT(DISTINCT CASE WHEN direction = 'inbound' THEN contact_id END) AS total_replies,
                 COUNT(DISTINCT contact_id) AS active_conversations
@@ -754,9 +694,7 @@ async def portal_stats(token: str, period: str = "all"):
         }
     return {
         "sms": dict(sms_row),
-        "email": dict(email_row),
         "campaign_sms": dict(campaign_sms_row),
-        "campaign_email": dict(campaign_email_row),
         "ads": {
             "platform": "meta",
             # Not consumed by the frontend (it derives connected-ness from
@@ -774,8 +712,6 @@ async def portal_stats(token: str, period: str = "all"):
         "outreach": {
             "sms_sent": outreach_row["sms_sent"],
             "sms_replies": outreach_row["sms_replies"],
-            "email_sent": outreach_row["email_sent"],
-            "email_replies": outreach_row["email_replies"],
             "total_sent": outreach_row["total_sent"],
             "total_replies": outreach_row["total_replies"],
         },
@@ -801,13 +737,9 @@ async def portal_sync_meta_ads(token: str):
     return {"ok": True, "days_synced": days_synced}
 
 
-# ---------------- Campaign SMS / Email (the client's OWN Twilio number and ----
-# Gmail mailbox — client_sms.py/client_email.py — deliberately separate from
-# the sms_conversations/email_conversations-based Inbox above, which is
-# DigiGrowth's own outreach system. Read-only here: no reply-from-portal,
-# since that would need real contact-matching/threading work this simple
-# flat message log doesn't have yet. Grouped by the other party's
-# number/email so the portal can show "who's texted/emailed in" at a glance.
+# ---------------- Campaign SMS (the client's OWN Twilio number — client_sms.py)
+# Read-only raw log, newest first, so the portal can show "who's texted in"
+# at a glance. The per-lead, reply-capable view is the Inbox below.
 
 @router.get("/{token}/campaign-sms")
 async def portal_campaign_sms(token: str):
@@ -825,22 +757,6 @@ async def portal_campaign_sms(token: str):
         )
     return [dict(r) for r in rows]
 
-
-@router.get("/{token}/campaign-email")
-async def portal_campaign_email(token: str):
-    client = await get_client_from_token(token)
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT * FROM client_email_messages
-            WHERE client_id = $1
-            ORDER BY created_at DESC
-            LIMIT 200
-            """,
-            client["id"],
-        )
-    return [dict(r) for r in rows]
 
 
 # ---------------- Appointments ----------------
@@ -1441,19 +1357,18 @@ async def portal_import_leads(token: str, body: dict):
 #
 # Threaded per-lead, mirroring the internal InboxPanel's UX, but reading/
 # writing exclusively through THIS client's own connected Twilio number
-# (client_sms_messages) and Gmail mailbox (client_email_messages) —
-# never DigiGrowth's shared credentials or the internal sms_messages/
-# email_messages tables (those are Dylan's own outreach system and belong
-# to a different client entirely: himself). client_sms_messages/
-# client_email_messages have no contact_id column (they're a flat per-
-# client log — see client_sms_webhooks.py/client_email.py), so a lead's
-# thread is resolved by matching phone/email against contacts, the same
+# (client_sms_messages) — never DigiGrowth's shared credentials or the
+# internal sms_messages table (that's Dylan's own outreach system and
+# belongs to a different client entirely: himself). SMS only: DigiGrowth
+# stopped offering client email (2026-10-28). client_sms_messages has no
+# contact_id column (it's a flat per-client log — see
+# client_sms_webhooks.py), so a lead's thread is resolved by matching
+# phone against contacts, the same
 # normalized-last-10-digits approach routers/sms.py already uses for the
 # internal system (sms_router._phone_match) — CRM numbers and Twilio's
 # E.164 webhook payloads are never guaranteed to share one exact format.
-# Read state lives on contacts.client_channel_last_read_at (one combined
-# timestamp for both channels — a lead only ever belongs to one client,
-# so there's no multi-viewer ambiguity to split it further).
+# Read state lives on contacts.client_channel_last_read_at (a lead only
+# ever belongs to one client, so there's no multi-viewer ambiguity).
 
 def _client_sms_counterparty_sql(client_id_param: str) -> str:
     """CTE fragment: this client's own SMS log with the OTHER party's
@@ -1474,22 +1389,23 @@ async def portal_inbox_list(
     status: Optional[str] = None,
 ):
     """Excludes the anchor contact (is_client_anchor) — same reasoning as
-    portal_stats()'s SMS/email totals: that thread is Dylan's own cold-
+    portal_stats()'s SMS totals: that thread is Dylan's own cold-
     outreach conversation with this business, not something that belongs in
     their own portal inbox.
 
     Filters mirror the internal InboxPanel/email_inbox.py's GET
-    /inbox/conversations shape: `channel` ("all"|"sms"|"email"), `since`
+    /inbox/conversations shape: `channel` ("all"|"sms", the same thing now
+    that the inbox is SMS only), `since`
     ("all"|"today"|"week"|"month" — this portal's own bucket vocabulary,
     see _PERIOD_INTERVAL), `tag` (ANY(c.tags)), `status` (c.status, the
     contact's CRM pipeline status). `since` is applied post-merge in Python
     against each conversation's last_message_at rather than in SQL, since
     "still active in this window" is naturally a property of the merged
-    per-contact thread, not either channel's query alone."""
+    per-contact thread."""
     if since != "all" and since not in _PERIOD_INTERVAL:
         raise HTTPException(status_code=400, detail="since must be 'all', 'today', 'week', or 'month'")
-    if channel not in ("all", "sms", "email"):
-        raise HTTPException(status_code=400, detail="channel must be 'all', 'sms', or 'email'")
+    if channel not in ("all", "sms"):
+        raise HTTPException(status_code=400, detail="channel must be 'all' or 'sms'")
 
     client = await get_client_from_token(token)
 
@@ -1505,74 +1421,41 @@ async def portal_inbox_list(
 
     pool = await get_pool()
     async with pool.acquire() as conn:
-        sms_rows = []
-        if channel in ("all", "sms"):
-            sms_rows = await conn.fetch(
-                f"""
-                WITH csm AS ({_client_sms_counterparty_sql('$1')})
-                SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
-                       (SELECT csm.body FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
-                            ORDER BY csm.created_at DESC LIMIT 1) AS last_message,
-                       (SELECT csm.created_at FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
-                            ORDER BY csm.created_at DESC LIMIT 1) AS last_message_at,
-                       EXISTS(
-                           SELECT 1 FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
-                           AND csm.direction = 'inbound'
-                           AND csm.created_at > COALESCE(c.client_channel_last_read_at, '-infinity'::timestamptz)
-                       ) AS unread,
-                       EXISTS(
-                           SELECT 1 FROM client_lead_conversations clc
-                           WHERE clc.client_id = $1 AND clc.status = 'escalated'
-                             AND right(regexp_replace(clc.phone, '\\D', '', 'g'), 10) = right(regexp_replace(c.phone, '\\D', '', 'g'), 10)
-                       ) AS needs_human
-                FROM contacts c
-                WHERE {where} AND c.phone IS NOT NULL AND trim(c.phone) != ''
-                """,
-                *params,
-            )
-        email_rows = []
-        if channel in ("all", "email"):
-            email_rows = await conn.fetch(
-                f"""
-                WITH cem AS (SELECT * FROM client_email_messages WHERE client_id = $1)
-                SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
-                       (SELECT cem.body FROM cem WHERE lower(cem.to_email) = lower(c.email)
-                            ORDER BY cem.created_at DESC LIMIT 1) AS last_message,
-                       (SELECT cem.created_at FROM cem WHERE lower(cem.to_email) = lower(c.email)
-                            ORDER BY cem.created_at DESC LIMIT 1) AS last_message_at,
-                       EXISTS(
-                           SELECT 1 FROM cem WHERE lower(cem.to_email) = lower(c.email)
-                           AND cem.direction = 'inbound'
-                           AND cem.created_at > COALESCE(c.client_channel_last_read_at, '-infinity'::timestamptz)
-                       ) AS unread
-                FROM contacts c
-                WHERE {where} AND c.email IS NOT NULL AND trim(c.email) != ''
-                """,
-                *params,
-            )
+        sms_rows = await conn.fetch(
+            f"""
+            WITH csm AS ({_client_sms_counterparty_sql('$1')})
+            SELECT c.id AS contact_id, c.business, c.owner, c.phone, c.email,
+                   (SELECT csm.body FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
+                        ORDER BY csm.created_at DESC LIMIT 1) AS last_message,
+                   (SELECT csm.created_at FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
+                        ORDER BY csm.created_at DESC LIMIT 1) AS last_message_at,
+                   EXISTS(
+                       SELECT 1 FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
+                       AND csm.direction = 'inbound'
+                       AND csm.created_at > COALESCE(c.client_channel_last_read_at, '-infinity'::timestamptz)
+                   ) AS unread,
+                   EXISTS(
+                       SELECT 1 FROM client_lead_conversations clc
+                       WHERE clc.client_id = $1 AND clc.status = 'escalated'
+                         AND right(regexp_replace(clc.phone, '\\D', '', 'g'), 10) = right(regexp_replace(c.phone, '\\D', '', 'g'), 10)
+                   ) AS needs_human
+            FROM contacts c
+            WHERE {where} AND c.phone IS NOT NULL AND trim(c.phone) != ''
+            """,
+            *params,
+        )
 
-    by_contact: dict = {}
-    for rows, ch in ((sms_rows, "sms"), (email_rows, "email")):
-        for r in rows:
-            d = dict(r)
-            cid = d["contact_id"]
-            if d["last_message_at"] is None:
-                continue  # no activity on this channel yet — don't list it as a thread
-            entry = by_contact.setdefault(cid, {
-                "contact_id": cid, "business": d["business"], "owner": d["owner"],
-                "phone": d["phone"], "email": d["email"],
-                "channels": [], "last_message": None, "last_message_at": None, "unread": False,
-            })
-            if ch not in entry["channels"]:
-                entry["channels"].append(ch)
-            entry["unread"] = entry["unread"] or d["unread"]
+    results = [
+        {
+            "contact_id": r["contact_id"], "business": r["business"], "owner": r["owner"],
+            "phone": r["phone"], "email": r["email"], "channels": ["sms"],
+            "last_message": r["last_message"], "last_message_at": r["last_message_at"], "unread": r["unread"],
             # The AI handed this thread off (silently) and is paused on it.
-            entry["needs_human"] = entry.get("needs_human") or bool(d.get("needs_human"))
-            if entry["last_message_at"] is None or d["last_message_at"] > entry["last_message_at"]:
-                entry["last_message"] = _strip_html(d["last_message"])
-                entry["last_message_at"] = d["last_message_at"]
-
-    results = list(by_contact.values())
+            "needs_human": r["needs_human"],
+        }
+        for r in sms_rows
+        if r["last_message_at"] is not None  # no texts yet — don't list it as a thread
+    ]
     if since != "all":
         from datetime import datetime, timedelta, timezone as dt_timezone
         cutoff_days = {"today": 1, "week": 7, "month": 30}[since]
@@ -1609,17 +1492,6 @@ async def portal_inbox_thread(token: str, contact_id: str):
                 """,
                 client["id"], contact["phone"],
             )
-        email_msgs = []
-        if contact["email"]:
-            email_msgs = await conn.fetch(
-                """
-                SELECT direction, body, subject, created_at AS sent_at
-                FROM client_email_messages
-                WHERE client_id = $1 AND lower(to_email) = lower($2)
-                ORDER BY created_at
-                """,
-                client["id"], contact["email"],
-            )
         await conn.execute(
             "UPDATE contacts SET client_channel_last_read_at = now() WHERE id = $1",
             contact_id,
@@ -1636,11 +1508,7 @@ async def portal_inbox_thread(token: str, contact_id: str):
                 client["id"], contact["phone"],
             )
 
-    messages = (
-        [{"channel": "sms", "direction": m["direction"], "body": m["body"], "subject": None, "sent_at": m["sent_at"]} for m in sms_msgs]
-        + [{"channel": "email", "direction": m["direction"], "body": _strip_html(m["body"]), "subject": m["subject"], "sent_at": m["sent_at"]} for m in email_msgs]
-    )
-    messages.sort(key=lambda m: m["sent_at"])
+    messages = [{"channel": "sms", "direction": m["direction"], "body": m["body"], "subject": None, "sent_at": m["sent_at"]} for m in sms_msgs]
 
     return {"contact": dict(contact), "messages": messages, "ai": dict(ai) if ai else None}
 
@@ -1672,13 +1540,11 @@ async def portal_resume_ai(token: str, contact_id: str):
 
 @router.post("/{token}/inbox/{contact_id}/send")
 async def portal_send_message(token: str, contact_id: str, body: dict):
-    """Sends for real, through THIS client's own connected Twilio number/
-    Gmail mailbox (client_sms.py/client_email.py) — never DigiGrowth's
-    shared credentials. If the client hasn't connected that channel yet
-    (client_marketing_config has no twilio_number / gmail_refresh_token),
-    send_client_sms/send_client_email raise RuntimeError, which becomes
-    the same friendly "not connected yet" response this endpoint always
-    returned before per-client channels existed."""
+    """Sends a text for real, through THIS client's own Twilio number
+    (client_sms.py) — never DigiGrowth's shared credentials. If the client
+    has no number provisioned yet, send_client_sms raises RuntimeError,
+    which becomes a friendly "not connected yet" response. SMS only:
+    DigiGrowth stopped offering client email (2026-10-28)."""
     client = await get_client_from_token(token)
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -1689,63 +1555,36 @@ async def portal_send_message(token: str, contact_id: str, body: dict):
     if not contact:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    channel = body.get("channel")
-    if channel not in ("sms", "email"):
-        raise HTTPException(status_code=400, detail="channel must be 'sms' or 'email'")
+    if body.get("channel", "sms") != "sms":
+        raise HTTPException(status_code=400, detail="channel must be 'sms'")
     text = (body.get("body") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="body required")
 
-    # Both branches below are wrapped in asyncio.wait_for — a hung Gmail/
-    # Twilio API call (bad/expired OAuth token needing a slow refresh
-    # attempt, a network stall, etc.) previously held this request open
+    # Wrapped in asyncio.wait_for — a hung Twilio API call (a network
+    # stall, etc.) would otherwise hold this request open
     # indefinitely, which the frontend has no timeout of its own for either
-    # — reported live as the whole portal "freezing" on email send. This
+    # — reported live as the whole portal "freezing" on send. This
     # turns a hang into a clean, fast error instead of an infinite wait on
     # both ends.
     _SEND_TIMEOUT_S = 20
     _NOT_CONNECTED = {
         "ok": False,
         "status": "not_connected",
-        "detail": "Your SMS/email account isn't connected yet — DigiGrowth is setting this up and will notify you once replies can be sent from here.",
+        "detail": "Your texting number isn't connected yet — DigiGrowth is setting this up and will notify you once replies can be sent from here.",
     }
 
-    if channel == "sms":
-        phone = (contact["phone"] or "").strip()
-        if not phone:
-            raise HTTPException(status_code=400, detail="This contact has no phone number on file")
-        try:
-            await asyncio.wait_for(client_sms.send_client_sms(client["id"], phone, text, manual=True), timeout=_SEND_TIMEOUT_S)
-        except asyncio.TimeoutError:
-            raise HTTPException(status_code=504, detail="SMS send timed out — check Twilio credentials/status and try again.")
-        except RuntimeError:
-            return _NOT_CONNECTED
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"SMS send failed: {e}")
-        return {"ok": True}
-
-    # email — reuses the same subject as this contact's most recent
-    # client-mailbox email (if any) so it reads as a continuation, not a
-    # random new thread. send_client_email() handles the
-    # client_email_messages bookkeeping itself — no manual DB write here.
-    email = (contact["email"] or "").strip()
-    if not email:
-        raise HTTPException(status_code=400, detail="This contact has no email on file")
-    async with pool.acquire() as conn:
-        last_subject = await conn.fetchval(
-            "SELECT subject FROM client_email_messages WHERE client_id = $1 AND lower(to_email) = lower($2) "
-            "ORDER BY created_at DESC LIMIT 1",
-            client["id"], email,
-        )
-    subject = last_subject or f"Message from {client['name']}"
+    phone = (contact["phone"] or "").strip()
+    if not phone:
+        raise HTTPException(status_code=400, detail="This contact has no phone number on file")
     try:
-        await asyncio.wait_for(client_email.send_client_email(client["id"], email, subject, text, manual=True), timeout=_SEND_TIMEOUT_S)
+        await asyncio.wait_for(client_sms.send_client_sms(client["id"], phone, text, manual=True), timeout=_SEND_TIMEOUT_S)
     except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail="Email send timed out — check Gmail credentials/status and try again.")
+        raise HTTPException(status_code=504, detail="SMS send timed out — check Twilio credentials/status and try again.")
     except RuntimeError:
         return _NOT_CONNECTED
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Email send failed: {e}")
+        raise HTTPException(status_code=502, detail=f"SMS send failed: {e}")
     return {"ok": True}
 
 

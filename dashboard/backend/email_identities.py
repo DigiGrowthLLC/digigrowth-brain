@@ -10,9 +10,9 @@ Two things live here:
      recipient gets sent from a Google identity and an Outlook recipient
      from a Microsoft identity (falls back to any active identity for an
      unrecognized/'other' domain).
-  2. Provider-specific senders/pollers — _identity_gmail_service mirrors
-     client_email.py's per-mailbox Gmail-API factory exactly (same OAuth
-     app, different refresh token per identity). _identity_graph_send /
+  2. Provider-specific senders/pollers — _identity_gmail_service is a
+     per-mailbox Gmail-API factory (same OAuth app as the internal OS,
+     different refresh token per identity). _identity_graph_send /
      _poll_identity_inbox_graph are new Microsoft Graph API integration —
      no existing pattern in this repo to copy from, since no other module
      here has ever sent through a Microsoft mailbox.
@@ -100,8 +100,7 @@ async def pick_identity(conn, provider: str) -> dict | None:
         return None
 
     # send_cursor lives on whichever row we're about to pick — use the
-    # lowest-id row's cursor as the shared pointer into this candidate set,
-    # same round-robin shape as email_warmup.py's seed_cursor.
+    # lowest-id row's cursor as the shared pointer into this candidate set.
     anchor = rows[0]
     idx = anchor["send_cursor"] % len(rows)
     identity = dict(rows[idx])
@@ -112,7 +111,7 @@ async def pick_identity(conn, provider: str) -> dict | None:
     return identity
 
 
-# ── Google identity sending (mirrors client_email.py exactly) ───────────
+# ── Google identity sending ─────────────────────────────────────────────
 
 def _identity_google_creds(refresh_token: str):
     from google.oauth2.credentials import Credentials
@@ -231,7 +230,7 @@ def _extract_email(header_value: str) -> str:
     return m.group(0).lower() if m else ""
 
 
-_SYNC_LOOKBACK_SEC = 120  # overlap window, matches client_email.py's sync
+_SYNC_LOOKBACK_SEC = 120  # overlap window between polls
 
 _AUTO_REPLY_SUBJECT = re.compile(
     r"^\s*(automatic reply|auto[- ]?reply|autoreply|auto:|out of (the )?office)", re.IGNORECASE,

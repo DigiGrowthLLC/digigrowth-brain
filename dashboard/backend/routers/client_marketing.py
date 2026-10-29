@@ -1,6 +1,6 @@
 """
 Admin-side management of each REAL client's OWN marketing infrastructure —
-their Twilio number, their email-sending domain, their self-built AI
+their Twilio number, their self-built AI
 response agent (response_ai.py), their landing page, and their ad
 creatives. Deliberately separate
 from crm.py/sms.py/sms_sequences.py (DigiGrowth's own outreach) — nothing
@@ -9,11 +9,6 @@ internal sms_messages/email_messages/campaigns tables.
 
 Mounted with require_auth like clients.py — this is agency-internal admin
 tooling (Dylan provisioning a client's stack), not the client-facing portal.
-
-Also owns the email warm-up ramp's global settings (GET/PUT
-/marketing-config/email-warmup-settings — the seed address list + optional
-custom schedule shared by every client's warm-up, see email_warmup.py) and
-the per-client start/status endpoints (start-warmup, warmup-status) below.
 """
 import json
 
@@ -22,17 +17,15 @@ from fastapi import APIRouter, HTTPException, Query
 import calendly_integration
 import client_ai_lessons
 import client_autosetup
-import client_email
 import client_followup_sequence
 import client_sms
 import context_gen
 import dialer_engine
-import email_warmup
 import guide_autocheck
 import make_leadgen
 import meta_ads
 from db import get_pool
-from models import ClientMarketingConfigUpdate, ClientSmsSequenceUpdate, ClientTestEmail
+from models import ClientMarketingConfigUpdate, ClientSmsSequenceUpdate
 
 router = APIRouter()
 
@@ -242,51 +235,6 @@ async def autocheck_guide(client_id: int):
     return {"ticked": await guide_autocheck.autocheck(client_id)}
 
 
-@router.post("/clients/{client_id}/marketing-config/test-email")
-async def send_test_email(client_id: int, body: ClientTestEmail):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
-        if not client:
-            raise HTTPException(404, "Client not found")
-    try:
-        result = await client_email.send_client_email(
-            client_id, body.to, "Test email from your DigiGrowth setup",
-            "This is a test send confirming your connected mailbox is working.",
-            manual=True,
-        )
-        return {"detail": result}
-    except RuntimeError as e:
-        raise HTTPException(400, str(e))
-
-
-@router.post("/clients/{client_id}/marketing-config/sync-email")
-async def sync_client_email_now(client_id: int):
-    """Manual trigger for testing/verification — same code path as the
-    scheduled client-mailbox poll (client_email.sync_client_email_job),
-    just scoped to one client so a reply shows up immediately instead of
-    waiting for the next scheduled tick."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        config = await conn.fetchrow(
-            "SELECT gmail_refresh_token, email_sync_last_ts FROM client_marketing_config WHERE client_id = $1",
-            client_id,
-        )
-        if not config or not config["gmail_refresh_token"]:
-            raise HTTPException(400, f"Client {client_id} has no connected Gmail mailbox yet")
-        last_ts = config["email_sync_last_ts"] or 0
-        try:
-            newest_ts = await client_email._sync_one_mailbox(conn, client_id, config["gmail_refresh_token"], last_ts)
-        except Exception as e:
-            raise HTTPException(400, str(e))
-        if newest_ts > last_ts:
-            await conn.execute(
-                "UPDATE client_marketing_config SET email_sync_last_ts = $2 WHERE client_id = $1",
-                client_id, newest_ts,
-            )
-    return {"ok": True}
-
-
 @router.post("/clients/{client_id}/marketing-config/sync-meta-ads")
 async def sync_client_meta_ads_now(client_id: int, days_back: int = 3):
     """Manual trigger for testing/verification — same code path as the
@@ -378,29 +326,6 @@ async def _connect_calendly_webhook(client_id: int) -> str | None:
     return error
 
 
-@router.post("/clients/{client_id}/marketing-config/start-warmup")
-async def start_email_warmup(client_id: int):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
-        if not client:
-            raise HTTPException(404, "Client not found")
-    try:
-        return await email_warmup.start_warmup(client_id)
-    except RuntimeError as e:
-        raise HTTPException(400, str(e))
-
-
-@router.get("/clients/{client_id}/marketing-config/warmup-status")
-async def get_email_warmup_status(client_id: int):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        client = await conn.fetchrow("SELECT id FROM clients WHERE id = $1", client_id)
-        if not client:
-            raise HTTPException(404, "Client not found")
-    return await email_warmup.get_status(client_id)
-
-
 @router.post("/clients/{client_id}/response-ai/reset-test")
 async def reset_response_ai_test(client_id: int, phone: str = Query(...)):
     """Testing convenience: wipes the client_lead_conversations row and that
@@ -467,44 +392,6 @@ async def run_marketing_autosetup(client_id: int):
         if not client:
             raise HTTPException(404, "Client not found")
     client_autosetup.kick_off(client_id, force=True)
-    return {"ok": True}
-
-
-@router.get("/marketing-config/email-warmup-settings")
-async def get_email_warmup_settings():
-    """Global (not per-client) config for email_warmup.py's ramp — the seed
-    address list every client's warm-up sends to, and the optional custom
-    day-by-day volume schedule. Same dialer_settings key/value store used by
-    every other outreach template editor in routers/dialer.py."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT key, value FROM dialer_settings WHERE key IN ('warmup_seed_emails', 'warmup_schedule')"
-        )
-    values = {r["key"]: r["value"] for r in rows if r["value"]}
-    return {
-        "seed_emails": values.get("warmup_seed_emails", ""),
-        "schedule": values.get("warmup_schedule", json.dumps(email_warmup._DEFAULT_SCHEDULE)),
-    }
-
-
-@router.put("/marketing-config/email-warmup-settings")
-async def save_email_warmup_settings(body: dict):
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        for key, value in (
-            ("warmup_seed_emails", body.get("seed_emails")),
-            ("warmup_schedule", body.get("schedule")),
-        ):
-            if value is None:
-                continue
-            await conn.execute(
-                """
-                INSERT INTO dialer_settings (key, value, updated_at) VALUES ($1, $2, now())
-                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = now()
-                """,
-                key, value,
-            )
     return {"ok": True}
 
 

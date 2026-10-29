@@ -154,7 +154,7 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
               {client.status}
             </span>
             {client.is_test && (
-              <span className="badge badge-blue" title="Only this client's portal can use DigiGrowth's real shared Twilio/Gmail credentials (calling, SMS/email send) — every other client always gets the 'not connected yet' stub.">
+              <span className="badge badge-blue" title="Only this client's portal can use DigiGrowth's real shared Twilio credentials (calling, SMS send) — every other client always gets the 'not connected yet' stub.">
                 TEST CLIENT — LIVE INTEGRATIONS
               </span>
             )}
@@ -774,7 +774,7 @@ function LaunchChecklistSection() {
 
       {showForm && (
         <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-          <input className="dg-input" placeholder="Title, e.g. Set up email marketing" value={form.title}
+          <input className="dg-input" placeholder="Title, e.g. Set up SMS marketing" value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} autoFocus />
           <textarea className="dg-input" rows={2} placeholder="Description (optional)" value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} style={{ resize: "vertical" }} />
@@ -978,13 +978,6 @@ function SequenceStepEditor({ step, onSaved }) {
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5" }}>{step.channel.toUpperCase()}</span>
         <OnOffSwitch on={step.enabled !== false} onChange={toggle} busy={toggling} />
       </div>
-      {step.channel === "email" && (
-        <input
-          className="dg-input" placeholder="Subject" value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          style={{ width: "100%", boxSizing: "border-box", fontSize: 12, marginBottom: 6 }}
-        />
-      )}
       <textarea
         className="dg-input" rows={3} value={body}
         onChange={(e) => setBody(e.target.value)}
@@ -1940,38 +1933,12 @@ const MARKETING_GUIDES = {
       { text: "Confirm the inbound webhook is set (this happens automatically on purchase) — nothing to do here, just verify." },
       { text: "Send yourself a test text to/from the new number and confirm it lands in the message log." },
       { text: "Once Response AI is connected below, confirm it's using this same number, not one of its own." },
-      { text: "Automated — nothing to do here: every message sent/received through this number is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test text." },
+      { text: "Automated — nothing to do here: every message sent/received through this number is already wired into the client's portal (Inbox tab's \"Your Number Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test text." },
       // Appended, not inserted — guide_progress is keyed by step index.
       { text: "Leads call this number back after the AI agent texts them. Those calls forward to the number below (leave blank to use the client's own phone from their profile), showing the lead's number as caller ID. Buy Number wires this up automatically; for a number bought before this existed, click Buy Number again. Filled automatically when the client answers the onboarding Ops question about calls with a phone number (only while this is blank). Test by calling the client's number from your phone.",
         fields: [{ key: "call_forward_number", label: "Forward calls to", placeholder: "(737) 555-0123" }] },
       // Appended 2026-10-16. Never insert above: progress is keyed by index.
       { text: "Optional, instead of Buy Number: reuse a former client's already-registered number. POST /api/clients/{this client}/marketing-config/take-number?from_client_id={old client} (the onboarding agent's service-delivery-setup skill runs it) removes it from the old client, saves it here, re-points its SMS/voice webhooks at this client and creates voice keys. Never move the number to another Twilio subaccount: the A2P registration is attached to the old one and a moved number is unregistered (carriers block it). The registration stays under the old business's name, so re-register under this client's EIN when you have it. Test by texting the number: the reply should come from this client's AI agent." },
-    ],
-  },
-  email: {
-    title: "Set Up Email Marketing",
-    steps: [
-      { text: "Never send outreach from the client's own root domain, even a mailbox they don't use daily (e.g. contact@) — it shares reputation with their real business mailbox. Instead, pick a dedicated outreach SUBDOMAIN for this client (e.g. mail.clientdomain.com or go.clientdomain.com).",
-        fields: [{ key: "email_subdomain", label: "Outreach subdomain", placeholder: "mail.clientdomain.com" }] },
-      { text: "In DigiGrowth's own Workspace Admin (NOT the client's) — Account → Domains → Add a domain — add that subdomain as a Secondary Domain. Check the domain-count limit on DigiGrowth's Workspace plan first if you've added several of these already.", link: "https://admin.google.com/ac/domains", linkLabel: "Google Admin Console (digigrowthllc.com) → Domains" },
-      { text: "Verify ownership: Google gives you a TXT record (Name matches your subdomain, e.g. \"mail\") — add it at the CLIENT's DNS host (wherever their nameservers point, often not the registrar; see DNS host in Resources). This is the only step that needs access to the client's DNS host, not their Workspace login.", registrar: true },
-      { text: "Once verified, Google shows an MX activation code. Add it at the client's DNS host as a new record — Type MX, Name = your subdomain label (e.g. \"mail\"), Priority 1, Data smtp.google.com, TTL lowest available. Do NOT touch or delete the client's existing root-domain (\"@\") MX record — that's their real business email.", registrar: true },
-      { text: "Add an SPF TXT record for the subdomain — Name = same subdomain label, value exactly \"v=spf1 include:_spf.google.com ~all\" (the v=spf1 prefix is required, easy to accidentally omit).", registrar: true },
-      { text: "Wait 24-72 hours after the MX record goes live before generating DKIM — Google enforces this wait; generating earlier can produce an invalid key you'd have to redo." },
-      { text: "After the wait, go to Apps → Google Workspace → Gmail → Authenticate email, select the subdomain specifically (not the root domain), and Generate a new DKIM record (2048-bit, \"google\" prefix are fine defaults).", link: "https://admin.google.com/ac/apps/gmail/authenticateemail", linkLabel: "Google Admin Console → Gmail → Authenticate email" },
-      { text: "Add the generated DKIM TXT record at the client's DNS host, wait for it to propagate, then click Start Authentication in the Admin console.", registrar: true },
-      { text: "Create the sending mailbox on the subdomain under DigiGrowth's Workspace (e.g. contact@mail.clientdomain.com).", link: "https://admin.google.com/ac/users", linkLabel: "Google Admin Console → Users → Add new user" },
-      { text: "Locally run reauth_google.py (repo root), logged into GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (Railway variables on the digigrowth-brain service), signed in as the new mailbox, to generate a refresh token. (Local script — no link.)" },
-      { text: "Paste the refresh token and sender email below — the subdomain field above is reused automatically.",
-        fields: [
-          { key: "gmail_refresh_token", label: "Gmail refresh token", placeholder: "1//0…" },
-          { key: "gmail_sender_email", label: "Sender email", placeholder: "contact@mail.clientdomain.com" },
-        ] },
-      { text: "Send a test email and confirm it lands (check spam too).", testAction: "email" },
-      { text: "Automated — nothing to do here: every email sent through this mailbox is already wired into the client's portal (Inbox tab's \"Your Number & Mailbox Activity\" panel) and into their Dashboard/Analytics stats. Just confirm it shows up there after your test email." },
-      { text: "Before starting real outreach, run this mailbox through an automated warm-up to build sending reputation. Real outreach can still start any time even if warm-up isn't finished — it just tops up around whatever real volume already goes out.", warmupAction: true },
-      // Appended 2026-10-16.
-      { text: "Before any DNS step: find where the client's DNS is actually edited. It's wherever the domain's nameservers point, which is often NOT the registrar (Advantage Therapy: bought at GoDaddy, DNS on Wix, so GoDaddy access was useless). Resources → Other Resources shows the detected \"DNS host\" (looked up automatically). Get access THERE: Wix needs the Admin (Co-Owner) role, since domains count as billing permissions; GoDaddy delegate invites expire after 48 hours and can't be accepted from a login that's the same GoDaddy account; Cloudflare and Squarespace need a member invite. If access drags, send the client the exact records to add themselves." },
     ],
   },
   response_ai: {
@@ -2017,6 +1984,9 @@ const MARKETING_GUIDES = {
         fields: [{ key: "funnel_domain", label: "Funnel domain", placeholder: "go.clientdomain.com" }] },
       { text: "Paste the live URL below.",
         fields: [{ key: "landing_page_url", label: "Live URL", placeholder: "https://…" }] },
+      // Moved here 2026-10-29 from the retired Email Marketing guide (appended:
+      // progress is keyed by index).
+      { text: "Before any DNS step: find where the client's DNS is actually edited. It's wherever the domain's nameservers point, which is often NOT the registrar (Advantage Therapy: bought at GoDaddy, DNS on Wix, so GoDaddy access was useless). Resources → Other Resources shows the detected \"DNS host\" (looked up automatically). Get access THERE: Wix needs the Admin (Co-Owner) role, since domains count as billing permissions; GoDaddy delegate invites expire after 48 hours and can't be accepted from a login that's the same GoDaddy account; Cloudflare and Squarespace need a member invite. If access drags, send the client the exact records to add themselves." },
     ],
   },
   ad_creatives: {
@@ -2047,15 +2017,15 @@ const MARKETING_GUIDES = {
     ],
   },
   automations: {
-    title: "Set Up SMS/Email Automations",
+    title: "Set Up SMS Automations",
     steps: [
-      { text: "Confirm SMS Marketing and Email Marketing above are both done first — this reuses the client's own Twilio number and Gmail mailbox, it doesn't bring its own." },
-      { text: "Open this client's Sequences tab and review the Appointment Reminder, No Show, and Cancellation SMS + email copy (seeded on client creation for the free Google Meet consultation, e.g. \"join with the Google Meet link in your calendar invite\" — edit it if the client uses different wording). Clients created before 2026-10-07 have the older phone-call wording (\"We'll call you at this number\")." },
-      { text: "That's it to go live — automated, nothing else to click: the moment a lead tied to this client goes No Show or gets Canceled (marked from the internal Appointments tab, or by the client themselves once self-service booking is turned on for them), the matching SMS/email fires automatically from the client's own number/mailbox. No scheduler or extra wiring needed (client_appointment_sequence.py)." },
-      { text: "Test: mark a test appointment No Show (or Cancel it) from the Appointments tab and confirm the message lands from the client's own number/inbox, not DigiGrowth's." },
+      { text: "Confirm SMS Marketing above is done first — this reuses the client's own Twilio number, it doesn't bring its own." },
+      { text: "Open this client's Sequences tab and review the Appointment Reminder, No Show, and Cancellation text copy (seeded on client creation for the free Google Meet consultation, e.g. \"join with the Google Meet link in your calendar invite\" — edit it if the client uses different wording). Clients created before 2026-10-07 have the older phone-call wording (\"We'll call you at this number\")." },
+      { text: "That's it to go live — automated, nothing else to click: the moment a lead tied to this client goes No Show or gets Canceled (marked from the internal Appointments tab, or by the client themselves once self-service booking is turned on for them), the matching text fires automatically from the client's own number. No scheduler or extra wiring needed (client_appointment_sequence.py)." },
+      { text: "Test: mark a test appointment No Show (or Cancel it) from the Appointments tab and confirm the text lands from the client's own number, not DigiGrowth's." },
       { text: "Real limitation, not automatable from here: this only covers leads DigiGrowth booked for this client through this OS. A client's EXISTING patient base lives in their own booking software/EHR, which this system has no connection to — the same automation for their whole existing patient list needs that specific system integrated (a real per-client dev task) or the client running it through their own tool." },
       // Appended 2026-10-16.
-      { text: "Set the on/off switches on the Sequences tab (per message, or a whole sequence): turn OFF the email steps until Email Marketing is connected, and anything the client doesn't want (e.g. no-show texts). The client can flip these from their own portal too. Also check the copy matches how the client really works: if they don't take calls, nothing should say \"give us a call\"." },
+      { text: "Set the on/off switches on the Sequences tab (per message, or a whole sequence): turn OFF anything the client doesn't want (e.g. no-show texts). The client can flip these from their own portal too. Also check the copy matches how the client really works: if they don't take calls, nothing should say \"give us a call\"." },
     ],
   },
   client_portal: {
@@ -2063,10 +2033,10 @@ const MARKETING_GUIDES = {
     steps: [
       { text: "Connect the client's own Calendly so leads booked through their portal (Leads tab → a lead's booking modal) land straight on their real calendar instead of showing \"not connected yet.\" Paste their event type's booking page URL (Calendly → the specific event type → Share → Copy Link) — this is the same link used as the ad funnel's CTA destination, not a generic Calendly homepage link.",
         fields: [{ key: "calendly_url", label: "Client's Calendly event link", placeholder: "https://calendly.com/their-username/event-type" }] },
-      { text: "Link this client's leads: Clients list → \"Link contact to client\" (or \"Link all unassigned\") for every contact that's actually theirs — Leads/SMS/Email/Appointment stats all key off contacts.client_id, so an unlinked contact is invisible everywhere in their portal." },
-      { text: "Open this client's portal Analytics tab (use their portal link) and sanity-check Total Leads and SMS/Email Sent+Replies against what you already know is true." },
+      { text: "Link this client's leads: Clients list → \"Link contact to client\" (or \"Link all unassigned\") for every contact that's actually theirs — Leads/SMS/Appointment stats all key off contacts.client_id, so an unlinked contact is invisible everywhere in their portal." },
+      { text: "Open this client's portal Analytics tab (use their portal link) and sanity-check Total Leads and SMS Sent+Replies against what you already know is true." },
       { text: "Appointments Booked / Show Rate / Close Rate compute live from the internal Appointments tab's outcome marking (outcome_show/outcome_close) for this client's leads — nothing to connect, just make sure reps are actually marking outcomes for this client's appointments instead of leaving them blank." },
-      { text: "\"Your Number\"/\"Your Mailbox\" SMS + email counts only populate once real sends go through the client's own Twilio number / Gmail mailbox (portal replies, the automations above, or the Response AI agent once enabled) — if those read zero, that's accurate, not broken, until one of those is live." },
+      { text: "\"Your Number\" SMS counts only populate once real sends go through the client's own Twilio number (portal replies, the automations above, or the Response AI agent once enabled) — if those read zero, that's accurate, not broken, until one of those is live." },
       { text: "Ad Spend / Impressions / Clicks / CTR / CPC / Cost per Lead sync automatically every morning (meta_ads.py) once the Paid Ad Creatives step is done (ad account ID saved + shared with DigiGrowth's system user). If the portal still shows no ad data after a day of spend, click SYNC NOW in that step to see the exact error." },
       // Appended 2026-10-16.
       { text: "After all testing, clean the client's portal before launch: delete test leads (deleting a lead removes its appointments too) and reset the funnel's Website stats (views/conversions) so test bookings don't show as real results. The onboarding agent can do both." },
@@ -2089,13 +2059,12 @@ const SETUP_ORDER_PHASES = {
       ["ad_creatives", 0], ["ad_creatives", 4],
       ["response_ai", 0], ["response_ai", 1], ["response_ai", 2], ["response_ai", 3], ["response_ai", 4], ["sms", 4],
       ["automations", 1], ["automations", 5],
-      ["email", 0], ["email", 1],
       ["client_portal", 1]],
   },
   access: {
     title: "PHASE 2 · NEEDS CLIENT ACCESS: ask on the onboarding call",
     note: "Four asks unlock all of this: access wherever their DNS is hosted (see DNS host in Resources), Facebook Business access (Page + Instagram + ad account), their Calendly (paid plan; GoHighLevel only if they explicitly book there), and legal name + EIN. Once their intake answers come in, click GENERATE CONTEXT again on the Response AI agent.",
-    steps: [["email", 14], ["email", 2], ["email", 3], ["email", 4], ["landing_page", 2],
+    steps: [["landing_page", 4], ["landing_page", 2],
       ["ad_creatives", 6], ["ad_creatives", 7],
       ["response_ai", 7], ["response_ai", 8], ["response_ai", 9],
       ["ad_creatives", 1], ["ad_creatives", 3], ["response_ai", 10], ["response_ai", 11],
@@ -2104,10 +2073,8 @@ const SETUP_ORDER_PHASES = {
   },
   after_dns: {
     title: "PHASE 3 · AFTER DNS IS LIVE: time-gated",
-    note: "DKIM needs 24-72 hours after the MX record, and A2P review takes days, so start Phase 2 early.",
-    steps: [["email", 8], ["email", 9], ["email", 10], ["email", 5], ["email", 6], ["email", 7],
-      ["email", 11], ["email", 12], ["email", 13],
-      ["landing_page", 3], ["ad_creatives", 2]],
+    note: "DNS changes and A2P review take days, so start Phase 2 early.",
+    steps: [["landing_page", 3], ["ad_creatives", 2]],
   },
   launch: {
     title: "PHASE 4 · TEST AND LAUNCH",
@@ -2136,12 +2103,12 @@ const SETUP_ORDER_GUIDE = {
 // a DNS host we don't control). Shown once at the top of the Marketing
 // Setup tab so it's obvious which steps are worth building automation for.
 const AUTOMATION_CANDIDATES = [
-  { step: "Auto-Setup (on Closed)", note: "Marking a discovery call Closed builds the client portal, then in the background (client_autosetup.py): a free-consultation landing page from the client's scraped site, their Twilio number, the Response AI context/sequence/rules (switched on), a check that the seeded free-consultation reminder/no-show/cancellation/follow-up copy is in place, and their email outreach subdomain. Still manual: A2P 10DLC (needs EIN), DNS records at the client's DNS host for email and a custom funnel domain, Calendly, Facebook Page/ad account access. Re-run from the Auto-Setup card; it only fills gaps." },
+  { step: "Auto-Setup (on Closed)", note: "Marking a discovery call Closed builds the client portal, then in the background (client_autosetup.py): a free-consultation landing page from the client's scraped site, their Twilio number, the Response AI context/sequence/rules (switched on), and a check that the seeded free-consultation reminder/no-show/cancellation/follow-up copy is in place. Still manual: A2P 10DLC (needs EIN), DNS records at the client's DNS host for a custom funnel domain, Calendly, Facebook Page/ad account access. Re-run from the Auto-Setup card; it only fills gaps." },
   { step: "Landing Page", note: "Automated by Auto-Setup (see above), hosted on the pages domain with every CTA routed through /lp/<slug>/book to the client's Calendly. Still needs a human review before ad spend, and the client's own subdomain if wanted." },
   { step: "Paid Ad Creatives", note: "Partially automatable: ad copy is already automatable (ad-copy skill). A short video ad could be generated via the existing HyperFrames motion-graphics pipeline from that same copy. Static image ads and pushing directly into Meta's ad account are not automated here yet. Automated already: once the Page ID is saved, Instant Form leads flow into the client's CRM and get texted by their agent (Make relay, built automatically)." },
-  { step: "SMS / Email / Response AI", note: "SMS and Email still need a one-time human setup step outside our system (Twilio's A2P compliance review, a Google Workspace login/OAuth consent) that no API lets us do on someone's behalf. Response AI is fully self-built and automated once enabled — response_ai.py replies to inbound SMS itself, no third-party account needed, just per-client context/sequence/rules written on the Agent tab. What's already automated across all three: the number/mailbox setup itself, every send/receive once connected, and the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats)." },
-  { step: "SMS/Email Automations", note: "As of 2026-09-13, fully automated once the copy's filled in: writing the No Show/Cancellation SMS+email copy on the Sequences tab is the only manual step — the actual send (client_appointment_sequence.py) fires on its own the moment a lead's appointment is marked No Show/Canceled, no scheduler or extra connection needed. Not automatable: onboarding a client's EXISTING patient base, which lives in their own booking/EHR system outside this app." },
-  { step: "Analytics", note: "Mostly already automatic: Leads/SMS/Email/Appointment stats compute live once contacts are linked to the client — no integration needed, just a data-hygiene check. Meta ad spend/CTR/CPC/cost per lead sync automatically every morning once the client's ad account is shared with DigiGrowth's system user. Google Ads isn't integrated." },
+  { step: "SMS / Response AI", note: "SMS still needs a one-time human setup step outside our system (Twilio's A2P compliance review) that no API lets us do on someone's behalf. Response AI is fully self-built and automated once enabled — response_ai.py replies to inbound SMS itself, no third-party account needed, just per-client context/sequence/rules written on the Agent tab. What's already automated across both: the number setup itself, every send/receive once connected, and the client-portal wiring (Inbox activity panel + Dashboard/Analytics stats)." },
+  { step: "SMS Automations", note: "As of 2026-09-13, fully automated once the copy's filled in: writing the No Show/Cancellation text copy on the Sequences tab is the only manual step — the actual send (client_appointment_sequence.py) fires on its own the moment a lead's appointment is marked No Show/Canceled, no scheduler or extra connection needed. Not automatable: onboarding a client's EXISTING patient base, which lives in their own booking/EHR system outside this app." },
+  { step: "Analytics", note: "Mostly already automatic: Leads/SMS/Appointment stats compute live once contacts are linked to the client — no integration needed, just a data-hygiene check. Meta ad spend/CTR/CPC/cost per lead sync automatically every morning once the client's ad account is shared with DigiGrowth's system user. Google Ads isn't integrated." },
 ];
 
 // Per-client resource hub: three single-value platform fields (Ads Manager,
@@ -2149,7 +2116,7 @@ const AUTOMATION_CANDIDATES = [
 // everything else (Drive links, brand assets, marketing material, etc.).
 // Admin-only reference — nothing here is shown in the client's own portal.
 // Card order: Client Portal, Landing Page, SMS Marketing, Response AI,
-// SMS/Email Automations, Email Marketing, Paid Ad Creatives.
+// SMS Automations, Paid Ad Creatives.
 const MARKETING_STEPS = [
   {
     key: "client_portal", label: "Set Up Client Portal",
@@ -2176,18 +2143,11 @@ const MARKETING_STEPS = [
     done: (cfg) => Boolean(cfg?.response_ai_enabled && cfg?.response_ai_context),
   },
   {
-    key: "automations", label: "SMS/Email Automations",
-    status: (cfg) => (cfg?.twilio_number && cfg?.gmail_refresh_token
-      ? "Channels ready — add No Show/Cancellation copy on the Sequences tab"
-      : "SMS + Email Marketing must be set up first"),
+    key: "automations", label: "SMS Automations",
+    status: (cfg) => (cfg?.twilio_number
+      ? "Number ready — review No Show/Cancellation copy on the Sequences tab"
+      : "SMS Marketing must be set up first"),
     done: (cfg) => _guideStepsAllDone(cfg, "automations"),
-  },
-  {
-    key: "email", label: "Email Marketing",
-    status: (cfg) => (cfg?.gmail_refresh_token
-      ? `Connected — ${cfg.gmail_sender_email || "mailbox linked"}${cfg.email_subdomain ? ` (${cfg.email_subdomain})` : ""}`
-      : "Not connected"),
-    done: (cfg) => Boolean(cfg?.gmail_refresh_token),
   },
   {
     key: "ad_creatives", label: "Paid Ad Creatives",
@@ -3633,20 +3593,13 @@ function GhlWebhookUrl({ clientId }) {
 // to go to" surface — one guide at a time, rendered via portal like the
 // existing dropdown menus in this file. Each step can be checked off
 // (persisted per-client), can carry an inline field to paste the info that
-// step produces, or (email's test step) a live action button.
+// step produces, or a live action button (e.g. the Meta ads sync).
 function GuideModal({
   guide, progress, allProgress, onToggleStep, config, client, onSaveFields,
-  testEmailTo, setTestEmailTo, sendTestEmail, testingEmail, testError,
-  syncEmailNow, syncingEmail,
   syncMetaAdsNow, syncingMeta, metaSyncResult, metaSyncError,
-  warmupStatus, warmupLoading, warmupError, startWarmup, refreshWarmupStatus,
   connectLeadAds, connectingLeadAds,
   onClose,
 }) {
-  useEffect(() => {
-    if (guide?.steps?.some((s) => s.warmupAction)) refreshWarmupStatus?.();
-  }, [guide]);
-
   if (!guide) return null;
   // Setup Order steps carry _ref {g, i}: they read/write the source guide's
   // own guide_progress slot, so both views stay in sync.
@@ -3749,35 +3702,6 @@ function GuideModal({
                       onSaved={() => onToggleStep(i, true, s)}
                     />
                   )}
-                  {s.testAction === "email" && (
-                    <div>
-                      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                        <input className="dg-input" style={{ fontSize: 11, flex: 1 }} value={testEmailTo} placeholder="test@…"
-                          onChange={(e) => setTestEmailTo(e.target.value)} />
-                        <button
-                          className="btn btn-secondary" style={{ fontSize: 10 }}
-                          onClick={async () => { if (await sendTestEmail()) onToggleStep(i, true, s); }}
-                          disabled={testingEmail || !testEmailTo.trim()}
-                        >
-                          {testingEmail ? "SENDING…" : "SEND TEST"}
-                        </button>
-                      </div>
-                      <div style={{ marginTop: 6 }}>
-                        <button
-                          className="btn btn-secondary" style={{ fontSize: 9, padding: "3px 8px" }}
-                          onClick={syncEmailNow} disabled={syncingEmail}
-                        >
-                          {syncingEmail ? "CHECKING…" : "CHECK FOR REPLIES NOW"}
-                        </button>
-                        <div style={{ marginTop: 3, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
-                          Reply to your own test email from the address you sent it to, then click this to pull it in immediately (it also syncs automatically every ~2 min).
-                        </div>
-                      </div>
-                      {testError && (
-                        <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{testError}</div>
-                      )}
-                    </div>
-                  )}
                   {s.testAction === "meta_ads" && (
                     <div style={{ marginTop: 8 }}>
                       <button
@@ -3823,49 +3747,6 @@ function GuideModal({
                       </div>
                     </div>
                   )}
-                  {s.warmupAction && (
-                    <div style={{ marginTop: 8 }}>
-                      {!warmupStatus || warmupStatus.status === "not_started" ? (
-                        <button
-                          className="btn btn-primary" style={{ fontSize: 10 }}
-                          onClick={startWarmup} disabled={warmupLoading}
-                        >
-                          {warmupLoading ? "STARTING…" : "START WARM-UP"}
-                        </button>
-                      ) : (
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ flex: 1, height: 5, borderRadius: 3, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                              <div style={{
-                                height: "100%",
-                                width: `${warmupStatus.total_days ? (Math.min(warmupStatus.current_day, warmupStatus.total_days) / warmupStatus.total_days) * 100 : 0}%`,
-                                background: warmupStatus.status === "complete" ? "#4ade80" : "#3a7bd5", transition: "width 0.2s",
-                              }} />
-                            </div>
-                            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", whiteSpace: "nowrap" }}>
-                              {warmupStatus.status === "complete"
-                                ? "WARM-UP COMPLETE ✓"
-                                : `DAY ${warmupStatus.current_day}/${warmupStatus.total_days}`}
-                            </div>
-                          </div>
-                          {warmupStatus.status === "running" && (
-                            <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>
-                              {warmupStatus.sent_today}/{warmupStatus.day_target} sent today (real outreach sends count toward this too)
-                            </div>
-                          )}
-                          <button
-                            className="btn btn-secondary" style={{ fontSize: 9, padding: "3px 8px", marginTop: 6 }}
-                            onClick={refreshWarmupStatus} disabled={warmupLoading}
-                          >
-                            {warmupLoading ? "CHECKING…" : "REFRESH"}
-                          </button>
-                        </div>
-                      )}
-                      {warmupError && (
-                        <div style={{ marginTop: 4, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#e05c5c" }}>{warmupError}</div>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
               </Fragment>
@@ -3886,8 +3767,7 @@ const AUTOSETUP_STEPS = [
   ["landing_page", "Landing Page"],
   ["sms", "SMS Marketing"],
   ["response_ai", "Response AI"],
-  ["automations", "SMS/Email Automations"],
-  ["email", "Email Marketing"],
+  ["automations", "SMS Automations"],
 ];
 const AUTOSETUP_COLORS = { done: "#4ade80", skipped: "#5a7aa0", error: "#f87171" };
 
@@ -3963,11 +3843,7 @@ function ClientMarketingSetup({ clientId }) {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null); // field name currently being edited
   const [draft, setDraft] = useState("");
-  const [draft2, setDraft2] = useState(""); // second field, for multi-field editors (email)
-  const [draft3, setDraft3] = useState(""); // third field (email subdomain)
   const [saving, setSaving] = useState(false);
-  const [testEmailTo, setTestEmailTo] = useState("");
-  const [testingEmail, setTestingEmail] = useState(false);
   const [guideKey, setGuideKey] = useState(null); // which step's guide modal is open
   const [showAutomation, setShowAutomation] = useState(false);
 
@@ -4073,48 +3949,6 @@ function ClientMarketingSetup({ clientId }) {
     saveFields({ guide_progress: { ...cur, [key]: guideProg } });
   };
 
-  const sendTestEmail = async () => {
-    if (!testEmailTo.trim()) return false;
-    setTestingEmail(true);
-    setError("");
-    try {
-      const r = await fetch(API(`/clients/${clientId}/marketing-config/test-email`), {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: testEmailTo.trim() }),
-      });
-      if (!r.ok) {
-        const detail = await r.json().catch(() => null);
-        throw new Error(detail?.detail || "Failed to send test email");
-      }
-      return true;
-    } catch (e) {
-      setError(e.message);
-      return false;
-    } finally {
-      setTestingEmail(false);
-    }
-  };
-
-  const [syncingEmail, setSyncingEmail] = useState(false);
-  const syncEmailNow = async () => {
-    setSyncingEmail(true);
-    setError("");
-    try {
-      const r = await fetch(API(`/clients/${clientId}/marketing-config/sync-email`), { method: "POST" });
-      if (!r.ok) {
-        const detail = await r.json().catch(() => null);
-        throw new Error(detail?.detail || "Failed to check for replies");
-      }
-      await load();
-      return true;
-    } catch (e) {
-      setError(e.message);
-      return false;
-    } finally {
-      setSyncingEmail(false);
-    }
-  };
-
   const [syncingMeta, setSyncingMeta] = useState(false);
   const [metaSyncResult, setMetaSyncResult] = useState("");
   const [metaSyncError, setMetaSyncError] = useState("");
@@ -4148,39 +3982,6 @@ function ClientMarketingSetup({ clientId }) {
     }
   };
 
-  const [warmupStatus, setWarmupStatus] = useState(null);
-  const [warmupLoading, setWarmupLoading] = useState(false);
-  const [warmupError, setWarmupError] = useState("");
-  const fetchWarmupStatus = async () => {
-    setWarmupLoading(true);
-    setWarmupError("");
-    try {
-      const r = await fetch(API(`/clients/${clientId}/marketing-config/warmup-status`));
-      if (!r.ok) throw new Error("Failed to load warm-up status");
-      setWarmupStatus(await r.json());
-    } catch (e) {
-      setWarmupError(e.message);
-    } finally {
-      setWarmupLoading(false);
-    }
-  };
-  const startWarmup = async () => {
-    setWarmupLoading(true);
-    setWarmupError("");
-    try {
-      const r = await fetch(API(`/clients/${clientId}/marketing-config/start-warmup`), { method: "POST" });
-      if (!r.ok) {
-        const detail = await r.json().catch(() => null);
-        throw new Error(detail?.detail || "Failed to start warm-up");
-      }
-      await fetchWarmupStatus();
-    } catch (e) {
-      setWarmupError(e.message);
-    } finally {
-      setWarmupLoading(false);
-    }
-  };
-
   if (loading) {
     return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
   }
@@ -4188,8 +3989,7 @@ function ClientMarketingSetup({ clientId }) {
   return (
     <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
       <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 12, lineHeight: 1.5 }}>
-        This client's OWN marketing infrastructure — their Twilio number, their email-sending
-        domain, their AI response agent (see the Agents tab), their landing page, their ad
+        This client's OWN marketing infrastructure — their Twilio number, their AI response agent (see the Agents tab), their landing page, their ad
         creatives, their No Show/Cancellation automations, and their portal analytics. Separate
         from DigiGrowth's own outreach system. Work through SETUP ORDER: it puts every step from
         the guides below in one sequence, starting with what needs nothing from the client.
@@ -4251,38 +4051,6 @@ function ClientMarketingSetup({ clientId }) {
               {provisioning ? "PROVISIONING…" : "BUY NUMBER"}
             </button>
           )}
-          {step.key === "email" && (
-            editing === "gmail" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                <input className="dg-input" style={{ fontSize: 11, width: "min(220px, 60vw)" }} value={draft3} placeholder="go.clientdomain.com (outreach subdomain)"
-                  onChange={(e) => setDraft3(e.target.value)} autoFocus />
-                <input className="dg-input" style={{ fontSize: 11, width: "min(220px, 60vw)" }} value={draft2} placeholder="contact@go.clientdomain.com"
-                  onChange={(e) => setDraft2(e.target.value)} />
-                <input className="dg-input" style={{ fontSize: 11, width: "min(220px, 60vw)" }} value={draft} placeholder="Gmail refresh token (from reauth_google.py)"
-                  onChange={(e) => setDraft(e.target.value)} />
-                <button className="btn btn-primary" style={{ fontSize: 10 }}
-                  onClick={() => saveFields({ email_subdomain: draft3.trim() || null, gmail_sender_email: draft2.trim() || null, gmail_refresh_token: draft.trim() || null })}
-                  disabled={saving}>
-                  SAVE
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { setEditing("gmail"); setDraft(config?.gmail_refresh_token || ""); setDraft2(config?.gmail_sender_email || ""); setDraft3(config?.email_subdomain || ""); }}>
-                  {config?.gmail_refresh_token ? "EDIT" : "CONNECT MAILBOX"}
-                </button>
-                {config?.gmail_refresh_token && (
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <input className="dg-input" style={{ fontSize: 11, width: "min(150px, 45vw)" }} value={testEmailTo} placeholder="test@…"
-                      onChange={(e) => setTestEmailTo(e.target.value)} />
-                    <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={sendTestEmail} disabled={testingEmail || !testEmailTo.trim()}>
-                      {testingEmail ? "SENDING…" : "TEST"}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )
-          )}
           {step.key === "landing_page" && (
             editing === "landing_page_url" ? (
               <div style={{ display: "flex", gap: 6 }}>
@@ -4313,24 +4081,12 @@ function ClientMarketingSetup({ clientId }) {
         config={config}
         client={client}
         onSaveFields={saveFields}
-        testEmailTo={testEmailTo}
-        setTestEmailTo={setTestEmailTo}
-        sendTestEmail={sendTestEmail}
-        testingEmail={testingEmail}
-        testError={error}
-        syncEmailNow={syncEmailNow}
-        syncingEmail={syncingEmail}
         syncMetaAdsNow={syncMetaAdsNow}
         connectLeadAds={connectLeadAds}
         connectingLeadAds={connectingLeadAds}
         syncingMeta={syncingMeta}
         metaSyncResult={metaSyncResult}
         metaSyncError={metaSyncError}
-        warmupStatus={warmupStatus}
-        warmupLoading={warmupLoading}
-        warmupError={warmupError}
-        startWarmup={startWarmup}
-        refreshWarmupStatus={fetchWarmupStatus}
         onClose={() => setGuideKey(null)}
       />
     </div>

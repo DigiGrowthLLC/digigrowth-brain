@@ -1,14 +1,15 @@
 """No Show / Cancellation recovery — real 3-touch drips (0h/3h/24h) for a
-CLIENT's own lead, sent from the CLIENT's own Twilio number / Gmail mailbox
-using that client's own client_sequence_steps copy — never DigiGrowth's
-shared Twilio/Gmail credentials and never Dylan's own no_show_sequence.py/
+CLIENT's own lead, sent from the CLIENT's own Twilio number using that
+client's own client_sequence_steps copy — never DigiGrowth's shared Twilio
+credentials and never Dylan's own no_show_sequence.py/
 cancel_sequence.py copy (that copy is signed "Dylan" and links to Dylan's own
 Calendly, which is wrong for a client's own patient).
 
 Same step-pair-per-touch shape as no_show_sequence.py/cancel_sequence.py,
 on a faster cadence (right away, 3h, 24h after the no-show/cancel) (step_order 0-1 = Touch 1, 2-3 = Touch 2, 4-5 = Touch 3 —
 each pair is one SMS step + one email step; see routers/clients.py's
-_DEFAULT_SEQUENCE_STEPS), but progress is tracked generically via a JSONB map
+_DEFAULT_SEQUENCE_STEPS). Only the SMS step sends: DigiGrowth stopped
+offering client email (2026-10-28). Progress is tracked generically via a JSONB map
 (client_no_show_steps_sent / client_cancel_steps_sent on appointment_reminders,
 keyed by step_order as a string) rather than fixed named columns — same
 pattern as client_appointment_reminders.py's reminder_steps_sent, since a
@@ -28,10 +29,9 @@ the outcome is recorded (tag_outcome(), also called from cancel_appointment()
 for a silent host cancel that sends no Touch 1), and "Database Reactivation"
 once the last touch goes out with no reply (lead_flags.py).
 
-Stops permanently the moment the prospect replies on either channel — routers/
-client_sms_webhooks.py's inbound Twilio webhook and client_email.py's inbound
-Gmail sync both call stop_sequence_for_reply() the instant a matching inbound
-message lands. Reuses the SAME no_show_sequence_stopped_at/
+Stops permanently the moment the prospect replies — routers/
+client_sms_webhooks.py's inbound Twilio webhook calls stop_sequence_for_reply()
+the instant a matching inbound text lands. Reuses the SAME no_show_sequence_stopped_at/
 cancel_sequence_stopped_at columns Dylan's own pipelines use — safe to share
 since each engine's own query already scopes to its own leads (client leads
 vs. Dylan's own), exactly like reminders_stopped_at is already shared between
@@ -123,54 +123,33 @@ def _fill(template: str, prospect_name: str | None, client_name: str) -> str:
 
 
 async def _send_steps(conn_pool, client: dict, config, steps, row: dict, stage_prefix: str) -> bool:
-    """Sends every step in `steps` (one touch's SMS + email pair) via the
-    client's own Twilio/Gmail. Returns True if at least one channel was
-    actually attempted and none of the attempted channels raised — used only
-    to decide whether to record this touch as sent; a partial send (e.g.
-    email configured but no Gmail mailbox connected yet) still counts as
-    "sent" for the channel that DID have what it needed, mirroring
-    client_appointment_reminders.py's per-channel-best-effort shape."""
-    import client_email
+    """Sends the SMS step in `steps` (one touch's step pair) via the client's
+    own Twilio number; an email step is ignored. Returns True if a send was
+    actually attempted."""
     import client_sms
 
     phone = (row.get("prospect_phone") or "").strip()
-    email = (row.get("prospect_email") or "").strip()
-    if (not phone or not email) and row.get("contact_id"):
+    if not phone and row.get("contact_id"):
         # Same fallback as client_appointment_reminders.py: a Calendly
         # booking can carry no phone even when the lead has one on file.
         async with conn_pool.acquire() as conn:
-            contact = await conn.fetchrow("SELECT phone, email FROM contacts WHERE id = $1", row["contact_id"])
-        if contact:
-            phone = phone or (contact["phone"] or "").strip()
-            email = email or (contact["email"] or "").strip()
+            phone = ((await conn.fetchval("SELECT phone FROM contacts WHERE id = $1", row["contact_id"])) or "").strip()
     attempted = False
 
     for step in steps:
-        if step["channel"] == "sms":
-            if not phone or not (step["body"] or "").strip():
-                continue
-            if not (config and config["twilio_number"]):
-                print(f"[client_appointment_sequence] client {client['client_id']} has no Twilio number provisioned yet — skipping SMS")
-                continue
-            attempted = True
-            try:
-                text = _fill(step["body"], row.get("prospect_name"), client["client_name"])
-                await client_sms.send_client_sms(client["client_id"], phone, text, stage=f"{stage_prefix}_sms")
-            except Exception as e:
-                print(f"[client_appointment_sequence] SMS failed for client {client['client_id']} ({phone}): {e}")
-        elif step["channel"] == "email":
-            if not email or not (step["subject"] or "").strip() or not (step["body"] or "").strip():
-                continue
-            if not (config and config["gmail_refresh_token"]):
-                print(f"[client_appointment_sequence] client {client['client_id']} has no Gmail mailbox connected yet — skipping email")
-                continue
-            attempted = True
-            try:
-                subject = _fill(step["subject"], row.get("prospect_name"), client["client_name"])
-                body = _fill(step["body"], row.get("prospect_name"), client["client_name"])
-                await client_email.send_client_email(client["client_id"], email, subject, body)
-            except Exception as e:
-                print(f"[client_appointment_sequence] email failed for client {client['client_id']} ({email}): {e}")
+        if step["channel"] != "sms":
+            continue
+        if not phone or not (step["body"] or "").strip():
+            continue
+        if not (config and config["twilio_number"]):
+            print(f"[client_appointment_sequence] client {client['client_id']} has no Twilio number provisioned yet — skipping SMS")
+            continue
+        attempted = True
+        try:
+            text = _fill(step["body"], row.get("prospect_name"), client["client_name"])
+            await client_sms.send_client_sms(client["client_id"], phone, text, stage=f"{stage_prefix}_sms")
+        except Exception as e:
+            print(f"[client_appointment_sequence] SMS failed for client {client['client_id']} ({phone}): {e}")
 
     return attempted
 
@@ -209,7 +188,7 @@ async def send_first_touch(row: dict, sequence: str):
             return
 
         config = await conn.fetchrow(
-            "SELECT twilio_number, gmail_refresh_token FROM client_marketing_config WHERE client_id = $1",
+            "SELECT twilio_number FROM client_marketing_config WHERE client_id = $1",
             client["client_id"],
         )
         steps = await conn.fetch(
@@ -285,16 +264,16 @@ async def send_due_touches():
                         client_id, sequence_key, list(step_order_pair),
                     )
                     config = await conn.fetchrow(
-                        "SELECT twilio_number, gmail_refresh_token FROM client_marketing_config WHERE client_id = $1",
+                        "SELECT twilio_number FROM client_marketing_config WHERE client_id = $1",
                         client_id,
                     )
                 if not all_steps:
                     print(f"[client_appointment_sequence] client {client_id} has no {_TOUCH_LABELS[touch_idx]} steps configured for {sequence} — skipping")
                     break
-                steps = [s for s in all_steps if s["enabled"]]
+                steps = [s for s in all_steps if s["enabled"] and s["channel"] == "sms"]
                 if not steps:
-                    # Every message in this touch is switched off (Sequences
-                    # tab): mark it skipped and move on, so turning one touch
+                    # This touch's text is switched off (Sequences tab): mark
+                    # it skipped and move on, so turning one touch
                     # off doesn't stall the touches after it.
                     for so in step_order_pair:
                         sent_map[str(so)] = "skipped"
@@ -319,14 +298,13 @@ async def send_due_touches():
                 break
 
 
-async def stop_sequence_for_reply(phone: str | None = None, email: str | None = None):
+async def stop_sequence_for_reply(phone: str | None = None):
     """Called from routers/client_sms_webhooks.py's inbound Twilio webhook
-    and client_email.py's inbound Gmail sync the moment a reply lands from a
-    phone/email — halts any active (not yet stopped) client no-show/
-    cancellation sequence for that contact so no further touches send.
-    Scoped to client leads only via the contact join — never touches Dylan's
-    own no_show_sequence.py/cancel_sequence.py rows."""
-    if not phone and not email:
+    the moment a reply lands from a phone — halts any active (not yet
+    stopped) client no-show/cancellation sequence for that contact so no
+    further touches send. Scoped to client leads only via the contact join —
+    never touches Dylan's own no_show_sequence.py/cancel_sequence.py rows."""
+    if not phone:
         return
 
     from routers import sms as sms_router
@@ -336,28 +314,16 @@ async def stop_sequence_for_reply(phone: str | None = None, email: str | None = 
         for sequence in _SEQUENCE_KEYS:
             stopped_col = _STOPPED_COL[sequence]
             active_where = _ACTIVE_WHERE[sequence]
-            if phone:
-                await conn.execute(
-                    f"""
-                    UPDATE appointment_reminders ar SET {stopped_col} = now()
-                    FROM contacts c
-                    WHERE c.id = ar.contact_id AND c.client_id IS NOT NULL AND NOT c.is_client_anchor
-                    AND {active_where}
-                    AND {sms_router._phone_match('ar.prospect_phone', '$1')}
-                    """,
-                    phone,
-                )
-            if email:
-                await conn.execute(
-                    f"""
-                    UPDATE appointment_reminders ar SET {stopped_col} = now()
-                    FROM contacts c
-                    WHERE c.id = ar.contact_id AND c.client_id IS NOT NULL AND NOT c.is_client_anchor
-                    AND {active_where}
-                    AND lower(ar.prospect_email) = lower($1)
-                    """,
-                    email,
-                )
+            await conn.execute(
+                f"""
+                UPDATE appointment_reminders ar SET {stopped_col} = now()
+                FROM contacts c
+                WHERE c.id = ar.contact_id AND c.client_id IS NOT NULL AND NOT c.is_client_anchor
+                AND {active_where}
+                AND {sms_router._phone_match('ar.prospect_phone', '$1')}
+                """,
+                phone,
+            )
 
 
 def _touch_progress(row: dict, sequence: str) -> dict:

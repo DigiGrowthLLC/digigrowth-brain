@@ -34,20 +34,18 @@ router = APIRouter()
 # brand-new client gets seeded immediately at creation instead of waiting
 # for the next app restart's migration pass.
 _DEFAULT_SEQUENCE_STEPS = [
-    # Appointment reminders: an SMS + email pair per window (step_order 0-1 =
-    # 24h before, 2-3 = 6h, 4-5 = 1h; client_appointment_reminders.py).
+    # Appointment reminders: one text per window at the even step_order of
+    # its pair (0 = 24h before, 2 = 6h, 4 = 1h; client_appointment_reminders.py).
+    # The odd slots were the email half of each pair, gone since DigiGrowth
+    # stopped offering client email (2026-10-28).
     ("appointment_reminder", 0, "24 Hour Reminder (SMS)", "sms", None,
      "Hi {first_name}, a friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. It's a quick Google Meet video call, the link is in your calendar invite. Reply CONFIRM to confirm, or let us know if you need to reschedule."),
     ("appointment_reminder", 2, "6 Hour Reminder (SMS)", "sms", None,
      "Hi {first_name}, just a reminder, your consultation with {business} is today at {time}. Just join with the Google Meet link in your calendar invite. Talk soon!"),
     ("no_show", 0, "Touch 1 (SMS)", "sms", None,
      "Hi {first_name}, sorry we missed you for your consultation with {business} today. No worries, these things happen! Reply here or give us a call and we'll find a new time that works for you."),
-    ("no_show", 1, "Touch 1 (Email)", "email", "We missed you today",
-     "Hi {first_name},\n\nWe weren't able to connect for your consultation today. No problem at all, we'd love to find a new time that works for you.\n\nReply to this email or give us a call whenever works.\n\nTalk soon,\n{business}"),
     ("cancellation", 0, "Touch 1 (SMS)", "sms", None,
      "Hi {first_name}, we've canceled your consultation as requested. Whenever you're ready, just reply here or give us a call to grab a new time."),
-    ("cancellation", 1, "Touch 1 (Email)", "email", "Your consultation has been canceled",
-     "Hi {first_name},\n\nThis confirms your upcoming consultation with {business} has been canceled.\n\nIf you'd like to reschedule, just reply to this email or call us, and we'll find a time that works for you.\n\nTake care,\n{business}"),
     # Touch 2 (24h) / Touch 3 (72h) — real 3-touch drips as of the client
     # sequence-management build, matching Dylan's own no_show_sequence.py/
     # cancel_sequence.py cadence (client_appointment_sequence.py's
@@ -57,47 +55,25 @@ _DEFAULT_SEQUENCE_STEPS = [
     # self-serve rebook through a link.
     ("no_show", 2, "Touch 2 (SMS)", "sms", None,
      "Hi {first_name}, still happy to get you back on the schedule at {business} whenever works for you — just reply here or give us a call."),
-    ("no_show", 3, "Touch 2 (Email)", "email", "Still here when you're ready",
-     "Hi {first_name},\n\nThings come up — no worries at all. Whenever you're ready to get back on track, just reply to this email or give {business} a call and we'll find a time that fits.\n\nTalk soon,\n{business}"),
     ("no_show", 4, "Touch 3 (SMS)", "sms", None,
      "{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know."),
-    ("no_show", 5, "Touch 3 (Email)", "email", "Closing your file",
-     "Hi {first_name},\n\nHaven't heard back, so we'll close this out on our end unless we hear from you. If timing's just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}"),
     ("cancellation", 2, "Touch 2 (SMS)", "sms", None,
      "Hi {first_name}, if timing's better now, still happy to get you a new time at {business} — just reply here or give us a call."),
-    ("cancellation", 3, "Touch 2 (Email)", "email", "Still worth getting back on the schedule?",
-     "Hi {first_name},\n\nPlans change, that's normal. If it's still worth getting back on the schedule at {business}, just reply to this email or give us a call.\n\nTalk soon,\n{business}"),
     ("cancellation", 4, "Touch 3 (SMS)", "sms", None,
      "{first_name}, going to close out your file at {business} unless I hear back — no pressure either way, just let us know."),
-    ("cancellation", 5, "Touch 3 (Email)", "email", "Closing your file",
-     "Hi {first_name},\n\nHaven't heard back, so we'll close this out on our end unless we hear from you. If timing's just been off, no worries at all — reply here or call {business} whenever it opens up.\n\nTake care,\n{business}"),
-    # Prospect follow-up (client_followup_sequence.py) — an SMS + email pair
-    # per touch (step_order 0-1, 2-3, 4-5, 6-7), sent 3h / +24h / +3d / +7d
-    # into a silence. Same values as db.py's seed + pairing migration.
+    # Prospect follow-up (client_followup_sequence.py) — one text per touch
+    # (step_order 0, 2, 4, 6), sent 3h / +24h / +3d / +7d into a silence. Same values as db.py's seed + pairing migration.
     ("prospect_followup", 0, "Touch 1 (SMS)", "sms", None,
      "Hey {first_name}, just following up, checking you got that last message?"),
     ("prospect_followup", 2, "Touch 2 (SMS)", "sms", None,
      "{first_name}, still got a couple slots for our free consultation this month. You got 15 minutes?"),
     ("prospect_followup", 4, "Touch 3 (SMS)", "sms", None,
      "Hey {first_name}, we're almost out of slots this week. Just wanted to let you know so you don't miss out. Let me know and I can get you set up whenever the timing works for you."),
-    ('prospect_followup', 1, 'Touch 1 (Email)', 'email', 'Following up',
-     'Hi {first_name},\n\nJust following up on my text in case it got buried. Happy to answer any questions or get you set up with a free consultation.\n\nJust reply here whenever works.\n\n{business}'),
-    ('prospect_followup', 3, 'Touch 2 (Email)', 'email', 'Still have a couple of openings',
-     "Hi {first_name},\n\nWe still have a couple of openings for a free consultation this month. It only takes 15 minutes and it's an easy way to see if we're a good fit.\n\nReply to this email and we'll find a time.\n\n{business}"),
-    ('prospect_followup', 5, 'Touch 3 (Email)', 'email', 'Almost out of slots this week',
-     "Hi {first_name},\n\nWe're almost out of slots this week, and I just wanted to let you know so you don't miss out.\n\nLet me know and I can get you set up for your free consultation whenever the timing works for you. Just reply to this email.\n\n{business}"),
     ('prospect_followup', 6, 'Touch 4 (SMS)', 'sms', None,
      "{first_name}, last one from me. Not sure if there'll be any slots left, but feel free to check in whenever you're free: {link}"),
-    ('prospect_followup', 7, 'Touch 4 (Email)', 'email', 'Last note from me',
-     "Hi {first_name},\n\nThis is my last follow-up. If the timing isn't right, no worries at all. Whenever you're ready, just reply to this email and we'll get you on the schedule.\n\nTake care,\n{business}"),
-    ('appointment_reminder', 1, '24 Hour Reminder (Email)', 'email', 'Reminder: your consultation tomorrow',
-     'Hi {first_name},\n\nA friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. It\'s a Google Meet video call; the link is in your calendar invite.\n\nIf you need to reschedule, just reply to this email.\n\nSee you then,\n{business}'),
-    ('appointment_reminder', 3, '6 Hour Reminder (Email)', 'email', 'Today: your consultation at {time}',
-     "Hi {first_name},\n\nJust a reminder that your consultation with {business} is today at {time}. Join with the Google Meet link in your calendar invite.\n\nNeed to reschedule? Reply to this email and we'll sort it out.\n\n{business}"),
     ('appointment_reminder', 4, '1 Hour Reminder (SMS)', 'sms', None,
      'Hi {first_name}, your consultation with {business} starts in about an hour, at {time}. Join with the Google Meet link in your calendar invite. Talk soon!'),
-    ('appointment_reminder', 5, '1 Hour Reminder (Email)', 'email', 'Starting in an hour',
-     'Hi {first_name},\n\nQuick heads-up: your consultation with {business} starts in about an hour, at {time}. Join with the Google Meet link in your calendar invite.\n\nTalk soon,\n{business}'),
+
 ]
 
 
@@ -719,7 +695,7 @@ async def delete_action_item(item_id: int):
 #
 # Separate from the "Next Steps" action items above: those are onboarding
 # steps the CLIENT completes themselves. This checklist is DigiGrowth's own
-# launch-readiness tasks (set up the portal, email/SMS marketing, response
+# launch-readiness tasks (set up the portal, SMS marketing, response
 # AI, landing page, ad creatives, etc.) — the client just watches progress
 # on their portal's "To Do" tab while the agency checks items off here,
 # per-client, as the work actually gets done.
@@ -840,7 +816,8 @@ async def list_client_sequences(client_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT * FROM client_sequence_steps WHERE client_id = $1 ORDER BY sequence_key, step_order, id",
+            "SELECT * FROM client_sequence_steps WHERE client_id = $1 AND channel = 'sms' "
+            "ORDER BY sequence_key, step_order, id",
             client_id,
         )
     return [dict(r) for r in rows]
@@ -851,8 +828,8 @@ async def update_client_sequence_step(client_id: int, step_id: int, body: Sequen
     fields = body.model_dump(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="no fields to update")
-    if fields.get("channel") not in (None, "sms", "email"):
-        raise HTTPException(status_code=400, detail="channel must be 'sms' or 'email'")
+    if fields.get("channel") not in (None, "sms"):
+        raise HTTPException(status_code=400, detail="channel must be 'sms'")
     pool = await get_pool()
     async with pool.acquire() as conn:
         set_clauses = ", ".join(f"{k} = ${i+3}" for i, k in enumerate(fields))

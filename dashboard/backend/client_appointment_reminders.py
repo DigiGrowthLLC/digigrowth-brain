@@ -1,7 +1,7 @@
 """Scheduled appointment reminders (24h / 6h / 1h before) for a CLIENT's OWN
-lead, sent from the CLIENT's own Twilio number / Gmail mailbox using that
-client's own client_sequence_steps sequence_key='appointment_reminder' copy —
-never DigiGrowth's shared Twilio/Gmail credentials and never
+lead, sent from the CLIENT's own Twilio number using that client's own
+client_sequence_steps sequence_key='appointment_reminder' copy — never
+DigiGrowth's shared Twilio credentials and never
 reminder_engine.py's Dylan-branded copy (that copy is hardcoded to say "your
 call with DigiGrowth", wrong on every count for a client's own patient).
 Companion to client_appointment_sequence.py's no-show/cancellation drips,
@@ -9,10 +9,11 @@ but this one runs a genuine scheduled poll (main.py's poller, same 5-minute
 cadence as reminder_engine.py) since a lead can be booked anywhere from
 minutes to weeks ahead of their appointment.
 
-Steps are SMS + email pairs, one pair per reminder window, same pairing as
-the no-show/cancellation drips: step_order 0-1 = 24h before, 2-3 = 6h before,
-4-5 = 1h before (_WINDOW_HOURS_BY_TOUCH). client_sequence_steps has no
-timing field, so this is a fixed convention; a step beyond the last window is
+Steps keep the SMS + email pair numbering the no-show/cancellation drips use
+(step_order 0-1 = 24h before, 2-3 = 6h before, 4-5 = 1h before,
+_WINDOW_HOURS_BY_TOUCH), but only the SMS step ever sends: DigiGrowth stopped
+offering client email (2026-10-28), so an email step is always skipped.
+client_sequence_steps has no timing field, so this is a fixed convention; a step beyond the last window is
 skipped (logged, not guessed at).
 
 Per appointment, only the LATEST window that's currently due is sent; any
@@ -66,15 +67,12 @@ async def send_due_reminders():
     exclusion elsewhere in this codebase (reminder_engine.py, no_show_
     sequence.py, cancel_sequence.py, call_reminders.py all exclude these
     same rows from Dylan's own pipeline)."""
-    import client_email
-    import client_sms
-
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             f"""
             SELECT ar.*, c.client_id AS lead_client_id, cl.name AS client_name,
-                   c.phone AS contact_phone, c.email AS contact_email
+                   c.phone AS contact_phone
             FROM appointment_reminders ar
             JOIN contacts c ON c.id = ar.contact_id
             JOIN clients cl ON cl.id = c.client_id
@@ -104,7 +102,7 @@ async def send_due_reminders():
                 client_id, _SEQUENCE_KEY,
             )
             config = await conn.fetchrow(
-                "SELECT twilio_number, gmail_refresh_token FROM client_marketing_config WHERE client_id = $1",
+                "SELECT twilio_number FROM client_marketing_config WHERE client_id = $1",
                 client_id,
             )
 
@@ -145,8 +143,8 @@ async def send_due_reminders():
                 if body and await _send_step(client_id, config, step, row, _fill(body, row, row["client_name"])):
                     sent_map[str(idx)] = now.isoformat()
                 else:
-                    # Nothing to send on this channel (no copy, no phone/email,
-                    # nothing connected) — record it so it isn't retried forever.
+                    # Nothing to send on this channel (email step, no copy, no
+                    # phone, no number provisioned) — record it so it isn't retried forever.
                     sent_map[str(idx)] = _SKIPPED
                 changed = True
 
@@ -159,13 +157,12 @@ async def send_due_reminders():
 
 
 async def _send_step(client_id: int, config, step, row: dict, text: str) -> bool:
-    """Send one reminder step on its channel. Returns True only on a real send."""
-    import client_email
+    """Send one reminder step. Only SMS steps send. Returns True only on a real send."""
     import client_sms
 
-    # A Calendly booking's own phone/email can be blank (its form may not ask
-    # for a phone) even when the linked lead has one on file from their Meta
-    # form — fall back to the contact's.
+    # A Calendly booking's own phone can be blank (its form may not ask for
+    # one) even when the linked lead has one on file from their Meta form —
+    # fall back to the contact's.
     if step["channel"] == "sms":
         phone = (row.get("prospect_phone") or row.get("contact_phone") or "").strip()
         if not phone:
@@ -178,20 +175,6 @@ async def _send_step(client_id: int, config, step, row: dict, text: str) -> bool
             return True
         except Exception as e:
             print(f"[client_appointment_reminders] SMS failed for client {client_id} ({phone}): {e}")
-            return False
-    if step["channel"] == "email":
-        email = (row.get("prospect_email") or row.get("contact_email") or "").strip()
-        if not email:
-            return False
-        if not (config and config["gmail_refresh_token"]):
-            print(f"[client_appointment_reminders] client {client_id} has no Gmail mailbox connected — skipping email")
-            return False
-        try:
-            subject = _fill((step["subject"] or "").strip() or "Appointment Reminder", row, row["client_name"])
-            await client_email.send_client_email(client_id, email, subject, text)
-            return True
-        except Exception as e:
-            print(f"[client_appointment_reminders] email failed for client {client_id} ({email}): {e}")
             return False
     return False
 

@@ -30,18 +30,16 @@ failure is recorded and the rest still run.
 4. Response AI: writes the agent's context from the scraped site + whatever
    is on file (context_gen.py), fills a default 5-stage sequence and rules,
    and switches the agent on.
-5. SMS/Email automations: confirms the reminder / no-show / cancellation /
+5. SMS automations: confirms the reminder / no-show / cancellation /
    follow-up copy seeded on client creation (routers/clients.py, already
    written around the free consultation) is in place; it sends from the
-   client's own number/mailbox with no further wiring.
+   client's own number with no further wiring.
 
 With a blueprint, the client's offer is whatever that funnel sells, so
 _offer_copy() has Claude rewrite the free-consult wording in the Response
 AI's sequence + price rule (step 4) and in every seeded message still at
 its default text (step 5) around it, and the blueprint's verified practice
 facts (its demo chat's context) go into the Response AI context.
-6. Email marketing: picks the outreach subdomain (mail.<their domain>). The
-   DNS records need access to the client's DNS host, so the rest stays manual.
 
 Paid ad creatives are left alone (they need the client's ad account).
 Steps that already have a value (a number, a context, a URL) are skipped,
@@ -58,7 +56,6 @@ import tempfile
 from datetime import datetime, timezone
 from html import escape, unescape
 from pathlib import Path
-from urllib.parse import urlparse
 
 import anthropic
 
@@ -208,7 +205,6 @@ async def run(client_id: int, force: bool = False) -> None:
             ("sms", _step_sms),
             ("response_ai", _step_response_ai),
             ("automations", _step_automations),
-            ("email", _step_email),
         ]
         for key, fn in steps:
             try:
@@ -413,20 +409,6 @@ async def _step_response_ai(client_id: int, ctx: dict) -> tuple[str, str]:
     )
 
 
-async def _step_email(client_id: int, ctx: dict) -> tuple[str, str]:
-    if ctx["cfg"].get("email_subdomain"):
-        return "skipped", f"Subdomain already set: {ctx['cfg']['email_subdomain']}"
-    host = urlparse(ctx["website"]).hostname if ctx["website"] else None
-    if not host:
-        return "skipped", "No website on file to pick an outreach subdomain from"
-    domain = host[4:] if host.startswith("www.") else host
-    sub = f"mail.{domain}"
-    await _set_config(client_id, email_subdomain=sub)
-    await _check_guide_steps(client_id, "email", [0])
-    return "done", (
-        f"Outreach subdomain set to {sub}. Still manual: the DNS records at the client's DNS host, "
-        "the mailbox, and the refresh token."
-    )
 
 
 # ---------------------------------------------------------------- landing page
@@ -597,7 +579,7 @@ async def _blueprint(contact_id: str | None) -> dict | None:
 
 _MERGE_FIELD = re.compile(r"\{[a-z_]+\}")
 
-_OFFER_COPY_SYSTEM = """You adapt a physical therapy practice's patient-facing texts and emails to the offer \
+_OFFER_COPY_SYSTEM = """You adapt a physical therapy practice's patient-facing texts to the offer \
 its Meta ads funnel sells. The copy below was written around a default offer (a free consultation held as a \
 Google Meet video call). The practice's real offer is in the material: its funnel page and the facts behind it. \
 Rewrite only what's about the offer: what it's called, what it is, whether it's in person or a video call, where \
@@ -609,14 +591,14 @@ Hard rules:
 cancellations) or claim.
 - Keep every merge field ({first_name}, {business}, {date}, {time}, {link}) exactly as written in each \
 message; add none and drop none.
-- No em dashes, en dashes, curly quotes or emoji anywhere. SMS bodies stay short and plain.
+- No em dashes, en dashes, curly quotes or emoji anywhere. Keep each text short and plain.
 - Reminders for an in-person visit say where to come if the material gives the address, instead of a video link.
 
 Return only a JSON object:
 {"offer_name": "<what patients book, as the funnel names it, e.g. \\"$49 Discovery Visit\\">",
  "sequence": ["<the 5 conversation stages for the text agent, rewritten>"],
  "price_rule": "5. <rule 5 for the text agent, rewritten for this offer>",
- "steps": [{"id": <id>, "subject": "<email subject, or null for SMS>", "body": "<message>"}]}"""
+ "steps": [{"id": <id>, "body": "<message>"}]}"""
 
 
 def _plain(text: str) -> str:
@@ -636,7 +618,8 @@ async def _offer_copy(client_id: int, ctx: dict) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            "SELECT id, sequence_key, step_order, channel, subject, body FROM client_sequence_steps WHERE client_id = $1",
+            "SELECT id, sequence_key, step_order, channel, subject, body FROM client_sequence_steps "
+            "WHERE client_id = $1 AND channel = 'sms'",
             client_id,
         )
     steps = {r["id"]: dict(r) for r in rows if defaults.get((r["sequence_key"], r["step_order"])) == r["body"]}
@@ -659,7 +642,7 @@ async def _offer_copy(client_id: int, ctx: dict) -> dict:
 {_DEFAULT_PRICE_RULE}
 
 --- Messages (default) ---
-{json.dumps([{k: s[k] for k in ('id', 'sequence_key', 'channel', 'subject', 'body')} for s in steps.values()], indent=1)}"""
+{json.dumps([{k: s[k] for k in ('id', 'sequence_key', 'body')} for s in steps.values()], indent=1)}"""
 
     client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     async with client.messages.stream(
@@ -685,10 +668,7 @@ async def _offer_copy(client_id: int, ctx: dict) -> dict:
         # A dropped or invented merge field would send broken text: keep the default.
         if not orig or not body or set(_MERGE_FIELD.findall(body)) != set(_MERGE_FIELD.findall(orig["body"])):
             continue
-        subject = _plain(s.get("subject") or "").strip() if orig["channel"] == "email" else ""
-        if not subject or set(_MERGE_FIELD.findall(subject)) != set(_MERGE_FIELD.findall(orig["subject"] or "")):
-            subject = orig["subject"]
-        rewritten[orig["id"]] = (subject, body)
+        rewritten[orig["id"]] = (orig["subject"], body)
     return {"offer_name": offer_name, "sequence": sequence, "price_rule": price_rule, "steps": rewritten}
 
 
@@ -796,6 +776,5 @@ async def _step_automations(client_id: int, ctx: dict) -> tuple[str, str]:
             f"reminder / no-show / cancellation / follow-up copy" if offer
             else f"{count} free-consultation reminder / no-show / cancellation / follow-up messages")
     return "done", (
-        f"{what} in place on the Sequences tab. They send from the client's own number now; email copy starts "
-        "sending once the mailbox is connected." + _blueprint_note(ctx)
+        f"{what} in place on the Sequences tab. They send from the client's own number now." + _blueprint_note(ctx)
     )

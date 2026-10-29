@@ -18,9 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 import integrations
-import client_email
 import client_resources_autofill
-import email_warmup
 import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
@@ -390,12 +388,6 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
-        client_email.sync_client_email_job,
-        IntervalTrigger(seconds=120),
-        id="client-email-sync",
-        replace_existing=True,
-    )
-    scheduler.add_job(
         client_resources_autofill.autofill_job,
         IntervalTrigger(minutes=10),
         id="client-resources-autofill",
@@ -407,12 +399,6 @@ async def lifespan(app: FastAPI):
         id="meta-lead-openers",
         replace_existing=True,
         max_instances=1,
-    )
-    scheduler.add_job(
-        email_warmup.send_due_touches,
-        IntervalTrigger(minutes=20),
-        id="email-warmup",
-        replace_existing=True,
     )
     scheduler.add_job(
         _process_newsletter_queue,

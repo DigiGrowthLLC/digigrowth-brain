@@ -79,10 +79,6 @@ async def _signals(conn, client_id: int) -> dict[str, list[int]]:
     mark("sms", 4, when=number and bool(cfg.get("response_ai_enabled")))
     mark("sms", 6, when=number and bool(cfg.get("call_forward_number") or client["phone"]))
 
-    # email: 0 subdomain picked, 10 mailbox token saved
-    mark("email", 0, when=bool(cfg.get("email_subdomain")))
-    mark("email", 10, when=bool(cfg.get("gmail_refresh_token")))
-
     # response_ai: 0 number, 1-2 agent + context, 3 sequence, 4 rules,
     # 5 Calendly (the default) / 13-14 GHL (only when the client explicitly books
     # on GoHighLevel) — either path completes booking, the other is n/a,

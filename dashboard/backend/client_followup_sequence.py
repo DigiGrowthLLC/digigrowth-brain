@@ -7,8 +7,8 @@ and uses the client's own copy (client_sequence_steps, sequence_key
 'prospect_followup' — an SMS + email pair per touch, step_order 0-1 = Touch 1,
 2-3 = Touch 2, 4-5 = Touch 3, 6-7 = Touch 4, same pairing as the no-show/cancellation drips;
 editable from the Clients admin panel, previewed on the portal's Sequences
-tab). The email goes from the client's connected Gmail mailbox to the lead's
-email on file, and is skipped when either is missing.
+tab). Only the SMS step sends: DigiGrowth stopped offering client email
+(2026-10-28).
 Never touches sms_conversations/sms_messages or Dylan's own templates.
 
 State lives on the lead's contacts row (client_followup_* columns) since
@@ -29,9 +29,8 @@ timestamps, exactly like dm_followup_sequence.py:
      'booked'): hard-clear the enrollment and the whole cycle. Booked leads
      are handed to the reminder/no-show/cancellation sequences instead, and
      can't be re-enrolled.
-  2. Ball in the client's court (last inbound text OR email from the lead
-     >= last outbound text): clear the
-     anchor and touch columns. This is "stops the moment they reply" — the
+  2. Ball in the client's court (last inbound text from the lead >= last
+     outbound text): clear the anchor and touch columns. This is "stops the moment they reply" — the
      response AI (or the client) answers them, and nothing sends until
      another outbound message goes unanswered.
   3. Ball in the prospect's court: if the last outbound is newer than the
@@ -133,14 +132,6 @@ _PAUSED_SQL = r"""EXISTS (
       AND right(regexp_replace(clc.phone, '\D', '', 'g'), 10) = right(regexp_replace(coalesce(c.phone, ''), '\D', '', 'g'), 10)
 )"""
 
-# Inbound emails from contact `c` to its client's connected mailbox
-# (client_email.py stores the sender in to_email for inbound rows).
-_EMAIL_INBOUND_SQL = """
-    FROM client_email_messages em
-    WHERE em.client_id = c.client_id AND em.direction = 'inbound'
-      AND coalesce(c.email, '') != '' AND lower(em.to_email) = lower(c.email)
-"""
-
 # client_sms_messages rows for contact `c`'s phone on its own client's number.
 _THREAD_SQL = r"""
     FROM client_sms_messages m
@@ -203,11 +194,8 @@ async def _send_checkin(row: dict) -> None:
         print(f"[client_followup_sequence] check-in failed for client={row['client_id']} phone={row['phone']}: {e}")
 
 
-async def _send_touch(row: dict, touch_num: int, sms_step: dict | None, email_step: dict | None) -> None:
-    """One touch = the SMS step and the email step for it, each best-effort
-    and independent (a missing email address or unconnected mailbox only
-    skips the email)."""
-    import client_email
+async def _send_touch(row: dict, touch_num: int, sms_step: dict) -> None:
+    """One touch = the touch's SMS step, best-effort."""
     import client_sms
     import response_ai
 
@@ -223,15 +211,6 @@ async def _send_touch(row: dict, touch_num: int, sms_step: dict | None, email_st
             await client_sms.send_client_sms(row["client_id"], row["phone"], text, stage=f"{SEQUENCE_KEY}_touch{touch_num}")
         except Exception as e:
             print(f"[client_followup_sequence] SMS failed for client={row['client_id']} phone={row['phone']}: {e}")
-
-    email = (row.get("email") or "").strip()
-    subject = _fill((email_step or {}).get("subject"), row)
-    body = _fill((email_step or {}).get("body"), row)
-    if email and subject.strip() and body.strip() and row.get("gmail_refresh_token"):
-        try:
-            await client_email.send_client_email(row["client_id"], email, subject, body)
-        except Exception as e:
-            print(f"[client_followup_sequence] email failed for client={row['client_id']} ({email}): {e}")
 
 
 async def send_due_touches():
@@ -251,13 +230,10 @@ async def send_due_touches():
         )
         rows = await conn.fetch(
             f"""
-            SELECT c.*, cl.name AS client_name, cmc.gmail_refresh_token,
+            SELECT c.*, cl.name AS client_name,
                    coalesce(nullif(cmc.calendly_event_type_url, ''), cl.calendly_url) AS booking_link,
                    (SELECT MAX(m.created_at) {_THREAD_SQL.format(direction='outbound')}) AS last_outbound_at,
-                   GREATEST(
-                       (SELECT MAX(m.created_at) {_THREAD_SQL.format(direction='inbound')}),
-                       (SELECT MAX(em.created_at) {_EMAIL_INBOUND_SQL})
-                   ) AS last_inbound_at
+                   (SELECT MAX(m.created_at) {_THREAD_SQL.format(direction='inbound')}) AS last_inbound_at
             FROM contacts c
             JOIN clients cl ON cl.id = c.client_id
             JOIN client_marketing_config cmc ON cmc.client_id = c.client_id
@@ -272,7 +248,7 @@ async def send_due_touches():
 
         step_rows = await conn.fetch(
             "SELECT client_id, step_order, channel, subject, body FROM client_sequence_steps "
-            "WHERE sequence_key = $1 AND client_id = ANY($2) AND enabled",
+            "WHERE sequence_key = $1 AND client_id = ANY($2) AND enabled AND channel = 'sms'",
             SEQUENCE_KEY, list({r["client_id"] for r in rows}),
         )
         steps = {(s["client_id"], s["step_order"], s["channel"]): dict(s) for s in step_rows}
@@ -332,11 +308,9 @@ async def send_due_touches():
                 if reference is not None and now >= reference + delay:
                     if lead_flags.in_quiet_hours(guess_timezone(row["phone"]), now):
                         break  # due, but it's night where they are — send at 8am
-                    pair = ((touch_num - 1) * 2, (touch_num - 1) * 2 + 1)
-                    sms_step = steps.get((row["client_id"], pair[0], "sms"))
-                    email_step = steps.get((row["client_id"], pair[1], "email"))
-                    if sms_step or email_step:
-                        await _send_touch(row, touch_num, sms_step, email_step)
+                    sms_step = steps.get((row["client_id"], (touch_num - 1) * 2, "sms"))
+                    if sms_step:
+                        await _send_touch(row, touch_num, sms_step)
                     # Stamped even when the client has no copy for this
                     # touch, so a blanked-out touch is skipped rather than
                     # stalling the rest of the sequence.

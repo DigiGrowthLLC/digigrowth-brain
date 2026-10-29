@@ -165,8 +165,7 @@ batch job die silently; that's a standing rule here too.
       Cloudflare/Google Workspace admin, the *client's* domain registrar (check
       this client's Registrar Platform link on their Resources tab in the OS if
       Dylan doesn't have it handy). This is the one step Dylan has to do outside
-      any DigiGrowth-owned system, same reasoning as the email-marketing
-      setup guide's DNS steps.
+      any DigiGrowth-owned system.
 
    e. **Confirm propagation.** DNS can take anywhere from a few minutes to a few
       hours. Vercel's own Domains settings page shows a live "Valid

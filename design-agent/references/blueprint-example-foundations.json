@@ -19,7 +19,7 @@
  "step_blurbs": [
   "A full website built to rank on Google for EDS, hypermobility and chronic pain in Grand Rapids, with every page leading to a free consultation.",
   "The agent texts back every new inquiry in seconds, by SMS or website chat, answers insurance and pricing questions from your own site, and books the free consultation while you're with a patient.",
-  "Email and SMS campaigns to past patients and people who asked about care but never booked, so the patients you've already earned come back.",
+  "Text campaigns to past patients and people who asked about care but never booked, so the patients you've already earned come back.",
   "Missed calls get an instant text back, unbooked inquiries get followed up, and no-shows get rebooked, automatically."
  ],
  "agent": {
@@ -83,7 +83,7 @@
  },
  "reactivation": {
   "headline": "Bring back the patients you've already earned",
-  "intro": "Chronic pain and hypermobility need care over years, not weeks. Every past patient and every person who asked about care but never booked is already on your list. Regular email and SMS check-ins bring them back, at almost no cost per booking.",
+  "intro": "Chronic pain and hypermobility need care over years, not weeks. Every past patient and every person who asked about care but never booked is already on your list. Regular text check-ins bring them back, at almost no cost per booking.",
   "sms_when": "To past patients and old inquiries, every few months",
   "sms": [
    {
@@ -94,12 +94,7 @@
     "from": "lead",
     "text": "they've been flaring again honestly. do you have anything thursday evening?"
    }
-  ],
-  "email_when": "Monthly, to the whole list",
-  "email": {
-   "subject": "Checking in on you",
-   "body": "Hi Sarah,\n\nA while back you reached out about your joint pain. I wanted to check in and see how you're doing.\n\nIf things have been flaring, I'd love to help. There are no protocols at my clinic: every session is one-on-one with me, gentle, and built around your goals.\n\nI take Original Medicare, BCBS, BCN and more, and I have early morning, evening and weekend times by appointment. Just reply to this email or text me to set up a free consultation call.\n\nSamantha Newell, DPT\nExceptional Solutions PT"
-  }
+  ]
  },
  "included": {
   "package_name": "Foundations",
@@ -120,7 +115,7 @@
    {
     "icon": "database",
     "title": "Database reactivation",
-    "text": "SMS and email campaigns to past patients and old inquiries, written in your own words."
+    "text": "Text campaigns to past patients and old inquiries, written in your own words."
    },
    {
     "icon": "phone",

@@ -215,10 +215,6 @@ class ClientLinkContact(BaseModel):
 class ClientMarketingConfigUpdate(BaseModel):
     twilio_subaccount_sid: Optional[str] = None
     twilio_number: Optional[str] = None
-    email_subdomain: Optional[str] = None
-    email_dns_status: Optional[str] = None
-    gmail_refresh_token: Optional[str] = None
-    gmail_sender_email: Optional[str] = None
     response_ai_enabled: Optional[bool] = None
     response_ai_context: Optional[str] = None
     response_ai_sequence: Optional[list] = None
@@ -238,10 +234,6 @@ class ClientMarketingConfigUpdate(BaseModel):
     call_forward_number: Optional[str] = None
     ad_creative_status: Optional[dict] = None
     guide_progress: Optional[dict] = None
-
-
-class ClientTestEmail(BaseModel):
-    to: str
 
 
 class ClientSmsSequenceUpdate(BaseModel):

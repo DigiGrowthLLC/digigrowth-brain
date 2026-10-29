@@ -39,7 +39,7 @@ Read this before writing any CrosaCore plan, ad, or script.
 - The AI tags leads it can't serve **Unqualified** (out of area, insists on insurance billing), which
   stops all automated messaging to them.
 - Prospect follow-up, appointment reminders and no-show/cancellation sequences run from the portal
-  (SMS + email). Finishing a sequence with no reply tags the lead **Database Reactivation**.
+  (SMS only; DigiGrowth dropped client email 2026-10-28). Finishing a sequence with no reply tags the lead **Database Reactivation**.
 
 ## What the account data has shown (as of 2026-10-05)
 - ~$257 of the $500 budget spent; budget deadline **2026-10-18**.

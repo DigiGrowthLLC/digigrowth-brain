@@ -19,7 +19,7 @@
   "Ads put you in front of Las Vegas adults who've already tried massage, adjustments and PT, and are done living with it.",
   "Every click lands on a page about chronic pain and your free phone consult, not your homepage.",
   "The agent texts and chats with every lead in seconds, answers the insurance and price questions, and books the consult.",
-  "Email and SMS campaigns to the leads and past patients you already have, so the list you've built keeps booking consults.",
+  "Text campaigns to the leads and past patients you already have, so the list you've built keeps booking consults.",
   "Missed calls, no-shows and unbooked leads get followed up automatically, so nothing you paid for leaks out."
  ],
  "ads": {
@@ -178,7 +178,7 @@
  "chat_context": "Advantage Therapy - Manual Physical Therapy, Las Vegas NV. Specializes in manual physical therapy for chronic pain (pain lasting months or years).\n\nClinicians: Dr. Phil Young DPT, CIDN (B.S. Human Movement, Utah State; Doctorate of Physical Therapy, Rocky Mountain University; spent over a decade with chronic back pain himself before finding what worked) and Dr. Monique Lawson DPT, CIDN. Both certified in dry needling and manual manipulation.\n\nApproach: one-on-one, hands-on, 60 full minutes per session. 1) detailed assessment to find the movement, joint, muscle or nerve dysfunction causing the pain, 2) targeted manual therapy based on those findings, 3) prescribed home exercises, 4) reassess and progress as the patient improves. Goal is quick, long-lasting results and a very high success rate of avoiding surgery.\n\nConditions: chronic back pain, neck pain, shoulder pain, TMJ dysfunction, hip pain, plantar fasciitis and other foot pain, radiating pain or numbness into arms/hands/legs/feet, sciatica, bursitis, tendonitis. Athletes and everyday people. Great fit for people who tried PT, chiropractic adjustments, massage or acupuncture without lasting results.\n\nServices: dry needling (with e-stim), neuro/myofascial release, dynamic cupping, joint mobilization, joint manipulation, radial shockwave, focused shockwave, neuromuscular re-education, lumbar traction, cervical traction, kinesiology tape, instrument-assisted soft tissue mobilization (scraping).\n\nFirst step: a FREE phone consult (by text or call) to cover pricing, availability and whether it's a good fit. This is what you book.\n\nPricing (cash-pay): initial evaluation $250 (60 minutes, includes hands-on treatment and a home exercise plan). Follow-up sessions $250, or $800 for a package of 4. Optional home exercise equipment kit $50.\nInsurance: does NOT accept insurance, on purpose (insurance care often means rushed sessions and 10-20+ visits). HSA/FSA cards accepted. Superbills provided for out-of-network reimbursement. Many patients say it costs less in the long run because they get results in a few sessions.\n\nLocation: inside SVG3 Fitness, 6416 Arville St, Las Vegas NV 89118. Hours: Monday to Friday, 8am to 5pm. Contact: text (702) 803-3042 (they text, they don't answer calls), info@advantagetherapy.vegas.\n\nReal Google review (Greg B.): 10 years of low back pain, months of PT without results; pain went from 8/10 to nearly none in the first session and to a lasting 0/10 after 4 more treatments.",
  "reactivation": {
   "headline": "Turn the leads you already have into booked consults",
-  "intro": "Every past patient and every person who asked about care but never booked is already on your list. Regular email and SMS campaigns bring them back, at almost no cost per booking.",
+  "intro": "Every past patient and every person who asked about care but never booked is already on your list. Regular text campaigns bring them back, at almost no cost per booking.",
   "sms_when": "To old leads and past patients, every few months",
   "sms": [
    {
@@ -189,11 +189,6 @@
     "from": "lead",
     "text": "honestly its been creeping back. do you have anything next week?"
    }
-  ],
-  "email_when": "Monthly, to the whole list",
-  "email": {
-   "subject": "Still dealing with that pain?",
-   "body": "Hi Sarah,\n\nA while back you reached out about your low back. If it's still bothering you, we'd love to help.\n\nEvery visit is a full hour, one-on-one with Dr. Phil Young DPT or Dr. Monique Lawson DPT, focused on the root cause.\n\nReply to this email or text us to set up a free phone consult.\n\nThe Advantage Therapy team"
-  }
+  ]
  }
 }

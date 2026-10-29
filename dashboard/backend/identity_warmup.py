@@ -1,9 +1,8 @@
-"""Cross-provider warm-up engine for email_send_identities — sibling to
-email_warmup.py (the per-CLIENT, one-way, Gmail-only warm-up), not a
-modification of it. This engine is keyed by identity_id, spans both Google
-and Microsoft identities, and ramps reputation via REAL threaded
-opener+reply exchanges between identities rather than one-way sends to a
-fixed seed list.
+"""Cross-provider warm-up engine for email_send_identities (DigiGrowth's
+own cold-outreach mailboxes). Keyed by identity_id, spans both Google and
+Microsoft identities, and ramps reputation via REAL threaded opener+reply
+exchanges between identities rather than one-way sends to a fixed seed
+list.
 
 Two independent, idempotent jobs (both registered in main.py) that converge
 into full threads over a few polling cycles:
@@ -24,9 +23,8 @@ into full threads over a few polling cycles:
 Status gating: 'warming' identities are the only ones eligible to be picked
 by email_identities.pick_identity() for real lead sends — that's enforced
 there (status='active' only), not here. An identity is manually promoted
-warming -> active once its ramp completes (no auto-promotion, same
-philosophy as email_warmup.py: gating real-outreach eligibility stays a
-judgment call). 'paused' identities are skipped by both jobs below.
+warming -> active once its ramp completes (no auto-promotion: gating
+real-outreach eligibility stays a judgment call). 'paused' identities are skipped by both jobs below.
 
 Correctness-critical invariant: once an identity is 'active', its inbox
 holds BOTH warm-up cross-thread mail and real prospect replies.
@@ -42,9 +40,8 @@ from datetime import date, datetime, timezone as dt_timezone
 import email_identities
 from db import get_pool
 
-# Capped at 40/day (lowered 2026-09-22 from an earlier 60), matching
-# email_warmup.py's client-side ramp — see that module's comment for why:
-# a single mailbox's sustainable volume tops out ~30-50/day regardless of
+# Capped at 40/day (lowered 2026-09-22 from an earlier 60): a single
+# mailbox's sustainable volume tops out ~30-50/day regardless of
 # warm status. Doubly true here early on with only 2-3 identities per
 # provider: with few partners, all traffic is a narrow A<->B pattern, so
 # keeping absolute volume conservative matters more, not less, until more
@@ -74,8 +71,7 @@ _MAX_REPLIES_PER_TICK = 3
 
 
 def _within_business_hours() -> bool:
-    """Same reasoning as email_warmup.py's _within_business_hours — a
-    mailbox sending/replying at 3am every night looks automated regardless
+    """A mailbox sending/replying at 3am every night looks automated regardless
     of content, volume, or warm-up status. Real humans mostly send Mon-Fri,
     business hours."""
     from zoneinfo import ZoneInfo
@@ -141,8 +137,7 @@ async def get_status(identity_id: int) -> dict | None:
 
 def _roll_day(row: dict, schedule: list[int]) -> dict:
     """Advances current_day/resets sent_today when the calendar date has
-    moved on, and flips to 'complete' once past the schedule length —
-    mirrors email_warmup.py's _roll_day exactly, re-keyed on identity_id."""
+    moved on, and flips to 'complete' once past the schedule length."""
     today = date.today()
     if row["last_sent_date"] == today:
         return row

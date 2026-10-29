@@ -134,7 +134,7 @@ def main():
     for r in resources:
         print(f"  {r['label']}: {r['value']}")
     print("\n## Key config")
-    for k in ("twilio_number", "call_forward_number", "email_subdomain", "email_dns_status", "gmail_sender_email",
+    for k in ("twilio_number", "call_forward_number",
               "meta_ad_account_id", "meta_page_id", "meta_pixel_id", "make_scenario_id", "lead_ads_error",
               "response_ai_enabled", "calendly_event_type_url", "calendly_webhook_error", "ghl_last_webhook_at"):
         print(f"  {k}: {cfg.get(k)}")
