@@ -439,6 +439,7 @@ function SetterModeBar({ followUpCount, onOpenFollowUps, lessonCount, onOpenLess
 // auto mode sends it. GET /sms-setter/follow-ups lists them all.
 
 const phoneDigits = (p) => (p || "").replace(/\D/g, "").slice(-10);
+const INBOX_PAGE = 100;
 
 function fmtInZone(iso, timeZone) {
   try {
@@ -1012,39 +1013,75 @@ export default function InboxPanel({ initialTarget }) {
     })();
   }, []);
 
+  // The list is paged server-side (newest activity first) so a big inbox
+  // doesn't ship and render every thread on each poll; LOAD MORE grows it.
+  // Search and the read filter run on the server too, so they still reach
+  // threads beyond the loaded page.
+  const [pageSize, setPageSize]       = useState(INBOX_PAGE);
+  const [convoTotal, setConvoTotal]   = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [searchQ, setSearchQ]         = useState("");
+
+  useEffect(() => {
+    const id = setTimeout(() => setSearchQ(search.trim()), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  useEffect(() => { setPageSize(INBOX_PAGE); },
+    [channelFilter, timeFilter, tagFilter, statusFilter, stageFilter, readFilter, searchQ]);
+
   const loadConvos = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ channel: channelFilter, since: timeFilter });
+      const params = new URLSearchParams({ channel: channelFilter, since: timeFilter, read: readFilter, limit: String(pageSize) });
       if (tagFilter) params.set("tag", tagFilter);
       if (statusFilter) params.set("contact_status", statusFilter);
       if (stageFilter) params.set("stage", stageFilter);
+      if (searchQ) params.set("q", searchQ);
       const r = await fetch(API(`/inbox/conversations?${params.toString()}`));
-      if (r.ok) setConvos(await r.json());
+      if (r.ok) {
+        const d = await r.json();
+        setConvos(d.rows);
+        setConvoTotal(d.total);
+        setUnreadCount(d.unread_count);
+      }
     } catch {}
     setLoading(false);
-  }, [channelFilter, timeFilter, tagFilter, statusFilter, stageFilter]);
+  }, [channelFilter, timeFilter, tagFilter, statusFilter, stageFilter, readFilter, searchQ, pageSize]);
 
   useEffect(() => {
     loadConvos();
-    const id = setInterval(loadConvos, 15000);
-    return () => clearInterval(id);
+    // Skip polls while the tab is in the background; catch up on return.
+    const id = setInterval(() => { if (!document.hidden) loadConvos(); }, 15000);
+    const onVisible = () => { if (!document.hidden) loadConvos(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVisible); };
   }, [loadConvos]);
 
-  // Deep-link from toasts/dashboard widgets, which only carry a phone number —
-  // resolve it to a contact once the conversation list has loaded.
+  // Phone-only links (toasts, dashboard widgets, setter lessons/follow-ups)
+  // may point at a thread outside the loaded page — ask the server.
+  const openByPhone = async (phone) => {
+    const want = phoneDigits(phone);
+    let match = convos.find(c => phoneDigits(c.phone) === want);
+    if (!match && want.length >= 3) {
+      try {
+        const r = await fetch(API(`/inbox/conversations?${new URLSearchParams({ q: want, limit: "20" })}`));
+        if (r.ok) match = (await r.json()).rows.find(c => phoneDigits(c.phone) === want);
+      } catch {}
+    }
+    if (match) openThread(match.contact_id);
+    return !!match;
+  };
+
   useEffect(() => {
     if (!initialTarget || autoOpenedRef.current) return;
     if (initialTarget.contactId) {
       autoOpenedRef.current = true;
       openThread(initialTarget.contactId);
-    } else if (initialTarget.phone && convos.length > 0) {
-      const match = convos.find(c => c.phone === initialTarget.phone);
-      if (match) {
-        autoOpenedRef.current = true;
-        openThread(match.contact_id);
-      }
+    } else if (initialTarget.phone) {
+      autoOpenedRef.current = true;
+      openByPhone(initialTarget.phone);
     }
-  }, [initialTarget, convos]);
+  }, [initialTarget]);
 
   // Silently refetch the currently-open thread — used by background polling
   // and post-action refreshes, where blanking the view first (openThread's
@@ -1072,7 +1109,7 @@ export default function InboxPanel({ initialTarget }) {
 
   useEffect(() => {
     if (!selected) return;
-    const id = setInterval(() => refreshThread(selected), 8000);
+    const id = setInterval(() => { if (!document.hidden) refreshThread(selected); }, 8000);
     return () => clearInterval(id);
   }, [selected]);
 
@@ -1098,7 +1135,7 @@ export default function InboxPanel({ initialTarget }) {
     const phone = thread?.phone;
     if (!phone) return;
     loadAiDraft(phone);
-    const id = setInterval(() => loadAiDraft(phone), 8000);
+    const id = setInterval(() => { if (!document.hidden) loadAiDraft(phone); }, 8000);
     return () => clearInterval(id);
   }, [thread?.contact_id, thread?.phone, loadAiDraft]);
 
@@ -1302,23 +1339,9 @@ export default function InboxPanel({ initialTarget }) {
     setDeleting(false);
   };
 
-  const unreadCount = convos.filter(c => c.unread).length;
-  // Search matches name, practice, email, last message, and phone by digits
-  // (so "331303", "(331) 303" and "+1331303..." all find the same thread).
-  const searchTerm = search.trim().toLowerCase();
-  const searchDigits = searchTerm.replace(/\D/g, "");
-  const matchesSearch = (c) => {
-    if (!searchTerm) return true;
-    const text = [c.owner, c.business, c.email, c.last_message].filter(Boolean).join(" ").toLowerCase();
-    if (text.includes(searchTerm)) return true;
-    return searchDigits.length >= 3 && (c.phone || "").replace(/\D/g, "").includes(searchDigits);
-  };
-  const filteredConvos = convos.filter(c => {
-    if (!matchesSearch(c)) return false;
-    if (readFilter === "unread") return !!c.unread;
-    if (readFilter === "read") return !c.unread;
-    return true;
-  });
+  // Search (name, practice, email, any message text, phone by digits) and
+  // the read filter are applied server-side — see loadConvos.
+  const filteredConvos = convos;
 
   const selectStyle = {
     fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
@@ -1377,7 +1400,7 @@ export default function InboxPanel({ initialTarget }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80" }}>
-              {filteredConvos.length} THREADS
+              {convoTotal} THREADS
             </div>
             <button
               onClick={() => setComposing(true)}
@@ -1407,8 +1430,8 @@ export default function InboxPanel({ initialTarget }) {
             onChanged={loadLessons}
             onOpen={(l) => {
               setLessonsOpen(false);
-              const match = l.contact_id || convos.find(c => phoneDigits(c.phone) === phoneDigits(l.phone))?.contact_id;
-              if (match) openThread(match);
+              if (l.contact_id) openThread(l.contact_id);
+              else openByPhone(l.phone);
             }}
           />
         )}
@@ -1419,8 +1442,8 @@ export default function InboxPanel({ initialTarget }) {
             onChanged={loadFollowUps}
             onOpen={(f) => {
               setFollowUpsOpen(false);
-              const match = f.contact_id || convos.find(c => phoneDigits(c.phone) === phoneDigits(f.phone))?.contact_id;
-              if (match) openThread(match);
+              if (f.contact_id) openThread(f.contact_id);
+              else openByPhone(f.phone);
             }}
           />
         )}
@@ -1607,6 +1630,16 @@ export default function InboxPanel({ initialTarget }) {
               </button>
             );
           })}
+          {convos.length < convoTotal && (
+            <button onClick={() => setPageSize(n => n + INBOX_PAGE)}
+              style={{
+                width: "100%", padding: "12px 16px", cursor: "pointer",
+                background: "transparent", border: "none", color: "#3a7bd5",
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em",
+              }}>
+              LOAD MORE ({convoTotal - convos.length} OLDER)
+            </button>
+          )}
         </div>
       </aside>
 

@@ -517,7 +517,9 @@ def _merge_contact_row(grouped: dict, r: dict, channel: str):
         g["channels"].append(channel)
     if g["updated_at"] is None or (r["last_message_at"] and r["last_message_at"] > g["updated_at"]):
         g["updated_at"] = r["last_message_at"]
-        g["last_message"] = r["last_message"]
+        # Which conversation holds the newest message — its body is fetched
+        # afterwards, only for the page of rows actually returned.
+        g["_last_key"] = (channel, r["conv_phone"] if channel == "sms" else r["thread_id"])
     if r.get("unread"):
         g["unread"] = True
     if channel == "sms":
@@ -586,6 +588,9 @@ async def get_email_sequence(contact_id: str):
     return {"ok": True, "sequence_title": "Email Handoff", "steps": steps}
 
 
+_PREVIEW_CHARS = 300
+
+
 @router.get("/inbox/conversations")
 async def list_inbox_conversations(
     channel: str = "all",
@@ -593,10 +598,38 @@ async def list_inbox_conversations(
     tag: Optional[str] = None,
     contact_status: Optional[str] = None,
     stage: Optional[str] = None,
+    q: Optional[str] = None,
+    read: str = "all",
+    limit: int = 100,
+    offset: int = 0,
 ):
+    """One page of the contact-grouped Inbox list, newest activity first.
+
+    Returns {rows, total, unread_count}: `total` counts every match for the
+    filters (so the UI can offer LOAD MORE), `unread_count` ignores the
+    `read` filter (it labels the UNREAD tab). The grouping/sorting runs over
+    every matching conversation using only indexed timestamps; message
+    bodies are fetched for the returned page alone.
+    """
     pool = await get_pool()
     grouped: dict = {}
+    term = (q or "").strip().lower()
+    digits = re.sub(r"\D", "", term)
     async with pool.acquire() as conn:
+        # Search also matches any message text (not just the newest), so an
+        # old thread is findable by what was said in it.
+        text_hits: set = set()
+        if term:
+            hit_rows = await conn.fetch(
+                """
+                SELECT contact_id FROM sms_messages WHERE contact_id IS NOT NULL AND body ILIKE $1
+                UNION
+                SELECT contact_id FROM email_messages WHERE contact_id IS NOT NULL AND body ILIKE $1
+                """,
+                f"%{term}%",
+            )
+            text_hits = {r["contact_id"] for r in hit_rows}
+
         if channel in ("all", "sms"):
             # A client's own portal-managed lead (client_id set, not the
             # anchor) shouldn't show up mixed into Dylan's internal Inbox —
@@ -604,10 +637,7 @@ async def list_inbox_conversations(
             clauses = ["sc.contact_id IS NOT NULL", "(c.client_id IS NULL OR c.is_client_anchor)"]
             args: list = []
             if since in _SINCE_INTERVAL:
-                clauses.append(
-                    f"""(SELECT MAX(sent_at) FROM sms_messages WHERE phone = sc.phone)
-                        >= now() - interval '{_SINCE_INTERVAL[since]}'"""
-                )
+                clauses.append(f"lm.last_message_at >= now() - interval '{_SINCE_INTERVAL[since]}'")
             if tag:
                 args.append(tag)
                 clauses.append(f"${len(args)} = ANY(c.tags)")
@@ -620,12 +650,10 @@ async def list_inbox_conversations(
                 clauses.append(f"sc.stage_{stage} = true")
             sms_rows = await conn.fetch(
                 f"""
-                SELECT sc.contact_id, sc.status, sc.disposition,
+                SELECT sc.contact_id, sc.status, sc.disposition, sc.phone AS conv_phone,
                        sc.stage_initial_outreach, sc.stage_replied, sc.stage_dm_reached, sc.stage_primed, sc.stage_engaged, sc.stage_interested,
                        c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status, c.client_id,
-                       (SELECT body FROM sms_messages WHERE phone = sc.phone
-                        ORDER BY sent_at DESC LIMIT 1) AS last_message,
-                       (SELECT MAX(sent_at) FROM sms_messages WHERE phone = sc.phone) AS last_message_at,
+                       lm.last_message_at,
                        EXISTS (
                            SELECT 1 FROM sms_messages
                            WHERE phone = sc.phone AND direction = 'inbound'
@@ -633,6 +661,9 @@ async def list_inbox_conversations(
                        ) AS unread
                 FROM sms_conversations sc
                 LEFT JOIN contacts c ON c.id = sc.contact_id
+                LEFT JOIN LATERAL (
+                    SELECT MAX(sent_at) AS last_message_at FROM sms_messages WHERE phone = sc.phone
+                ) lm ON true
                 WHERE {' AND '.join(clauses)}
                 """,
                 *args,
@@ -647,10 +678,7 @@ async def list_inbox_conversations(
             clauses = ["ec.contact_id IS NOT NULL", "(c.client_id IS NULL OR c.is_client_anchor)"]
             args = []
             if since in _SINCE_INTERVAL:
-                clauses.append(
-                    f"""(SELECT MAX(sent_at) FROM email_messages WHERE thread_id = ec.thread_id)
-                        >= now() - interval '{_SINCE_INTERVAL[since]}'"""
-                )
+                clauses.append(f"lm.last_message_at >= now() - interval '{_SINCE_INTERVAL[since]}'")
             if tag:
                 args.append(tag)
                 clauses.append(f"${len(args)} = ANY(c.tags)")
@@ -661,11 +689,9 @@ async def list_inbox_conversations(
                 clauses.append("ec.disposition = 'not_interested'")
             email_rows = await conn.fetch(
                 f"""
-                SELECT ec.contact_id, ec.status, ec.disposition,
+                SELECT ec.contact_id, ec.status, ec.disposition, ec.thread_id,
                        c.business, c.owner, c.phone, c.email, c.tags, c.status AS contact_status, c.client_id,
-                       (SELECT body FROM email_messages WHERE thread_id = ec.thread_id
-                        ORDER BY sent_at DESC LIMIT 1) AS last_message,
-                       (SELECT MAX(sent_at) FROM email_messages WHERE thread_id = ec.thread_id) AS last_message_at,
+                       lm.last_message_at,
                        EXISTS (
                            SELECT 1 FROM email_messages
                            WHERE thread_id = ec.thread_id AND direction = 'inbound'
@@ -673,6 +699,9 @@ async def list_inbox_conversations(
                        ) AS unread
                 FROM email_conversations ec
                 LEFT JOIN contacts c ON c.id = ec.contact_id
+                LEFT JOIN LATERAL (
+                    SELECT MAX(sent_at) AS last_message_at FROM email_messages WHERE thread_id = ec.thread_id
+                ) lm ON true
                 WHERE {' AND '.join(clauses)}
                 """,
                 *args,
@@ -680,20 +709,62 @@ async def list_inbox_conversations(
             for r in email_rows:
                 _merge_contact_row(grouped, dict(r), "email")
 
-        if grouped:
+        rows = list(grouped.values())
+        if term:
+            def _matches(g):
+                if g["contact_id"] in text_hits:
+                    return True
+                hay = " ".join(filter(None, [g["owner"], g["business"], g["email"]])).lower()
+                if term in hay:
+                    return True
+                return len(digits) >= 3 and digits in re.sub(r"\D", "", g["phone"] or "")
+            rows = [g for g in rows if _matches(g)]
+        unread_count = sum(1 for g in rows if g["unread"])
+        if read == "unread":
+            rows = [g for g in rows if g["unread"]]
+        elif read == "read":
+            rows = [g for g in rows if not g["unread"]]
+        rows.sort(key=lambda r: r["updated_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+        total = len(rows)
+        page = rows[max(offset, 0): max(offset, 0) + max(1, min(limit, 500))]
+
+        if page:
             handoff_rows = await conn.fetch(
                 """
                 SELECT contact_id, touch1_sent_at, touch2_sent_at, touch3_sent_at, stage_replied
                 FROM email_handoff_state WHERE contact_id = ANY($1::text[])
                 """,
-                list(grouped.keys()),
+                [g["contact_id"] for g in page],
             )
             for r in handoff_rows:
                 _merge_email_handoff_row(grouped, dict(r))
 
-    rows = list(grouped.values())
-    rows.sort(key=lambda r: r["updated_at"] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    return rows
+            # Last-message previews, for this page only (one indexed lookup
+            # per conversation, truncated — email bodies can be large HTML).
+            keys = [g.get("_last_key") for g in page]
+            sms_keys = [k[1] for k in keys if k and k[0] == "sms"]
+            email_keys = [k[1] for k in keys if k and k[0] == "email"]
+            previews: dict = {}
+            if sms_keys:
+                for r in await conn.fetch(
+                    f"""SELECT DISTINCT ON (phone) phone, left(body, {_PREVIEW_CHARS}) AS body
+                        FROM sms_messages WHERE phone = ANY($1::text[]) ORDER BY phone, sent_at DESC""",
+                    sms_keys,
+                ):
+                    previews[("sms", r["phone"])] = r["body"]
+            if email_keys:
+                for r in await conn.fetch(
+                    f"""SELECT DISTINCT ON (thread_id) thread_id, left(body, {_PREVIEW_CHARS}) AS body
+                        FROM email_messages WHERE thread_id = ANY($1::text[]) ORDER BY thread_id, sent_at DESC""",
+                    email_keys,
+                ):
+                    previews[("email", r["thread_id"])] = r["body"]
+            for g in page:
+                g["last_message"] = previews.get(g.get("_last_key"))
+
+    for g in page:
+        g.pop("_last_key", None)
+    return {"rows": page, "total": total, "unread_count": unread_count}
 
 
 @router.get("/inbox/contact/{contact_id}")
