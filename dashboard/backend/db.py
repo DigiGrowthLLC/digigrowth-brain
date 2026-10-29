@@ -1231,6 +1231,32 @@ async def _create_schema(pool: asyncpg.Pool):
             );
             CREATE INDEX IF NOT EXISTS idx_identity_warmup_log_from ON identity_warmup_log(from_identity_id, sent_at DESC);
             CREATE INDEX IF NOT EXISTS idx_identity_warmup_log_thread ON identity_warmup_log(thread_key);
+            -- Instantly-style warm-up (2026-10-29): per-message content,
+            -- thread turn, and where it landed at the recipient (placement =
+            -- 'inbox' | 'promotions' | 'spam'), which drives the health score.
+            ALTER TABLE identity_warmup_log ADD COLUMN IF NOT EXISTS subject TEXT;
+            ALTER TABLE identity_warmup_log ADD COLUMN IF NOT EXISTS body TEXT;
+            ALTER TABLE identity_warmup_log ADD COLUMN IF NOT EXISTS turn INTEGER NOT NULL DEFAULT 1;
+            ALTER TABLE identity_warmup_log ADD COLUMN IF NOT EXISTS planned_turns INTEGER;
+            ALTER TABLE identity_warmup_log ADD COLUMN IF NOT EXISTS placement TEXT;
+            ALTER TABLE identity_warmup_log ADD COLUMN IF NOT EXISTS received_at TIMESTAMPTZ;
+            ALTER TABLE identity_warmup_log ADD COLUMN IF NOT EXISTS received_message_id TEXT;
+            ALTER TABLE identity_warmup_log ADD COLUMN IF NOT EXISTS rescued BOOLEAN NOT NULL DEFAULT false;
+            CREATE INDEX IF NOT EXISTS idx_identity_warmup_log_received ON identity_warmup_log(from_identity_id, received_at DESC);
+            -- Pre-2026-10-29 replies were always the 2nd message of a thread.
+            UPDATE identity_warmup_log SET turn = 2
+                WHERE direction = 'reply' AND turn = 1 AND planned_turns IS NULL;
+            -- Daily health check results (identity_warmup.run_health_check).
+            ALTER TABLE email_send_identities ADD COLUMN IF NOT EXISTS health_score NUMERIC;
+            ALTER TABLE email_send_identities ADD COLUMN IF NOT EXISTS health_samples INTEGER;
+            ALTER TABLE email_send_identities ADD COLUMN IF NOT EXISTS promotions_rate NUMERIC;
+            ALTER TABLE email_send_identities ADD COLUMN IF NOT EXISTS bounce_rate NUMERIC;
+            ALTER TABLE email_send_identities ADD COLUMN IF NOT EXISTS health_checked_at TIMESTAMPTZ;
+            ALTER TABLE email_send_identities ADD COLUMN IF NOT EXISTS demoted_at TIMESTAMPTZ;
+            ALTER TABLE email_send_identities ADD COLUMN IF NOT EXISTS demoted_reason TEXT;
+            -- Free pre-send address checks (email_verify.py): why a Touch 1
+            -- was never sent.
+            ALTER TABLE email_handoff_state ADD COLUMN IF NOT EXISTS skip_reason TEXT;
 
             -- DMARC report summaries for the outreach domains, parsed by the
             -- EA Daily Briefing out of the DMARC emails landing in

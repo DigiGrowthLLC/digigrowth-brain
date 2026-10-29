@@ -268,7 +268,7 @@ export default function IdentityWarmupModal({ onClose }) {
         </div>
 
         <div style={{ margin: "10px 24px 0", fontSize: 11, color: "#3a5a80", flexShrink: 0 }}>
-          New identities start "warming" — cross-emailing each other with real threaded replies — and are never used for real leads until manually promoted to "active".
+          Every mailbox here (partners included) warms the others up, Instantly-style: AI-written threaded conversations, spam/Promotions rescue, open + mark important. Warm-up never stops, even on active mailboxes. Health = share of its warm-up mail that stayed out of spam (last 7 days); an active mailbox under 90% or over 8% bounces is pulled from sending automatically. New identities stay "warming" until manually promoted to "active".
         </div>
 
         {err && (
@@ -287,7 +287,7 @@ export default function IdentityWarmupModal({ onClose }) {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "0.5px solid #1a2540" }}>
-                  {["Identity", "Provider", "Status", "Day", "Sent Today", "Last Activity", ""].map(h => (
+                  {["Identity", "Provider", "Status", "Day", "Sent Today", "Health 7d", "Bounces", "Last Activity", ""].map(h => (
                     <th key={h} style={{
                       padding: "6px 10px", textAlign: "left",
                       fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
@@ -312,6 +312,26 @@ export default function IdentityWarmupModal({ onClose }) {
                     </td>
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>
                       {r.warmup_status ? `${r.sent_today || 0} / ${r.day_target ?? "—"}` : "—"}
+                    </td>
+                    <td style={{ padding: "8px 10px", fontSize: 11 }} title={r.demoted_reason ? `Pulled from sending: ${r.demoted_reason}` : ""}>
+                      {r.identity_status === "partner" || r.health_score == null ? (
+                        <span style={{ color: "#5a6f8f" }}>—</span>
+                      ) : (
+                        <>
+                          <span style={{ color: r.health_score >= (r.health_floor || 90) ? "#14c882" : "#e05555", fontWeight: 600 }}>
+                            {r.health_score}%
+                          </span>
+                          <div style={{ fontSize: 9, color: "#5a6f8f" }}>
+                            {r.health_samples} landed{r.promotions_rate ? ` · ${r.promotions_rate}% promo` : ""}
+                          </div>
+                        </>
+                      )}
+                      {r.demoted_reason && r.identity_status === "warming" && (
+                        <div style={{ fontSize: 9, color: "#e05555" }}>pulled from sending</div>
+                      )}
+                    </td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: r.bounce_rate > 8 ? "#e05555" : "#7a94b8" }}>
+                      {r.bounce_rate == null ? "—" : `${r.bounce_rate}%`}
                     </td>
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{fmt(r.last_sent_at)}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right", whiteSpace: "nowrap" }}>

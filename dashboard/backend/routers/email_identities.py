@@ -12,7 +12,8 @@ section and the IdentityWarmupModal.jsx sequence view.
   POST   /api/email-identities/{id}/pause         — pause (excluded from sends + warm-up)
   POST   /api/email-identities/{id}/activate      — promote warming -> active
   GET    /api/email-identities/warmup-sequence    — sequence-view data
-  GET    /api/email-identities/domain-health      — DNS checks + DMARC reports per sending domain
+  POST   /api/email-identities/health-check       — run the daily health check now
+  GET    /api/email-identities/domain-health      — DNS checks, blacklists + DMARC reports per sending domain
   POST   /api/email-identities/domain-health/sync — pull pending DMARC summaries from GitHub now
 """
 from fastapi import APIRouter, HTTPException
@@ -31,7 +32,8 @@ async def list_identities():
         rows = await conn.fetch(
             """
             SELECT s.id, s.provider, s.domain, s.mailbox_email, s.display_name, s.status,
-                   s.activated_at, s.created_at,
+                   s.activated_at, s.created_at, s.health_score, s.health_samples, s.promotions_rate,
+                   s.bounce_rate, s.health_checked_at, s.demoted_at, s.demoted_reason,
                    w.status AS warmup_status, w.current_day, w.sent_today, w.replied_today,
                    w.last_sent_at, w.started_at, w.completed_at
             FROM email_send_identities s
@@ -148,7 +150,8 @@ async def activate_identity(identity_id: int):
         if await conn.fetchval("SELECT status FROM email_send_identities WHERE id = $1", identity_id) == "partner":
             raise HTTPException(status_code=400, detail="warm-up partner mailboxes can't be activated for outreach")
         row = await conn.fetchrow(
-            "UPDATE email_send_identities SET status = 'active', activated_at = now(), updated_at = now() "
+            "UPDATE email_send_identities SET status = 'active', activated_at = now(), demoted_at = NULL, "
+            "demoted_reason = NULL, updated_at = now() "
             "WHERE id = $1 RETURNING *",
             identity_id,
         )
@@ -167,6 +170,10 @@ async def warmup_sequence():
         rows = await conn.fetch(
             """
             SELECT s.id, s.provider, s.mailbox_email, s.display_name, s.status AS identity_status,
+                   s.health_score, s.health_samples, s.promotions_rate, s.bounce_rate, s.health_checked_at,
+                   s.demoted_reason,
+                   (SELECT count(*) FROM identity_warmup_log l WHERE l.from_identity_id = s.id
+                      AND l.sent_at > now() - interval '24 hours') AS warmup_sent_24h,
                    w.status AS warmup_status, w.current_day, w.sent_today, w.replied_today,
                    w.last_sent_at, w.started_at, w.completed_at
             FROM email_send_identities s
@@ -174,15 +181,23 @@ async def warmup_sequence():
             ORDER BY s.created_at
             """
         )
-    schedule = await identity_warmup.get_schedule()
+    settings = await identity_warmup.get_settings()
     result = []
     for r in rows:
         row = dict(r)
-        day = row["current_day"] or 1
-        row["day_target"] = schedule[min(day, len(schedule)) - 1] if row["warmup_status"] else None
-        row["total_days"] = len(schedule)
+        if row["identity_status"] == "partner":
+            row["day_target"] = settings["partner_daily"]
+        else:
+            row["day_target"] = identity_warmup.day_target(row["current_day"], settings) if row["warmup_status"] else None
+        row["total_days"] = identity_warmup.ramp_days(settings)
+        row["health_floor"] = identity_warmup.HEALTH_FLOOR
         result.append(row)
     return result
+
+
+@router.post("/email-identities/health-check")
+async def run_health_check():
+    return {"results": await identity_warmup.run_health_check()}
 
 
 @router.get("/email-identities/domain-health")

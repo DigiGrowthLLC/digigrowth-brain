@@ -5,6 +5,7 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 ## Directory Structure
 
 - `context/offer.md` — **the current DigiGrowth offer** (PT patient acquisition: prepaid $49 assessments, pay per booking, 7-10 paid assessments in 30 days, 7 guaranteed, standard vs. 3-clinic pilot pricing). Single source of truth: anything that states the offer, price, guarantee or pilot terms must match it.
+- `context/cold-email-deliverability.md` — **cold email deliverability SOP** (warm-up, caps, sending checklist) plus DigiGrowth's current gaps against it. Read before touching email identities, sequence copy/caps, DNS or the video link.
 - `context/positioning.md` — **how the offer is framed** in website/conversion copy: guarantee leads, the "Digital Makeover" is the named-but-never-explained mechanism behind it (builds curiosity for the call). Framing only; terms still come from `offer.md`.
 
 - `dashboard/frontend/src/panels/` — React panel components (one per nav tab)

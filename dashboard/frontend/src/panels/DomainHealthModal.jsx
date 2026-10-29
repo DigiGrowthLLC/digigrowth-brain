@@ -121,6 +121,15 @@ function DomainCard({ d }) {
         <DnsBadge label="DKIM" check={d.dns?.dkim} />
         <DnsBadge label="DMARC" check={d.dns?.dmarc} />
         <DnsBadge label="MX" check={d.dns?.mx} />
+        {d.blacklists && (() => {
+          const listed = Object.keys(d.blacklists).filter(k => d.blacklists[k]);
+          return (
+            <DnsBadge label="BLACKLISTS" check={{
+              ok: listed.length === 0,
+              detail: listed.length ? `Listed on: ${listed.join(", ")}` : `Clean on ${Object.keys(d.blacklists).join(", ")}`,
+            }} />
+          );
+        })()}
       </div>
 
       {reports.length === 0 ? (

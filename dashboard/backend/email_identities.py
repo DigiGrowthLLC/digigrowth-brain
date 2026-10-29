@@ -159,7 +159,14 @@ def _send_via_gmail(identity: dict, to: str, subject: str, body: str,
 
 # ── Microsoft identity sending (new — no existing pattern in this repo) ──
 
-def _graph_access_token(identity: dict) -> str:
+_GRAPH_SCOPES = ["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/Mail.Read"]
+# Moving warm-up mail out of Junk / marking it read+important needs
+# Mail.ReadWrite, which only mailboxes re-consented with reauth_microsoft.py
+# since 2026-10-29 have. Without it, placement is still measured, just not fixed.
+_GRAPH_RW_SCOPES = ["https://graph.microsoft.com/Mail.ReadWrite", "https://graph.microsoft.com/Mail.Send"]
+
+
+def _graph_access_token(identity: dict, scopes: list[str] | None = None) -> str:
     import msal
 
     for key in ("MS_CLIENT_ID", "MS_CLIENT_SECRET"):
@@ -175,10 +182,7 @@ def _graph_access_token(identity: dict) -> str:
         client_credential=os.environ["MS_CLIENT_SECRET"],
         authority=f"https://login.microsoftonline.com/{tenant_id}",
     )
-    result = app.acquire_token_by_refresh_token(
-        identity["oauth_refresh_token"],
-        scopes=["https://graph.microsoft.com/Mail.Send", "https://graph.microsoft.com/Mail.Read"],
-    )
+    result = app.acquire_token_by_refresh_token(identity["oauth_refresh_token"], scopes=scopes or _GRAPH_SCOPES)
     if "access_token" not in result:
         raise RuntimeError(f"Graph token refresh failed: {result.get('error_description', result)}")
     return result["access_token"]
@@ -350,6 +354,46 @@ def _graph_raw_messages(identity: dict, since_ts: int) -> list[dict]:
     return out
 
 
+_BOUNCE_FROM_RE = re.compile(r"mailer-daemon|postmaster|mail delivery|microsoftexchange", re.I)
+_BOUNCE_SUBJECT_RE = re.compile(
+    r"undeliverable|delivery status notification|mail delivery failed|returned mail|"
+    r"delivery has failed|failure notice|could not be delivered|address not found",
+    re.I,
+)
+
+
+def _looks_like_bounce(from_addr: str, subject: str) -> bool:
+    return bool(_BOUNCE_FROM_RE.search(from_addr or "") or _BOUNCE_SUBJECT_RE.search(subject or ""))
+
+
+async def _record_bounce(conn, identity: dict, msg: dict, contact_by_email: dict):
+    """A cold send from this identity bounced: mark that send bounced (feeds
+    the identity's bounce rate in identity_warmup.run_health_check) and stop
+    the rest of the prospect's Email Handoff sequence — there's no point
+    following up on an address that doesn't exist. The notice quotes the
+    failed recipient somewhere in its body; match it against known contacts."""
+    body = (msg.get("body") or "").lower()
+    for email, contact_id in contact_by_email.items():
+        if email and email in body:
+            await conn.execute(
+                """UPDATE email_messages SET bounced_at = now()
+                   WHERE id = (
+                       SELECT id FROM email_messages
+                       WHERE contact_id = $1 AND direction = 'outbound' AND bounced_at IS NULL
+                         AND thread_id LIKE $2
+                       ORDER BY sent_at DESC LIMIT 1
+                   )""",
+                contact_id, f"identity-{identity['id']}-%",
+            )
+            await conn.execute(
+                "UPDATE email_handoff_state SET stopped_at = coalesce(stopped_at, now()), "
+                "skip_reason = coalesce(skip_reason, 'bounced'), updated_at = now() WHERE contact_id = $1",
+                contact_id,
+            )
+            print(f"[email_identities] bounce recorded for {email} on {identity['mailbox_email']}")
+            return
+
+
 def _forward_address() -> str:
     return os.environ.get("REPLY_FORWARD_EMAIL") or integrations.EXPECTED_SENDER_EMAIL
 
@@ -430,6 +474,10 @@ async def sync_identity_inbox(identity: dict) -> dict:
             if identity["status"] == "partner":
                 continue  # a partner is a personal inbox — only warm-up mail is ours to touch
 
+            if _looks_like_bounce(from_addr, msg["subject"]):
+                await _record_bounce(conn, identity, msg, contact_by_email)
+                continue
+
             if from_addr not in contact_by_email:
                 continue  # not a known prospect and not a sibling identity — skip
 
@@ -488,3 +536,221 @@ async def sync_identity_inbox(identity: dict) -> dict:
             )
 
     return {"lead_replies": lead_replies, "warmup_candidates": warmup_candidates}
+
+
+# ── Warm-up mailbox actions (identity_warmup.py) ──────────────────────────
+#
+# What Instantly does on the receiving side of every warm-up email: find it
+# wherever it landed (inbox, Promotions, spam), record that placement (the
+# health score), pull it out of spam / Promotions, open it, mark it
+# important, and file it under a "Warmup" label out of the way. Replies go
+# out threaded under the original message. Gmail mailboxes can do all of
+# this with the existing gmail.modify scope; Microsoft ones need
+# Mail.ReadWrite to move/mark (see _GRAPH_RW_SCOPES).
+
+WARMUP_LABEL = "Warmup"
+_WARMUP_LOOKBACK_DAYS = 3
+_label_ids: dict[str, str] = {}
+
+# Newsletter subscriptions (the SOP's inbound-volume step) and DMARC reports
+# are archived + marked read so the inbox only shows prospect mail.
+_NEWSLETTER_QUERY = (
+    "in:inbox (from:(axios.com OR thedailybeast.com OR buzzfeed.com OR theskimm.com OR morningbrew.com) "
+    "OR (subject:dmarc subject:report))"
+)
+
+
+def _gmail_label_id(svc, mailbox: str) -> str:
+    if mailbox in _label_ids:
+        return _label_ids[mailbox]
+    labels = svc.users().labels().list(userId="me").execute().get("labels", [])
+    label = next((l for l in labels if l["name"] == WARMUP_LABEL), None)
+    if not label:
+        body = {"name": WARMUP_LABEL, "labelListVisibility": "labelShow", "messageListVisibility": "show"}
+        try:
+            label = svc.users().labels().create(userId="me", body={
+                **body, "color": {"backgroundColor": "#cccccc", "textColor": "#000000"},  # grey, per the SOP
+            }).execute()
+        except Exception:
+            label = svc.users().labels().create(userId="me", body=body).execute()
+    _label_ids[mailbox] = label["id"]
+    return label["id"]
+
+
+def _gmail_placement(labels: list[str]) -> str:
+    if "SPAM" in labels:
+        return "spam"
+    if any(l in labels for l in ("CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_SOCIAL", "CATEGORY_FORUMS")):
+        return "promotions"
+    return "inbox"
+
+
+def _gmail_warmup_scan(identity: dict, senders: list[str]) -> list[dict]:
+    svc = _identity_gmail_service(identity["oauth_refresh_token"])
+    label_id = _gmail_label_id(svc, identity["mailbox_email"])
+    q = (f"from:({' OR '.join(senders)}) in:anywhere -in:trash -in:sent "
+         f"-label:{WARMUP_LABEL} newer_than:{_WARMUP_LOOKBACK_DAYS}d")
+    res = svc.users().messages().list(userId="me", q=q, maxResults=50, includeSpamTrash=True).execute()
+    out = []
+    for m in res.get("messages", []):
+        full = svc.users().messages().get(userId="me", id=m["id"], format="full").execute()
+        headers = {h["name"].lower(): h["value"] for h in full["payload"].get("headers", [])}
+        out.append({
+            "message_id": m["id"],
+            "from_addr": _extract_email(headers.get("from", "")),
+            "subject": headers.get("subject", ""),
+            "body": integrations._extract_body(full["payload"]) or full.get("snippet", ""),
+            "placement": _gmail_placement(full.get("labelIds", [])),
+            "label_id": label_id,
+        })
+    return out
+
+
+def _gmail_warmup_engage(identity: dict, msg: dict) -> bool:
+    """Not-spam / move-to-Primary first (that's the positive signal), then
+    open, mark important, and file under the Warmup label."""
+    svc = _identity_gmail_service(identity["oauth_refresh_token"])
+    rescued = False
+    if msg["placement"] == "spam":
+        svc.users().messages().modify(userId="me", id=msg["message_id"],
+                                      body={"removeLabelIds": ["SPAM"], "addLabelIds": ["INBOX"]}).execute()
+        rescued = True
+    elif msg["placement"] == "promotions":
+        svc.users().messages().modify(userId="me", id=msg["message_id"], body={
+            "removeLabelIds": ["CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"],
+            "addLabelIds": ["CATEGORY_PERSONAL"],
+        }).execute()
+        rescued = True
+    svc.users().messages().modify(userId="me", id=msg["message_id"], body={
+        "removeLabelIds": ["UNREAD", "INBOX"], "addLabelIds": ["IMPORTANT", msg["label_id"]],
+    }).execute()
+    return rescued
+
+
+def _gmail_warmup_reply(identity: dict, received_message_id: str, body: str) -> str:
+    svc = _identity_gmail_service(identity["oauth_refresh_token"])
+    full = svc.users().messages().get(userId="me", id=received_message_id, format="metadata",
+                                      metadataHeaders=["From", "Subject", "Message-ID", "References"]).execute()
+    headers = {h["name"].lower(): h["value"] for h in full["payload"].get("headers", [])}
+    subject = headers.get("subject", "")
+    msg = MIMEText(body)
+    msg["to"] = headers.get("from", "")
+    msg["subject"] = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+    if headers.get("message-id"):
+        msg["In-Reply-To"] = headers["message-id"]
+        msg["References"] = f"{headers.get('references', '')} {headers['message-id']}".strip()
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    sent = svc.users().messages().send(userId="me", body={"raw": raw, "threadId": full["threadId"]}).execute()
+    return sent["id"]
+
+
+def _gmail_archive_newsletters(identity: dict) -> int:
+    svc = _identity_gmail_service(identity["oauth_refresh_token"])
+    ids = [m["id"] for m in svc.users().messages().list(userId="me", q=_NEWSLETTER_QUERY, maxResults=100)
+           .execute().get("messages", [])]
+    if ids:
+        svc.users().messages().batchModify(userId="me", body={"ids": ids, "removeLabelIds": ["INBOX", "UNREAD"]}).execute()
+    return len(ids)
+
+
+def _graph_warmup_scan(identity: dict, senders: list[str]) -> list[dict]:
+    import httpx
+
+    token = _graph_access_token(identity)
+    since = (datetime.now(dt_timezone.utc) - timedelta(days=_WARMUP_LOOKBACK_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    wanted = {s.lower() for s in senders}
+    out = []
+    for folder in ("inbox", "junkemail"):
+        resp = httpx.get(
+            f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder}/messages",
+            headers={"Authorization": f"Bearer {token}", "Prefer": 'outlook.body-content-type="text"'},
+            params={
+                "$filter": f"receivedDateTime ge {since}",
+                "$select": "id,from,subject,body,inferenceClassification,isRead",
+                "$top": 50,
+            },
+            timeout=20,
+        )
+        resp.raise_for_status()
+        for m in resp.json().get("value", []):
+            from_addr = (m.get("from", {}).get("emailAddress", {}).get("address") or "").lower()
+            if from_addr not in wanted or m.get("isRead"):
+                continue  # read = already handled on an earlier pass (or by hand)
+            if folder == "junkemail":
+                placement = "spam"
+            elif m.get("inferenceClassification") == "other":
+                placement = "promotions"  # Outlook's "Other" tab
+            else:
+                placement = "inbox"
+            out.append({
+                "message_id": m["id"], "from_addr": from_addr, "subject": m.get("subject") or "",
+                "body": (m.get("body") or {}).get("content", ""), "placement": placement,
+            })
+    return out
+
+
+def _graph_warmup_engage(identity: dict, msg: dict) -> bool:
+    import httpx
+
+    try:
+        token = _graph_access_token(identity, _GRAPH_RW_SCOPES)
+    except Exception:
+        return False  # not re-consented with Mail.ReadWrite yet — placement is still recorded
+    h = {"Authorization": f"Bearer {token}"}
+    message_id, rescued = msg["message_id"], False
+    if msg["placement"] == "spam":
+        resp = httpx.post(f"https://graph.microsoft.com/v1.0/me/messages/{message_id}/move",
+                          headers=h, json={"destinationId": "inbox"}, timeout=20)
+        resp.raise_for_status()
+        message_id, rescued = resp.json()["id"], True
+    patch = {"isRead": True, "importance": "high"}
+    if msg["placement"] == "promotions":
+        patch["inferenceClassification"] = "focused"
+        rescued = True
+    httpx.patch(f"https://graph.microsoft.com/v1.0/me/messages/{message_id}", headers=h, json=patch,
+                timeout=20).raise_for_status()
+    msg["message_id"] = message_id  # a move gives the message a new id; replies need the current one
+    return rescued
+
+
+def _graph_warmup_reply(identity: dict, received_message_id: str, body: str) -> str:
+    import httpx
+
+    token = _graph_access_token(identity)
+    httpx.post(f"https://graph.microsoft.com/v1.0/me/messages/{received_message_id}/reply",
+               headers={"Authorization": f"Bearer {token}"}, json={"comment": body}, timeout=20).raise_for_status()
+    return ""
+
+
+async def warmup_scan(identity: dict, senders: list[str]) -> list[dict]:
+    """Warm-up mail from `senders` that reached this mailbox in the last few
+    days and hasn't been handled yet, wherever it landed, each with its
+    `placement` ('inbox' | 'promotions' | 'spam')."""
+    if not senders:
+        return []
+    if identity["provider"] == "google":
+        return await asyncio.to_thread(_gmail_warmup_scan, identity, senders)
+    if identity["provider"] == "microsoft":
+        return await asyncio.to_thread(_graph_warmup_scan, identity, senders)
+    return []
+
+
+async def warmup_engage(identity: dict, msg: dict) -> bool:
+    """Rescue + open + mark important. Returns True if it was moved out of
+    spam/Promotions."""
+    if identity["provider"] == "google":
+        return await asyncio.to_thread(_gmail_warmup_engage, identity, msg)
+    return await asyncio.to_thread(_graph_warmup_engage, identity, msg)
+
+
+async def warmup_reply(identity: dict, received_message_id: str, body: str) -> str:
+    """Replies in-thread to a warm-up message this mailbox received."""
+    if identity["provider"] == "google":
+        return await asyncio.to_thread(_gmail_warmup_reply, identity, received_message_id, body)
+    return await asyncio.to_thread(_graph_warmup_reply, identity, received_message_id, body)
+
+
+async def archive_newsletters(identity: dict) -> int:
+    if identity["provider"] != "google":
+        return 0
+    return await asyncio.to_thread(_gmail_archive_newsletters, identity)

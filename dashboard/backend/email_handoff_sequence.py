@@ -40,7 +40,8 @@ send_due_touches() is the APScheduler entrypoint (main.py, 5-min poll):
     as a reply; a rep's manual Replied tick in the Inbox does stop sends.
   - Sends are spaced campaign-wide (one touch at a time, MIN_SEND_SPACING
     apart), capped per identity (DAILY_CAP_PER_IDENTITY per calendar day,
-    Eastern), never before 8am Eastern (overflow queues to the next
+    Eastern, ramping up after activation), weekdays only, never before 8am
+    Eastern (overflow queues to the next
     morning), and skip contacts who clicked the unsubscribe footer link.
   - Merge fields: {first_name}, {full_name}, {business} (alias {company}),
     {opener}, {link}, and {loom} (alias {loom_link}); single or double
@@ -74,6 +75,7 @@ from zoneinfo import ZoneInfo
 
 import email_identities
 import email_personalize
+import email_verify
 import integrations
 from db import get_pool
 from merge_fields import first_name_from_owner
@@ -114,10 +116,37 @@ _TOUCH3_BODY_DEFAULT = (
 # calendar day in SEND_TZ (raised from 20/rolling-24h on 2026-10-20). Nothing
 # sends before SEND_DAY_START_HOUR, so whatever didn't fit under yesterday's
 # cap is a queue that drains, oldest enrollment first, from 8am the next day.
+# Lowered 25 -> 20 and weekday-only on 2026-10-29 (deliverability SOP,
+# context/cold-email-deliverability.md: <=20/day per mailbox, no weekend
+# sends). A newly activated identity also ramps up to the cap instead of
+# jumping straight to it: RAMP_START on its first business day as 'active',
+# +RAMP_STEP each business day after.
 MIN_SEND_SPACING = timedelta(minutes=10)
-DAILY_CAP_PER_IDENTITY = 25
+DAILY_CAP_PER_IDENTITY = 20
+RAMP_START = 8
+RAMP_STEP = 2
 SEND_TZ = ZoneInfo("America/New_York")
 SEND_DAY_START_HOUR = 8
+
+
+def is_send_day() -> bool:
+    """Cold outreach goes out Mon-Fri only (Eastern)."""
+    return datetime.now(SEND_TZ).weekday() < 5
+
+
+def daily_cap(identity: dict) -> int:
+    """Today's send cap for an identity: ramps from RAMP_START by RAMP_STEP
+    per business day since it was activated, up to DAILY_CAP_PER_IDENTITY."""
+    activated = identity.get("activated_at")
+    if not activated:
+        return RAMP_START
+    start = activated.astimezone(SEND_TZ).date()
+    today = datetime.now(SEND_TZ).date()
+    business_days = sum(
+        1 for n in range((today - start).days)
+        if (start + timedelta(days=n + 1)).weekday() < 5
+    )
+    return min(DAILY_CAP_PER_IDENTITY, RAMP_START + RAMP_STEP * business_days)
 
 # {loom} is the prospect's personalized outreach video (outreach_video.py,
 # generated server-side at enrollment). A touch whose template uses {loom}
@@ -384,7 +413,8 @@ async def _deliver(conn, identity: dict, contact_id: str, email: str, subject: s
 
 
 async def send_test(contact_id: str, instance: str = "touch1",
-                    subject_override: str | None = None, body_override: str | None = None) -> dict:
+                    subject_override: str | None = None, body_override: str | None = None,
+                    to_override: str | None = None) -> dict:
     """Sends one Email Handoff touch to a contact RIGHT NOW as a test —
     backs POST /api/dialer/email-handoff-test/{contact_id}. Builds the
     contact's {loom} video on the spot if the text uses it (reusing one
@@ -392,7 +422,9 @@ async def send_test(contact_id: str, instance: str = "touch1",
     mailbox, pixel, unsubscribe footer). Deliberately does NOT enroll the
     contact, change their status, stamp any touch, or apply the 10-minute
     spacing; the message is recorded is_test so analytics ignore it.
-    Overrides let a draft be previewed before it's saved to the template."""
+    Overrides let a draft be previewed before it's saved to the template;
+    to_override sends that contact's version to another address instead
+    (seed / inbox-placement tests, mail-tester.com)."""
     import outreach_video
 
     if instance not in TEMPLATE_INSTANCES:
@@ -411,7 +443,7 @@ async def send_test(contact_id: str, instance: str = "touch1",
     if not c:
         raise ValueError("contact not found")
     contact = dict(c)
-    email = (contact.get("email") or "").strip()
+    email = (to_override or contact.get("email") or "").strip()
     if not email:
         raise ValueError("contact has no email on file")
 
@@ -427,7 +459,10 @@ async def send_test(contact_id: str, instance: str = "touch1",
         raise ValueError(f"unsupported merge field(s): {', '.join(leftover)}")
     body = await email_personalize.personalize(body, contact)
     async with pool.acquire() as conn:
-        provider = await email_identities.get_cached_provider(conn, contact)
+        if to_override:
+            provider = await email_identities.detect_provider(email)
+        else:
+            provider = await email_identities.get_cached_provider(conn, contact)
         identity = await email_identities.pick_identity(conn, provider)
         if not identity:
             raise RuntimeError("no active sending identity")
@@ -459,13 +494,27 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
         print(f"[email_handoff_sequence] {instance} has unsupported merge field(s) {leftover} — NOT sending; fix the template")
         return False
 
+    if instance == "touch1":
+        problem = await email_verify.check(conn, contact_id, email)
+        if problem:
+            print(f"[email_handoff_sequence] not emailing {email}: {problem}")
+            await conn.execute(
+                "UPDATE email_handoff_state SET stopped_at = now(), skip_reason = $2, updated_at = now() "
+                "WHERE contact_id = $1",
+                contact_id, problem,
+            )
+            return False
+
     identity_id = row.get("identity_id")
     if identity_id:
         identity = await conn.fetchrow("SELECT * FROM email_send_identities WHERE id = $1", identity_id)
         identity = dict(identity) if identity else None
-        if identity and identity["status"] != "active":
-            # Sticky identity was demoted (back to warming, or paused) —
-            # hold its Touch 2/3 follow-ups too, not just new Touch 1s.
+        if identity and identity["status"] != "active" and not (
+            identity["status"] == "warming" and identity.get("demoted_at")
+        ):
+            # Sticky identity was paused or manually sent back to warming —
+            # hold its Touch 2/3 follow-ups too. One the health check pulled
+            # (demoted_at) still finishes its follow-ups, per the SOP.
             return False
     else:
         provider = await email_identities.get_cached_provider(conn, row)
@@ -474,7 +523,7 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
     if not identity:
         print(f"[email_handoff_sequence] no active identity available for {email} — will retry next poll")
         return False
-    if await _sent_today(conn, identity["id"]) >= DAILY_CAP_PER_IDENTITY:
+    if await _sent_today(conn, identity["id"]) >= daily_cap(identity):
         return False  # today's cap hit — queued until 8am tomorrow
     body = await email_personalize.personalize(body, row)
 
@@ -504,8 +553,8 @@ async def _send_touch(conn, row: dict, instance: str, templates: dict) -> bool:
 async def send_due_touches():
     """Poll enrolled contacts and send whichever touch is next due — at most
     one send per contact per poll. See module docstring for the algorithm."""
-    if datetime.now(SEND_TZ).hour < SEND_DAY_START_HOUR:
-        return  # the day's queue starts draining at 8am
+    if not is_send_day() or datetime.now(SEND_TZ).hour < SEND_DAY_START_HOUR:
+        return  # weekdays only; the day's queue starts draining at 8am
     pool = await get_pool()
     now = datetime.now(dt_timezone.utc)
     async with pool.acquire() as conn:

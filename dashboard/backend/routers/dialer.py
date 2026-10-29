@@ -617,13 +617,14 @@ async def add_email_handoff_active(contact_id: str):
 async def email_handoff_test_send(contact_id: str, body: dict | None = None):
     """Send one Email Handoff touch to a contact immediately, as a test (see
     email_handoff_sequence.send_test). Body (all optional): {"touch":
-    "touch1"|"touch2"|"touch3", "subject": "...", "body": "..."} — subject/
-    body override the saved template, for previewing a draft. Can take a
+    "touch1"|"touch2"|"touch3", "subject": "...", "body": "...", "to": "..."}
+    — subject/body override the saved template, for previewing a draft; "to"
+    sends the contact's version to a seed address instead. Can take a
     minute or two when it has to build the {loom} video first."""
     body = body or {}
     try:
         return await email_handoff_sequence.send_test(
-            contact_id, body.get("touch") or "touch1", body.get("subject"), body.get("body"),
+            contact_id, body.get("touch") or "touch1", body.get("subject"), body.get("body"), body.get("to"),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

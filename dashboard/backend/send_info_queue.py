@@ -138,7 +138,7 @@ async def _try_send_email(conn, queue_id: int) -> bool:
         )
         return False
     identity = await email_identities.pick_identity(conn, await email_identities.get_cached_provider(conn, dict(row)))
-    if not identity or await handoff._sent_today(conn, identity["id"]) >= handoff.DAILY_CAP_PER_IDENTITY:
+    if not identity or await handoff._sent_today(conn, identity["id"]) >= handoff.daily_cap(identity):
         return False  # no active mailbox, or today's cap is used up: stays queued
     if not await handoff._deliver(conn, identity, row["id"], row["email"].strip(), row["email_subject"],
                                   row["email_body"], is_automated=False):

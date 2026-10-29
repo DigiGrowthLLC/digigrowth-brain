@@ -46,6 +46,10 @@ REDIRECT_URI = f"http://localhost:{REDIRECT_PORT}"
 SCOPES = [
     "https://graph.microsoft.com/Mail.Send",
     "https://graph.microsoft.com/Mail.Read",
+    # Warm-up spam rescue (move out of Junk, mark read/important) — see
+    # email_identities._GRAPH_RW_SCOPES. The Azure app needs this delegated
+    # permission added before consenting.
+    "https://graph.microsoft.com/Mail.ReadWrite",
 ]
 # offline_access is deliberately NOT listed here — msal treats it as a
 # reserved scope and adds it automatically for any flow that can return a

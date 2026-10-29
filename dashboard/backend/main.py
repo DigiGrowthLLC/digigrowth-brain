@@ -551,6 +551,12 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
+        identity_warmup.run_health_check,
+        CronTrigger(hour=17, minute=30, timezone=eastern, day_of_week="mon-fri"),
+        id="identity-warmup-health-check",
+        replace_existing=True,
+    )
+    scheduler.add_job(
         onboarding_sequence.send_followup_touches,
         CronTrigger(hour=8, minute=0, timezone=eastern),
         id="onboarding-followup",

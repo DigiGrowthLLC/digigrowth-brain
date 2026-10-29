@@ -1,115 +1,157 @@
-"""Cross-provider warm-up engine for email_send_identities (DigiGrowth's
-own cold-outreach mailboxes). Keyed by identity_id, spans both Google and
-Microsoft identities, and ramps reputation via REAL threaded opener+reply
-exchanges between identities rather than one-way sends to a fixed seed
-list.
+"""Warm-up engine for email_send_identities (DigiGrowth's own cold-outreach
+mailboxes), rebuilt 2026-10-29 to do what Instantly's warm-up does instead
+of paying for it (Dylan's call). See context/cold-email-deliverability.md.
 
-Two independent, idempotent jobs (both registered in main.py) that converge
-into full threads over a few polling cycles:
+What Instantly does, and where it lives here:
+  - A pool of mailboxes emailing each other: every non-paused identity
+    (warming, active, and partner inboxes) is in the pool. Warming/active
+    identities send openers on a ramp; partners send PARTNER_DAILY openers
+    a day into the sending mailboxes for extra inbound volume. The pool is
+    only as big as the mailboxes added to it: Instantly's edge is thousands
+    of strangers' inboxes, so add partner inboxes on different providers.
+  - Unique, human-looking conversations: every opener/reply is written by
+    Claude (_write_opener/_write_reply, falling back to a local phrase bank)
+    on a varied everyday topic. No links, no sales words.
+  - A filter tag: each thread carries a 7-character code on the last line
+    (Instantly's "warmup filter tag") that ties received mail to its thread.
+  - Ramp: "start" openers/day on day 1, +"increase_per_day" each sending
+    day, up to "daily_limit". Warm-up NEVER stops: once the ramp tops out
+    (status 'complete') it keeps going at daily_limit, active or not.
+  - Reply rate: each opener is answered with probability reply_rate (30%,
+    or reply_rate_active = 40% when the sender is cold-sending), and an
+    answered thread runs 2-4 messages, threaded properly under the original.
+  - Receiving side: wherever a warm-up email landed (inbox, Promotions,
+    spam) is recorded as its placement, then it's rescued (not-spam / moved
+    to Primary), opened, marked important and filed under a grey "Warmup"
+    label (email_identities.warmup_engage).
+  - Health score: % of an identity's warm-up mail that did NOT land in spam
+    over the last 7 days. run_health_check() (daily) pulls an active
+    identity out of cold sending (back to 'warming') if it drops below
+    HEALTH_FLOOR, or if its cold-send bounce rate tops BOUNCE_CEILING, and
+    puts a To-Do on Dylan's list.
+  - Human hours: everything that sends runs Mon-Fri 8am-6pm Eastern, spread
+    randomly across the day rather than at fixed intervals.
 
-  send_due_touches() — for each 'warming' identity under its day's send
-  target, pick a round-robin partner (any other identity, any status —
-  receiving/replying doesn't cost reputation, only cold-sending to
-  strangers does) and send a threaded "opener" with a generated thread_key.
-
-  send_due_replies() — polls each identity's inbox (via
-  email_identities.sync_identity_inbox) for inbound mail from another
-  identity, and for anything matching an open thread_key this identity
-  hasn't yet replied to, sends an auto-reply and logs it. No artificial
-  delay is added — replying only on this job's own poll interval already
-  means replies never land instantly, which is enough to avoid an
-  obviously-bot cadence without blocking the shared scheduler loop.
-
-Status gating: 'warming' identities are the only ones eligible to be picked
-by email_identities.pick_identity() for real lead sends — that's enforced
-there (status='active' only), not here. An identity is manually promoted
-warming -> active once its ramp completes (no auto-promotion: gating
-real-outreach eligibility stays a judgment call). 'paused' identities are skipped by both jobs below.
+Settings (all optional) are a JSON object in dialer_settings under
+'identity_warmup_settings' — keys of _DEFAULT_SETTINGS.
 
 Correctness-critical invariant: once an identity is 'active', its inbox
-holds BOTH warm-up cross-thread mail and real prospect replies.
-send_due_replies() only ever auto-replies to mail whose sender is another
-row in email_send_identities (email_identities.sync_identity_inbox already
-enforces this split before handing candidates here) — it must never
-auto-reply to a real lead.
+holds BOTH warm-up mail and real prospect replies. Only mail whose sender is
+another row in email_send_identities is ever treated as warm-up; a real
+lead's message is never engaged with or auto-replied to.
 """
+import json
 import random
-import uuid
-from datetime import date, datetime, timezone as dt_timezone
+import re
+import secrets
+import string
+from datetime import date, datetime, timedelta, timezone as dt_timezone
+from zoneinfo import ZoneInfo
 
 import email_identities
 from db import get_pool
 
-# Capped at 40/day (lowered 2026-09-22 from an earlier 60): a single
-# mailbox's sustainable volume tops out ~30-50/day regardless of
-# warm status. Doubly true here early on with only 2-3 identities per
-# provider: with few partners, all traffic is a narrow A<->B pattern, so
-# keeping absolute volume conservative matters more, not less, until more
-# identities exist to spread partner variety across.
-# Stretched 2026-09-27 from 10 to 15 sending days (3 business weeks — the
-# ramp only advances on days it actually sends, i.e. weekdays): the first
-# two identities went to cold outreach on day 4/6 and got 0 replies from 27.
-# Restarted then with this schedule so both finish Fri 2026-10-16 and flip
-# to 'complete' Mon 10/19. Starts at 8, not 2 — both had ~5 days of history.
-# Capped at WARMUP_DAILY_MAX (Dylan, 2026-10-20) — same 25/day ceiling as
-# the Email Handoff campaign's per-identity cap. Also clamps any schedule
-# saved in dialer_settings.
-WARMUP_DAILY_MAX = 25
-_DEFAULT_SCHEDULE = [8, 11, 15, 20, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25]
+_TZ = ZoneInfo("America/New_York")
+_DAY_START_HOUR, _DAY_END_HOUR = 8, 18
+_OPENER_TICK_MINUTES = 20  # main.py's identity-warmup-touches interval
 
-# How many backlog replies a single identity may send in ONE poll tick.
-# Without this cap, a long outage (like the Graph auth bug that blocked
-# Dylan MS for ~2 days) lets a huge backlog of unread opener threads queue
-# up, and the very next successful poll fires ALL of them back-to-back —
-# observed directly: 16 replies in one tick once that bug was fixed. A
-# burst of near-simultaneous sends from one mailbox is exactly the kind of
-# pattern spam/abuse heuristics (and the provider's own API rate limits)
-# flag, regardless of how "warmed" the mailbox is. Trickling the backlog
-# down at a few per tick keeps every send at the same natural pace as
-# openers, even when catching up.
+_DEFAULT_SETTINGS = {
+    "start": 2,               # openers on day 1
+    "increase_per_day": 1,    # the SOP's Instantly setting
+    "daily_limit": 20,        # ramp ceiling, kept forever after
+    "reply_rate": 30,         # % of openers that get a reply
+    "reply_rate_active": 40,  # same, for identities that are cold-sending
+    "partner_daily": 5,       # openers/day each partner inbox sends into the pool
+}
+# Never more than this per identity per day, whatever the settings say.
+WARMUP_DAILY_MAX = 25
+
+HEALTH_FLOOR = 90         # % — below this an active identity is pulled
+MIN_HEALTH_SAMPLES = 10   # placements needed before the score counts
+BOUNCE_CEILING = 8        # % — the SOP's max bounce rate
+MIN_BOUNCE_SENDS = 20
+
+# A backlog (e.g. after an outage) trickles out a few per tick rather than
+# bursting — a burst from one mailbox is exactly what spam filters flag.
 _MAX_REPLIES_PER_TICK = 3
 
+_TAG_RE = re.compile(r"^\s*([A-Z0-9]{7})\s*$", re.M)
+_LEGACY_TAG_RE = re.compile(r"\[warmup:([^\]]+)\]")
 
-def _within_business_hours() -> bool:
-    """A mailbox sending/replying at 3am every night looks automated regardless
-    of content, volume, or warm-up status. Real humans mostly send Mon-Fri,
-    business hours."""
-    from zoneinfo import ZoneInfo
-
-    now = datetime.now(ZoneInfo("America/New_York"))
-    return now.weekday() < 5 and 8 <= now.hour < 18
-
-_OPENER_SUBJECTS = [
-    "Quick one for you",
-    "Got a sec?",
-    "Following up",
-    "Question for you",
+_MODEL = "claude-haiku-5-5"
+_TOPICS = [
+    "rescheduling a coffee catch-up", "a book recommendation", "notes from a conference talk",
+    "feedback on a draft document", "planning a team lunch", "a question about a spreadsheet",
+    "confirming a call time next week", "thanks for an introduction", "a podcast episode worth hearing",
+    "moving a deadline by a couple of days", "sharing how a project went", "a restaurant suggestion",
+    "asking for a contractor recommendation", "weekend plans and a hike", "updating a shared checklist",
+    "a software tool that saved time", "checking in after a trip", "splitting tasks for a small project",
+    "a quick favor: reviewing a few slides", "following up on a phone conversation",
+    "a new gym or running route", "an article about productivity", "planning a workshop agenda",
+    "a printer/office supply question", "comparing notes on a training course", "a parking change at the office",
+    "booking a room for a meeting", "sharing a recipe someone asked for", "how a client meeting went",
+    "a reminder about an upcoming event",
 ]
-_OPENER_BODIES = [
-    "Hey — hope your week's going well. Wanted to check in, anything new on your end?",
-    "Hi there, just circling back on this. Let me know your thoughts when you get a chance.",
-    "Hope you're doing well. Curious to hear how things have been going lately.",
+_SYSTEM = (
+    "You write short everyday emails between two people who know each other professionally. "
+    "Plain text only: no links, no emojis, no bullet points, no attachments mentioned, no prices, "
+    "nothing promotional or salesy (avoid words like free, guarantee, offer, deal, discount, click). "
+    "Sound like a real person typing quickly: natural, a little casual, varied sentence length. "
+    "Greet without using the recipient's name. Sign off with the sender's first name only."
+)
+_FALLBACK_SUBJECTS = [
+    "Quick question", "Next week", "Following up", "That article", "Thursday?", "Notes from today",
+    "One more thing", "Re-check on the plan", "Thanks again", "Small update", "Got a minute?", "Catching up",
 ]
-_REPLY_BODIES = [
-    "Thanks for reaching out — things have been good, staying busy. How about you?",
-    "Appreciate you following up. All good here, talk soon.",
-    "Good to hear from you. Everything's on track over here.",
+_FALLBACK_OPENERS = [
+    "Hope your week is going well.", "Hey, hope things are good on your end.", "Hi, quick one for you.",
+    "Hey there, been meaning to send this.", "Hi, hope you had a good weekend.",
+]
+_FALLBACK_MIDDLES = [
+    "Are you still good to move our call to later in the week?",
+    "I finally read that piece you mentioned and it was better than I expected.",
+    "Could you take a look at the outline when you get a chance? No rush at all.",
+    "We pushed the planning session back a few days, so there is a bit more time.",
+    "Do you remember the name of the place we went last month? Trying to book it again.",
+    "I tried the approach you suggested and it saved me a good hour.",
+    "Wanted to check whether Tuesday or Wednesday works better for you.",
+]
+_FALLBACK_REPLIES = [
+    "Thanks for the note. That works for me, let's go with that.",
+    "Good to hear from you. Yes, I can take a look later today.",
+    "Appreciate it. Wednesday is better on my end if that still works.",
+    "Ha, I was just thinking about that. Sounds good to me.",
+    "Thanks, that's helpful. I'll circle back once I've had a look.",
+    "Makes sense. Let me check my calendar and confirm tomorrow.",
 ]
 
 
-async def get_schedule() -> list[int]:
+# ── Settings + ramp ─────────────────────────────────────────────────────────
+
+async def get_settings() -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = 'identity_warmup_schedule'")
-    if row and row["value"]:
-        import json
+        raw = await conn.fetchval("SELECT value FROM dialer_settings WHERE key = 'identity_warmup_settings'")
+    settings = dict(_DEFAULT_SETTINGS)
+    if raw:
         try:
-            parsed = json.loads(row["value"])
-            if isinstance(parsed, list) and all(isinstance(x, int) for x in parsed):
-                return [min(x, WARMUP_DAILY_MAX) for x in parsed]
+            parsed = json.loads(raw)
+            settings.update({k: int(v) for k, v in parsed.items() if k in _DEFAULT_SETTINGS})
         except Exception:
             pass
-    return _DEFAULT_SCHEDULE
+    settings["daily_limit"] = min(settings["daily_limit"], WARMUP_DAILY_MAX)
+    return settings
+
+
+def day_target(current_day: int | None, settings: dict) -> int:
+    day = max(current_day or 1, 1)
+    return min(settings["start"] + settings["increase_per_day"] * (day - 1), settings["daily_limit"])
+
+
+def ramp_days(settings: dict) -> int:
+    """Sending days until the ramp reaches daily_limit."""
+    step = max(settings["increase_per_day"], 1)
+    return max(1, -(-(settings["daily_limit"] - settings["start"]) // step) + 1)
 
 
 async def start_warmup(identity_id: int):
@@ -135,187 +177,415 @@ async def get_status(identity_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-def _roll_day(row: dict, schedule: list[int]) -> dict:
-    """Advances current_day/resets sent_today when the calendar date has
-    moved on, and flips to 'complete' once past the schedule length."""
-    today = date.today()
-    if row["last_sent_date"] == today:
+def _roll_day(row: dict) -> dict:
+    """Advances current_day / resets the daily counters when the date has
+    moved on since the last send."""
+    if row["last_sent_date"] == date.today():
         return row
     row = dict(row)
     if row["last_sent_date"] is not None:
         row["current_day"] = (row["current_day"] or 0) + 1
     row["sent_today"] = 0
     row["replied_today"] = 0
-    if row["current_day"] > len(schedule):
-        row["status"] = "complete"
-        row["completed_at"] = datetime.now(dt_timezone.utc)
     return row
 
 
+def _within_business_hours() -> bool:
+    """A mailbox sending at 3am every night looks automated regardless of
+    content or volume. Real people mostly send Mon-Fri, business hours."""
+    now = datetime.now(_TZ)
+    return now.weekday() < 5 and _DAY_START_HOUR <= now.hour < _DAY_END_HOUR
+
+
+def _should_send_now(remaining: int) -> bool:
+    """Spreads the day's remaining sends randomly over the remaining ticks,
+    instead of firing them at the top of the day on a fixed beat."""
+    if remaining <= 0:
+        return False
+    now = datetime.now(_TZ)
+    minutes_left = (_DAY_END_HOUR * 60) - (now.hour * 60 + now.minute)
+    ticks_left = max(1, minutes_left // _OPENER_TICK_MINUTES)
+    return random.random() < remaining / ticks_left
+
+
+# ── Content ─────────────────────────────────────────────────────────────────
+
+def _first_name(identity: dict) -> str:
+    local = identity["mailbox_email"].split("@")[0].lower()
+    return "Dylan" if "dylan" in local else re.sub(r"[^a-z]", "", local).title() or "Dylan"
+
+
+def _new_thread_key() -> str:
+    """Instantly-style 7-character filter tag: letters + at least one digit."""
+    while True:
+        key = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(7))
+        if any(c.isdigit() for c in key) and any(c.isalpha() for c in key):
+            return key
+
+
+def _thread_key(body: str) -> str | None:
+    legacy = _LEGACY_TAG_RE.search(body or "")
+    if legacy:
+        return legacy.group(1).strip()
+    return next((k for k in _TAG_RE.findall(body or "")
+                 if any(c.isdigit() for c in k) and any(c.isalpha() for c in k)), None)
+
+
+async def _claude(prompt: str) -> str | None:
+    try:
+        import anthropic
+        import os
+
+        client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        response = await client.messages.create(
+            model=_MODEL, max_tokens=400, system=_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        if response.stop_reason != "end_turn":
+            return None
+        text = "".join(b.text for b in response.content if b.type == "text").strip()
+        return text if "http" not in text.lower() else None
+    except Exception as e:
+        print(f"[identity_warmup] content generation failed, using phrase bank: {e}")
+        return None
+
+
+async def _write_opener(sender_name: str) -> tuple[str, str]:
+    text = await _claude(
+        f"Write a new email (not a reply) about: {random.choice(_TOPICS)}. "
+        f"Sender's first name: {sender_name}. {random.randint(25, 80)} words. "
+        "Sometimes end with a light question. Format exactly:\nSubject: <2-6 word subject>\n\n<body>"
+    )
+    if text and text.lower().startswith("subject:"):
+        subject, _, body = text.partition("\n")
+        subject = subject.split(":", 1)[1].strip().strip('"')
+        if subject and body.strip():
+            return subject, body.strip()
+    body = f"{random.choice(_FALLBACK_OPENERS)} {random.choice(_FALLBACK_MIDDLES)}\n\n{sender_name}"
+    return random.choice(_FALLBACK_SUBJECTS), body
+
+
+async def _write_reply(history: list[str], sender_name: str) -> str:
+    convo = "\n\n---\n\n".join(history[-3:])
+    text = await _claude(
+        f"Here is an email thread so far (oldest first):\n\n{convo}\n\n"
+        f"Write {sender_name}'s reply to the latest message, {random.randint(15, 60)} words. "
+        "Respond to what it actually says. Output only the reply body."
+    )
+    if text and not text.lower().startswith("subject:"):
+        return text
+    return f"{random.choice(_FALLBACK_REPLIES)}\n\n{sender_name}"
+
+
+def _strip_tag(body: str) -> str:
+    return _LEGACY_TAG_RE.sub("", _TAG_RE.sub("", body or "")).strip()
+
+
+# ── Openers ─────────────────────────────────────────────────────────────────
+
+async def _opens_today(conn, identity_id: int) -> int:
+    midnight = datetime.now(_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
+    return await conn.fetchval(
+        "SELECT count(*) FROM identity_warmup_log WHERE from_identity_id = $1 AND direction = 'opener' "
+        "AND sent_at >= $2",
+        identity_id, midnight,
+    )
+
+
+def _pick_recipient(sender: dict, pool_ids: list[dict], cursor: int) -> dict | None:
+    """Rotate through the rest of the pool, other providers/domains first so
+    traffic isn't one narrow A<->B pattern."""
+    others = [i for i in pool_ids if i["id"] != sender["id"]]
+    if sender["status"] == "partner":
+        others = [i for i in others if i["status"] in ("warming", "active")]
+    if not others:
+        return None
+    others.sort(key=lambda i: (i["domain"] == sender["domain"], i["id"]))
+    return others[cursor % len(others)]
+
+
+async def _send_opener(conn, sender: dict, recipient: dict, day_number: int, reply_rate: int) -> bool:
+    key = _new_thread_key()
+    subject, body = await _write_opener(_first_name(sender))
+    planned = 1 if random.randint(1, 100) > reply_rate else random.choice([2, 2, 3, 4])
+    try:
+        message_id = await email_identities.send_from_identity(
+            sender, recipient["mailbox_email"], subject, f"{body}\n\n{key}",
+        )
+    except Exception as e:
+        print(f"[identity_warmup] opener failed {sender['mailbox_email']} -> {recipient['mailbox_email']}: {e}")
+        return False
+    await conn.execute(
+        """
+        INSERT INTO identity_warmup_log (from_identity_id, to_identity_id, day_number, direction, thread_key,
+                                         provider_message_id, subject, body, turn, planned_turns)
+        VALUES ($1, $2, $3, 'opener', $4, $5, $6, $7, 1, $8)
+        """,
+        sender["id"], recipient["id"], day_number, key, message_id, subject, body, planned,
+    )
+    return True
+
+
 async def send_due_touches():
-    """Sends one warm-up opener per running identity per tick (short poll
-    interval spreads volume across the day), if that identity is still
-    under today's target."""
+    """Opener job (main.py, every _OPENER_TICK_MINUTES): at most one opener
+    per pool mailbox per tick, randomly spread to hit each one's daily
+    target by end of business."""
     if not _within_business_hours():
         return
-
+    settings = await get_settings()
     pool = await get_pool()
-    schedule = await get_schedule()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT iw.*, s.provider, s.mailbox_email, s.status AS identity_status
-            FROM identity_warmup iw
-            JOIN email_send_identities s ON s.id = iw.identity_id
-            WHERE iw.status = 'running' AND s.status != 'paused'
-            """
-        )
-        if not rows:
-            return
+        identities = [dict(r) for r in await conn.fetch(
+            "SELECT * FROM email_send_identities WHERE status != 'paused' AND oauth_refresh_token IS NOT NULL"
+        )]
+        warmups = {r["identity_id"]: dict(r) for r in await conn.fetch("SELECT * FROM identity_warmup")}
 
-        all_identities = {r["id"]: dict(r) for r in await conn.fetch("SELECT * FROM email_send_identities")}
-
-        for record in rows:
-            row = _roll_day(dict(record), schedule)
-            identity_id = row["identity_id"]
-
-            if row["status"] == "complete":
-                await conn.execute(
-                    "UPDATE identity_warmup SET status = 'complete', completed_at = now(), updated_at = now() "
-                    "WHERE identity_id = $1",
-                    identity_id,
-                )
+        for sender in identities:
+            if sender["status"] == "partner":
+                remaining = settings["partner_daily"] - await _opens_today(conn, sender["id"])
+                if not _should_send_now(remaining):
+                    continue
+                cursor = random.randint(0, 1000)
+                recipient = _pick_recipient(sender, identities, cursor)
+                if recipient:
+                    await _send_opener(conn, sender, recipient, 0, settings["reply_rate"])
                 continue
 
-            day_target = schedule[min(row["current_day"], len(schedule)) - 1]
-            if row["sent_today"] >= day_target:
+            row = warmups.get(sender["id"])
+            if not row or row["status"] not in ("running", "complete"):
+                continue  # warm-up never started for this identity
+            row = _roll_day(row)
+            target = day_target(row["current_day"], settings)
+            if not _should_send_now(target - row["sent_today"]):
                 continue
-
-            candidates = [i for i in all_identities.values() if i["id"] != identity_id]
-            if not candidates:
+            recipient = _pick_recipient(sender, identities, row["partner_cursor"])
+            if not recipient:
                 continue
-            partner = candidates[row["partner_cursor"] % len(candidates)]
-
-            identity = all_identities[identity_id]
-            thread_key = f"{identity_id}-{partner['id']}-{uuid.uuid4().hex[:8]}"
-            subject = random.choice(_OPENER_SUBJECTS)
-            body = f"{random.choice(_OPENER_BODIES)}\n\n[warmup:{thread_key}]"
-
-            try:
-                message_id = await email_identities.send_from_identity(identity, partner["mailbox_email"], subject, body)
-            except Exception as e:
-                print(f"[identity_warmup] opener failed {identity['mailbox_email']} -> {partner['mailbox_email']}: {e}")
+            rate = settings["reply_rate_active"] if sender["status"] == "active" else settings["reply_rate"]
+            if not await _send_opener(conn, sender, recipient, row["current_day"], rate):
                 continue
-
+            status = "complete" if target >= settings["daily_limit"] else row["status"]
             await conn.execute(
                 """
-                INSERT INTO identity_warmup_log (from_identity_id, to_identity_id, day_number, direction, thread_key, provider_message_id)
-                VALUES ($1, $2, $3, 'opener', $4, $5)
-                """,
-                identity_id, partner["id"], row["current_day"], thread_key, message_id,
-            )
-            await conn.execute(
-                """
-                UPDATE identity_warmup SET current_day = $2, sent_today = $3, partner_cursor = partner_cursor + 1,
+                UPDATE identity_warmup SET current_day = $2, sent_today = $3, replied_today = $4,
+                    partner_cursor = partner_cursor + 1, status = $5,
+                    completed_at = CASE WHEN $5 = 'complete' THEN coalesce(completed_at, now()) ELSE completed_at END,
                     last_sent_date = CURRENT_DATE, last_sent_at = now(), updated_at = now()
                 WHERE identity_id = $1
                 """,
-                identity_id, row["current_day"], row["sent_today"] + 1,
+                sender["id"], row["current_day"], row["sent_today"] + 1, row["replied_today"], status,
             )
 
 
+# ── Receiving side + replies ────────────────────────────────────────────────
+
+async def _record_received(conn, identity: dict, msg: dict, sender_id: int):
+    """Match a received warm-up message to its log row, engage with it
+    (rescue / open / important / label), and record where it landed."""
+    if await conn.fetchval("SELECT 1 FROM identity_warmup_log WHERE received_message_id = $1", msg["message_id"]):
+        return
+    key = _thread_key(msg["body"])
+    row = None
+    if key:
+        row = await conn.fetchrow(
+            """SELECT id FROM identity_warmup_log
+               WHERE thread_key = $1 AND from_identity_id = $2 AND to_identity_id = $3 AND received_at IS NULL
+               ORDER BY turn LIMIT 1""",
+            key, sender_id, identity["id"],
+        )
+    placement = msg["placement"]
+    try:
+        rescued = await email_identities.warmup_engage(identity, msg)
+    except Exception as e:
+        print(f"[identity_warmup] engage failed on {identity['mailbox_email']}: {e}")
+        rescued = False
+    if row:
+        await conn.execute(
+            "UPDATE identity_warmup_log SET placement = $2, received_at = now(), received_message_id = $3, "
+            "rescued = $4 WHERE id = $1",
+            row["id"], placement, msg["message_id"], rescued,
+        )
+    if placement != "inbox":
+        print(f"[identity_warmup] {msg['from_addr']} -> {identity['mailbox_email']} landed in {placement}"
+              f"{' (rescued)' if rescued else ''}")
+
+
+async def _send_pending_replies(conn, identity: dict, by_id: dict, settings: dict) -> int:
+    """Next turn of every thread this identity received a message in and is
+    due to answer. Each reply waits a per-message 10-120 minutes after
+    receipt so replies don't come back instantly."""
+    rows = await conn.fetch(
+        """
+        SELECT l.*, o.planned_turns AS thread_turns
+        FROM identity_warmup_log l
+        JOIN identity_warmup_log o ON o.thread_key = l.thread_key AND o.direction = 'opener'
+        WHERE l.to_identity_id = $1 AND l.received_message_id IS NOT NULL
+          AND o.sent_at > now() - interval '7 days'
+          AND l.turn < coalesce(o.planned_turns, 2)
+          AND l.received_at < now() - make_interval(mins => 10 + (l.id * 37) % 110)
+          AND NOT EXISTS (SELECT 1 FROM identity_warmup_log n
+                          WHERE n.thread_key = l.thread_key AND n.turn = l.turn + 1)
+        ORDER BY l.received_at
+        LIMIT $2
+        """,
+        identity["id"], _MAX_REPLIES_PER_TICK,
+    )
+    sent = 0
+    for row in rows:
+        partner = by_id.get(row["from_identity_id"])
+        if not partner:
+            continue
+        history = [
+            _strip_tag(r["body"] or "") for r in await conn.fetch(
+                "SELECT body FROM identity_warmup_log WHERE thread_key = $1 AND body IS NOT NULL ORDER BY turn",
+                row["thread_key"],
+            )
+        ] or ["(a short friendly email)"]
+        body = await _write_reply(history, _first_name(identity))
+        try:
+            message_id = await email_identities.warmup_reply(
+                identity, row["received_message_id"], f"{body}\n\n{row['thread_key']}",
+            )
+        except Exception as e:
+            print(f"[identity_warmup] reply failed for thread {row['thread_key']}: {e}")
+            continue
+        await conn.execute(
+            """
+            INSERT INTO identity_warmup_log (from_identity_id, to_identity_id, day_number, direction, thread_key,
+                                             provider_message_id, subject, body, turn, planned_turns)
+            VALUES ($1, $2, 0, 'reply', $3, $4, $5, $6, $7, $8)
+            """,
+            identity["id"], partner["id"], row["thread_key"], message_id,
+            row["subject"] if (row["subject"] or "").lower().startswith("re:") else f"Re: {row['subject'] or ''}".strip(),
+            body, row["turn"] + 1, row["thread_turns"] or 2,
+        )
+        await conn.execute(
+            "UPDATE identity_warmup SET replied_today = replied_today + 1, updated_at = now() WHERE identity_id = $1",
+            identity["id"],
+        )
+        sent += 1
+    return sent
+
+
 async def send_due_replies():
-    """Polls every non-paused identity's inbox for warm-up candidates
-    (mail from a sibling identity) and auto-replies to any open thread this
-    identity hasn't replied to yet — at most _MAX_REPLIES_PER_TICK per
-    identity per tick, so a backlog (e.g. after an outage) trickles out at
-    a natural pace instead of bursting all at once.
-
-    The inbox poll itself (sync_identity_inbox) always runs regardless of
-    business hours — a real lead's reply must be captured and recorded
-    promptly whenever it arrives, since email_handoff_sequence.py's
-    reply-stop check depends on it. Only the WARM-UP auto-reply SEND is
-    gated to business hours; skipping it this tick is harmless and
-    idempotent — nothing is marked replied until a reply actually sends, so
-    it's simply retried next tick."""
-    send_replies_allowed = _within_business_hours()
-
+    """Every 10 min (main.py). For each non-paused identity:
+      1. Inbox poll (email_identities.sync_identity_inbox) for real lead
+         replies and bounces. Always runs, any hour: a lead's reply must
+         stop the Email Handoff sequence promptly.
+      2. Business hours only: archive newsletter/DMARC mail, find + engage
+         with warm-up mail wherever it landed, and send due replies."""
+    settings = await get_settings()
+    in_hours = _within_business_hours()
     pool = await get_pool()
     async with pool.acquire() as conn:
-        identities = await conn.fetch("SELECT * FROM email_send_identities WHERE status != 'paused'")
+        identities = [dict(r) for r in await conn.fetch(
+            "SELECT * FROM email_send_identities WHERE status != 'paused' AND oauth_refresh_token IS NOT NULL"
+        )]
+    by_id = {i["id"]: i for i in identities}
+    by_email = {i["mailbox_email"].lower(): i["id"] for i in identities}
 
-    for record in identities:
-        identity = dict(record)
+    for identity in identities:
         try:
-            result = await email_identities.sync_identity_inbox(identity)
+            await email_identities.sync_identity_inbox(identity)
         except Exception as e:
             print(f"[identity_warmup] inbox poll failed for {identity['mailbox_email']}: {e}")
+        if not in_hours:
             continue
 
-        if not send_replies_allowed:
-            continue
-
-        sent_this_tick = 0
-        for msg in result["warmup_candidates"]:
-            if sent_this_tick >= _MAX_REPLIES_PER_TICK:
-                break
-            thread_key = None
-            for token in msg["body"].split("[warmup:"):
-                if "]" in token:
-                    thread_key = token.split("]")[0].strip()
-                    break
-            if not thread_key:
-                continue
-
-            pool = await get_pool()
-            async with pool.acquire() as conn:
-                already_replied = await conn.fetchval(
-                    "SELECT 1 FROM identity_warmup_log WHERE thread_key = $1 AND direction = 'reply' "
-                    "AND from_identity_id = $2",
-                    thread_key, identity["id"],
-                )
-                if already_replied:
-                    continue
-
-                original = await conn.fetchrow(
-                    "SELECT * FROM identity_warmup_log WHERE thread_key = $1 AND direction = 'opener' ORDER BY sent_at LIMIT 1",
-                    thread_key,
-                )
-                if not original or original["to_identity_id"] != identity["id"]:
-                    continue  # this thread isn't addressed to this identity
-
-                opener_sender = await conn.fetchrow(
-                    "SELECT * FROM email_send_identities WHERE id = $1", original["from_identity_id"],
-                )
-                if not opener_sender:
-                    continue
-            opener_sender = dict(opener_sender)
-
-            # No artificial sleep here (would block the shared scheduler
-            # loop for other jobs) — send_due_replies() itself only runs on
-            # a fixed poll interval, so a reply landing "same tick" still
-            # only ever appears within one poll interval of the opener,
-            # which already reads as a natural, non-instant cadence.
-            body = f"{random.choice(_REPLY_BODIES)}\n\n[warmup:{thread_key}]"
+        if identity["status"] != "partner":
             try:
-                message_id = await email_identities.send_from_identity(
-                    identity, opener_sender["mailbox_email"], "Re: warmup", body,
-                )
+                await email_identities.archive_newsletters(identity)
             except Exception as e:
-                print(f"[identity_warmup] reply failed for thread {thread_key}: {e}")
-                continue
+                print(f"[identity_warmup] newsletter archive failed for {identity['mailbox_email']}: {e}")
 
-            pool = await get_pool()
-            async with pool.acquire() as conn:
+        senders = [e for e in by_email if e != identity["mailbox_email"].lower()]
+        try:
+            received = await email_identities.warmup_scan(identity, senders)
+        except Exception as e:
+            print(f"[identity_warmup] warm-up scan failed for {identity['mailbox_email']}: {e}")
+            received = []
+        async with pool.acquire() as conn:
+            for msg in received:
+                await _record_received(conn, identity, msg, by_email[msg["from_addr"]])
+            await _send_pending_replies(conn, identity, by_id, settings)
+
+
+# ── Daily health check ──────────────────────────────────────────────────────
+
+async def _open_todo(conn, text: str, description: str):
+    if await conn.fetchval("SELECT 1 FROM todos WHERE text = $1 AND NOT done", text):
+        return
+    await conn.execute(
+        "INSERT INTO todos (text, description, due_date) VALUES ($1, $2, CURRENT_DATE)", text, description,
+    )
+
+
+async def run_health_check() -> list[dict]:
+    """Daily (main.py, weekdays 5:30pm ET), also POST
+    /api/email-identities/health-check. Per sending identity: warm-up
+    health score (7 days), Promotions share, and cold-send bounce rate
+    (14 days). An active identity below HEALTH_FLOOR or above
+    BOUNCE_CEILING goes back to 'warming' (its pending follow-ups hold; new
+    Touch 1s route to other active identities) and Dylan gets a To-Do.
+    Domains on any blacklist also get a To-Do."""
+    import domain_health
+
+    pool = await get_pool()
+    results = []
+    async with pool.acquire() as conn:
+        identities = await conn.fetch("SELECT * FROM email_send_identities WHERE status != 'partner'")
+        for identity in identities:
+            stats = await conn.fetchrow(
+                """SELECT count(*) AS n,
+                          count(*) FILTER (WHERE placement = 'spam') AS spam,
+                          count(*) FILTER (WHERE placement = 'promotions') AS promo
+                   FROM identity_warmup_log
+                   WHERE from_identity_id = $1 AND placement IS NOT NULL AND received_at > now() - interval '7 days'""",
+                identity["id"],
+            )
+            sends = await conn.fetchrow(
+                """SELECT count(*) AS n, count(*) FILTER (WHERE bounced_at IS NOT NULL) AS bounced
+                   FROM email_messages
+                   WHERE direction = 'outbound' AND thread_id LIKE $1 AND sent_at > now() - interval '14 days'""",
+                f"identity-{identity['id']}-%",
+            )
+            score = round(100 * (stats["n"] - stats["spam"]) / stats["n"], 1) if stats["n"] else None
+            promo = round(100 * stats["promo"] / stats["n"], 1) if stats["n"] else None
+            bounce = round(100 * sends["bounced"] / sends["n"], 1) if sends["n"] else None
+            await conn.execute(
+                """UPDATE email_send_identities SET health_score = $2, health_samples = $3, promotions_rate = $4,
+                       bounce_rate = $5, health_checked_at = now() WHERE id = $1""",
+                identity["id"], score, stats["n"], promo, bounce,
+            )
+
+            reasons = []
+            if score is not None and stats["n"] >= MIN_HEALTH_SAMPLES and score < HEALTH_FLOOR:
+                reasons.append(f"warm-up health {score}% (below {HEALTH_FLOOR}%)")
+            if bounce is not None and sends["n"] >= MIN_BOUNCE_SENDS and bounce > BOUNCE_CEILING:
+                reasons.append(f"bounce rate {bounce}% (above {BOUNCE_CEILING}%)")
+            if reasons and identity["status"] == "active":
+                reason = "; ".join(reasons)
                 await conn.execute(
-                    """
-                    INSERT INTO identity_warmup_log (from_identity_id, to_identity_id, day_number, direction, thread_key, provider_message_id)
-                    VALUES ($1, $2, 0, 'reply', $3, $4)
-                    """,
-                    identity["id"], opener_sender["id"], thread_key, message_id,
+                    "UPDATE email_send_identities SET status = 'warming', demoted_at = now(), demoted_reason = $2, "
+                    "updated_at = now() WHERE id = $1",
+                    identity["id"], reason,
                 )
-                await conn.execute(
-                    "UPDATE identity_warmup SET replied_today = replied_today + 1, updated_at = now() WHERE identity_id = $1",
-                    identity["id"],
+                await _open_todo(
+                    conn, f"Cold email: {identity['mailbox_email']} pulled from sending",
+                    f"Auto-moved back to warm-up only: {reason}. Per the deliverability SOP, leave it warming and "
+                    "activate a reserve mailbox (Email Identities). See context/cold-email-deliverability.md.",
                 )
-            sent_this_tick += 1
+            results.append({"mailbox": identity["mailbox_email"], "health_score": score, "samples": stats["n"],
+                            "promotions_rate": promo, "bounce_rate": bounce, "sends": sends["n"],
+                            "demoted": bool(reasons and identity["status"] == "active")})
+
+        domains = sorted({domain_health._org_domain(i["domain"].lower()) for i in identities})
+        for domain in domains:
+            listed = [name for name, hit in (await domain_health.check_blacklists(domain)).items() if hit]
+            if listed:
+                await _open_todo(
+                    conn, f"Cold email: {domain} is blacklisted",
+                    f"Listed on: {', '.join(listed)}. At 3+ lists the SOP says replace the domain and let it "
+                    "cool off in warm-up. See context/cold-email-deliverability.md.",
+                )
+    return results

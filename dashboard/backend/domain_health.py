@@ -131,6 +131,33 @@ async def check_dns(domain: str, provider: str) -> dict:
     return await asyncio.to_thread(_check_dns_sync, domain, provider)
 
 
+# Domain blacklists (the SOP's mxtoolbox check, automated). A listed domain
+# resolves to a 127.x address under the list's zone. The SOP's IP checks don't apply: mail goes out
+# from Google's / Microsoft's servers, not Dylan's own IP.
+_DOMAIN_BLACKLISTS = {"Spamhaus DBL": "dbl.spamhaus.org", "SURBL": "multi.surbl.org", "URIBL": "multi.uribl.com"}
+
+
+def _check_blacklists_sync(domain: str) -> dict:
+    import dns.resolver
+
+    out = {}
+    for name, zone in _DOMAIN_BLACKLISTS.items():
+        try:
+            answers = dns.resolver.resolve(f"{domain}.{zone}", "A", lifetime=5)
+            codes = [str(a) for a in answers]
+            # 127.255.x.x (Spamhaus) / 127.0.0.1 (URIBL) = query refused, not a listing
+            out[name] = any(c.startswith("127.") and not c.startswith("127.255.") and c != "127.0.0.1"
+                            for c in codes)
+        except Exception:
+            out[name] = False  # NXDOMAIN = not listed; timeouts count as not listed
+    return out
+
+
+async def check_blacklists(domain: str) -> dict:
+    """{list name: True if listed} for an organizational domain."""
+    return await asyncio.to_thread(_check_blacklists_sync, domain)
+
+
 # ── Report ingest (briefing → GitHub → here) ──────────────────────────────
 
 async def _gh_list(rel_dir: str) -> list[str]:
@@ -253,6 +280,8 @@ async def domain_health_overview() -> list[dict]:
 
     domains = list(by_domain.values())
     dns_results = await asyncio.gather(*(check_dns(e["domain"], e["provider"]) for e in domains))
-    for entry, checks in zip(domains, dns_results):
+    bl_results = await asyncio.gather(*(check_blacklists(_org_domain(e["domain"])) for e in domains))
+    for entry, checks, blacklists in zip(domains, dns_results, bl_results):
         entry["dns"] = checks
+        entry["blacklists"] = blacklists
     return domains
