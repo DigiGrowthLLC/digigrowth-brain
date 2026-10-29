@@ -2820,7 +2820,7 @@ function fmtMsgTime(iso) {
   return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function InboxThread({ token, contactId, onSent }) {
+function InboxThread({ token, contactId, onSent, onBack }) {
   const [thread, setThread] = useState(null);
   const [loading, setLoading] = useState(true);
   const [channel, setChannel] = useState("sms");
@@ -2905,6 +2905,9 @@ function InboxThread({ token, contactId, onSent }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(58,123,213,0.12)" }}>
+        {onBack && (
+          <button onClick={onBack} className="btn btn-secondary" style={{ fontSize: 10, marginBottom: 8 }}>← ALL CONVERSATIONS</button>
+        )}
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
           {contact.owner || contact.business || "—"}
         </div>
@@ -2983,7 +2986,7 @@ function InboxThread({ token, contactId, onSent }) {
         <textarea
           className="dg-input" rows={2} placeholder="Type a reply..."
           value={draft} onChange={(e) => setDraft(e.target.value)}
-          style={{ width: "100%", resize: "vertical", marginBottom: 8 }}
+          style={{ width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
         />
         <button className="btn btn-primary" onClick={send} disabled={sending || !draft.trim()} style={{ fontSize: 11 }}>
           {sending ? "SENDING..." : "SEND"}
@@ -3086,7 +3089,27 @@ function CampaignActivityPanel({ token }) {
   );
 }
 
+// Phones can't fit the inbox's 300px list + thread side by side — the
+// thread got squeezed to ~60px and clipped, so a client on mobile couldn't
+// reach the reply box at all (reported live by a client replying from his
+// phone). Below this width the inbox shows one pane at a time instead.
+const INBOX_NARROW_PX = 760;
+function useIsNarrow(maxPx) {
+  const query = `(max-width: ${maxPx}px)`;
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setNarrow(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, [query]);
+  return narrow;
+}
+
 function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
+  const narrow = useIsNarrow(INBOX_NARROW_PX);
+  const paneHeight = narrow ? "calc(100dvh - 140px)" : 560;
   const [convos, setConvos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -3159,15 +3182,15 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <SectionHeading>Inbox</SectionHeading>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input
             className="dg-input"
             placeholder="Search business, owner, phone, email…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ fontSize: 11, padding: "6px 10px", width: 220 }}
+            style={{ fontSize: 11, padding: "6px 10px", width: narrow ? "100%" : 220 }}
           />
           <select className="dg-input" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 130 }}>
             {INBOX_CHANNEL_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
@@ -3185,8 +3208,8 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
         </div>
       </div>
       <CampaignActivityPanel token={token} />
-      <div className="glass-card" style={{ padding: 0, overflow: "hidden", display: "grid", gridTemplateColumns: "300px 1fr", height: 560 }}>
-        <div style={{ borderRight: "1px solid rgba(58,123,213,0.12)", overflowY: "auto" }}>
+      <div className="glass-card" style={{ padding: 0, overflow: "hidden", display: "grid", gridTemplateColumns: narrow ? "1fr" : "300px 1fr", height: paneHeight }}>
+        <div style={{ borderRight: narrow ? "none" : "1px solid rgba(58,123,213,0.12)", overflowY: "auto", display: narrow && selected ? "none" : "block" }}>
           {loading && <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>LOADING…</div>}
           {!loading && visibleConvos.length === 0 && (
             <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", lineHeight: 1.6 }}>
@@ -3243,9 +3266,9 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
             InboxThread's content instead of being capped at the grid
             row's 560px track — that's what let the thread panel overflow
             past the glass-card and get clipped instead of scrolling. */}
-        <div style={{ height: 560, overflow: "hidden" }}>
+        <div style={{ height: paneHeight, overflow: "hidden", display: narrow && !selected ? "none" : "block" }}>
           {selected ? (
-            <InboxThread token={token} contactId={selected} onSent={load} />
+            <InboxThread token={token} contactId={selected} onSent={load} onBack={narrow ? () => setSelected(null) : null} />
           ) : (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#3a5a80", fontSize: 13 }}>
               Select a conversation
