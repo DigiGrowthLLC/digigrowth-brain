@@ -1523,7 +1523,7 @@ async def portal_inbox_list(
                        EXISTS(
                            SELECT 1 FROM client_lead_conversations clc
                            WHERE clc.client_id = $1 AND clc.status = 'escalated'
-                             AND right(regexp_replace(clc.phone, '\D', '', 'g'), 10) = right(regexp_replace(c.phone, '\D', '', 'g'), 10)
+                             AND right(regexp_replace(clc.phone, '\\D', '', 'g'), 10) = right(regexp_replace(c.phone, '\\D', '', 'g'), 10)
                        ) AS needs_human
                 FROM contacts c
                 WHERE {where} AND c.phone IS NOT NULL AND trim(c.phone) != ''
