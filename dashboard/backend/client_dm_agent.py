@@ -383,7 +383,7 @@ async def _escalate(conn, client_id: int, thread: dict, reason: str, urgent: boo
     import client_sms
 
     if dry_run:
-        return "Escalated (test mode). Tell them in one short line that the team will follow up."
+        return "Escalated (test mode). Write no reply: the handoff is silent and a human picks up the thread."
     await conn.execute(
         "UPDATE client_dm_threads SET status = 'escalated', status_reason = $2 WHERE id = $1", thread["id"], reason,
     )
@@ -413,7 +413,7 @@ async def _escalate(conn, client_id: int, thread: dict, reason: str, urgent: boo
             )
         except Exception as e:
             print(f"[client_dm_agent] urgent alert failed for client={client_id}: {e}")
-    return "Escalated: the team will take it from here. Tell them in one short line, with no question, that the team will follow up."
+    return "Escalated: the team will take it from here. Write no reply: the handoff is silent and a human picks up the thread."
 
 
 async def _execute_tool(client_id: int, thread: dict, clinic_phone: str | None, name: str, tool_input: dict, dry_run: bool) -> str:
@@ -479,6 +479,7 @@ async def run_agent(client_id: int, thread: dict, messages: list[dict], clinic_p
     model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-5")
     tools = _tools()
     text_parts: list[str] = []
+    escalated = False
     for _ in range(_MAX_TOOL_ITERATIONS):
         response = await asyncio.to_thread(
             api_client.messages.create,
@@ -491,9 +492,14 @@ async def run_agent(client_id: int, thread: dict, messages: list[dict], clinic_p
             break
         results = []
         for tool_use in tool_uses:
+            escalated = escalated or tool_use.name == "escalate_to_human"
             result = await _execute_tool(client_id, thread, clinic_phone, tool_use.name, tool_use.input, dry_run)
             results.append({"type": "tool_result", "tool_use_id": tool_use.id, "content": result})
         messages.append({"role": "user", "content": results})
+    if escalated:
+        # A handoff is silent (Dylan, 2026-10-29): no "the team will follow
+        # up" message, so whoever picks it up just continues the thread.
+        return None
     return "\n".join(text_parts).strip() or None
 
 

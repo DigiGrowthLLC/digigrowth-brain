@@ -1519,7 +1519,12 @@ async def portal_inbox_list(
                            SELECT 1 FROM csm WHERE {sms_router._phone_match('csm.counterparty', 'c.phone')}
                            AND csm.direction = 'inbound'
                            AND csm.created_at > COALESCE(c.client_channel_last_read_at, '-infinity'::timestamptz)
-                       ) AS unread
+                       ) AS unread,
+                       EXISTS(
+                           SELECT 1 FROM client_lead_conversations clc
+                           WHERE clc.client_id = $1 AND clc.status = 'escalated'
+                             AND right(regexp_replace(clc.phone, '\D', '', 'g'), 10) = right(regexp_replace(c.phone, '\D', '', 'g'), 10)
+                       ) AS needs_human
                 FROM contacts c
                 WHERE {where} AND c.phone IS NOT NULL AND trim(c.phone) != ''
                 """,
@@ -1561,6 +1566,8 @@ async def portal_inbox_list(
             if ch not in entry["channels"]:
                 entry["channels"].append(ch)
             entry["unread"] = entry["unread"] or d["unread"]
+            # The AI handed this thread off (silently) and is paused on it.
+            entry["needs_human"] = entry.get("needs_human") or bool(d.get("needs_human"))
             if entry["last_message_at"] is None or d["last_message_at"] > entry["last_message_at"]:
                 entry["last_message"] = _strip_html(d["last_message"])
                 entry["last_message_at"] = d["last_message_at"]

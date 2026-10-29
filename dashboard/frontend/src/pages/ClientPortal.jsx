@@ -3251,6 +3251,10 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
                   {c.channels.map((ch) => (
                     <span key={ch} className="mono" style={{ fontSize: 8, color: "#3a7bd5", letterSpacing: "0.06em" }}>{ch.toUpperCase()}</span>
                   ))}
+                  {/* The AI handed this thread off without telling the lead. */}
+                  {c.needs_human && (
+                    <span className="mono" title="The AI handed this conversation to you and is paused on it" style={{ fontSize: 8, color: "#f5a623", letterSpacing: "0.06em" }}>NEEDS YOU</span>
+                  )}
                 </div>
                 {c.last_message && (
                   <div style={{ fontSize: 11, color: isUnread ? "#8aaad0" : "#5a7096", fontWeight: isUnread ? 600 : 400, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

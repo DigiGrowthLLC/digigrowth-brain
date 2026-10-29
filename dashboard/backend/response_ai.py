@@ -100,8 +100,8 @@ says one is missing). Pass the reason for their call too if you already know it.
 set to the day AFTER the day you just offered — never re-offer the same day, and never repeat the \
 exact same times you already gave them.
 - If the lead asks for something outside what you were told, seems upset, asks for a refund or \
-files a complaint, or you're not confident how to respond, call escalate_to_human and let them \
-know a team member will follow up.
+files a complaint, or you're not confident how to respond, call escalate_to_human and write no \
+text at all: the handoff is silent, never tell them someone will follow up.
 - Never claim an appointment is booked unless propose_appointment confirmed it in this same turn. \
 Never send the lead a booking link — you book it for them.
 - If it becomes clear the lead can't be a client — they live outside the area the business serves, \
@@ -788,6 +788,10 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
                 "said. If any times you offered earlier may have passed, check availability again.\n"
             )
         reply_text = await _run_agent_turn(client_id, from_phone, system_prompt, messages)
+        if (client_id, from_phone) in _pending_escalation_alerts:
+            # Escalated this turn: the handoff is silent (Dylan, 2026-10-29),
+            # even if the model wrote a "someone will follow up" line anyway.
+            reply_text = None
         if reply_text:
             # Belt-and-suspenders, same as the word-count cap below: a "no
             # em dashes" rule in response_ai_rules is a prompt instruction
@@ -1472,8 +1476,8 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
         # so whoever picks it up sees the lead's thread as it actually stands.
         _pending_escalation_alerts[(client_id, from_phone)] = (reason, bool(tool_input.get("urgent")))
         return ("Escalated: the team has been flagged on this thread, and you won't reply here again until "
-                "they hand it back. Tell the lead, in one short line with no question, that the team will "
-                "follow up with them directly.")
+                "they hand it back. Write no text: the handoff is silent so a human can just pick up the "
+                "conversation.")
 
     if tool_name == "mark_unqualified":
         _pending_unqualified[(client_id, from_phone)] = (tool_input.get("reason") or "").strip() or "Not a fit"
