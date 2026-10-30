@@ -6524,9 +6524,9 @@
       "last_scraped_date": "2026-10-29"
     },
     "Kenosha, WI": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 111,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 113,
       "qualified_count": 0,
       "last_scraped_date": "2026-10-29"
     },
