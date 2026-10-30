@@ -6559,9 +6559,9 @@
       "last_scraped_date": "2026-10-29"
     },
     "Roanoke, VA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 130,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 153,
       "qualified_count": 6,
       "last_scraped_date": "2026-10-29"
     },
