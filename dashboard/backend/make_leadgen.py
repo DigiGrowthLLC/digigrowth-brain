@@ -35,9 +35,11 @@ import dialer_engine
 HOOK_TYPE = "facebook-lead-ads-new-event"
 _FB_ACCOUNT = "facebook"
 
-# Form question keys forwarded to the relay — Meta's standard Lead Ads
-# fields. A custom question under another key won't be forwarded; the relay
-# skips a lead with no phone and logs it.
+# Form question keys forwarded to the relay as their own fields — Meta's
+# standard Lead Ads fields; the relay skips a lead with no phone and logs it.
+# Every other question (custom ones like "what have you tried?") rides along
+# in answers_json: module 2 serializes the lead's whole `data` collection,
+# since question keys differ per form and can't be listed here.
 _LEAD_FIELDS = ("full_name", "phone_number", "email")
 
 
@@ -85,6 +87,7 @@ def _blueprint(hook_id: int, client_name: str) -> dict:
         raise RuntimeError("DASHBOARD_URL not set — can't build the relay URL.")
     fields = [{"key": "page_id", "value": "{{1.pageId}}"}, {"key": "leadgen_id", "value": "{{1.leadgenId}}"}]
     fields += [{"key": f, "value": "{{1.data.%s}}" % f} for f in _LEAD_FIELDS]
+    fields.append({"key": "answers_json", "value": "{{2.json}}"})
     return {
         "name": _scenario_name(client_name),
         "flow": [
@@ -94,7 +97,12 @@ def _blueprint(hook_id: int, client_name: str) -> dict:
                 "mapper": {}, "metadata": {"designer": {"x": 0, "y": 0}},
             },
             {
-                "id": 2, "module": "http:ActionSendData", "version": 3,
+                "id": 2, "module": "json:TransformToJSON", "version": 1,
+                "parameters": {"space": ""}, "mapper": {"object": "{{1.data}}"},
+                "metadata": {"designer": {"x": 300, "y": 0}},
+            },
+            {
+                "id": 3, "module": "http:ActionSendData", "version": 3,
                 "parameters": {"handleErrors": False, "useNewZLibDeCompress": True},
                 # Key names copied from a module saved by Make's own editor
                 # (2026-09-29) — the form body is "formFields"; an unknown key
@@ -109,7 +117,7 @@ def _blueprint(hook_id: int, client_name: str) -> dict:
                     "followRedirect": True, "useQuerystring": False, "followAllRedirects": False,
                     "rejectUnauthorized": True,
                 },
-                "metadata": {"designer": {"x": 300, "y": 0}},
+                "metadata": {"designer": {"x": 600, "y": 0}},
             },
         ],
         "metadata": {

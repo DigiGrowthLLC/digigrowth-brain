@@ -1435,7 +1435,7 @@ function RecentLeadsWidget({ token }) {
             padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.02)",
           }}>
             <div>
-              <div style={{ fontSize: 13, color: "#c4d0e8", fontWeight: 600 }}>{l.business || l.owner || "—"}</div>
+              <div style={{ fontSize: 13, color: "#c4d0e8", fontWeight: 600 }}>{leadName(l) || "—"}</div>
               <div style={{ fontSize: 10, color: "#5a7096", marginTop: 2 }}>{l.phone}</div>
             </div>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#14c882", flexShrink: 0 }} />
@@ -2032,15 +2032,27 @@ function TagChip({ tag, onRemove }) {
 // DigiGrowth's own sales-pipeline machinery, not something a client's own
 // lead-editing view should expose, same reasoning as leaving contact
 // status out of the Inbox filter bar.
+// A client's leads are patients, not businesses: the person's name lives in
+// contacts.owner (what every lead source writes it to).
 const LEAD_DRAWER_FIELDS = [
-  { label: "Business", k: "business" },
-  { label: "Owner", k: "owner" },
+  { label: "Name", k: "owner" },
   { label: "Phone", k: "phone" },
   { label: "Email", k: "email" },
-  { label: "Website", k: "website" },
-  { label: "City", k: "city" },
-  { label: "State", k: "state" },
 ];
+
+// Older rows (pre-name-column) may only carry a business value.
+const leadName = (l) => l.owner || l.business || "";
+
+// contacts.form_answers arrives as a JSON string (asyncpg has no JSONB codec here).
+function parseFormAnswers(raw) {
+  if (!raw) return [];
+  try {
+    const v = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
 
 function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onMessage }) {
   const [display, setDisplay] = useState(lead);
@@ -2126,7 +2138,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
       activeCallRef.current = call;
 
       call.on("accept", () => {
-        setCallMsg("Connected — dialing " + (display.owner || display.business || "the lead") + "…");
+        setCallMsg("Connected — dialing " + (leadName(display) || "the lead") + "…");
         pollCallStatus(cd.call_id);
       });
       call.on("disconnect", () => { setCallPhase("ended"); stopPolling(); });
@@ -2194,6 +2206,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
 
   const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#3a7bd5" };
   const labelStyle = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.15em", marginBottom: 4 };
+  const formAnswers = parseFormAnswers(display.form_answers);
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end" }}>
@@ -2205,10 +2218,10 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
         <div style={{ padding: "18px 20px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
           <div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
-              {display.business || "Unknown"}
+              {leadName(display) || "Unknown"}
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginTop: 3 }}>
-              {display.owner || "—"} · {display.phone || "—"}
+              {display.phone || "—"}
             </div>
           </div>
           <button onClick={onClose} style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#3a5a80", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>✕</button>
@@ -2217,12 +2230,27 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
             {LEAD_DRAWER_FIELDS.map((f) => (
-              <div key={f.k} style={{ marginBottom: 12 }}>
+              <div key={f.k} style={{ marginBottom: 12, gridColumn: f.k === "owner" ? "1 / -1" : undefined }}>
                 <div style={labelStyle}>{f.label.toUpperCase()}</div>
                 <input value={form[f.k]} onChange={(e) => setField(f.k, e.target.value)} className="dg-input" style={{ width: "100%", fontSize: 12, boxSizing: "border-box" }} />
               </div>
             ))}
           </div>
+
+          {/* What they told us on the Meta lead form — read-only. */}
+          {formAnswers.length > 0 && (
+            <div>
+              <div style={{ ...labelStyle, marginBottom: 10 }}>LEAD FORM ANSWERS</div>
+              <div className="glass-card-sm" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+                {formAnswers.map((a, i) => (
+                  <div key={i}>
+                    <div style={{ fontSize: 11, color: "#6a8ab0", marginBottom: 2 }}>{a.question}</div>
+                    <div style={{ fontSize: 13, color: "#f0f4ff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{a.answer}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <div style={labelStyle}>NOTES</div>
@@ -2397,7 +2425,7 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff", fontFamily: "'Space Grotesk', sans-serif" }}>
-            Book Appointment — {lead.business || lead.owner || "Lead"}
+            Book Appointment — {leadName(lead) || "Lead"}
           </span>
           <button onClick={onClose} style={{ background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540", borderRadius: 6, color: "#5a6f8f", width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>✕</button>
         </div>
@@ -2453,7 +2481,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [form, setForm] = useState({ business: "", owner: "", phone: "", email: "", website: "", city: "", state: "", notes: "" });
+  const [form, setForm] = useState({ owner: "", phone: "", email: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [parsed, setParsed] = useState(null);
@@ -2518,7 +2546,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
       body: JSON.stringify(form),
     });
     if (r.ok) {
-      setForm({ business: "", owner: "", phone: "", email: "", website: "", city: "", state: "", notes: "" });
+      setForm({ owner: "", phone: "", email: "", notes: "" });
       setShowAdd(false);
       load();
     } else {
@@ -2628,19 +2656,11 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
 
       {showAdd && (
         <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 20, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", gap: 10 }}>
-            <input className="dg-input" placeholder="Business name" value={form.business} onChange={(e) => setForm((f) => ({ ...f, business: e.target.value }))} style={{ flex: 1 }} />
-            <input className="dg-input" placeholder="Owner / contact" value={form.owner} onChange={(e) => setForm((f) => ({ ...f, owner: e.target.value }))} style={{ flex: 1 }} />
-          </div>
+          <input className="dg-input" placeholder="Name" value={form.owner} onChange={(e) => setForm((f) => ({ ...f, owner: e.target.value }))} />
           <div style={{ display: "flex", gap: 10 }}>
             <input className="dg-input" placeholder="Phone *" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={{ flex: 1 }} />
             <input className="dg-input" placeholder="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={{ flex: 1 }} />
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <input className="dg-input" placeholder="City" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} style={{ flex: 1 }} />
-            <input className="dg-input" placeholder="State" value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} style={{ flex: 1 }} />
-          </div>
-          <input className="dg-input" placeholder="Website" value={form.website} onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))} />
           <textarea className="dg-input" rows={2} placeholder="Notes" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} style={{ resize: "vertical" }} />
           {err && <div style={{ fontSize: 12, color: "#e05555" }}>{err}</div>}
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -2652,7 +2672,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
       {showImport && (
         <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 20, display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontSize: 12, color: "#8aaad0", lineHeight: 1.6 }}>
-            CSV with a <strong>phone</strong> column required. Recognized headers: business, owner, phone, email, website, city, state, notes, condition, last visit.
+            CSV with a <strong>phone</strong> column required. Recognized headers: name, phone, email, notes, condition, last visit.
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, color: "#8aaad0" }}>What kind of list is this?</span>
@@ -2721,14 +2741,14 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(58,123,213,0.15)" }}>
-              {["Business", "Owner", "Phone", "Email", "City", "State", "Tags"].map((h) => (
+              {["Name", "Phone", "Email", "Tags"].map((h) => (
                 <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && leads.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No leads yet.</td></tr>
+              <tr><td colSpan={4} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No leads yet.</td></tr>
             )}
             {leads.map((l) => (
               <tr
@@ -2738,12 +2758,9 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
                 onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(58,123,213,0.04)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{l.business || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.owner || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{leadName(l) || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.phone || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.email || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.city || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.state || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12 }} onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
                     {(l.tags || []).map((tagName) => (
@@ -3117,7 +3134,7 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input
             className="dg-input"
-            placeholder="Search business, owner, phone, email…"
+            placeholder="Search name, phone, email…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ fontSize: 11, padding: "6px 10px", width: narrow ? "100%" : 220 }}

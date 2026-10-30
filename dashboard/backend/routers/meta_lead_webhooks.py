@@ -47,6 +47,7 @@ is shared between the two entry points.
 """
 import hashlib
 import hmac
+import json
 import os
 import uuid
 
@@ -87,6 +88,33 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> bool:
         return False
     expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature_header.removeprefix("sha256="))
+
+
+_NON_ANSWER_FIELDS = _PHONE_FIELD_NAMES | _EMAIL_FIELD_NAMES | _NAME_FIELD_NAMES | {"page_id", "leadgen_id", "id"}
+
+
+def _humanize(text: str) -> str:
+    """Meta hands over question keys and multiple-choice answers as
+    snake_case keys ("what_have_you_tried_so_far?", "lower_back")."""
+    text = text.replace("_", " ").strip()
+    return text[:1].upper() + text[1:]
+
+
+def _form_answers(field_data: list[dict]) -> list[dict]:
+    """The lead's answers to the form's own questions, in form order —
+    everything except the contact fields stored in their own columns."""
+    answers = []
+    for f in field_data or []:
+        key = (f.get("name") or "").strip()
+        if not key or key.lower() in _NON_ANSWER_FIELDS:
+            continue
+        values = [str(v).strip() for v in (f.get("values") or []) if str(v).strip()]
+        if values:
+            answers.append({
+                "question": _humanize(key),
+                "answer": ", ".join(v if " " in v else _humanize(v) for v in values),
+            })
+    return answers
 
 
 def _extract_field(field_data: list[dict], names: set[str]) -> str | None:
@@ -161,6 +189,7 @@ async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[
         return "skipped: no phone"
     email = _extract_field(field_data, _EMAIL_FIELD_NAMES)
     name = _extract_field(field_data, _NAME_FIELD_NAMES)
+    answers = _form_answers(field_data)
 
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -183,11 +212,12 @@ async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[
 
         row = await conn.fetchrow(
             """
-            INSERT INTO contacts (id, business, owner, phone, email, status, client_id, tags, lead_source)
-            VALUES ($1, NULL, $2, $3, $4, 'new', $5, ARRAY['meta_lead'], 'meta_form')
+            INSERT INTO contacts (id, business, owner, phone, email, status, client_id, tags, lead_source, form_answers)
+            VALUES ($1, NULL, $2, $3, $4, 'new', $5, ARRAY['meta_lead'], 'meta_form', $6::jsonb)
             ON CONFLICT (phone) DO UPDATE SET
                 owner      = COALESCE(EXCLUDED.owner, contacts.owner),
                 email      = COALESCE(EXCLUDED.email, contacts.email),
+                form_answers = COALESCE(EXCLUDED.form_answers, contacts.form_answers),
                 client_id  = COALESCE(contacts.client_id, EXCLUDED.client_id),
                 lead_source = COALESCE(contacts.lead_source, EXCLUDED.lead_source),
                 tags       = CASE WHEN 'meta_lead' = ANY(contacts.tags) THEN contacts.tags
@@ -195,7 +225,7 @@ async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[
                 updated_at = now()
             RETURNING *
             """,
-            str(uuid.uuid4()), name, phone, email, client_id,
+            str(uuid.uuid4()), name, phone, email, client_id, json.dumps(answers) if answers else None,
         )
 
     # Every lead this webhook ever sees came from a paid Meta Lead Ads form
@@ -283,7 +313,8 @@ async def make_leadgen_inbound(request: Request):
     Body: {"page_id", "leadgen_id", "field_data": [{"name", "values"}]} in
     Meta's own shape, or the same fields flat ({"full_name": ..., "phone_number":
     ..., "email": ...}), as JSON or form-encoded — whichever Make's mapping
-    produces."""
+    produces. answers_json (make_leadgen.py's scenarios) is the lead's whole
+    form as a JSON object, custom questions included."""
     secret = os.environ.get("MAKE_LEADGEN_SECRET")
     if not secret or not hmac.compare_digest(request.headers.get("X-Webhook-Secret", ""), secret):
         return Response(status_code=403)
@@ -294,11 +325,23 @@ async def make_leadgen_inbound(request: Request):
         body = await request.json()
     else:
         body = dict(await request.form())
+    answers_json = body.pop("answers_json", None)
     page_id = str(body.get("page_id") or "")
     leadgen_id = str(body.get("leadgen_id") or body.get("id") or "")
     field_data = body.get("field_data")
     if not isinstance(field_data, list):
         field_data = [{"name": k, "values": [v]} for k, v in body.items() if isinstance(v, (str, int))]
+    try:
+        answers = json.loads(answers_json) if answers_json else {}
+    except ValueError:
+        print(f"[meta_lead_webhooks] make relay: unparseable answers_json for lead {leadgen_id}")
+        answers = {}
+    if isinstance(answers, dict):
+        have = {(f.get("name") or "").lower() for f in field_data}
+        field_data += [
+            {"name": k, "values": v if isinstance(v, list) else [v]}
+            for k, v in answers.items() if k.lower() not in have and v not in (None, "")
+        ]
 
     pool = await get_pool()
     async with pool.acquire() as conn:
