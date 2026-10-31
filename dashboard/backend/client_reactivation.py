@@ -28,7 +28,7 @@ conversation from there, with the campaign's angle in its prompt
 (response_ai._lead_origin). From then on it's an ordinary conversation:
 the AI's replies enroll them in the normal gone-quiet follow-up.
 
-Touches go out 10am-6pm Monday-Saturday in the lead's timezone.
+Touches go out 10am-6pm Monday-Saturday in the clinic's timezone.
 """
 
 import json
@@ -39,7 +39,7 @@ from zoneinfo import ZoneInfo
 import lead_flags
 from db import get_pool
 from merge_fields import first_name_from_owner
-from timezone_lookup import guess_timezone
+from timezone_lookup import clinic_timezone
 
 # Offer-neutral starting copy (each client's offer differs; edit per
 # campaign). Plain GSM-7 characters only.
@@ -131,9 +131,9 @@ def touches_of(campaign) -> list[dict]:
     return [t for t in (touches or []) if (t.get("body") or "").strip()]
 
 
-def in_send_window(phone: str, now: datetime) -> bool:
+def in_send_window(tz_name: str, now: datetime) -> bool:
     try:
-        tz = ZoneInfo(guess_timezone(phone) or "America/Chicago")
+        tz = ZoneInfo(tz_name or "America/Chicago")
     except Exception:
         tz = ZoneInfo("America/Chicago")
     local = now.astimezone(tz)
@@ -315,7 +315,7 @@ async def _run_campaign(campaign: dict, now: datetime) -> None:
                 gap = timedelta(days=max(0, touches[sent]["day"] - touches[sent - 1]["day"]))
                 if now < e["last_touch_at"] + gap:
                     continue
-            if not in_send_window(normalize_phone(e["phone"]), now):
+            if not in_send_window(await clinic_timezone(conn, campaign["client_id"], e["phone"]), now):
                 continue
 
             result = await _send_touch(campaign, e, sent + 1, touches)

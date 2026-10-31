@@ -70,7 +70,7 @@ from db import get_pool
 from routers.appointments import create_appointment_row
 from routers.calendly_webhooks import record_booking
 from sms_text import gsm7_safe
-from timezone_lookup import guess_timezone
+from timezone_lookup import clinic_timezone
 
 _MAX_TOOL_ITERATIONS = 4
 _HISTORY_LIMIT = 20
@@ -112,7 +112,10 @@ a guess or a first hesitation, and never for a price question alone.
 - If the lead says they're not interested, already found care, or asks you to stop, call \
 close_conversation and send one short, kind closing text with no question and no pitch.
 - If the message is an automated reply rather than a person (an auto-responder, "Thanks for texting \
-X, we'll get back to you", a carrier or voicemail notice), don't reply at all: write no text.
+X, we'll get back to you", a carrier or voicemail notice), or just a reaction/acknowledgement that needs \
+no answer ("Liked ...", "ok", "thanks!" after they're booked), don't reply: output exactly [NO REPLY] \
+and nothing else. Everything you write other than that is texted to the lead word for word, so never \
+write notes, reasoning or explanations about what you're doing.
 - If the lead asks you to reach back out later ("text me Thursday", "I'm driving"), call \
 schedule_followup with the time they gave (or tomorrow if they gave none) and reply with one short line.
 - Answer the lead's actual question first, every time, before steering back to booking. Never send the \
@@ -457,8 +460,32 @@ def _split_into_sms_segments(text: str, max_words: int | None) -> list[str]:
     return segments or [text]
 
 
+NO_REPLY = "[NO REPLY]"
+
+# iMessage tapbacks relayed as SMS ("Liked “...”", "Laughed at “...”") and
+# Android's ("Reacted 👍 to “...”").
+_REACTION_RE = re.compile(
+    r"^\s*(?:(?:Liked|Loved|Disliked|Laughed at|Emphasized|Questioned)\s+[\"“”'‘]"
+    r"|Reacted\s+\S+\s+to\s+[\"“”'‘]"
+    r"|Removed\s+an?\s+\S+(?:\s+\S+)?\s+from\s+[\"“”'‘])",
+)
+
+
+def _is_reaction(body: str | None) -> bool:
+    return bool(_REACTION_RE.match(body or ""))
+
+
+async def _clinic_tz(client_id: int, phone: str | None) -> str:
+    """The clinic's timezone (timezone_lookup.clinic_timezone): every time
+    this agent states, offers or books is on the clinic's clock, never a
+    guess from the patient's phone."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await clinic_timezone(conn, client_id, phone)
+
+
 def _today_str(tz_name: str) -> str:
-    """"Tuesday, September 29, 2026" in the lead's timezone (portable — no %-d)."""
+    """"Tuesday, September 29, 2026" in the clinic's timezone (portable — no %-d)."""
     now = datetime.now(ZoneInfo(tz_name))
     return f"{now:%A, %B} {now.day}, {now.year}"
 
@@ -661,7 +688,7 @@ async def retry_unanswered() -> None:
             """
         )
     for r in rows:
-        if lead_flags.in_quiet_hours(guess_timezone(r["phone"]), datetime.now(timezone.utc)):
+        if lead_flags.in_quiet_hours(await _clinic_tz(r["client_id"], r["phone"]), datetime.now(timezone.utc)):
             continue
         print(f"[response_ai] retrying unanswered text from {r['phone']} (client={r['client_id']})")
         await handle_inbound_sms(r["client_id"], r["phone"], r["body"])
@@ -728,6 +755,13 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
                 await conn.execute(
                     "UPDATE client_lead_conversations SET status = 'ai_active' WHERE id = $1", conversation["id"],
                 )
+            if latest and _is_reaction(latest["body"]):
+                # A tapback ("Liked "You're all set..."") isn't a message.
+                # The model used to answer one with its own reasoning ("No
+                # reply needed here, just a reaction"), sent as a real text
+                # (Advantage Therapy, 2026-10-31).
+                await _mark_handled(conn, conversation["id"])
+                return
             if await lead_flags.is_unqualified(client_id, phone=from_phone):
                 # Tagged Unqualified — no automated replies (the client can
                 # still reply by hand). Checks the tag, not the 'unqualified'
@@ -771,12 +805,12 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
             sequence = json.loads(sequence)
         max_words = row["response_ai_max_words"]
 
-        tz_name = guess_timezone(from_phone)
+        tz_name = await _clinic_tz(client_id, from_phone)
         today_str = _today_str(tz_name)
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
-            today_str, booked_for=_format_booking(booking) if booking else None, lessons=lessons,
+            today_str, booked_for=_format_booking(booking, tz_name) if booking else None, lessons=lessons,
             lead_phone=from_phone, origin=origin,
         )
         waited = datetime.now(timezone.utc) - latest["created_at"] if latest else timedelta(0)
@@ -791,6 +825,10 @@ async def handle_inbound_sms(client_id: int, from_phone: str, body: str) -> None
         if (client_id, from_phone) in _pending_escalation_alerts:
             # Escalated this turn: the handoff is silent (Dylan, 2026-10-29),
             # even if the model wrote a "someone will follow up" line anyway.
+            reply_text = None
+        if reply_text and NO_REPLY in reply_text:
+            # The model chose silence; anything around the marker is its own
+            # reasoning, never something the lead should see.
             reply_text = None
         if reply_text:
             # Belt-and-suspenders, same as the word-count cap below: a "no
@@ -868,10 +906,10 @@ async def _upcoming_booking(conn, phone: str, email: str | None):
     )
 
 
-def _format_booking(booking) -> str:
-    """e.g. "Thursday, October 2 at 2:00 PM CDT" in the lead's own timezone."""
+def _format_booking(booking, tz_name: str) -> str:
+    """e.g. "Thursday, October 2 at 2:00 PM CDT" on the clinic's clock."""
     try:
-        tz = ZoneInfo(booking["prospect_timezone"])
+        tz = ZoneInfo(tz_name or booking["prospect_timezone"])
     except Exception:
         tz = ZoneInfo("UTC")
     local = booking["appointment_at"].astimezone(tz)
@@ -962,7 +1000,7 @@ async def _open_conversation(client_id: int, phone: str, lead_name: str | None, 
             sequence = json.loads(sequence)
         max_words = row["response_ai_max_words"]
 
-        tz_name = guess_timezone(phone)
+        tz_name = await _clinic_tz(client_id, phone)
         today_str = _today_str(tz_name)
 
         system_prompt = _build_system_prompt(
@@ -1078,7 +1116,7 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
 
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", sequence or [], max_words, row["response_ai_rules"] or "",
-            _today_str(guess_timezone(phone)), lessons=lessons, lead_phone=phone, origin=origin,
+            _today_str(await _clinic_tz(client_id, phone)), lessons=lessons, lead_phone=phone, origin=origin,
         ) + _FOLLOWUP_PREAMBLE_ADDITION
         if checkin_note is not None:
             messages.append({"role": "user", "content": (
@@ -1140,7 +1178,7 @@ async def write_outreach_text(client_id: int, phone: str, brief: str, preamble: 
             origin = await _lead_origin(conn, client_id, phone)
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", [], row["response_ai_max_words"], row["response_ai_rules"] or "",
-            _today_str(guess_timezone(phone)), lessons=lessons, lead_phone=phone, origin=origin,
+            _today_str(await _clinic_tz(client_id, phone)), lessons=lessons, lead_phone=phone, origin=origin,
         ) + preamble
         messages = [{"role": "user", "content": f"[System note: write the text now. {brief}]"}]
         return await _complete_followup(system_prompt, messages, row["response_ai_max_words"])
@@ -1174,7 +1212,7 @@ async def write_reactivation_text(client_id: int, phone: str, template: str, tou
         # No conversation arc: that's the booking flow for once they reply.
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", [], max_words, row["response_ai_rules"] or "",
-            _today_str(guess_timezone(phone)), lessons=lessons, lead_phone=phone, origin=origin,
+            _today_str(await _clinic_tz(client_id, phone)), lessons=lessons, lead_phone=phone, origin=origin,
         ) + _REACTIVATION_PREAMBLE_ADDITION
         goal = (
             "This is the LAST text in this outreach: keep the door open warmly and say you won't keep "
@@ -1256,7 +1294,7 @@ def _format_openings(day_times: list[datetime]) -> str:
     day_label = f"{day_times[0]:%A, %B} {day_times[0].day}"
     picks = [day_times[0], day_times[-1]] if len(day_times) >= 2 else day_times[:1]
     times = [t.strftime("%I:%M %p").lstrip("0") for t in picks]
-    return f"Earliest real openings (lead's local time): {day_label} at {' or '.join(times)}"
+    return f"Earliest real openings (clinic's local time): {day_label} at {' or '.join(times)}"
 
 
 async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_input: dict) -> str:
@@ -1273,7 +1311,7 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             return "Calendar isn't connected for this business — ask the lead for their preferred day and time instead."
         after_date = (tool_input.get("after_date") or "").strip()
         try:
-            tz_name = guess_timezone(from_phone)
+            tz_name = await _clinic_tz(client_id, from_phone)
             tz = ZoneInfo(tz_name)
             if use_ghl:
                 start = (datetime.strptime(after_date, "%Y-%m-%d").replace(tzinfo=tz) if after_date
@@ -1344,7 +1382,7 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             async with pool.acquire() as conn:
                 contact = await _get_or_create_contact(conn, client_id, from_phone)
             contact_id = contact["id"] if contact else None
-            tz_name = guess_timezone(from_phone)
+            tz_name = await _clinic_tz(client_id, from_phone)
             tz = ZoneInfo(tz_name)
 
             async def _mark_booked():
@@ -1495,7 +1533,7 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
 
     if tool_name == "schedule_followup":
         try:
-            tz = ZoneInfo(guess_timezone(from_phone))
+            tz = ZoneInfo(await _clinic_tz(client_id, from_phone))
             day = datetime.strptime((tool_input.get("date") or "").strip(), "%Y-%m-%d").date()
             hh, mm = ((tool_input.get("time") or "").strip() or "10:00").split(":")[:2]
             when = datetime(day.year, day.month, day.day, int(hh), int(mm), tzinfo=tz)

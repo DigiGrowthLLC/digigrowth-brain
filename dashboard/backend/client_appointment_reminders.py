@@ -21,7 +21,7 @@ earlier unsent window is marked skipped, so a reminder held back (by quiet
 hours, or by a booking made inside a window) never goes out back-to-back
 with the next one. Windows the booking never had real lead time for are
 permanently skipped, same as reminder_engine.py. The 24h and 6h windows wait
-out quiet hours (9pm-8am in the lead's timezone, lead_flags.py); the 1h
+out quiet hours (9pm-8am in the clinic's timezone, lead_flags.py); the 1h
 window always sends, since it's tied to an appointment the lead booked.
 Leads tagged Unqualified get no reminders.
 """
@@ -33,7 +33,7 @@ from zoneinfo import ZoneInfo
 import lead_flags
 from db import get_pool
 from merge_fields import first_name_from_owner
-from timezone_lookup import guess_timezone
+from timezone_lookup import clinic_timezone
 
 _SEQUENCE_KEY = "appointment_reminder"
 _WINDOW_HOURS_BY_TOUCH = [24, 6, 1]
@@ -105,6 +105,11 @@ async def send_due_reminders():
                 "SELECT twilio_number FROM client_marketing_config WHERE client_id = $1",
                 client_id,
             )
+            # The clinic's clock, never the patient's (Dylan, 2026-10-31):
+            # both the {time} in the text and the quiet-hours check.
+            row["prospect_timezone"] = await clinic_timezone(
+                conn, client_id, row.get("prospect_phone") or row.get("contact_phone"),
+            )
 
         by_touch: dict[int, list] = {}
         for step in steps:
@@ -130,7 +135,7 @@ async def send_due_reminders():
                 sent_map.setdefault(str(st["step_order"]), _SKIPPED)
             changed = True
 
-        tz_name = row.get("prospect_timezone") or guess_timezone(row.get("prospect_phone") or row.get("contact_phone"))
+        tz_name = row["prospect_timezone"]
         is_last_window = latest == len(_WINDOW_HOURS_BY_TOUCH) - 1
         if not is_last_window and lead_flags.in_quiet_hours(tz_name, now):
             pass  # wait for 8am (or for the next window to supersede this one)

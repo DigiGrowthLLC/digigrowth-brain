@@ -65,7 +65,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 import lead_flags
 from db import get_pool
 from merge_fields import first_name_from_owner
-from timezone_lookup import guess_timezone
+from timezone_lookup import clinic_timezone
 
 SEQUENCE_KEY = "prospect_followup"
 
@@ -272,7 +272,7 @@ async def send_due_touches():
                 # nothing goes out before it, then one check-in from the
                 # thread. That check-in is a new outbound, so the normal
                 # cycle re-anchors on it if they don't answer.
-                if now < snooze_until or lead_flags.in_quiet_hours(guess_timezone(row["phone"]), now):
+                if now < snooze_until or lead_flags.in_quiet_hours(await clinic_timezone(conn, row["client_id"], row["phone"]), now):
                     continue
                 await conn.execute(
                     "UPDATE contacts SET client_followup_snooze_until = NULL, client_followup_snooze_note = NULL "
@@ -306,7 +306,7 @@ async def send_due_touches():
                     continue
                 reference = anchor if ref_col is None else row[ref_col]
                 if reference is not None and now >= reference + delay:
-                    if lead_flags.in_quiet_hours(guess_timezone(row["phone"]), now):
+                    if lead_flags.in_quiet_hours(await clinic_timezone(conn, row["client_id"], row["phone"]), now):
                         break  # due, but it's night where they are — send at 8am
                     sms_step = steps.get((row["client_id"], (touch_num - 1) * 2, "sms"))
                     if sms_step:

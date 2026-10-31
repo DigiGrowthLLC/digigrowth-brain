@@ -45,7 +45,7 @@ import httpx
 
 import lead_flags
 from db import get_pool
-from timezone_lookup import guess_timezone
+from timezone_lookup import clinic_timezone
 
 _GRAPH_BASE = "https://graph.facebook.com/v21.0"
 _REPLY_DEBOUNCE = timedelta(seconds=15)
@@ -311,11 +311,11 @@ async def _system_prompt(conn, client_id: int, thread: dict, clinic_phone: str |
     booking = None
     if thread.get("phone"):
         booking = await response_ai._upcoming_booking(conn, thread["phone"], None)
-    tz_phone = thread.get("phone") or clinic_phone or ""
+    tz_name = await clinic_timezone(conn, client_id, thread.get("phone") or clinic_phone)
     prompt = response_ai._build_system_prompt(
         row["name"], row["response_ai_context"] or "", sequence or [], None, row["response_ai_rules"] or "",
-        response_ai._today_str(guess_timezone(tz_phone)),
-        booked_for=response_ai._format_booking(booking) if booking else None,
+        response_ai._today_str(tz_name),
+        booked_for=response_ai._format_booking(booking, tz_name) if booking else None,
         lessons=lessons, origin=origin,
     )
     known = []
@@ -500,7 +500,12 @@ async def run_agent(client_id: int, thread: dict, messages: list[dict], clinic_p
         # A handoff is silent (Dylan, 2026-10-29): no "the team will follow
         # up" message, so whoever picks it up just continues the thread.
         return None
-    return "\n".join(text_parts).strip() or None
+    import response_ai
+
+    text = "\n".join(text_parts).strip()
+    if response_ai.NO_REPLY in text:
+        return None  # chose silence; the rest is its reasoning, not a message
+    return text or None
 
 
 async def _reply(thread: dict, note: str | None = None) -> None:
@@ -590,7 +595,7 @@ async def _handoff_to_sms(thread: dict) -> None:
         return
     if await lead_flags.is_opted_out(thread["client_id"], thread["phone"]):
         return
-    if lead_flags.in_quiet_hours(guess_timezone(thread["phone"]), datetime.now(dt_timezone.utc)):
+    if lead_flags.in_quiet_hours(await response_ai._clinic_tz(thread["client_id"], thread["phone"]), datetime.now(dt_timezone.utc)):
         async with pool.acquire() as conn:  # try again in the morning
             await conn.execute("UPDATE client_dm_threads SET sms_handoff_at = NULL WHERE id = $1", thread["id"])
         return
@@ -608,14 +613,10 @@ async def _handoff_to_sms(thread: dict) -> None:
         print(f"[client_dm_agent] SMS handoff failed for thread={thread['id']}: {e}")
 
 
-async def _clinic_phone(client_id: int) -> str | None:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetchval("SELECT twilio_number FROM client_marketing_config WHERE client_id = $1", client_id)
-
-
 async def process_due() -> None:
     """Scheduler job: due replies, then silence nudges and SMS handoffs."""
+    import response_ai
+
     pool = await get_pool()
     now = datetime.now(dt_timezone.utc)
     async with pool.acquire() as conn:
@@ -653,7 +654,7 @@ async def process_due() -> None:
             if since_theirs >= _WINDOW:
                 continue
             note = None
-            if lead_flags.in_quiet_hours(guess_timezone(await _clinic_phone(t["client_id"]) or ""), now):
+            if lead_flags.in_quiet_hours(await response_ai._clinic_tz(t["client_id"], None), now):
                 continue
             if t["nudges_sent"] == 0 and since_ours >= _NUDGE_AFTER and since_theirs < _LAST_CALL_AT:
                 note = _NUDGE_NOTE

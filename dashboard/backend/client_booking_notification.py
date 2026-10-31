@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 
 from db import get_pool
 from merge_fields import first_name_from_owner
+from timezone_lookup import clinic_timezone
 
 _DEFAULT_SMS = (
     "Hey {client_first_name}, we just booked you an appointment with "
@@ -129,7 +130,9 @@ async def send_booking_notification(row: dict):
                     try:
                         client_first_name = alert_first_name(client)
                         lead_name = (row.get("prospect_name") or "").strip() or "your lead"
-                        when = _format_when(row["appointment_at"], row["prospect_timezone"])
+                        when = _format_when(row["appointment_at"], await clinic_timezone(
+                            conn, client["id"], row.get("prospect_phone"),
+                        ))
                         text = _fill(sms_template, client_first_name, lead_name, when)
                         # Deliberately NOT sms_router._store_message /
                         # _get_or_create_conversation — those write into

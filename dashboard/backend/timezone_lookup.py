@@ -196,6 +196,47 @@ def guess_timezone(phone: str | None, city: str | None = None, state: str | None
     return timezone_from_location(city, state) or timezone_from_phone(phone)
 
 
+def _known_area_code(phone: str | None) -> bool:
+    digits = re.sub(r"\D", "", phone or "")
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    return len(digits) == 10 and digits[:3] in _AREA_CODE_TZ
+
+
+async def clinic_timezone(conn, client_id: int, patient_phone: str | None = None) -> str:
+    """The CLIENT's (clinic's) timezone, for everything a client's patient-
+    facing agent says or books: offered slots, bookings, reminders, "today",
+    send windows. Patients come to the clinic in person, so the clinic's
+    clock is the only one that matters. Guessing from the patient's own
+    phone told a Las Vegas patient with an out-of-state cell "3:30" for a
+    slot the clinic's calendar showed at 12:30 (Advantage Therapy,
+    2026-10-30). Order: the client's anchor contact city/state, then the
+    clinic's Twilio number, then the clinic phone; the patient's phone only
+    if the clinic has none of those."""
+    row = await conn.fetchrow(
+        """
+        SELECT cl.phone, cmc.twilio_number, a.city, a.state
+        FROM clients cl
+        LEFT JOIN client_marketing_config cmc ON cmc.client_id = cl.id
+        LEFT JOIN LATERAL (
+            SELECT city, state FROM contacts
+            WHERE client_id = cl.id AND is_client_anchor
+            ORDER BY (coalesce(state, '') <> '') DESC LIMIT 1
+        ) a ON true
+        WHERE cl.id = $1
+        """,
+        client_id,
+    )
+    if row:
+        tz = timezone_from_location(row["city"], row["state"])
+        if tz:
+            return tz
+        for phone in (row["twilio_number"], row["phone"]):
+            if _known_area_code(phone):
+                return timezone_from_phone(phone)
+    return timezone_from_phone(patient_phone)
+
+
 async def prospect_timezone(conn, phone: str | None, contact=None) -> str:
     """guess_timezone for callers that only have a phone: pass the contact
     row if it's already loaded (anything with city/state keys), otherwise

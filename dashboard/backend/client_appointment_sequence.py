@@ -21,7 +21,7 @@ routers/client_portal.py's portal_update_appointment_outcome()/
 portal_cancel_appointment()) — never left to wait for the next poll. Touches 2-3
 go out via send_due_touches(), scheduled from main.py on the same 5-minute
 cadence as every other drip in this codebase; a delayed touch that comes
-due during quiet hours (9pm-8am in the lead's timezone, lead_flags.py) waits
+due during quiet hours (9pm-8am in the clinic's timezone, lead_flags.py) waits
 for the morning. Leads tagged Unqualified get none of it.
 
 Tags: the lead gets "No-Show History" / "Cancelled Appointment" the moment
@@ -55,7 +55,7 @@ from datetime import datetime, timedelta, timezone as dt_timezone
 import lead_flags
 from db import get_pool
 from merge_fields import first_name_from_owner
-from timezone_lookup import guess_timezone
+from timezone_lookup import clinic_timezone
 
 # appointment_reminders sequence key -> client_sequence_steps.sequence_key.
 # client_sequence_steps also has "appointment_reminder", handled separately
@@ -254,9 +254,11 @@ async def send_due_touches():
                     continue
                 if now < anchor + delay:
                     break  # earlier touches must go first; not due yet either way
-                tz_name = row.get("prospect_timezone") or guess_timezone(row.get("prospect_phone"))
+                async with pool.acquire() as conn:
+                    tz_name = await clinic_timezone(conn, client_id, row.get("prospect_phone"))
+                row["prospect_timezone"] = tz_name  # any {time} in the copy reads on the clinic's clock too
                 if lead_flags.in_quiet_hours(tz_name, now):
-                    break  # due, but it's night where they are — send at 8am
+                    break  # due, but it's night at the clinic — send at 8am
                 async with pool.acquire() as conn:
                     all_steps = await conn.fetch(
                         "SELECT step_order, channel, subject, body, enabled FROM client_sequence_steps "
