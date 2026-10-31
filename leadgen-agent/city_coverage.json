@@ -6601,10 +6601,10 @@
       "last_scraped_date": "2026-10-30"
     },
     "Portsmouth, VA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 99,
-      "qualified_count": 0,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 160,
+      "qualified_count": 1,
       "last_scraped_date": "2026-10-30"
     },
     "Temple, TX": {
