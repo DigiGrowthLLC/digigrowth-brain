@@ -119,3 +119,15 @@ async def create_appointment(
     appt = resp.json()
     appt["start_utc"] = local_start.astimezone(timezone.utc)
     return appt
+
+
+async def cancel_appointment(token: str, appointment_id: str) -> None:
+    """Marks a GHL appointment cancelled (the old slot when the text agent
+    moves a lead's booking to a new time)."""
+    async with httpx.AsyncClient(timeout=15) as http:
+        resp = await http.put(
+            f"{_API_BASE}/calendars/events/appointments/{appointment_id}",
+            headers=_headers(token),
+            json={"appointmentStatus": "cancelled"},
+        )
+    _raise_with_context(resp)

@@ -60,6 +60,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import anthropic
+from fastapi import HTTPException
 
 import calendly_integration
 import client_sms
@@ -67,7 +68,7 @@ import ghl_integration
 import lead_flags
 import scheduler_registry
 from db import get_pool
-from routers.appointments import create_appointment_row
+from routers.appointments import cancel_appointment, create_appointment_row
 from routers.calendly_webhooks import record_booking
 from sms_text import gsm7_safe
 from timezone_lookup import clinic_timezone
@@ -120,6 +121,11 @@ write notes, reasoning or explanations about what you're doing.
 schedule_followup with the time they gave (or tomorrow if they gave none) and reply with one short line.
 - Answer the lead's actual question first, every time, before steering back to booking. Never send the \
 same line twice in one conversation; if they ask again, answer shorter and in new words.
+- Text like a busy, friendly person at the front desk, not a counselor. Never repeat back what they just \
+told you ("tightness at the base of your skull plus those knots") or summarize it; they know what they \
+said. Acknowledge in a few words at most ("Ugh, no fun.", "Got it.", "Oof, a month is a while.") or not \
+at all, then move on. Never praise their effort or tell them how they must feel. Never restate a time or \
+detail they just agreed to beyond one short confirmation. Shorter beats thorough.
 """
 
 _TOOLS = [
@@ -161,6 +167,7 @@ _TOOLS = [
                 "notes": {"type": "string", "description": "Anything worth noting for the business, e.g. what the lead is coming in for."},
                 "lead_name": {"type": "string", "description": "ONLY when a previous propose_appointment result said the name is missing — the name the lead just gave you."},
                 "lead_email": {"type": "string", "description": "ONLY when a previous propose_appointment result said the email is missing — the email the lead just gave you."},
+                "reschedule": {"type": "boolean", "description": "ONLY when they already have an appointment and clearly said they want to MOVE it to this new time. Books the new time and cancels the old one."},
             },
             "required": ["date", "time"],
         },
@@ -612,8 +619,10 @@ def _build_system_prompt(
         parts.append(
             f"\n--- This lead is ALREADY BOOKED ---\nThey have an appointment on {booked_for}. "
             "Skip the conversation arc's booking steps entirely: never offer or propose another time "
-            "unless they ask to reschedule. Confirm the appointment if it's relevant, answer their "
-            "questions, and help them show up prepared.\n"
+            "unless they ask to reschedule. When the arc would invite them to book, remind them of "
+            "this appointment instead (they may have booked it on the form and forgotten). Answer "
+            "their questions and help them show up prepared. If they want a different time, that's a "
+            "move, not a second booking: call propose_appointment with reschedule=true.\n"
         )
 
     if lessons:
@@ -894,7 +903,7 @@ async def _upcoming_booking(conn, phone: str, email: str | None):
     digits = re.sub(r"\D", "", phone)[-10:]
     return await conn.fetchrow(
         r"""
-        SELECT a.appointment_at, a.prospect_timezone
+        SELECT a.id, a.appointment_at, a.prospect_timezone, a.calendly_event_uri
         FROM appointment_reminders a LEFT JOIN contacts c ON c.id = a.contact_id
         WHERE a.status = 'scheduled' AND a.appointment_at > now()
           AND (right(regexp_replace(coalesce(c.phone, ''), '\D', '', 'g'), 10) = $1
@@ -1385,6 +1394,38 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             tz_name = await _clinic_tz(client_id, from_phone)
             tz = ZoneInfo(tz_name)
 
+            # One lead, one appointment. The model booked a second slot on
+            # top of a form booking it was told about (Advantage Therapy,
+            # Craig Grant, 2026-11-01), so this is enforced here, not just
+            # prompted. A real move goes through reschedule=true, which
+            # cancels the old slot once the new one is confirmed.
+            async with pool.acquire() as conn:
+                existing = await _upcoming_booking(conn, from_phone, (contact or {}).get("email"))
+            if existing and not tool_input.get("reschedule"):
+                return (
+                    f"Not booked: they ALREADY have an appointment on {_format_booking(existing, tz_name)}. "
+                    "Never book a second one. Remind them of it and ask if that time still works. Only if they "
+                    "clearly want to move it, call propose_appointment again with reschedule=true."
+                )
+
+            async def _release_old(cal_row) -> None:
+                """Cancels the appointment being moved, on its calendar and
+                here (silently: staff-initiated, no recovery drip)."""
+                if not existing:
+                    return
+                uri = existing["calendly_event_uri"] or ""
+                try:
+                    if uri.startswith("ghl:") and cal_row and cal_row["ghl_api_token"]:
+                        await ghl_integration.cancel_appointment(cal_row["ghl_api_token"], uri[4:])
+                    elif uri.startswith("https://") and cal_row and cal_row["calendly_api_token"]:
+                        await calendly_integration.cancel_event(cal_row["calendly_api_token"], uri)
+                except Exception as e:
+                    print(f"[response_ai] couldn't cancel the old calendar slot {uri} for client={client_id}: {e}", flush=True)
+                try:
+                    await cancel_appointment(existing["id"], notify=False)
+                except HTTPException:
+                    pass  # already resolved elsewhere
+
             async def _mark_booked():
                 async with pool.acquire() as conn:
                     await conn.execute(
@@ -1455,6 +1496,7 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                     name=name, email=email, phone=from_phone, start_utc=appt["start_utc"], tz_name=tz_name,
                     tracking={}, event_uri=f"ghl:{appt['id']}", client_id=client_id,
                 )
+                await _release_old(cal_row)
                 await _mark_booked()
                 return (
                     f"Confirmed on the calendar for {tool_input.get('date')} {tool_input.get('time')} "
@@ -1488,6 +1530,7 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                         "rejected it (most likely that slot was just taken). Don't tell them they're booked. "
                         "Call check_availability again and offer them the next open times instead."
                     )
+                await _release_old(cal_row)
                 await _mark_booked()
                 return (
                     f"Confirmed on the calendar for {tool_input.get('date')} {tool_input.get('time')} "
@@ -1497,6 +1540,7 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
             # No calendar connected: the internal log IS the booking, same as
             # a rep noting a booked time.
             row = await _log_internally()
+            await _release_old(cal_row)
             await _mark_booked()
             return f"Booked appointment id={row['id']} for {tool_input.get('date')} {tool_input.get('time')} ({tz_name})."
         except ValueError as e:
