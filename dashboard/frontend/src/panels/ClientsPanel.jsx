@@ -3223,13 +3223,22 @@ function DmThreads({ clientId }) {
     const r = await fetch(API(`/clients/${clientId}/dm-agent/threads`));
     if (r.ok) setThreads(await r.json());
   };
+  const loadMessages = async (id) => {
+    const r = await fetch(API(`/clients/${clientId}/dm-agent/threads/${id}/messages`));
+    if (r.ok) setMessages(await r.json());
+  };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+  // DMs arrive via webhook, so poll to show new threads and replies live.
+  useEffect(() => {
+    const t = setInterval(() => { load(); if (openId) loadMessages(openId); }, 10000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line
+  }, [clientId, openId]);
 
   const open = async (id) => {
     if (openId === id) { setOpenId(null); return; }
     setOpenId(id); setMessages([]);
-    const r = await fetch(API(`/clients/${clientId}/dm-agent/threads/${id}/messages`));
-    if (r.ok) setMessages(await r.json());
+    await loadMessages(id);
   };
   const handBack = async (id) => {
     await fetch(API(`/clients/${clientId}/dm-agent/threads/${id}/hand-back`), { method: "POST" });
