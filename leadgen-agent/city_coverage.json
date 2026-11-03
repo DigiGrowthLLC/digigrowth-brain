@@ -6741,9 +6741,9 @@
       "last_scraped_date": "2026-11-02"
     },
     "Lehi, UT": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 127,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 131,
       "qualified_count": 5,
       "last_scraped_date": "2026-11-02"
     },
