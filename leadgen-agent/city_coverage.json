@@ -6748,9 +6748,9 @@
       "last_scraped_date": "2026-11-02"
     },
     "Livonia, MI": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 154,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 183,
       "qualified_count": 5,
       "last_scraped_date": "2026-11-02"
     },
