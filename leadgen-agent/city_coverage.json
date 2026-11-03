@@ -6714,9 +6714,9 @@
     },
     "Greenburgh, NY": {
       "status": "in_progress",
-      "term_index": 2,
-      "reviewed_count": 123,
-      "qualified_count": 14,
+      "term_index": 3,
+      "reviewed_count": 165,
+      "qualified_count": 15,
       "last_scraped_date": "2026-11-02"
     },
     "Hamilton, NJ": {
