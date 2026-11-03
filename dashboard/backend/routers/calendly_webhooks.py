@@ -428,6 +428,14 @@ async def record_booking(*, name: str | None, email: str | None, phone: str | No
     # exists. Adopt that row instead of inserting a duplicate, which would
     # double every reminder, the client's booking alert, and the booked count.
     async with pool.acquire() as conn:
+        # A Calendly event type with no phone question (e.g. the onboarding
+        # call) still matches a known contact by email — reuse that contact's
+        # phone so the appointment's reminders go out by SMS, not email only.
+        # Caught live 2026-11-02: Aaron Shaver's onboarding call matched his
+        # contact by email but got prospect_phone NULL, so the 1h reminder
+        # was email-only.
+        if not phone and contact_id:
+            phone = await conn.fetchval("SELECT phone FROM contacts WHERE id = $1", contact_id)
         digits = "".join(c for c in (phone or "") if c.isdigit())[-10:]
         existing_appt = await conn.fetchrow(
             r"""
