@@ -6777,9 +6777,9 @@
     },
     "North Port, FL": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 110,
-      "qualified_count": 8,
+      "term_index": 2,
+      "reviewed_count": 129,
+      "qualified_count": 9,
       "last_scraped_date": "2026-11-02"
     },
     "Sandy, UT": {
