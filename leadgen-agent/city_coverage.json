@@ -6734,9 +6734,9 @@
       "last_scraped_date": "2026-11-02"
     },
     "Redding, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 134,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 142,
       "qualified_count": 10,
       "last_scraped_date": "2026-11-02"
     },
