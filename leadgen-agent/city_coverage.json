@@ -6727,11 +6727,11 @@
       "last_scraped_date": "2026-11-02"
     },
     "Norwalk, CT": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 65,
+      "qualified_count": 4,
+      "last_scraped_date": "2026-11-02"
     },
     "Redding, CA": {
       "status": "not_started",
