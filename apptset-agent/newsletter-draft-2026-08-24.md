@@ -46,7 +46,7 @@ The old way is one canned follow-up text or email, sent to everyone who fills ou
 
 Same message whether someone asked about pricing, class times, or a specific goal they're working toward.
 
-The AI Growth Engine works differently.
+The Digital Growth Engine works differently.
 
 It reads what a lead actually said—their question, their goal, their hesitation—and **shapes the next message around that**, automatically.
 
@@ -89,7 +89,7 @@ P.S. — this isn't about replacing your voice with a bot. It's about making sur
 <p style="margin:0;">Here&#39;s the thing&mdash;</p><br>
 <p style="margin:0;">The old way is one canned follow-up text or email, sent to everyone who fills out a form.</p><br>
 <p style="margin:0;">Same message whether someone asked about pricing, class times, or a specific goal they&#39;re working toward.</p><br>
-<p style="margin:0;">The AI Growth Engine works differently.</p><br>
+<p style="margin:0;">The Digital Growth Engine works differently.</p><br>
 <p style="margin:0;">It reads what a lead actually said&mdash;their question, their goal, their hesitation&mdash;and <strong>shapes the next message around that</strong>, automatically.</p><br>
 <p style="margin:0;">Not ten versions of a template sitting in a folder.</p><br>
 <p style="margin:0;">One system that <strong>pays attention to each lead</strong> and responds like a person would, at a speed no person can match.</p><br>

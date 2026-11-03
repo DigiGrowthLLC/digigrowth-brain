@@ -30,7 +30,7 @@ It fails because a lead messages at 9pm on a Tuesday, and nobody's there to catc
 
 The old way: a lead goes cold overnight, then gets a rushed callback the next afternoon — if they get one at all.
 
-The AI Growth Engine works the opposite way.
+The Digital Growth Engine works the opposite way.
 
 It replies in the moment the lead reaches out, then keeps the conversation moving until a call lands on your calendar.
 
@@ -54,7 +54,7 @@ If that's not how you sell, this one's not for you.
 
 Want me to put together a custom AI + marketing plan for {{business_name}}?
 
-Book a quick discovery call and I'll show you what The AI Growth Engine would look like running in {{business_name}}.
+Book a quick discovery call and I'll show you what The Digital Growth Engine would look like running in {{business_name}}.
 
 Talk soon,
 
@@ -72,7 +72,7 @@ P.S. — this isn't a sales pitch, just 20 minutes to see if it's a fit.
 <p style="margin:0;">Confession: most follow-up doesn&#39;t fail because someone&#39;s lazy.</p><br>
 <p style="margin:0;">It fails because a lead messages at 9pm on a Tuesday, and nobody&#39;s there to catch it.</p><br>
 <p style="margin:0;">The old way: a lead goes cold overnight, then gets a rushed callback the next afternoon &mdash; if they get one at all.</p><br>
-<p style="margin:0;">The AI Growth Engine works the opposite way.</p><br>
+<p style="margin:0;">The Digital Growth Engine works the opposite way.</p><br>
 <p style="margin:0;">It <strong>replies in the moment</strong> the lead reaches out, then <strong>keeps the conversation moving</strong> until a call lands on your calendar.</p><br>
 <p style="margin:0;">Picture a small independent practice running late-night DMs and missed calls through a sequence like this instead of a shared inbox.</p><br>
 <p style="margin:0;">No one has to wake up to answer a Sunday-night message anymore.</p><br>
@@ -84,7 +84,7 @@ P.S. — this isn't a sales pitch, just 20 minutes to see if it's a fit.
 <p style="margin:0;">This works best for businesses that book 1:1 appointments &mdash; consultations, intro sessions, discovery calls.</p><br>
 <p style="margin:0;">If that&#39;s not how you sell, this one&#39;s not for you.</p><br>
 <p style="margin:0;">Want me to put together a custom AI + marketing plan for {{business_name}}?</p><br>
-<p style="margin:0;"><a href="https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn" style="color:#3a7bd5;">Book a quick discovery call</a> and I&#39;ll show you what The AI Growth Engine would look like running in {{business_name}}.</p><br>
+<p style="margin:0;"><a href="https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn" style="color:#3a7bd5;">Book a quick discovery call</a> and I&#39;ll show you what The Digital Growth Engine would look like running in {{business_name}}.</p><br>
 <p style="margin:0;">Talk soon,</p><br>
 <p style="margin:0;">Dylan | Digigrowth</p><br>
 <p style="margin:0;">P.S. &mdash; this isn&#39;t a sales pitch, just 20 minutes to see if it&#39;s a fit.</p><br>

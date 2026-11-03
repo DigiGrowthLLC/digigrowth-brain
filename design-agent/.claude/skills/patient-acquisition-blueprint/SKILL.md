@@ -5,7 +5,7 @@ description: Build a personalized Patient Acquisition Blueprint page for one PT 
 
 # Patient Acquisition Blueprint
 
-One page that shows a practice owner the entire AI Growth Engine built around *their* practice: what their ads would look like, the funnel those ads land on, an AI agent they can actually talk to, how their existing list gets reactivated, and how every lead that doesn't book gets recycled instead of lost.
+One page that shows a practice owner the entire Digital Growth Engine built around *their* practice: what their ads would look like, the funnel those ads land on, an AI agent they can actually talk to, how their existing list gets reactivated, and how every lead that doesn't book gets recycled instead of lost.
 
 How it differs from `landing-page-lead-magnet`: that page is a cold-SMS curiosity planter with a mockup of their site on top. The blueprint is the **full system walkthrough**, written to the practice owner from the first line, for prospects **already on a sales call** with Dylan: he walks them through it live (and may send the link after). Its centerpiece is the live agent. It has no booking CTA, since the prospect is already on the call.
 

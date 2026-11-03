@@ -36,7 +36,7 @@ One message goes out. No reply in a day or two. The lead gets mentally filed und
 
 But a single text was never a system. It was one shot, hoping for a bullseye.
 
-The AI Growth Engine runs it differently. Instead of one message, it's a 3-message sequence, spaced out automatically. Message one re-opens the conversation. Message two adds a reason to respond now instead of later. Message three makes the ask simple and direct: book the call. No one on your end has to remember who's owed a follow-up or when.
+The Digital Growth Engine runs it differently. Instead of one message, it's a 3-message sequence, spaced out automatically. Message one re-opens the conversation. Message two adds a reason to respond now instead of later. Message three makes the ask simple and direct: book the call. No one on your end has to remember who's owed a follow-up or when.
 
 Here's the thing... We've watched this pattern play out across independent service businesses over and over. A lead goes quiet after the first text. Then message two or three lands, and suddenly they're replying like no time passed at all — "sorry, been slammed, is Thursday still open?" The lead was never gone. They just needed a second and third nudge that a single text can't deliver on its own.
 
@@ -65,7 +65,7 @@ P.S. — this isn't a sales pitch, just 20 minutes to see if a structured follow
 <p style="margin:0;">The lead gets mentally filed under &ldquo;not interested&rdquo; and the conversation just&hellip; stops.</p><br>
 <p style="margin:0;">But a single text was never a system.</p><br>
 <p style="margin:0;">It was one shot, hoping for a bullseye.</p><br>
-<p style="margin:0;">The <strong>AI Growth Engine</strong> runs it differently.</p><br>
+<p style="margin:0;">The <strong>Digital Growth Engine</strong> runs it differently.</p><br>
 <p style="margin:0;">Instead of one message, it&#39;s a <strong>3-message sequence</strong>, spaced out automatically.</p><br>
 <p style="margin:0;">Message one re-opens the conversation.</p><br>
 <p style="margin:0;">Message two adds a reason to respond now instead of later.</p><br>

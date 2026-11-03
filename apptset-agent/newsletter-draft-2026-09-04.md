@@ -32,7 +32,7 @@ Here's the reframe.
 
 The old way is either a full-service agency retainer, or a pile of disconnected tools — a chatbot here, an email sender there, a separate SMS app, none of them talking to each other.
 
-The AI Growth Engine approach is one connected stack: lead capture, follow-up, and booking running as a single system instead of five logins.
+The Digital Growth Engine approach is one connected stack: lead capture, follow-up, and booking running as a single system instead of five logins.
 
 That's the part that actually saves money — not fewer tools, fewer gaps between them.
 
@@ -77,7 +77,7 @@ P.S. — most of the cost in a DIY stack isn't the tools themselves, it's the ho
 <p style="margin:0;">You can build a leaner version yourself for a fraction of that.</p><br>
 <p style="margin:0;">Here's the reframe.</p><br>
 <p style="margin:0;">The old way is either a full-service agency retainer, or a pile of disconnected tools &mdash; a chatbot here, an email sender there, a separate SMS app, none of them talking to each other.</p><br>
-<p style="margin:0;">The AI Growth Engine approach is one connected stack: <strong>lead capture, follow-up, and booking</strong> running as a single system instead of five logins.</p><br>
+<p style="margin:0;">The Digital Growth Engine approach is one connected stack: <strong>lead capture, follow-up, and booking</strong> running as a single system instead of five logins.</p><br>
 <p style="margin:0;">That's the part that actually saves money &mdash; not fewer tools, fewer gaps between them.</p><br>
 <p style="margin:0;">Here's what that tends to look like in practice.</p><br>
 <p style="margin:0;">One independent service business I've talked with was paying for four separate subscriptions &mdash; a chatbot, an email tool, a texting app, a scheduler &mdash; and still losing leads in the gaps between them.</p><br>

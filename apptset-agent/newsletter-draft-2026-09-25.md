@@ -38,11 +38,11 @@ If every inquiry you get already gets an instant reply, this one's not for you �
 
 The old way: check your phone between appointments, reply when you remember.
 
-The AI Growth Engine's way: every DM, form fill, and missed call gets a response in seconds — nobody has to be watching a phone for it to happen.
+The Digital Growth Engine's way: every DM, form fill, and missed call gets a response in seconds — nobody has to be watching a phone for it to happen.
 
 One independent service business we looked at ran this exact test. Same leads. Same offer. The only thing that changed was speed — an automated reply the moment someone reached out, instead of waiting until end of day. More of those leads turned into booked calls, simply because they were still warm when they got a response.
 
-Want The AI Growth Engine built around {{business_name}}? Book a quick discovery call — grab a time here.
+Want The Digital Growth Engine built around {{business_name}}? Book a quick discovery call — grab a time here.
 
 Talk soon,
 Dylan | Digigrowth
@@ -64,12 +64,12 @@ P.S. — this isn't about running more ads. It's about not losing the leads you'
 <p style="margin:0;">By then the lead&#39;s already messaged two other options.</p><br>
 <p style="margin:0;">If every inquiry you get already gets an <strong>instant reply</strong>, this one&#39;s not for you &mdash; skip ahead.</p><br>
 <p style="margin:0;">The old way: check your phone between appointments, reply when you remember.</p><br>
-<p style="margin:0;">The AI Growth Engine&#39;s way: every DM, form fill, and missed call gets a <strong>response in seconds</strong> &mdash; nobody has to be watching a phone for it to happen.</p><br>
+<p style="margin:0;">The Digital Growth Engine&#39;s way: every DM, form fill, and missed call gets a <strong>response in seconds</strong> &mdash; nobody has to be watching a phone for it to happen.</p><br>
 <p style="margin:0;">One independent service business we looked at ran this exact test.</p><br>
 <p style="margin:0;">Same leads. Same offer.</p><br>
 <p style="margin:0;">The only thing that changed was speed &mdash; an <strong>automated reply the moment someone reached out</strong>, instead of waiting until end of day.</p><br>
 <p style="margin:0;">More of those leads turned into <strong>booked calls</strong>, simply because they were still warm when they got a response.</p><br>
-<p style="margin:0;">Want The AI Growth Engine built around {{business_name}}?</p><br>
+<p style="margin:0;">Want The Digital Growth Engine built around {{business_name}}?</p><br>
 <p style="margin:0;">Book a quick discovery call &mdash; <a href="https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn">grab a time here</a>.</p><br>
 <p style="margin:0;">Talk soon,</p><br>
 <p style="margin:0;">Dylan | Digigrowth</p><br>

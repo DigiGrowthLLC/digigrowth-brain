@@ -47,7 +47,7 @@ It's a system.
 
 Old way: a lead reaches out, and it sits in an inbox until someone gets a free minute.
 
-The AI Growth Engine's way: something answers instantly, qualifies the lead, and gets them on the calendar — before you've even seen the notification.
+The Digital Growth Engine's way: something answers instantly, qualifies the lead, and gets them on the calendar — before you've even seen the notification.
 
 Picture two service businesses. Same size. Same offer. Same price.
 
@@ -65,7 +65,7 @@ This works best for businesses that live and die by booked appointments — cons
 
 If most of what you sell doesn't hinge on getting someone onto a calendar, this one's not for you.
 
-Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call and I'll show you exactly where The AI Growth Engine plugs into how you already work.
+Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call and I'll show you exactly where The Digital Growth Engine plugs into how you already work.
 
 Dylan | Digigrowth
 
@@ -86,7 +86,7 @@ P.S. — this isn't a sales pitch, just 20 minutes to see if speed-to-lead is ac
 <p style="margin:0;">Speed isn&#39;t a personality trait.</p><br>
 <p style="margin:0;">It&#39;s a system.</p><br>
 <p style="margin:0;">Old way: a lead reaches out, and it sits in an inbox until someone gets a free minute.</p><br>
-<p style="margin:0;"><strong>The AI Growth Engine</strong>&#39;s way: something answers <strong>instantly</strong>, qualifies the lead, and gets them on the calendar &mdash; before you&#39;ve even seen the notification.</p><br>
+<p style="margin:0;"><strong>The Digital Growth Engine</strong>&#39;s way: something answers <strong>instantly</strong>, qualifies the lead, and gets them on the calendar &mdash; before you&#39;ve even seen the notification.</p><br>
 <p style="margin:0;">Picture two service businesses. Same size. Same offer. Same price.</p><br>
 <p style="margin:0;">One replies to new leads whenever there&#39;s a free minute.</p><br>
 <p style="margin:0;">The other has something that replies the second an inquiry comes in.</p><br>
@@ -96,7 +96,7 @@ P.S. — this isn't a sales pitch, just 20 minutes to see if speed-to-lead is ac
 <p style="margin:0;">This works best for businesses that live and die by booked appointments &mdash; consultations, sessions, calls.</p><br>
 <p style="margin:0;">If most of what you sell doesn&#39;t hinge on getting someone onto a calendar, this one&#39;s not for you.</p><br>
 <p style="margin:0;">Want me to put together a custom AI + marketing plan for {{business_name}}?</p><br>
-<p style="margin:0;"><a href="https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn" style="color:#3a7bd5;"><strong>Book a quick discovery call</strong></a> and I&#39;ll show you exactly where The AI Growth Engine plugs into how you already work.</p><br>
+<p style="margin:0;"><a href="https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn" style="color:#3a7bd5;"><strong>Book a quick discovery call</strong></a> and I&#39;ll show you exactly where The Digital Growth Engine plugs into how you already work.</p><br>
 <p style="margin:0;">Dylan | Digigrowth</p><br>
 <p style="margin:0;">P.S. &mdash; this isn&#39;t a sales pitch, just 20 minutes to see if speed-to-lead is actually your gap right now.</p><br>
 <p style="margin:0;font-size:12px;color:#888;"><a href="{{unsubscribe_link}}">Unsubscribe</a></p>

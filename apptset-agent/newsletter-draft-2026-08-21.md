@@ -43,7 +43,7 @@ That happens dozens of times a week -- and it's the most expensive leak most ser
 Here's the thing.
 The old way is a contact form that sits in an inbox until someone gets around to it.
 By then the visitor's already booked with someone else.
-The AI Growth Engine works differently.
+The Digital Growth Engine works differently.
 It talks to the visitor the moment they land, asks a couple of questions, and offers to put a consultation straight on your calendar before they ever leave the page.
 
 One personal training business we studied had steady website traffic and almost nothing to show for it.
@@ -61,7 +61,7 @@ This works best for businesses that book 1:1 consultations or discovery calls.
 If your website doesn't lead to any kind of booked conversation, skip this one.
 
 Want me to put together a custom AI + marketing plan for {{business_name}}?
-Book a quick discovery call and I'll show you exactly where The AI Growth Engine would plug into your website: https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn
+Book a quick discovery call and I'll show you exactly where The Digital Growth Engine would plug into your website: https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn
 
 Talk soon,
 Dylan | Digigrowth
@@ -82,7 +82,7 @@ P.S. -- this isn't a sales pitch, just twenty minutes to see if this fits how {{
 <p style="margin:0;">Here&#39;s the thing.</p><br>
 <p style="margin:0;">The old way is a contact form that sits in an inbox until someone gets around to it.</p><br>
 <p style="margin:0;">By then the visitor&#39;s already booked with someone else.</p><br>
-<p style="margin:0;"><strong>The AI Growth Engine</strong> works differently.</p><br>
+<p style="margin:0;"><strong>The Digital Growth Engine</strong> works differently.</p><br>
 <p style="margin:0;">It talks to the visitor the moment they land, asks a couple of questions, and offers to <strong>put a consultation straight on your calendar</strong> before they ever leave the page.</p><br>
 <p style="margin:0;">One personal training business we studied had steady website traffic and almost nothing to show for it.</p><br>
 <p style="margin:0;">Visitors browsed the program pages, then vanished.</p><br>
@@ -98,7 +98,7 @@ P.S. -- this isn't a sales pitch, just twenty minutes to see if this fits how {{
 <p style="margin:0;">This works best for businesses that book 1:1 consultations or discovery calls.</p><br>
 <p style="margin:0;">If your website doesn&#39;t lead to any kind of booked conversation, skip this one.</p><br>
 <p style="margin:0;">Want me to put together a <strong>custom AI + marketing plan</strong> for {{business_name}}?</p><br>
-<p style="margin:0;">Book a quick discovery call and I&#39;ll show you exactly where The AI Growth Engine would plug into your website: <a href="https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn" style="color:#3a7bd5;">Book your call here</a>.</p><br>
+<p style="margin:0;">Book a quick discovery call and I&#39;ll show you exactly where The Digital Growth Engine would plug into your website: <a href="https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn" style="color:#3a7bd5;">Book your call here</a>.</p><br>
 <p style="margin:0;">Talk soon,</p><br>
 <p style="margin:0;">Dylan | Digigrowth</p><br>
 <p style="margin:0;">P.S. &mdash; this isn&#39;t a sales pitch, just twenty minutes to see if this fits how {{business_name}} actually gets booked.</p><br>

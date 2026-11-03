@@ -54,7 +54,7 @@ Here's the old way.
 
 One follow-up. Maybe two. Then the lead goes cold and gets written off.
 
-The AI Growth Engine's way is different.
+The Digital Growth Engine's way is different.
 
 It keeps every lead in your pipeline — not just the ones actively replying — hearing from you on a steady rhythm, automatically, without you writing a single extra message.
 
@@ -68,7 +68,7 @@ Not because the pitch changed.
 
 Because someone was still showing up in their inbox when they were finally ready to book.
 
-That's the whole idea behind The AI Growth Engine: your pipeline stays warm on its own, so every lead you've ever collected is still working for you months later — not just the ones from this week.
+That's the whole idea behind The Digital Growth Engine: your pipeline stays warm on its own, so every lead you've ever collected is still working for you months later — not just the ones from this week.
 
 Want me to put together a custom AI + marketing plan for {{business_name}}? Book a quick discovery call.
 
@@ -91,14 +91,14 @@ P.S. — this isn't a sales pitch, just 20 minutes to see if a simple nurture sy
 <p style="margin:0;">But if the last thing most of your leads heard from you was the day they first reached out, keep reading.</p><br>
 <p style="margin:0;">Here&#39;s the old way.</p><br>
 <p style="margin:0;">One follow-up. Maybe two. Then the lead goes cold and gets written off.</p><br>
-<p style="margin:0;">The AI Growth Engine&#39;s way is different.</p><br>
+<p style="margin:0;">The Digital Growth Engine&#39;s way is different.</p><br>
 <p style="margin:0;">It keeps <strong>every lead in your pipeline</strong> &mdash; not just the ones actively replying &mdash; hearing from you on a steady rhythm, automatically, without you writing a single extra message.</p><br>
 <p style="margin:0;">One independent training studio owner switched from &ldquo;follow up once, then nothing&rdquo; to a simple recurring note to their full list.</p><br>
 <p style="margin:0;">Nothing flashy. No new offer.</p><br>
 <p style="margin:0;">Within a few weeks, <strong>replies started coming in from leads who&#39;d gone quiet months earlier</strong>.</p><br>
 <p style="margin:0;">Not because the pitch changed.</p><br>
 <p style="margin:0;">Because someone was still showing up in their inbox when they were finally ready to book.</p><br>
-<p style="margin:0;">That&#39;s the whole idea behind <strong>The AI Growth Engine</strong>: your pipeline stays warm on its own, so <strong>every lead you&#39;ve ever collected</strong> is still working for you months later &mdash; not just the ones from this week.</p><br>
+<p style="margin:0;">That&#39;s the whole idea behind <strong>The Digital Growth Engine</strong>: your pipeline stays warm on its own, so <strong>every lead you&#39;ve ever collected</strong> is still working for you months later &mdash; not just the ones from this week.</p><br>
 <p style="margin:0;">Want me to put together a custom AI + marketing plan for {{business_name}}?</p><br>
 <p style="margin:0;"><a href="https://link.digigrowthllc.com/widget/booking/tydZBa2ehjdSRZopOMrn" style="color:#3a7bd5;"><strong>Book a quick discovery call</strong></a>.</p><br>
 <p style="margin:0;">Dylan | Digigrowth</p><br>

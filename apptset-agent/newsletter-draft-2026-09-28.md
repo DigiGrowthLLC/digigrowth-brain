@@ -33,7 +33,7 @@ They're going cold because nobody got back to them fast enough.
 
 Most service businesses check their inbox in batches — a few times a day, if that.
 
-The AI Growth Engine works the opposite way.
+The Digital Growth Engine works the opposite way.
 
 It **replies the second a lead comes in**, **day or night**, then keeps following up until they book or say no.
 
@@ -68,7 +68,7 @@ P.S. — this isn't a sales pitch, just 20 minutes to see if the numbers make se
 <p style="margin:0;">Your leads aren&#39;t going cold because they weren&#39;t interested.</p><br>
 <p style="margin:0;">They&#39;re going cold because nobody got back to them fast enough.</p><br>
 <p style="margin:0;">Most service businesses check their inbox in batches &mdash; a few times a day, if that.</p><br>
-<p style="margin:0;">The AI Growth Engine works the opposite way.</p><br>
+<p style="margin:0;">The Digital Growth Engine works the opposite way.</p><br>
 <p style="margin:0;">It <strong>replies the second a lead comes in</strong>, <strong>day or night</strong>, then keeps following up until they book or say no.</p><br>
 <p style="margin:0;">One independent service business we worked with wasn&#39;t losing leads on purpose.</p><br>
 <p style="margin:0;">They were just buried in everything else the business needed that day.</p><br>

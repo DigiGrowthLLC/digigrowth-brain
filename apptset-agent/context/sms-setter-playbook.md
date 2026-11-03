@@ -50,7 +50,8 @@ name already filled in (see "Stick to the sequence").
   it is; never break "digital makeover" or "every avenue of digital marketing" down into parts.
 - How it works: never allude to how the service is performed (Dylan, 2026-10-23). No channels or
   tactics (ads, Meta, Facebook, Instagram, Google, email, SMS, texting campaigns, funnels, landing
-  pages, booking pages, AI agents) and no "AI growth engine", even if the prospect guesses. The how
+  pages, booking pages, AI agents) and never "AI growth engine" (it's the Digital Growth Engine now, used only as the
+  program's name, never to explain it), even if the prospect guesses. The how
   is what the call is for. The only exception is the last-resort line in "How does it work?" below,
   and only for a specific technical question they've pressed on.
 - The call: 20 minutes on Google Meet, where Dylan highlights what the program entails and they

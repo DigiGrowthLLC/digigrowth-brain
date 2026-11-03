@@ -20,7 +20,7 @@ of review before send:
   DigiGrowth's own outreach funnel ("touches to practices") instead of the
   practice's patient funnel — fixed to impressions -> engagement -> qualified
   leads -> booked consultations.
-- Added an explicit "Preview Ends Here" seam, a dedicated AI Growth Engine
+- Added an explicit "Preview Ends Here" seam, a dedicated Digital Growth Engine
   guarantee callout, and a "Beyond the Pilot" partnership section — all now
   standing requirements in the skill.
 - Self-tested by sending to Dylan's own number first; caught and fixed two

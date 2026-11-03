@@ -38,7 +38,7 @@ The old way: one confirmation email, maybe a manual reminder call if someone rem
 
 That's one touchpoint carrying the entire job of getting a stranger to actually show up.
 
-The AI Growth Engine does it differently.
+The Digital Growth Engine does it differently.
 
 Instead of one email, it runs a short automated onboarding flow: an instant confirmation, a friendly re-confirm a day or two out, and a same-day "here's what to expect" message right before the call.
 
@@ -87,7 +87,7 @@ P.S. — this isn't a sales pitch, just 20 minutes to see if an onboarding flow 
 
 <p style="margin:0;">That&#39;s <strong>one touchpoint</strong> carrying the entire job of getting a stranger to actually show up.</p><br>
 
-<p style="margin:0;">The AI Growth Engine does it differently.</p><br>
+<p style="margin:0;">The Digital Growth Engine does it differently.</p><br>
 
 <p style="margin:0;">Instead of one email, it runs a short <strong>automated onboarding flow</strong>: an instant confirmation, a friendly re-confirm a day or two out, and a same-day &ldquo;here&#39;s what to expect&rdquo; message right before the call.</p><br>
 
