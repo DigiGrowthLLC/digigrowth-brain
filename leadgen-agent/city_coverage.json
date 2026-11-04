@@ -6804,8 +6804,8 @@
       "last_scraped_date": "2026-11-03"
     },
     "Nashua, NH": {
-      "status": "in_progress",
-      "term_index": 3,
+      "status": "covered",
+      "term_index": 4,
       "reviewed_count": 129,
       "qualified_count": 7,
       "last_scraped_date": "2026-11-03"
