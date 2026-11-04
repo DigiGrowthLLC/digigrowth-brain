@@ -6853,11 +6853,11 @@
       "last_scraped_date": "2026-11-03"
     },
     "Santa Monica, CA": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 100,
+      "qualified_count": 5,
+      "last_scraped_date": "2026-11-03"
     },
     "Newton, MA": {
       "status": "not_started",
