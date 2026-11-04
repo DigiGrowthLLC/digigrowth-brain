@@ -2062,20 +2062,16 @@ async def _create_schema(pool: asyncpg.Pool):
             WHERE client_id IS NOT NULL AND NOT is_client_anchor AND lead_source IS NULL
               AND (tags && ARRAY['meta_lead', 'ads-lead', 'organic-lead', 'Previous Patient'])
         """)
-        # Source auto-tags (lead_flags.SOURCE_TAGS): catalog entries, then a
-        # backfill onto every existing client lead whose source is known.
+        # Source auto-tags (lead_flags.SOURCE_TAGS): catalog entries only.
+        # Every lead-creation path stamps its own source tags. The backfill
+        # onto existing leads that used to run here on EVERY startup was
+        # removed 2026-11-04: it re-added tags (e.g. "Database Reactivation")
+        # that clients had removed in the portal, on each deploy. Existing
+        # leads were already backfilled by earlier deploys.
         import lead_flags
         await conn.execute("INSERT INTO tags (name, color) VALUES ('meta_lead', '#1877f2') ON CONFLICT (name) DO NOTHING")
         await conn.execute("INSERT INTO tags (name, color) VALUES ($1, '#2dd4bf') ON CONFLICT (name) DO NOTHING", lead_flags.INBOUND_TAG)
         await conn.execute("INSERT INTO tags (name, color) VALUES ($1, '#e1306c') ON CONFLICT (name) DO NOTHING", lead_flags.SOCIAL_TAG)
-        for _source, _source_tags in lead_flags.SOURCE_TAGS.items():
-            for _tag in _source_tags:
-                await conn.execute(
-                    "UPDATE contacts SET tags = array_append(coalesce(tags, '{}'), $2) "
-                    "WHERE client_id IS NOT NULL AND NOT is_client_anchor AND lead_source = $1 "
-                    "AND NOT ($2 = ANY(coalesce(tags, '{}')))",
-                    _source, _tag,
-                )
 
         # Database reactivation (client_reactivation.py): a campaign is one
         # audience of a client's EXISTING leads (by lead_source and/or tag)

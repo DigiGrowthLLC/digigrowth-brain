@@ -1184,6 +1184,44 @@ async def portal_remove_lead_tag(token: str, contact_id: str, tag: str):
     return dict(row)
 
 
+@router.post("/{token}/leads/bulk-delete")
+async def portal_bulk_delete_leads(token: str, body: dict):
+    """{"ids": [...]} — the Leads table's checkboxes. Same scoping as the
+    single delete below; ids that aren't this client's own leads are
+    silently left alone. Returns how many were actually deleted."""
+    client = await get_client_from_token(token)
+    ids = [str(i) for i in (body.get("ids") or []) if i]
+    if not ids:
+        raise HTTPException(status_code=400, detail="ids required")
+    if len(ids) > 5000:
+        raise HTTPException(status_code=400, detail="Too many leads at once (max 5000)")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM contacts WHERE id = ANY($1::text[]) AND client_id = $2 AND NOT is_client_anchor",
+            ids, client["id"],
+        )
+    return {"ok": True, "deleted": int(result.split()[-1])}
+
+
+@router.delete("/{token}/leads/{contact_id}")
+async def portal_delete_lead(token: str, contact_id: str):
+    """A client deletes one of their own leads (same guard as the tag
+    endpoints: never the anchor contact, never another client's). Rows
+    hanging off the contact (sequence/reactivation enrollments, reminders,
+    etc.) cascade or null out via their foreign keys."""
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor",
+            contact_id, client["id"],
+        )
+    if result == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return {"ok": True}
+
+
 @router.patch("/{token}/leads/{contact_id}")
 async def portal_update_lead(token: str, contact_id: str, body: dict):
     """Edit a lead's own fields — mirrors PATCH /contacts/{id} (routers/crm.py)

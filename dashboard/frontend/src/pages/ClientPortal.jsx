@@ -2054,7 +2054,7 @@ function parseFormAnswers(raw) {
   }
 }
 
-function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onMessage }) {
+function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onDeleted, onMessage }) {
   const [display, setDisplay] = useState(lead);
   const [form, setForm] = useState(() => {
     const initial = {};
@@ -2065,6 +2065,8 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState("");
   const [tagPick, setTagPick] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [callMsg, setCallMsg] = useState("");
   // idle | connecting | ringing | connected | ended
   const [callPhase, setCallPhase] = useState("idle");
@@ -2204,6 +2206,21 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
     }
   };
 
+  // Two clicks (Delete Lead -> Yes, delete) instead of a browser confirm().
+  const deleteLead = async () => {
+    setDeleting(true);
+    setSaveErr("");
+    const r = await fetch(`/portal-api/${token}/leads/${lead.id}`, { method: "DELETE" });
+    if (r.ok) {
+      onDeleted(lead.id);
+      return;
+    }
+    const d = await r.json().catch(() => ({}));
+    setSaveErr(d.detail || "Delete failed.");
+    setDeleting(false);
+    setConfirmDelete(false);
+  };
+
   const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#3a7bd5" };
   const labelStyle = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.15em", marginBottom: 4 };
   const formAnswers = parseFormAnswers(display.form_answers);
@@ -2260,6 +2277,22 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onM
 
           {saveErr && <div style={{ fontSize: 11, color: "#f06060", fontFamily: "'Share Tech Mono', monospace" }}>{saveErr}</div>}
           <button onClick={handleSave} disabled={saving} className="btn btn-primary">{saving ? "Saving…" : "Save Changes"}</button>
+
+          {confirmDelete ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "#f06060", flex: 1 }}>Delete this lead permanently?</span>
+              <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="btn btn-secondary">Cancel</button>
+              <button onClick={deleteLead} disabled={deleting} className="btn"
+                style={{ background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.5)", color: "#f06060" }}>
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)} className="btn"
+              style={{ background: "transparent", border: "1px solid rgba(220,60,60,0.35)", color: "#f06060" }}>
+              Delete Lead
+            </button>
+          )}
 
           <div style={{ display: "flex", gap: 8 }}>
             {/* Jumps to the Inbox tab with this lead's thread open — mirrors
@@ -2490,6 +2523,10 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
   const [importTags, setImportTags] = useState([]); // tag names to stamp on every imported/updated row
   const [newTagName, setNewTagName] = useState("");
   const [importListType, setImportListType] = useState("import"); // contacts.lead_source for the whole file
+  const [selected, setSelected] = useState(() => new Set()); // lead ids ticked for bulk delete
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkErr, setBulkErr] = useState("");
 
   // Tagging — mirrors the internal CRM's tag system (routers/tags.py +
   // routers/crm.py's per-contact tag endpoints), scoped to this client's
@@ -2528,6 +2565,35 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
       setLeads((prev) => prev.map((l) => (l.id === leadId ? updated : l)));
     }
     setTagPickFor(null);
+  };
+
+  const toggleSelected = (id) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const allSelected = leads.length > 0 && leads.every((l) => selected.has(l.id));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(leads.map((l) => l.id)));
+
+  // Two clicks (Delete N -> Yes, delete) instead of a browser confirm().
+  const bulkDelete = async () => {
+    setBulkDeleting(true);
+    setBulkErr("");
+    const ids = [...selected];
+    const r = await fetch(`/portal-api/${token}/leads/bulk-delete`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    if (r.ok) {
+      const gone = new Set(ids);
+      setLeads((prev) => prev.filter((l) => !gone.has(l.id)));
+      setSelected(new Set());
+    } else {
+      const d = await r.json().catch(() => ({}));
+      setBulkErr(d.detail || "Delete failed.");
+    }
+    setBulkDeleting(false);
+    setConfirmBulk(false);
   };
 
   const removeTagFromLead = async (leadId, tagName) => {
@@ -2737,10 +2803,40 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
         </div>
       )}
 
+      {selected.size > 0 && (
+        <div className="glass-card-sm" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: "#f0f4ff", flex: 1 }}>
+            {selected.size} lead{selected.size > 1 ? "s" : ""} selected
+            {bulkErr && <span style={{ color: "#f06060", marginLeft: 10, fontSize: 11 }}>{bulkErr}</span>}
+          </span>
+          {confirmBulk ? (
+            <>
+              <span style={{ fontSize: 11, color: "#f06060" }}>Delete {selected.size} permanently?</span>
+              <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => setConfirmBulk(false)} disabled={bulkDeleting}>Cancel</button>
+              <button className="btn" onClick={bulkDelete} disabled={bulkDeleting}
+                style={{ fontSize: 11, background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.5)", color: "#f06060" }}>
+                {bulkDeleting ? "Deleting…" : "Yes, delete"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => setSelected(new Set())}>Clear</button>
+              <button className="btn" onClick={() => setConfirmBulk(true)}
+                style={{ fontSize: 11, background: "transparent", border: "1px solid rgba(220,60,60,0.35)", color: "#f06060" }}>
+                Delete {selected.size}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="glass-card" style={{ padding: 0, overflow: "hidden", overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(58,123,213,0.15)" }}>
+              <th style={{ width: 32, padding: "10px 0 10px 14px" }}>
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Select all" style={{ cursor: "pointer" }} />
+              </th>
               {["Name", "Phone", "Email", "Tags"].map((h) => (
                 <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
@@ -2748,7 +2844,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
           </thead>
           <tbody>
             {!loading && leads.length === 0 && (
-              <tr><td colSpan={4} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No leads yet.</td></tr>
+              <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No leads yet.</td></tr>
             )}
             {leads.map((l) => (
               <tr
@@ -2758,6 +2854,9 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
                 onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(58,123,213,0.04)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
+                <td style={{ width: 32, padding: "10px 0 10px 14px" }} onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={selected.has(l.id)} onChange={() => toggleSelected(l.id)} style={{ cursor: "pointer" }} />
+                </td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{leadName(l) || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.phone || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.email || "—"}</td>
@@ -2804,6 +2903,11 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
           onUpdated={(updated) => {
             setSelectedLead(updated);
             setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+          }}
+          onDeleted={(id) => {
+            setSelectedLead(null);
+            setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
+            setLeads((prev) => prev.filter((l) => l.id !== id));
           }}
           onMessage={() => { onMessage(selectedLead.id); setSelectedLead(null); }}
         />
