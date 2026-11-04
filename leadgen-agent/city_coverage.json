@@ -6790,10 +6790,10 @@
       "last_scraped_date": "2026-11-03"
     },
     "Roswell, GA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 166,
-      "qualified_count": 9,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 204,
+      "qualified_count": 11,
       "last_scraped_date": "2026-11-03"
     },
     "Champaign, IL": {
