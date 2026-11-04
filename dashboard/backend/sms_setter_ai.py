@@ -442,10 +442,12 @@ _slot_cache: dict = {"at": 0.0, "slots": None}
 
 # Dylan's Discount Tire shifts sit on his Google Calendar as "Work", "Work –
 # Discount Tire", "Discount Tire Shift", "Discount Tire - Work Shift". No
-# call may start or end within SHIFT_BUFFER of one (his rule, 2026-10-16),
-# so he's never rushing to or from a shift. Calendly only knows the shift
-# itself is busy, not the buffer, so it's enforced here.
-SHIFT_BUFFER = timedelta(minutes=30)
+# call may start or end within SHIFT_BUFFER of one, so he's never rushing to
+# or from a shift. His rule (2026-11-04, was 30 min since 2026-10-16): for a
+# 1:00-6:30 shift the latest call before is 11:30-12:00 and the earliest
+# after starts 7:30, i.e. a full hour clear on both sides. Calendly only
+# knows the shift itself is busy, not the buffer, so it's enforced here.
+SHIFT_BUFFER = timedelta(minutes=60)
 _SHIFT_TITLE = re.compile(r"discount\s*tire|^\s*work(\s+shift)?\s*$", re.I)
 
 
@@ -1426,7 +1428,7 @@ async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str
         return "book: time too soon"
     try:
         if near_shift(start, await work_shifts(_SLOT_DAYS)):
-            return "book: within 30 min of a work shift"
+            return f"book: within {int(SHIFT_BUFFER.total_seconds() // 60)} min of a work shift"
     except Exception as e:
         return f"book: couldn't check work shifts ({e})"
 
