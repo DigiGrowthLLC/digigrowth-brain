@@ -6832,11 +6832,11 @@
       "last_scraped_date": "2026-11-03"
     },
     "Trenton, NJ": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 76,
+      "qualified_count": 2,
+      "last_scraped_date": "2026-11-03"
     },
     "Compton, CA": {
       "status": "not_started",
