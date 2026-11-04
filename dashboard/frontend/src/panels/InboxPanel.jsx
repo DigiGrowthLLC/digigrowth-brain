@@ -671,6 +671,7 @@ const LESSON_STATUS = {
 };
 const LESSON_TRIGGER = {
   handoff: "AI handed it to you", override: "you skipped the AI's draft",
+  takeover: "you answered before the AI", after_ai: "you added to the AI's reply",
   edited: "you edited the AI's draft", manual: "you clicked TEACH",
 };
 

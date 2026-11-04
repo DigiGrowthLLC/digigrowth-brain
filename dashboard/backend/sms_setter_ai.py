@@ -1523,9 +1523,13 @@ async def flush_pending(conn) -> int:
 
 
 # ── Learning from Dylan ──────────────────────────────────────────────────────
-# Whenever Dylan texts a prospect himself while the setter had a draft for
-# that thread — a handoff it couldn't handle, a draft he ignored, or one he
-# edited before sending — that moment becomes a lesson:
+# Whenever Dylan texts a prospect himself where the setter would otherwise
+# have answered — a handoff it couldn't handle, a draft he ignored, one he
+# edited before sending, a prospect he answered before the setter drafted
+# ("takeover"), or a correction/addition right after an auto-sent reply
+# ("after_ai") — that moment becomes a lesson. The last two matter most in
+# auto mode, where drafts rarely sit pending: before 2026-11-04 only pending
+# drafts were captured, so nearly everything Dylan typed went unlearned.
 #   1. capture_reply() (from routers/sms.py's manual_send) snapshots the
 #      conversation, what the setter wanted to do, and what Dylan sent.
 #      Back-to-back texts within LESSON_JOIN_MINUTES join the same lesson.
@@ -1539,6 +1543,7 @@ async def flush_pending(conn) -> int:
 
 LESSON_COLLECT_MINUTES = 3     # wait this long after his last text before analyzing
 LESSON_JOIN_MINUTES = 10       # texts this close together are one reply
+AFTER_AI_MINUTES = 60          # a text this soon after an auto-sent reply corrects/extends it
 MAX_PROMPT_LESSONS = 40        # newest active lessons that go into the prompt
 
 LESSON_SCHEMA = {
@@ -1557,8 +1562,9 @@ LESSON_SCHEMA = {
 _LESSON_PREAMBLE = """You help an AI SMS appointment setter learn from Dylan, founder of DigiGrowth. \
 The setter drafts replies to physical therapy practice owners Dylan cold-texted; the goal of every \
 conversation is a 20-minute discovery call. In the conversation below, Dylan stepped in and texted \
-the prospect himself instead of using the setter's draft (it handed the thread to him, he ignored \
-its draft, or he edited it). Work out what the setter should learn so it handles this kind of moment \
+the prospect himself instead of leaving it to the setter (it handed the thread to him, he ignored \
+or edited its draft, he answered before it drafted anything, or he followed up right after its own \
+reply to correct or add to it). Work out what the setter should learn so it handles this kind of moment \
 the way Dylan did next time, without him.
 
 Write the lesson as an instruction to the setter: "When <kind of situation>, <what to do>". Capture the \
@@ -1589,8 +1595,14 @@ def lesson_system_prompt() -> str:
 
 def build_lesson_message(lesson: dict, existing: list[dict]) -> str:
     action = lesson.get("ai_action")
-    if not action:
-        ai = "The setter had no draft for this turn."
+    if lesson.get("trigger") == "after_ai":
+        ai = (
+            f"The setter had already sent this (action: {action or 'unknown'}): "
+            f"\"{(lesson.get('ai_reply') or '').strip() or '(no text)'}\"\n"
+            f"Its reasoning: {lesson.get('ai_rationale') or '(none)'}"
+        )
+    elif not action:
+        ai = "The setter had no draft for this turn (Dylan answered before it drafted one)."
     elif action == "handoff":
         ai = f"The setter didn't know how to answer and handed the thread to Dylan. Its reason: {lesson.get('ai_rationale') or '(none)'}"
     else:
@@ -1599,7 +1611,9 @@ def build_lesson_message(lesson: dict, existing: list[dict]) -> str:
             f"Its reasoning: {lesson.get('ai_rationale') or '(none)'}"
         )
     how = {"edited": "Dylan edited the draft and sent this instead",
-           "override": "Dylan ignored the draft and sent this himself"}.get(lesson.get("trigger"), "What Dylan sent")
+           "override": "Dylan ignored the draft and sent this himself",
+           "takeover": "Dylan answered the prospect himself",
+           "after_ai": "Right after the setter's text, Dylan sent this himself (a correction or addition)"}.get(lesson.get("trigger"), "What Dylan sent")
     known = "\n".join(f"[{l['id']}] {l['situation']}: {l['lesson']}" for l in existing) or "(none yet)"
     return (
         "Conversation up to the point Dylan stepped in:\n" + (lesson.get("transcript") or "(not available)")
@@ -1683,9 +1697,38 @@ async def capture_reply(conn, phone: str, body: str, ai_draft_id=None) -> int | 
             digits,
         )
         if not draft:
-            return None
+            return await _capture_without_draft(conn, digits, body)
         trigger = "handoff" if draft["action"] == "handoff" else "override"
     return await _start_lesson(conn, draft["phone"], trigger, draft, body, await _thread_messages(conn, draft["phone"]))
+
+
+async def _capture_without_draft(conn, digits: str, body: str) -> int | None:
+    """No pending draft: still a lesson when, on a setter-campaign prospect
+    thread, Dylan answers the prospect's latest message himself (takeover)
+    or follows the setter's own auto-sent reply within AFTER_AI_MINUTES
+    (after_ai). His nudges after his own texts aren't lessons."""
+    conv = await conn.fetchrow(
+        _CONV_SELECT + " WHERE right(regexp_replace(sc.phone, '\\D', '', 'g'), 10) = $1"
+        " AND sc.campaign_id IS NOT NULL AND (c.client_id IS NULL OR c.is_client_anchor)",
+        digits,
+    )
+    if not conv:
+        return None
+    msgs = await _thread_messages(conn, conv["phone"])
+    if not msgs or not any(m["direction"] == "inbound" for m in msgs):
+        return None
+    last = msgs[-1]
+    if last["direction"] == "inbound":
+        return await _start_lesson(conn, conv["phone"], "takeover", None, body, msgs)
+    if (last.get("stage") == "ai_setter"
+            and last["sent_at"] > datetime.now(timezone.utc) - timedelta(minutes=AFTER_AI_MINUTES)):
+        draft = await conn.fetchrow(
+            "SELECT * FROM sms_ai_drafts WHERE phone = $1 AND status IN ('sent', 'auto_sent') "
+            "ORDER BY created_at DESC LIMIT 1",
+            conv["phone"],
+        )
+        return await _start_lesson(conn, conv["phone"], "after_ai", draft, body, msgs)
+    return None
 
 
 async def capture_from_thread(conn, phone: str) -> dict:
