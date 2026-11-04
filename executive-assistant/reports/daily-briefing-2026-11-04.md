@@ -48,4 +48,12 @@ One fixed event: `2:00 PM` discovery call with David Hutchins. Options:
 - Before `2:00 PM`: review David's Calendly booking (movept.health) ahead of the call.
 - `2:30 PM–8:00 PM` open: follow-up on open SMS conversations (`10` interested in the last 7 days), or setup work for Boulder Body Solutions.
 
+## Blog Post Preview
+
+**Title:** The Referral System That Fills Your Pipeline Without You Asking
+**Slug:** ai-referral-system-fills-pipeline
+**Summary:** Most happy clients never refer anyone because nobody asks at the right moment; this post breaks down a simple AI-run referral loop (timing, one text, one follow-up) grounded in a 10,000-customer referral value study.
+
+Draft saved and queued for approval — the Approve/Decline card will appear as a separate message in this chat within a few minutes once Railway's relay job picks up this request.
+
 *Daily briefing — Wednesday, November 4*

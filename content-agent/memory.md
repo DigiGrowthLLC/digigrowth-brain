@@ -104,3 +104,9 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   findings), own web search (ACHR News HVAC lead-handling figures: 2% first-call close, 60%+ never
   re-contacted; vendor "50% of time on unqualified leads" claims unsourced, not used) — 2026-10-28 —
   pending approval (draft pushed to `content-agent/pending_approvals/blog-2026-10-28.json` on `main`)
+- "The Referral System That Fills Your Pipeline Without You Asking" (slug:
+  ai-referral-system-fills-pipeline) — pillar: Client Acquisition Systems — topic: rotation #11
+  (AI-powered referral system), research cache stale, own web search (16% higher value for referred
+  customers from a ~10,000-customer German bank study; Wharton-attributed churn/margin claims
+  unverified, not used) — 2026-11-04 — pending approval (draft pushed to
+  `content-agent/pending_approvals/blog-2026-11-04.json` on `main`)
