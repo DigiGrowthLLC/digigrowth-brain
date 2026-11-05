@@ -110,6 +110,11 @@ async def update_marketing_config(client_id: int, body: ClientMarketingConfigUpd
         )
         row = await conn.fetchrow(query, *values)
 
+    # Ticking the last step of a guide ticks its launch checklist item (the
+    # client's To Do tab) right away, not on the next 10-minute autocheck.
+    if "guide_progress" in fields:
+        await guide_autocheck.sync_launch_checklist(client_id)
+
     # Saving a new Meta Page ID wires up its Lead Ads relay automatically.
     # A failure here (usually Page access not granted yet) never fails the
     # save — it lands in lead_ads_error for the guide to show, with a

@@ -12,13 +12,96 @@ is appended there and is provable from data, add its signal here.
 Runs inside client_resources_autofill's 10-minute job for every real client,
 and on demand via POST /api/clients/{id}/marketing-config/autocheck (the
 onboarding agent's service-delivery-setup skill calls it after each step).
+
+Also home of sync_launch_checklist: once every step of a Marketing Setup
+guide is ticked, the matching item on the client's launch checklist (the
+portal's read-only "To Do" tab) is ticked too, so the client sees progress
+without Dylan checking things off twice.
 """
 import json
+import pathlib
 import re
 
 import httpx
 
 from db import get_pool
+
+# Launch checklist item title (lowercased) -> the Marketing Setup guide whose
+# steps must all be ticked. Items not listed (onboarding call, reactivation,
+# launch campaign, post-launch weeks) stay manual.
+LAUNCH_ITEM_GUIDES = {
+    "set up client portal": "client_portal",
+    "set up sms marketing": "sms",
+    "set up response ai": "response_ai",
+    "create landing page": "landing_page",
+    "create paid ad creatives": "ad_creatives",
+}
+
+_PANEL = pathlib.Path(__file__).resolve().parent.parent / "frontend" / "src" / "panels" / "ClientsPanel.jsx"
+_step_counts: dict[str, int] | None = None
+
+
+def guide_step_counts() -> dict[str, int]:
+    """{guide_key: number of steps}, read from MARKETING_GUIDES in
+    ClientsPanel.jsx (the repo ships in the image), so appending a step there
+    never leaves this count stale. Same parse as onboarding-agent's
+    service_delivery_status.py. Empty if the file can't be read."""
+    global _step_counts
+    if _step_counts is not None:
+        return _step_counts
+    counts: dict[str, int] = {}
+    try:
+        src = _PANEL.read_text(encoding="utf-8")
+        block = src[src.index("const MARKETING_GUIDES = {"):src.index("const SETUP_ORDER_PHASES")]
+    except (OSError, ValueError) as e:
+        print(f"[guide-autocheck] can't read guide step counts: {e}", flush=True)
+        return counts
+    current = None
+    for line in block.splitlines():
+        m = re.match(r"^  (\w+): \{$", line)
+        if m:
+            current = m.group(1)
+            counts[current] = 0
+        elif current:
+            counts[current] += len(re.findall(r'\{ text: "', line))
+    _step_counts = counts
+    return counts
+
+
+async def sync_launch_checklist(client_id: int) -> list[str]:
+    """Ticks each launch checklist item whose Marketing Setup guide is fully
+    ticked for this client. Never unticks (Dylan can still tick or untick
+    these by hand). Returns the titles newly ticked."""
+    counts = guide_step_counts()
+    if not counts:
+        return []
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT guide_progress FROM client_marketing_config WHERE client_id = $1", client_id)
+        progress = _decode(row["guide_progress"] if row else None, {})
+        items = await conn.fetch(
+            """SELECT li.id, li.title FROM launch_checklist_items li
+               LEFT JOIN client_launch_checklist_status s ON s.item_id = li.id AND s.client_id = $1
+               WHERE li.active AND s.completed_at IS NULL""",
+            client_id,
+        )
+        ticked = []
+        for item in items:
+            guide = LAUNCH_ITEM_GUIDES.get(item["title"].strip().lower())
+            total = counts.get(guide or "", 0)
+            slot = progress.get(guide) or {}
+            if not total or sum(1 for i in range(total) if slot.get(str(i))) < total:
+                continue
+            await conn.execute(
+                """INSERT INTO client_launch_checklist_status (client_id, item_id, completed_at)
+                   VALUES ($1, $2, now())
+                   ON CONFLICT (client_id, item_id) DO UPDATE SET completed_at = now()""",
+                client_id, item["id"],
+            )
+            ticked.append(item["title"])
+    if ticked:
+        print(f"[guide-autocheck] client {client_id}: launch checklist ticked {ticked}", flush=True)
+    return ticked
 
 
 def _decode(value, default):
@@ -136,6 +219,9 @@ async def autocheck(client_id: int) -> dict[str, list[int]]:
                 client_id, json.dumps(progress),
             )
             print(f"[guide-autocheck] client {client_id}: ticked {newly}", flush=True)
+    # Every run, not just when something new was ticked: also catches guides
+    # finished by hand before this sync existed.
+    await sync_launch_checklist(client_id)
     return newly
 
 

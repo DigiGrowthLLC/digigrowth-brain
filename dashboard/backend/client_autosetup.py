@@ -61,6 +61,7 @@ import anthropic
 
 import client_sms
 import context_gen
+import guide_autocheck
 from db import get_pool
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -169,6 +170,7 @@ async def _check_guide_steps(client_id: int, guide: str, indexes: list[int]) -> 
                WHERE client_id = $1""",
             client_id, guide, json.dumps({str(i): True for i in indexes}),
         )
+    await guide_autocheck.sync_launch_checklist(client_id)
 
 
 async def _set_config(client_id: int, **fields) -> None:

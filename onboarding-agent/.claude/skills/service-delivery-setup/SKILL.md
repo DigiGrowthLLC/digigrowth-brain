@@ -77,10 +77,15 @@ For each step:
   what you changed. Anything outward-facing that isn't (texting the client, publishing,
   pushing code) needs his OK first.
 
-When a whole area is done, also tick the matching item on the client's portal launch
-checklist (the client sees it on their To Do tab):
-`PUT /api/clients/{id}/launch-checklist/{item_id}` with `{"completed": true}` (ids from
-the scan; check the route in `dashboard/backend/routers/clients.py` before calling).
+The client's portal launch checklist (their To Do tab) ticks itself: once every step of
+a guide is ticked, its item is checked off automatically (`sync_launch_checklist` in
+`dashboard/backend/guide_autocheck.py`): SMS Marketing -> "Set up SMS marketing",
+Response AI -> "Set up response AI", Landing Page -> "Create landing page", Paid Ad
+Creatives -> "Create paid ad creatives", Client Portal -> "Set up client portal". So
+finishing a guide is enough; confirm the item shows ticked in the scan. Items with no
+guide (onboarding call, database reactivation, launch campaign) are still ticked by
+hand: `PUT /api/clients/{id}/launch-checklist/{item_id}` with `{"completed": true}`
+(ids from the scan).
 
 ## Playbook: what worked (2026-10-16, Advantage Therapy)
 
