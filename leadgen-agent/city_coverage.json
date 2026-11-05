@@ -6874,9 +6874,9 @@
       "last_scraped_date": "2026-11-04"
     },
     "Fort Smith, AR": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 131,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 133,
       "qualified_count": 4,
       "last_scraped_date": "2026-11-04"
     },
