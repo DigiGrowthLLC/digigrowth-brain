@@ -1504,12 +1504,40 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                 )
 
             if token and event_type_url:
-                # Calendar connected: book straight onto it, never a tap-to-
+                # Calendar connected: book straight onto it (unless paid, below), not a tap-to-
                 # confirm link. Calendly is the source of truth — its
                 # invitee.created webhook (routers/calendly_webhooks.py)
                 # creates the appointment row (reminders, the client's
                 # booking alert), so nothing is logged internally here;
                 # doing so duplicated every booking.
+                # Paid offer (e.g. a $49 visit): the API can't collect the
+                # payment, so never book it here. Text the lead the link to
+                # that exact slot; they fill the form and pay on Calendly, and
+                # its invitee.created webhook records the booking as usual.
+                try:
+                    paid = await calendly_integration.is_paid_event_type(token, event_type_url)
+                except Exception as e:
+                    print(f"[response_ai] is_paid check failed for client={client_id}: {e}", flush=True)
+                    paid = False
+                if paid:
+                    try:
+                        link = await calendly_integration.find_slot_scheduling_url(
+                            token, event_type_url, tool_input.get("date"), tool_input.get("time"), tz,
+                        )
+                    except Exception as e:
+                        print(f"[response_ai] slot link lookup failed for client={client_id}: {e}", flush=True)
+                        link = None
+                    if not link:
+                        return (
+                            f"{tool_input.get('date')} {tool_input.get('time')} isn't open anymore. Don't tell "
+                            "them they're booked. Call check_availability again and offer the next open times."
+                        )
+                    return (
+                        "NOT booked yet: this visit is paid when they book, so they confirm it themselves. "
+                        f"Text them this link to lock in {tool_input.get('date')} {tool_input.get('time')} "
+                        f"({tz_name}), fill in their details and pay: {link} . Say it only takes a minute. "
+                        "Don't say they're booked or all set until they've done it."
+                    )
                 missing = [label for label, value in (("name", name), ("email", email)) if not value]
                 if missing:
                     return (

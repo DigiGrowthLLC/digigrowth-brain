@@ -234,6 +234,21 @@ async def get_event_type_uri(token: str, scheduling_url: str) -> str | None:
         return event_type["uri"] if event_type else None
 
 
+async def is_paid_event_type(token: str, scheduling_url: str) -> bool:
+    """Whether the event type collects a payment at booking (Calendly's
+    is_paid: Stripe/PayPal turned on for it). The Scheduling API can't take
+    a card, so a paid offer (Pinnacle's $49 visit, 2026-11-05) must never be
+    direct-booked: the lead gets the link and pays on Calendly's own page."""
+    async with httpx.AsyncClient(timeout=10) as http:
+        event_type = await _get_matching_event_type(http, token, scheduling_url)
+        return bool(event_type and event_type.get("is_paid"))
+
+
+class PaidEventType(Exception):
+    """Raised by create_booking for an is_paid event type: booking it via the
+    API would skip the payment, so the caller sends the link instead."""
+
+
 async def find_earliest_available_times(
     token: str, scheduling_url: str, start_iso: str, max_days: int = 30,
 ) -> list[dict]:
@@ -417,6 +432,8 @@ async def create_booking(
         event_type = await _get_matching_event_type(http, token, scheduling_url)
         if not event_type:
             raise RequiredQuestionUnrecognized("event type not found")
+        if event_type.get("is_paid"):
+            raise PaidEventType("event type collects a payment; send the link instead")
 
         locations = event_type.get("locations") or []
         kind = locations[0].get("kind") if locations else None
@@ -429,6 +446,10 @@ async def create_booking(
             # Calendly generates the meeting link itself and puts it in the
             # invite it emails the invitee — nothing else to supply.
             location = {"kind": kind}
+        elif kind == "physical" and locations[0].get("location"):
+            # In-person at the clinic (Pinnacle's $49 visit, 2026-11-05):
+            # the event type's own address, echoed back as Calendly expects.
+            location = {"kind": "physical", "location": locations[0]["location"]}
         else:
             raise RequiredQuestionUnrecognized(f"unsupported location kind: {kind}")
 

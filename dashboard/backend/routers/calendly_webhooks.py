@@ -240,6 +240,31 @@ async def _resolve_call_type(payload: dict, token: str) -> str:
     return "discovery"
 
 
+async def _is_a_client_link(payload: dict, token: str) -> bool:
+    """Whether this booking was made on an event type some client has
+    connected as their booking link (client_marketing_config.
+    calendly_event_type_url). Only links Dylan's token can see resolve, which
+    is exactly the case that matters (a client link on his own account).
+    Fails open (False) if the booking's event type can't be determined."""
+    booked = await _resolve_event_type_uri(payload, token)
+    if not booked:
+        return False
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT DISTINCT calendly_event_type_url FROM client_marketing_config "
+            "WHERE COALESCE(calendly_event_type_url, '') <> ''",
+        )
+    for row in rows:
+        try:
+            uri = await calendly_integration.get_event_type_uri(token, row["calendly_event_type_url"])
+        except Exception:
+            continue
+        if uri == booked:
+            return True
+    return False
+
+
 async def _handle_invitee_created(payload: dict, token: str, client_id: int | None) -> dict:
     name = (payload.get("name") or "").strip() or None
     email = (payload.get("email") or "").strip() or None
@@ -578,6 +603,15 @@ async def calendly_webhook_dylan(request: Request):
     # live 2026-09-17: two of Crosacore's discovery-call bookings showed up
     # this way. Fails open (processes as before) if the host can't be
     # determined, rather than risk silently dropping a real booking.
+    # A client's booking link can live on Dylan's OWN Calendly account
+    # (Pinnacle, 2026-11-05: he made their link himself on Brian's Google
+    # Calendar), so the host check below would pass and the patient would
+    # land in Dylan's sales pipeline + get his discovery-call reminders.
+    # That client's own /webhooks/calendly/client/{id} subscription already
+    # records it, so skip any event type connected as a client's link.
+    if await _is_a_client_link(body["payload"], token):
+        return {"ok": True}
+
     host_uri = await _resolve_host_uri(body["payload"], token)
     if host_uri:
         dylan_uri = await calendly_integration.get_user_uri(token)
