@@ -34,6 +34,9 @@ The ads promote a **$49 assessment (normally $150)** with a limited number of sp
 by the practice's real capacity. Patients pay the $49 when they book, which filters for intent,
 raises show rates and leaves a payment record for every booking. **The practice keeps the $49.**
 (For a specific practice, "normally" should be that practice's real assessment price.)
+Default spot limit: **10 per month** (matches the 7-10 target), unless the practice's capacity says
+otherwise. Patient-facing copy (funnel, follow-up texts, AI text agent) uses both the "normally $X"
+anchor and the monthly limit; it never invents countdowns, deadlines or "only 2 left" counts.
 
 Included:
 1. **Meta ad campaigns.** Creative, targeting, launch with 3-5 ad variations, weekly optimization.

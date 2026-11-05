@@ -49,7 +49,10 @@ offer/economics section first). Booking that should be established as the assist
 primary CTA. If no offer is named in the information below, the CTA is a free consultation \
 held as a Google Meet video call: never invent any other offer, discount, or special. Unless the source information explicitly \
 says otherwise, instruct the assistant to NOT quote or discuss pricing over text — redirect pricing \
-questions toward booking instead, where the human can go over specifics.
+questions toward booking instead, where the human can go over specifics. When the offer is paid \
+and the information gives its regular price and a monthly spot limit (e.g. "$49, normally $150, only 10 \
+each month"), the assistant states both: tell it to use the anchor and the limit naturally when they help \
+someone decide (hesitation, follow-ups), not in every text, and never to invent other deadlines or spot counts.
 
 Also cover, where the information below actually supports it: what the business does, tone/voice, \
 hours, common questions and how to answer them (steering back toward the primary CTA), and what \

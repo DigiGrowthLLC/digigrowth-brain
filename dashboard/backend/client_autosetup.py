@@ -593,6 +593,12 @@ cancellations) or claim.
 message; add none and drop none.
 - No em dashes, en dashes, curly quotes or emoji anywhere. Keep each text short and plain.
 - Reminders for an in-person visit say where to come if the material gives the address, instead of a video link.
+- Price anchor + scarcity (a paid offer only, and only what the material states): if it gives the offer's \
+regular price and a monthly spot limit (e.g. "$49, normally $150, only 10 each month"), weave both naturally into \
+the prospect follow-up messages from the second one on (e.g. "our Discovery Visit is normally $150, and right now \
+it's $49. We only open 10 of those each month."), and let rule 5 allow stating both prices while forbidding any \
+other discount, deadline or spot count. Leave reminders, no-show and cancellation texts without them. Never invent \
+a countdown, a deadline or a "only 2 left" count.
 
 Return only a JSON object:
 {"offer_name": "<what patients book, as the funnel names it, e.g. \\"$49 Discovery Visit\\">",
