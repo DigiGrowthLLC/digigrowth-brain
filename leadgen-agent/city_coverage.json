@@ -6944,10 +6944,10 @@
       "last_scraped_date": "2026-11-04"
     },
     "Danbury, CT": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 84,
-      "qualified_count": 4,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 88,
+      "qualified_count": 5,
       "last_scraped_date": "2026-11-04"
     },
     "Ogden, UT": {
