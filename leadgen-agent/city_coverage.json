@@ -6888,9 +6888,9 @@
       "last_scraped_date": "2026-11-04"
     },
     "Clifton, NJ": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 162,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 175,
       "qualified_count": 11,
       "last_scraped_date": "2026-11-04"
     },
