@@ -6868,9 +6868,9 @@
     },
     "Santa Fe, NM": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 111,
-      "qualified_count": 12,
+      "term_index": 2,
+      "reviewed_count": 142,
+      "qualified_count": 13,
       "last_scraped_date": "2026-11-04"
     },
     "Fort Smith, AR": {
