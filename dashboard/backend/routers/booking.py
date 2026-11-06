@@ -73,6 +73,20 @@ async def _ensure_settings(conn, client_id: int) -> dict:
     return dict(s)
 
 
+async def _calendar_timezone(calendar_id: str | None) -> str | None:
+    """The time zone set on the clinic's own Google Calendar (what Google
+    shows the clinic its events in), or None if we can't read it."""
+    if not calendar_id:
+        return None
+    g = await be.google_status()
+    tz = next((c.get("time_zone") for c in g.get("calendars", []) if c["id"] == calendar_id), None)
+    try:
+        ZoneInfo(tz)
+    except Exception:
+        return None
+    return tz
+
+
 # ── Admin ────────────────────────────────────────────────────────────────────
 
 @admin_router.get("/booking/google")
@@ -140,6 +154,15 @@ async def get_booking(client_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
         s = await _ensure_settings(conn, client_id)
+        # Clinic timezone fills itself from the clinic's Google Calendar the
+        # first time we can read it (also covers calendars picked before this).
+        if not s["timezone"] and s["calendar_id"]:
+            tz = await _calendar_timezone(s["calendar_id"])
+            if tz:
+                await conn.execute(
+                    "UPDATE booking_settings SET timezone = $2, updated_at = now() WHERE client_id = $1", client_id, tz,
+                )
+                s["timezone"] = tz
         events = await conn.fetch(
             "SELECT * FROM booking_event_types WHERE client_id = $1 ORDER BY sort_order, id", client_id,
         )
@@ -204,6 +227,12 @@ async def save_booking_settings(client_id: int, payload: dict):
             if payload["refund_policy"] not in _REFUND_POLICIES:
                 raise HTTPException(400, "refund_policy must be none, 24h or always")
             updates["refund_policy"] = payload["refund_policy"]
+        # Picking a calendar sets the clinic timezone from that calendar,
+        # unless a timezone was sent in the same request.
+        if updates.get("calendar_id") and "timezone" not in payload:
+            tz = await _calendar_timezone(updates["calendar_id"])
+            if tz:
+                updates["timezone"] = tz
         if updates.get("enabled"):
             cur = dict(await conn.fetchrow("SELECT * FROM booking_settings WHERE client_id = $1", client_id))
             cur.update(updates)

@@ -15,6 +15,15 @@ const REFUNDS = [
   { value: "always", label: "Always refund on cancel" },
   { value: "none", label: "No refunds" },
 ];
+const US_TIMEZONES = [
+  ["America/New_York", "Eastern (New York)"],
+  ["America/Chicago", "Central (Chicago)"],
+  ["America/Denver", "Mountain (Denver)"],
+  ["America/Phoenix", "Mountain, no DST (Phoenix)"],
+  ["America/Los_Angeles", "Pacific (Los Angeles)"],
+  ["America/Anchorage", "Alaska (Anchorage)"],
+  ["Pacific/Honolulu", "Hawaii (Honolulu)"],
+];
 const STATUS_COLORS = { confirmed: "#14c882", pending_payment: "#f0a028", cancelled: "#e05a5a" };
 
 const label = { fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 4 };
@@ -154,15 +163,18 @@ function CalendarSection({ data, google, save, busy }) {
                 </div>
               )}
             </Field>
-            <Field name="Clinic timezone" width={220}>
-              <input className="dg-input" placeholder={data.effective_timezone} defaultValue={s.timezone || ""}
-                onBlur={(e) => e.target.value !== (s.timezone || "") && save({ timezone: e.target.value })} />
+            <Field name="Clinic timezone" width={230}>
+              <select className="dg-input" value={data.effective_timezone} disabled={busy} onChange={(e) => save({ timezone: e.target.value })}>
+                {[...new Set([data.effective_timezone, ...US_TIMEZONES.map((t) => t[0])])].map((tz) => (
+                  <option key={tz} value={tz}>{(US_TIMEZONES.find((t) => t[0] === tz) || [tz, tz])[1]}</option>
+                ))}
+              </select>
             </Field>
           </div>
           {current && !canWrite(current) && (
             <div style={{ ...note, color: "#f0a028", marginTop: 6 }}>This calendar is shared read-only. Ask the clinic to switch it to "Make changes to events".</div>
           )}
-          <div style={{ ...note, marginTop: 6 }}>Timezone: using <b>{data.effective_timezone}</b>{s.timezone ? " (set here)" : " (detected from the clinic's location; type one to override)"}.</div>
+          <div style={{ ...note, marginTop: 6 }}>Timezone is set automatically from the clinic's Google Calendar when you pick it{!s.calendar_id ? " (until then it's guessed from the clinic's location)" : ""}. Change it only if it's wrong.</div>
           {readable.length > 0 && (
             <details style={{ marginTop: 10 }}>
               <summary style={{ ...note, cursor: "pointer" }}>Also block times that are busy on… ({(s.busy_calendar_ids || []).length} selected)</summary>
