@@ -76,6 +76,8 @@ _TOOL = {
 
 _SYSTEM = """You set up an online booking page for a physical therapy clinic's NEW PATIENT visits, using only what the clinic and its marketing agency already wrote down. Your output is a draft that a human reviews before saving.
 
+Always answer by calling the propose_booking_setup tool, once.
+
 Rules:
 - Never invent facts. If hours, price, address or length aren't in the sources, leave hours empty / use the defaults below and say so in notes.
 - Hours = when new patients can book, in the clinic's local time. Prefer an existing Calendly availability schedule over prose. If only general business hours are given, use those and note it.
@@ -178,9 +180,11 @@ async def propose(client_id: int) -> dict:
     body = "\n\n".join(f"=== {k} ===\n{v}" for k, v in sources.items())
     api = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     resp = await api.messages.create(
-        model=_MODEL, max_tokens=2000, system=_SYSTEM, tools=[_TOOL],
-        tool_choice={"type": "tool", "name": "propose_booking_setup"},
-        messages=[{"role": "user", "content": "Sources:\n\n" + body + "\n\nPropose the booking setup."}],
+        model=_MODEL, max_tokens=4000, system=_SYSTEM, tools=[_TOOL],
+        # Forced tool_choice ("tool"/"any") isn't supported on current models: ask for it.
+        tool_choice={"type": "auto"},
+        messages=[{"role": "user", "content": "Sources:\n\n" + body
+                   + "\n\nPropose the booking setup by calling propose_booking_setup. Reply with only that tool call."}],
     )
     result = next((b.input for b in resp.content if b.type == "tool_use"), None)
     if not result:
