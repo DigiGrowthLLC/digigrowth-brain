@@ -7057,9 +7057,9 @@
     },
     "Kennewick, WA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 101,
-      "qualified_count": 8,
+      "term_index": 2,
+      "reviewed_count": 118,
+      "qualified_count": 9,
       "last_scraped_date": "2026-11-05"
     },
     "San Leandro, CA": {
