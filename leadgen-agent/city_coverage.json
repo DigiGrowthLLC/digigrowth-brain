@@ -7036,9 +7036,9 @@
     },
     "Lake Forest, CA": {
       "status": "in_progress",
-      "term_index": 1,
-      "reviewed_count": 100,
-      "qualified_count": 5,
+      "term_index": 2,
+      "reviewed_count": 123,
+      "qualified_count": 11,
       "last_scraped_date": "2026-11-05"
     },
     "Citrus Heights, CA": {
