@@ -2388,3 +2388,59 @@ async def _create_schema(pool: asyncpg.Pool):
             CREATE INDEX IF NOT EXISTS idx_bookings_client_time ON bookings(client_id, start_at);
             CREATE INDEX IF NOT EXISTS idx_bookings_appointment ON bookings(appointment_id);
         """)
+
+        # DigiGrowth Booking v2 (conversion revamp, 2026-11-06): page details
+        # (provider, photo, what-to-expect lines, reviews), unfinished-booking
+        # follow-up, step tracking for the funnel view, 14-day default horizon.
+        await conn.execute("""
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS provider_name TEXT;
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS provider_title TEXT;
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS photo_url TEXT;
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS what_to_expect TEXT;
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS review_rating NUMERIC(2,1);
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS review_count INTEGER;
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS reviews JSONB NOT NULL DEFAULT '[]';
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS google_place_id TEXT;
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS reviews_fetched_at TIMESTAMPTZ;
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS abandon_followup BOOLEAN NOT NULL DEFAULT true;
+            ALTER TABLE booking_event_types ALTER COLUMN max_days_ahead SET DEFAULT 14;
+            ALTER TABLE bookings ADD COLUMN IF NOT EXISTS session_id TEXT;
+
+            -- One row per booking-page visit that left a name + mobile but
+            -- may not have finished (session_id = the page load). booking_id
+            -- is set once they book; otherwise booking_engine texts them.
+            CREATE TABLE IF NOT EXISTS booking_partials (
+                id               SERIAL PRIMARY KEY,
+                client_id        INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                event_type_id    INTEGER REFERENCES booking_event_types(id) ON DELETE SET NULL,
+                session_id       TEXT UNIQUE NOT NULL,
+                resume_token     TEXT UNIQUE NOT NULL,
+                name             TEXT,
+                phone            TEXT NOT NULL,
+                slot_start       TIMESTAMPTZ,
+                utm_source       TEXT,
+                utm_content      TEXT,
+                booking_id       INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+                followup_due_at  TIMESTAMPTZ,
+                followed_up_at   TIMESTAMPTZ,
+                followup_skipped TEXT,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_booking_partials_due ON booking_partials(followup_due_at)
+                WHERE booking_id IS NULL AND followed_up_at IS NULL AND followup_skipped IS NULL;
+
+            -- Funnel steps per page visit: view, time, details, submit, booked.
+            CREATE TABLE IF NOT EXISTS booking_events (
+                id            BIGSERIAL PRIMARY KEY,
+                client_id     INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                event_type_id INTEGER,
+                session_id    TEXT NOT NULL,
+                step          TEXT NOT NULL,
+                utm_source    TEXT,
+                utm_content   TEXT,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (session_id, step)
+            );
+            CREATE INDEX IF NOT EXISTS idx_booking_events_client ON booking_events(client_id, created_at);
+        """)

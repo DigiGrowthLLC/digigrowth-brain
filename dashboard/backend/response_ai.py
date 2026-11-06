@@ -1310,6 +1310,22 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
     pool = await get_pool()
 
     if tool_name == "check_availability":
+        # DigiGrowth Booking (booking_conversion.py) wins when it's on.
+        try:
+            import booking_conversion
+            dg_times = await booking_conversion.ai_check_availability(
+                client_id, (tool_input.get("after_date") or "").strip() or None,
+            )
+        except Exception as e:
+            print(f"[response_ai] DigiGrowth Booking availability failed for client={client_id}: {e}", flush=True)
+            return f"Couldn't check the calendar ({e}) — ask for their preferred day and time instead."
+        if dg_times is not None:
+            if not dg_times:
+                return (
+                    "No open times found in the bookable window. Let the lead know you'll follow up once a "
+                    "slot opens, or offer to have a human confirm timing with them."
+                )
+            return _format_openings(dg_times)
         async with pool.acquire() as conn:
             row = await _calendar_config(conn, client_id)
         token = row["calendly_api_token"] if row else None
@@ -1465,6 +1481,40 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                         "updated_at = now() WHERE id = $1",
                         contact_id, name, email,
                     )
+
+            # DigiGrowth Booking: book straight in (free visit) or text the
+            # page link with the slot pre-picked (paid visit: they pay there).
+            import booking_conversion
+            import booking_engine
+            if await booking_conversion.booking_enabled(client_id):
+                try:
+                    res = await booking_conversion.ai_book(
+                        client_id, from_phone, name, tool_input.get("date") or "", tool_input.get("time") or "",
+                    )
+                except booking_engine.BookingError as e:
+                    if str(e) == "NEED_NAME":
+                        return (
+                            "Not booked yet — the calendar needs the lead's name, which isn't on file. Ask them "
+                            "for just that in one short message (keep the time they picked), then call "
+                            "propose_appointment again with the same date/time plus lead_name."
+                        )
+                    return (
+                        f"Couldn't book {tool_input.get('date')} {tool_input.get('time')}: {e} Don't tell them "
+                        "they're booked. Call check_availability again and offer the next open times."
+                    )
+                if res.get("link"):
+                    return (
+                        "NOT booked yet: this visit is paid when they book, so they confirm it themselves. "
+                        f"Text them this link to lock in {tool_input.get('date')} {tool_input.get('time')} "
+                        f"({res['tz']}) and pay: {res['link']} . Say it only takes a minute. "
+                        "Don't say they're booked or all set until they've done it."
+                    )
+                await _release_old(cal_row)
+                await _mark_booked()
+                return (
+                    f"Confirmed on the calendar for {tool_input.get('date')} {tool_input.get('time')} "
+                    f"({res['tz']}). They'll also get a confirmation text with a link to reschedule. Tell them they're all set."
+                )
 
             if use_ghl:
                 # GHL calendar: book straight onto it, then record it here

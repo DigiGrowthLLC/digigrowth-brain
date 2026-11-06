@@ -308,7 +308,7 @@ async def public_event_types(client_id: int) -> list[dict]:
 def _public_event(e: dict) -> dict:
     return {k: e[k] for k in (
         "id", "slug", "name", "description", "duration_min", "location_type", "location_text",
-        "price_cents", "anchor_price_cents", "spots_per_month", "ask_question",
+        "price_cents", "anchor_price_cents", "spots_per_month", "ask_question", "max_days_ahead",
     )}
 
 
@@ -467,16 +467,19 @@ async def _assert_slot_open(client_id: int, ev: dict, start: datetime, exclude_b
         raise BookingError("Sorry, that time was just taken. Please pick another.")
 
 
-async def reserve(client_id: int, event_type_id: int, start_iso: str, name: str, phone: str, email: str,
+async def reserve(client_id: int, event_type_id: int, start_iso: str, name: str, phone: str, email: str | None,
                   answer: str | None, utm_source: str | None, utm_content: str | None,
-                  return_base: str) -> dict:
-    name, phone, email = (name or "").strip(), (phone or "").strip(), (email or "").strip()
+                  return_base: str, session_id: str | None = None) -> dict:
+    # Name + mobile only (Dylan, 2026-11-06): texts are how patients are
+    # reached; email is optional (Stripe collects one for paid receipts).
+    name, phone, email = (name or "").strip(), (phone or "").strip(), (email or "").strip() or None
     if not name or len(name) > 120:
         raise BookingError("Please enter your name.")
     if len("".join(c for c in phone if c.isdigit())) < 10:
-        raise BookingError("Please enter a valid phone number.")
-    if "@" not in email or len(email) > 200:
-        raise BookingError("Please enter a valid email.")
+        raise BookingError("Please enter a valid mobile number.")
+    if email and ("@" not in email or len(email) > 200):
+        raise BookingError("That email doesn't look right. Fix it or leave it blank.")
+    session_id = (session_id or "").strip()[:64] or None
     start = _parse_start(start_iso)
 
     pool = await get_pool()
@@ -508,16 +511,20 @@ async def reserve(client_id: int, event_type_id: int, start_iso: str, name: str,
                 raise BookingError("Sorry, that time was just taken. Please pick another.")
             booking = await conn.fetchrow(
                 """INSERT INTO bookings (client_id, event_type_id, status, start_at, end_at, name, phone, email,
-                       answer, utm_source, utm_content, manage_token, price_cents, hold_expires_at)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *""",
+                       answer, utm_source, utm_content, manage_token, price_cents, hold_expires_at, session_id)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *""",
                 client_id, event_type_id, "pending_payment" if paid else "confirmed", start, end, name, phone,
                 email, (answer or "").strip()[:1000] or None, utm_source, utm_content, token, ev["price_cents"],
-                datetime.now(timezone.utc) + timedelta(minutes=HOLD_MINUTES) if paid else None,
+                datetime.now(timezone.utc) + timedelta(minutes=HOLD_MINUTES) if paid else None, session_id,
             )
     booking = dict(booking)
+    import booking_conversion
+    await booking_conversion.link_partial(client_id, session_id, phone, booking["id"])
+    await booking_conversion.log_step(client_id, session_id, "submit", event_type_id, utm_source, utm_content)
 
     if not paid:
         await _finalize(booking["id"])
+        await booking_conversion.log_step(client_id, session_id, "booked", event_type_id, utm_source, utm_content)
         return {"status": "confirmed", "manage_url": manage_url(token), "token": token}
 
     try:
@@ -595,6 +602,9 @@ async def confirm_payment(booking_id: int, session: dict) -> str:
             )
         return "refunded"
     await _finalize(booking_id)
+    import booking_conversion
+    await booking_conversion.log_step(b["client_id"], b["session_id"], "booked", b["event_type_id"],
+                                      b["utm_source"], b["utm_content"])
     return "confirmed"
 
 

@@ -103,7 +103,14 @@ export default function BookingPanel() {
                   {c.missing.length > 0 && <span style={{ color: "#f0a028" }}> · needs: {c.missing.join(", ")}</span>}
                 </div>
               </div>
-              <div style={{ ...note, width: 150 }}>{c.upcoming} upcoming · {c.booked_30d} in 30d</div>
+              <div style={{ ...note, width: 170 }}>
+                {c.upcoming} upcoming · {c.booked_30d} in 30d
+                {c.funnel && c.funnel.view > 0 && (
+                  <div title="Booking page visits in the last 30 days, and the share that booked">
+                    {c.funnel.view} visits · <b style={{ color: "#14c882" }}>{Math.round(((c.funnel.booked || 0) / c.funnel.view) * 100)}% booked</b>
+                  </div>
+                )}
+              </div>
               <Pill color={color}>{label}</Pill>
               <button className={c.booking_slug ? "btn btn-secondary" : "btn btn-primary"} onClick={() => setSelected(c)}>
                 {c.booking_slug ? "Manage" : "Set up"}

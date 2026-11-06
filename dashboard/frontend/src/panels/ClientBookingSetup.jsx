@@ -151,10 +151,12 @@ export default function ClientBookingSetup({ clientId }) {
         )}
       </Section>
 
+      <FunnelCard funnel={data.funnel} />
       <CalendarSection data={data} google={google} save={save} busy={busy} />
       <HoursSection data={data} clientId={clientId} run={run} busy={busy} />
       <OverridesSection data={data} clientId={clientId} run={run} busy={busy} />
       <EventTypesSection data={data} clientId={clientId} run={run} reload={load} busy={busy} />
+      <PageDetailsSection data={data} clientId={clientId} save={save} run={run} busy={busy} />
       <PaymentsSection data={data} clientId={clientId} save={save} run={run} reload={load} busy={busy} />
       <PreviewSection data={data} clientId={clientId} />
       <BookingsSection clientId={clientId} />
@@ -227,6 +229,112 @@ function AutofillReview({ draft, data, busy, onApply, onClose }) {
         <button className="btn btn-secondary" onClick={onClose}>Discard</button>
       </div>
     </div>
+  );
+}
+
+const FUNNEL_STEPS = [["view", "Opened page"], ["time", "Picked a time"], ["details", "Left name + mobile"], ["submit", "Clicked book / pay"], ["booked", "Booked"]];
+
+export function FunnelBars({ funnel, compact }) {
+  const f = funnel || {};
+  const top = f.view || 0;
+  if (!top) return <div style={note}>No visits tracked yet. Numbers show up after the first patient opens the page.</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: compact ? 3 : 6 }}>
+      {FUNNEL_STEPS.map(([k, label]) => {
+        const n = f[k] || 0; const pct = Math.round((n / top) * 100);
+        return (
+          <div key={k} style={{ display: "grid", gridTemplateColumns: compact ? "120px 1fr 70px" : "150px 1fr 90px", gap: 10, alignItems: "center", fontSize: compact ? 11 : 12 }}>
+            <span style={{ color: "#9cc4f5" }}>{label}</span>
+            <div style={{ height: compact ? 6 : 8, borderRadius: 6, background: "rgba(58,123,213,0.12)" }}>
+              <div style={{ width: `${Math.max(pct, n ? 2 : 0)}%`, height: "100%", borderRadius: 6, background: k === "booked" ? "#14c882" : "#3a7bd5" }} />
+            </div>
+            <span style={{ ...mono, color: "#d0e8ff", fontSize: compact ? 10.5 : 11.5, textAlign: "right" }}>{n} · {pct}%</span>
+          </div>
+        );
+      })}
+      {(f.followups_sent || 0) > 0 && (
+        <div style={{ ...note, marginTop: 4 }}>Unfinished-booking texts sent: <b style={{ color: "#d0e8ff" }}>{f.followups_sent}</b> · booked after the text: <b style={{ color: "#14c882" }}>{f.recovered || 0}</b></div>
+      )}
+    </div>
+  );
+}
+const mono = { fontFamily: "'Share Tech Mono', monospace" };
+
+function FunnelCard({ funnel }) {
+  return (
+    <Section title="Conversion (last 30 days)">
+      <div style={{ ...note, marginBottom: 8 }}>Each patient visit to the booking page, step by step. The biggest drop shows where the page loses people.</div>
+      <FunnelBars funnel={funnel} />
+    </Section>
+  );
+}
+
+function PageDetailsSection({ data, clientId, save, run, busy }) {
+  const s = data.settings;
+  const parse = (v) => { try { return typeof v === "string" ? JSON.parse(v) : (v || []); } catch { return []; } };
+  const [form, setForm] = useState(null);
+  useEffect(() => {
+    const rv = parse(s.reviews);
+    setForm({
+      provider_name: s.provider_name || "", provider_title: s.provider_title || "", photo_url: s.photo_url || "",
+      what_to_expect: s.what_to_expect || "", review_rating: s.review_rating ?? "", review_count: s.review_count ?? "",
+      reviews: [0, 1, 2].map((i) => rv[i] || { text: "", author: "" }),
+    });
+    // eslint-disable-next-line
+  }, [s.provider_name, s.provider_title, s.photo_url, s.what_to_expect, s.review_rating, s.review_count, s.reviews]);
+  const [query, setQuery] = useState("");
+  if (!form) return null;
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const setReview = (i, k) => (e) => setForm({ ...form, reviews: form.reviews.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)) });
+  const rating = parseFloat(form.review_rating);
+  const count = parseInt(form.review_count, 10);
+  const willShow = rating >= 4 && count >= 5;
+  return (
+    <Section title="Page details (trust + follow-up)" right={
+      <button className="btn btn-primary" disabled={busy} onClick={() => save({ ...form, reviews: form.reviews.filter((r) => r.text.trim()) }, "Page details saved")}>Save</button>
+    }>
+      <div style={row}>
+        <Field name="Therapist name"><input className="dg-input" value={form.provider_name} onChange={set("provider_name")} placeholder="Brian Smith" /></Field>
+        <Field name="Title" width={160}><input className="dg-input" value={form.provider_title} onChange={set("provider_title")} placeholder="PT, DPT" /></Field>
+      </div>
+      <div style={{ ...row, marginTop: 8 }}>
+        <Field name="Photo link (therapist or clinic, https://)"><input className="dg-input" value={form.photo_url} onChange={set("photo_url")} placeholder="Leave blank to use the funnel's hero image" /></Field>
+      </div>
+      <div style={{ ...row, marginTop: 8 }}>
+        <Field name="What to expect (one per line, up to 4; shown as checkmarks)">
+          <textarea className="dg-input" rows={3} value={form.what_to_expect} onChange={set("what_to_expect")} placeholder={"Sit down 1-on-1 with a physical therapist\nLeave knowing what's wrong and the plan"} />
+        </Field>
+      </div>
+
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(58,123,213,0.12)" }}>
+        <div style={{ ...row, alignItems: "flex-end" }}>
+          <Field name="Google rating" width={110}><input className="dg-input" type="number" step="0.1" min="1" max="5" value={form.review_rating} onChange={set("review_rating")} /></Field>
+          <Field name="Review count" width={110}><input className="dg-input" type="number" min="0" value={form.review_count} onChange={set("review_count")} /></Field>
+          <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "flex-end", minWidth: 260 }}>
+            <input className="dg-input" style={{ flex: 1 }} placeholder="Clinic name + city (optional)" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <button className="btn btn-secondary" disabled={busy || !data.places_configured} title={data.places_configured ? "" : "Needs a valid PLACES_API_KEY on the server"}
+              onClick={() => run(() => call(`/clients/${clientId}/booking/reviews/fetch`, { method: "POST", body: JSON.stringify({ query: query || null }) }), "Pulled from Google")}>
+              Fetch from Google
+            </button>
+          </div>
+        </div>
+        <div style={{ ...note, marginTop: 6, color: willShow ? "#8fd9bd" : "#f0a028" }}>
+          {willShow ? "Shown on the booking page (4.0+ rating, 5+ reviews)." : "Hidden on the booking page until the rating is 4.0+ with 5+ reviews (below that, reviews hurt more than help)."}
+          {!data.places_configured && " The Google key on the server is missing or invalid, so type these in for now."}
+        </div>
+        {form.reviews.map((r, i) => (
+          <div key={i} style={{ ...row, marginTop: 8 }}>
+            <Field name={`Review ${i + 1} (real, copied word for word)`}><input className="dg-input" value={r.text} onChange={setReview(i, "text")} /></Field>
+            <Field name="First name" width={130}><input className="dg-input" value={r.author} onChange={setReview(i, "author")} /></Field>
+          </div>
+        ))}
+      </div>
+
+      <label style={{ ...note, display: "flex", gap: 8, alignItems: "center", marginTop: 14 }}>
+        <input type="checkbox" checked={!!s.abandon_followup} disabled={busy} onChange={(e) => save({ abandon_followup: e.target.checked }, e.target.checked ? "Unfinished-booking texts on" : "Unfinished-booking texts off")} />
+        Text patients who leave their name + mobile but don't finish booking (one text, 10 minutes later, from the clinic's number; replies go to the AI text agent)
+      </label>
+    </Section>
   );
 }
 

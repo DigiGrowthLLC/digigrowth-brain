@@ -24,12 +24,15 @@ from __future__ import annotations
 import json
 import os
 import re
+from decimal import Decimal
+from urllib.parse import quote
 from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+import booking_conversion as bc
 import booking_engine as be
 from booking_page import render_page
 from db import get_pool
@@ -146,6 +149,9 @@ async def booking_overview():
         d["manage_url"] = be.manage_url(u["manage_token"])
         d.pop("manage_token", None)
         up.append(d)
+    stats = await bc.funnel_stats(None, 30)
+    for d in rows:
+        d["funnel"] = stats.get(d["id"])
     return {"clients": rows, "upcoming": up}
 
 
@@ -188,6 +194,8 @@ async def get_booking(client_id: int):
         "funnel_urls": [f"{be.public_base()}/lp/{r['slug']}/book" for r in landing],
         "stripe_platform_configured": be.stripe_configured(),
         "stripe_webhook_configured": bool(os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET")),
+        "funnel": (await bc.funnel_stats(client_id, 30)).get(client_id),
+        "places_configured": bool(os.environ.get("PLACES_API_KEY")),
     }
 
 
@@ -227,6 +235,38 @@ async def save_booking_settings(client_id: int, payload: dict):
             if payload["refund_policy"] not in _REFUND_POLICIES:
                 raise HTTPException(400, "refund_policy must be none, 24h or always")
             updates["refund_policy"] = payload["refund_policy"]
+        for f in ("provider_name", "provider_title", "photo_url", "what_to_expect"):
+            if f in payload:
+                updates[f] = (payload[f] or "").strip()[:2000] or None
+        if updates.get("photo_url") and not re.match(r"^(https://|/lp/)", updates["photo_url"]):
+            raise HTTPException(400, "Photo must be an https:// link")
+        if "abandon_followup" in payload:
+            updates["abandon_followup"] = bool(payload["abandon_followup"])
+        if "review_rating" in payload:
+            v = payload["review_rating"]
+            if v in (None, ""):
+                updates["review_rating"] = None
+            else:
+                try:
+                    v = round(float(v), 1)
+                except (TypeError, ValueError):
+                    raise HTTPException(400, "Rating must be a number like 4.8")
+                if not 1 <= v <= 5:
+                    raise HTTPException(400, "Rating must be between 1 and 5")
+                updates["review_rating"] = Decimal(str(v))
+        if "review_count" in payload:
+            v = payload["review_count"]
+            try:
+                updates["review_count"] = None if v in (None, "") else max(0, int(float(v)))
+            except (TypeError, ValueError):
+                raise HTTPException(400, "Review count must be a whole number")
+        if "reviews" in payload:
+            items = []
+            for r in (payload["reviews"] or [])[:3]:
+                text = (r.get("text") or "").strip()[:400]
+                if text:
+                    items.append({"text": text, "author": (r.get("author") or "").strip()[:40]})
+            updates["reviews"] = json.dumps(items)
         # Picking a calendar sets the clinic timezone from that calendar,
         # unless a timezone was sent in the same request.
         if updates.get("calendar_id") and "timezone" not in payload:
@@ -245,7 +285,7 @@ async def save_booking_settings(client_id: int, payload: dict):
             if not await conn.fetchval("SELECT 1 FROM booking_hours WHERE client_id = $1", client_id):
                 raise HTTPException(400, "Set the clinic's hours before turning booking on.")
         if updates:
-            sets = ", ".join(f"{k} = ${i}" for i, k in enumerate(updates, start=2))
+            sets = ", ".join(f"{k} = ${i}" + ("::jsonb" if k == "reviews" else "") for i, k in enumerate(updates, start=2))
             await conn.execute(
                 f"UPDATE booking_settings SET {sets}, updated_at = now() WHERE client_id = $1",
                 client_id, *updates.values(),
@@ -412,6 +452,15 @@ async def save_overrides(client_id: int, payload: dict):
     return await get_booking(client_id)
 
 
+@admin_router.post("/clients/{client_id}/booking/reviews/fetch")
+async def fetch_reviews(client_id: int, payload: dict | None = None):
+    try:
+        found = await bc.fetch_google_reviews(client_id, (payload or {}).get("query") or None)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"found": found, **(await get_booking(client_id))}
+
+
 @admin_router.post("/clients/{client_id}/booking/autofill/preview")
 async def autofill_preview(client_id: int):
     """Draft hours / appointment type / timezone from the client's portal
@@ -558,8 +607,40 @@ def _not_open_page(clinic: str) -> str:
 @router.get("/lp/{key}/book/api/info", include_in_schema=False)
 async def public_info(key: str, request: Request):
     ctx = await _resolve(request, key)
+    lp_slug = key if request.url.path.startswith("/lp/") else None
     return {"clinic": ctx["client_name"], "timezone": ctx["timezone"],
-            "event_types": await be.public_event_types(ctx["settings"]["client_id"])}
+            "event_types": await be.public_event_types(ctx["settings"]["client_id"]),
+            "profile": await bc.page_profile(ctx["settings"]["client_id"], ctx["settings"], lp_slug)}
+
+
+@router.post("/book/{key}/api/event", include_in_schema=False)
+@router.post("/lp/{key}/book/api/event", include_in_schema=False)
+async def public_event(key: str, request: Request, payload: dict):
+    ctx = await _resolve(request, key)
+    await bc.log_step(ctx["settings"]["client_id"], payload.get("session"), payload.get("step") or "",
+                      payload.get("event_type_id"), payload.get("utm_source"), payload.get("utm_content"))
+    return {"ok": True}
+
+
+@router.post("/book/{key}/api/partial", include_in_schema=False)
+@router.post("/lp/{key}/book/api/partial", include_in_schema=False)
+async def public_partial(key: str, request: Request, payload: dict):
+    """Two-step capture: name + mobile saved as soon as they're typed."""
+    ctx = await _resolve(request, key)
+    await bc.save_partial(ctx["settings"]["client_id"], payload.get("session") or "", payload.get("name"),
+                          payload.get("phone") or "", payload.get("event_type_id"), payload.get("start"),
+                          payload.get("utm_source"), payload.get("utm_content"))
+    return {"ok": True}
+
+
+@router.get("/book/{key}/api/resume", include_in_schema=False)
+@router.get("/lp/{key}/book/api/resume", include_in_schema=False)
+async def public_resume(key: str, request: Request, r: str):
+    ctx = await _resolve(request, key)
+    info = await bc.resume_info(ctx["settings"]["client_id"], r)
+    if not info:
+        raise HTTPException(404, "Link expired")
+    return info
 
 
 @router.get("/book/{key}/api/slots", include_in_schema=False)
@@ -592,7 +673,7 @@ async def public_reserve(key: str, request: Request, payload: dict):
         return await be.reserve(
             ctx["settings"]["client_id"], int(payload.get("event_type_id") or 0), payload.get("start") or "",
             payload.get("name"), payload.get("phone"), payload.get("email"), payload.get("answer"),
-            payload.get("utm_source"), payload.get("utm_content"), page_base,
+            payload.get("utm_source"), payload.get("utm_content"), page_base, payload.get("session"),
         )
     except be.BookingError as e:
         raise HTTPException(409, str(e))
@@ -634,6 +715,12 @@ def _manage_payload(ctx: dict) -> dict:
             f"Manage your booking: {be.manage_url(b['manage_token'])}", loc or "",
         ),
         "event_type_id": ev["id"],
+        "provider_name": ctx["settings"].get("provider_name"),
+        "provider_title": ctx["settings"].get("provider_title"),
+        "photo_url": ctx["settings"].get("photo_url"),
+        "what_to_expect": [x.strip(" -\u2022\t") for x in (ctx["settings"].get("what_to_expect") or "").splitlines() if x.strip(" -\u2022\t")][:4],
+        "map_url": ("https://www.google.com/maps/search/?api=1&query=" + quote(ev["location_text"]))
+                   if ev["location_type"] == "in_person" and ev.get("location_text") else None,
     }
 
 
