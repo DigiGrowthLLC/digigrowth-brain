@@ -127,7 +127,9 @@ export default function ClientBookingSetup({ clientId }) {
 
 function CalendarSection({ data, google, save, busy }) {
   const s = data.settings;
-  const writable = (google?.calendars || []).filter((c) => ["owner", "writer"].includes(c.access_role));
+  // Google reports edit access as "owner", "writer" or (newer) "writerWithoutPrivateAccess".
+  const canWrite = (c) => c.access_role === "owner" || (c.access_role || "").startsWith("writer");
+  const writable = (google?.calendars || []).filter(canWrite);
   const readable = (google?.calendars || []).filter((c) => c.id !== s.calendar_id);
   const current = (google?.calendars || []).find((c) => c.id === s.calendar_id);
   return (
@@ -146,13 +148,18 @@ function CalendarSection({ data, google, save, busy }) {
                 <option value="">— pick the clinic's calendar —</option>
                 {writable.map((c) => <option key={c.id} value={c.id}>{c.name}{c.primary ? " (our own)" : ""} · {c.id}</option>)}
               </select>
+              {(google?.calendars || []).some((c) => !canWrite(c) && !c.id.includes("#")) && (
+                <div style={{ ...note, marginTop: 4 }}>
+                  Shared view-only (not listed): {(google.calendars || []).filter((c) => !canWrite(c) && !c.id.includes("#")).map((c) => c.id).join(", ")}. Ask them to switch it to "Make changes to events".
+                </div>
+              )}
             </Field>
             <Field name="Clinic timezone" width={220}>
               <input className="dg-input" placeholder={data.effective_timezone} defaultValue={s.timezone || ""}
                 onBlur={(e) => e.target.value !== (s.timezone || "") && save({ timezone: e.target.value })} />
             </Field>
           </div>
-          {current && current.access_role !== "owner" && current.access_role !== "writer" && (
+          {current && !canWrite(current) && (
             <div style={{ ...note, color: "#f0a028", marginTop: 6 }}>This calendar is shared read-only. Ask the clinic to switch it to "Make changes to events".</div>
           )}
           <div style={{ ...note, marginTop: 6 }}>Timezone: using <b>{data.effective_timezone}</b>{s.timezone ? " (set here)" : " (detected from the clinic's location; type one to override)"}.</div>
