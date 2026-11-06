@@ -7007,9 +7007,9 @@
       "last_scraped_date": "2026-11-05"
     },
     "Melbourne, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 144,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 185,
       "qualified_count": 4,
       "last_scraped_date": "2026-11-05"
     },
