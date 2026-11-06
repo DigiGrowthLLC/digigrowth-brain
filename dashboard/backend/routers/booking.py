@@ -153,7 +153,7 @@ async def get_booking(client_id: int):
         )
         tz = await be.client_timezone(conn, client_id, s)
         landing = await conn.fetch(
-            "SELECT slug FROM landing_pages WHERE client_id = $1 ORDER BY id", client_id,
+            "SELECT slug FROM landing_pages WHERE client_id = $1 ORDER BY created_at", client_id,
         )
     return {
         "settings": _jsonable(s),
