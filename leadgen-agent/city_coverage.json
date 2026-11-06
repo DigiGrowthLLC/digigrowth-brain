@@ -6965,11 +6965,11 @@
       "last_scraped_date": "2026-11-04"
     },
     "Waukegan, IL": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 56,
+      "qualified_count": 6,
+      "last_scraped_date": "2026-11-05"
     },
     "Cheektowaga, NY": {
       "status": "not_started",
