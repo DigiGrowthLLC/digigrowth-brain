@@ -105,8 +105,19 @@ async def portal_home(token: str):
         # NULL for every real client until they connect their own Calendly
         # (see db.py's calendly_url migration note) — the portal's booking
         # UI shows "not connected" in place of the iframe when this is null.
-        "calendly_url": client.get("calendly_url"),
+        # DigiGrowth Booking (booking_engine.py) replaces it once turned on.
+        "calendly_url": await _booking_or_calendly_url(client),
     }
+
+
+async def _booking_or_calendly_url(client: dict) -> str | None:
+    import booking_engine
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        slug = await conn.fetchval(
+            "SELECT booking_slug FROM booking_settings WHERE client_id = $1 AND enabled", client["id"],
+        )
+    return booking_engine.booking_page_url(slug) if slug else client.get("calendly_url")
 
 
 @router.get("/{token}/onboarding")

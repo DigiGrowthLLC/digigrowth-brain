@@ -11,6 +11,7 @@ import SOPsPanel      from "./panels/SOPsPanel.jsx";
 import TodoPanel      from "./panels/TodoPanel.jsx";
 import WebsitePanel  from "./panels/WebsitePanel.jsx";
 import ClientsPanel  from "./panels/ClientsPanel.jsx";
+import BookingPanel  from "./panels/BookingPanel.jsx";
 import IncomingCallWidget from "./IncomingCallWidget.jsx";
 import CallScreen     from "./CallScreen.jsx";
 import useIncomingCall from "./useIncomingCall.js";
@@ -24,6 +25,7 @@ const NAV = [
   { id: "dialer",    label: "Dialer" },
   { id: "appointments", label: "Appointments" },
   { id: "clients",   label: "Clients" },
+  { id: "booking",   label: "Booking Links" },
   { id: "inbox",     label: "Inbox" },
   { id: "agents",    label: "Agents" },
   { id: "todos",     label: "To-Do" },
@@ -40,6 +42,13 @@ const NAV_ICONS = {
       <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
       <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
       <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+    </svg>
+  ),
+  booking: (
+    <svg viewBox="0 0 16 16" fill="none" width={15} height={15}>
+      <rect x="1.5" y="2.5" width="13" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+      <path d="M1.5 6h13M5 1v3M11 1v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M5.5 10l1.75 1.75L10.5 8.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   ),
   crm: (
@@ -358,6 +367,7 @@ export default function App() {
         {active === "dialer"   && <DialerPanel />}
         {active === "appointments" && <AppointmentsPanel />}
         {active === "clients"   && <ClientsPanel />}
+        {active === "booking"   && <BookingPanel />}
         {active === "agents"    && <AgentsPanel initialAgentId={navContext} />}
         {active === "analytics" && <AnalyticsPanel />}
         {active === "finances"  && <FinancesPanel />}

@@ -326,7 +326,16 @@ async def landing_page_book(slug: str, utm_content: str | None = None):
     client's Calendly is connected and picks it up the moment it is.
     Appends utm_source=paid_ad (calendly_webhooks.py tags the booking
     ads-lead from it) and passes through utm_content=meta from the page's
-    tracking snippet. No Calendly yet: falls back to the client's own site."""
+    tracking snippet. No Calendly yet: falls back to the client's own site.
+
+    DigiGrowth Booking (booking_engine.py) wins over Calendly once it's
+    turned on for the client: the page is served right here, so it keeps
+    working on the clinic's own funnel domain behind the Vercel proxy."""
+    import booking_engine
+    from booking_page import render_page
+    ctx = await booking_engine.resolve_public(slug, True)
+    if ctx:
+        return HTMLResponse(render_page("book", ctx["client_name"], ctx["settings"]["accent_color"]))
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(

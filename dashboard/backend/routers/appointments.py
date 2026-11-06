@@ -706,6 +706,16 @@ async def cancel_appointment(appointment_id: int, notify: bool = False, cancel_c
     if row is None:
         raise HTTPException(404, "appointment not found or already resolved")
 
+    # Booked through DigiGrowth Booking: take it off the clinic's calendar
+    # and free the slot too (booking_engine.cancel_booking calls back in
+    # here with touch_appointment=False, so no loop).
+    if (row["calendly_event_uri"] or "").startswith("dgbook:"):
+        try:
+            import booking_engine
+            await booking_engine.on_appointment_cancelled(appointment_id)
+        except Exception as e:
+            print(f"[appointments] booking cancel mirror failed for {appointment_id}: {e}")
+
     # A client's own lead is tagged "Cancelled Appointment" whether or not a
     # recovery text goes out (no-op for Dylan's own contacts).
     await client_appointment_sequence.tag_outcome(row["contact_id"], "cancellation")

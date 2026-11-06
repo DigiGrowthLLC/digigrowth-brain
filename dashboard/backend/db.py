@@ -1607,8 +1607,12 @@ async def _create_schema(pool: asyncpg.Pool):
                 _old_calendar_item, _calendly_admin_title, _calendly_admin_description, _calendly_admin_guide_url,
             )
         else:
+            # Also skip once the row has moved on to the 2026-11-06 Google
+            # Calendar share step below, or this would re-insert the retired
+            # Calendly-admin item on every deploy.
             _already_added = await conn.fetchval(
-                "SELECT id FROM onboarding_action_items WHERE title = $1", _calendly_admin_title
+                "SELECT id FROM onboarding_action_items WHERE title IN ($1, 'Share Your Google Calendar with DigiGrowth')",
+                _calendly_admin_title,
             )
             if not _already_added:
                 await conn.execute(
@@ -1631,6 +1635,35 @@ async def _create_schema(pool: asyncpg.Pool):
             """,
             _calendly_admin_title, _calendly_admin_description, _calendly_admin_guide_url,
         )
+        # 2026-11-06 process change: joining a client's Calendly organization
+        # locks Dylan's Calendly account into that org, so he can't join any
+        # other client's. Clients now share their Google Calendar with
+        # DigiGrowth instead, and Dylan builds the booking links in his own
+        # Calendly (connected to the shared calendar for conflicts + adding
+        # events). Same row, same guide URL (the guide artifact itself was
+        # republished with the new steps). Completions are cleared once so a
+        # client who already ticked the old Calendly-admin version sees the
+        # new step as open. Matched by the old title, so this only ever
+        # fires once per environment.
+        _gcal_share_title = "Share Your Google Calendar with DigiGrowth"
+        _gcal_share_description = (
+            "Share the Google Calendar you book patients on with "
+            "dylanrg@digigrowthllc.com and set it to \"Make changes to events\". "
+            "We build your booking link on our end, so new patients only book "
+            "into times you're free and land right on your calendar. Takes about "
+            "2 minutes; full steps are in the guide below."
+        )
+        _calendly_admin_row = await conn.fetchval(
+            "SELECT id FROM onboarding_action_items WHERE title = $1", _calendly_admin_title
+        )
+        if _calendly_admin_row:
+            await conn.execute(
+                "UPDATE onboarding_action_items SET title = $2, description = $3, link_url = $4 WHERE id = $1",
+                _calendly_admin_row, _gcal_share_title, _gcal_share_description, _calendly_admin_guide_url,
+            )
+            await conn.execute(
+                "DELETE FROM client_action_item_completions WHERE action_item_id = $1", _calendly_admin_row,
+            )
 
         # booked_at: a permanent record of "an appointment was booked from
         # this conversation", separate from `disposition`. Analytics'
@@ -2257,3 +2290,101 @@ async def _create_schema(pool: asyncpg.Pool):
         # than a client's. Reuses dialer_settings (the app's existing
         # generic key/value store, see reminder_engine.py/dm_followup_sequence.py's
         # template storage) instead of a dedicated table for a handful of values.
+
+        # DigiGrowth Booking (booking_engine.py): our own Calendly replacement.
+        # booking_settings = one row per client (calendar it books into,
+        # public slug, Stripe connected account, refund policy). Hours are
+        # per clinic (shared by every event type); date overrides close a
+        # day or replace its hours. bookings = one row per patient booking;
+        # its appointment_id links the appointment_reminders row that
+        # record_booking() creates (reminders/drips run off that, unchanged).
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS booking_settings (
+                client_id              INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+                enabled                BOOLEAN NOT NULL DEFAULT false,
+                booking_slug           TEXT UNIQUE NOT NULL,
+                calendar_id            TEXT,
+                busy_calendar_ids      TEXT[] NOT NULL DEFAULT '{}',
+                timezone               TEXT,
+                accent_color           TEXT NOT NULL DEFAULT '#2f6fd6',
+                stripe_account_id      TEXT,
+                stripe_charges_enabled BOOLEAN NOT NULL DEFAULT false,
+                refund_policy          TEXT NOT NULL DEFAULT '24h',
+                created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE TABLE IF NOT EXISTS booking_event_types (
+                id                 SERIAL PRIMARY KEY,
+                client_id          INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                slug               TEXT NOT NULL,
+                name               TEXT NOT NULL,
+                description        TEXT,
+                duration_min       INTEGER NOT NULL DEFAULT 60,
+                location_type      TEXT NOT NULL DEFAULT 'in_person',
+                location_text      TEXT,
+                price_cents        INTEGER NOT NULL DEFAULT 0,
+                anchor_price_cents INTEGER,
+                spots_per_month    INTEGER,
+                ask_question       TEXT,
+                buffer_before_min  INTEGER NOT NULL DEFAULT 0,
+                buffer_after_min   INTEGER NOT NULL DEFAULT 0,
+                min_notice_hours   INTEGER NOT NULL DEFAULT 12,
+                max_days_ahead     INTEGER NOT NULL DEFAULT 30,
+                daily_cap          INTEGER,
+                slot_interval_min  INTEGER NOT NULL DEFAULT 30,
+                active             BOOLEAN NOT NULL DEFAULT true,
+                sort_order         INTEGER NOT NULL DEFAULT 0,
+                created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (client_id, slug)
+            );
+            CREATE TABLE IF NOT EXISTS booking_hours (
+                id         SERIAL PRIMARY KEY,
+                client_id  INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                weekday    SMALLINT NOT NULL CHECK (weekday BETWEEN 0 AND 6),
+                start_time TIME NOT NULL,
+                end_time   TIME NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_booking_hours_client ON booking_hours(client_id);
+            CREATE TABLE IF NOT EXISTS booking_date_overrides (
+                id         SERIAL PRIMARY KEY,
+                client_id  INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                date       DATE NOT NULL,
+                closed     BOOLEAN NOT NULL DEFAULT false,
+                start_time TIME,
+                end_time   TIME
+            );
+            CREATE INDEX IF NOT EXISTS idx_booking_overrides_client ON booking_date_overrides(client_id, date);
+            CREATE TABLE IF NOT EXISTS bookings (
+                id                    SERIAL PRIMARY KEY,
+                client_id             INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                event_type_id         INTEGER NOT NULL REFERENCES booking_event_types(id),
+                status                TEXT NOT NULL,
+                start_at              TIMESTAMPTZ NOT NULL,
+                end_at                TIMESTAMPTZ NOT NULL,
+                name                  TEXT,
+                phone                 TEXT,
+                email                 TEXT,
+                answer                TEXT,
+                utm_source            TEXT,
+                utm_content           TEXT,
+                manage_token          TEXT UNIQUE NOT NULL,
+                price_cents           INTEGER NOT NULL DEFAULT 0,
+                hold_expires_at       TIMESTAMPTZ,
+                stripe_session_id     TEXT,
+                stripe_payment_intent TEXT,
+                paid_at               TIMESTAMPTZ,
+                refunded_at           TIMESTAMPTZ,
+                google_event_id       TEXT,
+                meet_link             TEXT,
+                calendar_error        TEXT,
+                appointment_id        INTEGER REFERENCES appointment_reminders(id) ON DELETE SET NULL,
+                cancelled_at          TIMESTAMPTZ,
+                cancelled_by          TEXT,
+                cancel_reason         TEXT,
+                rescheduled_at        TIMESTAMPTZ,
+                reschedule_count      INTEGER NOT NULL DEFAULT 0,
+                created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_bookings_client_time ON bookings(client_id, start_at);
+            CREATE INDEX IF NOT EXISTS idx_bookings_appointment ON bookings(appointment_id);
+        """)

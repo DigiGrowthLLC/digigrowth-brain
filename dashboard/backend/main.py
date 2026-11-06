@@ -23,7 +23,8 @@ import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
 from routers import reactivation, dm_agent
-from routers import crm, sms, sms_sequences, sms_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin, ghl_webhooks
+from routers import crm, sms, sms_sequences, sms_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin, ghl_webhooks, booking
+import booking_engine
 import call_reminders
 import cancel_sequence
 import client_appointment_reminders
@@ -429,6 +430,14 @@ async def lifespan(app: FastAPI):
         id="appointment-reminders",
         replace_existing=True,
     )
+    # DigiGrowth Booking: free the slot of an unpaid checkout once its hold
+    # lapses (reads also skip lapsed holds; this just keeps statuses tidy).
+    scheduler.add_job(
+        booking_engine.expire_stale_holds,
+        IntervalTrigger(minutes=5),
+        id="booking-expire-holds",
+        replace_existing=True,
+    )
     scheduler.add_job(
         client_appointment_reminders.send_due_reminders,
         IntervalTrigger(minutes=5),
@@ -677,6 +686,8 @@ app.include_router(client_voice_webhooks.router)  # no auth — Twilio voice web
 app.include_router(meta_lead_webhooks.router)  # no auth — Meta's own webhook protocol, verified via HMAC signature + verify-token handshake instead
 app.include_router(calendly_webhooks.router)  # no auth — Calendly's own webhook protocol, verified via HMAC signature instead
 app.include_router(calendly_admin.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(booking.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(booking.router)  # no auth: patient booking/manage pages + Stripe webhook (HMAC-verified)
 app.include_router(ghl_webhooks.router)  # no auth — GoHighLevel workflow webhook, verified via a per-client key in the URL instead
 app.include_router(ghl_webhooks.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
 
