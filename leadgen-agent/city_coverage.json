@@ -6972,8 +6972,8 @@
       "last_scraped_date": "2026-11-05"
     },
     "Cheektowaga, NY": {
-      "status": "in_progress",
-      "term_index": 3,
+      "status": "covered",
+      "term_index": 4,
       "reviewed_count": 145,
       "qualified_count": 5,
       "last_scraped_date": "2026-11-05"
