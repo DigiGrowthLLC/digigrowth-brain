@@ -46,7 +46,7 @@ export default function BookingPanel() {
 
   if (selected) {
     return (
-      <div style={{ padding: 24 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 24 }}>
         <button className="btn btn-secondary" onClick={() => { setSelected(null); load(); }} style={{ marginBottom: 14 }}>← All booking links</button>
         <div className="sec-label">Booking Links</div>
         <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#e8f0ff", margin: "4px 0 14px" }}>{selected.name}</h2>
@@ -61,7 +61,7 @@ export default function BookingPanel() {
   const booked30 = (data?.clients || []).reduce((n, c) => n + Number(c.booked_30d || 0), 0);
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 24 }}>
       <div className="sec-label">Booking Links</div>
       <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#e8f0ff", margin: "4px 0 6px" }}>DigiGrowth Booking</h2>
       <div style={{ ...note, marginBottom: 16 }}>
