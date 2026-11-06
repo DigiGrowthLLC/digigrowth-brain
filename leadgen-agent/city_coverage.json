@@ -7000,10 +7000,10 @@
       "last_scraped_date": "2026-11-05"
     },
     "Clarkstown, NY": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 155,
-      "qualified_count": 12,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 193,
+      "qualified_count": 16,
       "last_scraped_date": "2026-11-05"
     },
     "Melbourne, FL": {
