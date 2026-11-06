@@ -339,7 +339,12 @@ async def page_profile(client_id: int, settings: dict, landing_slug: str | None 
         reviews = json.loads(reviews)
     rating = float(settings["review_rating"]) if settings.get("review_rating") is not None else None
     count = settings.get("review_count")
-    show_reviews = bool(rating and count and rating >= MIN_REVIEW_RATING and count >= MIN_REVIEW_COUNT)
+    # Hide a weak rating (under 4.0, or under 5 reviews when the count is
+    # known). Real testimonials still show when the count isn't published.
+    rating_ok = bool(rating and rating >= MIN_REVIEW_RATING and (count is None or count >= MIN_REVIEW_COUNT))
+    if not rating_ok:
+        rating, count = None, None
+    show_reviews = rating_ok or bool(reviews)
     photo = settings.get("photo_url")
     if not photo:
         pool = await get_pool()

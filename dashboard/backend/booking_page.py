@@ -161,7 +161,7 @@ function infoPanel(clinic, ev, prof, headline) {
     ? `<div>${ICON.tag}<span class="price">${money(ev.price_cents)}${ev.anchor_price_cents > ev.price_cents ? `<span class="was">normally <s>${money(ev.anchor_price_cents)}</s></span>` : ""}</span></div>`
     : `<div>${ICON.tag}<span class="price">Free${ev.anchor_price_cents ? `<span class="was">normally <s>${money(ev.anchor_price_cents)}</s></span>` : ""}</span></div>`;
   const rv = prof.reviews;
-  const proof = rv ? `<div class="proof"><div class="stars"><span class="s">${"★".repeat(Math.round(rv.rating))}</span><b>${rv.rating.toFixed(1)}</b><span class="muted">(${rv.count} Google reviews)</span></div>
+  const proof = rv ? `<div class="proof">${rv.rating ? `<div class="stars"><span class="s">${"★".repeat(Math.round(rv.rating))}</span><b>${rv.rating.toFixed(1)}</b><span class="muted">${rv.count ? `(${rv.count} Google reviews)` : "on Google"}</span></div>` : ""}
       ${rv.items && rv.items[0] ? `<div class="quote">“${esc(rv.items[0].text)}” ${rv.items[0].author ? `<small>${esc(rv.items[0].author)}</small>` : ""}</div>` : ""}</div>` : "";
   const expect = (prof.what_to_expect || []).length ? `<ul class="checks">${prof.what_to_expect.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`
     : (ev.description ? `<p class="desc">${esc(ev.description)}</p>` : "");

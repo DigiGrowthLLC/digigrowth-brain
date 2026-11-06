@@ -296,7 +296,8 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
   const setReview = (i, k) => (e) => setForm({ ...form, reviews: form.reviews.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)) });
   const rating = parseFloat(form.review_rating);
   const count = parseInt(form.review_count, 10);
-  const willShow = rating >= 4 && count >= 5;
+  const ratingShows = rating >= 4 && (!(count >= 0) || count >= 5);
+  const willShow = ratingShows || form.reviews.some((r) => r.text.trim());
   const repull = (overwrite) => run(() => call(`/clients/${clientId}/booking/page-autofill`, { method: "POST", body: JSON.stringify({ overwrite }) }),
     overwrite ? "Replaced with what's in the portal, website and funnel" : "Filled the empty fields from the portal, website and funnel");
   return (
@@ -338,7 +339,7 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
           </div>
         </div>
         <div style={{ ...note, marginTop: 6, color: willShow ? "#8fd9bd" : "#f0a028" }}>
-          {willShow ? "Shown on the booking page (4.0+ rating, 5+ reviews)." : "Hidden on the booking page until the rating is 4.0+ with 5+ reviews (below that, reviews hurt more than help)."}
+          {ratingShows ? "Rating and reviews show on the booking page." : willShow ? "Reviews show on the booking page; the rating stays hidden (needs 4.0+, and 5+ reviews when the count is known)." : "Nothing to show yet. Ratings under 4.0 or with fewer than 5 reviews stay hidden, since they hurt more than help."}
           {!data.places_configured && " The Google key on the server is missing or invalid, so type these in for now."}
         </div>
         {form.reviews.map((r, i) => (
