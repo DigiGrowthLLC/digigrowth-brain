@@ -2,9 +2,11 @@
 
 How it fits together:
   - The clinic shares its Google Calendar with the Google account the server
-    already holds a calendar token for (GOOGLE_PERSONAL_REFRESH_TOKEN, or a
-    dedicated BOOKING_GOOGLE_REFRESH_TOKEN if set), with "Make changes to
-    events". No per-client OAuth, so no Google app verification.
+    already holds a token for: dylanrg@digigrowthllc.com via
+    GOOGLE_REFRESH_TOKEN (the business account), or a dedicated
+    BOOKING_GOOGLE_REFRESH_TOKEN if set, with "Make changes to events".
+    Deliberately NOT the personal-calendar token (dylangroenendijk@gmail.com):
+    clinics should see the business address. No per-client OAuth, so no Google app verification.
   - booking_settings / booking_event_types / booking_hours /
     booking_date_overrides (db.py) describe when and what a patient can book.
   - get_slots() = weekly hours (or a date override) minus Google free/busy
@@ -80,7 +82,7 @@ def _gcal():
             "BOOKING_GOOGLE_REFRESH_TOKEN", "Set BOOKING_GOOGLE_REFRESH_TOKEN for the booking calendar account.",
         )
     else:
-        creds = integrations._personal_creds()
+        creds = integrations._business_creds()  # dylanrg@digigrowthllc.com
     return build("calendar", "v3", credentials=creds, cache_discovery=False)
 
 
