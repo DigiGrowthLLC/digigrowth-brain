@@ -63,6 +63,8 @@ export default function ClientBookingSetup({ clientId }) {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [drafting, setDrafting] = useState(false);
 
   const load = async () => {
     try { setData(await call(`/clients/${clientId}/booking`)); } catch (e) { setErr(e.message); }
@@ -89,6 +91,18 @@ export default function ClientBookingSetup({ clientId }) {
       {(err || msg) && (
         <div style={{ marginBottom: 10, fontSize: 12, color: err ? "#ff8a8a" : "#8fd9bd" }}>{err || msg}</div>
       )}
+
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+        <button className="btn btn-secondary" disabled={drafting || busy} onClick={async () => {
+          setDrafting(true); setErr(""); setMsg(""); setDraft(null);
+          try { setDraft(await call(`/clients/${clientId}/booking/autofill/preview`, { method: "POST" })); }
+          catch (e) { setErr(e.message); }
+          finally { setDrafting(false); }
+        }}>{drafting ? "Reading client info..." : "✨ Auto-fill from client info"}</button>
+      </div>
+      {draft && <AutofillReview draft={draft} data={data} busy={busy}
+        onApply={async (body) => { const r = await run(() => call(`/clients/${clientId}/booking/autofill/apply`, { method: "POST", body: JSON.stringify(body) }), "Applied. Review the sections below, then Check availability."); if (r) setDraft(null); }}
+        onClose={() => setDraft(null)} />}
 
       <Section
         title="DigiGrowth Booking"
@@ -144,6 +158,74 @@ export default function ClientBookingSetup({ clientId }) {
       <PaymentsSection data={data} clientId={clientId} save={save} run={run} reload={load} busy={busy} />
       <PreviewSection data={data} clientId={clientId} />
       <BookingsSection clientId={clientId} />
+    </div>
+  );
+}
+
+function AutofillReview({ draft, data, busy, onApply, onClose }) {
+  const ev = draft.event_type || {};
+  const hasHours = (draft.hours || []).length > 0;
+  const existing = data.event_types;
+  const [useTz, setUseTz] = useState(!!draft.timezone && draft.timezone !== data.settings.timezone);
+  const [useHours, setUseHours] = useState(hasHours);
+  const [useEvent, setUseEvent] = useState(true);
+  const [target, setTarget] = useState(existing.length === 1 ? String(existing[0].id) : "");
+  const fmtT = (t) => { const [hh, mm] = t.split(":").map(Number); return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "AM" : "PM"}`; };
+  const byDay = WEEKDAYS.map((d, i) => [d, (draft.hours || []).filter((x) => x.weekday === i)]);
+  const loc = ev.location_type === "in_person" ? (ev.location_text || "In person (no address found)") : ev.location_type === "google_meet" ? "Google Meet" : "Phone call";
+  const box = { display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderTop: "1px solid rgba(58,123,213,0.12)" };
+  return (
+    <div className="glass-card-sm" style={{ padding: 16, marginBottom: 12, border: "1px solid rgba(106,176,255,0.35)" }}>
+      <h4 style={h}>Auto-fill draft (nothing saved yet)</h4>
+      <div style={{ ...note, marginBottom: 6 }}>From: {(draft.sources_used || []).join(" · ")}</div>
+
+      <div style={box}>
+        <input type="checkbox" checked={useTz} disabled={!draft.timezone} onChange={(e) => setUseTz(e.target.checked)} />
+        <div><div style={{ fontSize: 13, color: "#d0e8ff", fontWeight: 600 }}>Timezone</div>
+          <div style={note}>{draft.timezone ? (US_TIMEZONES.find((t) => t[0] === draft.timezone) || [0, draft.timezone])[1] : "Not found"}{draft.timezone && draft.timezone === data.settings.timezone ? " (already set)" : ""}</div></div>
+      </div>
+
+      <div style={box}>
+        <input type="checkbox" checked={useHours} disabled={!hasHours} onChange={(e) => setUseHours(e.target.checked)} />
+        <div style={{ flex: 1 }}><div style={{ fontSize: 13, color: "#d0e8ff", fontWeight: 600 }}>New patient hours {hasHours && data.hours.length > 0 && <span style={{ color: "#f0a028", fontWeight: 400 }}>(replaces current hours)</span>}</div>
+          {hasHours ? byDay.map(([d, blocks]) => (
+            <div key={d} style={{ ...note, display: "flex", gap: 8 }}><span style={{ width: 34, color: "#9cc4f5" }}>{d}</span>{blocks.length ? blocks.map((b) => `${fmtT(b.start)} to ${fmtT(b.end)}`).join(", ") : "Closed"}</div>
+          )) : <div style={note}>No hours found in the client's info. Set them in step 2.</div>}
+          {draft.hours_source && <div style={{ ...note, opacity: 0.8, marginTop: 2 }}>Source: {draft.hours_source}</div>}
+        </div>
+      </div>
+
+      <div style={box}>
+        <input type="checkbox" checked={useEvent} onChange={(e) => setUseEvent(e.target.checked)} />
+        <div style={{ flex: 1 }}><div style={{ fontSize: 13, color: "#d0e8ff", fontWeight: 600 }}>Appointment type: {ev.name}</div>
+          <div style={note}>{ev.duration_min} min · {loc} · {ev.price_cents ? `$${dollars(ev.price_cents)} paid online` : "Free"}
+            {ev.anchor_price_cents ? ` (normally $${dollars(ev.anchor_price_cents)})` : ""}{ev.spots_per_month ? ` · only ${ev.spots_per_month} spots/month` : ""}</div>
+          {ev.ask_question && <div style={note}>Asks: "{ev.ask_question}"</div>}
+          {ev.description && <div style={note}>Description: {ev.description}</div>}
+          {existing.length > 0 && (
+            <select className="dg-input" value={target} onChange={(e) => setTarget(e.target.value)} style={{ marginTop: 6, maxWidth: 320 }}>
+              <option value="">Create as a new appointment type</option>
+              {existing.map((x) => <option key={x.id} value={x.id}>Update "{x.name}"</option>)}
+            </select>
+          )}
+        </div>
+      </div>
+
+      {(draft.notes || []).length > 0 && (
+        <div style={{ ...note, color: "#f0cf9a", background: "rgba(240,160,40,0.06)", border: "1px solid rgba(240,160,40,0.2)", borderRadius: 8, padding: "8px 12px", marginTop: 8 }}>
+          <b>Check these:</b>
+          <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>{draft.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button className="btn btn-primary" disabled={busy || !(useTz || useHours || useEvent)} onClick={() => onApply({
+          ...(useTz ? { timezone: draft.timezone } : {}),
+          ...(useHours ? { hours: draft.hours } : {}),
+          ...(useEvent ? { event_type: ev, ...(target ? { event_type_id: Number(target) } : {}) } : {}),
+        })}>Apply selected</button>
+        <button className="btn btn-secondary" onClick={onClose}>Discard</button>
+      </div>
     </div>
   );
 }

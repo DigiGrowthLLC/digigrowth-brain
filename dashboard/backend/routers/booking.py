@@ -412,6 +412,44 @@ async def save_overrides(client_id: int, payload: dict):
     return await get_booking(client_id)
 
 
+@admin_router.post("/clients/{client_id}/booking/autofill/preview")
+async def autofill_preview(client_id: int):
+    """Draft hours / appointment type / timezone from the client's portal
+    info (booking_autofill.py). Saves nothing."""
+    import booking_autofill
+    try:
+        return await booking_autofill.propose(client_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        print(f"[booking] autofill preview failed for client {client_id}: {e}")
+        raise HTTPException(502, f"Couldn't draft the setup: {e}")
+
+
+@admin_router.post("/clients/{client_id}/booking/autofill/apply")
+async def autofill_apply(client_id: int, payload: dict):
+    """Saves the parts of a reviewed proposal Dylan ticked. payload:
+    {timezone?, hours?: [{weekday,start,end}], event_type?: {...}, event_type_id?}
+    event_type_id updates that appointment type; otherwise a new one is made."""
+    if payload.get("timezone"):
+        await save_booking_settings(client_id, {"timezone": payload["timezone"]})
+    if payload.get("hours") is not None:
+        await save_hours(client_id, {"hours": [
+            {"weekday": h.get("weekday"), "start_time": h.get("start"), "end_time": h.get("end")}
+            for h in payload["hours"]
+        ]})
+    ev = payload.get("event_type")
+    if ev:
+        fields = {k: ev.get(k) for k in ("name", "duration_min", "location_type", "location_text", "price_cents",
+                                         "anchor_price_cents", "spots_per_month", "ask_question", "description")
+                  if k in ev}
+        if payload.get("event_type_id"):
+            await update_event_type(client_id, int(payload["event_type_id"]), fields)
+        else:
+            await create_event_type(client_id, fields)
+    return await get_booking(client_id)
+
+
 @admin_router.get("/clients/{client_id}/booking/slots")
 async def preview_slots(client_id: int, event_type_id: int, days: int = 14):
     try:
