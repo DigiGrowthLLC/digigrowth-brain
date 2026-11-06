@@ -82,6 +82,14 @@ export default function ClientBookingSetup({ clientId }) {
     finally { setBusy(false); }
   };
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (!data || !data.page_autofill_running) return undefined;
+    const t = setTimeout(load, 4000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line
+  }, [data]);
+
   if (!data) return <div style={note}>{err || "Loading booking setup…"}</div>;
   const s = data.settings;
   const save = (patch, okMsg = "Saved") => run(() => call(`/clients/${clientId}/booking`, { method: "PUT", body: JSON.stringify(patch) }), okMsg);
@@ -289,10 +297,21 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
   const rating = parseFloat(form.review_rating);
   const count = parseInt(form.review_count, 10);
   const willShow = rating >= 4 && count >= 5;
+  const repull = (overwrite) => run(() => call(`/clients/${clientId}/booking/page-autofill`, { method: "POST", body: JSON.stringify({ overwrite }) }),
+    overwrite ? "Replaced with what's in the portal, website and funnel" : "Filled the empty fields from the portal, website and funnel");
   return (
     <Section title="Page details (trust + follow-up)" right={
-      <button className="btn btn-primary" disabled={busy} onClick={() => save({ ...form, reviews: form.reviews.filter((r) => r.text.trim()) }, "Page details saved")}>Save</button>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <button className="btn btn-secondary" disabled={busy || data.page_autofill_running} onClick={() => repull(false)} title="Fills only the empty fields">Pull from client info</button>
+        <button className="btn btn-secondary" disabled={busy || data.page_autofill_running} onClick={() => repull(true)} title="Replaces what's there">Replace from client info</button>
+        <button className="btn btn-primary" disabled={busy} onClick={() => save({ ...form, reviews: form.reviews.filter((r) => r.text.trim()) }, "Page details saved")}>Save</button>
+      </div>
     }>
+      <div style={{ ...note, marginBottom: 10, color: data.page_autofill_running ? "#6ab0ff" : "#6f88ad" }}>
+        {data.page_autofill_running ? "Pulling the therapist, photo, reviews and visit details from the client portal, their website and their funnel..."
+          : s.page_autofill_note ? <>Auto-filled {s.page_autofilled_at ? new Date(s.page_autofilled_at).toLocaleDateString() : ""}: {s.page_autofill_note}</>
+          : "Fills itself from the client portal, their website and their funnel. Reviews are only ever copied word for word."}
+      </div>
       <div style={row}>
         <Field name="Therapist name"><input className="dg-input" value={form.provider_name} onChange={set("provider_name")} placeholder="Brian Smith" /></Field>
         <Field name="Title" width={160}><input className="dg-input" value={form.provider_title} onChange={set("provider_title")} placeholder="PT, DPT" /></Field>

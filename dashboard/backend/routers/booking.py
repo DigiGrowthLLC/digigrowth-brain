@@ -21,6 +21,7 @@ router (public, no auth):
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -155,11 +156,43 @@ async def booking_overview():
     return {"clients": rows, "upcoming": up}
 
 
+_page_autofill_running: set[int] = set()
+
+
+async def _run_page_autofill(client_id: int) -> None:
+    import booking_autofill
+    try:
+        await booking_autofill.apply_page_details(client_id, overwrite=False)
+    except Exception as e:
+        print(f"[booking] page auto-fill failed for client {client_id}: {e}")
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE booking_settings SET page_autofill_note = $2 WHERE client_id = $1",
+                client_id, f"Auto-fill failed: {str(e)[:300]}",
+            )
+    finally:
+        _page_autofill_running.discard(client_id)
+
+
 @admin_router.get("/clients/{client_id}/booking")
 async def get_booking(client_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
         s = await _ensure_settings(conn, client_id)
+        # Default since 2026-11-06: the first time a client's booking setup
+        # is opened, Page details fill themselves from the portal, website
+        # and funnel (booking_autofill.apply_page_details, empty fields only).
+        if not s.get("page_autofilled_at") and client_id not in _page_autofill_running:
+            _page_autofill_running.add(client_id)
+            await conn.execute(
+                "UPDATE booking_settings SET page_autofilled_at = now(), "
+                "page_autofill_note = 'Filling from the portal, website and funnel...' WHERE client_id = $1",
+                client_id,
+            )
+            s["page_autofilled_at"] = datetime.now(timezone.utc)
+            s["page_autofill_note"] = "Filling from the portal, website and funnel..."
+            asyncio.create_task(_run_page_autofill(client_id))
         # Clinic timezone fills itself from the clinic's Google Calendar the
         # first time we can read it (also covers calendars picked before this).
         if not s["timezone"] and s["calendar_id"]:
@@ -196,6 +229,7 @@ async def get_booking(client_id: int):
         "stripe_webhook_configured": bool(os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET")),
         "funnel": (await bc.funnel_stats(client_id, 30)).get(client_id),
         "places_configured": bool(os.environ.get("PLACES_API_KEY")),
+        "page_autofill_running": client_id in _page_autofill_running,
     }
 
 
@@ -459,6 +493,28 @@ async def fetch_reviews(client_id: int, payload: dict | None = None):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"found": found, **(await get_booking(client_id))}
+
+
+@admin_router.post("/clients/{client_id}/booking/page-autofill")
+async def page_autofill(client_id: int, payload: dict | None = None):
+    """Re-pull Page details from the portal, website and funnel now.
+    overwrite=true replaces what's there; otherwise fills only empty fields."""
+    import booking_autofill
+    try:
+        result = await booking_autofill.apply_page_details(client_id, overwrite=bool((payload or {}).get("overwrite")))
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't pull page details: {e}")
+    return {"result": result, **(await get_booking(client_id))}
+
+
+@admin_router.post("/clients/{client_id}/booking/page-autofill/preview")
+async def page_autofill_preview(client_id: int):
+    """Same extraction, nothing saved (for checking what it would pull)."""
+    import booking_autofill
+    try:
+        return await booking_autofill.propose_page_details(client_id)
+    except Exception as e:
+        raise HTTPException(502, f"Couldn't pull page details: {e}")
 
 
 @admin_router.post("/clients/{client_id}/booking/autofill/preview")

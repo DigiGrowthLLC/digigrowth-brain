@@ -2405,6 +2405,9 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS abandon_followup BOOLEAN NOT NULL DEFAULT true;
             ALTER TABLE booking_event_types ALTER COLUMN max_days_ahead SET DEFAULT 14;
             ALTER TABLE bookings ADD COLUMN IF NOT EXISTS session_id TEXT;
+            -- When Page details were last auto-filled from portal/website/funnel (booking_autofill.py).
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS page_autofilled_at TIMESTAMPTZ;
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS page_autofill_note TEXT;
 
             -- One row per booking-page visit that left a name + mobile but
             -- may not have finished (session_id = the page load). booking_id
