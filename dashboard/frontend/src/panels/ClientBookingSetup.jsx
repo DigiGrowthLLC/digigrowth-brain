@@ -355,6 +355,28 @@ function OverridesSection({ data, clientId, run, busy }) {
   );
 }
 
+// DigiGrowth's standard patient offers. Picking one fills the form; every
+// field stays editable. Paid ($49) follows the paid-offer default:
+// "normally $150" + "only 10 spots per month".
+const OFFER_PRESETS = [
+  { key: "phone15", label: "15 min Free Phone Consult", fields: {
+    name: "Free 15-Minute Phone Consultation", duration_min: 15, location_type: "phone", location_text: "",
+    price_cents: 0, anchor_price_cents: null, spots_per_month: null, buffer_after_min: 0,
+    description: "A quick call with a physical therapist to talk through what's going on and whether we can help." } },
+  { key: "inperson30", label: "30 min Free In-Person Consult", fields: {
+    name: "Free 30-Minute Consultation", duration_min: 30, location_type: "in_person",
+    price_cents: 0, anchor_price_cents: null, spots_per_month: null, buffer_after_min: 15,
+    description: "Meet a physical therapist in the clinic, talk through what's going on, and see if we're a good fit." } },
+  { key: "meet30", label: "30 min Free Google Meet Consult", fields: {
+    name: "Free 30-Minute Video Consultation", duration_min: 30, location_type: "google_meet", location_text: "",
+    price_cents: 0, anchor_price_cents: null, spots_per_month: null, buffer_after_min: 0,
+    description: "A video call with a physical therapist to talk through what's going on and whether we can help." } },
+  { key: "assess49", label: "$49 Assessment", fields: {
+    name: "$49 New Patient Assessment", duration_min: 60, location_type: "in_person",
+    price_cents: 4900, anchor_price_cents: 15000, spots_per_month: 10, buffer_after_min: 15,
+    description: "A full one-on-one assessment with a physical therapist. Leave knowing what's going on and the plan to fix it." } },
+];
+
 const EMPTY_EVENT = {
   name: "New Patient Assessment", description: "", duration_min: 60, location_type: "in_person", location_text: "",
   price_cents: 0, anchor_price_cents: null, spots_per_month: null, ask_question: "What brings you in?",
@@ -389,16 +411,33 @@ function EventTypesSection({ data, clientId, run, reload, busy }) {
           <button className="btn btn-secondary" disabled={busy} onClick={() => remove(ev)}>Delete</button>
         </div>
       ))}
-      {editing && <EventForm ev={editing} setEv={setEditing} onSave={saveEvent} onCancel={() => setEditing(null)} busy={busy} />}
+      {editing && <EventForm ev={editing} setEv={setEditing} onSave={saveEvent} onCancel={() => setEditing(null)} busy={busy}
+        clinicAddress={(data.event_types.find((e) => e.location_type === "in_person" && e.location_text) || {}).location_text || ""} />}
     </Section>
   );
 }
 
-function EventForm({ ev, setEv, onSave, onCancel, busy }) {
+function EventForm({ ev, setEv, onSave, onCancel, busy, clinicAddress }) {
+  const applyPreset = (key) => {
+    const p = OFFER_PRESETS.find((x) => x.key === key);
+    if (!p) return;
+    const fields = { ...p.fields };
+    if (fields.location_type === "in_person") fields.location_text = ev.location_text || clinicAddress || "";
+    setEv({ ...ev, ...fields, ask_question: ev.ask_question || "What brings you in?" });
+  };
   const f = (k) => (e) => setEv({ ...ev, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
   const n = (k) => (e) => setEv({ ...ev, [k]: e.target.value === "" ? null : parseInt(e.target.value, 10) });
   return (
     <div style={{ marginTop: 10, padding: 12, borderRadius: 10, background: "rgba(58,123,213,0.06)" }}>
+      <div style={{ ...row, marginBottom: 8 }}>
+        <Field name="Start from one of our offers" width={300}>
+          <select className="dg-input" value="" onChange={(e) => applyPreset(e.target.value)}>
+            <option value="">Choose an offer...</option>
+            {OFFER_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select>
+        </Field>
+        <div style={{ ...note, flex: 1, alignSelf: "center" }}>Fills in the fields below. Edit anything after.</div>
+      </div>
       <div style={row}>
         <Field name="Name"><input className="dg-input" value={ev.name || ""} onChange={f("name")} /></Field>
         <Field name="Length (min)" width={110}><input className="dg-input" type="number" value={ev.duration_min ?? ""} onChange={n("duration_min")} /></Field>
