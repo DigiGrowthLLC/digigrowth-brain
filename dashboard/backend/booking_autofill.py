@@ -434,9 +434,12 @@ async def propose_page_details(client_id: int) -> dict:
     photo, logo = _pick("photo_index"), _pick("logo_index")
     if logo and logo == photo:
         logo = None
-    accent = (r.get("accent_color") or "").strip().lower()
-    if accent not in brand_colors or _luminance(accent) > 0.45:
-        accent = None
+    # Brand color: the funnel's most-used color that still reads with white
+    # button text (deterministic; the model's pick drifted to off-brand shades).
+    accent = next((c for c in brand_colors if _luminance(c) <= 0.45), None)
+    # Logo isn't auto-filled: the model can't see image quality (it picked a
+    # blurry newsletter JPG for Pinnacle). Set it by hand in Page details.
+    logo = None
     name = (r.get("provider_name") or "").strip() or None
     if name and _norm(name.split()[-1]) not in corpus:
         name = None
