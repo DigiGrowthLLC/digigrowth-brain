@@ -33,6 +33,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .main{ padding:22px 26px 26px; min-width:0; }
   @media (max-width:860px){ .shell{ grid-template-columns:1fr; } .info{ border-right:0; border-bottom:1px solid var(--line); padding:20px; gap:12px; } .main{ padding:18px 16px 22px; } }
   .who{ display:flex; align-items:center; gap:12px; }
+  .logo{ max-height:38px; max-width:180px; object-fit:contain; align-self:flex-start; }
   .avatar{ width:56px; height:56px; border-radius:50%; object-fit:cover; background:var(--accent-soft); flex:0 0 auto; border:2px solid #fff; box-shadow:0 0 0 1px var(--line); }
   .clinic{ font-weight:700; font-size:14.5px; }
   .provider{ color:var(--soft); font-size:13px; }
@@ -165,7 +166,7 @@ function infoPanel(clinic, ev, prof, headline) {
       ${rv.items && rv.items[0] ? `<div class="quote">“${esc(rv.items[0].text)}” ${rv.items[0].author ? `<small>${esc(rv.items[0].author)}</small>` : ""}</div>` : ""}</div>` : "";
   const expect = (prof.what_to_expect || []).length ? `<ul class="checks">${prof.what_to_expect.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`
     : (ev.description ? `<p class="desc">${esc(ev.description)}</p>` : "");
-  return `<div class="who">${avatar}<div><div class="clinic">${esc(clinic)}</div>${prof.provider_name ? `<div class="provider">${esc(prof.provider_name)}${prof.provider_title ? ", " + esc(prof.provider_title) : ""}</div>` : ""}</div></div>
+  return `${prof.logo_url ? `<img class="logo" src="${esc(prof.logo_url)}" alt="${esc(clinic)}">` : ""}<div class="who">${avatar}<div><div class="clinic">${esc(clinic)}</div>${prof.provider_name ? `<div class="provider">${esc(prof.provider_name)}${prof.provider_title ? ", " + esc(prof.provider_title) : ""}</div>` : ""}</div></div>
     ${headline ? `<div class="headline">${esc(headline)}</div>` : ""}
     <h1>${esc(ev.name)}</h1>
     <div class="meta"><div>${ICON.clock}<span>${ev.duration_min} min</span></div><div>${li}<span>${esc(lt)}</span></div>${price}</div>

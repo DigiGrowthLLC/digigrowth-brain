@@ -269,11 +269,12 @@ async def save_booking_settings(client_id: int, payload: dict):
             if payload["refund_policy"] not in _REFUND_POLICIES:
                 raise HTTPException(400, "refund_policy must be none, 24h or always")
             updates["refund_policy"] = payload["refund_policy"]
-        for f in ("provider_name", "provider_title", "photo_url", "what_to_expect"):
+        for f in ("provider_name", "provider_title", "photo_url", "logo_url", "what_to_expect"):
             if f in payload:
                 updates[f] = (payload[f] or "").strip()[:2000] or None
-        if updates.get("photo_url") and not re.match(r"^(https://|/lp/)", updates["photo_url"]):
-            raise HTTPException(400, "Photo must be an https:// link")
+        for f in ("photo_url", "logo_url"):
+            if updates.get(f) and not re.match(r"^(https://|/lp/|/book-asset/)", updates[f]):
+                raise HTTPException(400, "Photo and logo must be https:// links")
         if "abandon_followup" in payload:
             updates["abandon_followup"] = bool(payload["abandon_followup"])
         if "review_rating" in payload:
@@ -836,6 +837,24 @@ async def manage_cancel(token: str, payload: dict | None = None):
     except be.BookingError as e:
         raise HTTPException(409, str(e))
     return _manage_payload(await be.get_by_token(token))
+
+
+@router.get("/book-asset/{client_id}/{upload_id}", include_in_schema=False)
+async def booking_asset(client_id: int, upload_id: int):
+    """A client-portal upload shown on that client's booking page. Only the
+    upload actually chosen as the page's photo or logo is served."""
+    path = f"/book-asset/{client_id}/{upload_id}"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        key = await conn.fetchval(
+            """SELECT u.r2_key FROM client_uploads u JOIN booking_settings s ON s.client_id = u.client_id
+               WHERE u.id = $2 AND u.client_id = $1 AND (s.photo_url = $3 OR s.logo_url = $3)""",
+            client_id, upload_id, path,
+        )
+    if not key:
+        raise HTTPException(404, "Not found")
+    import r2_storage
+    return RedirectResponse(r2_storage.presign_get(key), status_code=302)
 
 
 @router.get("/booking-stripe-done", include_in_schema=False)

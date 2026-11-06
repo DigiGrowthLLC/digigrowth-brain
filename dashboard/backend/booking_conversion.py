@@ -360,6 +360,7 @@ async def page_profile(client_id: int, settings: dict, landing_slug: str | None 
         "provider_name": settings.get("provider_name"),
         "provider_title": settings.get("provider_title"),
         "photo_url": photo,
+        "logo_url": settings.get("logo_url"),
         "what_to_expect": [x.strip(" -•\t") for x in (settings.get("what_to_expect") or "").splitlines() if x.strip(" -•\t")][:4],
         "reviews": {"rating": rating, "count": count, "items": reviews[:3]} if show_reviews else None,
         "refund_policy": refund,

@@ -212,7 +212,9 @@ _PAGE_TOOL = {
         "properties": {
             "provider_name": {"type": ["string", "null"], "description": "The main physical therapist patients will see (full name as written), else null."},
             "provider_title": {"type": ["string", "null"], "description": "Their credentials as written, e.g. 'PT, DPT', else null."},
-            "photo_index": {"type": ["integer", "null"], "description": "Index into the IMAGES list of the best photo of that therapist (or of the team/clinic if none). Null if no suitable real photo."},
+            "photo_index": {"type": ["integer", "null"], "description": "Index into the IMAGES list of the best photo of that therapist (a headshot beats a group shot; or the team/clinic if none). Null if no suitable real photo."},
+            "logo_index": {"type": ["integer", "null"], "description": "Index into IMAGES of the clinic's own logo that reads well on a WHITE background (never a white-text or light logo, never a social icon). Null if none."},
+            "accent_color": {"type": ["string", "null"], "description": "The clinic's main brand color as one of the hex codes in BRAND COLORS (the color its buttons/headings use), dark enough for white button text. Null if unsure."},
             "what_to_expect": {"type": "array", "items": {"type": "string"},
                                "description": "2-4 short lines (max ~60 chars each) on what happens at the first visit, based on what the sources say. Plain, patient-facing."},
             "review_rating": {"type": ["number", "null"], "description": "Average star rating ONLY if a source states it (e.g. '4.9 stars'), else null."},
@@ -238,6 +240,8 @@ Rules:
 - Rating and review count only if a source states the numbers.
 - Pick the therapist the clinic presents as its lead/owner provider.
 - Photo: only an image that is clearly a real photo of the therapist, team or clinic (judge by its alt text, file name and page). Never a logo, icon, stock-looking banner or social image. Null if unsure.
+- Logo: only the clinic's own logo/wordmark that works on white. Uploads from the client portal are the most trustworthy images.
+- Brand color: pick from BRAND COLORS only, the one the funnel uses for its buttons/accents.
 - What to expect: plain lines about the first visit (what happens, what they leave with), grounded in the sources. No medical claims, no prices."""
 
 
@@ -330,6 +334,30 @@ async def _client_website(client_id: int) -> str:
     return (w or "").strip()
 
 
+def _luminance(hex_color: str) -> float:
+    try:
+        r, g, b = (int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    except (ValueError, IndexError):
+        return 1.0
+    f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+
+
+def _brand_colors(html: str) -> list[str]:
+    """Saturated hex colors in the funnel's CSS, most used first (greys,
+    near-white and near-black dropped)."""
+    import colorsys
+    counts: dict[str, int] = {}
+    for m in re.finditer(r"#([0-9a-fA-F]{6})\b", html or ""):
+        h = "#" + m.group(1).lower()
+        r_, g_, b_ = (int(h[i:i + 2], 16) / 255 for i in (1, 3, 5))
+        _, l_, s_ = colorsys.rgb_to_hls(r_, g_, b_)
+        if s_ < 0.25 or l_ < 0.12 or l_ > 0.9:
+            continue
+        counts[h] = counts.get(h, 0) + 1
+    return [c for c, _ in sorted(counts.items(), key=lambda x: -x[1])][:8]
+
+
 async def propose_page_details(client_id: int) -> dict:
     base = await gather_sources(client_id)
     base.pop("Their existing Calendly booking (event type + availability)", None)
@@ -348,19 +376,34 @@ async def propose_page_details(client_id: int) -> dict:
         base[f"Funnel landing page text (/lp/{lp['slug']})"] = _strip_html(lp["html"], 14000)
         if lp["hero_r2_key"]:
             images.insert(0, {"url": f"/lp/{lp['slug']}/hero-image", "alt": "funnel hero photo (from their site)", "page": "funnel"})
+        brand_colors = _brand_colors(lp["html"])
         for m in re.finditer(r"<img\b[^>]*>", lp["html"], flags=re.I):
             src = re.search(r"\ssrc=[\"']([^\"']+)[\"']", m.group(0), flags=re.I)
             alt = re.search(r"\salt=[\"']([^\"']*)[\"']", m.group(0), flags=re.I)
             url = src.group(1).strip() if src else ""
-            if url.startswith("/lp/") or (url.startswith("https://") and not re.search(r"logo|icon|\.svg", url, flags=re.I)):
+            if url.startswith("/lp/") or (url.startswith("https://") and not re.search(r"icon|\.svg", url, flags=re.I)):
                 images.append({"url": url, "alt": (alt.group(1) if alt else "")[:120], "page": "funnel"})
+    else:
+        brand_colors = []
+    # Photos and logos the client uploaded in their portal (what the ads used).
+    async with pool.acquire() as conn:
+        ups = await conn.fetch(
+            "SELECT id, file_name, notes FROM client_uploads WHERE client_id = $1 "
+            "AND (file_type LIKE 'image/%' OR file_name ~* '\\.(jpe?g|png|webp)$') ORDER BY uploaded_at DESC LIMIT 25",
+            client_id,
+        )
+    images = [{"url": f"/book-asset/{client_id}/{u['id']}", "alt": f"portal upload: {u['file_name']}" + (f" ({u['notes']})" if u["notes"] else ""),
+               "page": "client portal upload"} for u in ups] + images
     sources = {**base, **site_texts}
+    if ups:
+        sources["Client portal uploads"] = f"{len(ups)} image(s) the clinic uploaded (listed in IMAGES)"
     body = "\n\n".join(f"=== {k} ===\n{v}" for k, v in sources.items())
     img_list = "\n".join(f"[{i}] {im['url']}  alt=\"{im['alt']}\"  (on {im['page']})" for i, im in enumerate(images)) or "(none)"
     api = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     resp = await api.messages.create(
         model=_MODEL, max_tokens=3000, system=_PAGE_SYSTEM, tools=[_PAGE_TOOL], tool_choice={"type": "auto"},
         messages=[{"role": "user", "content": f"SOURCES:\n\n{body}\n\nIMAGES:\n{img_list}\n\n"
+                   f"BRAND COLORS (from their funnel, most used first): {', '.join(brand_colors) or '(none)'}\n\n"
                    "Fill in the booking page's trust section by calling propose_page_details. Reply with only that tool call."}],
     )
     r = next((b.input for b in resp.content if b.type == "tool_use"), None)
@@ -385,17 +428,22 @@ async def propose_page_details(client_id: int) -> dict:
             rating = None
     if count is not None and str(int(count)) not in body:
         count = None
-    photo = None
-    idx = r.get("photo_index")
-    if isinstance(idx, int) and 0 <= idx < len(images):
-        photo = images[idx]["url"]
+    def _pick(key):
+        i = r.get(key)
+        return images[i]["url"] if isinstance(i, int) and 0 <= i < len(images) else None
+    photo, logo = _pick("photo_index"), _pick("logo_index")
+    if logo and logo == photo:
+        logo = None
+    accent = (r.get("accent_color") or "").strip().lower()
+    if accent not in brand_colors or _luminance(accent) > 0.45:
+        accent = None
     name = (r.get("provider_name") or "").strip() or None
     if name and _norm(name.split()[-1]) not in corpus:
         name = None
     return {
         "provider_name": name,
         "provider_title": (r.get("provider_title") or "").strip() or None,
-        "photo_url": photo,
+        "photo_url": photo, "logo_url": logo, "accent_color": accent,
         "what_to_expect": [x.strip()[:80] for x in (r.get("what_to_expect") or []) if x.strip()][:4],
         "review_rating": rating, "review_count": count, "reviews": reviews,
         "notes": notes + ([site_note] if site_note else []), "sources_used": list(sources.keys()),
@@ -416,6 +464,7 @@ async def apply_page_details(client_id: int, overwrite: bool = False) -> dict:
         cur_reviews = json.loads(cur_reviews) if isinstance(cur_reviews, str) else (cur_reviews or [])
         new = {
             "provider_name": p["provider_name"], "provider_title": p["provider_title"], "photo_url": p["photo_url"],
+            "logo_url": p["logo_url"],
             "what_to_expect": "\n".join(p["what_to_expect"]) or None,
             "review_rating": Decimal(f"{float(p['review_rating']):.1f}") if p["review_rating"] is not None else None,
             "review_count": p["review_count"],
@@ -423,6 +472,9 @@ async def apply_page_details(client_id: int, overwrite: bool = False) -> dict:
         updates = {k: v for k, v in new.items() if v not in (None, "") and (overwrite or s[k] in (None, ""))}
         if p["reviews"] and (overwrite or not cur_reviews):
             updates["reviews"] = json.dumps(p["reviews"])
+        # Brand color replaces the stock blue (or anything, on overwrite).
+        if p["accent_color"] and (overwrite or (s["accent_color"] or "").lower() in ("", "#2f6fd6")):
+            updates["accent_color"] = p["accent_color"]
         filled = list(updates)
         note = (("Filled: " + ", ".join(filled) if filled else "Nothing new found")
                 + ". From: " + ", ".join(p["sources_used"])

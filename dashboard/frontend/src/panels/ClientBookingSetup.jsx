@@ -284,12 +284,12 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
   useEffect(() => {
     const rv = parse(s.reviews);
     setForm({
-      provider_name: s.provider_name || "", provider_title: s.provider_title || "", photo_url: s.photo_url || "",
+      provider_name: s.provider_name || "", provider_title: s.provider_title || "", photo_url: s.photo_url || "", logo_url: s.logo_url || "",
       what_to_expect: s.what_to_expect || "", review_rating: s.review_rating ?? "", review_count: s.review_count ?? "",
       reviews: [0, 1, 2].map((i) => rv[i] || { text: "", author: "" }),
     });
     // eslint-disable-next-line
-  }, [s.provider_name, s.provider_title, s.photo_url, s.what_to_expect, s.review_rating, s.review_count, s.reviews]);
+  }, [s.provider_name, s.provider_title, s.photo_url, s.logo_url, s.what_to_expect, s.review_rating, s.review_count, s.reviews]);
   const [query, setQuery] = useState("");
   if (!form) return null;
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -319,6 +319,11 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
       </div>
       <div style={{ ...row, marginTop: 8 }}>
         <Field name="Photo link (therapist or clinic, https://)"><input className="dg-input" value={form.photo_url} onChange={set("photo_url")} placeholder="Leave blank to use the funnel's hero image" /></Field>
+        {form.photo_url && <img src={form.photo_url} alt="" style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", alignSelf: "flex-end" }} />}
+      </div>
+      <div style={{ ...row, marginTop: 8 }}>
+        <Field name="Logo link (must read well on white)"><input className="dg-input" value={form.logo_url} onChange={set("logo_url")} placeholder="Optional" /></Field>
+        {form.logo_url && <img src={form.logo_url} alt="" style={{ maxHeight: 36, maxWidth: 140, background: "#fff", borderRadius: 4, padding: 2, alignSelf: "flex-end" }} />}
       </div>
       <div style={{ ...row, marginTop: 8 }}>
         <Field name="What to expect (one per line, up to 4; shown as checkmarks)">
