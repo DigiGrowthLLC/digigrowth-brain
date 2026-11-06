@@ -485,8 +485,35 @@ async def _resolve(request: Request, key: str) -> dict:
 
 @router.get("/book/{key}", include_in_schema=False)
 async def public_booking_page(key: str, request: Request):
-    ctx = await _resolve(request, key)
+    ctx = await be.resolve_public(key, False)
+    if not ctx:
+        # A real link that just isn't switched on yet gets a friendly page,
+        # not a bare JSON 404.
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            clinic = await conn.fetchval(
+                "SELECT c.name FROM booking_settings s JOIN clients c ON c.id = s.client_id WHERE s.booking_slug = $1", key,
+            )
+        if clinic is None:
+            raise HTTPException(404, "Booking page not found")
+        return HTMLResponse(_not_open_page(clinic), status_code=404)
     return HTMLResponse(render_page("book", ctx["client_name"], ctx["settings"]["accent_color"]))
+
+
+def _not_open_page(clinic: str) -> str:
+    import html as _html
+    name = _html.escape(clinic or "")
+    return (
+        "<!doctype html><html lang=en><head><meta charset=utf-8>"
+        "<meta name=viewport content='width=device-width,initial-scale=1'><meta name=robots content=noindex>"
+        f"<title>Book with {name}</title></head>"
+        "<body style='margin:0;background:#f6f8fb;color:#1d2433;font:15px/1.6 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif'>"
+        "<div style='max-width:520px;margin:0 auto;padding:64px 20px'>"
+        f"<div style='font-size:13px;font-weight:600;color:#5b6478'>{name}</div>"
+        "<h1 style='font-size:24px;margin:6px 0 10px'>Online booking isn't open yet</h1>"
+        "<p style='color:#5b6478'>Please check back soon, or call the clinic to book your visit.</p>"
+        "</div></body></html>"
+    )
 
 
 @router.get("/book/{key}/api/info", include_in_schema=False)

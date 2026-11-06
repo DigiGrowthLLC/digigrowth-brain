@@ -104,6 +104,20 @@ export default function ClientBookingSetup({ clientId }) {
           {" · "}When live, the funnel's Book button, the client portal's Book button and the link below all use this
           instead of Calendly.
         </div>
+        {!s.enabled && (() => {
+          const todo = [
+            !s.calendar_id && "pick the clinic's calendar (step 1)",
+            data.hours.length === 0 && "set new patient hours (step 2)",
+            !data.event_types.some((e) => e.active) && "add an appointment type (step 4)",
+          ].filter(Boolean);
+          return (
+            <div style={{ ...note, marginBottom: 8, color: todo.length ? "#f0a028" : "#8fd9bd" }}>
+              {todo.length
+                ? <>The link below won't open for patients until it's turned on. Left to do: {todo.join(", ")}.</>
+                : <>Everything's set. Check availability (step 6), then click Turn on to make the link live.</>}
+            </div>
+          );
+        })()}
         <div style={row}>
           <Field name="Booking link">
             <div style={{ display: "flex", gap: 6 }}>
