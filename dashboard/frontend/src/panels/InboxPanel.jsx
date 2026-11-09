@@ -433,6 +433,72 @@ function SetterModeBar({ followUpCount, onOpenFollowUps, lessonCount, onOpenLess
   );
 }
 
+// Email setter mode switch (email_setter_ai.py): same worker on Dylan's PC,
+// its own Off/Draft/Auto mode, so email can be trusted separately from SMS.
+function EmailSetterModeBar() {
+  const [state, setState] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(API("/email-setter/mode"));
+      if (r.ok) setState(await r.json());
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const setMode = async (mode) => {
+    if (!state || mode === state.mode || saving) return;
+    if (mode === "auto" && !window.confirm(
+      "Turn on AUTO mode for email? The AI will answer email prospects and book Google Meet calls on its own " +
+      "(8am-8pm their time, a few minutes after they write, max 4 emails per thread per day). Handoffs still wait for you."
+    )) return;
+    setSaving(true);
+    try {
+      const r = await fetch(API("/email-setter/mode"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      if (r.ok) setState(await r.json());
+    } catch {}
+    setSaving(false);
+  };
+
+  if (!state) return null;
+  const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.06em" };
+  const modeColor = { off: "#5a6f8f", draft: "#3a7bd5", auto: "#14c882" };
+  const online = state.worker_online;
+  return (
+    <div style={{ padding: "6px 16px 8px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "center", gap: 8 }}>
+      <span
+        title={online ? "PC online" : "PC offline, nothing drafts or sends"}
+        style={{ ...mono, color: "#8fa3c4", display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}
+      >
+        <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: online ? "#14c882" : "#dc3c3c" }} />
+        AI EMAIL{online ? "" : " · OFFLINE"}
+      </span>
+      <div style={{ flex: 1 }} />
+      <div style={{ display: "flex", border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6, overflow: "hidden", flexShrink: 0 }}>
+        {["off", "draft", "auto"].map(m => (
+          <button key={m} onClick={() => setMode(m)} disabled={saving}
+            style={{
+              ...mono, padding: "3px 7px", cursor: "pointer", border: "none", whiteSpace: "nowrap",
+              background: state.mode === m ? `${modeColor[m]}26` : "transparent",
+              color: state.mode === m ? modeColor[m] : "#5a6f8f",
+            }}>
+            {m.toUpperCase()}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Scheduled check-ins ("busy, text me tomorrow") ───────────────────────────
 // The AI setter's follow_up action books a check-in on the thread
 // (sms_conversations.ai_followup_due_at); once due, the worker writes it and
@@ -840,13 +906,15 @@ const STAGE_LABELS = {
   interested: "Interested", not_interested: "Not Interested",
 };
 
-function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate, onBook }) {
+function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate, onBook, channel = "sms" }) {
   const meta = AI_ACTION_META[draft.action] || AI_ACTION_META.reply;
   const d = draft.details || {};
   const detail =
     draft.action === "book" ? `Send Meet invite: ${d.booking_date} ${d.booking_time} → ${d.email || "(no email yet)"}`
     : draft.action === "capture_email" ? `Email: ${d.email}`
     : draft.action === "handoff" ? (d.todo_created ? "Handle this one yourself · added to your To-Do list" : "Handle this one yourself")
+    : draft.action === "follow_up" && channel === "email"
+      ? `Follow-up To-Do added for ${d.follow_up_date || "later"}`
     : draft.action === "follow_up"
       ? `Auto check-in scheduled: ${d.follow_up_at ? new Date(d.follow_up_at).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : d.follow_up_date}`
     : d.scheduled_followup ? "Scheduled check-in (they asked you to follow up later)"
@@ -858,7 +926,7 @@ function AiDraftCard({ draft, busy, used, onUse, onDismiss, onRegenerate, onBook
       background: "rgba(58,123,213,0.06)", borderRadius: 10,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <span style={{ ...mono, color: "#5a6f8f" }}>AI DRAFT</span>
+        <span style={{ ...mono, color: "#5a6f8f" }}>{channel === "email" ? "AI EMAIL DRAFT" : "AI DRAFT"}</span>
         <span style={{ ...mono, color: meta.color, border: `1px solid ${meta.color}66`, borderRadius: 4, padding: "1px 6px" }}>
           {meta.label}{draftTemplateKey(draft) ? ` · ${SEQUENCE_STEP_LABELS[draftTemplateKey(draft)].toUpperCase()}` : ""}
         </span>
@@ -937,6 +1005,11 @@ export default function InboxPanel({ initialTarget }) {
   const [usedDraftId, setUsedDraftId] = useState(null);
   const [aiRegenerating, setAiRegenerating] = useState(false);
   const [aiWorkerOffline, setAiWorkerOffline] = useState(false);
+  const [emailDraft, setEmailDraft] = useState(null);
+  const [emailDraftBusy, setEmailDraftBusy] = useState(false);
+  const [usedEmailDraftId, setUsedEmailDraftId] = useState(null);
+  const [emailRegenerating, setEmailRegenerating] = useState(false);
+  const [emailWorkerOffline, setEmailWorkerOffline] = useState(false);
   const [followUps, setFollowUps] = useState(null);
   const [followUpsOpen, setFollowUpsOpen] = useState(false);
 
@@ -1195,6 +1268,83 @@ export default function InboxPanel({ initialTarget }) {
     setAiDraftBusy(false);
   };
 
+  // AI email setter draft (email_setter_ai.py) — one per contact, on
+  // whichever of their email threads the prospect last wrote on.
+  const loadEmailDraft = useCallback(async (contactId) => {
+    if (!contactId) { setEmailDraft(null); return; }
+    try {
+      const r = await fetch(API(`/email-setter/draft?contact_id=${encodeURIComponent(contactId)}`));
+      if (r.ok) {
+        const data = await r.json();
+        setEmailDraft(data.draft);
+        setEmailRegenerating(!!data.regenerating);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    setEmailDraft(null);
+    setUsedEmailDraftId(null);
+    setEmailRegenerating(false);
+    setEmailWorkerOffline(false);
+    const contactId = thread?.contact_id;
+    if (!contactId || !thread?.email) return;
+    loadEmailDraft(contactId);
+    const id = setInterval(() => { if (!document.hidden) loadEmailDraft(contactId); }, 8000);
+    return () => clearInterval(id);
+  }, [thread?.contact_id, thread?.email, loadEmailDraft]);
+
+  const useEmailDraft = () => {
+    if (!emailDraft) return;
+    setReplyChannel("email");
+    setReplyText(emailDraft.reply || "");
+    setUsedEmailDraftId(emailDraft.id);
+    setAppliedStage(null);
+    setAppliedStageLabel(null);
+  };
+
+  const dismissEmailDraft = async () => {
+    if (!emailDraft) return;
+    setEmailDraftBusy(true);
+    try { await fetch(API(`/email-setter/draft/${emailDraft.id}/dismiss`), { method: "POST" }); } catch {}
+    setEmailDraft(null);
+    setUsedEmailDraftId(null);
+    setEmailDraftBusy(false);
+  };
+
+  const bookEmailDraft = async () => {
+    if (!emailDraft) return;
+    setEmailDraftBusy(true);
+    try {
+      const r = await fetch(API(`/email-setter/draft/${emailDraft.id}/book`), { method: "POST" });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        window.alert(`Couldn't book: ${err.detail || r.status}`);
+      }
+      await loadEmailDraft(thread?.contact_id);
+      if (selected) await refreshThread(selected);
+    } catch {}
+    setEmailDraftBusy(false);
+  };
+
+  const regenerateEmailDraft = async () => {
+    if (!thread?.contact_id) return;
+    setEmailDraftBusy(true);
+    try {
+      const r = await fetch(API("/email-setter/draft/regenerate"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: thread.contact_id, thread_id: emailDraft?.thread_id || "" }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        setEmailRegenerating(true);
+        setEmailWorkerOffline(!data.worker_online);
+      }
+    } catch {}
+    setUsedEmailDraftId(null);
+    setEmailDraftBusy(false);
+  };
+
   // Default the reply channel to whichever channel this contact most
   // recently used — a fresh contact card falls back to whichever channel
   // has a usable address.
@@ -1242,8 +1392,11 @@ export default function InboxPanel({ initialTarget }) {
             to: thread.email,
             subject: replySubject || thread.email_subject || "",
             body: replyText.trim(),
+            ...(usedEmailDraftId ? { ai_draft_id: usedEmailDraftId } : {}),
           }),
         });
+        setEmailDraft(null);
+        setUsedEmailDraftId(null);
       }
       setReplyText("");
       setAppliedStage(null);
@@ -1424,6 +1577,7 @@ export default function InboxPanel({ initialTarget }) {
           lessonCount={lessons?.lessons?.filter(l => l.status === "active").length || 0}
           onOpenLessons={() => { loadLessons(); setLessonsOpen(true); }}
         />
+        <EmailSetterModeBar />
         {lessonsOpen && (
           <LessonsModal
             data={lessons}
@@ -1998,6 +2152,20 @@ export default function InboxPanel({ initialTarget }) {
                   onUse={useAiDraft} onDismiss={dismissAiDraft} onRegenerate={regenerateAiDraft}
                   onBook={bookAiDraft}
                 />}
+                {emailDraft && !emailRegenerating && <AiDraftCard
+                  channel="email"
+                  draft={emailDraft} busy={emailDraftBusy} used={usedEmailDraftId === emailDraft.id}
+                  onUse={useEmailDraft} onDismiss={dismissEmailDraft} onRegenerate={regenerateEmailDraft}
+                  onBook={bookEmailDraft}
+                />}
+                {emailRegenerating && (
+                  <div style={{ marginBottom: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em",
+                                color: emailWorkerOffline ? "#dc3c3c" : "#3a7bd5" }}>
+                    {emailWorkerOffline
+                      ? "AI EMAIL DRAFT QUEUED · PC OFFLINE, WILL DRAFT WHEN YOUR COMPUTER IS ON"
+                      : "AI IS DRAFTING AN EMAIL..."}
+                  </div>
+                )}
                 {aiRegenerating && (
                   <div style={{ marginBottom: 10, fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em",
                                 color: aiWorkerOffline ? "#dc3c3c" : "#3a7bd5" }}>
@@ -2043,6 +2211,12 @@ export default function InboxPanel({ initialTarget }) {
                   <button onClick={openSequence} className="btn btn-ghost" style={{ fontSize: 10, alignSelf: "flex-end" }}>
                     SEQUENCE
                   </button>
+                  {replyChannel === "email" && thread?.email && !emailDraft && !emailRegenerating && (
+                    <button onClick={regenerateEmailDraft} disabled={emailDraftBusy} className="btn btn-ghost"
+                      style={{ fontSize: 10, alignSelf: "flex-end" }} title="Ask the AI to draft an email reply">
+                      ASK AI
+                    </button>
+                  )}
                   {replyChannel === "sms" && !aiDraft && !aiRegenerating && (
                     <button onClick={regenerateAiDraft} disabled={aiDraftBusy} className="btn btn-ghost"
                       style={{ fontSize: 10, alignSelf: "flex-end" }} title="Ask the AI setter to draft a reply">

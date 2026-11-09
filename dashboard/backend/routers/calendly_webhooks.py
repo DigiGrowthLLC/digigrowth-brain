@@ -422,8 +422,12 @@ async def record_booking(*, name: str | None, email: str | None, phone: str | No
                     "SELECT id, client_id, is_client_anchor FROM contacts WHERE phone = $1", phone,
                 )
             if not existing and email:
+                # Case-insensitive: a prospect typing "StokesB@TV-PT.com" on
+                # Calendly is still the cold-email contact stored lowercase.
                 existing = await conn.fetchrow(
-                    "SELECT id, client_id, is_client_anchor FROM contacts WHERE email = $1", email,
+                    "SELECT id, client_id, is_client_anchor FROM contacts WHERE lower(trim(email)) = lower($1) "
+                    "ORDER BY (client_id IS NULL OR is_client_anchor) DESC LIMIT 1",
+                    email.strip(),
                 )
             matched_by_name = False
             if not existing and name:
@@ -740,3 +744,116 @@ async def resync_client_bookings(client_id: int) -> dict:
         await _handle_invitee_created(b, token, client_id=client_id)
         imported.append({"name": b.get("name"), "start": b["scheduled_event"]["start_time"]})
     return {"imported": imported, "skipped_duplicates": duplicates}
+
+
+async def _client_link_event_types(token: str) -> set[str]:
+    """Event type URIs (as Dylan's token sees them) of every Calendly link
+    connected as some client's booking link — the batch form of
+    _is_a_client_link, so a resync can skip those without a lookup per event."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT DISTINCT calendly_event_type_url FROM client_marketing_config "
+            "WHERE COALESCE(calendly_event_type_url, '') <> ''",
+        )
+    uris = set()
+    for row in rows:
+        try:
+            uri = await calendly_integration.get_event_type_uri(token, row["calendly_event_type_url"])
+        except Exception:
+            continue
+        if uri:
+            uris.add(uri)
+    return uris
+
+
+async def resync_dylan_bookings() -> dict:
+    """Safety net for Dylan's own Calendly webhook (run by
+    calendly_watchdog.py every 30 min, and right after it re-registers a
+    dropped subscription). Imports every UPCOMING booking on Dylan's own
+    calendar that never reached the OS, and cancels any row whose Calendly
+    event was canceled without the webhook telling us.
+
+    Why: the subscription vanished on Calendly's side around 2026-11-05
+    while the OS still showed "connected", so Dr. Benjamin Stokes's
+    2026-11-09 discovery call (booked from a cold email) never appeared in
+    Appointments or Analytics.
+
+    Same filters as the webhook: only events Dylan hosts (listed by his
+    user, not the org) and never an event type connected as a client's
+    link. A row Dylan entered by hand for the same person and time (no
+    calendly_event_uri yet) is linked to the event instead of duplicated —
+    a duplicate would double every reminder. Upcoming only: importing a
+    past call would start no-show/cancel drips for a call long over."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        token = (await conn.fetchval(
+            "SELECT value FROM dialer_settings WHERE key = 'dylan_calendly_api_token'",
+        ))
+        known = {r["calendly_event_uri"]: r for r in await conn.fetch(
+            "SELECT id, status, call_type, calendly_event_uri FROM appointment_reminders "
+            "WHERE calendly_event_uri IS NOT NULL"
+        )}
+    if not token:
+        return {"skipped": "no Calendly token saved"}
+
+    headers = {"Authorization": f"Bearer {token}"}
+    now_iso = datetime.utcnow().isoformat() + "Z"
+    client_links = await _client_link_event_types(token)
+    imported, linked, canceled = [], [], []
+    async with httpx.AsyncClient(timeout=20) as http:
+        me = (await http.get("https://api.calendly.com/users/me", headers=headers)).json()["resource"]
+
+        async def _events(status: str) -> list[dict]:
+            out, url = [], "https://api.calendly.com/scheduled_events"
+            params = {"user": me["uri"], "status": status, "min_start_time": now_iso, "count": 100}
+            while url:
+                resp = await http.get(url, headers=headers, params=params)
+                resp.raise_for_status()
+                page = resp.json()
+                out += page.get("collection", [])
+                url, params = page.get("pagination", {}).get("next_page"), None
+            return out
+
+        for event in await _events("active"):
+            if event["uri"] in known or event.get("event_type") in client_links:
+                continue
+            invitees = (await http.get(event["uri"] + "/invitees", headers=headers)).json().get("collection", [])
+            for inv in invitees:
+                if inv.get("status") != "active":
+                    continue
+                payload = {**inv, "event": event["uri"], "scheduled_event": event}
+                start_utc = datetime.fromisoformat(event["start_time"].replace("Z", "+00:00"))
+                email = (inv.get("email") or "").strip()
+                async with pool.acquire() as conn:
+                    manual = await conn.fetchval(
+                        """
+                        UPDATE appointment_reminders ar SET calendly_event_uri = $1
+                        WHERE ar.id = (
+                            SELECT a.id FROM appointment_reminders a
+                            LEFT JOIN contacts c ON c.id = a.contact_id
+                            WHERE a.status = 'scheduled' AND a.calendly_event_uri IS NULL
+                              AND abs(extract(epoch FROM a.appointment_at - $2::timestamptz)) < 60
+                              AND $3 <> '' AND (lower(a.prospect_email) = lower($3) OR lower(c.email) = lower($3))
+                            ORDER BY a.created_at DESC LIMIT 1)
+                        RETURNING ar.id
+                        """,
+                        event["uri"], start_utc, email,
+                    )
+                if manual:
+                    linked.append({"name": inv.get("name"), "start": event["start_time"], "appointment_id": manual})
+                    continue
+                row = await _handle_invitee_created(payload, token, client_id=None)
+                imported.append({"name": inv.get("name"), "start": event["start_time"], "appointment_id": row.get("id")})
+                break  # one appointment per event
+
+        for event in await _events("canceled"):
+            row = known.get(event["uri"])
+            if not row or row["status"] != "scheduled":
+                continue
+            invitees = (await http.get(event["uri"] + "/invitees", headers=headers)).json().get("collection", [])
+            cancellation = next((i.get("cancellation") for i in invitees if i.get("cancellation")), None) or {}
+            await _handle_invitee_canceled({"event": event["uri"], "cancellation": cancellation})
+            canceled.append({"name": event.get("name"), "start": event["start_time"], "appointment_id": row["id"]})
+
+    return {"imported": imported, "linked_manual_rows": linked, "canceled": canceled}

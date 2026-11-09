@@ -10,6 +10,8 @@ create the appointment_reminders row that drives reminder_engine.py's
 24h/6h/1h no-show reminders — see routers/calendly_webhooks.py for the
 receiving side.
 """
+import json
+
 from fastapi import APIRouter, HTTPException
 
 import calendly_integration
@@ -40,11 +42,21 @@ async def _set_setting(conn, key: str, value: str) -> None:
 
 @router.get("/calendly/my-status")
 async def get_my_calendly_status():
+    """webhook_connected is checked live against Calendly, not just "a URI is
+    saved": Calendly dropped the subscription around 2026-11-05 and this card
+    kept saying CONNECTED while bookings stopped arriving. Fails open to the
+    saved state if Calendly can't be reached."""
+    import calendly_watchdog
+
     pool = await get_pool()
     async with pool.acquire() as conn:
         token = await _get_setting(conn, _TOKEN_KEY)
         webhook_uri = await _get_setting(conn, _WEBHOOK_URI_KEY)
-    return {"token_saved": bool(token), "webhook_connected": bool(webhook_uri)}
+        health_raw = await _get_setting(conn, calendly_watchdog.HEALTH_KEY)
+    live = await calendly_watchdog.subscription_active(token, webhook_uri) if token and webhook_uri else False
+    connected = bool(webhook_uri) if live is None else live
+    health = json.loads(health_raw) if health_raw else None
+    return {"token_saved": bool(token), "webhook_connected": connected, "last_check": health}
 
 
 @router.post("/calendly/my-token")

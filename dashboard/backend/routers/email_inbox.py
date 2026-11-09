@@ -359,7 +359,9 @@ async def manual_email_send(payload: dict):
         return {"ok": False, "error": "to and body required"}
 
     if thread_id.startswith("identity-"):
-        return await _send_on_identity_thread(thread_id, to, subject, body)
+        result = await _send_on_identity_thread(thread_id, to, subject, body)
+        await _after_send(thread_id, body, payload, result)
+        return result
 
     try:
         sent = await asyncio.to_thread(integrations.gmail_send_reply, to, subject, body, thread_id)
@@ -409,7 +411,25 @@ async def manual_email_send(payload: dict):
             contact_id, new_thread_id, to, subject, body, sent["id"], sent.get("tracking_token"), active_campaign_id,
         )
 
-    return {"ok": True, "thread_id": new_thread_id, "contact_id": contact_id}
+    result = {"ok": True, "thread_id": new_thread_id, "contact_id": contact_id}
+    await _after_send(new_thread_id, body, payload, result)
+    return result
+
+
+async def _after_send(thread_id: str, body: str, payload: dict, result: dict) -> None:
+    """Email setter bookkeeping (email_setter_ai.record_manual_send): the AI
+    draft Dylan used is marked sent/edited, other pending drafts on the
+    thread are superseded, and its "Reply to ... by email" To-Do clears.
+    Never fails the send itself."""
+    if not result.get("ok"):
+        return
+    try:
+        import email_setter_ai
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await email_setter_ai.record_manual_send(conn, thread_id, body, payload.get("ai_draft_id"))
+    except Exception as e:
+        print(f"[email-send] email setter bookkeeping failed for {thread_id}: {e}", flush=True)
 
 
 @router.post("/email/conversations/{thread_id}/close")

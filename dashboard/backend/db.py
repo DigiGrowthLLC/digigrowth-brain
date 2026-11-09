@@ -1369,6 +1369,28 @@ async def _create_schema(pool: asyncpg.Pool):
                 decided_at      TIMESTAMPTZ
             );
             CREATE INDEX IF NOT EXISTS idx_sms_ai_drafts_phone_status ON sms_ai_drafts(phone, status);
+            -- Email setter (email_setter_ai.py): same shape as sms_ai_drafts,
+            -- keyed by email thread. status: pending | sent | edited |
+            -- auto_sent | dismissed | superseded.
+            CREATE TABLE IF NOT EXISTS email_ai_drafts (
+                id              SERIAL PRIMARY KEY,
+                thread_id       TEXT NOT NULL,
+                contact_id      TEXT REFERENCES contacts(id) ON DELETE CASCADE,
+                action          TEXT NOT NULL,
+                reply           TEXT NOT NULL DEFAULT '',
+                details         JSONB NOT NULL DEFAULT '{}',
+                rationale       TEXT,
+                model           TEXT,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                sent_body       TEXT,
+                last_inbound_at TIMESTAMPTZ,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                decided_at      TIMESTAMPTZ
+            );
+            CREATE INDEX IF NOT EXISTS idx_email_ai_drafts_thread_status ON email_ai_drafts(thread_id, status);
+            -- "Reply to X by email" to-dos the email setter creates; cleared
+            -- when Dylan emails that thread from the Inbox.
+            ALTER TABLE todos ADD COLUMN IF NOT EXISTS email_reply_thread TEXT;
             -- "Reply to X" to-dos the SMS setter creates when a prospect
             -- needs Dylan personally. Linked by phone so the to-do clears
             -- itself the moment Dylan texts that prospect (routers/sms.py's

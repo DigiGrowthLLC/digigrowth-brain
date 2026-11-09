@@ -16,6 +16,9 @@ Loop (every POLL_SECONDS):
      Active lessons come back inside the system prompt from step 1
   5. in auto mode: POST /api/sms-setter/worker/flush -> sends drafts that
      were held until business hours
+  6. the same loop for the EMAIL setter (dashboard/backend/email_setter_ai.py):
+     /api/email-setter/worker/queue -> claude -> /worker/submit (+ /worker/flush
+     in its own auto mode). One worker, two setters, each with its own mode.
 
 Started at logon by the DigiGrowth-SMSSetter scheduled task
 (register-sms-setter-task.ps1), under `doppler run` for DASHBOARD_URL /
@@ -163,6 +166,39 @@ def one_pass() -> None:
         flushed = _api("POST", "/api/sms-setter/worker/flush", {})
         if flushed.get("sent"):
             log(f"sent {flushed['sent']} held draft(s)")
+    email_pass()
+
+
+def email_pass() -> None:
+    """The email setter (dashboard/backend/email_setter_ai.py): same loop,
+    its own queue. A 404 just means the server predates it."""
+    try:
+        q = _api("GET", "/api/email-setter/worker/queue")
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            log(f"email queue failed: HTTP {e.code}")
+        return
+    items = q.get("items", [])
+    if items:
+        log(f"email mode={q['mode']} drafting {len(items)} thread(s)")
+    for item in items:
+        started = time.time()
+        try:
+            result = run_claude(q["system_prompt"], item["prompt"], q["schema"])
+        except subprocess.TimeoutExpired:
+            log(f"email {item['business']}: claude timed out")
+            continue
+        if not result:
+            continue
+        resp = _api("POST", "/api/email-setter/worker/submit", {
+            "thread_id": item["thread_id"], "last_inbound_at": item["last_inbound_at"],
+            "result": result, "model": f"claude-code:{MODEL}",
+        })
+        log(f"email {item['business']}: {result.get('action')} ({time.time() - started:.0f}s) -> {resp}")
+    if q.get("mode") == "auto":
+        flushed = _api("POST", "/api/email-setter/worker/flush", {})
+        if flushed.get("sent"):
+            log(f"sent {flushed['sent']} held email draft(s)")
 
 
 def main() -> None:
