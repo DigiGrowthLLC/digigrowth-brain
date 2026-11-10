@@ -7105,10 +7105,10 @@
       "last_scraped_date": "2026-11-09"
     },
     "Daytona Beach, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 119,
-      "qualified_count": 5,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 133,
+      "qualified_count": 6,
       "last_scraped_date": "2026-11-09"
     },
     "Baytown, TX": {
