@@ -7063,10 +7063,10 @@
       "last_scraped_date": "2026-11-05"
     },
     "San Leandro, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 107,
-      "qualified_count": 8,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 118,
+      "qualified_count": 9,
       "last_scraped_date": "2026-11-09"
     },
     "Colonie, NY": {
