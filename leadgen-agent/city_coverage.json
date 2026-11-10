@@ -7119,9 +7119,9 @@
       "last_scraped_date": "2026-11-09"
     },
     "San Ramon, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 121,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 136,
       "qualified_count": 5,
       "last_scraped_date": "2026-11-09"
     },
