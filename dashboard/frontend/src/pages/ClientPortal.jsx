@@ -123,7 +123,7 @@ function ActionItemRow({ token, item, onUpdated, onGoToTab }) {
         )}
         {item.link_url && (
           <a href={item.link_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#3a7bd5", fontSize: 11.5, textDecoration: "underline" }}>
-            ▶ Open Link
+            ▶ {item.link_url.includes("/stripe/connect") ? "Connect Stripe" : "Open Link"}
           </a>
         )}
       </div>

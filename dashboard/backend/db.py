@@ -1686,6 +1686,22 @@ async def _create_schema(pool: asyncpg.Pool):
             await conn.execute(
                 "DELETE FROM client_action_item_completions WHERE action_item_id = $1", _calendly_admin_row,
             )
+        # 2026-11-06: clinics with a paid visit connect their own Stripe from
+        # the portal (routers/client_portal.py's /stripe/connect makes a fresh
+        # onboarding link per click). The item hides itself for free-visit
+        # clinics and ticks itself once Stripe says they can take payments.
+        if not await conn.fetchval(
+            "SELECT 1 FROM onboarding_action_items WHERE title = 'Connect Stripe to Get Paid'"
+        ):
+            await conn.execute(
+                "INSERT INTO onboarding_action_items (title, description, link_url, sort_order) VALUES ($1, $2, $3, 1)",
+                "Connect Stripe to Get Paid",
+                "Your new patient visit is paid online when patients book, so connect Stripe and the money goes "
+                "straight to your bank (DigiGrowth takes no cut). Click the link, sign in to Stripe or create a "
+                "free account, and add your business and bank details. About 5 minutes. This step checks itself "
+                "off once Stripe is ready.",
+                "{portal_api}/stripe/connect",
+            )
 
         # booked_at: a permanent record of "an appointment was booked from
         # this conversation", separate from `disposition`. Analytics'

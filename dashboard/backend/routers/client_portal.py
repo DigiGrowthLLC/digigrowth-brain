@@ -17,7 +17,9 @@ purpose-built for the portal's basic infrastructure pass.
 """
 import asyncio
 import json
+import os
 import uuid
+from datetime import datetime as _dt, timezone as _tz
 from typing import Optional
 
 import asyncpg
@@ -306,7 +308,76 @@ async def portal_action_items(token: str):
             """,
             client["id"],
         )
-    return [dict(r) for r in rows]
+        stripe = await conn.fetchrow(
+            """SELECT s.stripe_charges_enabled,
+                      EXISTS (SELECT 1 FROM booking_event_types e WHERE e.client_id = s.client_id
+                              AND e.active AND e.price_cents > 0) AS has_paid
+               FROM booking_settings s WHERE s.client_id = $1""",
+            client["id"],
+        )
+    out = []
+    for r in rows:
+        d = dict(r)
+        if d["title"] == STRIPE_ITEM_TITLE:
+            # Only clinics with a paid visit need Stripe; it ticks itself
+            # once Stripe says they can take payments.
+            if not (stripe and stripe["has_paid"]):
+                continue
+            if stripe["stripe_charges_enabled"] and not d["completed_at"]:
+                d["completed_at"] = _dt.now(_tz.utc)
+        # "{portal_api}" in a link becomes this client's own portal API path
+        # (per-client actions like Connect Stripe).
+        if d.get("link_url") and "{portal_api}" in d["link_url"]:
+            d["link_url"] = d["link_url"].replace("{portal_api}", f"/portal-api/{token}")
+        out.append(d)
+    return out
+
+
+STRIPE_ITEM_TITLE = "Connect Stripe to Get Paid"
+
+
+@router.get("/{token}/stripe/connect", include_in_schema=False)
+async def portal_stripe_connect(token: str):
+    """The clinic's Connect Stripe button: a fresh Stripe onboarding link
+    every click (Stripe's links are single-use and expire in minutes), for
+    their own Standard account. Payouts go to their bank; DigiGrowth takes
+    no cut (booking_engine.py)."""
+    import booking_engine as be
+    from fastapi.responses import HTMLResponse, RedirectResponse
+    client = await get_client_from_token(token)
+    base = be.public_base()
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            has = await conn.fetchval("SELECT 1 FROM booking_settings WHERE client_id = $1", client["id"])
+            if not has:
+                raise be.BookingError("Your booking page isn't set up yet. DigiGrowth will let you know when it's ready.")
+        url = await be.stripe_onboarding_link(
+            client["id"], return_url=f"{base}/portal-api/{token}/stripe/return",
+            refresh_url=f"{base}/portal-api/{token}/stripe/connect",
+        )
+    except be.BookingError as e:
+        return HTMLResponse(
+            "<!doctype html><meta name=viewport content='width=device-width,initial-scale=1'>"
+            "<body style='font-family:system-ui;max-width:520px;margin:80px auto;padding:0 20px'>"
+            f"<h2>Stripe isn't ready to connect yet</h2><p>{str(e)}</p><p>Text or email DigiGrowth and we'll sort it out.</p>",
+            status_code=400,
+        )
+    return RedirectResponse(url, status_code=302)
+
+
+@router.get("/{token}/stripe/return", include_in_schema=False)
+async def portal_stripe_return(token: str):
+    """Back from Stripe: check the account and send them to their portal."""
+    import booking_engine as be
+    from fastapi.responses import RedirectResponse
+    client = await get_client_from_token(token)
+    try:
+        await be.stripe_refresh_status(client["id"])
+    except Exception as e:
+        print(f"[portal] stripe status refresh failed for client {client['id']}: {e}")
+    dash = os.environ.get("DASHBOARD_URL", be.public_base()).rstrip("/")
+    return RedirectResponse(f"{dash}/portal/{token}", status_code=302)
 
 
 @router.put("/{token}/action-items/{item_id}")

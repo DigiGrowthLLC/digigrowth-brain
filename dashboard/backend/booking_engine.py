@@ -209,7 +209,7 @@ async def _stripe(method: str, path: str, data: dict | None = None, account: str
     return body
 
 
-async def stripe_onboarding_link(client_id: int, return_url: str) -> str:
+async def stripe_onboarding_link(client_id: int, return_url: str, refresh_url: str | None = None) -> str:
     """Creates the clinic's Standard connected account on first use, then a
     fresh onboarding link (they're single-use and short-lived)."""
     pool = await get_pool()
@@ -228,7 +228,7 @@ async def stripe_onboarding_link(client_id: int, return_url: str) -> str:
             )
     link = await _stripe("POST", "/account_links", {
         "account": acct, "type": "account_onboarding",
-        "refresh_url": return_url, "return_url": return_url,
+        "refresh_url": refresh_url or return_url, "return_url": return_url,
     })
     return link["url"]
 

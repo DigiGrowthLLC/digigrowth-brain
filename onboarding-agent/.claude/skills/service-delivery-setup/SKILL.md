@@ -50,9 +50,16 @@ that step. Order:
 3. Time-gated steps (A2P review, DNS propagation) get started as early as possible.
 4. Tests, then pre-launch cleanup, then hand off to the campaign build.
 
-**Booking: Calendly is the default.** Take the GoHighLevel path (Response AI steps 14-16)
-only when the client has explicitly said they book on GoHighLevel. Ask if unsure; never
-assume GHL because an invite exists.
+**Booking: DigiGrowth Booking is the default (since 2026-11-06).** The client shares the
+Google Calendar they book on with dylanrg@digigrowthllc.com ("Make changes to events",
+their portal's "Share Your Google Calendar" step); Dylan sets it up in the OS's Booking Links
+tab (calendar, hours, appointment type from the offer presets; page details fill themselves
+from the portal, website and funnel), then turns it on. Paid visits: the client clicks
+"Connect Stripe to Get Paid" in their portal (needs STRIPE_SECRET_KEY on the server). Check
+which calendars the booking account sees with `GET /api/booking/google`. Response AI step 6
+and Client Portal step 1 tick themselves once it's live. Calendly/GoHighLevel only for a
+client already running on them (GHL: Response AI steps 14-16, only when the client
+explicitly said so).
 
 ## 3. Walk one step at a time
 

@@ -147,6 +147,14 @@ async def _signals(conn, client_id: int) -> dict[str, list[int]]:
     on_calendly = bool(cfg.get("calendly_api_token") and cfg.get("calendly_event_type_url"))
     ghl_live = bool(cfg.get("ghl_last_webhook_at"))
     seq = _decode(cfg.get("response_ai_sequence"), [])
+    # DigiGrowth Booking (default since 2026-11-06): live = turned on with a
+    # bookable appointment type; booked = at least one real booking went
+    # through it end to end.
+    dg_live = bool(await conn.fetchval(
+        "SELECT 1 FROM booking_settings s WHERE s.client_id = $1 AND s.enabled AND s.calendar_id IS NOT NULL "
+        "AND EXISTS (SELECT 1 FROM booking_event_types e WHERE e.client_id = s.client_id AND e.active)", client_id))
+    dg_booked = bool(await conn.fetchval(
+        "SELECT 1 FROM bookings WHERE client_id = $1 AND status IN ('confirmed', 'cancelled') LIMIT 1", client_id))
 
     done: dict[str, list[int]] = {}
 
@@ -170,11 +178,11 @@ async def _signals(conn, client_id: int) -> dict[str, list[int]]:
     mark("response_ai", 1, 2, when=bool(cfg.get("response_ai_enabled") and cfg.get("response_ai_context")))
     mark("response_ai", 3, when=bool(seq))
     mark("response_ai", 4, when=bool(cfg.get("response_ai_rules") or cfg.get("response_ai_max_words")))
-    mark("response_ai", 5, when=on_calendly or (on_ghl and ghl_live))
-    mark("response_ai", 13, 14, when=on_calendly or (on_ghl and ghl_live))
+    mark("response_ai", 5, when=dg_live or on_calendly or (on_ghl and ghl_live))
+    mark("response_ai", 13, 14, when=dg_live or on_calendly or (on_ghl and ghl_live))
     mark("response_ai", 6, when=ai_replied)
     mark("response_ai", 10, when=bool(cfg.get("make_scenario_id") and not cfg.get("lead_ads_error")))
-    mark("response_ai", 15, when=on_ghl and ghl_live)
+    mark("response_ai", 15, when=(on_ghl and ghl_live) or (dg_live and dg_booked))
 
     # landing_page: 0 built, 3 live URL saved, 1 live on the pages domain,
     # 2 the client's own funnel domain actually serves it
@@ -189,7 +197,7 @@ async def _signals(conn, client_id: int) -> dict[str, list[int]]:
     mark("ad_creatives", 7, when=bool(cfg.get("meta_page_id")))
 
     # client_portal: 0 booking link saved, 1 the client's own contact is linked
-    mark("client_portal", 0, when=bool(booking))
+    mark("client_portal", 0, when=dg_live or bool(booking))
     mark("client_portal", 1, when=anchor)
 
     # automations: 1 sequence copy seeded (review is still worth doing, but the copy exists)
