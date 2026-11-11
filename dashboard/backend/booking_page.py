@@ -98,6 +98,9 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .assure{ list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:5px; font-size:13px; color:var(--soft); }
   .assure li{ display:flex; gap:7px; } .assure li::before{ content:"\2713"; color:var(--ok); font-weight:800; }
   .fine{ font-size:11.5px; color:#8a93a5; margin-top:12px; }
+  .consent{ display:flex; gap:10px; align-items:flex-start; margin:12px 0 0; font-size:12.5px; line-height:1.45; color:var(--soft); font-weight:400; cursor:pointer; }
+  .consent input{ width:18px; height:18px; flex:0 0 18px; margin:1px 0 0; padding:0; accent-color:var(--accent); }
+  .consent a{ color:inherit; }
   .err{ color:var(--bad); font-size:14px; margin-top:10px; }
   .note{ background:var(--warn-bg); color:var(--warn); border-radius:10px; padding:10px 12px; font-size:13.5px; margin-bottom:12px; }
   .muted{ color:var(--soft); font-size:14px; }
@@ -323,7 +326,7 @@ async function bookMode() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       const name = $("#n") && $("#n").value.trim(), phone = $("#p") && $("#p").value;
-      if (name && digits(phone).length >= 10) post("partial", { session: SESSION, name, phone, event_type_id: ev.id, start: state.slot, ...UTM }).catch(() => {});
+      if (name && digits(phone).length >= 10) post("partial", { session: SESSION, name, phone, sms_consent: !!($("#c") && $("#c").checked), event_type_id: ev.id, start: state.slot, ...UTM }).catch(() => {});
     }, 700);
   }
 
@@ -337,14 +340,15 @@ async function bookMode() {
       <div class="chosen"><div><b>${esc(fmtDay(state.slot))}</b><small>${esc(fmtTime(state.slot))} · ${ev.duration_min} min · ${esc(tzLabel())}</small></div><button class="link" id="change">Change</button></div>
       <label for="n">Full name</label><input id="n" autocomplete="name" value="${esc(pre.name)}" required>
       <label for="p">Mobile number <small>(for your confirmation text)</small></label><input id="p" type="tel" inputmode="tel" autocomplete="tel" value="${esc(pre.phone)}" required>
+      <label class="consent" for="c"><input type="checkbox" id="c"><span>Yes, I agree to receive text messages from ${esc(info.clinic)} at this number about my visit, including follow-ups and answers to my questions. Msg frequency varies. Msg &amp; data rates may apply. Reply HELP for help, STOP to opt out.${prof.sms_terms_url ? ` <a href="${esc(prof.sms_terms_url)}" target="_blank" rel="noopener">SMS Terms &amp; Privacy</a>` : ""}</span></label>
       ${ev.ask_question ? `<label for="q">${esc(ev.ask_question)} <small>(optional)</small></label><textarea id="q" rows="2"></textarea>` : ""}
       <button class="cta" id="go">${paid ? ICON.lock + " Continue to secure payment" : "Confirm my visit"}</button>
       <ul class="assure">${assure.filter(Boolean).map(a => `<li>${esc(a)}</li>`).join("")}</ul>
       ${paid ? `<p class="muted" style="margin-top:8px;font-size:13px">We hold this time for you for 30 minutes while you pay.</p>` : ""}
       <div class="err" id="err"></div>
-      <p class="fine">By booking you agree to get appointment texts from ${esc(info.clinic)}. Msg &amp; data rates may apply. Reply STOP to opt out.</p>`;
+      <p class="fine">The box is optional. Either way, your booking confirmation and visit reminders are texted to this number. Msg &amp; data rates may apply. Reply STOP to opt out.</p>`;
     $("#change").onclick = () => pickStep();
-    $("#n").oninput = savePartial; $("#p").oninput = savePartial;
+    $("#n").oninput = savePartial; $("#p").oninput = savePartial; $("#c").onchange = savePartial;
     if (pre.name && digits(pre.phone).length >= 10) savePartial();
     ($("#n").value ? $("#p") : $("#n")).focus({ preventScroll: true });
     $("#main").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -355,7 +359,7 @@ async function bookMode() {
       if (digits(phone).length < 10) { $("#err").textContent = "Please enter a 10-digit mobile number."; return; }
       btn.disabled = true; btn.textContent = "One moment...";
       try {
-        const r = await post("reserve", { event_type_id: ev.id, start: state.slot, name, phone, answer: $("#q") ? $("#q").value : null, session: SESSION, ...UTM });
+        const r = await post("reserve", { event_type_id: ev.id, start: state.slot, name, phone, sms_consent: $("#c").checked, answer: $("#q") ? $("#q").value : null, session: SESSION, ...UTM });
         if (r.checkout_url) { location.href = r.checkout_url; return; }
         location.href = r.manage_url + "?new=1";
       } catch (e) {

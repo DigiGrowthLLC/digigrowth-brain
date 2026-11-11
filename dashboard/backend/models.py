@@ -226,6 +226,7 @@ class ClientMarketingConfigUpdate(BaseModel):
     ghl_api_token: Optional[str] = None
     landing_page_url: Optional[str] = None
     funnel_domain: Optional[str] = None
+    sms_terms_url: Optional[str] = None
     meta_pixel_id: Optional[str] = None
     meta_ad_account_id: Optional[str] = None
     meta_page_id: Optional[str] = None

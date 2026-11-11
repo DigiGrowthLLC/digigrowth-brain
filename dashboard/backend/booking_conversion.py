@@ -103,7 +103,8 @@ async def funnel_stats(client_id: int | None = None, days: int = 30) -> dict:
 # ── Two-step capture ─────────────────────────────────────────────────────────
 
 async def save_partial(client_id: int, session_id: str, name: str | None, phone: str, event_type_id: int | None,
-                       slot_start: str | None, utm_source: str | None, utm_content: str | None) -> None:
+                       slot_start: str | None, utm_source: str | None, utm_content: str | None,
+                       sms_consent: bool | None = None) -> None:
     if not session_id or len(_digits(phone)) < 10:
         return
     slot = None
@@ -116,16 +117,17 @@ async def save_partial(client_id: int, session_id: str, name: str | None, phone:
     async with pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO booking_partials (client_id, event_type_id, session_id, resume_token, name, phone,
-                   slot_start, utm_source, utm_content, followup_due_at)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now() + make_interval(mins => $10))
+                   slot_start, utm_source, utm_content, followup_due_at, sms_consent)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now() + make_interval(mins => $10), $11)
                ON CONFLICT (session_id) DO UPDATE SET name = EXCLUDED.name, phone = EXCLUDED.phone,
+                   sms_consent = EXCLUDED.sms_consent,
                    slot_start = COALESCE(EXCLUDED.slot_start, booking_partials.slot_start),
                    event_type_id = COALESCE(EXCLUDED.event_type_id, booking_partials.event_type_id),
                    followup_due_at = CASE WHEN booking_partials.followed_up_at IS NULL
                                           THEN EXCLUDED.followup_due_at ELSE booking_partials.followup_due_at END,
                    updated_at = now()""",
             client_id, event_type_id, session_id[:64], secrets.token_urlsafe(12), (name or "").strip()[:120] or None,
-            phone.strip()[:40], slot, utm_source, utm_content, ABANDON_DELAY_MINUTES,
+            phone.strip()[:40], slot, utm_source, utm_content, ABANDON_DELAY_MINUTES, sms_consent,
         )
     await log_step(client_id, session_id, "details", event_type_id, utm_source, utm_content)
 
@@ -224,6 +226,11 @@ async def send_due_abandon_followups() -> int:
             continue
         if not (p["enabled"] and p["abandon_followup"]):
             await skip("follow-up off")
+            continue
+        # Only patients who ticked the booking page's text-consent box
+        # (A2P 10DLC). NULL = a page loaded before the box existed: no text.
+        if p["sms_consent"] is not True:
+            await skip("no text consent")
             continue
         if not p["twilio_number"]:
             await skip("clinic has no texting number")
@@ -356,7 +363,13 @@ async def page_profile(client_id: int, settings: dict, landing_slug: str | None 
             if slug and await conn.fetchval("SELECT hero_r2_key IS NOT NULL FROM landing_pages WHERE slug = $1", slug):
                 photo = f"/lp/{slug}/hero-image"
     refund = settings.get("refund_policy")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        sms_terms_url = await conn.fetchval(
+            "SELECT sms_terms_url FROM client_marketing_config WHERE client_id = $1", client_id,
+        )
     return {
+        "sms_terms_url": sms_terms_url,
         "provider_name": settings.get("provider_name"),
         "provider_title": settings.get("provider_title"),
         "photo_url": photo,

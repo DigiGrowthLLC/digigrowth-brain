@@ -469,7 +469,7 @@ async def _assert_slot_open(client_id: int, ev: dict, start: datetime, exclude_b
 
 async def reserve(client_id: int, event_type_id: int, start_iso: str, name: str, phone: str, email: str | None,
                   answer: str | None, utm_source: str | None, utm_content: str | None,
-                  return_base: str, session_id: str | None = None) -> dict:
+                  return_base: str, session_id: str | None = None, sms_consent: bool = False) -> dict:
     # Name + mobile only (Dylan, 2026-11-06): texts are how patients are
     # reached; email is optional (Stripe collects one for paid receipts).
     name, phone, email = (name or "").strip(), (phone or "").strip(), (email or "").strip() or None
@@ -511,11 +511,13 @@ async def reserve(client_id: int, event_type_id: int, start_iso: str, name: str,
                 raise BookingError("Sorry, that time was just taken. Please pick another.")
             booking = await conn.fetchrow(
                 """INSERT INTO bookings (client_id, event_type_id, status, start_at, end_at, name, phone, email,
-                       answer, utm_source, utm_content, manage_token, price_cents, hold_expires_at, session_id)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *""",
+                       answer, utm_source, utm_content, manage_token, price_cents, hold_expires_at, session_id,
+                       sms_consent)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *""",
                 client_id, event_type_id, "pending_payment" if paid else "confirmed", start, end, name, phone,
                 email, (answer or "").strip()[:1000] or None, utm_source, utm_content, token, ev["price_cents"],
                 datetime.now(timezone.utc) + timedelta(minutes=HOLD_MINUTES) if paid else None, session_id,
+                sms_consent,
             )
     booking = dict(booking)
     import booking_conversion

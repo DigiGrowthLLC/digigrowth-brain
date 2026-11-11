@@ -686,7 +686,8 @@ async def public_partial(key: str, request: Request, payload: dict):
     ctx = await _resolve(request, key)
     await bc.save_partial(ctx["settings"]["client_id"], payload.get("session") or "", payload.get("name"),
                           payload.get("phone") or "", payload.get("event_type_id"), payload.get("start"),
-                          payload.get("utm_source"), payload.get("utm_content"))
+                          payload.get("utm_source"), payload.get("utm_content"),
+                          payload.get("sms_consent") is True)
     return {"ok": True}
 
 
@@ -731,6 +732,7 @@ async def public_reserve(key: str, request: Request, payload: dict):
             ctx["settings"]["client_id"], int(payload.get("event_type_id") or 0), payload.get("start") or "",
             payload.get("name"), payload.get("phone"), payload.get("email"), payload.get("answer"),
             payload.get("utm_source"), payload.get("utm_content"), page_base, payload.get("session"),
+            sms_consent=payload.get("sms_consent") is True,
         )
     except be.BookingError as e:
         raise HTTPException(409, str(e))

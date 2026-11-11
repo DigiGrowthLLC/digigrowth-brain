@@ -674,6 +674,8 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS guide_progress JSONB NOT NULL DEFAULT '{}';
             -- Client's own funnel host (e.g. go.clientdomain.com), served by main.py's funnel_host_router
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS funnel_domain TEXT;
+            -- Client's SMS Terms & Privacy page (A2P 10DLC), linked from the booking page's text-consent checkbox
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS sms_terms_url TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_enabled BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_context TEXT;
             -- Ordered array of short stage descriptions ("first text" through
@@ -2471,6 +2473,12 @@ async def _create_schema(pool: asyncpg.Pool):
             );
             CREATE INDEX IF NOT EXISTS idx_booking_partials_due ON booking_partials(followup_due_at)
                 WHERE booking_id IS NULL AND followed_up_at IS NULL AND followup_skipped IS NULL;
+            -- The booking page's optional, unticked text-consent checkbox (A2P
+            -- 10DLC, 2026-11-10). NULL = page loaded before the checkbox existed.
+            -- No consent: no unfinished-booking texts; a booking still gets its
+            -- own confirmation + reminders (transactional, number given for that).
+            ALTER TABLE booking_partials ADD COLUMN IF NOT EXISTS sms_consent BOOLEAN;
+            ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sms_consent BOOLEAN;
 
             -- Funnel steps per page visit: view, time, details, submit, booked.
             CREATE TABLE IF NOT EXISTS booking_events (
