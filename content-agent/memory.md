@@ -110,3 +110,9 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   customers from a ~10,000-customer German bank study; Wharton-attributed churn/margin claims
   unverified, not used) — 2026-11-04 — pending approval (draft pushed to
   `content-agent/pending_approvals/blog-2026-11-04.json` on `main`)
+- "Your Cost Per Lead Is Lying to You. Here's the Number That Matters" (slug:
+  your-real-cost-per-lead-ai-follow-up) — pillar: Lead Follow-Up & Automation — topic: rotation #12
+  (cutting cost-per-lead; "in half" claim dropped, no source found — reframed as cost per
+  conversation/client), research cache stale (dated 2026-11-09), own web search (vendor stats
+  unverified, not used; HBR 2011 study of 2,241 firms used) — 2026-11-11 — pending approval (draft
+  pushed to `content-agent/pending_approvals/blog-2026-11-11.json` on `main`)

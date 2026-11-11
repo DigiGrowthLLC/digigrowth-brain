@@ -1,0 +1,52 @@
+{
+  "title": "Your Cost Per Lead Is Lying to You. Here's the Number That Matters",
+  "summary": "Why cost per lead understates what you really pay for a client, and how fast AI follow-up turns already-paid-for leads into conversations.",
+  "payload": {
+    "post": {
+      "slug": "your-real-cost-per-lead-ai-follow-up",
+      "title": "Your Cost Per Lead Is Lying to You. Here's the Number That Matters",
+      "metaDescription": "Your ad dashboard shows cost per lead, but leads nobody answers in time still cost money. How AI follow-up lowers what you really pay for each new client.",
+      "date": "2026-11-11",
+      "thumbnailIcon": "funnel",
+      "intro": [
+        "It's Thursday afternoon and you finally open your ad report. Forty leads this month, $25 each. Not bad. Then you scroll through the list and start counting the names you actually spoke to. Fourteen. A few you called back the next morning and got voicemail. A handful you meant to text and never did. The rest you don't even recognize.",
+        "Your dashboard says those leads cost $25. They didn't. The leads you never reached still got billed, so the real price of each conversation you had was closer to $71. And the price of each new client is higher still.",
+        "The good news is that the fix usually isn't a better ad or a cheaper audience. It's what happens in the first few minutes after someone raises their hand."
+      ],
+      "sections": [
+        {
+          "heading": "The number on your dashboard isn't the number you pay",
+          "paragraphs": [
+            "Cost per lead measures what it takes to get a name and a phone number. It says nothing about whether that person ever hears from you. If you spend $1,000 and get 40 leads, the platform reports $25 per lead whether you talk to all 40 or to 10.",
+            "The number that actually drives your business is cost per conversation, and after that, cost per new client. Divide your spend by the leads you genuinely reached and the picture changes fast. At 40 leads and 10 conversations, you're paying $100 per conversation. Reach 30 of them instead and the same $1,000 buys conversations at about $33 each.",
+            "Nothing about the ad changed in that example. The only thing that moved was follow-up. That's why owners who chase a lower cost per lead by tweaking creative often see no change in revenue: the leak is downstream of the ad."
+          ]
+        },
+        {
+          "heading": "Where the leads actually go",
+          "paragraphs": [
+            "This isn't a small-business-only problem. A Harvard Business Review study of 2,241 U.S. companies that took inquiries online found the average first response took about 42 hours. Only 37% replied within an hour, and 23% never replied at all. Companies that reached out within an hour were roughly seven times more likely to have a meaningful conversation with the lead than those that waited even one more hour.",
+            "Now picture your own week. A lead comes in while you're with a client. Another arrives at 8:45pm. Two more land on Saturday. By the time you sit down to return calls, the person who was ready to book has already filled out a form somewhere else, or simply moved on with their day.",
+            "None of that shows up in your cost per lead. It shows up as the feeling that ads \"don't really work\" for your kind of business."
+          ]
+        },
+        {
+          "heading": "What changes when the first reply happens in seconds",
+          "paragraphs": [
+            "AI follow-up doesn't replace you on the sales call. It covers the gap between the moment someone asks and the moment you're free. Here's what that looks like for you specifically:",
+            "The lead who fills out your form at 9pm gets a text back right away that answers their question and offers times that fit your actual calendar. The lead who doesn't reply gets a second and third touch over the next few days, written in your voice, without you remembering to send them. The lead who isn't a fit gets screened out before they take a slot on your schedule.",
+            "Each of those moves turns a name you paid for into a conversation you'd otherwise have lost. If you want to see how this plays out in a real setup, our [FAQ](/faq) walks through the common questions owners ask first."
+          ]
+        },
+        {
+          "heading": "How to check your own numbers this week",
+          "paragraphs": [
+            "You don't need new software to find out how big your leak is. Pull last month's leads and mark each one: reached within an hour, reached later, or never reached. Then do the math on what you spent per lead in each bucket, and how many of each group became clients.",
+            "Most owners who run this exercise find that the \"never reached\" pile is bigger than they expected, and that the \"reached within an hour\" pile closes at a much higher rate. That gap is your real opportunity. Closing it often does more for your cost per client than any change to your ads.",
+            "Once you see the number, the question shifts from \"how do I get cheaper leads?\" to \"how do I make sure every lead I already pay for gets a fast, useful reply?\" That second question is the one AI is genuinely good at answering."
+          ]
+        }
+      ]
+    }
+  }
+}
