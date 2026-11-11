@@ -199,10 +199,16 @@ async def _stripe(method: str, path: str, data: dict | None = None, account: str
     form: list = []
     if data:
         _flatten("", data, form)
+    # Stripe wants form encoding with repeated/bracketed keys; a list of pairs
+    # passed as `data=` makes httpx treat it as a sync byte stream, which an
+    # AsyncClient refuses. Encode it ourselves.
+    if method == "GET":
+        kwargs = {"params": form}
+    else:
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        kwargs = {"content": urlencode(form)}
     async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.request(method, f"{_STRIPE}{path}", auth=(key, ""), headers=headers,
-                                 data=form if method != "GET" else None,
-                                 params=form if method == "GET" else None)
+        r = await client.request(method, f"{_STRIPE}{path}", auth=(key, ""), headers=headers, **kwargs)
     body = r.json()
     if r.status_code >= 400:
         raise BookingError(f"Stripe: {(body.get('error') or {}).get('message') or r.text}")
