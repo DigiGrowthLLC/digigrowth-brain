@@ -223,6 +223,11 @@ async def stripe_onboarding_link(client_id: int, return_url: str, refresh_url: s
         s = await conn.fetchrow("SELECT stripe_account_id FROM booking_settings WHERE client_id = $1", client_id)
         email = await conn.fetchval("SELECT email FROM clients WHERE id = $1", client_id)
     acct = s["stripe_account_id"] if s else None
+    # An account made with the test key doesn't exist under the live key
+    # (and vice versa): start over instead of failing forever.
+    if acct and not await _stripe_account_exists(acct):
+        await _forget_stripe_account(client_id, acct)
+        acct = None
     if not acct:
         created = await _stripe("POST", "/accounts", {"type": "standard", "email": email or None,
                                                       "metadata": {"digigrowth_client_id": client_id}})
@@ -239,11 +244,36 @@ async def stripe_onboarding_link(client_id: int, return_url: str, refresh_url: s
     return link["url"]
 
 
+async def _stripe_account_exists(acct: str) -> bool:
+    try:
+        await _stripe("GET", f"/accounts/{acct}")
+        return True
+    except BookingError as e:
+        msg = str(e).lower()
+        if "no such account" in msg or "does not have access to account" in msg or "not connected to your platform" in msg:
+            return False
+        raise
+
+
+async def _forget_stripe_account(client_id: int, acct: str) -> None:
+    print(f"[booking] client {client_id}: Stripe account {acct} isn't in this Stripe mode/platform; clearing it")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE booking_settings SET stripe_account_id = NULL, stripe_charges_enabled = false, updated_at = now() "
+            "WHERE client_id = $1 AND stripe_account_id = $2",
+            client_id, acct,
+        )
+
+
 async def stripe_refresh_status(client_id: int) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
         acct = await conn.fetchval("SELECT stripe_account_id FROM booking_settings WHERE client_id = $1", client_id)
     if not acct:
+        return {"connected": False, "charges_enabled": False}
+    if not await _stripe_account_exists(acct):
+        await _forget_stripe_account(client_id, acct)
         return {"connected": False, "charges_enabled": False}
     a = await _stripe("GET", f"/accounts/{acct}")
     enabled = bool(a.get("charges_enabled"))
