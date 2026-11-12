@@ -871,7 +871,7 @@ async def stripe_done():
 
 @router.post("/webhooks/stripe/booking", include_in_schema=False)
 async def stripe_webhook(request: Request):
-    secret = os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET")
+    secret = (os.environ.get("STRIPE_CONNECT_WEBHOOK_SECRET") or "").strip()  # stray whitespace broke every signature check
     body = await request.body()
     if not secret or not be.verify_stripe_signature(body, request.headers.get("stripe-signature", ""), secret):
         return JSONResponse({"error": "bad signature"}, status_code=400)

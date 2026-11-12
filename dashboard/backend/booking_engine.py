@@ -192,7 +192,9 @@ def _flatten(prefix: str, value, out: list):
 
 
 async def _stripe(method: str, path: str, data: dict | None = None, account: str | None = None) -> dict:
-    key = os.environ.get("STRIPE_SECRET_KEY")
+    # .strip(): copying the value across from Doppler in PowerShell added a
+    # trailing space/carriage return (2026-11-12).
+    key = (os.environ.get("STRIPE_SECRET_KEY") or "").strip()
     if not key:
         raise BookingError("Stripe isn't set up yet (STRIPE_SECRET_KEY missing).")
     headers = {"Stripe-Account": account} if account else {}
