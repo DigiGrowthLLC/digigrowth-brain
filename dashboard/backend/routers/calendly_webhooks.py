@@ -341,6 +341,15 @@ async def record_booking(*, name: str | None, email: str | None, phone: str | No
             if not existing and name:
                 existing = await _find_by_name(conn, name, client_id)
                 matched_by_name = existing is not None
+            # Never adopt one of Dylan's own sales prospects (a scraped
+            # business, or anyone his outreach already touched) into a
+            # client's portal: it disappears from his CRM (2026-11-10).
+            # Handled like a phone owned by another client below instead.
+            if existing and existing["client_id"] is None and await conn.fetchval(
+                "SELECT business IS NOT NULL OR auto_handoff_at IS NOT NULL OR is_client_anchor "
+                "FROM contacts WHERE id = $1", existing["id"],
+            ):
+                existing = {"id": existing["id"], "client_id": -1}
             if existing and existing["client_id"] in (None, client_id):
                 contact_id = existing["id"]
                 if existing["client_id"] is None:
@@ -679,16 +688,49 @@ async def _is_client_booking(payload: dict, token: str, event_type_url: str | No
     matches: the client's token is often Dylan's admin token, so the host
     (the client) never equals the token's user, and every real patient
     booking was silently dropped until 2026-10-09 (Crosacore: 5 of 12 ad
-    leads booked, none recorded)."""
+    leads booked, none recorded).
+
+    Never a booking hosted on Dylan's OWN calendar (2026-11-10): Crosacore's
+    token is Dylan's admin token and its configured link stopped resolving,
+    so the host fallback ("host == token's user") matched DYLAN and every
+    one of his own sales bookings was claimed as a Crosacore lead (a cold
+    prospect vanished from his CRM into their portal).
+    A configured link that can't be found anymore no longer falls back to
+    the host check either: nothing can be confirmed as the client's."""
+    host_uri = await _resolve_host_uri(payload, token)
+    dylan_uri = await _dylan_user_uri()
+    if host_uri and dylan_uri and host_uri == dylan_uri:
+        # A client link hosted on Dylan's own calendar (Pinnacle) is still
+        # theirs if it's the exact configured link; anything else isn't.
+        if not event_type_url:
+            return False
     if event_type_url:
         configured_uri = await calendly_integration.get_event_type_uri(token, event_type_url)
         incoming_uri = await _resolve_event_type_uri(payload, token)
         if configured_uri and incoming_uri:
             return incoming_uri == configured_uri
-    host_uri = await _resolve_host_uri(payload, token)
+        if not configured_uri:
+            print(f"[calendly] client link {event_type_url} no longer found on Calendly; "
+                  "ignoring booking instead of guessing by host", flush=True)
+            return False
+        if host_uri and dylan_uri and host_uri == dylan_uri:
+            return False
     if host_uri:
         return host_uri == await calendly_integration.get_user_uri(token)
     return True  # fail open, as before, rather than drop a real booking
+
+
+async def _dylan_user_uri() -> str | None:
+    """Dylan's own Calendly user URI (from his saved token), or None."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            token = await conn.fetchval(
+                "SELECT value FROM dialer_settings WHERE key = 'dylan_calendly_api_token'"
+            )
+        return await calendly_integration.get_user_uri(token) if token else None
+    except Exception:
+        return None
 
 
 async def resync_client_bookings(client_id: int) -> dict:
