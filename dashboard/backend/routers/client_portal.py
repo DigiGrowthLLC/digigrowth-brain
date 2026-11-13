@@ -323,7 +323,10 @@ async def portal_action_items(token: str):
             # once Stripe says they can take payments.
             if not (stripe and stripe["has_paid"]):
                 continue
-            if stripe["stripe_charges_enabled"] and not d["completed_at"]:
+            import booking_engine as be
+            if not await be.stripe_usable_for(client["id"]):
+                d["completed_at"] = None  # a sandbox account (or a hand tick) isn't "connected"
+            elif stripe["stripe_charges_enabled"] and not d["completed_at"]:
                 d["completed_at"] = _dt.now(_tz.utc)
         # "{portal_api}" in a link becomes this client's own portal API path
         # (per-client actions like Connect Stripe).

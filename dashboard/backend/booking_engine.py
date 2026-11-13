@@ -180,6 +180,23 @@ def stripe_configured() -> bool:
     return bool(os.environ.get("STRIPE_SECRET_KEY"))
 
 
+def stripe_test_mode() -> bool:
+    return (os.environ.get("STRIPE_SECRET_KEY") or "").strip().startswith("sk_test_")
+
+
+async def stripe_usable_for(client_id: int) -> bool:
+    """A real clinic never runs on a sandbox key: Pinnacle (2026-11-13) got
+    a "DigiGrowth Booking sandbox" Connect page pre-filled with Dylan's own
+    test account, and its step ticked itself. Test clients (is_test) still can."""
+    if not stripe_configured():
+        return False
+    if not stripe_test_mode():
+        return True
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return bool(await conn.fetchval("SELECT is_test FROM clients WHERE id = $1", client_id))
+
+
 def _flatten(prefix: str, value, out: list):
     if isinstance(value, dict):
         for k, v in value.items():
@@ -220,6 +237,8 @@ async def _stripe(method: str, path: str, data: dict | None = None, account: str
 async def stripe_onboarding_link(client_id: int, return_url: str, refresh_url: str | None = None) -> str:
     """Creates the clinic's Standard connected account on first use, then a
     fresh onboarding link (they're single-use and short-lived)."""
+    if not await stripe_usable_for(client_id):
+        raise BookingError("We're finishing the payment setup on our end. We'll email you as soon as this step is ready.")
     pool = await get_pool()
     async with pool.acquire() as conn:
         s = await conn.fetchrow("SELECT stripe_account_id FROM booking_settings WHERE client_id = $1", client_id)
@@ -530,7 +549,8 @@ async def reserve(client_id: int, event_type_id: int, start_iso: str, name: str,
         raise BookingError("This booking page isn't available.")
     ev, settings = dict(ev), dict(settings)
     paid = ev["price_cents"] > 0
-    if paid and not (settings["stripe_account_id"] and settings["stripe_charges_enabled"] and stripe_configured()):
+    if paid and not (settings["stripe_account_id"] and settings["stripe_charges_enabled"]
+                     and await stripe_usable_for(client_id)):
         raise BookingError("Online payment isn't set up for this clinic yet. Please call the clinic to book.")
 
     await _assert_slot_open(client_id, ev, start)
