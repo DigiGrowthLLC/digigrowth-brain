@@ -111,6 +111,21 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
             );
 
+            -- Pictures Dylan texts to the OS number from his own phone
+            -- (routers/owner_mms.py), e.g. his weekly work schedule for the
+            -- executive-assistant morning planner.
+            CREATE TABLE IF NOT EXISTS owner_mms (
+                id           SERIAL PRIMARY KEY,
+                received_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                from_phone   TEXT NOT NULL,
+                body         TEXT,
+                content_type TEXT,
+                media_url    TEXT,
+                data         BYTEA,
+                processed_at TIMESTAMPTZ,
+                note         TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS todos (
                 id         SERIAL PRIMARY KEY,
                 text       TEXT NOT NULL,
@@ -2481,6 +2496,9 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sms_consent BOOLEAN;
             -- Booked from an excluded IP (Dylan testing): kept out of funnel analytics.
             ALTER TABLE bookings ADD COLUMN IF NOT EXISTS excluded BOOLEAN NOT NULL DEFAULT false;
+            -- First moment a client's ads went live: portal analytics count nothing before it
+            -- (client_funnel.py). Auto-set by meta_ads.py from the first day with spend.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS campaign_launched_at TIMESTAMPTZ;
 
             -- Funnel steps per page visit: view, time, details, submit, booked.
             CREATE TABLE IF NOT EXISTS booking_events (

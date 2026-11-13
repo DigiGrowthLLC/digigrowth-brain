@@ -15,6 +15,7 @@ A client running both gets both; appointments are split by the contact's
 lead_source so the two never double-count.
 
 Accuracy rules:
+  - Nothing counts before the campaign launched (campaign_launched_at).
   - Every stage is scoped to the same period (by when that stage happened).
   - Dylan's own visits/bookings are dropped (tracking_exclusion.py, plus the
     default test phone number).
@@ -28,11 +29,14 @@ Accuracy rules:
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from db import get_pool
+from timezone_lookup import clinic_timezone
 from tracking_exclusion import TEST_PHONE_DIGITS
 
-PERIODS = {"today": ("1 day", 0), "week": ("7 days", 6), "month": ("30 days", 29), "all": (None, None)}
+PERIODS = {"today": ("1 day", 0), "week": ("7 days", 6), "month": ("30 days", 29), "all": (None, None)}  # (lookback, unused)
 
 # DigiGrowth's targets per step: (good at or above, ok at or above), percent.
 TARGETS = {
@@ -64,9 +68,10 @@ def _status(rate, key, base, min_base=MIN_BASE):
 
 
 # Reactivation lists (past patients imported for re-engagement) are not ad
-# funnel traffic: counting them made a clinic with no ads running show 174
-# "leads" and a ~0% lead-to-booking rate.
-_NOT_ACQUISITION = "coalesce({col}, '') <> 'past_patient'"
+# funnel traffic: counting them made Pinnacle, with no ads running, show 174
+# "leads" (its Database Reactivation import) and a ~0% lead-to-booking rate.
+_NOT_ACQUISITION = ("coalesce({col}, '') NOT IN ('past_patient', 'import') "
+                    "AND NOT ('Database Reactivation' = ANY(coalesce({tags}, ARRAY[]::text[])))")
 
 
 def _not_test(phone_col: str) -> str:
@@ -79,15 +84,36 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
         raise ValueError("period must be 'all', 'today', 'week' or 'month'")
     iv, day_offset = PERIODS[period]
 
-    def since(col: str) -> str:
-        return f"AND {col} >= now() - interval '{iv}'" if iv else ""
-
-    stat_since = f"AND stat_date >= current_date - {day_offset}" if day_offset is not None else ""
-
     pool = await get_pool()
     async with pool.acquire() as conn:
         cfg = await conn.fetchrow(
-            "SELECT meta_ad_account_id FROM client_marketing_config WHERE client_id = $1", client_id)
+            "SELECT meta_ad_account_id, campaign_launched_at FROM client_marketing_config WHERE client_id = $1",
+            client_id)
+        tz = ZoneInfo(await clinic_timezone(conn, client_id))
+
+    # Launch gate (Dylan, 2026-11-13): nothing counts before the campaign goes
+    # live, so setup traffic and testing never show up. Before launch every
+    # stage is 0; after it, the period never reaches back past launch.
+    # campaign_launched_at is set by meta_ads.py on the first day with spend,
+    # or by hand in Marketing Setup.
+    launched_at = cfg["campaign_launched_at"] if cfg else None
+    now = datetime.now(timezone.utc)
+    if launched_at is None:
+        start = now + timedelta(days=36500)          # matches nothing
+    else:
+        start = launched_at
+        if iv:
+            start = max(start, now - timedelta(days=int(iv.split()[0])))
+    start_iso = start.isoformat()
+    start_day = start.astimezone(tz).date().isoformat() if launched_at else "9999-12-31"
+    prelaunch = launched_at is None
+
+    def since(col: str) -> str:
+        return f"AND {col} >= '{start_iso}'::timestamptz"
+
+    stat_since = f"AND stat_date >= '{start_day}'::date"
+
+    async with pool.acquire() as conn:
         ad_rows = await conn.fetch(
             f"SELECT spend, impressions, clicks, leads, raw FROM ad_campaign_stats "
             f"WHERE client_id = $1 AND platform = 'meta' {stat_since}", client_id)
@@ -125,7 +151,7 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
             f"""SELECT count(*) AS total,
                        count(*) FILTER (WHERE lead_source = 'meta_form') AS form
                 FROM contacts WHERE client_id = $1 AND NOT is_client_anchor AND {_not_test('phone')}
-                  AND {_NOT_ACQUISITION.format(col='lead_source')}
+                  AND {_NOT_ACQUISITION.format(col='lead_source', tags='tags')}
                 {since('created_at')}""", client_id)
         # Form leads (from this period) who texted the clinic back, ever.
         replied = await conn.fetchval(
@@ -151,7 +177,7 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
                 FROM appointment_reminders ar
                 JOIN contacts c ON c.id = ar.contact_id
                 WHERE c.client_id = $1 AND NOT c.is_client_anchor AND {_not_test('c.phone')}
-                  AND {_NOT_ACQUISITION.format(col='c.lead_source')}
+                  AND {_NOT_ACQUISITION.format(col='c.lead_source', tags='c.tags')}
                   AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.appointment_id = ar.id AND b.excluded)
                   {since('ar.created_at')}
                 GROUP BY 1""", client_id)
@@ -172,7 +198,7 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
         acts = {a.get("action_type"): int(float(a.get("value", 0))) for a in (raw.get("actions") or [])}
         meta_form_leads += acts.get("onsite_conversion.lead_grouped", 0) or acts.get("leadgen.other", 0)
         meta_lpv += acts.get("landing_page_view", 0)
-    meta_connected = bool(cfg and cfg["meta_ad_account_id"]) and last_sync is not None
+    meta_connected = (bool(cfg and cfg["meta_ad_account_id"]) and last_sync is not None) or prelaunch
     meta_leads_total = sum(int(r["leads"] or 0) for r in ad_rows)
 
     funnel_views = site_views or lp_views
@@ -233,7 +259,8 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
 
     # ---- Instant Form path
     a_form = appts[True] or empty
-    if leads["form"] or meta_form_leads or a_form["booked"]:
+    has_page = bool(site_ids or lp_slugs or booking_on)
+    if leads["form"] or meta_form_leads or a_form["booked"] or (prelaunch and not has_page):
         st = ad_stages("leads")
         lead_rate = _pct(leads["form"], link_clicks) if meta_connected else None
         st.append({"key": "leads", "label": "Leads (form submitted)", "source": "funnel", "value": leads["form"],
@@ -248,12 +275,11 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
 
     # ---- Funnel page path
     a_page = appts[False] or empty
-    has_page = bool(site_ids or lp_slugs or booking_on)
     if funnel_views or steps or a_page["booked"] or (has_page and not paths):
         st = ad_stages("page")
         fv_rate = _pct(funnel_views, link_clicks) if meta_connected else None
         st.append({"key": "funnel_visits", "label": "Funnel page visits", "source": "funnel", "value": funnel_views,
-                   "available": bool(site_ids or lp_slugs), "rate": fv_rate,
+                   "available": bool(site_ids or lp_slugs) or prelaunch, "rate": fv_rate,
                    "status": _status(fv_rate, "funnel_visits", link_clicks)})
         prev_key_val = funnel_views
         if booking_on:
@@ -333,6 +359,9 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
 
     return {
         "period": period,
+        "launched": not prelaunch,
+        "launched_at": launched_at.isoformat() if launched_at else None,
+        "counting_from": None if prelaunch else start_iso,
         "meta": {"connected": meta_connected, "account_set": bool(cfg and cfg["meta_ad_account_id"]),
                  "last_sync": last_sync.isoformat() if last_sync else None,
                  "landing_page_views": meta_lpv if meta_connected else None},

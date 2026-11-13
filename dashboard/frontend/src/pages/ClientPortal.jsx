@@ -1610,112 +1610,107 @@ function DashboardTab({ token, contactName }) {
   );
 }
 
-// ── Analytics tab — full-funnel breakdown from Meta impressions down to new
-// patients (GET /portal-api/{token}/funnel → backend client_funnel.py).
-// Every stage is a real count for the selected period; a stage with no data
-// source yet (Meta access pending, no DigiGrowth Booking page) is shown as
-// "not connected", never a fake 0. Step colors compare each step's
-// conversion to DigiGrowth's targets (returned by the API, so they live in
-// one place). Dylan's own visits/test bookings are excluded server-side
-// (tracking_exclusion.py).
-const FUNNEL_STATUS = {
-  good:     { color: "#14c882", label: "On target" },
-  ok:       { color: "#f0b429", label: "Close to target" },
-  poor:     { color: "#e05c5c", label: "Below target" },
-  low_data: { color: "#5a7aa0", label: "Not enough data yet" },
+// ── Analytics tab — the patient journey from ad to new patient
+// (GET /portal-api/{token}/funnel → backend client_funnel.py). Real counts
+// only; everything reads 0 until the campaign launches, then counts from
+// launch day. Dylan's own visits are excluded server-side
+// (tracking_exclusion.py). Step colors compare each step to the targets the
+// API returns, so the targets live in one place.
+const STEP_TONE = {
+  good: { color: "#14c882", label: "On target" },
+  ok:   { color: "#f0b429", label: "Close" },
+  poor: { color: "#e05c5c", label: "Below target" },
 };
-const FUNNEL_SOURCE = {
-  meta:     { label: "META ADS", color: "#6ab0ff" },
-  funnel:   { label: "FUNNEL",   color: "#5ad1c8" },
-  booking:  { label: "BOOKING",  color: "#a78bfa" },
-  outcomes: { label: "VISITS",   color: "#14c882" },
+// Plain-English line under each step name.
+const STEP_HELP = {
+  impressions:     "Times your ad was shown",
+  link_clicks:     "Clicked the ad",
+  leads:           "Filled out the ad's form",
+  replied:         "Texted back",
+  funnel_visits:   "Landed on your page",
+  booking_views:   "Opened the booking page",
+  booking_started: "Entered their name and number",
+  checkout:        "Reached the payment step",
+  booked:          "Booked a visit",
+  showed:          "Came to their visit",
+  patient:         "Started care with you",
 };
 
 const fmtNum = (n) => (n == null ? "—" : Number(n).toLocaleString());
-const fmtMoney = (n) => (n == null ? "—" : `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: n < 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
+const fmtMoney = (n) => (n == null ? "—" : `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: n > 0 && n < 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
 const fmtPct = (n) => (n == null ? "—" : `${n}%`);
+const fmtDay = (iso) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
 
-function AnalyticsStat({ label, value, sublabel, iconKey }) {
+function KpiCard({ label, value, hint, big }) {
   return (
-    <div className="stat-card">
-      <div>
-        <div className="stat-card-label">{label}</div>
-        <div className="stat-card-value">{value ?? "—"}</div>
-        {sublabel && <div className="stat-card-delta" style={{ color: "#6ab0ff" }}>{sublabel}</div>}
+    <div className="glass-card-sm" style={{ padding: big ? "18px 20px" : "14px 16px" }}>
+      <div style={{ fontSize: 12, color: "#7a92b8", fontWeight: 500 }}>{label}</div>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: big ? 30 : 22, fontWeight: 700, color: "#f0f4ff", marginTop: 4, letterSpacing: "-0.02em" }}>
+        {value}
       </div>
-      <div className="stat-card-icon">{DASH_ICONS[iconKey]}</div>
+      {hint && <div style={{ fontSize: 11.5, color: "#5a7aa0", marginTop: 2 }}>{hint}</div>}
     </div>
   );
 }
 
-// Bar width on a log scale: impressions are often 1000x bookings, so a
-// linear bar would make every lower stage invisible. The real number is
-// always printed next to it.
-function barWidth(value, top) {
-  if (!value || !top) return 0;
-  const w = (Math.log10(value + 1) / Math.log10(top + 1)) * 100;
-  return Math.max(4, Math.min(100, w));
+// Bar width on a log scale (impressions are often 1000x bookings, so a
+// linear bar would hide every lower step). The exact number sits beside it.
+function stepWidth(value, top) {
+  if (!value || !top) return 3;
+  return Math.max(6, Math.min(100, (Math.log10(value + 1) / Math.log10(top + 1)) * 100));
 }
 
-function FunnelStep({ stage, top }) {
-  const src = FUNNEL_SOURCE[stage.source] || FUNNEL_SOURCE.funnel;
+function JourneyRow({ stage, index, top, first }) {
   const off = !stage.available;
+  const tone = STEP_TONE[stage.status];
+  const tip = stage.target ? `Target: ${stage.target.good}% or better` : undefined;
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(150px, 220px) 1fr", gap: 14, alignItems: "center" }}>
-      <div>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: off ? "#5a7aa0" : "#f0f4ff" }}>
-          {stage.label}
+    <div style={{ padding: "12px 0", borderTop: first ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        {/* Step name */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 200px", minWidth: 0 }}>
+          <div style={{
+            width: 26, height: 26, borderRadius: 13, flexShrink: 0, display: "grid", placeItems: "center",
+            background: "rgba(58,123,213,0.15)", color: "#6ab0ff", fontSize: 12, fontWeight: 700,
+          }}>{index + 1}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: off ? "#5a7aa0" : "#f0f4ff" }}>{stage.label}</div>
+            <div style={{ fontSize: 11.5, color: "#5a7aa0" }}>
+              {off ? "Waiting on ad account access" : STEP_HELP[stage.key] || ""}
+            </div>
+          </div>
         </div>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: src.color, letterSpacing: "0.08em", marginTop: 2 }}>
-          {src.label}
+
+        {/* Bar + count */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "2 1 220px", minWidth: 0 }}>
+          <div style={{ flex: 1, height: 10, borderRadius: 5, background: "rgba(255,255,255,0.05)", overflow: "hidden" }}>
+            {!off && <div style={{ width: `${stepWidth(stage.value, top)}%`, height: "100%", borderRadius: 5, background: "#3a7bd5" }} />}
+          </div>
+          <div style={{ width: 80, textAlign: "right", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 700, color: off ? "#3a5a80" : "#f0f4ff" }}>
+            {off ? "—" : fmtNum(stage.value)}
+          </div>
         </div>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-        <div style={{ flex: 1, height: 26, background: "rgba(255,255,255,0.04)", borderRadius: 6, overflow: "hidden", minWidth: 40 }}>
-          {!off && (
-            <div style={{
-              width: `${barWidth(stage.value, top)}%`, height: "100%", borderRadius: 6,
-              background: `linear-gradient(90deg, ${src.color}cc, ${src.color}55)`,
-            }} />
+
+        {/* Conversion from the step before */}
+        <div style={{ width: 128, textAlign: "right" }} title={tip}>
+          {first || off || stage.rate == null ? (
+            <span style={{ fontSize: 12, color: "#3a5a80" }}>{first ? "" : "—"}</span>
+          ) : (
+            <>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: tone ? tone.color : "#a8b8d8" }}>
+                {tone && <span style={{ width: 7, height: 7, borderRadius: 4, background: tone.color }} />}
+                {fmtPct(stage.rate)}
+              </div>
+              <div style={{ fontSize: 11, color: "#5a7aa0" }}>
+                {stage.rate_basis === "click-through rate" ? "click rate" : "of previous step"}
+              </div>
+            </>
           )}
         </div>
-        <div style={{ minWidth: 86, textAlign: "right", fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: off ? "#3a5a80" : "#f0f4ff" }}>
-          {off ? "—" : fmtNum(stage.value)}
-        </div>
       </div>
-      {(off || stage.note) && (
-        <div style={{ gridColumn: "2", marginTop: -8, fontSize: 11.5, color: "#5a7aa0" }}>
-          {off ? (stage.source === "meta" ? "Waiting on Meta ad account access." : "Not set up for this practice.") : stage.note}
-        </div>
+      {stage.note && !off && (
+        <div style={{ fontSize: 11.5, color: "#7a92b8", margin: "6px 0 0 38px" }}>{stage.note}</div>
       )}
-    </div>
-  );
-}
-
-// The connector between two stages: how many moved on, how many dropped,
-// colored against the step's target.
-function FunnelConnector({ stage }) {
-  if (!stage.available || stage.rate == null) {
-    return <div style={{ height: 10, marginLeft: 24, borderLeft: "2px dashed rgba(90,122,160,0.25)" }} />;
-  }
-  const st = FUNNEL_STATUS[stage.status] || FUNNEL_STATUS.low_data;
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "2px 0 2px 16px", flexWrap: "wrap" }}>
-      <div style={{ width: 2, height: 22, background: st.color, opacity: 0.6, marginRight: 4 }} />
-      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: st.color, fontWeight: 700 }}>
-        ↓ {fmtPct(stage.rate)}
-      </span>
-      <span style={{ fontSize: 11.5, color: "#7a92b8" }}>
-        {stage.rate_basis || "moved on"}
-        {stage.drop_off ? ` · ${fmtNum(stage.drop_off)} dropped off` : ""}
-        {stage.target ? ` · target ${stage.target.good}%` : ""}
-      </span>
-      <span style={{
-        fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: st.color,
-        border: `1px solid ${st.color}55`, borderRadius: 4, padding: "1px 6px",
-      }}>
-        {st.label.toUpperCase()}
-      </span>
     </div>
   );
 }
@@ -1726,11 +1721,8 @@ function AnalyticsTab({ token }) {
   const [err, setErr] = useState("");
   const [period, setPeriod] = useState("month");
   const [pathKey, setPathKey] = useState(null);
-  const [syncingMeta, setSyncingMeta] = useState(false);
-  const [metaSyncMsg, setMetaSyncMsg] = useState("");
-  const [metaSyncErr, setMetaSyncErr] = useState("");
 
-  const load = () => {
+  useEffect(() => {
     setLoading(true);
     setErr("");
     fetch(`/portal-api/${token}/funnel?period=${period}`)
@@ -1741,28 +1733,7 @@ function AnalyticsTab({ token }) {
       })
       .then((d) => { setData(d); setLoading(false); })
       .catch((e) => { setErr(e.message); setLoading(false); });
-  };
-
-  useEffect(load, [token, period]);
-
-  // Manual Meta pull — gated server-side to the is_test client (403s
-  // harmlessly for a real client; see portal_sync_meta_ads).
-  const syncMetaAdsNow = async () => {
-    setSyncingMeta(true);
-    setMetaSyncMsg("");
-    setMetaSyncErr("");
-    try {
-      const r = await fetch(`/portal-api/${token}/sync-meta-ads`, { method: "POST" });
-      const d = await r.json().catch(() => null);
-      if (!r.ok) throw new Error(d?.detail || "Failed to sync Meta ads");
-      setMetaSyncMsg(`Synced ${d.days_synced} day(s).`);
-      load();
-    } catch (e) {
-      setMetaSyncErr(e.message);
-    } finally {
-      setSyncingMeta(false);
-    }
-  };
+  }, [token, period]);
 
   if (loading && !data) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (err && !data) return <div className="glass-card" style={{ padding: 24, color: "#e05c5c", fontSize: 13 }}>{err}</div>;
@@ -1772,100 +1743,107 @@ function AnalyticsTab({ token }) {
   const path = paths.find((p) => p.key === pathKey) || paths[0];
   const k = data.kpis;
   const leak = data.biggest_leak;
-  const top = path ? Math.max(...path.stages.filter((s) => s.available).map((s) => s.value || 0), 0) : 0;
+  const top = path ? Math.max(0, ...path.stages.filter((s) => s.available).map((s) => s.value || 0)) : 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
             Analytics
           </div>
-          <div style={{ fontSize: 12.5, color: "#5a7aa0", marginTop: 4 }}>
-            Every step from ad to new patient: how many people reach each stage, and where they drop off.
+          <div style={{ fontSize: 13, color: "#7a92b8", marginTop: 4 }}>
+            {data.launched
+              ? `Campaign live since ${fmtDay(data.launched_at)}`
+              : "Your campaign isn't live yet"}
           </div>
         </div>
         <PeriodToggle days={period} setDays={setPeriod} options={PORTAL_PERIOD_OPTIONS} />
       </div>
 
-      {leak && (
-        <div className="glass-card-sm" style={{ padding: "12px 16px", borderLeft: "3px solid #f0b429", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#f0b429", letterSpacing: "0.08em" }}>BIGGEST OPPORTUNITY</span>
-          <span style={{ fontSize: 13, color: "#d8e2f5" }}>
-            <b>{leak.label}</b> converts at {leak.rate}% vs. a {leak.target}% target.
-          </span>
+      {!data.launched && (
+        <div className="glass-card-sm" style={{ padding: "14px 18px", borderLeft: "3px solid #3a7bd5", fontSize: 13, color: "#c8d6ee", lineHeight: 1.5 }}>
+          Everything below starts counting the day your ads go live. Until then it stays at 0.
         </div>
       )}
 
-      {/* Funnel */}
-      <div className="glass-card" style={{ padding: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-          <SectionHeading>Conversion Funnel</SectionHeading>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            {paths.length > 1 && paths.map((p) => (
-              <button
-                key={p.key}
-                className={`btn ${p.key === path.key ? "btn-primary" : "btn-secondary"}`}
-                style={{ fontSize: 10, padding: "4px 10px" }}
-                onClick={() => setPathKey(p.key)}
-              >
-                {p.label.toUpperCase()}
-              </button>
-            ))}
-            <button className="btn btn-secondary" style={{ fontSize: 10, padding: "4px 10px" }} onClick={syncMetaAdsNow} disabled={syncingMeta}>
-              {syncingMeta ? "SYNCING…" : "SYNC META"}
-            </button>
+      {/* Headline numbers */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
+        <KpiCard big label="New patients" value={fmtNum(k.patients)} hint={`${fmtNum(k.shows)} came to their visit`} />
+        <KpiCard big label="Visits booked" value={fmtNum(k.booked)} hint={`from ${fmtNum(k.leads)} leads`} />
+        <KpiCard big label="Cost per booking" value={fmtMoney(k.cost_per_booking)} hint="ad spend ÷ visits booked" />
+        <KpiCard big label="Ad spend" value={fmtMoney(k.spend)} hint={data.meta.connected ? "this period" : "waiting on ad account access"} />
+      </div>
+
+      {/* Patient journey */}
+      <div className="glass-card" style={{ padding: "18px 22px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>Patient journey</div>
+            <div style={{ fontSize: 12.5, color: "#7a92b8", marginTop: 2 }}>
+              How many people reach each step, and what share moves on to the next.
+            </div>
           </div>
+          {paths.length > 1 && (
+            <div style={{ display: "flex", gap: 6 }}>
+              {paths.map((p) => (
+                <button key={p.key} className={`btn ${p.key === path.key ? "btn-primary" : "btn-secondary"}`}
+                  style={{ fontSize: 11, padding: "5px 12px" }} onClick={() => setPathKey(p.key)}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        {(metaSyncMsg || metaSyncErr) && (
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, marginBottom: 10, color: metaSyncErr ? "#e05c5c" : "#4ade80" }}>
-            {metaSyncErr || metaSyncMsg}
+
+        {leak && data.launched && (
+          <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(240,180,41,0.08)", fontSize: 13, color: "#e8d9b0" }}>
+            <b style={{ color: "#f0b429" }}>Biggest opportunity:</b> {leak.label.toLowerCase()} is at {leak.rate}% (target {leak.target}%).
           </div>
         )}
+
         {!path ? (
           <div style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
-            No campaign activity yet. Once your ads start running, every step will show here.
+            Nothing to show yet.
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {path.stages.map((s, i) => (
-              <React.Fragment key={s.key}>
-                {i > 0 && <FunnelConnector stage={s} />}
-                <FunnelStep stage={s} top={top} />
-              </React.Fragment>
-            ))}
+          <div style={{ marginTop: 10 }}>
+            {path.stages.map((s, i) => <JourneyRow key={s.key} stage={s} index={i} top={top} first={i === 0} />)}
           </div>
         )}
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          {Object.entries(FUNNEL_STATUS).map(([key, st]) => (
-            <span key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#7a92b8" }}>
-              <span style={{ width: 8, height: 8, borderRadius: 4, background: st.color }} />{st.label}
+
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: 11.5, color: "#7a92b8" }}>
+          {Object.values(STEP_TONE).map((t) => (
+            <span key={t.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 7, height: 7, borderRadius: 4, background: t.color }} />{t.label}
             </span>
           ))}
-          {!data.meta.connected && (
-            <span style={{ fontSize: 11, color: "#5a7aa0" }}>
-              · Ad stats appear once Meta ad account access is connected.
-            </span>
-          )}
+          <span>No dot = not enough data yet</span>
         </div>
       </div>
 
-      {/* Cost KPIs */}
-      <div>
-        <SectionHeading>Cost & Efficiency</SectionHeading>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16 }}>
-          <AnalyticsStat label="Ad Spend" value={fmtMoney(k.spend)} iconKey="upcoming" />
-          <AnalyticsStat label="Cost per 1,000 Views" value={fmtMoney(k.cpm)} sublabel="CPM" iconKey="rate" />
-          <AnalyticsStat label="Click-Through Rate" value={fmtPct(k.ctr)} sublabel="LINK CLICKS / IMPRESSIONS" iconKey="rate" />
-          <AnalyticsStat label="Cost per Click" value={fmtMoney(k.cpc)} iconKey="rate" />
-          <AnalyticsStat label="Cost per Lead" value={fmtMoney(k.cost_per_lead)} sublabel={`${fmtNum(k.leads)} LEADS`} iconKey="leads" />
-          <AnalyticsStat label="Cost per Booking" value={fmtMoney(k.cost_per_booking)} sublabel={`${fmtNum(k.booked)} BOOKED`} iconKey="appointments" />
-          <AnalyticsStat label="Cost per Show" value={fmtMoney(k.cost_per_show)} sublabel={`${fmtNum(k.shows)} SHOWED`} iconKey="appointments" />
-          <AnalyticsStat label="Cost per New Patient" value={fmtMoney(k.cost_per_patient)} sublabel={`${fmtNum(k.patients)} PATIENTS`} iconKey="rate" />
-          <AnalyticsStat label="Lead → Booking Rate" value={fmtPct(k.lead_to_booking)} iconKey="rate" />
-          {k.prepaid_revenue != null && (
-            <AnalyticsStat label="Prepaid Visit Revenue" value={fmtMoney(k.prepaid_revenue)} sublabel={`${fmtNum(k.prepaid_count)} PAID BOOKINGS`} iconKey="upcoming" />
-          )}
+      {/* Costs + ad performance */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
+        <div className="glass-card" style={{ padding: "18px 22px" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 12 }}>What each result costs</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <KpiCard label="Per lead" value={fmtMoney(k.cost_per_lead)} />
+            <KpiCard label="Per booked visit" value={fmtMoney(k.cost_per_booking)} />
+            <KpiCard label="Per visit attended" value={fmtMoney(k.cost_per_show)} />
+            <KpiCard label="Per new patient" value={fmtMoney(k.cost_per_patient)} />
+          </div>
+        </div>
+        <div className="glass-card" style={{ padding: "18px 22px" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 12 }}>Ad performance</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <KpiCard label="Times shown" value={fmtNum(k.impressions)} hint={k.cpm != null ? `${fmtMoney(k.cpm)} per 1,000` : null} />
+            <KpiCard label="Click rate" value={fmtPct(k.ctr)} hint={k.link_clicks != null ? `${fmtNum(k.link_clicks)} clicks` : null} />
+            <KpiCard label="Cost per click" value={fmtMoney(k.cpc)} />
+            {k.prepaid_revenue != null
+              ? <KpiCard label="Prepaid visits collected" value={fmtMoney(k.prepaid_revenue)} hint={`${fmtNum(k.prepaid_count)} paid bookings`} />
+              : <KpiCard label="Leads" value={fmtNum(k.leads)} />}
+          </div>
         </div>
       </div>
     </div>

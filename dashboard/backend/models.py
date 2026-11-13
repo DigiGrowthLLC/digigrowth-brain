@@ -235,6 +235,7 @@ class ClientMarketingConfigUpdate(BaseModel):
     call_forward_number: Optional[str] = None
     ad_creative_status: Optional[dict] = None
     guide_progress: Optional[dict] = None
+    campaign_launched_at: Optional[datetime] = None
 
 
 class ClientSmsSequenceUpdate(BaseModel):

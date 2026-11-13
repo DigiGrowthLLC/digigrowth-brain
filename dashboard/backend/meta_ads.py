@@ -133,7 +133,30 @@ async def _upsert_days(conn, client_id: int, days: list[dict]) -> int:
             upserted += 1
         except Exception as e:
             print(f"[meta_ads] failed to upsert day {day.get('date_start')} for client={client_id}: {e}")
+    await _mark_launch(conn, client_id)
     return upserted
+
+
+async def _mark_launch(conn, client_id: int) -> None:
+    """First day with ad spend = campaign launch: the portal's analytics
+    (client_funnel.py) start counting from midnight that day, clinic time.
+    Only ever fills an empty value, so a launch date set by hand wins."""
+    try:
+        first = await conn.fetchval(
+            "SELECT min(stat_date) FROM ad_campaign_stats WHERE client_id = $1 AND platform = 'meta' AND spend > 0",
+            client_id,
+        )
+        if not first:
+            return
+        from timezone_lookup import clinic_timezone
+        tz = await clinic_timezone(conn, client_id)
+        await conn.execute(
+            "UPDATE client_marketing_config SET campaign_launched_at = ($2::date)::timestamp AT TIME ZONE $3 "
+            "WHERE client_id = $1 AND campaign_launched_at IS NULL",
+            client_id, first, tz,
+        )
+    except Exception as e:
+        print(f"[meta_ads] launch mark failed for client={client_id}: {e}")
 
 
 async def sync_meta_ad_stats() -> None:
