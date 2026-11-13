@@ -1656,7 +1656,7 @@ function KpiCard({ label, value, hint, big }) {
 // Bar width on a log scale (impressions are often 1000x bookings, so a
 // linear bar would hide every lower step). The exact number sits beside it.
 function stepWidth(value, top) {
-  if (!value || !top) return 3;
+  if (!value || !top) return 0;
   return Math.max(6, Math.min(100, (Math.log10(value + 1) / Math.log10(top + 1)) * 100));
 }
 
@@ -1684,18 +1684,16 @@ function JourneyRow({ stage, index, top, first }) {
         {/* Bar + count */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "2 1 220px", minWidth: 0 }}>
           <div style={{ flex: 1, height: 10, borderRadius: 5, background: "rgba(255,255,255,0.05)", overflow: "hidden" }}>
-            {!off && <div style={{ width: `${stepWidth(stage.value, top)}%`, height: "100%", borderRadius: 5, background: "#3a7bd5" }} />}
+            {!off && stage.value > 0 && <div style={{ width: `${stepWidth(stage.value, top)}%`, height: "100%", borderRadius: 5, background: "#3a7bd5" }} />}
           </div>
           <div style={{ width: 80, textAlign: "right", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 700, color: off ? "#3a5a80" : "#f0f4ff" }}>
             {off ? "—" : fmtNum(stage.value)}
           </div>
         </div>
 
-        {/* Conversion from the step before */}
-        <div style={{ width: 128, textAlign: "right" }} title={tip}>
-          {first || off || stage.rate == null ? (
-            <span style={{ fontSize: 12, color: "#3a5a80" }}>{first ? "" : "—"}</span>
-          ) : (
+        {/* Conversion from the step before (left out until there is one) */}
+        {!first && !off && stage.rate != null && (
+        <div style={{ width: 128, marginLeft: "auto", textAlign: "right" }} title={tip}>
             <>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: tone ? tone.color : "#a8b8d8" }}>
                 {tone && <span style={{ width: 7, height: 7, borderRadius: 4, background: tone.color }} />}
@@ -1705,8 +1703,8 @@ function JourneyRow({ stage, index, top, first }) {
                 {stage.rate_basis === "click-through rate" ? "click rate" : "of previous step"}
               </div>
             </>
-          )}
         </div>
+        )}
       </div>
       {stage.note && !off && (
         <div style={{ fontSize: 11.5, color: "#7a92b8", margin: "6px 0 0 38px" }}>{stage.note}</div>
@@ -1769,7 +1767,7 @@ function AnalyticsTab({ token }) {
       )}
 
       {/* Headline numbers */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
         <KpiCard big label="New patients" value={fmtNum(k.patients)} hint={`${fmtNum(k.shows)} came to their visit`} />
         <KpiCard big label="Visits booked" value={fmtNum(k.booked)} hint={`from ${fmtNum(k.leads)} leads`} />
         <KpiCard big label="Cost per booking" value={fmtMoney(k.cost_per_booking)} hint="ad spend ÷ visits booked" />

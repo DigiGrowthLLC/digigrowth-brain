@@ -289,8 +289,7 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
                        "rate": r1, "status": _status(r1, "booking_views", funnel_views)})
             r2 = _pct(bs, bv)
             st.append({"key": "booking_started", "label": "Started booking", "source": "booking", "value": bs,
-                       "rate": r2, "status": _status(r2, "booking_started", bv),
-                       "note": "typed their name + mobile"})
+                       "rate": r2, "status": _status(r2, "booking_started", bv)})
             prev_key_val = bs
             if paid_offer:
                 r3 = _pct(sub, bs)
