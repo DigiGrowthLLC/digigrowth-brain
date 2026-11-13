@@ -20,6 +20,7 @@ Accuracy rules:
     default test phone number).
   - Show/close rates divide by appointments with an outcome recorded, so an
     appointment that hasn't happened yet never reads as a no-show.
+  - Past patients (reactivation lists) are left out: they aren't ad traffic.
   - A stage with no data source for this client (no Meta access yet, no
     DigiGrowth Booking page) is flagged `available: false`, never a fake 0.
 """
@@ -60,6 +61,12 @@ def _status(rate, key, base, min_base=MIN_BASE):
         return "low_data"
     good, ok = TARGETS[key]
     return "good" if rate >= good else "ok" if rate >= ok else "poor"
+
+
+# Reactivation lists (past patients imported for re-engagement) are not ad
+# funnel traffic: counting them made a clinic with no ads running show 174
+# "leads" and a ~0% lead-to-booking rate.
+_NOT_ACQUISITION = "coalesce({col}, '') <> 'past_patient'"
 
 
 def _not_test(phone_col: str) -> str:
@@ -118,6 +125,7 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
             f"""SELECT count(*) AS total,
                        count(*) FILTER (WHERE lead_source = 'meta_form') AS form
                 FROM contacts WHERE client_id = $1 AND NOT is_client_anchor AND {_not_test('phone')}
+                  AND {_NOT_ACQUISITION.format(col='lead_source')}
                 {since('created_at')}""", client_id)
         # Form leads (from this period) who texted the clinic back, ever.
         replied = await conn.fetchval(
@@ -143,6 +151,7 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
                 FROM appointment_reminders ar
                 JOIN contacts c ON c.id = ar.contact_id
                 WHERE c.client_id = $1 AND NOT c.is_client_anchor AND {_not_test('c.phone')}
+                  AND {_NOT_ACQUISITION.format(col='c.lead_source')}
                   AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.appointment_id = ar.id AND b.excluded)
                   {since('ar.created_at')}
                 GROUP BY 1""", client_id)
