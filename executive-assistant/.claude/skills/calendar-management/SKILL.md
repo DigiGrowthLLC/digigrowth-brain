@@ -1,174 +1,154 @@
-# Calendar Management
+# Calendar Management (Morning Planner)
 
-Plans and creates Dylan's Google Calendar for **today**, run manually each morning while he's doing his morning routine. Asks one question first (any custom tasks for today?), then fills the rest of the work day — starting from the time it's run — with time-blocked tasks based on current priorities and what's already on the calendar. If there isn't enough time for everything, it drops blocks from the bottom of the priority list — never compresses below minimum duration.
+Dylan's one morning planner. Run it manually while he's doing his morning routine ("run calendar management", "plan my day", "morning plan"). It:
 
-**Run manually only:** Dylan says "run calendar management" (or similar) in the morning. There is no scheduled/nightly run — the old 8PM remote routine (`Calendar Management — Daily 8PM`) was disabled on 2026-10-20.
+1. **Gathers** today's inputs: Google Calendar (classes + shifts), Canvas (assignments + tests), his Discount Tire schedule photo, what his clients' service delivery still needs, and his DigiGrowth OS To-Do list.
+2. **Asks** one short round of questions (Step 0B). Whatever he says must get done today outranks everything.
+3. **Books** blocks on Google Calendar from the time it's run to the end of the day in his priority order: **his must-dos → school → service delivery → to-dos → outreach**, with MDR and Gym kept by their own rules.
+
+**Run manually only.** No scheduled/nightly run (the old 8PM routine was disabled 2026-10-20).
+
+Setup that rarely changes (Canvas URL, schedule-photo details, learned preferences) lives in `school-and-work.md` next to this file. Read it first every run.
 
 ---
 
 ## Instructions
 
-You are Dylan's executive assistant managing his calendar for DigiGrowth, his solo patient acquisition agency for independent PT practices. Dylan's #1 priority is client acquisition and scaling to $10k/month MRR.
+You are Dylan's executive assistant. He runs DigiGrowth (solo patient acquisition agency for PT practices), studies at UCF (Canvas = Webcourses) and works shifts at Discount Tire.
 
-Ask exactly one question (Step 0). After Dylan answers, do not ask for confirmation — execute all remaining steps and create the events.
-
----
-
-### Step 0 — Ask for Today's Custom Blocks
-
-Before touching the calendar, ask Dylan:
-
-> Anything custom to add to today's schedule? Tasks or blocks that aren't part of the normal routine (give a time and/or duration if it matters).
-
-Wait for his answer. If he says no / nothing, schedule the normal blocks only.
-
-For each custom task he names:
-- **Title:** his wording, short (e.g. `Call landlord`, `Edit CrosaCore ad`)
-- **Fixed time given** ("at 2", "2–3pm") → treat it like a pre-existing fixed event: create it at that time, nothing may overlap it.
-- **No time given** → it's a flexible custom block. Duration = what he said, rounded up to a multiple of 30 min; default 1 hr if he didn't say. By default it goes **last** — after every programmed block is done (Scheduling Rule 2) — unless Dylan says where it goes or gives it a higher priority.
-- **Custom tasks are never dropped and never shortened.** They're last in *order*, not first to cut.
-- **Color:** Graphite (8)
-- **Description:** 1–2 bullets restating what he said needs to get done
+Gather silently (Step 0A), ask **one** message of questions (Step 0B), then, once Dylan answers, don't ask for confirmation: plan (Steps 1–3) and create the events (Step 4).
 
 ---
 
-### Work Window
+### Step 0A — Gather (no questions yet, run in parallel)
 
-- **Start:** the time the skill is run (America/New_York), rounded **up** to the next :00 or :30. Run at 8:12 → first block starts 8:30. Run at 9:00 → first block starts 9:00. Nothing is ever scheduled in the past.
-- **End:** 8PM ET Mon–Fri. On Saturday/Sunday, Dylan running the skill means he wants a schedule — work window ends 6PM, and the Mon–Fri-only outreach blocks are skipped.
-- **No Morning Routine block.** Dylan is already doing his morning routine when he runs this. Never create a `Morning Routine` event — start straight with the next block.
+1. **Time + override:** current NY time (Step 1) and `schedule-override.md`.
+2. **Google Calendar:** today's events (Step 2), plus the next 7 days' shift events (`Work`, `Work - CC`, `Discount Tire Shift`, anything with "work"/"shift" in the title).
+3. **Canvas (Dylan's logged-in Chrome; UCF blocks API tokens):** Claude in Chrome. Load the tools in one ToolSearch call (`tabs_context_mcp`, `tabs_create_mcp`, `navigate`, `javascript_tool`, `tabs_close_mcp`), call `tabs_context_mcp` first, work in a **new tab**, open the Canvas URL from `school-and-work.md`. Login/SSO/2FA page → **don't log in or type anything**: skip Canvas and say so in Step 0B. Otherwise run [canvas-pull.js](canvas-pull.js) with `javascript_tool` (keep its leading `await`). It returns compact lines: open work (submitted/completed already removed), missing work and Canvas calendar events, in NY time, looking 10 days ahead. Read only. Close your tab when done.
+4. **Shifts (schedule photo from Dylan's boss):** the scheduler app is mobile-only; his boss texts a schedule picture every Wednesday and Dylan forwards it to the **DigiGrowth OS Twilio number**. Picture texts from his own phone land in the OS `owner_mms` inbox (kept out of the prospect inbox).
+   - List unread pictures: `doppler run --project digigrowth --config prd -- bash -c 'curl -s -u "admin:$DASHBOARD_PASSWORD" "$DASHBOARD_URL/api/owner-mms?unprocessed=true"'`
+   - Download each new one to the session scratchpad (never the repo) with `.../api/owner-mms/<id>/image -o "<scratchpad>/schedule-<id>.jpg"` and view it with Read. Not a schedule → skip, leave unprocessed, mention it in Step 5. `size` null = the download from Twilio failed; ask him to resend.
+   - Find **Dylan's row** (name variants in `school-and-work.md`), read each day's start/end, and work out the dates from the week shown (no dates → assume the week starting the next Sunday after the text, and flag it). Unclear cell → a Step 0B question; never guess a shift time.
+   - Fallbacks: a photo dropped into the chat; or Gmail on the connected account (dylanrg@digigrowthllc.com), `has:attachment newer_than:10d schedule`, skipping the "Last schedule photo processed" ID in `school-and-work.md`. A `.heic` that won't open → ask for a screenshot.
+   - Nothing new → use the shift events already on the calendar. Wednesday–Friday with next week's shifts still missing → Step 0B: "Got this week's schedule? Text the picture to the OS number (or drop it here)."
+5. **Service delivery (what clients still need):** list clients (`GET /api/clients`, skip `DigiGrowth Demo Clinic` and inactive ones), then for each run
+   ```bash
+   PYTHONUTF8=1 doppler run --project digigrowth --config prd -- /c/Python314/python -X utf8 onboarding-agent/scripts/service_delivery_status.py <client id> > "<scratchpad>/sd-<id>.txt"
+   ```
+   from the repo root (`PYTHONUTF8`/`-X utf8` are required: without them the script crashes on Windows when its output goes to a file). Keep only the open `[ ]` steps that **Dylan can do now**: Phase 1, Phase 4 steps whose earlier phases are done, and anything unblocked. Skip steps marked "Automated" or "Optional", and steps waiting on the client (list those separately as "waiting on client"). Also scan the dylanrg@ inbox (Gmail connector) for unanswered client emails from the last 3 days; each one is a service-delivery item.
+6. **DigiGrowth To-Dos:** `doppler run --project digigrowth --config prd -- bash -c 'curl -s -u "admin:$DASHBOARD_PASSWORD" "$DASHBOARD_URL/api/dashboard/todos"'`. All open to-dos are candidates: overdue/due today first, then undated (oldest first). Never schedule a to-do titled `Morning Routine`. Never mark to-dos done or edit them.
 
----
+Then build a **draft plan in your head** (Steps 1–3) so the questions can point at real conflicts.
 
-### Step 1 — Determine Today's Context
+### Step 0B — Ask Once (one message, short)
 
-All date/time calculations must use the **America/New_York timezone**, not a fixed UTC offset. Get the current time with PowerShell: `[System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTime]::UtcNow,'Eastern Standard Time').ToString('yyyy-MM-dd HH:mm dddd')`. Do **not** use `TZ=America/New_York date` on Dylan's Windows PC — Git Bash has no tz database, silently ignores `TZ` and returns UTC (4–5 hrs off).
+Open with a short snapshot (what's fixed today, the school items, service-delivery focus, to-dos), then ask:
 
-1. What is today's date, weekday, and the current time? Compute the start time (round up to :00/:30).
-2. **Check for a schedule override:** Read `.claude/skills/calendar-management/schedule-override.md`. If today's date falls within the `from`/`to` range (inclusive), an override is active — its `blocks` list replaces the defaults in Step 3. Its `start` is used only if it is later than the run-time start; otherwise start at run time. Skip `Morning Routine` if it's listed. If the override's `to` date is in the past, ignore it.
+> 1. Anything that **must** get done today that I didn't pick up? (These go first.)
+> 2. Anything to skip or push to another day?
+> 3. Estimates check: assignments at 15 min each, test study 2 hrs, service delivery <N> hrs on <clients/steps>. Anything off, or already done?
+> 4. Any change to your availability (leaving early, plans tonight, a hard stop)?
 
----
+Rules:
+- Always ask **1 and 2**. Ask **3** when there's school work or service delivery. Ask **4** only if something is unclear.
+- New schedule photo read → one line with the shifts you read ("Thu 9–5, Sat 8–4, Sun off; shout if wrong").
+- No shift info at all for today → add "Are you working today, and what hours?" Canvas unreadable → say so and ask "anything due in the next 3 days, or a test coming up?"
+- Max 5 questions. Nothing else before booking.
 
-### Step 2 — Check Today's Calendar
-
-Use Google Calendar to list all events for today in the America/New_York timezone.
-
-**All pre-existing busy events are fixed** — no new block may overlap them, regardless of what the event is. This includes personal events (boxing, gym classes, appointments, social events, etc.) and any fixed-time custom tasks from Step 0.
-
-**Transparent/free events do not block time** — if an event has "Show as: Free" or is marked transparent, treat it as non-blocking. Do not leave a gap around it.
-
-**Canonical block names** — always use exactly these titles:
-`Cold SMS & Email`, `Cold Calling`, `Content Creation`, `MDR`, `Highest Leverage Task`, `Service Delivery`, `Outreach Systems`, `Gym`
-
-Treat any variant of "Midday Routine", "Mid-Day Routine", "Mid Day Routine" as `MDR`.
-
-**Retired block names** (if a self-created one exists on today's calendar from now onward, delete it):
-- `Morning Routine` — no longer scheduled by this skill. Leave one that's already in the past/in progress alone.
-- `Outreach` — replaced by `Cold SMS & Email`, `Cold Calling`, `Content Creation`.
-- `Growth` — replaced by `Outreach Systems`, `Highest Leverage Task`, `Service Delivery` (the "growth blocks"). If a schedule override lists `Growth`, read it as `Outreach Systems → Highest Leverage Task → Service Delivery`.
-- `Admin` — no replacement. If an override lists `Admin`, skip it.
-
-**Re-runs:** if self-created blocks (canonical names) already exist on today's calendar starting at or after the start time, delete them and re-plan from scratch — this keeps re-running the skill idempotent. Leave blocks that already started, and count them as done for today: don't schedule a second copy of a block that already started earlier today.
-
-**Discount Tires shift handling:**
-- If a Discount Tires shift is on the calendar (look for "Discount Tires", "work", or "shift" in the title), block 30 minutes before it (commute) and 1 hour after it (commute + eating). No work blocks may overlap these buffers or the shift itself.
-
-Calculate all open time windows between the start time and the end of the work day, then snap them to the half-hour grid (see **Time Grid** below).
+Apply his answer:
+- **"Must get done" / anything he explicitly says needs to happen today** → a **Must-Do** (Priority 0). Duration = what he said, else your honest estimate rounded up to 15 min (default 1 hr). His time → fixed event at that time. Never dropped, never shortened.
+- **Skip / push** → leave it out today (don't touch Canvas, the To-Do list or client checklists).
+- **Done / started** → drop it or shorten it to what's left.
+- **Estimate corrections** → use his number. If he corrects the same kind of item twice, add it under "Learned preferences" in `school-and-work.md`.
 
 ---
 
-### Time Grid — Half-Hour Starts Only
+### Work Window + Time Grid
 
-Every block this skill creates must **start and end on the hour or half-hour** (e.g. 12:00, 12:30, 1:00, 1:30). Never create a block that starts or ends at :10, :15, :45, :50, etc.
+- **Start:** run time (America/New_York), rounded **up** to the next quarter hour. Nothing is scheduled in the past. No `Morning Routine` block, ever.
+- **End:** 8PM Mon–Fri; 6PM Sat/Sun. Gym may run until 9:30PM.
+- **15-minute grid:** every block starts and ends on :00, :15, :30 or :45, and every duration is a multiple of 15 min. Snap open windows inward (start up, end down); a leftover gap under 15 min stays empty.
 
-- **Snap open windows inward:** round each open window's start **up** to the next :00/:30 and its end **down** to the previous :00/:30. Example: a fixed event ends at 11:50 → the next block starts at 12:00; the 10-minute gap is simply left empty as a buffer.
-- **Pre-meeting buffer + grid:** the block before a meeting must end on a :00/:30 mark at least 15 min before the meeting. Meeting at 2:15 → block ends 2:00. Meeting at 2:00 → block ends 1:30.
-- **Discount Tires buffers + grid:** apply the 30-min pre-buffer and 1-hr post-buffer first, then snap. Shift ends 4:15 → buffer ends 5:15 → next block starts 5:30.
-- All block durations are multiples of 30 min, so a block that starts on the grid also ends on it.
-- A sub-30-minute leftover gap created by snapping is not schedulable — leave it empty (this does not violate Scheduling Rule 5).
+### Step 1 — Today's Context
+
+All times in **America/New_York**. Current time via PowerShell: `[System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTime]::UtcNow,'Eastern Standard Time').ToString('yyyy-MM-dd HH:mm dddd')`. Never `TZ=America/New_York date` in Git Bash (no tz database, silently returns UTC).
+
+**Override:** read `schedule-override.md`. If today is inside its `from`/`to` range, its `blocks` list replaces the DigiGrowth blocks (Priorities 2–4) for today, in that order. Must-Dos, school, MDR and Gym rules still apply. `Highest Leverage Task` in an override = a block for the To-Do list; `Growth` = `Service Delivery → To-Do → Outreach Systems`; `Admin` is skipped. Expired override → ignore.
+
+### Step 2 — Fixed Events
+
+- **Every busy calendar event is fixed**; nothing may overlap it. Free/transparent events don't block time.
+- **Classes** are already on Google Calendar as recurring events (e.g. `FIN 3403 - Business Finance`, location BA1, UCF). One with a physical location gets a **30-min commute buffer** before and after.
+- **Shifts:** the 7-day shift events plus the photo's shifts (applied **after** his Step 0B answer, so his corrections win). Create photo shifts that aren't on the calendar yet (the whole week, not just today): title `Discount Tire Shift`, color Sage (2), no reminders, description `From boss's schedule photo (<date>)`. A photo shift overlapping an existing `Work`/shift event that day is a duplicate: don't create it. A newer photo with different times → update the event. Never delete a shift, except a self-created one on a day the newer photo shows as off (say so in Step 5). Then mark the picture processed: `POST /api/owner-mms/<id>/processed` with `{"note": "shifts booked for week of <date>"}` (Gmail fallback: write the message ID to `school-and-work.md`).
+- **Shift buffers:** 30 min before (commute), 1 hr after (commute + eating).
+- **Meetings/calls:** 15-min buffer before. `HOLD: offered to …` events from the SMS setter are tentative but count as busy while they exist.
+- **Re-runs:** delete self-created blocks (description starts with `Planned by morning planner`, or a canonical block name) that start at or after the start time, then re-plan. Never delete shifts, classes or other events. Blocks that already started count as done.
 
 ---
 
 ### Step 3 — Build the Schedule
 
-#### Block Reference Table
+#### Priority order (what gets a slot first; drop from the bottom when the day runs out)
 
-| Block | Preferred | Minimum | Days | Color (ID) | Notes |
-|---|---|---|---|---|---|
-| MDR | 1 hr | 30 min | Daily | Banana (5) | Lunch and reset. Always guarantee at least 30 min. Never starts before 11:00 AM — hard floor. |
-| Cold SMS & Email | 30 min | 30 min | Mon–Fri | Peacock (7) | Reply to cold SMS + cold email threads, review AI setter drafts, send follow-ups. |
-| Cold Calling | 30 min | 30 min | Mon–Fri | Tangerine (6) | Dialer session in DigiGrowth OS. |
-| Content Creation | 1 hr | 30 min | Mon–Fri | Grape (3) | Social posts, videos, personal brand. First outreach block to drop. |
-| Custom (from Step 0) | as given | as given | Today | Graphite (8) | Dylan's one-off tasks for today. Scheduled last by default. Never shortened, never dropped. |
-| Gym | 2 hrs | 2 hrs | Daily (soft) | Tomato (11) | Always the last block of the day (after custom tasks). Must end by 9:30PM. Drop entirely if no 2-hr window exists. |
-| Highest Leverage Task | 1 hr | 1 hr | Daily | Blueberry (9) | The single task that moves revenue most right now. Last growth block to drop. |
-| Service Delivery | 1 hr | 1 hr | Daily | Lavender (1) | Building/improving client fulfillment: onboarding, ad ops, automations, reporting. |
-| Outreach Systems | 1 hr | 1 hr | Daily | Flamingo (4) | Building/improving the outreach machine: lead gen, dialer, SMS/email sequences, scripts. Scheduled right after Content Creation. First to drop. |
+| # | Tier | What goes in it | Size |
+|---|---|---|---|
+| 0 | **Must-Dos** | Anything Dylan says in Step 0B must get done today | His number / estimate. Never dropped. |
+| 1 | **School** | (a) **Test study:** every test in the next 3 days gets a 2-hr study block **on each of the 3 days before it** (Canvas quiz with "exam/test/midterm/final" in the title, not "Study Tool", or any quiz ≥ 50 pts; also a test Dylan mentions, and any test under "Tests Dylan told me about" in `school-and-work.md`; when he mentions a new one, add it there so later runs keep studying for it). (b) **Assignments:** everything due within 3 days (due date ≤ today + 3), plus anything overdue/`missing`. He does assignments 3 days before they're due. | Test study: 2 hrs per test per day (≤ 2 hrs in one stretch). Assignments: **15 min each, one event each**, soonest due first. |
+| 2 | **Service Delivery** | Today's do-now client steps from Step 0A item 5, plus client emails waiting on Dylan. Group steps by client; the client furthest from launch first, unless a live client has something broken. | 1-hr blocks, as many as the do-now list needs, **max 3 hrs a day** unless Dylan says otherwise. Title `Service Delivery: <Client>`; description = the exact steps (guide id + one line each). |
+| 3 | **To-Dos** | Open To-Do list items: fixed `due_time` today → fixed event; then overdue/due today; then undated, oldest first | 1 hr each unless the text implies otherwise (min 30 min). Title = the to-do text, short. |
+| 4 | **Outreach** | Only once every to-do has a slot: fill the remaining free time in this order: `Cold SMS & Email` (30 min) → `Cold Calling` (30 min–1 hr) → `Content Creation` (1 hr) → `Outreach Systems` (1-hr blocks until the time runs out) | First to drop. Cold SMS & Email, Cold Calling and Content Creation are Mon–Fri only. |
 
-#### Priority Order
+**MDR** (lunch + reset): 1 hr, may shrink to 30 min but is never dropped. Never starts before 11:00 AM and never as the first block of the day: it goes after the first block that ends at or after 11:00 (if the start time is past noon, after the first block). If MDR would start before 11:00, fill the gap with the next block in priority order first. On a shift day where the shift spans lunch, the 1-hr post-shift buffer counts as MDR.
 
-Nothing is dropped unless the day actually runs out — i.e. the blocks no longer fit before the 8PM work-window end (9:30PM for Gym). Only then, drop programmed blocks from the bottom up:
+**Gym:** 2 hrs, always the **last block of the day**, must end by 9:30PM. If there's no 2-hr window left, drop Outreach blocks (newest first) to open one. Never drop a Must-Do, school, service delivery or a to-do for Gym; if no window opens, skip Gym and say so.
 
-1. MDR minimum (30 min) — always reserve 30 min for lunch, placed no earlier than 11:00 AM (hard floor, see Scheduling Rule 6)
-2. Cold SMS & Email (Mon–Fri) — takes priority over extending MDR to its full 1 hr
-3. Cold Calling (Mon–Fri) — same priority over the MDR extension as Cold SMS & Email
-4. Content Creation (Mon–Fri) — does NOT beat the MDR extension. Shorten to 30 min before dropping; drop entirely before touching Cold SMS & Email or Cold Calling
-5. Highest Leverage Task — kept over Gym
-6. Gym — drops entirely if no 2-hr window before 9:30PM (see Scheduling Rule 7)
-7. Service Delivery
-8. Outreach Systems — first to drop
-9. Custom tasks (Step 0) — last in priority order, but **never dropped** (see below)
+#### Placement (time order)
 
-**Custom tasks are never dropped.** They're scheduled after all work blocks; if they don't fit before 8PM, drop work blocks from the bottom of this list (Outreach Systems first) until they do. Fixed-time custom tasks are fixed events and always stay at their time. If Dylan ranks a custom task higher ("chores first", "after lunch"), place it there instead.
-
-**Gym is always the last block of the day in time order** — after custom tasks — even though it outranks Service Delivery and Outreach Systems for dropping.
-
-Growth blocks are fixed 1-hr blocks — never shortened, only dropped, in this order: Outreach Systems first, then Service Delivery, then Highest Leverage Task.
-
-#### Scheduling Rules
-
-1. **Start at run time** — the first block starts at the rounded-up run time (see Work Window). No Morning Routine.
-2. **Natural daily order:** Cold SMS & Email → Cold Calling → Content Creation → Outreach Systems → Highest Leverage Task → Service Delivery → flexible custom tasks (in the order Dylan listed them) → Gym, with MDR inserted per Scheduling Rule 6. Growth blocks start right after Content Creation — they don't wait for MDR. Place blocks in this sequence around any fixed commitments. Custom tasks must end by 8PM; Gym must end by 9:30PM. If Dylan said a custom task should go somewhere specific ("after lunch", "first thing"), honor that instead. Example — run at 8:05 on an open weekday with a 2-hr Chores task: Cold SMS & Email 8:30–9:00, Cold Calling 9:00–9:30, Content Creation 9:30–10:30, Outreach Systems 10:30–11:30, MDR 11:30–12:30, Highest Leverage Task 12:30–1:30, Service Delivery 1:30–2:30, Chores 2:30–4:30, Gym 4:30–6:30.
-3. **Preferred duration is a hard cap** — never extend a block beyond its preferred duration for any reason, including filling a gap. Max each block to its preferred duration, then stop.
-4. **Never compress a block below its minimum** — drop it entirely instead.
-5. **Never leave a schedulable gap** — a gap is schedulable only if a block that has not yet reached its preferred duration can fill part or all of it. If no such block exists, leave the gap empty.
-6. **MDR placement:** MDR must always follow a primary work block — never make it the first block of the day. It goes after the last scheduled outreach block (Content Creation, or Cold Calling if Content Creation was dropped) **if that block ends at or after 11:00 AM**. Otherwise, growth blocks continue straight after the outreach blocks (in Outreach Systems → Highest Leverage Task → Service Delivery order), and MDR goes after the first growth block that ends at or after 11:00 AM. If all outreach blocks are dropped (e.g. weekend), MDR goes after the first block that ends at or after 11:00 AM. If the skill is run so late that the start time is already past noon, MDR goes after the first scheduled block. **Hard floor: MDR may never start before 11:00 AM**, regardless of how early the preceding blocks finish. If the sequence would place MDR earlier than 11:00 AM, fill the gap first — extend Content Creation up to its preferred duration, or schedule growth blocks into the gap — rather than starting MDR early or leaving the gap empty. This floor overrides Scheduling Rule 5 only to the extent needed to keep MDR at or after 11:00 AM.
-7. **Gym:** Always the last block of the day — placed after all work blocks and custom tasks. Must end by 9:30PM. If no 2-hr window is left before 9:30PM, check if dropping Outreach Systems (then Service Delivery) would open one — if yes, drop them in that order to make room (custom tasks shift earlier). Never drop Highest Leverage Task or a custom task for Gym. Only drop Gym entirely if no 2-hr window exists even with only Highest Leverage Task left.
-8. Sales calls are never pre-scheduled — prospects self-book, adjust around them.
-9. 15-minute pre-meeting buffer only (no post-meeting buffer), unless a Discount Tires shift requires its own buffers. Buffers are then snapped to the half-hour grid (see Time Grid).
-10. **Half-hour grid is a hard rule** — every block starts and ends on :00 or :30. This overrides everything except no-overlap.
-
-**If a schedule override is active:** Use only the blocks listed in `blocks` (minus `Morning Routine`), in that order, plus Dylan's custom tasks from Step 0. The override block order is absolute — it overrides the natural daily order, MDR placement rules, and weekend/weekday ordering rules. Only these hard constraints still apply: no overlapping events, nothing scheduled before the run-time start, no block compressed below its minimum duration, all blocks within the work window, all blocks on the half-hour grid, and MDR never starts before 11:00 AM.
-
-Build a complete list of events to create with: title, start time, end time, and a 1–2 bullet description of what to focus on.
+1. Fixed events + buffers first (classes, shifts, meetings, fixed-time Must-Dos and to-dos).
+2. Then fill the open windows from the start time in priority order: Must-Dos → School (test study before assignments; an item due today goes first and must end at least 30 min before its due time) → Service Delivery → To-Dos → Outreach, inserting MDR per its rule and Gym last.
+3. Long stretches: no more than 2 hrs of the same kind in a row when something else can go between (e.g. split 3 hrs of service delivery around the to-dos).
+4. Never extend a block past its size to fill a gap. Fill the gap with the next item in priority order instead; if nothing is left, leave it empty.
+5. If the day runs out, drop from the bottom of the priority table (Outreach first, then To-Dos, then Service Delivery hours). School and Must-Dos are never dropped silently: if they don't fit, book what fits and list the rest under **at risk** in Step 5 with the best gap to use.
 
 ---
 
 ### Step 4 — Create Calendar Events
 
-Create each planned event on today's date in the America/New_York timezone.
+- **Calendar:** primary (dylangroenendijk@gmail.com), America/New_York, **no reminders**.
+- **Description:** first line exactly `Planned by morning planner` (re-runs find blocks by it), then 1–3 bullets: what to do. School: course, due date/time, points. Service Delivery: the client's steps. To-Do: the to-do's description, if any.
+- **Titles + colors:**
 
-Event format:
-- **Title:** Use the canonical block name exactly (custom tasks: Dylan's short wording)
-- **Description:** 1–2 bullets on what to focus on during that block
-- **Calendar:** Primary (dylangroenendijk@gmail.com)
-- **Color:** Must be set on every event — MDR=5, Cold SMS & Email=7, Cold Calling=6, Content Creation=3, Highest Leverage Task=9, Service Delivery=1, Outreach Systems=4, Gym=11, custom tasks=8
-- **No reminders**
+| Block | Title | Color (ID) |
+|---|---|---|
+| Must-Do | his wording, short | Graphite (8) |
+| Test study | `Study: <Course> <test>` | Basil (10) |
+| Assignment | `<Course>: <item>` (e.g. `MAR 3023: WSJ Quiz #11`) | Basil (10) |
+| Service Delivery | `Service Delivery: <Client>` | Lavender (1) |
+| To-Do | `To-Do: <text>` | Blueberry (9) |
+| Cold SMS & Email / Cold Calling / Content Creation / Outreach Systems | canonical name | Peacock (7) / Tangerine (6) / Grape (3) / Flamingo (4) |
+| MDR | `MDR` | Banana (5) |
+| Gym | `Gym` | Tomato (11) |
+| Discount Tire Shift | `Discount Tire Shift` | Sage (2) |
 
-After creating all events, fetch today's calendar to confirm all events appear with correct titles and times, and that every self-created block starts and ends on :00 or :30. Fix any that don't.
-
----
+After creating, list today's calendar again and check every block is there, on the 15-min grid, with no overlaps. Fix anything off. Event failed → retry once, then skip and mention it.
 
 ### Step 5 — Done
 
-Reply with a short list of today's schedule (time — block), plus any blocks that were dropped for lack of time. If an event fails to create, retry once. If it fails again, skip it and mention it.
+Short reply: today's schedule (time — block), then:
+- dropped for lack of time
+- **at risk:** school that didn't fit, anything `missing` in Canvas
+- service delivery **waiting on client** (one line per client: the exact ask)
+- shifts added/updated from the photo
+- heads-up: tests and big deadlines in the next 7 days (with the dates their study blocks will start)
 
 ---
 
 ## Edge Cases
 
-- **Saturday or Sunday:** Dylan ran it, so schedule. Work window ends 6PM. Outreach blocks (Mon–Fri only) are skipped.
-- **Discount Tires shift:** 30-min pre-buffer, 1-hr post-buffer, then snap to the half-hour grid. MDR's 30-min minimum is always guaranteed — to fit MDR before the pre-buffer, shorten/drop Content Creation first, then Cold Calling, then Cold SMS & Email. Schedule remaining blocks in whatever time is left.
-- **Run late in the day:** schedule whatever fits from the start time on, following the priority order. If nothing fits, create nothing and say so.
-- **Rest of today fully booked:** Create no new events.
-- **Google Calendar unavailable:** Stop. Do not retry more than once.
+- **Weekend:** window ends 6PM; Mon–Fri-only outreach blocks are skipped.
+- **Shift day:** shift + buffers are fixed; fit everything else around them in priority order.
+- **Run late:** schedule whatever fits from now on. Nothing fits → create nothing and say so.
+- **Google Calendar unavailable:** stop; don't retry more than once.
+- **Canvas logged out / Chrome not connected:** never type credentials. Plan without Canvas, ask what's due, tell Dylan to sign in to Canvas in Chrome before the next run.
+- **Status script fails for a client:** plan service delivery from the clients that worked and say which one failed.
+- **Schedule photo missing/unreadable:** ask about today's shift; never guess times.

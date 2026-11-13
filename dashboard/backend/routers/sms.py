@@ -314,6 +314,17 @@ async def _recompute_stage_flags(conn, phone: str):
 async def twilio_inbound(request: Request):
     """Store the inbound reply for manual review in the SMS panel. No auto-reply."""
     form = await request.form()
+
+    # Dylan texting a picture to the OS number from his own phone (e.g. his
+    # work schedule for the morning planner) — stored in owner_mms, kept out
+    # of the prospect inbox. His plain texts still flow through below.
+    from routers import owner_mms
+    try:
+        if await owner_mms.capture_if_owner(form):
+            return Response(content="", media_type="text/plain")
+    except Exception as e:
+        print(f"owner_mms capture error: {e}")
+
     from_phone = form.get("From", "")
     body       = (form.get("Body") or "").strip()
 

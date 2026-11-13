@@ -22,7 +22,7 @@ import client_resources_autofill
 import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
-from routers import reactivation, dm_agent
+from routers import reactivation, dm_agent, owner_mms
 from routers import crm, sms, sms_sequences, sms_setter, email_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, settings, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin, ghl_webhooks, booking
 import booking_conversion
 import booking_engine
@@ -687,6 +687,7 @@ app.add_middleware(
 app.include_router(crm.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms.webhook_router)         # public — Twilio SMS webhooks
+app.include_router(owner_mms.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(email_inbox.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(email_identities.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(dialer_webhooks.router)     # public — Twilio voice webhooks
