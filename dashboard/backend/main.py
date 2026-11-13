@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
@@ -56,7 +56,7 @@ security = HTTPBasic()
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
 
 
-def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
+async def require_auth(request: Request, credentials: HTTPBasicCredentials = Depends(security)):
     ok = secrets.compare_digest(credentials.password.encode(), DASHBOARD_PASSWORD.encode())
     if not ok:
         raise HTTPException(
@@ -64,6 +64,10 @@ def require_auth(credentials: HTTPBasicCredentials = Depends(security)):
             detail="Incorrect password",
             headers={"WWW-Authenticate": "Basic"},
         )
+    # Whoever passes the OS password is Dylan: keep that network's visits
+    # out of every client's funnel analytics (tracking_exclusion.py).
+    import tracking_exclusion
+    await tracking_exclusion.note_admin_ip(request)
     return credentials.username
 
 

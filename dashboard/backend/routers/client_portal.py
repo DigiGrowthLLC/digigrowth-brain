@@ -802,6 +802,18 @@ async def portal_stats(token: str, period: str = "all"):
     }
 
 
+@router.get("/{token}/funnel")
+async def portal_funnel(token: str, period: str = "month"):
+    """Analytics tab: impressions → clicks → funnel → booking → show →
+    patient, with step conversion/drop-off and cost KPIs (client_funnel.py)."""
+    import client_funnel
+    client = await get_client_from_token(token)
+    try:
+        return await client_funnel.build_funnel(client["id"], period)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @router.post("/{token}/sync-meta-ads")
 async def portal_sync_meta_ads(token: str):
     """Manual trigger for the Analytics tab's Paid Acquisition section, so

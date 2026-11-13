@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Request
 from db import get_pool
+import tracking_exclusion
 from routers.campaigns import resolve_send_campaign
 
 router = APIRouter()          # public — mounted with no auth
@@ -41,13 +42,9 @@ def _since(days: int) -> datetime:
 
 
 def _client_ip(request: Request) -> str:
-    """Railway sits in front of this app as a reverse proxy, so the real
-    caller IP is the first hop in X-Forwarded-For, not request.client.host
-    (that's Railway's own internal proxy IP)."""
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.client.host if request.client else ""
+    """Real caller IP behind Railway/Cloudflare/the Vercel funnel proxy —
+    see tracking_exclusion.client_ip."""
+    return tracking_exclusion.client_ip(request)
 
 
 async def _excluded_ips(conn) -> list:
@@ -112,7 +109,8 @@ async def track_view_event(request: Request):
         # checking your own funnel/VSL page from your own network otherwise
         # inflates a client's real traffic stats. Checked before anything
         # else so an excluded IP never even resolves a contact lookup.
-        if ip and ip in await _excluded_ips(conn):
+        # Manual list + IPs auto-recorded from Dylan's OS logins.
+        if ip and ip in await tracking_exclusion.excluded_ips(conn):
             return {"ok": True}
 
         contact_id = None
@@ -148,7 +146,7 @@ async def track_view_event(request: Request):
 async def list_excluded_ips():
     pool = await get_pool()
     async with pool.acquire() as conn:
-        return {"ips": await _excluded_ips(conn)}
+        return {"ips": await _excluded_ips(conn), "auto_ips": await tracking_exclusion.auto_list()}
 
 
 @admin_router.post("/content-analytics/exclude-my-ip")
@@ -167,6 +165,7 @@ async def exclude_my_ip(request: Request):
         if ip not in ips:
             ips.append(ip)
             await _save_excluded_ips(conn, ips)
+            tracking_exclusion._cache = (0.0, set())
     return {"ok": True, "ip": ip, "excluded_ips": ips}
 
 
@@ -176,6 +175,7 @@ async def remove_excluded_ip(ip: str):
     async with pool.acquire() as conn:
         ips = [x for x in await _excluded_ips(conn) if x != ip]
         await _save_excluded_ips(conn, ips)
+        tracking_exclusion._cache = (0.0, set())
     return {"ok": True, "excluded_ips": ips}
 
 

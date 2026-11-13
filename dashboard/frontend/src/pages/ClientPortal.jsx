@@ -1610,20 +1610,31 @@ function DashboardTab({ token, contactName }) {
   );
 }
 
-// ── Analytics tab — deeper, optimization-oriented rollup on top of the same
-// /stats payload the Dashboard tab uses. Every number here is derived
-// straight from real DB-backed counts (leads/appointments/sms/ad
-// spend) — nothing is invented. Revenue/avg-deal-size are deliberately left
-// out: DigiGrowth doesn't track a per-client dollar value for a closed deal
-// anywhere in this DB (the agency's own revenue numbers come from a separate
-// Google Sheet, not per-client), so showing a number here would be a guess.
-// CAC uses ad spend / closed appointments instead, which needs no revenue
-// figure and stays honest until ad_campaign_stats has real rows for a given
-// client. meta_ads.py is a fully implemented daily-sync pipeline (not a
-// stub) already wired into the scheduler — it's just dormant until
-// META_SYSTEM_USER_TOKEN is set (see meta_ads.py's module docstring); no
-// Meta App Review is required for that, contrary to what this comment used
-// to say.
+// ── Analytics tab — full-funnel breakdown from Meta impressions down to new
+// patients (GET /portal-api/{token}/funnel → backend client_funnel.py).
+// Every stage is a real count for the selected period; a stage with no data
+// source yet (Meta access pending, no DigiGrowth Booking page) is shown as
+// "not connected", never a fake 0. Step colors compare each step's
+// conversion to DigiGrowth's targets (returned by the API, so they live in
+// one place). Dylan's own visits/test bookings are excluded server-side
+// (tracking_exclusion.py).
+const FUNNEL_STATUS = {
+  good:     { color: "#14c882", label: "On target" },
+  ok:       { color: "#f0b429", label: "Close to target" },
+  poor:     { color: "#e05c5c", label: "Below target" },
+  low_data: { color: "#5a7aa0", label: "Not enough data yet" },
+};
+const FUNNEL_SOURCE = {
+  meta:     { label: "META ADS", color: "#6ab0ff" },
+  funnel:   { label: "FUNNEL",   color: "#5ad1c8" },
+  booking:  { label: "BOOKING",  color: "#a78bfa" },
+  outcomes: { label: "VISITS",   color: "#14c882" },
+};
+
+const fmtNum = (n) => (n == null ? "—" : Number(n).toLocaleString());
+const fmtMoney = (n) => (n == null ? "—" : `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: n < 100 ? 2 : 0, maximumFractionDigits: 2 })}`);
+const fmtPct = (n) => (n == null ? "—" : `${n}%`);
+
 function AnalyticsStat({ label, value, sublabel, iconKey }) {
   return (
     <div className="stat-card">
@@ -1637,38 +1648,115 @@ function AnalyticsStat({ label, value, sublabel, iconKey }) {
   );
 }
 
+// Bar width on a log scale: impressions are often 1000x bookings, so a
+// linear bar would make every lower stage invisible. The real number is
+// always printed next to it.
+function barWidth(value, top) {
+  if (!value || !top) return 0;
+  const w = (Math.log10(value + 1) / Math.log10(top + 1)) * 100;
+  return Math.max(4, Math.min(100, w));
+}
+
+function FunnelStep({ stage, top }) {
+  const src = FUNNEL_SOURCE[stage.source] || FUNNEL_SOURCE.funnel;
+  const off = !stage.available;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(150px, 220px) 1fr", gap: 14, alignItems: "center" }}>
+      <div>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: off ? "#5a7aa0" : "#f0f4ff" }}>
+          {stage.label}
+        </div>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: src.color, letterSpacing: "0.08em", marginTop: 2 }}>
+          {src.label}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <div style={{ flex: 1, height: 26, background: "rgba(255,255,255,0.04)", borderRadius: 6, overflow: "hidden", minWidth: 40 }}>
+          {!off && (
+            <div style={{
+              width: `${barWidth(stage.value, top)}%`, height: "100%", borderRadius: 6,
+              background: `linear-gradient(90deg, ${src.color}cc, ${src.color}55)`,
+            }} />
+          )}
+        </div>
+        <div style={{ minWidth: 86, textAlign: "right", fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: off ? "#3a5a80" : "#f0f4ff" }}>
+          {off ? "—" : fmtNum(stage.value)}
+        </div>
+      </div>
+      {(off || stage.note) && (
+        <div style={{ gridColumn: "2", marginTop: -8, fontSize: 11.5, color: "#5a7aa0" }}>
+          {off ? (stage.source === "meta" ? "Waiting on Meta ad account access." : "Not set up for this practice.") : stage.note}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The connector between two stages: how many moved on, how many dropped,
+// colored against the step's target.
+function FunnelConnector({ stage }) {
+  if (!stage.available || stage.rate == null) {
+    return <div style={{ height: 10, marginLeft: 24, borderLeft: "2px dashed rgba(90,122,160,0.25)" }} />;
+  }
+  const st = FUNNEL_STATUS[stage.status] || FUNNEL_STATUS.low_data;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "2px 0 2px 16px", flexWrap: "wrap" }}>
+      <div style={{ width: 2, height: 22, background: st.color, opacity: 0.6, marginRight: 4 }} />
+      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: st.color, fontWeight: 700 }}>
+        ↓ {fmtPct(stage.rate)}
+      </span>
+      <span style={{ fontSize: 11.5, color: "#7a92b8" }}>
+        {stage.rate_basis || "moved on"}
+        {stage.drop_off ? ` · ${fmtNum(stage.drop_off)} dropped off` : ""}
+        {stage.target ? ` · target ${stage.target.good}%` : ""}
+      </span>
+      <span style={{
+        fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: st.color,
+        border: `1px solid ${st.color}55`, borderRadius: 4, padding: "1px 6px",
+      }}>
+        {st.label.toUpperCase()}
+      </span>
+    </div>
+  );
+}
+
 function AnalyticsTab({ token }) {
-  const [stats, setStats] = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState("all");
+  const [err, setErr] = useState("");
+  const [period, setPeriod] = useState("month");
+  const [pathKey, setPathKey] = useState(null);
   const [syncingMeta, setSyncingMeta] = useState(false);
   const [metaSyncMsg, setMetaSyncMsg] = useState("");
   const [metaSyncErr, setMetaSyncErr] = useState("");
 
-  const loadStats = () => {
+  const load = () => {
     setLoading(true);
-    fetch(`/portal-api/${token}/stats?period=${period}`)
-      .then((r) => r.json())
-      .then((data) => { setStats(data); setLoading(false); })
-      .catch(() => setLoading(false));
+    setErr("");
+    fetch(`/portal-api/${token}/funnel?period=${period}`)
+      .then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(d?.detail || "Couldn't load analytics");
+        return d;
+      })
+      .then((d) => { setData(d); setLoading(false); })
+      .catch((e) => { setErr(e.message); setLoading(false); });
   };
 
-  useEffect(loadStats, [token, period]);
+  useEffect(load, [token, period]);
 
-  // Manual trigger — the daily Meta sync otherwise only ever reports
-  // failures to Railway's server logs, invisible from here. Gated
-  // server-side to the one is_test client (see routers/client_portal.py's
-  // portal_sync_meta_ads), so this 403s harmlessly for a real client.
+  // Manual Meta pull — gated server-side to the is_test client (403s
+  // harmlessly for a real client; see portal_sync_meta_ads).
   const syncMetaAdsNow = async () => {
     setSyncingMeta(true);
     setMetaSyncMsg("");
     setMetaSyncErr("");
     try {
       const r = await fetch(`/portal-api/${token}/sync-meta-ads`, { method: "POST" });
-      const data = await r.json().catch(() => null);
-      if (!r.ok) throw new Error(data?.detail || "Failed to sync Meta ads");
-      setMetaSyncMsg(`Synced ${data.days_synced} day(s).`);
-      loadStats();
+      const d = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(d?.detail || "Failed to sync Meta ads");
+      setMetaSyncMsg(`Synced ${d.days_synced} day(s).`);
+      load();
     } catch (e) {
       setMetaSyncErr(e.message);
     } finally {
@@ -1676,40 +1764,15 @@ function AnalyticsTab({ token }) {
     }
   };
 
-  if (loading && !stats) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
-  if (!stats) return null;
+  if (loading && !data) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (err && !data) return <div className="glass-card" style={{ padding: 24, color: "#e05c5c", fontSize: 13 }}>{err}</div>;
+  if (!data) return null;
 
-  const appt = stats.appointments;
-  const leadsTotal = stats.leads.total;
-  const bookingRate = leadsTotal > 0 ? Math.round((appt.total / leadsTotal) * 1000) / 10 : null;
-
-  // Every outreach figure is a distinct-prospect count capped at 1 per lead
-  // (Dylan's explicit call, 2026-09-14) — "SMS Sent" means how many leads
-  // got at least one SMS, not a raw message count — computed server-side
-  // in portal_stats() across BOTH DigiGrowth's own agency-outreach system
-  // and the client's own Twilio activity combined, so a lead reached
-  // through either counts exactly once.
-  const smsSent = stats.outreach.sms_sent;
-  const smsReplies = stats.outreach.sms_replies;
-  const smsReplyRate = smsSent > 0 ? Math.round((smsReplies / smsSent) * 1000) / 10 : null;
-  // Distinct real leads with any activity, computed server-side — the old
-  // version also pulled in unrelated legacy rows from DigiGrowth's own
-  // agency-outreach system. See portal_stats().
-  const activeConvos = stats.active_conversations || 0;
-
-  // ad_campaign_stats rows — real once meta_ads.py is wired up per client,
-  // empty array (not fake zeros) until then, so the section below shows the
-  // same honest "coming soon" empty state as the Dashboard tab's ads row.
-  const adDays = stats.ads.days || [];
-  const adConnected = adDays.length > 0;
-  const spend = adDays.reduce((s, d) => s + (Number(d.spend) || 0), 0);
-  const impressions = adDays.reduce((s, d) => s + (Number(d.impressions) || 0), 0);
-  const clicks = adDays.reduce((s, d) => s + (Number(d.clicks) || 0), 0);
-  const adLeads = adDays.reduce((s, d) => s + (Number(d.leads) || 0), 0);
-  const ctr = impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : null;
-  const cpc = clicks > 0 ? Math.round((spend / clicks) * 100) / 100 : null;
-  const costPerLead = adLeads > 0 ? Math.round((spend / adLeads) * 100) / 100 : null;
-  const cac = adConnected && appt.closed > 0 ? Math.round((spend / appt.closed) * 100) / 100 : null;
+  const paths = data.paths || [];
+  const path = paths.find((p) => p.key === pathKey) || paths[0];
+  const k = data.kpis;
+  const leak = data.biggest_leak;
+  const top = path ? Math.max(...path.stages.filter((s) => s.available).map((s) => s.value || 0), 0) : 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -1719,71 +1782,91 @@ function AnalyticsTab({ token }) {
             Analytics
           </div>
           <div style={{ fontSize: 12.5, color: "#5a7aa0", marginTop: 4 }}>
-            Everything that matters for optimizing your campaign.
+            Every step from ad to new patient: how many people reach each stage, and where they drop off.
           </div>
         </div>
         <PeriodToggle days={period} setDays={setPeriod} options={PORTAL_PERIOD_OPTIONS} />
       </div>
 
-      {/* Row 1: funnel top line */}
-      <div>
-        <SectionHeading>Lead-to-Close Funnel</SectionHeading>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
-          <AnalyticsStat label="Total Leads" value={leadsTotal} iconKey="leads" />
-          <AnalyticsStat label="Appointments Booked" value={appt.total} iconKey="appointments" />
-          <AnalyticsStat label="Booking Rate" value={bookingRate != null ? `${bookingRate}%` : "—"} sublabel="LEADS → BOOKED" iconKey="rate" />
-          <AnalyticsStat label="Show Rate" value={appt.shows + appt.no_shows > 0 ? `${appt.show_rate}%` : "—"} sublabel="BOOKED → SHOWED" iconKey="rate" />
-          <AnalyticsStat label="Close Rate" value={appt.closed + appt.not_closed > 0 ? `${appt.close_rate}%` : "—"} sublabel="SHOWED → CLOSED" iconKey="rate" />
+      {leak && (
+        <div className="glass-card-sm" style={{ padding: "12px 16px", borderLeft: "3px solid #f0b429", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#f0b429", letterSpacing: "0.08em" }}>BIGGEST OPPORTUNITY</span>
+          <span style={{ fontSize: 13, color: "#d8e2f5" }}>
+            <b>{leak.label}</b> converts at {leak.rate}% vs. a {leak.target}% target.
+          </span>
         </div>
-      </div>
+      )}
 
-      {/* Row 2: outreach volume + reply rates */}
-      <div>
-        <SectionHeading>Outreach Performance</SectionHeading>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-          <AnalyticsStat label="SMS Sent" value={smsSent} iconKey="upcoming" />
-          <AnalyticsStat label="SMS Replies" value={smsReplies} iconKey="upcoming" />
-          <AnalyticsStat label="SMS Reply Rate" value={smsReplyRate != null ? `${smsReplyRate}%` : "—"} iconKey="rate" />
-          <AnalyticsStat label="Active Conversations" value={activeConvos} sublabel="SMS THREADS" iconKey="upcoming" />
-        </div>
-      </div>
-
-      {/* Row 3: paid acquisition (Meta Ads) + CAC */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-          <SectionHeading>Paid Acquisition (Meta Ads)</SectionHeading>
-          <button
-            className="btn btn-secondary"
-            style={{ fontSize: 10, padding: "4px 10px", marginBottom: 8 }}
-            onClick={syncMetaAdsNow}
-            disabled={syncingMeta}
-          >
-            {syncingMeta ? "SYNCING…" : "SYNC NOW"}
-          </button>
+      {/* Funnel */}
+      <div className="glass-card" style={{ padding: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+          <SectionHeading>Conversion Funnel</SectionHeading>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            {paths.length > 1 && paths.map((p) => (
+              <button
+                key={p.key}
+                className={`btn ${p.key === path.key ? "btn-primary" : "btn-secondary"}`}
+                style={{ fontSize: 10, padding: "4px 10px" }}
+                onClick={() => setPathKey(p.key)}
+              >
+                {p.label.toUpperCase()}
+              </button>
+            ))}
+            <button className="btn btn-secondary" style={{ fontSize: 10, padding: "4px 10px" }} onClick={syncMetaAdsNow} disabled={syncingMeta}>
+              {syncingMeta ? "SYNCING…" : "SYNC META"}
+            </button>
+          </div>
         </div>
         {(metaSyncMsg || metaSyncErr) && (
-          <div style={{
-            fontFamily: "'Share Tech Mono', monospace", fontSize: 10, marginBottom: 8,
-            color: metaSyncErr ? "#e05c5c" : "#4ade80",
-          }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, marginBottom: 10, color: metaSyncErr ? "#e05c5c" : "#4ade80" }}>
             {metaSyncErr || metaSyncMsg}
           </div>
         )}
-        {adConnected ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-            <AnalyticsStat label="Ad Spend" value={`$${spend.toLocaleString()}`} iconKey="upcoming" />
-            <AnalyticsStat label="Impressions" value={impressions.toLocaleString()} iconKey="upcoming" />
-            <AnalyticsStat label="Clicks" value={clicks.toLocaleString()} iconKey="upcoming" />
-            <AnalyticsStat label="CTR" value={ctr != null ? `${ctr}%` : "—"} iconKey="rate" />
-            <AnalyticsStat label="Cost per Click" value={cpc != null ? `$${cpc}` : "—"} iconKey="rate" />
-            <AnalyticsStat label="Cost per Lead" value={costPerLead != null ? `$${costPerLead}` : "—"} iconKey="rate" />
-            <AnalyticsStat label="Customer Acquisition Cost" value={cac != null ? `$${cac}` : "—"} sublabel="SPEND / CLOSED DEALS" iconKey="rate" />
+        {!path ? (
+          <div style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
+            No campaign activity yet. Once your ads start running, every step will show here.
           </div>
         ) : (
-          <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
-            Meta Ads reporting isn't connected yet — once it is, spend, CTR, cost per lead, and CAC will show here automatically.
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {path.stages.map((s, i) => (
+              <React.Fragment key={s.key}>
+                {i > 0 && <FunnelConnector stage={s} />}
+                <FunnelStep stage={s} top={top} />
+              </React.Fragment>
+            ))}
           </div>
         )}
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 16, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          {Object.entries(FUNNEL_STATUS).map(([key, st]) => (
+            <span key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#7a92b8" }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: st.color }} />{st.label}
+            </span>
+          ))}
+          {!data.meta.connected && (
+            <span style={{ fontSize: 11, color: "#5a7aa0" }}>
+              · Ad stats appear once Meta ad account access is connected.
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Cost KPIs */}
+      <div>
+        <SectionHeading>Cost & Efficiency</SectionHeading>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 16 }}>
+          <AnalyticsStat label="Ad Spend" value={fmtMoney(k.spend)} iconKey="upcoming" />
+          <AnalyticsStat label="Cost per 1,000 Views" value={fmtMoney(k.cpm)} sublabel="CPM" iconKey="rate" />
+          <AnalyticsStat label="Click-Through Rate" value={fmtPct(k.ctr)} sublabel="LINK CLICKS / IMPRESSIONS" iconKey="rate" />
+          <AnalyticsStat label="Cost per Click" value={fmtMoney(k.cpc)} iconKey="rate" />
+          <AnalyticsStat label="Cost per Lead" value={fmtMoney(k.cost_per_lead)} sublabel={`${fmtNum(k.leads)} LEADS`} iconKey="leads" />
+          <AnalyticsStat label="Cost per Booking" value={fmtMoney(k.cost_per_booking)} sublabel={`${fmtNum(k.booked)} BOOKED`} iconKey="appointments" />
+          <AnalyticsStat label="Cost per Show" value={fmtMoney(k.cost_per_show)} sublabel={`${fmtNum(k.shows)} SHOWED`} iconKey="appointments" />
+          <AnalyticsStat label="Cost per New Patient" value={fmtMoney(k.cost_per_patient)} sublabel={`${fmtNum(k.patients)} PATIENTS`} iconKey="rate" />
+          <AnalyticsStat label="Lead → Booking Rate" value={fmtPct(k.lead_to_booking)} iconKey="rate" />
+          {k.prepaid_revenue != null && (
+            <AnalyticsStat label="Prepaid Visit Revenue" value={fmtMoney(k.prepaid_revenue)} sublabel={`${fmtNum(k.prepaid_count)} PAID BOOKINGS`} iconKey="upcoming" />
+          )}
+        </div>
       </div>
     </div>
   );

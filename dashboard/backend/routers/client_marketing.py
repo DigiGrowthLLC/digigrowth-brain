@@ -241,6 +241,16 @@ async def autocheck_guide(client_id: int):
     return {"ticked": await guide_autocheck.autocheck(client_id)}
 
 
+@router.get("/clients/{client_id}/funnel")
+async def client_funnel_report(client_id: int, period: str = "month"):
+    """Same full-funnel report the client sees on their portal's Analytics tab."""
+    import client_funnel
+    try:
+        return await client_funnel.build_funnel(client_id, period)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @router.post("/clients/{client_id}/marketing-config/sync-meta-ads")
 async def sync_client_meta_ads_now(client_id: int, days_back: int = 3):
     """Manual trigger for testing/verification — same code path as the

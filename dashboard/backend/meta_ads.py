@@ -86,7 +86,10 @@ async def _fetch_insights(http: httpx.AsyncClient, ad_account_id: str, token: st
         params={
             "access_token": token,
             "level": "account",
-            "fields": "spend,impressions,clicks,actions,date_start,date_stop",
+            # inline_link_clicks + reach feed the portal funnel
+            # (routers/client_funnel.py); `clicks` alone counts likes,
+            # profile taps etc., so it overstates the click → page step.
+            "fields": "spend,impressions,reach,clicks,inline_link_clicks,actions,date_start,date_stop",
             "time_range": f'{{"since":"{since.isoformat()}","until":"{until.isoformat()}"}}',
             "time_increment": 1,
         },

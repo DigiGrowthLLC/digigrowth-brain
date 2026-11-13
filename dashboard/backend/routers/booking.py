@@ -37,6 +37,7 @@ import booking_conversion as bc
 import booking_engine as be
 from booking_page import render_page
 from db import get_pool
+import tracking_exclusion
 
 admin_router = APIRouter()
 router = APIRouter()
@@ -686,6 +687,8 @@ async def public_info(key: str, request: Request):
 @router.post("/lp/{key}/book/api/event", include_in_schema=False)
 async def public_event(key: str, request: Request, payload: dict):
     ctx = await _resolve(request, key)
+    if await tracking_exclusion.is_excluded(request):  # Dylan checking the page
+        return {"ok": True}
     await bc.log_step(ctx["settings"]["client_id"], payload.get("session"), payload.get("step") or "",
                       payload.get("event_type_id"), payload.get("utm_source"), payload.get("utm_content"))
     return {"ok": True}
@@ -699,7 +702,8 @@ async def public_partial(key: str, request: Request, payload: dict):
     await bc.save_partial(ctx["settings"]["client_id"], payload.get("session") or "", payload.get("name"),
                           payload.get("phone") or "", payload.get("event_type_id"), payload.get("start"),
                           payload.get("utm_source"), payload.get("utm_content"),
-                          payload.get("sms_consent") is True)
+                          payload.get("sms_consent") is True,
+                          track=not await tracking_exclusion.is_excluded(request))
     return {"ok": True}
 
 
@@ -745,6 +749,7 @@ async def public_reserve(key: str, request: Request, payload: dict):
             payload.get("name"), payload.get("phone"), payload.get("email"), payload.get("answer"),
             payload.get("utm_source"), payload.get("utm_content"), page_base, payload.get("session"),
             sms_consent=payload.get("sms_consent") is True,
+            excluded=await tracking_exclusion.is_excluded(request),
         )
     except be.BookingError as e:
         raise HTTPException(409, str(e))

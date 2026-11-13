@@ -104,7 +104,7 @@ async def funnel_stats(client_id: int | None = None, days: int = 30) -> dict:
 
 async def save_partial(client_id: int, session_id: str, name: str | None, phone: str, event_type_id: int | None,
                        slot_start: str | None, utm_source: str | None, utm_content: str | None,
-                       sms_consent: bool | None = None) -> None:
+                       sms_consent: bool | None = None, track: bool = True) -> None:
     if not session_id or len(_digits(phone)) < 10:
         return
     slot = None
@@ -129,7 +129,8 @@ async def save_partial(client_id: int, session_id: str, name: str | None, phone:
             client_id, event_type_id, session_id[:64], secrets.token_urlsafe(12), (name or "").strip()[:120] or None,
             phone.strip()[:40], slot, utm_source, utm_content, ABANDON_DELAY_MINUTES, sms_consent,
         )
-    await log_step(client_id, session_id, "details", event_type_id, utm_source, utm_content)
+    if track:  # False when it's Dylan's own visit (tracking_exclusion.py)
+        await log_step(client_id, session_id, "details", event_type_id, utm_source, utm_content)
 
 
 async def link_partial(client_id: int, session_id: str | None, phone: str, booking_id: int) -> None:

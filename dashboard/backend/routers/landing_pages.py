@@ -230,7 +230,9 @@ async def landing_page(slug: str, request: Request):
     if not row:
         raise HTTPException(status_code=404, detail="Page not found")
 
-    await _log_view_event(slug, row["contact_id"], "view")
+    import tracking_exclusion
+    if not await tracking_exclusion.is_excluded(request):
+        await _log_view_event(slug, row["contact_id"], "view")
 
     # Built from the incoming request, not a hardcoded base URL — this page
     # is meant to be served from a branded subdomain the app itself doesn't

@@ -2479,6 +2479,8 @@ async def _create_schema(pool: asyncpg.Pool):
             -- own confirmation + reminders (transactional, number given for that).
             ALTER TABLE booking_partials ADD COLUMN IF NOT EXISTS sms_consent BOOLEAN;
             ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sms_consent BOOLEAN;
+            -- Booked from an excluded IP (Dylan testing): kept out of funnel analytics.
+            ALTER TABLE bookings ADD COLUMN IF NOT EXISTS excluded BOOLEAN NOT NULL DEFAULT false;
 
             -- Funnel steps per page visit: view, time, details, submit, booked.
             CREATE TABLE IF NOT EXISTS booking_events (
