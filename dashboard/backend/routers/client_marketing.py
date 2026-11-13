@@ -14,6 +14,7 @@ import json
 
 from fastapi import APIRouter, HTTPException, Query
 
+import ad_spend_caps
 import calendly_integration
 import client_ai_lessons
 import client_autosetup
@@ -263,6 +264,118 @@ async def sync_client_meta_ads_now(client_id: int, days_back: int = 3):
     except Exception as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "days_synced": days_synced}
+
+
+def _cap_row(row) -> dict | None:
+    if not row:
+        return None
+    d = dict(row)
+    for k in ("cap", "last_spend"):
+        d[k] = float(d[k]) if d[k] is not None else None
+    if isinstance(d.get("paused_campaigns"), str):
+        d["paused_campaigns"] = json.loads(d["paused_campaigns"])
+    d["campaign_ids"] = list(d.get("campaign_ids") or [])
+    return d
+
+
+@router.get("/clients/{client_id}/ad-spend-cap")
+async def get_ad_spend_cap(client_id: int):
+    """The client's Meta ad spend cap (ad_spend_caps.py) or null."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM ad_spend_caps WHERE client_id = $1", client_id)
+        account = await conn.fetchval(
+            "SELECT meta_ad_account_id FROM client_marketing_config WHERE client_id = $1", client_id,
+        )
+    return {"cap": _cap_row(row), "meta_ad_account_id": account}
+
+
+@router.get("/clients/{client_id}/ad-spend-cap/campaigns")
+async def list_ad_spend_cap_campaigns(client_id: int):
+    """The client's Meta campaigns, for picking which ones the cap covers."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        account = await conn.fetchval(
+            "SELECT meta_ad_account_id FROM client_marketing_config WHERE client_id = $1", client_id,
+        )
+    account = (account or "").strip().removeprefix("act_")
+    if not account:
+        raise HTTPException(400, "No Meta Ad Account ID saved for this client yet.")
+    try:
+        return {"campaigns": await ad_spend_caps.list_campaigns(account)}
+    except ad_spend_caps.CapError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.put("/clients/{client_id}/ad-spend-cap")
+async def save_ad_spend_cap(client_id: int, payload: dict):
+    """Body: {cap, start_date (YYYY-MM-DD or null), campaign_ids [], enabled}.
+    Raising the cap above current spend clears the paused state, and above
+    80% of spend re-arms the warning. Checks spend right away."""
+    from datetime import date as _date
+    try:
+        cap = round(float(payload.get("cap")), 2)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Enter the ad spend cap in dollars.")
+    if cap <= 0:
+        raise HTTPException(400, "The cap must be more than $0.")
+    start = payload.get("start_date") or None
+    try:
+        start = _date.fromisoformat(start) if start else None
+    except ValueError:
+        raise HTTPException(400, "Start date must be YYYY-MM-DD.")
+    ids = [str(c).strip() for c in (payload.get("campaign_ids") or []) if str(c).strip()]
+    enabled = bool(payload.get("enabled", True))
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if not await conn.fetchval("SELECT 1 FROM clients WHERE id = $1", client_id):
+            raise HTTPException(404, "Client not found")
+        await conn.execute(
+            """
+            INSERT INTO ad_spend_caps (client_id, cap, start_date, campaign_ids, enabled, updated_at)
+            VALUES ($1, $2, $3, $4, $5, now())
+            ON CONFLICT (client_id) DO UPDATE SET
+                cap = EXCLUDED.cap, start_date = EXCLUDED.start_date,
+                campaign_ids = EXCLUDED.campaign_ids, enabled = EXCLUDED.enabled, updated_at = now(),
+                -- scope changed: the old spend figure no longer applies
+                last_spend = CASE WHEN ad_spend_caps.start_date IS NOT DISTINCT FROM EXCLUDED.start_date
+                                   AND ad_spend_caps.campaign_ids = EXCLUDED.campaign_ids
+                                  THEN ad_spend_caps.last_spend END,
+                paused_at = CASE WHEN EXCLUDED.cap > COALESCE(ad_spend_caps.last_spend, 0) THEN NULL
+                                 ELSE ad_spend_caps.paused_at END,
+                warned_at = CASE WHEN EXCLUDED.cap * 0.8 > COALESCE(ad_spend_caps.last_spend, 0) THEN NULL
+                                 ELSE ad_spend_caps.warned_at END
+            """,
+            client_id, cap, start, ids, enabled,
+        )
+    check_error = None
+    try:
+        await ad_spend_caps.check_client(client_id)
+    except ad_spend_caps.CapError as e:
+        check_error = str(e)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM ad_spend_caps WHERE client_id = $1", client_id)
+    return {"cap": _cap_row(row), "check_error": check_error}
+
+
+@router.post("/clients/{client_id}/ad-spend-cap/check")
+async def check_ad_spend_cap_now(client_id: int):
+    try:
+        await ad_spend_caps.check_client(client_id)
+    except ad_spend_caps.CapError as e:
+        raise HTTPException(400, str(e))
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM ad_spend_caps WHERE client_id = $1", client_id)
+    return {"cap": _cap_row(row)}
+
+
+@router.delete("/clients/{client_id}/ad-spend-cap")
+async def delete_ad_spend_cap(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM ad_spend_caps WHERE client_id = $1", client_id)
+    return {"ok": True}
 
 
 @router.post("/clients/{client_id}/marketing-config/connect-calendly-webhook")

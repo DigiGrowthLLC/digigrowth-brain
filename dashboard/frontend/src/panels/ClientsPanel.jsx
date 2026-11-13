@@ -3782,6 +3782,165 @@ const AUTOSETUP_STEPS = [
 ];
 const AUTOSETUP_COLORS = { done: "#4ade80", skipped: "#5a7aa0", error: "#f87171" };
 
+// Meta ad spend cap (backend ad_spend_caps.py): the server checks spend every
+// 30 min and PAUSES the campaigns at the cap (not Meta's spending limit), so
+// they can be switched back on if the client keeps going. Cap = signed
+// marketing budget - $100 for software.
+function AdSpendCapCard({ clientId, hasAdAccount }) {
+  const mono = { fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", lineHeight: 1.5 };
+  const [cap, setCap] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ cap: "", start_date: "", campaign_ids: [], enabled: true });
+  const [campaigns, setCampaigns] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    const r = await fetch(API(`/clients/${clientId}/ad-spend-cap`));
+    const d = await r.json().catch(() => ({}));
+    setCap(d.cap || null);
+    setLoaded(true);
+  }, [clientId]);
+  useEffect(() => { load(); }, [load]);
+
+  const openEdit = async () => {
+    setErr("");
+    setForm(cap
+      ? { cap: String(cap.cap), start_date: cap.start_date || "", campaign_ids: cap.campaign_ids || [], enabled: cap.enabled }
+      : { cap: "", start_date: "", campaign_ids: [], enabled: true });
+    setEditing(true);
+    if (campaigns === null) {
+      const r = await fetch(API(`/clients/${clientId}/ad-spend-cap/campaigns`));
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) setCampaigns(d.campaigns || []);
+      else { setCampaigns([]); setErr(d.detail || "Couldn't load campaigns from Meta"); }
+    }
+  };
+
+  const save = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await fetch(API(`/clients/${clientId}/ad-spend-cap`), {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, cap: Number(form.cap), start_date: form.start_date || null }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || "Couldn't save the cap");
+      setCap(d.cap);
+      setEditing(false);
+      if (d.check_error) setErr(`Saved, but the spend check failed: ${d.check_error}`);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const checkNow = async () => {
+    setBusy(true);
+    setErr("");
+    const r = await fetch(API(`/clients/${clientId}/ad-spend-cap/check`), { method: "POST" });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) setCap(d.cap); else { setErr(d.detail || "Check failed"); load(); }
+    setBusy(false);
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    await fetch(API(`/clients/${clientId}/ad-spend-cap`), { method: "DELETE" });
+    setCap(null);
+    setEditing(false);
+    setBusy(false);
+  };
+
+  const money = (v) => `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const pct = cap && cap.last_spend != null ? Math.min(100, (cap.last_spend / cap.cap) * 100) : 0;
+  const barColor = cap?.paused_at ? "#e05c5c" : pct >= 80 ? "#f0a028" : "#3a7bd5";
+  const headline = !loaded ? "LOADING…"
+    : !cap ? "NOT SET: campaigns run until you stop them"
+    : !cap.enabled ? "OFF: not checking spend"
+    : cap.paused_at ? `PAUSED AT CAP ${new Date(cap.paused_at).toLocaleString()}`
+    : cap.last_spend != null ? `${money(cap.last_spend)} OF ${money(cap.cap)} SPENT · CHECKED ${new Date(cap.last_checked_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    : `CAP ${money(cap.cap)} · NOT CHECKED YET`;
+  const toggleCampaign = (id) => setForm((f) => ({
+    ...f, campaign_ids: f.campaign_ids.includes(id) ? f.campaign_ids.filter((x) => x !== id) : [...f.campaign_ids, id],
+  }));
+
+  return (
+    <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(58,123,213,0.06)", marginBottom: 12 }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#9cc4f5" }}>Meta ad spend cap</div>
+          <div style={{ ...mono, fontSize: 9, marginTop: 2, color: cap?.paused_at ? "#e05c5c" : "#5a7aa0" }}>{headline}</div>
+        </div>
+        {!editing && (
+          <div style={{ display: "flex", gap: 6 }}>
+            {cap && <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={checkNow} disabled={busy}>{busy ? "CHECKING…" : "CHECK NOW"}</button>}
+            <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={openEdit} disabled={!hasAdAccount || busy}
+              title={hasAdAccount ? "" : "Save the client's Meta Ad Account ID first"}>
+              {cap ? "EDIT" : "SET CAP"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {cap && cap.enabled && cap.last_spend != null && !editing && (
+        <div style={{ height: 4, borderRadius: 2, background: "rgba(58,123,213,0.15)", marginTop: 8, overflow: "hidden" }}>
+          <div style={{ width: `${pct}%`, height: "100%", background: barColor }} />
+        </div>
+      )}
+      {cap?.paused_at && !editing && (
+        <div style={{ ...mono, marginTop: 6 }}>
+          To keep going: EDIT → raise the cap → SAVE, then switch the campaign back on in Ads Manager.
+        </div>
+      )}
+      {cap && !editing && cap.last_error && <div style={{ ...mono, color: "#f87171", marginTop: 6 }}>Last check failed: {cap.last_error}</div>}
+      {!hasAdAccount && <div style={{ ...mono, marginTop: 6 }}>Needs the client's Meta Ad Account ID (Create Paid Ad Creatives guide) first.</div>}
+
+      {editing && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+          <div className="flex-wrap" style={{ display: "flex", gap: 10 }}>
+            <label style={{ ...mono, display: "flex", flexDirection: "column", gap: 3 }}>
+              AD SPEND CAP ($)
+              <input id="ad-cap-amount" className="dg-input" style={{ fontSize: 11, width: 130 }} type="number" min="1" step="1"
+                value={form.cap} placeholder="500" onChange={(e) => setForm({ ...form, cap: e.target.value })} autoFocus />
+            </label>
+            <label style={{ ...mono, display: "flex", flexDirection: "column", gap: 3 }}>
+              COUNT SPEND FROM (OPTIONAL)
+              <input id="ad-cap-start" className="dg-input" style={{ fontSize: 11, width: 160 }} type="date"
+                value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+            </label>
+          </div>
+          <div style={mono}>Signed marketing budget minus $100 for software (e.g. $600 signed = $500 cap). No start date = everything the chosen campaigns have ever spent.</div>
+          <div>
+            <div style={{ ...mono, marginBottom: 4 }}>CAMPAIGNS IT COVERS (none ticked = every campaign in the ad account)</div>
+            {campaigns === null ? <div style={mono}>Loading campaigns from Meta…</div>
+              : campaigns.length === 0 ? <div style={mono}>No campaigns found in this ad account.</div>
+              : campaigns.map((c) => (
+                <label key={c.id} style={{ ...mono, display: "flex", gap: 8, alignItems: "center", color: "#c8d8f0" }}>
+                  <input type="checkbox" checked={form.campaign_ids.includes(c.id)} onChange={() => toggleCampaign(c.id)} />
+                  {c.name} <span style={{ color: "#5a7aa0" }}>· {(c.effective_status || c.status || "").toLowerCase()}</span>
+                </label>
+              ))}
+          </div>
+          <label style={{ ...mono, display: "flex", gap: 8, alignItems: "center" }}>
+            <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
+            Pause the campaigns automatically when spend reaches the cap
+          </label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={save} disabled={busy || !form.cap}>{busy ? "SAVING…" : "SAVE"}</button>
+            <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setEditing(false)} disabled={busy}>CANCEL</button>
+            {cap && <button className="btn btn-secondary" style={{ fontSize: 10, marginLeft: "auto" }} onClick={remove} disabled={busy}>REMOVE CAP</button>}
+          </div>
+        </div>
+      )}
+      {err && <div style={{ ...mono, color: "#f87171", marginTop: 6 }}>{err}</div>}
+    </div>
+  );
+}
+
 function AutoSetupCard({ clientId, autosetup, onChange }) {
   const [starting, setStarting] = useState(false);
   const [err, setErr] = useState("");
@@ -4007,6 +4166,7 @@ function ClientMarketingSetup({ clientId }) {
       </div>
 
       <AutoSetupCard clientId={clientId} autosetup={config?.autosetup} onChange={load} />
+      <AdSpendCapCard clientId={clientId} hasAdAccount={Boolean(config?.meta_ad_account_id)} />
 
       {(() => {
         const done = SETUP_ORDER_GUIDE.steps.filter((st) => config?.guide_progress?.[st._ref.g]?.[st._ref.i]).length;

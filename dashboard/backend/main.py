@@ -46,6 +46,7 @@ import outreach_video
 import send_info_queue
 import identity_warmup
 import meta_ads
+import ad_spend_caps
 import no_show_sequence
 import onboarding_sequence
 import reminder_engine
@@ -610,6 +611,17 @@ async def lifespan(app: FastAPI):
         id="client-default-expenses",
         replace_existing=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
+    )
+    # Pauses a client's Meta campaigns once they hit their ad spend cap
+    # (signed marketing budget - $100). Paused, not Meta-spend-limited, so
+    # Dylan can switch them back on if the client keeps going.
+    scheduler.add_job(
+        ad_spend_caps.run_watchdog,
+        IntervalTrigger(minutes=30),
+        id="ad-spend-caps",
+        replace_existing=True,
+        max_instances=1,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=90),
     )
     scheduler.add_job(
         meta_ads.sync_meta_ad_stats,

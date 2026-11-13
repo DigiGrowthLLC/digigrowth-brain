@@ -61,6 +61,18 @@ and Client Portal step 1 tick themselves once it's live. Calendly/GoHighLevel on
 client already running on them (GHL: Response AI steps 14-16, only when the client
 explicitly said so).
 
+**Clinic not on Google Calendar** (Outlook/Microsoft 365, Apple iCloud, practice software,
+Yahoo etc.; the portal guide has a tab for each): the booking engine only reads/writes Google,
+so the clinic sends a read-only ICS/webcal link instead of sharing. Dylan then, in the
+dylanrg@ Google Calendar: (1) Other calendars → + → From URL, paste their link (swap
+`webcal://` for `https://` if Google rejects it); (2) create a calendar "<Clinic> New Patients"
+(owned by dylanrg@, so writable); (3) in Booking Links pick that new calendar under "Book
+appointments into" and tick the subscribed one under "Also block times that are busy on…";
+(4) send the clinic the new calendar's "Secret address in iCal format" so bookings show in
+their Outlook/Apple calendar. Google refreshes URL subscriptions only every few hours, so
+same-day blocks the clinic adds can be missed; they've been told to text us for short-notice
+blocks. No calendar at all: same, minus steps 1 and the busy tick.
+
 ## 3. Walk one step at a time
 
 For each step:

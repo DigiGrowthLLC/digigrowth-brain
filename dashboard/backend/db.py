@@ -2493,4 +2493,26 @@ async def _create_schema(pool: asyncpg.Pool):
                 UNIQUE (session_id, step)
             );
             CREATE INDEX IF NOT EXISTS idx_booking_events_client ON booking_events(client_id, created_at);
+
+            -- Meta ad spend cap per client (ad_spend_caps.py, every 30 min):
+            -- pauses the client's campaigns (status PAUSED, so Dylan can switch
+            -- them back on) once spend reaches the cap. Deliberately NOT Meta's
+            -- campaign spending limit. cap = signed marketing budget - $100.
+            -- campaign_ids empty = every campaign in the client's ad account.
+            -- start_date NULL = all-time spend of those campaigns.
+            CREATE TABLE IF NOT EXISTS ad_spend_caps (
+                client_id           INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+                cap                 NUMERIC(10,2) NOT NULL,
+                start_date          DATE,
+                campaign_ids        TEXT[] NOT NULL DEFAULT '{}',
+                enabled             BOOLEAN NOT NULL DEFAULT true,
+                last_spend          NUMERIC(10,2),
+                currency            TEXT,
+                last_checked_at     TIMESTAMPTZ,
+                last_error          TEXT,
+                warned_at           TIMESTAMPTZ,
+                paused_at           TIMESTAMPTZ,
+                paused_campaigns    JSONB NOT NULL DEFAULT '[]',
+                updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
         """)
