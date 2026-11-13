@@ -609,6 +609,18 @@ async def stripe_connect(client_id: int, request: Request):
         raise HTTPException(400, str(e))
 
 
+@admin_router.post("/clients/{client_id}/booking/stripe/disconnect")
+async def stripe_disconnect(client_id: int):
+    """Unlink the clinic's Stripe account (it stays in Stripe; live Standard
+    accounts can't be deleted). Their next Connect click starts fresh."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        acct = await conn.fetchval("SELECT stripe_account_id FROM booking_settings WHERE client_id = $1", client_id)
+    if acct:
+        await be._forget_stripe_account(client_id, acct)
+    return {"disconnected": acct}
+
+
 @admin_router.post("/clients/{client_id}/booking/stripe/refresh")
 async def stripe_refresh(client_id: int):
     try:

@@ -242,7 +242,6 @@ async def stripe_onboarding_link(client_id: int, return_url: str, refresh_url: s
     pool = await get_pool()
     async with pool.acquire() as conn:
         s = await conn.fetchrow("SELECT stripe_account_id FROM booking_settings WHERE client_id = $1", client_id)
-        email = await conn.fetchval("SELECT email FROM clients WHERE id = $1", client_id)
     acct = s["stripe_account_id"] if s else None
     # An account made with the test key doesn't exist under the live key
     # (and vice versa): start over instead of failing forever.
@@ -250,7 +249,10 @@ async def stripe_onboarding_link(client_id: int, return_url: str, refresh_url: s
         await _forget_stripe_account(client_id, acct)
         acct = None
     if not acct:
-        created = await _stripe("POST", "/accounts", {"type": "standard", "email": email or None,
+        # No email: the account's email is its Stripe login, so the clinic
+        # enters their own during onboarding (Dylan, 2026-11-13). Pre-filling
+        # clients.email made Pinnacle's ops manager sign in as the owner.
+        created = await _stripe("POST", "/accounts", {"type": "standard",
                                                       "metadata": {"digigrowth_client_id": client_id}})
         acct = created["id"]
         async with pool.acquire() as conn:
