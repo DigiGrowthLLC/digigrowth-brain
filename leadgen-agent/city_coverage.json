@@ -7189,11 +7189,11 @@
       "last_scraped_date": "2026-11-13"
     },
     "Farmington Hills, MI": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 106,
+      "qualified_count": 4,
+      "last_scraped_date": "2026-11-13"
     },
     "Rancho Cordova, CA": {
       "status": "not_started",
