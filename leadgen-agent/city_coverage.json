@@ -7245,9 +7245,9 @@
       "last_scraped_date": "2026-11-13"
     },
     "Miami Beach, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 167,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 202,
       "qualified_count": 7,
       "last_scraped_date": "2026-11-14"
     },
