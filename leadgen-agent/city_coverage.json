@@ -7196,11 +7196,11 @@
       "last_scraped_date": "2026-11-13"
     },
     "Rancho Cordova, CA": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 94,
       "qualified_count": 0,
-      "last_scraped_date": null
+      "last_scraped_date": "2026-11-13"
     },
     "Queen Creek, AZ": {
       "status": "not_started",
