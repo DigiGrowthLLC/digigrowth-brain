@@ -2237,6 +2237,57 @@ async def _create_schema(pool: asyncpg.Pool):
             CREATE INDEX IF NOT EXISTS idx_client_dm_messages_thread ON client_dm_messages(thread_id, created_at);
         """)
 
+        # AI voice agent (client_voice_agent.py, Retell over the client's own
+        # Twilio number): one row per dial attempt, seq_id = the lead's first
+        # attempt. Calls Meta leads after the Instant Form got the AI-call
+        # consent line (voice_consent_meta_since) and funnel leads who ticked
+        # the booking page's call-consent box (booking_partials.call_consent).
+        await conn.execute("""
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_agent_enabled BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_id TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS retell_llm_id TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS retell_agent_id TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_synced_at TIMESTAMPTZ;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_sync_error TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_consent_meta_since TIMESTAMPTZ;
+            ALTER TABLE meta_lead_openers ADD COLUMN IF NOT EXISTS note TEXT;
+            CREATE TABLE IF NOT EXISTS client_voice_calls (
+                id                  SERIAL PRIMARY KEY,
+                client_id           INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                phone               TEXT NOT NULL,
+                lead_name           TEXT,
+                lead_email          TEXT,
+                source              TEXT NOT NULL,
+                partial_id          INTEGER,
+                seq_id              INTEGER,
+                attempt             INTEGER NOT NULL DEFAULT 1,
+                double_dial         BOOLEAN NOT NULL DEFAULT false,
+                texted_first        BOOLEAN NOT NULL DEFAULT false,
+                text_released       BOOLEAN NOT NULL DEFAULT false,
+                not_interested      BOOLEAN NOT NULL DEFAULT false,
+                transferred         BOOLEAN NOT NULL DEFAULT false,
+                note                TEXT,
+                token               TEXT NOT NULL,
+                run_at              TIMESTAMPTZ NOT NULL,
+                status              TEXT NOT NULL DEFAULT 'pending',
+                outcome             TEXT,
+                error               TEXT,
+                twilio_call_sid     TEXT,
+                retell_call_id      TEXT,
+                dialed_at           TIMESTAMPTZ,
+                answered_at         TIMESTAMPTZ,
+                duration_ms         INTEGER,
+                disconnection_reason TEXT,
+                transcript          TEXT,
+                summary             TEXT,
+                recording_url       TEXT,
+                created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_voice_calls_due ON client_voice_calls(run_at) WHERE status = 'pending';
+            CREATE INDEX IF NOT EXISTS idx_client_voice_calls_client ON client_voice_calls(client_id, phone);
+        """)
+
         # Placeholder agent slots an admin can name ahead of building them
         # (e.g. a future database-reactivation agent) — the existing
         # Facebook Leads response agent stays wired to client_marketing_config
@@ -2535,4 +2586,11 @@ async def _create_schema(pool: asyncpg.Pool):
                 paused_campaigns    JSONB NOT NULL DEFAULT '[]',
                 updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
             );
+        """)
+
+        # Voice agent hold on the unfinished-booking text (client_voice_agent.py).
+        await conn.execute("""
+            ALTER TABLE booking_partials ADD COLUMN IF NOT EXISTS call_consent BOOLEAN;
+            ALTER TABLE booking_partials ADD COLUMN IF NOT EXISTS voice_hold BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE booking_partials ADD COLUMN IF NOT EXISTS voice_released_at TIMESTAMPTZ;
         """)

@@ -949,6 +949,13 @@ async def initiate_conversation(
             )
             if not row or not row["response_ai_enabled"]:
                 return  # agent disabled for this client — Meta lead falls back to manual, same as SMS
+        # AI voice agent (client_voice_agent.py, Dylan 2026-11-15): when it's on
+        # and this lead consented to AI calls, it calls first (~3 min) and the
+        # opener text only goes out after an unanswered call (queued from there).
+        import client_voice_agent
+        if await client_voice_agent.start_for_meta_lead(client_id, phone, lead_name, lead_email):
+            return
+        async with pool.acquire() as conn:
             # Always deferred — a text landing the same second someone submits a
             # Facebook form reads unmistakably as a bot, and the form's booking
             # step needs time to finish (META_LEAD_BOOKING_GRACE_SECONDS).
@@ -982,12 +989,13 @@ async def send_due_openers() -> None:
         if datetime.now(timezone.utc) - r["run_at"] > _OPENER_MAX_AGE:
             status = "expired"
         else:
-            status = await _open_conversation(r["client_id"], r["phone"], r["lead_name"], r["lead_email"])
+            status = await _open_conversation(r["client_id"], r["phone"], r["lead_name"], r["lead_email"], r["note"])
         async with pool.acquire() as conn:
             await conn.execute("UPDATE meta_lead_openers SET status = $2 WHERE id = $1", r["id"], status)
 
 
-async def _open_conversation(client_id: int, phone: str, lead_name: str | None, lead_email: str | None) -> str:
+async def _open_conversation(client_id: int, phone: str, lead_name: str | None, lead_email: str | None,
+                             voice_note: str | None = None) -> str:
     """Builds the opener prompt from the client's CURRENT agent config (so an
     edit made during the grace period applies) and sends it. Returns the
     final meta_lead_openers status."""
@@ -1021,6 +1029,8 @@ async def _open_conversation(client_id: int, phone: str, lead_name: str | None, 
             f"[System note: {lead_name.strip() if lead_name else 'A new lead'} just submitted this "
             "business's Facebook/Instagram lead form and hasn't heard from you yet. Send the opening text.]"
         )
+        if voice_note:  # queued by the voice agent (client_voice_agent._release_text)
+            note = f"[System note: {voice_note}]"
         messages = [{"role": "user", "content": note}]
         return await _send_initial_message(client_id, phone, system_prompt, messages, max_words, lead_email)
     except Exception as e:

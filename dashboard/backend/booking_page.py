@@ -326,7 +326,7 @@ async function bookMode() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       const name = $("#n") && $("#n").value.trim(), phone = $("#p") && $("#p").value;
-      if (name && digits(phone).length >= 10) post("partial", { session: SESSION, name, phone, sms_consent: !!($("#c") && $("#c").checked), event_type_id: ev.id, start: state.slot, ...UTM }).catch(() => {});
+      if (name && digits(phone).length >= 10) post("partial", { session: SESSION, name, phone, sms_consent: !!($("#c") && $("#c").checked), call_consent: !!($("#cc") && $("#cc").checked), event_type_id: ev.id, start: state.slot, ...UTM }).catch(() => {});
     }, 700);
   }
 
@@ -341,6 +341,7 @@ async function bookMode() {
       <label for="n">Full name</label><input id="n" autocomplete="name" value="${esc(pre.name)}" required>
       <label for="p">Mobile number <small>(for your confirmation text)</small></label><input id="p" type="tel" inputmode="tel" autocomplete="tel" value="${esc(pre.phone)}" required>
       <label class="consent" for="c"><input type="checkbox" id="c"><span>Yes, I agree to receive text messages from ${esc(info.clinic)} at this number about my visit, including follow-ups and answers to my questions. Msg frequency varies. Msg &amp; data rates may apply. Reply HELP for help, STOP to opt out.${prof.sms_terms_url ? ` <a href="${esc(prof.sms_terms_url)}" target="_blank" rel="noopener">SMS Terms &amp; Privacy</a>` : ""}</span></label>
+      ${info.voice_calls ? `<label class="consent" for="cc"><input type="checkbox" id="cc"><span>Yes, ${esc(info.clinic)} may call me at this number about my visit, including automated and AI-assisted calls. Consent isn't required to book or receive care.</span></label>` : ""}
       ${ev.ask_question ? `<label for="q">${esc(ev.ask_question)} <small>(optional)</small></label><textarea id="q" rows="2"></textarea>` : ""}
       <button class="cta" id="go">${paid ? ICON.lock + " Continue to secure payment" : "Confirm my visit"}</button>
       <ul class="assure">${assure.filter(Boolean).map(a => `<li>${esc(a)}</li>`).join("")}</ul>
@@ -348,7 +349,7 @@ async function bookMode() {
       <div class="err" id="err"></div>
       <p class="fine">The box is optional. Either way, your booking confirmation and visit reminders are texted to this number. Msg &amp; data rates may apply. Reply STOP to opt out.</p>`;
     $("#change").onclick = () => pickStep();
-    $("#n").oninput = savePartial; $("#p").oninput = savePartial; $("#c").onchange = savePartial;
+    $("#n").oninput = savePartial; $("#p").oninput = savePartial; $("#c").onchange = savePartial; if ($("#cc")) $("#cc").onchange = savePartial;
     if (pre.name && digits(pre.phone).length >= 10) savePartial();
     ($("#n").value ? $("#p") : $("#n")).focus({ preventScroll: true });
     $("#main").scrollIntoView({ behavior: "smooth", block: "start" });

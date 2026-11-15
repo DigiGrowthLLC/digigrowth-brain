@@ -104,7 +104,8 @@ async def funnel_stats(client_id: int | None = None, days: int = 30) -> dict:
 
 async def save_partial(client_id: int, session_id: str, name: str | None, phone: str, event_type_id: int | None,
                        slot_start: str | None, utm_source: str | None, utm_content: str | None,
-                       sms_consent: bool | None = None, track: bool = True) -> None:
+                       sms_consent: bool | None = None, track: bool = True,
+                       call_consent: bool | None = None) -> None:
     if not session_id or len(_digits(phone)) < 10:
         return
     slot = None
@@ -117,18 +118,24 @@ async def save_partial(client_id: int, session_id: str, name: str | None, phone:
     async with pool.acquire() as conn:
         await conn.execute(
             """INSERT INTO booking_partials (client_id, event_type_id, session_id, resume_token, name, phone,
-                   slot_start, utm_source, utm_content, followup_due_at, sms_consent)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now() + make_interval(mins => $10), $11)
+                   slot_start, utm_source, utm_content, followup_due_at, sms_consent, call_consent)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now() + make_interval(mins => $10), $11, $12)
                ON CONFLICT (session_id) DO UPDATE SET name = EXCLUDED.name, phone = EXCLUDED.phone,
-                   sms_consent = EXCLUDED.sms_consent,
+                   sms_consent = EXCLUDED.sms_consent, call_consent = EXCLUDED.call_consent,
                    slot_start = COALESCE(EXCLUDED.slot_start, booking_partials.slot_start),
                    event_type_id = COALESCE(EXCLUDED.event_type_id, booking_partials.event_type_id),
                    followup_due_at = CASE WHEN booking_partials.followed_up_at IS NULL
                                           THEN EXCLUDED.followup_due_at ELSE booking_partials.followup_due_at END,
                    updated_at = now()""",
             client_id, event_type_id, session_id[:64], secrets.token_urlsafe(12), (name or "").strip()[:120] or None,
-            phone.strip()[:40], slot, utm_source, utm_content, ABANDON_DELAY_MINUTES, sms_consent,
+            phone.strip()[:40], slot, utm_source, utm_content, ABANDON_DELAY_MINUTES, sms_consent, call_consent,
         )
+    # AI voice agent: a patient who ticked the call-consent box gets a call
+    # when the unfinished-booking text would go; that text waits for the call.
+    if call_consent and track:
+        import client_voice_agent
+        await client_voice_agent.start_for_funnel_partial(
+            client_id, session_id, datetime.now(timezone.utc) + timedelta(minutes=ABANDON_DELAY_MINUTES))
     if track:  # False when it's Dylan's own visit (tracking_exclusion.py)
         await log_step(client_id, session_id, "details", event_type_id, utm_source, utm_content)
 
@@ -214,6 +221,7 @@ async def send_due_abandon_followups() -> int:
                LEFT JOIN client_marketing_config cmc ON cmc.client_id = p.client_id
                WHERE p.booking_id IS NULL AND p.followed_up_at IS NULL AND p.followup_skipped IS NULL
                  AND p.followup_due_at < now()
+                 AND (NOT p.voice_hold OR p.voice_released_at IS NOT NULL)  -- the voice agent calls first
                ORDER BY p.followup_due_at LIMIT 50"""
         )
     sent = 0

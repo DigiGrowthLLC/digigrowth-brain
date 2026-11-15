@@ -19,6 +19,7 @@ portal's read-only "To Do" tab) is ticked too, so the client sees progress
 without Dylan checking things off twice.
 """
 import json
+import os
 import pathlib
 import re
 
@@ -27,14 +28,15 @@ import httpx
 from db import get_pool
 
 # Launch checklist item title (lowercased) -> the Marketing Setup guide whose
-# steps must all be ticked. Items not listed (onboarding call, reactivation,
-# launch campaign, post-launch weeks) stay manual.
+# steps must all be ticked. Items not listed (onboarding call, launch
+# campaign, post-launch weeks) stay manual.
 LAUNCH_ITEM_GUIDES = {
     "set up client portal": "client_portal",
     "set up sms marketing": "sms",
     "set up response ai": "response_ai",
     "create landing page": "landing_page",
     "create paid ad creatives": "ad_creatives",
+    "launch database reactivation": "reactivation",
 }
 
 _PANEL = pathlib.Path(__file__).resolve().parent.parent / "frontend" / "src" / "panels" / "ClientsPanel.jsx"
@@ -202,6 +204,36 @@ async def _signals(conn, client_id: int) -> dict[str, list[int]]:
 
     # automations: 1 sequence copy seeded (review is still worth doing, but the copy exists)
     mark("automations", 1, when=sequences > 0)
+
+    # voice_agent: 0 Retell key on the server, 1 consent stamped, 2 agent built,
+    # 3 a test call connected, 4 switched on, 5 a real lead was called
+    voice_test = await conn.fetchval(
+        "SELECT 1 FROM client_voice_calls WHERE client_id = $1 AND source = 'test' AND answered_at IS NOT NULL LIMIT 1", client_id)
+    voice_real = await conn.fetchval(
+        "SELECT 1 FROM client_voice_calls WHERE client_id = $1 AND source <> 'test' AND dialed_at IS NOT NULL LIMIT 1", client_id)
+    mark("voice_agent", 0, when=bool(os.environ.get("RETELL_API_KEY")))
+    mark("voice_agent", 1, when=bool(cfg.get("voice_consent_meta_since")))
+    mark("voice_agent", 2, when=bool(cfg.get("retell_agent_id")))
+    mark("voice_agent", 3, when=bool(voice_test))
+    mark("voice_agent", 4, when=bool(cfg.get("voice_agent_enabled")))
+    mark("voice_agent", 5, when=bool(voice_real))
+
+    # reactivation: 2 reactivation leads imported, 3 a campaign exists, 5 one is running/ran
+    react_leads = await conn.fetchval(
+        """SELECT 1 FROM contacts WHERE client_id = $1 AND (lead_source IN ('past_patient', 'old_inquiry')
+             OR 'Database Reactivation' = ANY(tags) OR 'Previous Patient' = ANY(tags)) LIMIT 1""", client_id)
+    campaign = await conn.fetchrow(
+        "SELECT bool_or(started_at IS NOT NULL) AS started FROM reactivation_campaigns WHERE client_id = $1 HAVING count(*) > 0",
+        client_id)
+    mark("reactivation", 2, when=bool(react_leads))
+    mark("reactivation", 3, when=bool(campaign))
+    mark("reactivation", 5, when=bool(campaign and campaign["started"]))
+
+    # social: 1 DMs connected, 4 DM agent on, 5 a real DM thread exists
+    dm_thread = await conn.fetchval("SELECT 1 FROM client_dm_threads WHERE client_id = $1 LIMIT 1", client_id)
+    mark("social", 1, when=bool(cfg.get("dm_connected_at") and not cfg.get("dm_connect_error")))
+    mark("social", 4, when=bool(cfg.get("dm_agent_enabled")))
+    mark("social", 5, when=bool(dm_thread))
     return done
 
 

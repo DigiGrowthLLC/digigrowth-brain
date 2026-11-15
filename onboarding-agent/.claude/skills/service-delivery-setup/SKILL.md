@@ -1,6 +1,6 @@
 ---
 name: service-delivery-setup
-description: Walk Dylan step by step through getting a new client's service delivery ready for launch (number, AI text agent, booking, funnel, Meta access, email, sequences, tests), scanning what's already done and ticking each step off in the dashboard's Marketing Setup tab as it's completed. Use when Dylan says "help me set up service delivery for <client>", "onboard <client>", "what's left to launch <client>", or similar.
+description: Walk Dylan step by step through getting a new client's service delivery ready for launch (number, AI text agent, booking, funnel, Meta access, sequences, AI voice agent, database reactivation, social media DM agent + organic posts, tests), scanning what's already done and ticking each step off in the dashboard's Marketing Setup tab as it's completed. Use when Dylan says "help me set up service delivery for <client>", "onboard <client>", "what's left to launch <client>", or similar.
 ---
 
 # Service Delivery Setup
@@ -117,8 +117,9 @@ hand: `PUT /api/clients/{id}/launch-checklist/{item_id}` with `{"completed": tru
   `GET /api/clients/{id}/sms-messages`.
 - **Meta**: the client sends a business portfolio invite to dylanrg@. Accept it, then check
   your role under Users → People. "Partial access: Basic" means the client has to assign
-  the Page + Instagram (Full control). Several ad accounts: pick the one with spend history
-  and a card on file (`ads_get_ad_accounts` shows `has_payment_method`), save its ID.
+  the Page + Instagram (Full control). Several ad accounts: pick the one with spend history, save its ID.
+  Pilot clients: never ask the client for a card on file; the ads always run on Dylan's card
+  (Dylan, 2026-11-06), so it's not a setup step or a blocker for them.
 - **DNS**: edit records where the nameservers point (the DNS host resource), not
   necessarily the registrar. Wix needs Admin (Co-Owner) because domains count as billing
   permissions. A GoDaddy delegate invite can't be accepted when your login is the same
@@ -151,6 +152,28 @@ hand: `PUT /api/clients/{id}/launch-checklist/{item_id}` with `{"completed": tru
 - **Calls**: the onboarding Ops question asks where calls should forward; a phone number in
   the answer fills `call_forward_number` automatically. Until answered, calls forward to the
   client's phone on file.
+
+## Voice agent, reactivation, social (added 2026-11-15)
+
+Three guides in the Setup Order cover the service upgrades: **Set Up Voice Agent**,
+**Launch Database Reactivation**, **Set Up Social Media** (DM agent + organic posts).
+Each agent has its own row in the client's Agents tab.
+
+- **Voice agent (growth package only).** Foundations clients: tick every `voice_agent` step.
+  The call + text flow is Dylan's (memory "voice-agent-call-text-flow"): call ~3 min after a
+  Meta lead with no text first, redial, voicemail, then the text opener; retries +2h / next
+  day / day after; stops on a text reply or booking. Funnel leads are called only if they
+  ticked the booking page's call-consent box. Meta leads are called only after the
+  consent line is on their Instant Form AND Dylan clicked CONSENT LINE IS LIVE NOW, so
+  never stamp it before the new form is actually live. Status + call log:
+  `GET /api/clients/{id}/voice-agent`; rebuild the Retell agent after context edits:
+  `POST /api/clients/{id}/voice-agent/sync`; test call: `POST /api/clients/{id}/voice-agent/test-call`
+  `{"phone": "+17542485326"}`. Needs `RETELL_API_KEY` in Doppler AND Railway.
+- **Reactivation.** The client's exports go in the batched client ask. Lists are texted only,
+  never voice-called. Make sure the A2P campaign covers marketing before START.
+- **Social.** DMs already work through the Meta app (Demo Clinic got real ones). If a
+  no-role account's DM never arrives, App Review is the blocker, not setup. Organic posts are
+  scheduled by hand in Business Suite Planner for now and are framed as an ad booster.
 
 ## Done = ready for the campaign
 

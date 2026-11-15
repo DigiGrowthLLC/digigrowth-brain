@@ -2042,6 +2042,49 @@ const MARKETING_GUIDES = {
       { text: "After all testing, clean the client's portal before launch: delete test leads (deleting a lead removes its appointments too) and reset the funnel's Website stats (views/conversions) so test bookings don't show as real results. The onboarding agent can do both." },
     ],
   },
+  // Added 2026-11-15: the three service-delivery upgrades (plan: Business
+  // Documents "Service Delivery Upgrades Plan"). Append-only like the rest.
+  voice_agent: {
+    title: "Set Up Voice Agent",
+    steps: [
+      { text: "Growth package only (Foundations has no voice agent: tick every step of this guide for a Foundations client). One-time, first client only: create the Retell AI account and add a card, copy its API key into Doppler (RETELL_API_KEY, project digigrowth, config prd) AND into Railway's variables (Doppler changes don't reach prod on their own), then redeploy. Ticks itself once the server sees the key.",
+        link: "https://dashboard.retellai.com", linkLabel: "Retell dashboard" },
+      { text: "Add the AI-call consent line to the client's Meta Instant Form (FCC 2024: an AI voice counts as an artificial voice, so calls need prior express written consent). In the form's custom disclaimer: \"By submitting, you agree to be contacted by <Practice> by phone, including automated and AI-assisted calls, and by text, about your request. Consent isn't required to receive care. Msg & data rates may apply. Reply STOP to opt out.\" A published form can't be edited, so duplicate it, add the line, publish, and point the ads at the new form. Then click CONSENT LINE IS LIVE NOW in Agents → Voice Agent: only Meta leads after that moment get called. Have a lawyer check the wording once. Ticks itself once stamped.",
+        link: "https://business.facebook.com/latest/instant_forms", linkLabel: "Meta Business Suite → Instant Forms" },
+      { text: "Agents → Voice Agent: pick a voice (preview them in the Retell dashboard), then CREATE AGENT. It builds the client's Retell agent from the Facebook Leads Agent's context and rules (one source of truth), with the booking, callback, transfer and not-interested tools wired to the OS. Click SYNC AGENT again whenever that context changes. Ticks itself once the agent exists." },
+      { text: "Test call: put your number under TEST CALL and click CALL ME (nothing books, texts or tags on a test call). Check it confirms who it's talking to, says it's the clinic's virtual assistant, offers two real times, handles \"call me back tomorrow at 5\", and that asking for a person transfers to the client's call-forward number (weekdays 9-5 clinic time; the clinic sees the client's own Twilio number calling). Read the transcript under CALLS. Ticks itself once a test call connects." },
+      { text: "Turn on \"Voice agent calls new leads\". This also shows a separate, optional AI-call consent box on the client's booking page: funnel visitors who tick it and leave without booking get a call 10 minutes later, and the unfinished-booking text only goes out if they don't answer. Ticks itself once it's on." },
+      { text: "Real-flow test after the consent stamp: Meta Lead Ads Testing Tool, your own number, and don't answer. Expect a call about 3 min after the form, an immediate redial, a voicemail, then the text agent's opener mentioning the call. Text back and confirm no more calls come. Delete the test lead after. Ticks itself once a real (non-test) lead has been called.",
+        link: "https://developers.facebook.com/tools/lead-ads-testing", linkLabel: "Meta Lead Ads Testing Tool" },
+      { text: "Tell the client: new leads now get a quick call from their virtual assistant from the same number as the texts, and calls it can't handle get transferred to them during business hours, so they should pick up when that number calls." },
+    ],
+  },
+  reactivation: {
+    title: "Launch Database Reactivation",
+    steps: [
+      { text: "Ask the client (put it in the batched ask) for CSV exports: past patients (discharged, or dropped off mid-plan) from their EHR, and old inquiries that never booked, with name, mobile, and last visit + reason if they have them. Ask them to leave out anyone seen in the last 60 days. These lists are texted only, never voice-called (no AI-call consent)." },
+      { text: "Check the client's A2P 10DLC campaign covers marketing texts (Twilio Console → the client's subaccount → Messaging → Regulatory Compliance → Campaigns → use case). A customer-care-only campaign gets reactivation texts filtered by carriers.",
+        link: "https://console.twilio.com/us1/develop/sms/regulatory-compliance/campaigns", linkLabel: "Twilio Console → Campaigns" },
+      { text: "Import each list from the client's portal (Leads → Import CSV) and pick its list type (past patients / old inquiries), so the leads get the Database Reactivation tag (+ Previous Patient) and the agent knows who they are. It dedupes against existing leads. Ticks itself once reactivation leads are in." },
+      { text: "Agents → Database Reactivation Agent → + NEW CAMPAIGN, one per audience. Set the daily cap (30/day default; lower for a small clinic so bookings fit real capacity), edit the 4 touches (day 0/2/6/14) to the client's agreed offer or a returning-patient version (plain characters only), and check PEOPLE for who's eligible. Exclusions are automatic: recent ad leads, upcoming or recent visits, opted out, Unqualified, anyone texted in the last 30 days. Ticks itself once a campaign exists." },
+      { text: "Test on your own number first: add yourself as a lead in the client's portal (source past patient, Database Reactivation tag), run a one-person test campaign, reply, and check the Facebook Leads Agent picks it up and books. Delete the test lead and campaign after." },
+      { text: "START the campaign (sends 10am-6pm Mon-Sat clinic time, up to the daily cap of first texts a day). Watch replies for the first 48 hours: they go to the Facebook Leads Agent, and escalations land in the portal inbox. Ticks itself once a campaign is running." },
+    ],
+  },
+  social: {
+    title: "Set Up Social Media",
+    steps: [
+      { text: "The client's Instagram must be a Professional account linked to their Facebook Page (Page settings → Linked accounts → Instagram), with the Page and Instagram both assigned to you with Full control (Paid Ad Creatives step 8). DMs and organic posts both go through the Page." },
+      { text: "Agents → Social Media Conversation Agent → CONNECT DMS: subscribes the Page to DMs and finds the linked Instagram account. Ticks itself once connected with no error." },
+      { text: "Stop Meta's own auto-replies from double-answering: Business Suite → Inbox → Automations, turn off Instant reply, Away message and FAQs. On Instagram: Settings → Messages and story replies → Message controls → Connected tools → Allow access to messages ON (the agent can't see Instagram DMs without it).",
+        link: "https://business.facebook.com/latest/inbox/automations", linkLabel: "Business Suite → Inbox → Automations" },
+      { text: "TEST CHAT (same agent row): message it like a DM lead would. It reads the real calendar but saves and books nothing. Check it asks for a mobile number early (Meta only allows automated replies within 24 hours of their last message) and books into the client's offer." },
+      { text: "Turn on \"Agent replies to DMs\". Ticks itself once it's on." },
+      { text: "Real test: DM the Page and the Instagram account from a personal account with no role on the Page or on DigiGrowth's Meta app. The thread should show under CONVERSATIONS with a reply within a minute. If a no-role account gets nothing, Meta App Review for pages_messaging + instagram_manage_messages is still pending (until then only accounts with a role on the app are answered). Ticks itself once a DM thread exists." },
+      { text: "Organic posts (an ad booster, never pitched as a lead source): tidy the Page and Instagram first (profile + cover image, About/bio, website = the client's funnel go.<domain>, Instagram bio link). Then schedule the 10 approved ad creatives in Business Suite → Planner, Facebook + Instagram together, one every 3 days across the 30 days (days 1, 4, 7 ... 28), mid-morning clinic time, starting a week before launch if the Page has no recent posts. Caption = the ad's hook and story without ad-only urgency, a soft CTA (\"Link in bio to book\"), 3-5 local hashtags on Instagram.",
+        link: "https://business.facebook.com/latest/planner", linkLabel: "Business Suite → Planner" },
+    ],
+  },
 };
 
 // One ordered pass through every guide above, grouped by what the client has
@@ -2059,17 +2102,20 @@ const SETUP_ORDER_PHASES = {
       ["ad_creatives", 0], ["ad_creatives", 4],
       ["response_ai", 0], ["response_ai", 1], ["response_ai", 2], ["response_ai", 3], ["response_ai", 4], ["sms", 4],
       ["automations", 1], ["automations", 5],
-      ["client_portal", 1]],
+      ["client_portal", 1],
+      ["voice_agent", 0], ["voice_agent", 2], ["voice_agent", 3], ["social", 3]],
   },
   access: {
     title: "PHASE 2 · NEEDS CLIENT ACCESS: ask on the onboarding call",
-    note: "Four asks unlock all of this: access wherever their DNS is hosted (see DNS host in Resources), Facebook Business access (Page + Instagram + ad account), their Google Calendar shared with dylanrg@digigrowthllc.com (\"Make changes to events\") plus Stripe connected from their portal if the visit is paid, and legal name + EIN. Once their intake answers come in, click GENERATE CONTEXT again on the Response AI agent.",
+    note: "Five asks unlock all of this: access wherever their DNS is hosted (see DNS host in Resources), Facebook Business access (Page + Instagram + ad account), their Google Calendar shared with dylanrg@digigrowthllc.com (\"Make changes to events\") plus Stripe connected from their portal if the visit is paid, legal name + EIN, and CSV exports of past patients + old inquiries (for reactivation). Once their intake answers come in, click GENERATE CONTEXT again on the Response AI agent.",
     steps: [["landing_page", 4], ["landing_page", 2],
       ["ad_creatives", 6], ["ad_creatives", 7],
       ["response_ai", 7], ["response_ai", 8], ["response_ai", 9],
       ["ad_creatives", 1], ["ad_creatives", 3], ["response_ai", 10], ["response_ai", 11],
       ["client_portal", 0], ["response_ai", 5], ["response_ai", 13], ["response_ai", 14],
-      ["sms", 1]],
+      ["sms", 1],
+      ["voice_agent", 1], ["social", 0], ["social", 1], ["social", 2],
+      ["reactivation", 0], ["reactivation", 1]],
   },
   after_dns: {
     title: "PHASE 3 · AFTER DNS IS LIVE: time-gated",
@@ -2083,6 +2129,9 @@ const SETUP_ORDER_PHASES = {
       ["automations", 0], ["automations", 2], ["automations", 3],
       ["ad_creatives", 5], ["ad_creatives", 8],
       ["client_portal", 2], ["client_portal", 3], ["client_portal", 4], ["client_portal", 5], ["automations", 4],
+      ["voice_agent", 4], ["voice_agent", 5], ["voice_agent", 6],
+      ["social", 4], ["social", 5], ["social", 6],
+      ["reactivation", 2], ["reactivation", 3], ["reactivation", 4], ["reactivation", 5],
       ["client_portal", 6]],
   },
 };
@@ -2165,6 +2214,21 @@ const MARKETING_STEPS = [
     // checked off. Status text is untouched (still a legitimate separate
     // "how many assets tracked" readout once that field is ever populated).
     done: (cfg) => _guideStepsAllDone(cfg, "ad_creatives"),
+  },
+  {
+    key: "voice_agent", label: "Voice Agent",
+    status: (cfg) => (cfg?.voice_agent_enabled ? "On: calling new leads" : cfg?.retell_agent_id ? "Agent built, not switched on" : "Not set up (growth package only)"),
+    done: (cfg) => _guideStepsAllDone(cfg, "voice_agent"),
+  },
+  {
+    key: "social", label: "Social Media",
+    status: (cfg) => (cfg?.dm_agent_enabled ? "DM agent on" : cfg?.dm_connected_at ? "DMs connected, agent off" : "DMs not connected"),
+    done: (cfg) => _guideStepsAllDone(cfg, "social"),
+  },
+  {
+    key: "reactivation", label: "Database Reactivation",
+    status: (cfg) => (_guideStepsAllDone(cfg, "reactivation") ? "Launched" : "Not launched yet: see guide"),
+    done: (cfg) => _guideStepsAllDone(cfg, "reactivation"),
   },
 ];
 
@@ -3342,6 +3406,125 @@ function SocialMediaAgent({ clientId, config, onSaveFields }) {
   );
 }
 
+// AI voice agent (client_voice_agent.py): Retell calls new Meta + funnel
+// leads first, texts after no answer. Growth package only.
+const VOICE_OUTCOME_COLOR = { booked: "#3ecf8e", answered: "#8ab4f8", not_interested: "#f0b429", no_answer: "#5a7aa0", voicemail: "#5a7aa0", skipped: "#3a5a80", error: "#e05c5c", unknown: "#f0b429" };
+
+function VoiceAgent({ clientId, config, onSaveFields }) {
+  const [data, setData] = useState(null);
+  const [voices, setVoices] = useState([]);
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [testPhone, setTestPhone] = useState("");
+  const [openCall, setOpenCall] = useState(null);
+
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/voice-agent`));
+    if (r.ok) setData(await r.json());
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+  useEffect(() => {
+    if (!data?.retell_key_set || voices.length) return;
+    fetch(API(`/voice-agent/voices`)).then((r) => (r.ok ? r.json() : [])).then((v) => setVoices(Array.isArray(v) ? v : [])).catch(() => {});
+  }, [data, voices.length]);
+
+  const act = async (label, path, body) => {
+    setBusy(label); setMsg(null);
+    const r = await fetch(API(path), { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    setMsg(r.ok ? { ok: true, text: `${label}: done` } : { ok: false, text: j.detail || `${label} failed` });
+    setBusy("");
+    await onSaveFields({});
+    await load();
+  };
+
+  const block = (title, children) => (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", letterSpacing: "0.06em", marginBottom: 6 }}>{title}</div>
+      {children}
+    </div>
+  );
+  const row = (label, value, ok) => (
+    <div style={{ fontSize: 11.5, color: ok ? "#8aaad0" : "#f0b429", marginBottom: 3 }}>{ok ? "✓" : "○"} {label}{value ? `: ${value}` : ""}</div>
+  );
+  const s = data?.stats_30d || {};
+
+  return (
+    <div>
+      {block("STATUS", (
+        <div>
+          {row("RETELL_API_KEY on the server", null, Boolean(data?.retell_key_set))}
+          {row("Client's Twilio number", config?.twilio_number, Boolean(config?.twilio_number))}
+          {row("Text agent context (the voice agent uses the same one)", null, Boolean(config?.response_ai_context))}
+          {row("Retell agent", config?.voice_synced_at ? `synced ${new Date(config.voice_synced_at).toLocaleString()}` : null, Boolean(config?.retell_agent_id))}
+          {config?.voice_sync_error && <div style={{ fontSize: 11, color: "#e05c5c", margin: "2px 0 4px" }}>{config.voice_sync_error}</div>}
+          {row("AI-call consent line live on the Meta Instant Form", config?.voice_consent_meta_since ? `since ${new Date(config.voice_consent_meta_since).toLocaleString()}` : "Meta leads are NOT called until you stamp this", Boolean(config?.voice_consent_meta_since))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+            <select className="dg-input" style={{ maxWidth: 260, fontSize: 11 }} value={config?.voice_id || ""} onChange={(e) => onSaveFields({ voice_id: e.target.value || null })}>
+              <option value="">Default voice</option>
+              {voices.map((v) => <option key={v.voice_id} value={v.voice_id}>{v.voice_name} · {v.provider} · {v.gender || ""} {v.accent || ""}</option>)}
+            </select>
+            <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={!!busy} onClick={() => act("Sync agent", `/clients/${clientId}/voice-agent/sync`)}>
+              {busy === "Sync agent" ? "SYNCING…" : config?.retell_agent_id ? "SYNC AGENT" : "CREATE AGENT"}
+            </button>
+            <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={!!busy} onClick={() => act("Consent stamp", `/clients/${clientId}/voice-agent/consent-live?live=${config?.voice_consent_meta_since ? "false" : "true"}`)}>
+              {config?.voice_consent_meta_since ? "CLEAR CONSENT STAMP" : "CONSENT LINE IS LIVE NOW"}
+            </button>
+          </div>
+          <div style={{ fontSize: 10.5, color: "#5a7aa0", marginTop: 6 }}>Re-sync after changing the voice or editing the Facebook Leads Agent's context/rules.</div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#d0e8ff", marginTop: 12, cursor: "pointer" }}>
+            <input type="checkbox" checked={Boolean(config?.voice_agent_enabled)} onChange={(e) => onSaveFields({ voice_agent_enabled: e.target.checked })} />
+            Voice agent calls new leads (also shows the call-consent box on the booking page)
+          </label>
+          {data?.ready_problem && config?.voice_agent_enabled && <div style={{ fontSize: 11, color: "#f0b429", marginTop: 4 }}>Not calling yet: {data.ready_problem}</div>}
+          {msg && <div style={{ fontSize: 11, color: msg.ok ? "#3ecf8e" : "#e05c5c", marginTop: 6 }}>{msg.text}</div>}
+          <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 8, lineHeight: 1.55 }}>
+            Flow: AI call ~3 min after a Meta lead (funnel: 10 min after they leave the booking page unfinished), no text first. No answer → immediate redial → voicemail, then the text agent's opener. Retries +2h, next day ~10:30, day after ~16:30, 8am-8pm clinic time only. Stops when they text back, book, opt out or say stop. After-hours leads get the text now and the first call at 9am.
+          </div>
+        </div>
+      ))}
+      {block("TEST CALL (no booking, no texts, no tags)", (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input className="dg-input" style={{ maxWidth: 200, fontSize: 12 }} placeholder="(754) 248-5326" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
+          <button className="btn btn-primary" style={{ fontSize: 10 }} disabled={!!busy || !testPhone.trim()} onClick={() => act("Test call", `/clients/${clientId}/voice-agent/test-call`, { phone: testPhone })}>
+            {busy === "Test call" ? "QUEUING…" : "CALL ME"}
+          </button>
+          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={load}>REFRESH</button>
+        </div>
+      ))}
+      {block("LAST 30 DAYS", (
+        <div style={{ fontSize: 12, color: "#d0e8ff" }}>
+          {s.leads || 0} leads called · {s.reached || 0} reached{s.leads ? ` (${Math.round((100 * (s.reached || 0)) / s.leads)}%)` : ""} · {s.booked || 0} booked on the call
+        </div>
+      ))}
+      {block("CALLS", (
+        <div>
+          {!(data?.calls || []).length && <div style={{ fontSize: 11.5, color: "#5a7aa0" }}>No calls yet.</div>}
+          {(data?.calls || []).map((c) => (
+            <div key={c.id} style={{ padding: "7px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)", marginBottom: 4, cursor: c.transcript || c.summary ? "pointer" : "default" }} onClick={() => setOpenCall(openCall === c.id ? null : c.id)}>
+              <div style={{ display: "flex", gap: 10, fontSize: 11.5, color: "#d0e8ff", flexWrap: "wrap" }}>
+                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>{new Date(c.dialed_at || c.run_at).toLocaleString()}</span>
+                <span>{c.lead_name || c.phone}</span>
+                <span style={{ color: "#5a7aa0" }}>{c.source} · call {c.attempt}{c.double_dial ? " (redial)" : ""}</span>
+                <span style={{ color: VOICE_OUTCOME_COLOR[c.outcome] || "#8aaad0" }}>{c.outcome || c.status}</span>
+                {c.duration_ms ? <span style={{ color: "#5a7aa0" }}>{Math.round(c.duration_ms / 1000)}s</span> : null}
+                {c.error && <span style={{ color: "#5a7aa0" }}>{c.error}</span>}
+              </div>
+              {openCall === c.id && (
+                <div style={{ marginTop: 6, fontSize: 11.5, color: "#8aaad0", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                  {c.summary && <div style={{ marginBottom: 6 }}><b>Summary:</b> {c.summary}</div>}
+                  {c.recording_url && <div style={{ marginBottom: 6 }}><a href={c.recording_url} target="_blank" rel="noreferrer" style={{ color: "#3a7bd5" }} onClick={(e) => e.stopPropagation()}>Recording</a></div>}
+                  {c.transcript}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Dedicated "Agents" tab — an accordion of every AI agent running for this
 // client. The Facebook Leads Agent (response_ai.py's full admin surface:
 // context, sequence, rules) and the Database Reactivation Agent are fixed
@@ -3541,6 +3724,15 @@ function ClientAgentSetup({ clientId }) {
         onToggle={() => setOpenAgent(openAgent === "social" ? null : "social")}
       >
         <SocialMediaAgent clientId={clientId} config={config} onSaveFields={saveFields} />
+      </AgentAccordionItem>
+
+      <AgentAccordionItem
+        title="Voice Agent"
+        subtitle="Calls new Meta and funnel leads within minutes (Retell, from the client's own number) and books them; texts take over when nobody answers. Growth package only."
+        open={openAgent === "voice"}
+        onToggle={() => setOpenAgent(openAgent === "voice" ? null : "voice")}
+      >
+        <VoiceAgent clientId={clientId} config={config} onSaveFields={saveFields} />
       </AgentAccordionItem>
 
       {agents.map((a) => (

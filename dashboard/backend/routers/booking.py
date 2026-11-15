@@ -680,7 +680,16 @@ async def public_info(key: str, request: Request):
     lp_slug = key if request.url.path.startswith("/lp/") else None
     return {"clinic": ctx["client_name"], "timezone": ctx["timezone"],
             "event_types": await be.public_event_types(ctx["settings"]["client_id"]),
-            "profile": await bc.page_profile(ctx["settings"]["client_id"], ctx["settings"], lp_slug)}
+            "profile": await bc.page_profile(ctx["settings"]["client_id"], ctx["settings"], lp_slug),
+            "voice_calls": await _voice_calls_on(ctx["settings"]["client_id"])}
+
+
+async def _voice_calls_on(client_id: int) -> bool:
+    """Show the AI-call consent box only when the clinic's voice agent is on."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return bool(await conn.fetchval(
+            "SELECT voice_agent_enabled FROM client_marketing_config WHERE client_id = $1", client_id))
 
 
 @router.post("/book/{key}/api/event", include_in_schema=False)
@@ -703,7 +712,8 @@ async def public_partial(key: str, request: Request, payload: dict):
                           payload.get("phone") or "", payload.get("event_type_id"), payload.get("start"),
                           payload.get("utm_source"), payload.get("utm_content"),
                           payload.get("sms_consent") is True,
-                          track=not await tracking_exclusion.is_excluded(request))
+                          track=not await tracking_exclusion.is_excluded(request),
+                          call_consent=payload.get("call_consent") is True)
     return {"ok": True}
 
 
