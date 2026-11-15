@@ -150,7 +150,19 @@ def verify_retell_signature(raw_body: bytes, header: str | None, max_age_ms: int
 
 def _twilio_for(subaccount_sid: str):
     import client_dialer
+    if subaccount_sid == os.environ.get("TWILIO_ACCOUNT_SID"):
+        return client_dialer._master_client()
     return client_dialer._subaccount_client(subaccount_sid)
+
+
+def _caller(cfg, row) -> tuple[str, str] | None:
+    """(Twilio account SID, from number). The client's own number; a TEST
+    call for a client without one uses DigiGrowth's OS number instead."""
+    if cfg and cfg["twilio_subaccount_sid"] and cfg["twilio_number"]:
+        return cfg["twilio_subaccount_sid"], cfg["twilio_number"]
+    if row["source"] == "test" and os.environ.get("TWILIO_PHONE_NUMBER") and os.environ.get("TWILIO_ACCOUNT_SID"):
+        return os.environ["TWILIO_ACCOUNT_SID"], os.environ["TWILIO_PHONE_NUMBER"]
+    return None
 
 
 # ── Config ───────────────────────────────────────────────────────────────────
@@ -276,7 +288,7 @@ async def queue_test_call(client_id: int, phone: str, lead_name: str | None) -> 
         cfg = await _config(conn, client_id)
         if not cfg or not cfg["retell_agent_id"]:
             raise ValueError("Create the Retell agent first (SYNC AGENT)")
-        if not (cfg["twilio_number"] and cfg["twilio_subaccount_sid"]):
+        if not (cfg["twilio_number"] and cfg["twilio_subaccount_sid"]) and not os.environ.get("TWILIO_PHONE_NUMBER"):
             raise ValueError("This client has no Twilio number yet")
         return await _insert_attempt(conn, client_id=client_id, phone=to, run_at=datetime.now(timezone.utc),
                                      source="test", attempt=1, lead_name=lead_name or "Test Lead")
@@ -377,10 +389,13 @@ async def _dial(row) -> None:
     if not base:
         raise RuntimeError("DASHBOARD_URL not set")
     q = f"id={row['id']}&t={row['token']}"
+    caller = _caller(cfg, row)
+    if not caller:
+        raise RuntimeError("no Twilio number to call from")
 
     def _create():
-        return _twilio_for(cfg["twilio_subaccount_sid"]).calls.create(
-            to=row["phone"], from_=cfg["twilio_number"],
+        return _twilio_for(caller[0]).calls.create(
+            to=row["phone"], from_=caller[1],
             url=f"{base}/webhooks/voice-agent/answer?{q}",
             status_callback=f"{base}/webhooks/voice-agent/status?{q}",
             status_callback_event=["completed"], status_callback_method="POST",
@@ -436,7 +451,7 @@ async def answer_twiml(row) -> str:
             "moment, and they can just reply there whenever it suits them. Don't mention prices.")}}
     body = {
         "agent_id": cfg["retell_agent_id"],
-        "from_number": cfg["twilio_number"], "to_number": row["phone"], "direction": "outbound",
+        "from_number": (_caller(cfg, row) or (None, None))[1], "to_number": row["phone"], "direction": "outbound",
         "metadata": {"row_id": row["id"], "client_id": row["client_id"], "phone": row["phone"], "token": row["token"]},
         "retell_llm_dynamic_variables": _dynamic_vars(row, cfg, tz),
         "agent_override": {"agent": {"voicemail_option": vm}},
@@ -740,7 +755,8 @@ async def _transfer(row, args: dict) -> str:
     async with pool.acquire() as conn:
         cfg = await _config(conn, row["client_id"])
     target = e164(cfg["call_forward_number"] or cfg["client_phone"]) if cfg else None
-    if not target or not row["twilio_call_sid"]:
+    caller = _caller(cfg, row)
+    if not target or not row["twilio_call_sid"] or not caller:
         return "Transfer isn't available. Use escalate_to_human and tell them someone will call back."
     if row["source"] != "test" and not await _clinic_open(row["client_id"], row["phone"]):
         return ("The clinic is closed right now, so you can't transfer. Use escalate_to_human and tell them "
@@ -748,7 +764,7 @@ async def _transfer(row, args: dict) -> str:
     from twilio.twiml.voice_response import VoiceResponse
     base = _base_url()
     vr = VoiceResponse()
-    dial = vr.dial(caller_id=cfg["twilio_number"], timeout=25, answer_on_bridge=True,
+    dial = vr.dial(caller_id=caller[1], timeout=25, answer_on_bridge=True,
                    action=f"{base}/webhooks/voice-agent/transfer-done?id={row['id']}&t={row['token']}", method="POST")
     dial.number(target)
     twiml = str(vr)
@@ -756,7 +772,7 @@ async def _transfer(row, args: dict) -> str:
     async def _later():
         await asyncio.sleep(4)  # let the agent finish "connecting you now"
         try:
-            await asyncio.to_thread(lambda: _twilio_for(cfg["twilio_subaccount_sid"]).calls(row["twilio_call_sid"]).update(twiml=twiml))
+            await asyncio.to_thread(lambda: _twilio_for(caller[0]).calls(row["twilio_call_sid"]).update(twiml=twiml))
         except Exception as e:
             print(f"[voice_agent] transfer failed for row {row['id']}: {e}", flush=True)
     asyncio.create_task(_later())
