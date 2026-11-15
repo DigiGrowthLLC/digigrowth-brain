@@ -782,7 +782,13 @@ async def _transfer(row, args: dict) -> str:
     caller = _caller(cfg, row)
     if not target or not row["twilio_call_sid"] or not caller:
         return "Transfer isn't available. Use escalate_to_human and tell them someone will call back."
-    if row["source"] != "test" and not await _clinic_open(row["client_id"], row["phone"]):
+    if row["source"] == "test":
+        # Never ring a real clinic from a test call (it nearly did, 2026-11-15).
+        open_now = await _clinic_open(row["client_id"], row["phone"])
+        return ("(Test call: nothing was dialed.) Tell them "
+                + ("you're connecting them to the team now." if open_now else
+                   "the team is out right now and someone from the clinic will call them back during business hours."))
+    if not await _clinic_open(row["client_id"], row["phone"]):
         return ("The clinic is closed right now, so you can't transfer. Use escalate_to_human and tell them "
                 "someone from the clinic will call them back during business hours.")
     from twilio.twiml.voice_response import VoiceResponse
