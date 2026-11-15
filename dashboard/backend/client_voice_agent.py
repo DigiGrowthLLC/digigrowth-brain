@@ -67,6 +67,18 @@ DO_NOT_CALL_TAG = "Do Not Call"
 SEQ_DEDUPE_WINDOW = timedelta(days=3)
 DEFAULT_VOICE_ID = "retell-Cimo"
 DEFAULT_VOICE_SPEED = 0.9  # Retell: 0.5-2.0, 1.0 = normal
+# Naturalness defaults (research 2026-11-15: an expressive real-time ElevenLabs
+# model, backchanneling, faint office ambience, slightly unhurried turn-taking).
+ELEVEN_MODEL = "eleven_v3_conversational"
+NATURAL_SETTINGS = {
+    "enable_backchannel": True,          # "mm-hm", "right" while they talk
+    "backchannel_frequency": 0.7,
+    "ambient_sound": "call-center",      # quiet office bed, masks TTS edges
+    "ambient_sound_volume": 0.4,
+    "responsiveness": 0.85,              # waits a beat instead of jumping in
+    "interruption_sensitivity": 0.8,
+    "voice_temperature": 1.2,            # a bit more variation, less monotone
+}
 
 # Retell disconnection reasons that mean no human conversation happened.
 _NOT_CONNECTED = {
@@ -827,6 +839,11 @@ How the call goes:
 - Clearly outside who the clinic can help (e.g. lives far outside the area) -> mark_unqualified.
 - Wants a person, has a question you can't answer, or anything urgent/medical -> transfer_to_clinic.
   If that says it isn't available, use escalate_to_human and tell them the team will call back.
+- Sound like a friendly person at a front desk, not a script: contractions ("I'm", "you're"), short
+  plain sentences under about 15 words, one question at a time, and vary how you start sentences.
+  A natural "okay", "gotcha", "oh, sorry to hear that" or "so" now and then is good, never more than
+  one per turn. React briefly to what they said before moving on. No lists, no em dashes, no "certainly"
+  or "absolutely", no repeating their words back.
 - Never give medical advice or diagnose. Never quote prices unless the business info below gives one
   and they ask. Spell nothing out letter by letter unless asked. Say times naturally ("ten thirty").
 - After a booking goes through: confirm the day and time once, tell them a confirmation text is on its
@@ -903,6 +920,8 @@ def _agent_body(cfg, llm_id: str) -> dict:
         "voice_id": cfg["voice_id"] or DEFAULT_VOICE_ID,
         # Slightly slower than normal sounds more natural on the phone (Dylan, 2026-11-15).
         "voice_speed": float(cfg["voice_speed"]) if cfg["voice_speed"] else DEFAULT_VOICE_SPEED,
+        **({"voice_model": ELEVEN_MODEL} if (cfg["voice_id"] or "").startswith("11labs-") else {}),
+        **NATURAL_SETTINGS,
         "language": "en-US",
         "webhook_url": f"{_base_url()}/webhooks/retell",
         "webhook_events": ["call_ended", "call_analyzed"],
