@@ -70,6 +70,16 @@ DEFAULT_VOICE_SPEED = 1.0  # 0.9 was too slow on the v3 model; Retell: 0.5-2.0, 
 # Naturalness defaults (research 2026-11-15: an expressive real-time ElevenLabs
 # model, backchanneling, faint office ambience, slightly unhurried turn-taking).
 ELEVEN_MODEL = "eleven_v3_conversational"
+# Speech recognition boost: PT words callers say ("back pain" was heard as
+# "back then" on test calls, 2026-11-15).
+PT_KEYWORDS = [
+    "back pain", "lower back", "neck pain", "sciatica", "herniated disc", "bulging disc", "pinched nerve",
+    "shoulder", "rotator cuff", "frozen shoulder", "knee", "ACL", "meniscus", "hip", "hip replacement",
+    "knee replacement", "plantar fasciitis", "ankle sprain", "tendonitis", "arthritis", "headaches",
+    "posture", "chiropractor", "physical therapy", "physical therapist", "massage", "dry needling",
+    "injections", "surgery", "MRI", "X-ray", "orthopedic", "sports injury", "car accident", "vertigo",
+    "TMJ", "pelvic floor", "consult", "assessment",
+]
 NATURAL_SETTINGS = {
     "enable_backchannel": True,          # "mm-hm", "right" while they talk
     "backchannel_frequency": 0.7,
@@ -938,6 +948,7 @@ def _agent_body(cfg, llm_id: str) -> dict:
         "voice_speed": float(cfg["voice_speed"]) if cfg["voice_speed"] else DEFAULT_VOICE_SPEED,
         **({"voice_model": ELEVEN_MODEL} if (cfg["voice_id"] or "").startswith("11labs-") else {}),
         **NATURAL_SETTINGS,
+        "boosted_keywords": [k for k in [cfg["client_name"], agent_name(cfg)] if k] + PT_KEYWORDS,
         "language": "en-US",
         "webhook_url": f"{_base_url()}/webhooks/retell",
         "webhook_events": ["call_ended", "call_analyzed"],
