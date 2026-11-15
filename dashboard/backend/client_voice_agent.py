@@ -446,8 +446,8 @@ async def answer_twiml(row) -> str:
     vm = {"action": {"type": "hangup"}}
     if row["double_dial"] or row["source"] == "test":
         vm = {"action": {"type": "prompt", "text": (
-            "You reached voicemail. Leave one short, friendly message under 20 seconds: say you're the virtual "
-            "assistant from {{clinic_name}} calling about their request, that you'll send them a text in a "
+            "You reached voicemail. Leave one short, friendly message under 20 seconds: say your first name and "
+            "that you're calling from {{clinic_name}} about their request, that you'll send them a text in a "
             "moment, and they can just reply there whenever it suits them. Don't mention prices.")}}
     body = {
         "agent_id": cfg["retell_agent_id"],
@@ -803,13 +803,16 @@ async def transfer_done_twiml(row, dial_status: str) -> str:
 # ── Retell agent per client ──────────────────────────────────────────────────
 
 _VOICE_RULES = """
-You are on a live PHONE CALL, not texting. You are {{clinic_name}}'s virtual assistant.
+You are on a live PHONE CALL, not texting. Your name is __AGENT_NAME__ and you work at {{clinic_name}},
+helping new patients get booked.
 Who you're calling: {{lead_full_name}}. Why: {{lead_context}}. Right now it's {{today}}.
 
 How the call goes:
-- Open by checking you've got the right person, then say who you are: the virtual assistant from
-  {{clinic_name}}, calling because of their request. Always say you're a virtual assistant if asked
-  whether you're a real person or AI; never pretend to be human.
+- Open by checking you've got the right person, then introduce yourself by first name and the clinic
+  ("This is __AGENT_NAME__ from {{clinic_name}}, you reached out about ...") and ask what's going on.
+  Don't call yourself an assistant, AI or virtual anything. But if they sincerely ask whether you're a
+  real person or an AI, never claim to be human: say lightly that you're the clinic's AI assistant and
+  carry on helping.
 - Ask what's going on / what made them reach out, listen, then help them book the visit described in
   the business info below. Keep every turn short: one or two sentences, then let them talk.
 - To book: call check_availability, offer the two times it returns, and when they pick one call
@@ -825,10 +828,21 @@ How the call goes:
   If that says it isn't available, use escalate_to_human and tell them the team will call back.
 - Never give medical advice or diagnose. Never quote prices unless the business info below gives one
   and they ask. Spell nothing out letter by letter unless asked. Say times naturally ("ten thirty").
-- When the call's done, say a short goodbye and call end_call.
+- After a booking goes through: confirm the day and time once, tell them a confirmation text is on its
+  way, and ask if there's anything else you can help with. Only when they're done, say a warm short
+  goodbye ("Great, see you Monday, take care!") and call end_call. Never hang up right after confirming.
 
 Business info and rules (the same ones the clinic's text agent uses):
 """
+
+
+def agent_name(cfg) -> str:
+    """The name the agent introduces itself by: set per client, else the
+    voice's own name (retell-Cimo -> Cimo, 11labs-Marissa -> Marissa)."""
+    if (cfg["voice_agent_name"] or "").strip():
+        return cfg["voice_agent_name"].strip()
+    vid = cfg["voice_id"] or DEFAULT_VOICE_ID
+    return vid.split("-", 1)[-1].split("-")[0].capitalize()
 
 
 def _llm_body(cfg) -> dict:
@@ -869,7 +883,7 @@ def _llm_body(cfg) -> dict:
     ]
     business = (cfg["response_ai_context"] or "").strip()
     rules = (cfg["response_ai_rules"] or "").strip()
-    prompt = _VOICE_RULES + business + (f"\n\nExtra rules from the clinic (ignore any about texting format):\n{rules}" if rules else "")
+    prompt = _VOICE_RULES.replace("__AGENT_NAME__", agent_name(cfg)) + business + (f"\n\nExtra rules from the clinic (ignore any about texting format):\n{rules}" if rules else "")
     return {
         "general_prompt": prompt,
         "begin_message": "Hi, is this {{lead_first_name}}?",

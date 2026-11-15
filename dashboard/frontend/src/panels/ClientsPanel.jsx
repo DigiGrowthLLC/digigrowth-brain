@@ -2052,7 +2052,7 @@ const MARKETING_GUIDES = {
       { text: "Add the AI-call consent line to the client's Meta Instant Form (FCC 2024: an AI voice counts as an artificial voice, so calls need prior express written consent). In the form's custom disclaimer: \"By submitting, you agree to be contacted by <Practice> by phone, including automated and AI-assisted calls, and by text, about your request. Consent isn't required to receive care. Msg & data rates may apply. Reply STOP to opt out.\" A published form can't be edited, so duplicate it, add the line, publish, and point the ads at the new form. Then click CONSENT LINE IS LIVE NOW in Agents → Voice Agent: only Meta leads after that moment get called. Have a lawyer check the wording once. Ticks itself once stamped.",
         link: "https://business.facebook.com/latest/instant_forms", linkLabel: "Meta Business Suite → Instant Forms" },
       { text: "Agents → Voice Agent: pick a voice (preview them in the Retell dashboard), then CREATE AGENT. It builds the client's Retell agent from the Facebook Leads Agent's context and rules (one source of truth), with the booking, callback, transfer and not-interested tools wired to the OS. Click SYNC AGENT again whenever that context changes. Ticks itself once the agent exists." },
-      { text: "Test call: put your number under TEST CALL and click CALL ME (nothing books, texts or tags on a test call). Check it confirms who it's talking to, says it's the clinic's virtual assistant, offers two real times, handles \"call me back tomorrow at 5\", and that asking for a person transfers to the client's call-forward number (weekdays 9-5 clinic time; the clinic sees the client's own Twilio number calling). Read the transcript under CALLS. Ticks itself once a test call connects." },
+      { text: "Test call: put your number under TEST CALL and click CALL ME (nothing books, texts or tags on a test call). Check it confirms who it's talking to, introduces itself by name and the clinic, offers two real times, handles \"call me back tomorrow at 5\", and that asking for a person transfers to the client's call-forward number (weekdays 9-5 clinic time; the clinic sees the client's own Twilio number calling). Read the transcript under CALLS. Ticks itself once a test call connects." },
       { text: "Turn on \"Voice agent calls new leads\". This also shows a separate, optional AI-call consent box on the client's booking page: funnel visitors who tick it and leave without booking get a call 10 minutes later, and the unfinished-booking text only goes out if they don't answer. Ticks itself once it's on." },
       { text: "Real-flow test after the consent stamp: Meta Lead Ads Testing Tool, your own number, and don't answer. Expect a call about 3 min after the form, an immediate redial, a voicemail, then the text agent's opener mentioning the call. Text back and confirm no more calls come. Delete the test lead after. Ticks itself once a real (non-test) lead has been called.",
         link: "https://developers.facebook.com/tools/lead-ads-testing", linkLabel: "Meta Lead Ads Testing Tool" },
@@ -3464,6 +3464,8 @@ function VoiceAgent({ clientId, config, onSaveFields }) {
               <option value="">Default voice</option>
               {voices.map((v) => <option key={v.voice_id} value={v.voice_id}>{v.voice_name} · {v.provider} · {v.gender || ""} {v.accent || ""}</option>)}
             </select>
+            <input className="dg-input" style={{ maxWidth: 150, fontSize: 11 }} placeholder="Name (default: voice's)" defaultValue={config?.voice_agent_name || ""}
+              onBlur={(e) => { if ((e.target.value || "") !== (config?.voice_agent_name || "")) onSaveFields({ voice_agent_name: e.target.value.trim() || null }); }} />
             <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={!!busy} onClick={() => act("Sync agent", `/clients/${clientId}/voice-agent/sync`)}>
               {busy === "Sync agent" ? "SYNCING…" : config?.retell_agent_id ? "SYNC AGENT" : "CREATE AGENT"}
             </button>
@@ -3471,7 +3473,7 @@ function VoiceAgent({ clientId, config, onSaveFields }) {
               {config?.voice_consent_meta_since ? "CLEAR CONSENT STAMP" : "CONSENT LINE IS LIVE NOW"}
             </button>
           </div>
-          <div style={{ fontSize: 10.5, color: "#5a7aa0", marginTop: 6 }}>Re-sync after changing the voice or editing the Facebook Leads Agent's context/rules.</div>
+          <div style={{ fontSize: 10.5, color: "#5a7aa0", marginTop: 6 }}>Re-sync after changing the voice, the name, or the Facebook Leads Agent's context/rules. It introduces itself by that name and the clinic.</div>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#d0e8ff", marginTop: 12, cursor: "pointer" }}>
             <input type="checkbox" checked={Boolean(config?.voice_agent_enabled)} onChange={(e) => onSaveFields({ voice_agent_enabled: e.target.checked })} />
             Voice agent calls new leads (also shows the call-consent box on the booking page)

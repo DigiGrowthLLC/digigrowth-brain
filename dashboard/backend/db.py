@@ -2245,6 +2245,7 @@ async def _create_schema(pool: asyncpg.Pool):
         await conn.execute("""
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_agent_enabled BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_id TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_agent_name TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS retell_llm_id TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS retell_agent_id TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_synced_at TIMESTAMPTZ;

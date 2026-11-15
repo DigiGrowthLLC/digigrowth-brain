@@ -233,6 +233,7 @@ class ClientMarketingConfigUpdate(BaseModel):
     dm_agent_enabled: Optional[bool] = None
     voice_agent_enabled: Optional[bool] = None
     voice_id: Optional[str] = None
+    voice_agent_name: Optional[str] = None
     instagram_account_id: Optional[str] = None
     call_forward_number: Optional[str] = None
     ad_creative_status: Optional[dict] = None
