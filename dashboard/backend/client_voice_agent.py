@@ -946,7 +946,7 @@ def _agent_body(cfg, llm_id: str) -> dict:
         "voice_id": cfg["voice_id"] or DEFAULT_VOICE_ID,
         # Slightly slower than normal sounds more natural on the phone (Dylan, 2026-11-15).
         "voice_speed": float(cfg["voice_speed"]) if cfg["voice_speed"] else DEFAULT_VOICE_SPEED,
-        **({"voice_model": ELEVEN_MODEL} if (cfg["voice_id"] or "").startswith("11labs-") else {}),
+        **({"voice_model": ELEVEN_MODEL} if (cfg["voice_id"] or DEFAULT_VOICE_ID).startswith("11labs-") else {}),
         **NATURAL_SETTINGS,
         "boosted_keywords": [k for k in [cfg["client_name"], agent_name(cfg)] if k] + PT_KEYWORDS,
         "language": "en-US",
