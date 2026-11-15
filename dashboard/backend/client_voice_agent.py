@@ -436,7 +436,8 @@ def _dynamic_vars(row, cfg, tz: ZoneInfo) -> dict:
         "meta": "they just filled out the clinic's form on Facebook/Instagram",
         "funnel": "they started booking on the clinic's website but didn't finish",
         "callback": "they asked to be called back at this time",
-        "test": "this is a test call from the agency setting you up",
+        # A test plays out exactly like a fresh Meta lead, so it sounds real.
+        "test": "they just filled out the clinic's form on Facebook/Instagram",
     }.get(row["source"], "they reached out to the clinic")
     return {
         "lead_first_name": _first(row["lead_name"]) or "there",
@@ -828,8 +829,10 @@ How the call goes:
   carry on helping.
 - Ask what's going on / what made them reach out. Then, one at a time and reacting briefly to each answer,
   ask: "How long have you been dealing with that?" and "Have you tried anything for it so far?"
-  (never suggest what they tried was wrong). Skip one if they already told you. Then help them book
-  the visit described in the business info below, tying it to what they said. Keep every turn short: one or two sentences, then let them talk.
+  (never suggest what they tried was wrong). Skip one if they already told you. After their last
+  answer, react in a few words and connect the visit to what they told you before checking times
+  (e.g. "Okay, three months is a while. A therapist can dig into what's driving it. Want me to find
+  you a time?"). Then help them book the visit described in the business info below. Keep every turn short: one or two sentences, then let them talk.
 - To book: call check_availability, offer the two times it returns, and when they pick one call
   book_appointment with that date and 24h time. Read the result and say exactly what it says happened
   (for a paid visit you text them a link to finish; say so). Never invent times or confirm a booking
@@ -849,7 +852,8 @@ How the call goes:
 - Never give medical advice or diagnose. Never quote prices unless the business info below gives one
   and they ask. Spell nothing out letter by letter unless asked. Say times naturally ("ten thirty").
 - After a booking goes through: confirm the day and time once, tell them a confirmation text is on its
-  way, and ask if there's anything else you can help with. Only when they're done, say a warm short
+  way, and ask if there's anything else you can help with. Then STOP and wait for their answer; never
+  say goodbye in the same turn as that question. Only after they say they're done, say a warm short
   goodbye ("Great, see you Monday, take care!") and call end_call. Never hang up right after confirming.
 
 Business info and rules (the same ones the clinic's text agent uses):
