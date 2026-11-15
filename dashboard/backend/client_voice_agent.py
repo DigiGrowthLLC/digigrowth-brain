@@ -65,8 +65,8 @@ RETRY_3_AT = (10, 30)        # next day
 RETRY_4_AT = (16, 30)        # the day after
 DO_NOT_CALL_TAG = "Do Not Call"
 SEQ_DEDUPE_WINDOW = timedelta(days=3)
-DEFAULT_VOICE_ID = "retell-Cimo"
-DEFAULT_VOICE_SPEED = 0.9  # Retell: 0.5-2.0, 1.0 = normal
+DEFAULT_VOICE_ID = "11labs-Kate"  # Dylan picked Kate after test calls, 2026-11-15
+DEFAULT_VOICE_SPEED = 1.0  # 0.9 was too slow on the v3 model; Retell: 0.5-2.0, 1.0 = normal
 # Naturalness defaults (research 2026-11-15: an expressive real-time ElevenLabs
 # model, backchanneling, faint office ambience, slightly unhurried turn-taking).
 ELEVEN_MODEL = "eleven_v3_conversational"
@@ -75,7 +75,7 @@ NATURAL_SETTINGS = {
     "backchannel_frequency": 0.7,
     "ambient_sound": "call-center",      # quiet office bed, masks TTS edges
     "ambient_sound_volume": 0.4,
-    "responsiveness": 0.85,              # waits a beat instead of jumping in
+    "responsiveness": 1.0,               # normal (0.85 felt sluggish)
     "interruption_sensitivity": 0.8,
     "voice_temperature": 1.2,            # a bit more variation, less monotone
 }
@@ -826,8 +826,10 @@ How the call goes:
   Don't call yourself an assistant, AI or virtual anything. But if they sincerely ask whether you're a
   real person or an AI, never claim to be human: say lightly that you're the clinic's AI assistant and
   carry on helping.
-- Ask what's going on / what made them reach out, listen, then help them book the visit described in
-  the business info below. Keep every turn short: one or two sentences, then let them talk.
+- Ask what's going on / what made them reach out. Then, one at a time and reacting briefly to each answer,
+  ask: "How long have you been dealing with that?" and "Have you tried anything for it so far?"
+  (never suggest what they tried was wrong). Skip one if they already told you. Then help them book
+  the visit described in the business info below, tying it to what they said. Keep every turn short: one or two sentences, then let them talk.
 - To book: call check_availability, offer the two times it returns, and when they pick one call
   book_appointment with that date and 24h time. Read the result and say exactly what it says happened
   (for a paid visit you text them a link to finish; say so). Never invent times or confirm a booking

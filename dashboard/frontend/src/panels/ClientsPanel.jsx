@@ -3464,7 +3464,7 @@ function VoiceAgent({ clientId, config, onSaveFields }) {
               <option value="">Default voice</option>
               {voices.map((v) => <option key={v.voice_id} value={v.voice_id}>{v.voice_name} · {v.provider} · {v.gender || ""} {v.accent || ""}</option>)}
             </select>
-            <input className="dg-input" type="number" step="0.05" min="0.5" max="2" style={{ maxWidth: 90, fontSize: 11 }} title="Speaking speed (1.0 = normal, default 0.9)" placeholder="Speed 0.9" defaultValue={config?.voice_speed || ""}
+            <input className="dg-input" type="number" step="0.05" min="0.5" max="2" style={{ maxWidth: 90, fontSize: 11 }} title="Speaking speed (1.0 = normal)" placeholder="Speed 1.0" defaultValue={config?.voice_speed || ""}
               onBlur={(e) => { const n = parseFloat(e.target.value); const val = Number.isFinite(n) ? Math.min(2, Math.max(0.5, n)) : null; if (val !== (config?.voice_speed ?? null)) onSaveFields({ voice_speed: val }); }} />
             <input className="dg-input" style={{ maxWidth: 150, fontSize: 11 }} placeholder="Name (default: voice's)" defaultValue={config?.voice_agent_name || ""}
               onBlur={(e) => { if ((e.target.value || "") !== (config?.voice_agent_name || "")) onSaveFields({ voice_agent_name: e.target.value.trim() || null }); }} />
@@ -3475,7 +3475,7 @@ function VoiceAgent({ clientId, config, onSaveFields }) {
               {config?.voice_consent_meta_since ? "CLEAR CONSENT STAMP" : "CONSENT LINE IS LIVE NOW"}
             </button>
           </div>
-          <div style={{ fontSize: 10.5, color: "#5a7aa0", marginTop: 6 }}>Re-sync after changing the voice, speed (1.0 = normal, default 0.9), name, or the Facebook Leads Agent's context/rules. It introduces itself by that name and the clinic.</div>
+          <div style={{ fontSize: 10.5, color: "#5a7aa0", marginTop: 6 }}>Re-sync after changing the voice, speed (1.0 = normal), name, or the Facebook Leads Agent's context/rules. It introduces itself by that name and the clinic.</div>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#d0e8ff", marginTop: 12, cursor: "pointer" }}>
             <input type="checkbox" checked={Boolean(config?.voice_agent_enabled)} onChange={(e) => onSaveFields({ voice_agent_enabled: e.target.checked })} />
             Voice agent calls new leads (also shows the call-consent box on the booking page)
