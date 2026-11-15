@@ -66,6 +66,7 @@ RETRY_4_AT = (16, 30)        # the day after
 DO_NOT_CALL_TAG = "Do Not Call"
 SEQ_DEDUPE_WINDOW = timedelta(days=3)
 DEFAULT_VOICE_ID = "retell-Cimo"
+DEFAULT_VOICE_SPEED = 0.9  # Retell: 0.5-2.0, 1.0 = normal
 
 # Retell disconnection reasons that mean no human conversation happened.
 _NOT_CONNECTED = {
@@ -900,6 +901,8 @@ def _agent_body(cfg, llm_id: str) -> dict:
         "agent_name": f"{cfg['client_name']} - DigiGrowth voice agent",
         "response_engine": {"type": "retell-llm", "llm_id": llm_id},
         "voice_id": cfg["voice_id"] or DEFAULT_VOICE_ID,
+        # Slightly slower than normal sounds more natural on the phone (Dylan, 2026-11-15).
+        "voice_speed": float(cfg["voice_speed"]) if cfg["voice_speed"] else DEFAULT_VOICE_SPEED,
         "language": "en-US",
         "webhook_url": f"{_base_url()}/webhooks/retell",
         "webhook_events": ["call_ended", "call_analyzed"],
