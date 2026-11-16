@@ -86,7 +86,7 @@ function NavIcon({ name, size = 18 }) {
 function Field({ q, value, onChange }) {
   return (
     <div style={{ marginBottom: 18 }}>
-      <label style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#33415c", marginBottom: 6 }}>
+      <label style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#b8cce8", marginBottom: 6 }}>
         {q.label}
       </label>
       <textarea
@@ -121,30 +121,30 @@ function ActionItemRow({ token, item, onUpdated, onGoToTab }) {
   return (
     <div style={{
       display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 16px", borderRadius: 10,
-      background: done ? "rgba(20,200,130,0.05)" : "rgba(15,27,61,0.025)",
+      background: done ? "rgba(20,200,130,0.05)" : "rgba(255,255,255,0.02)",
       border: done ? "1px solid rgba(20,200,130,0.2)" : "1px solid transparent",
     }}>
       <button onClick={toggle} disabled={saving} style={{
         flexShrink: 0, width: 20, height: 20, marginTop: 2, borderRadius: 5, cursor: "pointer",
-        border: done ? "1px solid #0e9f6e" : "1px solid rgba(58,123,213,0.35)",
-        background: done ? "#0e9f6e" : "transparent",
+        border: done ? "1px solid #14c882" : "1px solid rgba(58,123,213,0.35)",
+        background: done ? "#14c882" : "transparent",
         color: "#06110c", fontSize: 12, fontWeight: 700,
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>{done ? "✓" : ""}</button>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: done ? "#0e9f6e" : "#0f1b3d", textDecoration: done ? "line-through" : "none" }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: done ? "#8fd9bd" : "#d0e8ff", textDecoration: done ? "line-through" : "none" }}>
           {item.title}
         </div>
         {item.description && (
-          <div style={{ fontSize: 12, color: "#33415c", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
+          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
         )}
         {item.link_tab && TAB_LABELS[item.link_tab] && (
-          <button onClick={() => onGoToTab(item.link_tab)} style={{ marginTop: 6, background: "none", border: "none", color: "#2f6fd6", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+          <button onClick={() => onGoToTab(item.link_tab)} style={{ marginTop: 6, background: "none", border: "none", color: "#3a7bd5", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
             ▶ Go to {TAB_LABELS[item.link_tab]}
           </button>
         )}
         {item.link_url && (
-          <a href={item.link_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#2f6fd6", fontSize: 11.5, textDecoration: "underline" }}>
+          <a href={item.link_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#3a7bd5", fontSize: 11.5, textDecoration: "underline" }}>
             ▶ {item.link_url.includes("/stripe/connect") ? "Connect Stripe" : "Open Link"}
           </a>
         )}
@@ -198,22 +198,22 @@ function ChecklistRow({ item }) {
   return (
     <div style={{
       display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 16px", borderRadius: 10,
-      background: done ? "rgba(20,200,130,0.05)" : "rgba(15,27,61,0.025)",
+      background: done ? "rgba(20,200,130,0.05)" : "rgba(255,255,255,0.02)",
       border: done ? "1px solid rgba(20,200,130,0.2)" : "1px solid transparent",
     }}>
       <div style={{
         flexShrink: 0, width: 20, height: 20, marginTop: 2, borderRadius: 5,
-        border: done ? "1px solid #0e9f6e" : "1px solid rgba(58,123,213,0.35)",
-        background: done ? "#0e9f6e" : "transparent",
+        border: done ? "1px solid #14c882" : "1px solid rgba(58,123,213,0.35)",
+        background: done ? "#14c882" : "transparent",
         color: "#06110c", fontSize: 12, fontWeight: 700,
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>{done ? "✓" : ""}</div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: done ? "#0e9f6e" : "#0f1b3d", textDecoration: done ? "line-through" : "none" }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: done ? "#8fd9bd" : "#d0e8ff", textDecoration: done ? "line-through" : "none" }}>
           {item.title}
         </div>
         {item.description && (
-          <div style={{ fontSize: 12, color: "#33415c", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
+          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
         )}
       </div>
     </div>
@@ -225,7 +225,7 @@ function ChecklistPhaseGroup({ label, items }) {
   const doneCount = items.filter((i) => i.completed_at).length;
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f", letterSpacing: "0.12em", marginBottom: 8 }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.12em", marginBottom: 8 }}>
         {label.toUpperCase()} ({doneCount}/{items.length})
       </div>
       <div className="glass-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -256,31 +256,31 @@ function LaunchChecklistTab({ token }) {
   return (
     <div>
       <div className="glass-card" style={{ padding: "20px 24px", marginBottom: 24 }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#0f1b3d", marginBottom: 6 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
           Watch as we get you ready to launch
         </div>
-        <div style={{ fontSize: 12.5, color: "#33415c", lineHeight: 1.6, marginBottom: !loading && prelaunch.length > 0 ? 16 : 0 }}>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, marginBottom: !loading && prelaunch.length > 0 ? 16 : 0 }}>
           This is our own checklist, not yours — we're handling every item below.
           Check back anytime to see our progress as we build out your campaign.
         </div>
         {!loading && prelaunch.length > 0 && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f", letterSpacing: "0.1em" }}>
+              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.1em" }}>
                 {doneCount} OF {prelaunch.length} COMPLETE
               </span>
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#2f6fd6" }}>{pct}%</span>
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#6ab0ff" }}>{pct}%</span>
             </div>
             <div style={{ height: 6, borderRadius: 999, background: "rgba(58,123,213,0.1)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: "linear-gradient(90deg, #3a7bd5, #0e9f6e)", transition: "width 0.3s ease" }} />
+              <div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: "linear-gradient(90deg, #3a7bd5, #14c882)", transition: "width 0.3s ease" }} />
             </div>
           </div>
         )}
       </div>
 
-      {loading && <div style={{ color: "#7a879f", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>}
+      {loading && <div style={{ color: "#5a7aa0", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>}
       {!loading && items.length === 0 && (
-        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#7a879f", letterSpacing: "0.12em" }}>
+        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#4a6a90", letterSpacing: "0.12em" }}>
           NOTHING ON THE CHECKLIST YET
         </div>
       )}
@@ -333,7 +333,7 @@ function RequestSection({ token }) {
     <div style={{ marginTop: 28 }}>
       <SectionHeading>Have Something You Need Done?</SectionHeading>
       <div className="glass-card" style={{ padding: 18, marginBottom: 16 }}>
-        <div style={{ fontSize: 12.5, color: "#33415c", marginBottom: 10, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", marginBottom: 10, lineHeight: 1.5 }}>
           Noticed something that needs fixing, or want us to add/change something? Let us know here.
         </div>
         <textarea
@@ -358,13 +358,13 @@ function RequestSection({ token }) {
               <span style={{
                 flexShrink: 0, marginTop: 2, fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
                 padding: "3px 8px", borderRadius: 999, letterSpacing: "0.06em",
-                color: r.status === "done" ? "#0e9f6e" : "#8a5a12",
+                color: r.status === "done" ? "#8fd9bd" : "#f0c078",
                 background: r.status === "done" ? "rgba(20,200,130,0.1)" : "rgba(240,160,40,0.1)",
                 border: r.status === "done" ? "1px solid rgba(20,200,130,0.25)" : "1px solid rgba(240,160,40,0.25)",
               }}>
                 {REQUEST_STATUS_LABELS[r.status].toUpperCase()}
               </span>
-              <div style={{ flex: 1, fontSize: 13, color: "#0f1b3d", lineHeight: 1.5, textDecoration: r.status === "done" ? "line-through" : "none", opacity: r.status === "done" ? 0.7 : 1 }}>
+              <div style={{ flex: 1, fontSize: 13, color: "#d0e8ff", lineHeight: 1.5, textDecoration: r.status === "done" ? "line-through" : "none", opacity: r.status === "done" ? 0.7 : 1 }}>
                 {r.message}
               </div>
             </div>
@@ -445,17 +445,17 @@ function UploadTab({ token }) {
   return (
     <div>
       <div className="glass-card" style={{ padding: "20px 24px", marginBottom: 24 }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#0f1b3d", marginBottom: 6 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
           Send Us Files
         </div>
-        <div style={{ fontSize: 12.5, color: "#33415c", lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
           Got photos, videos, testimonials, logos, or documents we can use in your marketing? Upload
           them here and we'll take it from there.
         </div>
       </div>
 
       {configured === false && (
-        <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5b6b88", fontSize: 13, marginBottom: 20 }}>
+        <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13, marginBottom: 20 }}>
           File uploads aren't connected yet — check back soon.
         </div>
       )}
@@ -463,7 +463,7 @@ function UploadTab({ token }) {
       {configured && (
         <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#7a879f", letterSpacing: "0.12em", marginBottom: 6 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", letterSpacing: "0.12em", marginBottom: 6 }}>
               NOTES (OPTIONAL)
             </div>
             <input
@@ -491,7 +491,7 @@ function UploadTab({ token }) {
             }}
           >
             <span style={{ fontSize: 26 }}>📁</span>
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#33415c" }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#8aaad0" }}>
               Click to choose files, or drag them here
             </span>
           </label>
@@ -499,7 +499,7 @@ function UploadTab({ token }) {
           {uploading.length > 0 && (
             <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
               {uploading.map((f) => (
-                <div key={f.name} style={{ fontSize: 12, color: f.status === "error" ? "#d64545" : "#2f6fd6", fontFamily: "'Share Tech Mono', monospace" }}>
+                <div key={f.name} style={{ fontSize: 12, color: f.status === "error" ? "#e05c5c" : "#6ab0ff", fontFamily: "'Share Tech Mono', monospace" }}>
                   {f.status === "error" ? `✕ ${f.name} — upload failed` : `⏳ ${f.name} — uploading…`}
                 </div>
               ))}
@@ -516,10 +516,10 @@ function UploadTab({ token }) {
               <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 8 }}>
                 <span style={{ fontSize: 16, flexShrink: 0 }}>📄</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: "#0f1b3d", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
-                  {f.notes && <div style={{ fontSize: 11, color: "#5b6b88", marginTop: 2 }}>{f.notes}</div>}
+                  <div style={{ fontSize: 13, color: "#d0e8ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
+                  {f.notes && <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{f.notes}</div>}
                 </div>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f", flexShrink: 0 }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", flexShrink: 0 }}>
                   {fmtBytes(f.file_size)}
                 </div>
               </div>
@@ -577,11 +577,11 @@ function OnboardingFormSection({ token }) {
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: collapsed ? 0 : 12 }}
       >
         <SectionHeading>Onboarding Form ({completedCount}/{SECTIONS.length})</SectionHeading>
-        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f" }}>{collapsed ? "▼" : "▲"}</span>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>{collapsed ? "▼" : "▲"}</span>
       </div>
 
       {!collapsed && (loading ? (
-        <div style={{ color: "#7a879f", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>
+        <div style={{ color: "#5a7aa0", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>
       ) : (
         SECTIONS.map((s) => {
           const isDone = !!responses[s.key]?.completed_at;
@@ -592,15 +592,15 @@ function OnboardingFormSection({ token }) {
                 onClick={() => setOpenSection(isOpen ? null : s.key)}
                 style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: "16px 20px", display: "flex", alignItems: "center", gap: 12 }}
               >
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#0f1b3d", flex: 1 }}>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff", flex: 1 }}>
                   {s.title}
                 </span>
                 {isDone && (
-                  <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#0e9f6e", letterSpacing: "0.08em" }}>
+                  <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#14c882", letterSpacing: "0.08em" }}>
                     ✓ COMPLETE
                   </span>
                 )}
-                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f" }}>
+                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>
                   {isOpen ? "▲" : "▼"}
                 </span>
               </button>
@@ -698,10 +698,10 @@ function OnOffSwitch({ on, onChange, busy, text }) {
       }}>
         <span style={{
           position: "absolute", top: 1, left: on ? 15 : 1, width: 12, height: 12, borderRadius: "50%",
-          background: on ? "#0e9f6e" : "#7a879f", transition: "left 0.15s",
+          background: on ? "#14c882" : "#5a6f8f", transition: "left 0.15s",
         }} />
       </span>
-      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: on ? "#0e9f6e" : "#7a879f" }}>
+      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: on ? "#14c882" : "#5a6f8f" }}>
         {text || (on ? "ON" : "OFF")}
       </span>
     </button>
@@ -715,8 +715,8 @@ function MessagingSection({ title, summary, controls, children }) {
     <div className="glass-card" style={{ padding: "20px 24px", marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#0f1b3d" }}>{title}</div>
-          {summary && <div style={{ fontSize: 12, color: "#5b6b88", marginTop: 3 }}>{summary}</div>}
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>{title}</div>
+          {summary && <div style={{ fontSize: 12, color: "#6a84a8", marginTop: 3 }}>{summary}</div>}
         </div>
         {controls}
       </div>
@@ -732,9 +732,9 @@ function SequenceStepCard({ title, timing, step, onToggle, busy }) {
     <div className="glass-card-sm" style={{ padding: 16, display: "flex", flexDirection: "column", opacity: step.enabled === false ? 0.55 : 1 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#0f1b3d" }}>{title}</div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#e8f0ff" }}>{title}</div>
           {timing && (
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5b6b88", letterSpacing: "0.06em", marginTop: 3 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.06em", marginTop: 3 }}>
               {timing.toUpperCase()}
             </div>
           )}
@@ -742,7 +742,7 @@ function SequenceStepCard({ title, timing, step, onToggle, busy }) {
         {onToggle && <OnOffSwitch on={step.enabled !== false} onChange={onToggle} busy={busy} />}
       </div>
       <div className="dg-divider" style={{ margin: "12px 0" }} />
-      <div style={{ fontSize: 12.5, color: "#33415c", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{step.body}</div>
+      <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{step.body}</div>
     </div>
   );
 }
@@ -854,15 +854,15 @@ function AddToClientSequenceModal({ token, sequence, activeIds, onClose, onAdded
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(15,27,61,0.45)" }} onClick={onClose} />
-      <div style={{ position: "relative", background: "#ffffff", border: "0.5px solid #e3e8f2", borderRadius: 8,
+      <div style={{ position: "absolute", inset: 0, background: "rgba(4,8,16,0.85)" }} onClick={onClose} />
+      <div style={{ position: "relative", background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 8,
                     width: 480, maxWidth: "92vw", maxHeight: "80vh", display: "flex", flexDirection: "column", padding: "24px 28px", gap: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#0f1b3d" }}>{copy.addTitle}</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#7a879f", cursor: "pointer", fontSize: 14 }}>✕</button>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>{copy.addTitle}</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#5a7aa0", cursor: "pointer", fontSize: 14 }}>✕</button>
         </div>
 
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f" }}>{copy.addHint}</div>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>{copy.addHint}</div>
 
         <input
           value={q}
@@ -872,19 +872,19 @@ function AddToClientSequenceModal({ token, sequence, activeIds, onClose, onAdded
           autoFocus
         />
 
-        {err && <div style={{ fontSize: 11, color: "#d64545" }}>{err}</div>}
+        {err && <div style={{ fontSize: 11, color: "#e05555" }}>{err}</div>}
 
         <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-          {loading && <div style={{ fontSize: 11, color: "#7a879f" }}>Loading…</div>}
+          {loading && <div style={{ fontSize: 11, color: "#5a7aa0" }}>Loading…</div>}
           {!loading && candidates.length === 0 && (
-            <div style={{ fontSize: 11, color: "#7a879f" }}>{sequence === "followup" ? "No matching leads." : "No matching appointments."}</div>
+            <div style={{ fontSize: 11, color: "#5a7aa0" }}>{sequence === "followup" ? "No matching leads." : "No matching appointments."}</div>
           )}
           {candidates.map(a => (
             <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
-                                      background: "#ffffff", border: "0.5px solid #e3e8f2", borderRadius: 6 }}>
+                                      background: "#060a14", border: "0.5px solid #121e36", borderRadius: 6 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: "#0f1b3d", fontWeight: 600 }}>{a.prospect_name || a.owner || a.business || a.phone || "—"}</div>
-                <div style={{ fontSize: 11, color: "#5b6b88" }}>{sequence === "followup" ? a.phone : fmtSeqDate(a.appointment_at)}</div>
+                <div style={{ fontSize: 12, color: "#f0f4ff", fontWeight: 600 }}>{a.prospect_name || a.owner || a.business || a.phone || "—"}</div>
+                <div style={{ fontSize: 11, color: "#7a94b8" }}>{sequence === "followup" ? a.phone : fmtSeqDate(a.appointment_at)}</div>
               </div>
               <button
                 onClick={() => add(a)}
@@ -935,17 +935,17 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(15,27,61,0.45)" }} onClick={onClose} />
-      <div style={{ position: "relative", background: "#ffffff", border: "0.5px solid #e3e8f2", borderRadius: 8,
+      <div style={{ position: "absolute", inset: 0, background: "rgba(4,8,16,0.85)" }} onClick={onClose} />
+      <div style={{ position: "relative", background: "#0a1020", border: "0.5px solid #1a2540", borderRadius: 8,
                     width: "min(900px, 92vw)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
 
-        <div style={{ padding: "18px 24px", borderBottom: "0.5px solid #e3e8f2",
+        <div style={{ padding: "18px 24px", borderBottom: "0.5px solid #1a2540",
                       display: "flex", alignItems: "center", gap: 16 }}>
           <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#0f1b3d" }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
               {copy.title}
             </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#7a879f",
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0",
                           letterSpacing: "0.18em", marginTop: 2 }}>
               {rows.length.toLocaleString()} ACTIVE
             </div>
@@ -954,47 +954,47 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
             <button onClick={() => setShowAdd(true)} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>
               {copy.addLabel}
             </button>
-            <button onClick={onClose} style={{ background: "none", border: "none", color: "#7a879f", cursor: "pointer", fontSize: 16 }}>✕</button>
+            <button onClick={onClose} style={{ background: "none", border: "none", color: "#5a7aa0", cursor: "pointer", fontSize: 16 }}>✕</button>
           </div>
         </div>
 
         {err && (
-          <div style={{ margin: "10px 24px 0", fontSize: 11, color: "#d64545", flexShrink: 0 }}>{err}</div>
+          <div style={{ margin: "10px 24px 0", fontSize: 11, color: "#e05555", flexShrink: 0 }}>{err}</div>
         )}
 
         <div style={{ flex: 1, overflowY: "auto", padding: "14px 24px 20px" }}>
           {loading ? (
-            <div style={{ padding: "30px 0", textAlign: "center", fontSize: 11, color: "#7a879f" }}>Loading…</div>
+            <div style={{ padding: "30px 0", textAlign: "center", fontSize: 11, color: "#5a7aa0" }}>Loading…</div>
           ) : rows.length === 0 ? (
             <div style={{ padding: "30px 0", textAlign: "center", fontFamily: "'Share Tech Mono', monospace",
-                          fontSize: 11, color: "#7a879f", letterSpacing: "0.18em" }}>
+                          fontSize: 11, color: "#5a7aa0", letterSpacing: "0.18em" }}>
               {copy.emptyLabel}
             </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ borderBottom: "0.5px solid #e3e8f2" }}>
+                <tr style={{ borderBottom: "0.5px solid #1a2540" }}>
                   {[sequence === "followup" ? "Prospect" : "Patient", "Step", "Next Message Due", ""].map(h => (
                     <th key={h} style={{
                       padding: "6px 10px", textAlign: "left",
                       fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
-                      letterSpacing: "0.18em", color: "#7a879f", textTransform: "uppercase",
+                      letterSpacing: "0.18em", color: "#4a6a90", textTransform: "uppercase",
                     }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map(r => (
-                  <tr key={r.id} style={{ borderBottom: "0.5px solid #e3e8f2" }}>
-                    <td style={{ padding: "8px 10px", fontSize: 12, color: "#0f1b3d" }}>{r.prospect_name || r.owner || "—"}</td>
-                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#5b6b88" }}>{r.step_label}</td>
-                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#5b6b88" }}>{fmtSeqDate(r.next_touch_due_at)}</td>
+                  <tr key={r.id} style={{ borderBottom: "0.5px solid #121e36" }}>
+                    <td style={{ padding: "8px 10px", fontSize: 12, color: "#f0f4ff" }}>{r.prospect_name || r.owner || "—"}</td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{r.step_label}</td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{fmtSeqDate(r.next_touch_due_at)}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right" }}>
                       <button
                         onClick={() => remove(r)}
                         disabled={busyId === r.id}
                         className="btn btn-secondary"
-                        style={{ fontSize: 10, padding: "5px 10px", color: "#d64545", whiteSpace: "nowrap" }}
+                        style={{ fontSize: 10, padding: "5px 10px", color: "#e05555", whiteSpace: "nowrap" }}
                       >
                         {busyId === r.id ? "…" : copy.removeLabel}
                       </button>
@@ -1063,10 +1063,10 @@ function BookingAlertSection({ token }) {
       controls={<OnOffSwitch on={alert.enabled} onChange={setEnabled} busy={busy} />}
     >
       <div className="glass-card-sm" style={{ padding: 16, maxWidth: 520, opacity: alert.enabled ? 1 : 0.55 }}>
-        <div style={{ fontSize: 12.5, color: "#33415c", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{alert.body}</div>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{alert.body}</div>
         <div className="dg-divider" style={{ margin: "12px 0" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5b6b88", letterSpacing: "0.08em" }}>GREETS</span>
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.08em" }}>GREETS</span>
           <input
             value={name} onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") saveName(); }}
@@ -1079,7 +1079,7 @@ function BookingAlertSection({ token }) {
           )}
         </div>
         {!alert.enabled && (
-          <div style={{ fontSize: 11, color: "#b7791f", marginTop: 8 }}>
+          <div style={{ fontSize: 11, color: "#e0a040", marginTop: 8 }}>
             Off: new bookings still show up in your portal, you just won't get the text.
           </div>
         )}
@@ -1104,37 +1104,37 @@ function ReactivationQueueModal({ token, playbook, title, onClose }) {
       (est ? "" : ` ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`);
   };
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} className="glass-card" style={{ width: "100%", maxWidth: 760, maxHeight: "85vh", display: "flex", flexDirection: "column", padding: "20px 24px", background: "#ffffff" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(4,8,22,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} className="glass-card" style={{ width: "100%", maxWidth: 760, maxHeight: "85vh", display: "flex", flexDirection: "column", padding: "20px 24px", background: "#0c1430" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#0f1b3d" }}>{title}: Active Prospects</div>
+          <div style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>{title}: Active Prospects</div>
           <button onClick={onClose} className="btn btn-secondary" style={{ fontSize: 10.5, padding: "6px 12px" }}>Close</button>
         </div>
-        <div style={{ fontSize: 12, color: "#5b6b88", marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: "#6a84a8", marginTop: 4 }}>
           Who's lined up next and when. {data?.paused ? "These start sending once DigiGrowth switches reactivation on." : "Texts go out 10am-6pm Mon-Sat, your time."}
         </div>
         <div className="dg-divider" style={{ margin: "14px 0" }} />
         <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}>
           {!data ? (
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#7a879f" }}>LOADING...</div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#5a7aa0" }}>LOADING...</div>
           ) : !items.length ? (
-            <div style={{ fontSize: 12.5, color: "#5b6b88" }}>Nobody is lined up right now.</div>
+            <div style={{ fontSize: 12.5, color: "#6a84a8" }}>Nobody is lined up right now.</div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr>
                   {["When", "Name", "Phone", "Next"].map((h) => (
-                    <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5b6b88", letterSpacing: "0.06em" }}>{h.toUpperCase()}</th>
+                    <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.06em" }}>{h.toUpperCase()}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {items.map((it, i) => (
                   <tr key={i} style={{ borderTop: "1px solid rgba(58,123,213,0.08)" }}>
-                    <td style={{ padding: "7px 8px", color: "#0f1b3d", whiteSpace: "nowrap" }}>{it.due ? fmt(it.due, it.estimated) : it.when_label}</td>
-                    <td style={{ padding: "7px 8px", color: "#0f1b3d" }}>{it.name || "—"}</td>
-                    <td style={{ padding: "7px 8px", color: "#33415c", whiteSpace: "nowrap" }}>{it.phone}</td>
-                    <td style={{ padding: "7px 8px", color: "#33415c" }}>{it.what}</td>
+                    <td style={{ padding: "7px 8px", color: "#e8f0ff", whiteSpace: "nowrap" }}>{it.due ? fmt(it.due, it.estimated) : it.when_label}</td>
+                    <td style={{ padding: "7px 8px", color: "#e8f0ff" }}>{it.name || "—"}</td>
+                    <td style={{ padding: "7px 8px", color: "#8aaad0", whiteSpace: "nowrap" }}>{it.phone}</td>
+                    <td style={{ padding: "7px 8px", color: "#8aaad0" }}>{it.what}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1142,7 +1142,7 @@ function ReactivationQueueModal({ token, playbook, title, onClose }) {
           )}
         </div>
         {items.some((i) => i.estimated) && (
-          <div style={{ fontSize: 11, color: "#5b6b88", marginTop: 10 }}>~ = estimated: a set number of new people are texted each day.</div>
+          <div style={{ fontSize: 11, color: "#5a6f8f", marginTop: 10 }}>~ = estimated: a set number of new people are texted each day.</div>
         )}
       </div>
     </div>
@@ -1173,7 +1173,7 @@ function ReactivationMessagesSection({ token }) {
           <SequenceStepCard key={i} title={m.title} timing={m.timing} step={{ body: m.body }} />
         ))}
       </div>
-      <div style={{ fontSize: 11, color: "#5b6b88", marginTop: 12 }}>{data.example}</div>
+      <div style={{ fontSize: 11, color: "#5a6f8f", marginTop: 12 }}>{data.example}</div>
     </MessagingSection>
   ));
 }
@@ -1213,15 +1213,15 @@ function SequencesTab({ token }) {
       .catch(() => setLoading(false));
   }, [token]);
 
-  if (loading) return <div style={{ color: "#7a879f", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading) return <div style={{ color: "#5a7aa0", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
 
   return (
     <div>
       <div className="glass-card" style={{ padding: "20px 24px", marginBottom: 24 }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#0f1b3d", marginBottom: 6 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
           Your Patient Messaging
         </div>
-        <div style={{ fontSize: 12.5, color: "#33415c", lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
           Your appointment reminders and follow-ups are live, texting from your own number.
           Below is every message, plus who's in each sequence right now. Switch off a single
           text, or a whole sequence, and it stops before its next send.
@@ -1276,7 +1276,7 @@ function SequencesTab({ token }) {
       })}
 
       {!loading && steps.length === 0 && (
-        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#7a879f", letterSpacing: "0.12em" }}>
+        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#4a6a90", letterSpacing: "0.12em" }}>
           NOTHING DRAFTED YET — CHECK BACK SOON
         </div>
       )}
@@ -1299,9 +1299,9 @@ function VideosTab({ token }) {
       .catch(() => setLoading(false));
   }, [token]);
 
-  if (loading) return <div style={{ color: "#7a879f", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading) return <div style={{ color: "#5a7aa0", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (videos.length === 0) return (
-    <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#7a879f", letterSpacing: "0.12em" }}>
+    <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#4a6a90", letterSpacing: "0.12em" }}>
       NO VIDEOS YET — CHECK BACK SOON
     </div>
   );
@@ -1330,8 +1330,8 @@ function VideosTab({ token }) {
               />
             )}
           </div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#0f1b3d", marginBottom: 4 }}>{v.title}</div>
-          {v.description && <div style={{ fontSize: 12.5, color: "#33415c", lineHeight: 1.5 }}>{v.description}</div>}
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff", marginBottom: 4 }}>{v.title}</div>
+          {v.description && <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.5 }}>{v.description}</div>}
         </div>
       ))}
     </div>
@@ -1351,26 +1351,26 @@ function WebsiteTab({ token }) {
       .catch(() => setLoading(false));
   }, [token]);
 
-  if (loading) return <div style={{ color: "#7a879f", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading) return <div style={{ color: "#5a7aa0", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (sites.length === 0) return (
-    <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#7a879f", letterSpacing: "0.12em" }}>
+    <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#4a6a90", letterSpacing: "0.12em" }}>
       NO WEBSITES YET — CHECK BACK SOON
     </div>
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {sites.map((s) => (
         <div key={s.id} className="glass-card-sm" style={{ padding: "20px 22px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
             <div style={{ width: 46, height: 46, borderRadius: 12, flexShrink: 0, display: "grid", placeItems: "center",
-              background: "linear-gradient(135deg, #2857a0, #3a7bd5)", color: "#fff" }}>
+              background: "linear-gradient(135deg, #2857a0, #3a7bd5)", color: "#fff", boxShadow: "0 6px 16px -6px rgba(58,123,213,0.7)" }}>
               <NavIcon name="globe" size={22} />
             </div>
             <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 16, color: "#0f1b3d" }}>{s.label}</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 16, color: "#f0f4ff" }}>{s.label}</div>
               <a href={s.url} target="_blank" rel="noreferrer"
-                style={{ fontSize: 13, color: "#2f6fd6", wordBreak: "break-all", display: "inline-block", marginTop: 3 }}>{s.url}</a>
+                style={{ fontSize: 13, color: "#6ab0ff", wordBreak: "break-all", display: "inline-block", marginTop: 3 }}>{s.url}</a>
             </div>
             <a href={s.url} target="_blank" rel="noreferrer" className="btn btn-primary"
               style={{ fontSize: 11.5, textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>Visit site &#8599;</a>
@@ -1383,7 +1383,7 @@ function WebsiteTab({ token }) {
 
 function SectionHeading({ children }) {
   return (
-    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 12 }}>
+    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 12 }}>
       {children}
     </div>
   );
@@ -1394,25 +1394,25 @@ function SectionHeading({ children }) {
 const DASH_ICONS = {
   leads: (
     <svg viewBox="0 0 20 20" fill="none" width={20} height={20}>
-      <circle cx="7" cy="7" r="3" stroke="#2f6fd6" strokeWidth="1.6" />
-      <path d="M2 17c0-3 2.24-5 5-5m5 0c2.76 0 5 2 5 5" stroke="#2f6fd6" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="7" cy="7" r="3" stroke="#6ab0ff" strokeWidth="1.6" />
+      <path d="M2 17c0-3 2.24-5 5-5m5 0c2.76 0 5 2 5 5" stroke="#6ab0ff" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   ),
   appointments: (
     <svg viewBox="0 0 20 20" fill="none" width={20} height={20}>
-      <rect x="3" y="4" width="14" height="13" rx="2" stroke="#2f6fd6" strokeWidth="1.6" />
-      <path d="M7 2v4M13 2v4M3 9h14" stroke="#2f6fd6" strokeWidth="1.6" strokeLinecap="round" />
+      <rect x="3" y="4" width="14" height="13" rx="2" stroke="#6ab0ff" strokeWidth="1.6" />
+      <path d="M7 2v4M13 2v4M3 9h14" stroke="#6ab0ff" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   ),
   upcoming: (
     <svg viewBox="0 0 20 20" fill="none" width={20} height={20}>
-      <circle cx="10" cy="10" r="7.5" stroke="#2f6fd6" strokeWidth="1.6" />
-      <path d="M10 6v4l3 2" stroke="#2f6fd6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="10" cy="10" r="7.5" stroke="#6ab0ff" strokeWidth="1.6" />
+      <path d="M10 6v4l3 2" stroke="#6ab0ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   rate: (
     <svg viewBox="0 0 20 20" fill="none" width={20} height={20}>
-      <path d="M4 11l3.5 3.5L16 6" stroke="#2f6fd6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 11l3.5 3.5L16 6" stroke="#6ab0ff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
 };
@@ -1424,7 +1424,7 @@ function DashTopStat({ label, value, delta, iconKey }) {
         <div className="stat-card-label">{label}</div>
         <div className="stat-card-value">{value ?? "—"}</div>
         {delta != null && (
-          <div className="stat-card-delta" style={{ color: "#0e9f6e" }}>{delta}</div>
+          <div className="stat-card-delta" style={{ color: "#14c882" }}>{delta}</div>
         )}
       </div>
       <div className="stat-card-icon">{DASH_ICONS[iconKey]}</div>
@@ -1436,11 +1436,11 @@ function DashChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
-      background: "#ffffff", border: "1px solid rgba(58,123,213,0.2)",
+      background: "rgba(10,18,48,0.95)", border: "1px solid rgba(58,123,213,0.2)",
       borderRadius: 10, padding: "8px 14px", fontSize: 12,
       fontFamily: "'Space Grotesk', sans-serif",
     }}>
-      <div style={{ color: "#33415c", marginBottom: 4 }}>{label}</div>
+      <div style={{ color: "#8aaad0", marginBottom: 4 }}>{label}</div>
       {payload.map((p) => (
         <div key={p.dataKey} style={{ color: p.color, fontWeight: 600 }}>{p.name}: {p.value}</div>
       ))}
@@ -1454,14 +1454,14 @@ function GradientRateCard({ label, pct, sublabel, breakdown }) {
       <div className="sec-label">{label}</div>
       <div style={{ textAlign: "center", padding: "10px 0" }}>
         <div style={{
-          fontSize: 52, fontWeight: 700, color: "#0f1b3d",
+          fontSize: 52, fontWeight: 700, color: "#f0f4ff",
           letterSpacing: "-0.04em", lineHeight: 1,
-          background: "linear-gradient(135deg, #3a7bd5, #2f6fd6)",
+          background: "linear-gradient(135deg, #3a7bd5, #6ab0ff)",
           WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
         }}>
           {pct != null ? `${pct}%` : "—"}
         </div>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f", letterSpacing: "0.12em", marginTop: 8 }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.12em", marginTop: 8 }}>
           {sublabel}
         </div>
       </div>
@@ -1471,7 +1471,7 @@ function GradientRateCard({ label, pct, sublabel, breakdown }) {
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             {breakdown.map(({ label: l, value, color }) => (
               <div key={l}>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#7a879f", letterSpacing: "0.12em" }}>{l.toUpperCase()}</div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#4a6a90", letterSpacing: "0.12em" }}>{l.toUpperCase()}</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color, marginTop: 2 }}>{value}</div>
               </div>
             ))}
@@ -1505,12 +1505,12 @@ function UpcomingAppointmentsWidget({ token }) {
 
   return (
     <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", minHeight: 280 }}>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#0f1b3d", marginBottom: 16 }}>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0", marginBottom: 16 }}>
         Upcoming Appointments
       </div>
-      {loading && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f" }}>LOADING…</div>}
+      {loading && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a90" }}>LOADING…</div>}
       {!loading && rows.length === 0 && (
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8b97ad" }}>NOTHING UPCOMING</div>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a90" }}>NOTHING UPCOMING</div>
       )}
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
         {rows.map((r) => (
@@ -1519,10 +1519,10 @@ function UpcomingAppointmentsWidget({ token }) {
             background: "rgba(58,123,213,0.06)", border: "1px solid rgba(58,123,213,0.12)",
             borderLeft: "3px solid #3a7bd5",
           }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2f6fd6", letterSpacing: "0.08em", marginBottom: 2 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.08em", marginBottom: 2 }}>
               {fmtLocal(r.appointment_at, r.prospect_timezone)}
             </div>
-            <div style={{ fontSize: 13, color: "#33415c", lineHeight: 1.4 }}>{r.prospect_name || r.owner || "—"}</div>
+            <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>{r.prospect_name || r.owner || "—"}</div>
           </div>
         ))}
       </div>
@@ -1543,24 +1543,24 @@ function RecentLeadsWidget({ token }) {
 
   return (
     <div className="glass-card" style={{ padding: "20px 22px", display: "flex", flexDirection: "column", minHeight: 280 }}>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#0f1b3d", marginBottom: 16 }}>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0", marginBottom: 16 }}>
         Recent Leads
       </div>
-      {loading && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f" }}>LOADING…</div>}
+      {loading && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a90" }}>LOADING…</div>}
       {!loading && rows.length === 0 && (
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8b97ad" }}>NO LEADS YET</div>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a90" }}>NO LEADS YET</div>
       )}
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
         {rows.map((l) => (
           <div key={l.id} style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
-            padding: "8px 12px", borderRadius: 10, background: "rgba(15,27,61,0.025)",
+            padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.02)",
           }}>
             <div>
-              <div style={{ fontSize: 13, color: "#1f2d4d", fontWeight: 600 }}>{leadName(l) || "—"}</div>
-              <div style={{ fontSize: 10, color: "#5b6b88", marginTop: 2 }}>{l.phone}</div>
+              <div style={{ fontSize: 13, color: "#c4d0e8", fontWeight: 600 }}>{leadName(l) || "—"}</div>
+              <div style={{ fontSize: 10, color: "#5a7096", marginTop: 2 }}>{l.phone}</div>
             </div>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#0e9f6e", flexShrink: 0 }} />
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#14c882", flexShrink: 0 }} />
           </div>
         ))}
       </div>
@@ -1581,7 +1581,7 @@ function DashboardTab({ token, contactName }) {
       .catch(() => setLoading(false));
   }, [token, period]);
 
-  if (loading && !stats) return <div style={{ color: "#7a879f", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading && !stats) return <div style={{ color: "#5a7aa0", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (!stats) return null;
 
   const appt = stats.appointments;
@@ -1605,12 +1605,12 @@ function DashboardTab({ token, contactName }) {
 
   const channelData = [
     { name: "SMS Sent", value: stats.sms.sent, fill: "#3a7bd5" },
-    { name: "SMS Replies", value: stats.sms.replies, fill: "#0e9f6e" },
+    { name: "SMS Replies", value: stats.sms.replies, fill: "#14c882" },
     // Sent/received through the client's OWN provisioned Twilio number
     // (client_sms.py) — a separate rollup from the two above, which come
     // from DigiGrowth's own outreach system.
-    { name: "Your Number — Sent", value: stats.campaign_sms?.sent || 0, fill: "#14a3a0" },
-    { name: "Your Number — Received", value: stats.campaign_sms?.received || 0, fill: "#14a3a0" },
+    { name: "Your Number — Sent", value: stats.campaign_sms?.sent || 0, fill: "#5ad1c8" },
+    { name: "Your Number — Received", value: stats.campaign_sms?.received || 0, fill: "#5ad1c8" },
   ];
 
   return (
@@ -1618,10 +1618,10 @@ function DashboardTab({ token, contactName }) {
 
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#0f1b3d", letterSpacing: "-0.02em" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
             Welcome back{contactName ? `, ${contactName}` : ""}
           </div>
-          <div style={{ fontSize: 12.5, color: "#5b6b88", marginTop: 4 }}>
+          <div style={{ fontSize: 12.5, color: "#5a7aa0", marginTop: 4 }}>
             Here's how your campaign is performing.
           </div>
         </div>
@@ -1647,39 +1647,39 @@ function DashboardTab({ token, contactName }) {
       {/* Row 3: charts */}
       <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr", gap: 16 }}>
         <div className="glass-card" style={{ padding: "22px 24px" }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: "#0f1b3d", marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: "#d0dcf0", marginBottom: 20 }}>
             Appointment Funnel
           </div>
           {hasFunnelData ? (
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={funnelData} margin={{ top: 5, right: 10, bottom: 0, left: -20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
-                <XAxis dataKey="stage" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#8b97ad" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#8b97ad" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="stage" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }} axisLine={false} tickLine={false} />
                 <Tooltip content={<DashChartTooltip />} />
                 <Line type="monotone" dataKey="value" name="Count" stroke="#3a7bd5" strokeWidth={2}
-                  dot={{ fill: "#3a7bd5", r: 4, strokeWidth: 0 }} activeDot={{ fill: "#2f6fd6", r: 5, strokeWidth: 0 }} />
+                  dot={{ fill: "#3a7bd5", r: 4, strokeWidth: 0 }} activeDot={{ fill: "#6ab0ff", r: 5, strokeWidth: 0 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8b97ad", letterSpacing: "0.15em" }}>
+            <div style={{ height: 180, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a90", letterSpacing: "0.15em" }}>
               NO DATA YET
             </div>
           )}
         </div>
 
         <div className="glass-card" style={{ padding: "22px 24px" }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: "#0f1b3d", marginBottom: 4 }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: "#d0dcf0", marginBottom: 4 }}>
             Channel Activity
           </div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2f6fd6", letterSpacing: "0.1em", marginBottom: 18 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.1em", marginBottom: 18 }}>
             SMS
           </div>
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={channelData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
-              <XAxis dataKey="name" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8, fill: "#8b97ad" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#8b97ad" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="name" tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8, fill: "#2a4a7a" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }} axisLine={false} tickLine={false} />
               <Tooltip content={<DashChartTooltip />} />
               <Bar dataKey="value" name="Count" radius={[4, 4, 0, 0]}>
                 {channelData.map((entry, i) => <rect key={i} fill={entry.fill} />)}
@@ -1696,8 +1696,8 @@ function DashboardTab({ token, contactName }) {
           pct={appt.shows + appt.no_shows > 0 ? appt.show_rate : null}
           sublabel="SHOWS / BOOKED APPOINTMENTS"
           breakdown={[
-            { label: "Shows", value: appt.shows, color: "#0e9f6e" },
-            { label: "No-Shows", value: appt.no_shows, color: "#d64545" },
+            { label: "Shows", value: appt.shows, color: "#14c882" },
+            { label: "No-Shows", value: appt.no_shows, color: "#dc3c3c" },
           ]}
         />
         <GradientRateCard
@@ -1705,8 +1705,8 @@ function DashboardTab({ token, contactName }) {
           pct={appt.closed + appt.not_closed > 0 ? appt.close_rate : null}
           sublabel="CLOSED / DECIDED APPOINTMENTS"
           breakdown={[
-            { label: "Closed", value: appt.closed, color: "#0e9f6e" },
-            { label: "Lost", value: appt.not_closed, color: "#d64545" },
+            { label: "Closed", value: appt.closed, color: "#14c882" },
+            { label: "Lost", value: appt.not_closed, color: "#dc3c3c" },
           ]}
         />
       </div>
@@ -1723,7 +1723,7 @@ function DashboardTab({ token, contactName }) {
             <DashTopStat label="Leads" value={adLeads.toLocaleString()} iconKey="leads" />
           </div>
         ) : (
-          <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5b6b88", fontSize: 13 }}>
+          <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
             Facebook Ads reporting isn't connected yet — once it is, spend and performance will show here automatically.
           </div>
         )}
@@ -1739,9 +1739,9 @@ function DashboardTab({ token, contactName }) {
 // (tracking_exclusion.py). Step colors compare each step to the targets the
 // API returns, so the targets live in one place.
 const STEP_TONE = {
-  good: { color: "#0e9f6e", label: "On target" },
-  ok:   { color: "#b7791f", label: "Close" },
-  poor: { color: "#d64545", label: "Below target" },
+  good: { color: "#14c882", label: "On target" },
+  ok:   { color: "#f0b429", label: "Close" },
+  poor: { color: "#e05c5c", label: "Below target" },
 };
 // Plain-English line under each step name.
 const STEP_HELP = {
@@ -1766,11 +1766,11 @@ const fmtDay = (iso) => (iso ? new Date(iso).toLocaleDateString("en-US", { month
 function KpiCard({ label, value, hint, big }) {
   return (
     <div className="glass-card-sm" style={{ padding: big ? "18px 20px" : "14px 16px" }}>
-      <div style={{ fontSize: 12, color: "#5b6b88", fontWeight: 500 }}>{label}</div>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: big ? 30 : 22, fontWeight: 700, color: "#0f1b3d", marginTop: 4, letterSpacing: "-0.02em" }}>
+      <div style={{ fontSize: 12, color: "#7a92b8", fontWeight: 500 }}>{label}</div>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: big ? 30 : 22, fontWeight: 700, color: "#f0f4ff", marginTop: 4, letterSpacing: "-0.02em" }}>
         {value}
       </div>
-      {hint && <div style={{ fontSize: 11.5, color: "#5b6b88", marginTop: 2 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 11.5, color: "#5a7aa0", marginTop: 2 }}>{hint}</div>}
     </div>
   );
 }
@@ -1787,17 +1787,17 @@ function JourneyRow({ stage, index, top, first }) {
   const tone = STEP_TONE[stage.status];
   const tip = stage.target ? `Target: ${stage.target.good}% or better` : undefined;
   return (
-    <div style={{ padding: "12px 0", borderTop: first ? "none" : "1px solid rgba(15,27,61,0.045)" }}>
+    <div style={{ padding: "12px 0", borderTop: first ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         {/* Step name */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "1 1 200px", minWidth: 0 }}>
           <div style={{
             width: 26, height: 26, borderRadius: 13, flexShrink: 0, display: "grid", placeItems: "center",
-            background: "rgba(58,123,213,0.15)", color: "#2f6fd6", fontSize: 12, fontWeight: 700,
+            background: "rgba(58,123,213,0.15)", color: "#6ab0ff", fontSize: 12, fontWeight: 700,
           }}>{index + 1}</div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: off ? "#7a879f" : "#0f1b3d" }}>{stage.label}</div>
-            <div style={{ fontSize: 11.5, color: "#5b6b88" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: off ? "#5a7aa0" : "#f0f4ff" }}>{stage.label}</div>
+            <div style={{ fontSize: 11.5, color: "#5a7aa0" }}>
               {off ? "Waiting on ad account access" : STEP_HELP[stage.key] || ""}
             </div>
           </div>
@@ -1805,10 +1805,10 @@ function JourneyRow({ stage, index, top, first }) {
 
         {/* Bar + count */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flex: "2 1 220px", minWidth: 0 }}>
-          <div style={{ flex: 1, height: 10, borderRadius: 5, background: "rgba(15,27,61,0.045)", overflow: "hidden" }}>
+          <div style={{ flex: 1, height: 10, borderRadius: 5, background: "rgba(255,255,255,0.05)", overflow: "hidden" }}>
             {!off && stage.value > 0 && <div style={{ width: `${stepWidth(stage.value, top)}%`, height: "100%", borderRadius: 5, background: "#3a7bd5" }} />}
           </div>
-          <div style={{ width: 80, textAlign: "right", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 700, color: off ? "#7a879f" : "#0f1b3d" }}>
+          <div style={{ width: 80, textAlign: "right", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 700, color: off ? "#3a5a80" : "#f0f4ff" }}>
             {off ? "—" : fmtNum(stage.value)}
           </div>
         </div>
@@ -1817,11 +1817,11 @@ function JourneyRow({ stage, index, top, first }) {
         {!first && !off && stage.rate != null && (
         <div style={{ width: 128, marginLeft: "auto", textAlign: "right" }} title={tip}>
             <>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: tone ? tone.color : "#33415c" }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 700, color: tone ? tone.color : "#a8b8d8" }}>
                 {tone && <span style={{ width: 7, height: 7, borderRadius: 4, background: tone.color }} />}
                 {fmtPct(stage.rate)}
               </div>
-              <div style={{ fontSize: 11, color: "#5b6b88" }}>
+              <div style={{ fontSize: 11, color: "#5a7aa0" }}>
                 {stage.rate_basis === "click-through rate" ? "click rate" : "of previous step"}
               </div>
             </>
@@ -1829,7 +1829,7 @@ function JourneyRow({ stage, index, top, first }) {
         )}
       </div>
       {stage.note && !off && (
-        <div style={{ fontSize: 11.5, color: "#5b6b88", margin: "6px 0 0 38px" }}>{stage.note}</div>
+        <div style={{ fontSize: 11.5, color: "#7a92b8", margin: "6px 0 0 38px" }}>{stage.note}</div>
       )}
     </div>
   );
@@ -1855,8 +1855,8 @@ function AnalyticsTab({ token }) {
       .catch((e) => { setErr(e.message); setLoading(false); });
   }, [token, period]);
 
-  if (loading && !data) return <div style={{ color: "#7a879f", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
-  if (err && !data) return <div className="glass-card" style={{ padding: 24, color: "#d64545", fontSize: 13 }}>{err}</div>;
+  if (loading && !data) return <div style={{ color: "#5a7aa0", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (err && !data) return <div className="glass-card" style={{ padding: 24, color: "#e05c5c", fontSize: 13 }}>{err}</div>;
   if (!data) return null;
 
   const paths = data.paths || [];
@@ -1870,10 +1870,10 @@ function AnalyticsTab({ token }) {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#0f1b3d", letterSpacing: "-0.02em" }}>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
             Analytics
           </div>
-          <div style={{ fontSize: 13, color: "#5b6b88", marginTop: 4 }}>
+          <div style={{ fontSize: 13, color: "#7a92b8", marginTop: 4 }}>
             {data.launched
               ? `Campaign live since ${fmtDay(data.launched_at)}`
               : "Your campaign isn't live yet"}
@@ -1883,7 +1883,7 @@ function AnalyticsTab({ token }) {
       </div>
 
       {!data.launched && (
-        <div className="glass-card-sm" style={{ padding: "14px 18px", borderLeft: "3px solid #3a7bd5", fontSize: 13, color: "#1f2d4d", lineHeight: 1.5 }}>
+        <div className="glass-card-sm" style={{ padding: "14px 18px", borderLeft: "3px solid #3a7bd5", fontSize: 13, color: "#c8d6ee", lineHeight: 1.5 }}>
           Everything below starts counting the day your ads go live. Until then it stays at 0.
         </div>
       )}
@@ -1900,8 +1900,8 @@ function AnalyticsTab({ token }) {
       <div className="glass-card" style={{ padding: "18px 22px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#0f1b3d" }}>Patient journey</div>
-            <div style={{ fontSize: 12.5, color: "#5b6b88", marginTop: 2 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>Patient journey</div>
+            <div style={{ fontSize: 12.5, color: "#7a92b8", marginTop: 2 }}>
               How many people reach each step, and what share moves on to the next.
             </div>
           </div>
@@ -1918,13 +1918,13 @@ function AnalyticsTab({ token }) {
         </div>
 
         {leak && data.launched && (
-          <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(240,180,41,0.08)", fontSize: 13, color: "#8a5a12" }}>
-            <b style={{ color: "#b7791f" }}>Biggest opportunity:</b> {leak.label.toLowerCase()} is at {leak.rate}% (target {leak.target}%).
+          <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(240,180,41,0.08)", fontSize: 13, color: "#e8d9b0" }}>
+            <b style={{ color: "#f0b429" }}>Biggest opportunity:</b> {leak.label.toLowerCase()} is at {leak.rate}% (target {leak.target}%).
           </div>
         )}
 
         {!path ? (
-          <div style={{ textAlign: "center", padding: 30, color: "#5b6b88", fontSize: 13 }}>
+          <div style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
             Nothing to show yet.
           </div>
         ) : (
@@ -1933,7 +1933,7 @@ function AnalyticsTab({ token }) {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(15,27,61,0.06)", fontSize: 11.5, color: "#5b6b88" }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: 11.5, color: "#7a92b8" }}>
           {Object.values(STEP_TONE).map((t) => (
             <span key={t.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ width: 7, height: 7, borderRadius: 4, background: t.color }} />{t.label}
@@ -1946,7 +1946,7 @@ function AnalyticsTab({ token }) {
       {/* Costs + ad performance */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
         <div className="glass-card" style={{ padding: "18px 22px" }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#0f1b3d", marginBottom: 12 }}>What each result costs</div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 12 }}>What each result costs</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <KpiCard label="Per lead" value={fmtMoney(k.cost_per_lead)} />
             <KpiCard label="Per booked visit" value={fmtMoney(k.cost_per_booking)} />
@@ -1955,7 +1955,7 @@ function AnalyticsTab({ token }) {
           </div>
         </div>
         <div className="glass-card" style={{ padding: "18px 22px" }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#0f1b3d", marginBottom: 12 }}>Ad performance</div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 12 }}>Ad performance</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <KpiCard label="Times shown" value={fmtNum(k.impressions)} hint={k.cpm != null ? `${fmtMoney(k.cpm)} per 1,000` : null} />
             <KpiCard label="Click rate" value={fmtPct(k.ctr)} hint={k.link_clicks != null ? `${fmtNum(k.link_clicks)} clicks` : null} />
@@ -1988,8 +1988,8 @@ function fmtLocal(iso, tz) {
 function OutcomeSummary({ appointment, onClick }) {
   const showLabel  = appointment.outcome_show === "show" ? "Show" : appointment.outcome_show === "no_show" ? "No Show" : null;
   const closeLabel = appointment.outcome_close === "closed" ? "Closed" : appointment.outcome_close === "not_closed" ? "Not Closed" : null;
-  const showColor  = appointment.outcome_show === "show" ? "#0e9f6e" : "#d64545";
-  const closeColor = appointment.outcome_close === "closed" ? "#0e9f6e" : "#d64545";
+  const showColor  = appointment.outcome_show === "show" ? "#14c882" : "#dc3c3c";
+  const closeColor = appointment.outcome_close === "closed" ? "#14c882" : "#dc3c3c";
   const hasOutcome = showLabel || closeLabel;
   return (
     <button
@@ -1999,12 +1999,12 @@ function OutcomeSummary({ appointment, onClick }) {
       {hasOutcome ? (
         <span>
           {showLabel && <span style={{ color: showColor }}>{showLabel}</span>}
-          {showLabel && closeLabel && <span style={{ color: "#7a879f" }}> · </span>}
+          {showLabel && closeLabel && <span style={{ color: "#5a7aa0" }}> · </span>}
           {closeLabel && <span style={{ color: closeColor }}>{closeLabel}</span>}
-          {appointment.outcome_notes && <span style={{ color: "#5b6b88" }}> · 📝</span>}
+          {appointment.outcome_notes && <span style={{ color: "#5a6f8f" }}> · 📝</span>}
         </span>
       ) : (
-        <span style={{ color: "#5b6b88" }}>Set outcome ›</span>
+        <span style={{ color: "#5a6f8f" }}>Set outcome ›</span>
       )}
     </button>
   );
@@ -2078,24 +2078,24 @@ function AppointmentsTab({ token }) {
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(58,123,213,0.15)" }}>
               {["Patient", "Phone", "Email", "Notes", "Appointment", "Outcome", "Action"].map((h) => (
-                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5b6b88", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
+                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && displayRows.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#7a879f", fontSize: 12 }}>No appointments in this view.</td></tr>
+              <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#5a7aa0", fontSize: 12 }}>No appointments in this view.</td></tr>
             )}
             {displayRows.map((row) => (
               <tr key={row.id} style={{ borderBottom: "1px solid rgba(58,123,213,0.08)" }}>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#0f1b3d" }}>{row.prospect_name || row.owner || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#5b6b88" }}>{row.prospect_phone || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#5b6b88" }}>{row.prospect_email || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#5b6b88" }}>{row.notes || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#5b6b88" }}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{row.prospect_name || row.owner || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.prospect_phone || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.prospect_email || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.notes || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</td>
                 <td style={{ padding: "10px 14px" }}>
                   {row.status !== "canceled" && <OutcomeSummary appointment={row} onClick={() => setOutcomeTarget(row)} />}
-                  {row.status === "canceled" && <span style={{ fontSize: 11, color: "#7a879f" }}>canceled</span>}
+                  {row.status === "canceled" && <span style={{ fontSize: 11, color: "#5a7aa0" }}>canceled</span>}
                 </td>
                 <td style={{ padding: "10px 14px" }}>
                   {row.status !== "canceled" && (
@@ -2104,7 +2104,7 @@ function AppointmentsTab({ token }) {
                       disabled={canceling === row.id}
                       style={{
                         background: "rgba(220,60,60,0.1)", border: "1px solid rgba(220,60,60,0.3)",
-                        borderRadius: 6, color: "#d64545", fontFamily: "'Space Grotesk', sans-serif",
+                        borderRadius: 6, color: "#e05c5c", fontFamily: "'Space Grotesk', sans-serif",
                         fontSize: 11, fontWeight: 600, padding: "5px 10px",
                         cursor: canceling === row.id ? "default" : "pointer",
                         opacity: canceling === row.id ? 0.6 : 1,
@@ -2402,27 +2402,27 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
     setConfirmDelete(false);
   };
 
-  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#2f6fd6" };
-  const labelStyle = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#7a879f", letterSpacing: "0.15em", marginBottom: 4 };
+  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#3a7bd5" };
+  const labelStyle = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#4a6a90", letterSpacing: "0.15em", marginBottom: 4 };
   const formAnswers = parseFormAnswers(display.form_answers);
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", justifyContent: "flex-end" }}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(15,27,61,0.4)" }} onClick={onClose} />
+      <div style={{ position: "absolute", inset: 0, background: "rgba(8,12,20,0.7)" }} onClick={onClose} />
       <aside style={{
-        position: "relative", width: 440, maxWidth: "92vw", background: "#ffffff", borderLeft: "0.5px solid #e3e8f2",
+        position: "relative", width: 440, maxWidth: "92vw", background: "#0d1626", borderLeft: "0.5px solid #1a2540",
         height: "100%", overflowY: "auto", display: "flex", flexDirection: "column",
       }}>
-        <div style={{ padding: "18px 20px", borderBottom: "0.5px solid #e3e8f2", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ padding: "18px 20px", borderBottom: "0.5px solid #1a2540", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
           <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#0f1b3d" }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
               {leadName(display) || "Unknown"}
             </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f", letterSpacing: "0.12em", marginTop: 3 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", letterSpacing: "0.12em", marginTop: 3 }}>
               {display.phone || "—"}
             </div>
           </div>
-          <button onClick={onClose} style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#7a879f", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>✕</button>
+          <button onClick={onClose} style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#5a7aa0", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>✕</button>
         </div>
 
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
@@ -2442,8 +2442,8 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
               <div className="glass-card-sm" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
                 {formAnswers.map((a, i) => (
                   <div key={i}>
-                    <div style={{ fontSize: 11, color: "#5b6b88", marginBottom: 2 }}>{a.question}</div>
-                    <div style={{ fontSize: 13, color: "#0f1b3d", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{a.answer}</div>
+                    <div style={{ fontSize: 11, color: "#6a8ab0", marginBottom: 2 }}>{a.question}</div>
+                    <div style={{ fontSize: 13, color: "#f0f4ff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{a.answer}</div>
                   </div>
                 ))}
               </div>
@@ -2456,21 +2456,21 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
               style={{ width: "100%", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }} placeholder="Notes about this lead…" />
           </div>
 
-          {saveErr && <div style={{ fontSize: 11, color: "#d64545", fontFamily: "'Share Tech Mono', monospace" }}>{saveErr}</div>}
+          {saveErr && <div style={{ fontSize: 11, color: "#f06060", fontFamily: "'Share Tech Mono', monospace" }}>{saveErr}</div>}
           <button onClick={handleSave} disabled={saving} className="btn btn-primary">{saving ? "Saving…" : "Save Changes"}</button>
 
           {confirmDelete ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 11, color: "#d64545", flex: 1 }}>Delete this lead permanently?</span>
+              <span style={{ fontSize: 11, color: "#f06060", flex: 1 }}>Delete this lead permanently?</span>
               <button onClick={() => setConfirmDelete(false)} disabled={deleting} className="btn btn-secondary">Cancel</button>
               <button onClick={deleteLead} disabled={deleting} className="btn"
-                style={{ background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.5)", color: "#d64545" }}>
+                style={{ background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.5)", color: "#f06060" }}>
                 {deleting ? "Deleting…" : "Yes, delete"}
               </button>
             </div>
           ) : (
             <button onClick={() => setConfirmDelete(true)} className="btn"
-              style={{ background: "transparent", border: "1px solid rgba(220,60,60,0.35)", color: "#d64545" }}>
+              style={{ background: "transparent", border: "1px solid rgba(220,60,60,0.35)", color: "#f06060" }}>
               Delete Lead
             </button>
           )}
@@ -2484,7 +2484,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
               style={{
                 flex: 1, padding: "9px 12px", borderRadius: 8,
                 background: "rgba(160,110,240,0.12)", border: "1px solid rgba(160,110,240,0.35)",
-                color: "#7c4ddb", fontFamily: "'Space Grotesk', sans-serif",
+                color: "#a06ef0", fontFamily: "'Space Grotesk', sans-serif",
                 fontSize: 12, fontWeight: 600, cursor: "pointer",
               }}
             >
@@ -2499,7 +2499,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
                 style={{
                   flex: 1, padding: "9px 12px", borderRadius: 8,
                   background: "rgba(220,60,60,0.14)", border: "1px solid rgba(220,60,60,0.4)",
-                  color: "#d64545", fontFamily: "'Space Grotesk', sans-serif",
+                  color: "#e05c5c", fontFamily: "'Space Grotesk', sans-serif",
                   fontSize: 12, fontWeight: 600, cursor: "pointer",
                 }}
               >
@@ -2512,7 +2512,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
                 style={{
                   flex: 1, padding: "9px 12px", borderRadius: 8,
                   background: "rgba(90,200,140,0.12)", border: "1px solid rgba(90,200,140,0.35)",
-                  color: "#0e9f6e", fontFamily: "'Space Grotesk', sans-serif",
+                  color: "#5ac88c", fontFamily: "'Space Grotesk', sans-serif",
                   fontSize: 12, fontWeight: 600,
                   cursor: (callPhase === "connecting" || callPhase === "ringing") ? "default" : "pointer",
                   opacity: (callPhase === "connecting" || callPhase === "ringing") ? 0.7 : 1,
@@ -2523,7 +2523,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
             )}
           </div>
           {callMsg && (
-            <div style={{ fontSize: 11, color: "#33415c", fontFamily: "'Share Tech Mono', monospace", lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, color: "#8aaad0", fontFamily: "'Share Tech Mono', monospace", lineHeight: 1.5 }}>
               {callMsg}
             </div>
           )}
@@ -2533,7 +2533,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
             style={{
               width: "100%", padding: "9px 12px", borderRadius: 8,
               background: "rgba(240,160,40,0.12)", border: "1px solid rgba(240,160,40,0.35)",
-              color: "#b7791f", fontFamily: "'Space Grotesk', sans-serif",
+              color: "#f0a028", fontFamily: "'Space Grotesk', sans-serif",
               fontSize: 12, fontWeight: 600, cursor: "pointer",
             }}
           >
@@ -2545,10 +2545,10 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
               {(display.tags || []).length > 0
                 ? display.tags.map((t) => <TagChip key={t} tag={tagByName(t)} onRemove={() => removeTag(t)} />)
-                : <span style={{ fontSize: 11, color: "#7a879f" }}>No tags yet.</span>}
+                : <span style={{ fontSize: 11, color: "#5a7aa0" }}>No tags yet.</span>}
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              <select value={tagPick} onChange={(e) => setTagPick(e.target.value)} className="dg-input" style={{ flex: 1, background: "#ffffff" }}>
+              <select value={tagPick} onChange={(e) => setTagPick(e.target.value)} className="dg-input" style={{ flex: 1, background: "#080c14" }}>
                 <option value="">— add existing tag —</option>
                 {allTags.filter((t) => !(display.tags || []).includes(t.name)).map((t) => (
                   <option key={t.id} value={t.name}>{t.name}</option>
@@ -2628,20 +2628,20 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
 
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{
-      position: "fixed", inset: 0, background: "rgba(15,27,61,0.45)",
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
       display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24,
     }}>
       <div style={{
-        background: "#ffffff", border: "1px solid #e3e8f2", borderRadius: 12,
+        background: "#0d1830", border: "1px solid #1a2540", borderRadius: 12,
         width: "100%", maxWidth: 1180, height: "85vh",
         display: "flex", flexDirection: "column", overflow: "hidden",
-        boxShadow: "0 24px 64px rgba(15,27,61,0.18)",
+        boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #e3e8f2", flexShrink: 0 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#0f1b3d", fontFamily: "'Space Grotesk', sans-serif" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #1a2540", flexShrink: 0 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff", fontFamily: "'Space Grotesk', sans-serif" }}>
             Book Appointment — {leadName(lead) || "Lead"}
           </span>
-          <button onClick={onClose} style={{ background: "#eef2f8", border: "1px solid #e3e8f2", borderRadius: 6, color: "#5b6b88", width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>✕</button>
+          <button onClick={onClose} style={{ background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540", borderRadius: 6, color: "#5a6f8f", width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>✕</button>
         </div>
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -2652,10 +2652,10 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
               <div style={{
                 width: "100%", height: "100%", display: "flex", flexDirection: "column",
                 alignItems: "center", justifyContent: "center", gap: 8,
-                fontFamily: "'Share Tech Mono', monospace", color: "#7a879f", textAlign: "center", padding: 24,
+                fontFamily: "'Share Tech Mono', monospace", color: "#5a7aa0", textAlign: "center", padding: 24,
               }}>
                 <div style={{ fontSize: 32 }}>📅</div>
-                <div style={{ fontSize: 13, color: "#5b6b88", fontFamily: "'Space Grotesk', sans-serif" }}>No Calendly connected yet</div>
+                <div style={{ fontSize: 13, color: "#8a9cc0", fontFamily: "'Space Grotesk', sans-serif" }}>No Calendly connected yet</div>
                 <div style={{ fontSize: 11, maxWidth: 380 }}>
                   DigiGrowth hasn't connected a Calendly account for this business yet — check back once it's connected to book here.
                 </div>
@@ -2663,14 +2663,14 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
             )}
           </div>
 
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 14px", borderTop: "1px solid #e3e8f2" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 14px", borderTop: "1px solid #1a2540" }}>
             {stopped ? (
-              <div style={{ fontSize: 12, color: "#b7791f", fontFamily: "'Space Grotesk', sans-serif" }}>
+              <div style={{ fontSize: 12, color: "#f0a028", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Reminders stopped for this appointment — it's still on the books, it just won't text the lead.
               </div>
             ) : appointment ? (
               <>
-                <div style={{ fontSize: 12, color: "#0e9f6e", fontFamily: "'Space Grotesk', sans-serif" }}>
+                <div style={{ fontSize: 12, color: "#14c882", fontFamily: "'Space Grotesk', sans-serif" }}>
                   ✅ Booked for {fmtBookedWhen(appointment.appointment_at)} — reminders scheduled automatically.
                 </div>
                 <button className="btn btn-danger" disabled={stopping} onClick={stopReminders} style={{ fontSize: 11, padding: "6px 12px" }}>
@@ -2678,11 +2678,11 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
                 </button>
               </>
             ) : (
-              <div style={{ fontSize: 11.5, color: "#5b6b88", fontFamily: "'Space Grotesk', sans-serif" }}>
+              <div style={{ fontSize: 11.5, color: "#5a6f8f", fontFamily: "'Space Grotesk', sans-serif" }}>
                 {checked ? "Book using the Calendly widget above — reminders will be scheduled automatically once it's booked (usually within a few seconds)." : "Checking…"}
               </div>
             )}
-            {error && <div style={{ fontSize: 11, color: "#d64545", width: "100%" }}>{error}</div>}
+            {error && <div style={{ fontSize: 11, color: "#dc3c3c", width: "100%" }}>{error}</div>}
           </div>
         </div>
       </div>
@@ -2717,7 +2717,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
   const [tagPickFor, setTagPickFor] = useState(null); // lead id currently showing the "add tag" picker
   const [selectedLead, setSelectedLead] = useState(null); // lead currently open in the contact card drawer
 
-  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#2f6fd6" };
+  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#3a7bd5" };
 
   const loadTags = async () => {
     const r = await fetch(`/portal-api/${token}/tags`);
@@ -2909,7 +2909,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
             <input className="dg-input" placeholder="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={{ flex: 1 }} />
           </div>
           <textarea className="dg-input" rows={2} placeholder="Notes" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} style={{ resize: "vertical" }} />
-          {err && <div style={{ fontSize: 12, color: "#d64545" }}>{err}</div>}
+          {err && <div style={{ fontSize: 12, color: "#e05555" }}>{err}</div>}
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button className="btn btn-primary" onClick={addLead} disabled={saving} style={{ fontSize: 11 }}>{saving ? "SAVING…" : "SAVE LEAD"}</button>
           </div>
@@ -2918,11 +2918,11 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
 
       {showImport && (
         <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontSize: 12, color: "#33415c", lineHeight: 1.6 }}>
+          <div style={{ fontSize: 12, color: "#8aaad0", lineHeight: 1.6 }}>
             CSV with a <strong>phone</strong> column required. Recognized headers: name, phone, email, notes, condition, last visit.
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: "#33415c" }}>What kind of list is this?</span>
+            <span style={{ fontSize: 12, color: "#8aaad0" }}>What kind of list is this?</span>
             <select className="dg-input" value={importListType} onChange={(e) => setImportListType(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 240 }}>
               <option value="past_patient">Past patients</option>
               <option value="old_inquiry">Old inquiries that never booked</option>
@@ -2932,11 +2932,11 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
           <input type="file" accept=".csv,text/csv" onChange={handleFile} />
           {parsed && !importResult && (
             <>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#2f6fd6" }}>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#6ab0ff" }}>
                 {withPhone.length} leads ready · {parsed.length - withPhone.length} skipped (no phone)
               </div>
               <div>
-                <div style={{ fontSize: 11.5, color: "#33415c", marginBottom: 6 }}>
+                <div style={{ fontSize: 11.5, color: "#8aaad0", marginBottom: 6 }}>
                   Tag these leads (optional) — useful for an old/lapsed patient list so you can tell them apart from fresh leads later:
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
@@ -2977,7 +2977,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
             </>
           )}
           {importResult && (
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#0e9f6e" }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#14c882" }}>
               {importResult.inserted} added · {importResult.updated} updated · {importResult.skipped} skipped
             </div>
           )}
@@ -2986,16 +2986,16 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
 
       {selected.size > 0 && (
         <div className="glass-card-sm" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 10 }}>
-          <span style={{ fontSize: 12, color: "#0f1b3d", flex: 1 }}>
+          <span style={{ fontSize: 12, color: "#f0f4ff", flex: 1 }}>
             {selected.size} lead{selected.size > 1 ? "s" : ""} selected
-            {bulkErr && <span style={{ color: "#d64545", marginLeft: 10, fontSize: 11 }}>{bulkErr}</span>}
+            {bulkErr && <span style={{ color: "#f06060", marginLeft: 10, fontSize: 11 }}>{bulkErr}</span>}
           </span>
           {confirmBulk ? (
             <>
-              <span style={{ fontSize: 11, color: "#d64545" }}>Delete {selected.size} permanently?</span>
+              <span style={{ fontSize: 11, color: "#f06060" }}>Delete {selected.size} permanently?</span>
               <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => setConfirmBulk(false)} disabled={bulkDeleting}>Cancel</button>
               <button className="btn" onClick={bulkDelete} disabled={bulkDeleting}
-                style={{ fontSize: 11, background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.5)", color: "#d64545" }}>
+                style={{ fontSize: 11, background: "rgba(220,60,60,0.15)", border: "1px solid rgba(220,60,60,0.5)", color: "#f06060" }}>
                 {bulkDeleting ? "Deleting…" : "Yes, delete"}
               </button>
             </>
@@ -3003,7 +3003,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
             <>
               <button className="btn btn-secondary" style={{ fontSize: 11 }} onClick={() => setSelected(new Set())}>Clear</button>
               <button className="btn" onClick={() => setConfirmBulk(true)}
-                style={{ fontSize: 11, background: "transparent", border: "1px solid rgba(220,60,60,0.35)", color: "#d64545" }}>
+                style={{ fontSize: 11, background: "transparent", border: "1px solid rgba(220,60,60,0.35)", color: "#f06060" }}>
                 Delete {selected.size}
               </button>
             </>
@@ -3019,13 +3019,13 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Select all" style={{ cursor: "pointer" }} />
               </th>
               {["Name", "Phone", "Email", "Tags"].map((h) => (
-                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5b6b88", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
+                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && leads.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#7a879f", fontSize: 12 }}>No leads yet.</td></tr>
+              <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#5a7aa0", fontSize: 12 }}>No leads yet.</td></tr>
             )}
             {leads.map((l) => (
               <tr
@@ -3038,9 +3038,9 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
                 <td style={{ width: 32, padding: "10px 0 10px 14px" }} onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={selected.has(l.id)} onChange={() => toggleSelected(l.id)} style={{ cursor: "pointer" }} />
                 </td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#0f1b3d" }}>{leadName(l) || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#5b6b88" }}>{l.phone || "—"}</td>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#5b6b88" }}>{l.email || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{leadName(l) || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.phone || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{l.email || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12 }} onClick={(e) => e.stopPropagation()}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
                     {(l.tags || []).map((tagName) => (
@@ -3063,7 +3063,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
                     ) : (
                       <span
                         onClick={() => setTagPickFor(l.id)}
-                        style={{ cursor: "pointer", fontSize: 10, color: "#2f6fd6", fontFamily: "'Share Tech Mono', monospace" }}
+                        style={{ cursor: "pointer", fontSize: 10, color: "#3a7bd5", fontFamily: "'Share Tech Mono', monospace" }}
                       >+ tag</span>
                     )}
                   </div>
@@ -3169,7 +3169,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
     }
   };
 
-  if (loading) return <div style={{ padding: 40, color: "#7a879f", fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>LOADING...</div>;
+  if (loading) return <div style={{ padding: 40, color: "#5a7aa0", fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>LOADING...</div>;
   if (!thread) return null;
 
   const { contact, messages } = thread;
@@ -3180,10 +3180,10 @@ function InboxThread({ token, contactId, onSent, onBack }) {
         {onBack && (
           <button onClick={onBack} className="btn btn-secondary" style={{ fontSize: 10, marginBottom: 8 }}>← ALL CONVERSATIONS</button>
         )}
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#0f1b3d" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
           {contact.owner || contact.business || "—"}
         </div>
-        <div style={{ fontSize: 11, color: "#5b6b88", marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>
           {contact.phone || "No phone number on file"}
         </div>
       </div>
@@ -3193,7 +3193,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
           padding: "10px 18px", borderBottom: "1px solid rgba(240,160,40,0.25)", background: "rgba(240,160,40,0.08)",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}>
-          <div style={{ fontSize: 12, color: "#8a5a12", lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: "#f0c070", lineHeight: 1.5 }}>
             {thread.ai.status === "escalated"
               ? <>AI paused, this lead needs you{thread.ai.escalation_reason ? `: ${thread.ai.escalation_reason}` : "."}</>
               : <>AI closed this conversation. It reopens if they text again.</>}
@@ -3220,7 +3220,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
           "doesn't let me scroll" with the last message cut off. */}
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
         {messages.length === 0 && (
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8b97ad" }}>NO MESSAGES YET</div>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a90" }}>NO MESSAGES YET</div>
         )}
         {messages.map((m, i) => {
           const outbound = m.direction === "outbound";
@@ -3228,14 +3228,14 @@ function InboxThread({ token, contactId, onSent, onBack }) {
             <div key={i} style={{ display: "flex", justifyContent: outbound ? "flex-end" : "flex-start" }}>
               <div style={{
                 maxWidth: "72%", padding: "9px 13px", borderRadius: 12,
-                background: outbound ? "rgba(58,123,213,0.18)" : "rgba(15,27,61,0.04)",
-                border: outbound ? "1px solid rgba(58,123,213,0.3)" : "1px solid rgba(15,27,61,0.06)",
+                background: outbound ? "rgba(58,123,213,0.18)" : "rgba(255,255,255,0.04)",
+                border: outbound ? "1px solid rgba(58,123,213,0.3)" : "1px solid rgba(255,255,255,0.06)",
               }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 3 }}>
-                  <span className="mono" style={{ fontSize: 9, color: "#2f6fd6", letterSpacing: "0.06em" }}>{m.channel.toUpperCase()}</span>
-                  <span style={{ fontSize: 9, color: "#7a879f" }}>{fmtMsgTime(m.sent_at)}</span>
+                  <span className="mono" style={{ fontSize: 9, color: "#3a7bd5", letterSpacing: "0.06em" }}>{m.channel.toUpperCase()}</span>
+                  <span style={{ fontSize: 9, color: "#5a7aa0" }}>{fmtMsgTime(m.sent_at)}</span>
                 </div>
-                <div style={{ fontSize: 13, color: "#0f1b3d", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
+                <div style={{ fontSize: 13, color: "#d0e8ff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
               </div>
             </div>
           );
@@ -3244,7 +3244,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
 
       <div style={{ padding: 14, borderTop: "1px solid rgba(58,123,213,0.12)" }}>
         {notice && (
-          <div style={{ fontSize: 11.5, color: "#b7791f", marginBottom: 10, lineHeight: 1.5 }}>{notice}</div>
+          <div style={{ fontSize: 11.5, color: "#f0a028", marginBottom: 10, lineHeight: 1.5 }}>{notice}</div>
         )}
         <textarea
           className="dg-input" rows={2} placeholder="Type a text reply..."
@@ -3292,25 +3292,25 @@ function CampaignActivityPanel({ token }) {
         onClick={() => setOpen((o) => !o)}
         style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 8, width: "100%" }}
       >
-        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: "#0f1b3d" }}>
+        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: "#d0e8ff" }}>
           Your Number Activity
         </span>
-        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7a879f" }}>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>
           {open ? "▾ HIDE" : "▸ SHOW"}
         </span>
       </button>
       {open && (
         <div style={{ marginTop: 14 }}>
           {sms.length === 0 && (
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8b97ad" }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a90" }}>
               {loaded ? "NO MESSAGES YET" : "LOADING…"}
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
             {sms.map((m) => (
-              <div key={m.id} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(15,27,61,0.025)" }}>
-                <div style={{ fontSize: 11, color: "#0f1b3d" }}>{m.body}</div>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#7a879f", marginTop: 3 }}>
+              <div key={m.id} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)" }}>
+                <div style={{ fontSize: 11, color: "#d0e8ff" }}>{m.body}</div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0", marginTop: 3 }}>
                   {m.direction === "outbound" ? `→ ${m.to_number}` : `← ${m.from_number}`} · {new Date(m.created_at).toLocaleString()}
                 </div>
               </div>
@@ -3439,9 +3439,9 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
       <CampaignActivityPanel token={token} />
       <div className="glass-card" style={{ padding: 0, overflow: "hidden", display: "grid", gridTemplateColumns: narrow ? "1fr" : "300px 1fr", height: paneHeight }}>
         <div style={{ borderRight: narrow ? "none" : "1px solid rgba(58,123,213,0.12)", overflowY: "auto", display: narrow && selected ? "none" : "block" }}>
-          {loading && <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8b97ad" }}>LOADING…</div>}
+          {loading && <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a90" }}>LOADING…</div>}
           {!loading && visibleConvos.length === 0 && (
-            <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8b97ad", lineHeight: 1.6 }}>
+            <div style={{ padding: 20, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#4a6a90", lineHeight: 1.6 }}>
               {q || readFilter !== "all" ? "NO MATCHES" : "NO CONVERSATIONS YET — this fills in once your texting number is connected."}
             </div>
           )}
@@ -3472,21 +3472,21 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
                       background: "#3a7bd5", boxShadow: "0 0 6px 1px rgba(58,123,213,0.7)",
                     }} />
                   )}
-                  <span style={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: isUnread ? "#0f1b3d" : "#0f1b3d", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: isUnread ? 700 : 600, color: isUnread ? "#f0f4ff" : "#d0e8ff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {c.owner || c.business || c.phone || c.email}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                   {c.channels.map((ch) => (
-                    <span key={ch} className="mono" style={{ fontSize: 8, color: "#2f6fd6", letterSpacing: "0.06em" }}>{ch.toUpperCase()}</span>
+                    <span key={ch} className="mono" style={{ fontSize: 8, color: "#3a7bd5", letterSpacing: "0.06em" }}>{ch.toUpperCase()}</span>
                   ))}
                   {/* The AI handed this thread off without telling the lead. */}
                   {c.needs_human && (
-                    <span className="mono" title="The AI handed this conversation to you and is paused on it" style={{ fontSize: 8, color: "#b7791f", letterSpacing: "0.06em" }}>NEEDS YOU</span>
+                    <span className="mono" title="The AI handed this conversation to you and is paused on it" style={{ fontSize: 8, color: "#f5a623", letterSpacing: "0.06em" }}>NEEDS YOU</span>
                   )}
                 </div>
                 {c.last_message && (
-                  <div style={{ fontSize: 11, color: isUnread ? "#5b6b88" : "#7a879f", fontWeight: isUnread ? 600 : 400, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={{ fontSize: 11, color: isUnread ? "#8aaad0" : "#5a7096", fontWeight: isUnread ? 600 : 400, marginTop: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {c.last_message}
                   </div>
                 )}
@@ -3503,7 +3503,7 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
           {selected ? (
             <InboxThread token={token} contactId={selected} onSent={load} onBack={narrow ? () => setSelected(null) : null} />
           ) : (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#7a879f", fontSize: 13 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#5a7aa0", fontSize: 13 }}>
               Select a conversation
             </div>
           )}
@@ -3513,76 +3513,66 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
   );
 }
 
-// Portal palette + overrides (revamp 2026-11-16, light theme per Dylan):
-// white base, DigiGrowth navy sidebar, brand blues (#2857a0 / #3a7bd5) for
-// actions and highlights. Scoped under .dg-portal so the internal OS, which
-// shares glass-card/stat-card/btn/dg-input, is never touched.
+// Portal shell (revamp 2026-11-16): DigiGrowth's own navy + blue, with a few
+// accent colors for contrast (teal #14c882, violet #8b6cf0, amber #f0a028):
+// per-section dots in the sidebar, different-colored stat icons, a gradient
+// underline on page titles and a glowing sidebar edge. Scoped under
+// .dg-portal so the internal OS, which shares these class names, is untouched.
 const PORTAL_CSS = `
-  .dg-portal { --pt-ink: #0f1b3d; --pt-muted: #5b6b88; --pt-dim: #8b97ad; --pt-line: #e3e8f2;
-    --pt-blue: #3a7bd5; --pt-blue-dk: #2857a0; --pt-navy: #090f26;
-    --pt-grad: linear-gradient(135deg, #2857a0 0%, #3a7bd5 100%); color: var(--pt-ink); }
-  .dg-portal .glass-card, .dg-portal .glass-card-sm, .dg-portal .stat-card {
-    background: #ffffff; border: 1px solid var(--pt-line); border-radius: 16px;
-    box-shadow: 0 1px 2px rgba(15,27,61,0.04), 0 10px 28px -16px rgba(15,27,61,0.16);
-    backdrop-filter: none; -webkit-backdrop-filter: none;
+  .dg-portal { --pt-line: rgba(58,123,213,0.14); --pt-blue: #3a7bd5; --pt-sky: #6ab0ff; --pt-teal: #14c882;
+    --pt-violet: #8b6cf0; --pt-amber: #f0a028; }
+  .dg-portal .glass-card, .dg-portal .glass-card-sm {
+    border: 1px solid rgba(58,123,213,0.12);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(106,176,255,0.08);
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
-  .dg-portal .glass-card:hover, .dg-portal .glass-card-sm:hover { border-color: #cfd9ea; }
-  .dg-portal .stat-card { padding: 20px 22px; }
-  .dg-portal .stat-card:hover { transform: translateY(-2px); box-shadow: 0 1px 2px rgba(15,27,61,0.04), 0 18px 36px -16px rgba(40,87,160,0.28); }
-  .dg-portal .stat-card-value { font-size: 30px; color: var(--pt-ink); }
-  .dg-portal .stat-card-label { font-size: 13px; color: var(--pt-muted); }
+  .dg-portal .glass-card:hover, .dg-portal .glass-card-sm:hover { border-color: rgba(106,176,255,0.24); }
+  .dg-portal .stat-card { padding: 20px 22px; border: 1px solid rgba(58,123,213,0.12);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
+  .dg-portal .stat-card:hover { transform: translateY(-3px); border-color: rgba(106,176,255,0.28);
+    box-shadow: 0 16px 34px rgba(0,0,0,0.45), 0 0 0 1px rgba(106,176,255,0.06); }
+  .dg-portal .stat-card-value { font-size: 30px; }
+  .dg-portal .stat-card-label { font-size: 13px; }
   .dg-portal .stat-card-delta { font-size: 12px; }
-  .dg-portal .stat-card-icon { width: 50px; height: 50px; border-radius: 14px; background: var(--pt-grad);
-    box-shadow: 0 8px 18px -8px rgba(40,87,160,0.7); }
-  .dg-portal .stat-card-icon svg { width: 22px; height: 22px; }
+  .dg-portal .stat-card-icon { width: 52px; height: 52px; border-radius: 14px; }
+  .dg-portal .stat-card-icon svg { width: 23px; height: 23px; }
   .dg-portal .stat-card-icon svg [stroke] { stroke: #ffffff; }
-  .dg-portal .btn { border-radius: 10px; letter-spacing: 0.03em; font-size: 12px; padding: 9px 18px;
-    transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease; }
-  .dg-portal .btn-primary { background: var(--pt-grad); color: #fff; box-shadow: 0 6px 16px -6px rgba(40,87,160,0.6); }
-  .dg-portal .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 22px -8px rgba(40,87,160,0.75); }
-  .dg-portal .btn-secondary { background: #ffffff; color: var(--pt-blue-dk); border: 1px solid #d3dcec; }
-  .dg-portal .btn-secondary:hover:not(:disabled) { background: #eef4fd; border-color: #b8cbe8; transform: translateY(-1px); }
-  .dg-portal .btn-danger { background: #fdeeee; color: #c43c3c; border: 1px solid #f3c9c9; }
-  .dg-portal .dg-input { background: #ffffff; border: 1px solid #d3dcec; color: var(--pt-ink); border-radius: 10px; }
-  .dg-portal .dg-input:focus { border-color: var(--pt-blue); box-shadow: 0 0 0 3px rgba(58,123,213,0.15); }
-  .dg-portal .dg-input::placeholder { color: #9aa6bd; }
-  .dg-portal select.dg-input option { background: #fff; color: var(--pt-ink); }
-  .dg-portal .dg-divider { background: var(--pt-line); }
-  .dg-portal .sec-label { color: var(--pt-blue-dk); }
-  .dg-portal .badge-blue { background: #e8f0fc; color: #2857a0; border-color: #c9d9f3; }
-  .dg-portal .badge-green { background: #e3f6ee; color: #0e7f58; border-color: #bfe7d6; }
-  .dg-portal .badge-amber { background: #fdf3e1; color: #9a6410; border-color: #f2dcae; }
-  .dg-portal .badge-red { background: #fdeaea; color: #c43c3c; border-color: #f3c6c6; }
-  .dg-portal .badge-gray { background: #eef1f6; color: #5b6b88; border-color: #dde3ee; }
-  .dg-portal ::-webkit-scrollbar-thumb { background: rgba(40,87,160,0.25); }
-  /* Shared OS components rendered inside the portal (PeriodToggle,
-     AppointmentOutcomeCard) still carry dark-theme inline colors. */
-  .dg-portal [style*="rgba(10, 18, 48, 0.7)"] { background: #ffffff !important; border-color: var(--pt-line) !important; }
-  .dg-portal [style*="color: rgb(240, 244, 255)"] { color: var(--pt-ink) !important; }
-  .dg-portal [style*="color: rgb(58, 90, 128)"] { color: var(--pt-dim) !important; }
-  .dg-portal [style*="rgb(26, 37, 64)"] { border-color: var(--pt-line) !important; }
-  .dg-portal [style*="rgba(8, 12, 20, 0.72)"] { background: rgba(15,27,61,0.4) !important; }
-  .dg-portal .recharts-cartesian-axis-tick-value { fill: var(--pt-dim); }
+  /* A different accent per stat card in a row: blue, teal, violet, amber. */
+  .dg-portal .stat-card:nth-child(4n+2) .stat-card-icon { background: linear-gradient(135deg, #0c7a55, #14c882); box-shadow: 0 6px 18px -4px rgba(20,200,130,0.5); }
+  .dg-portal .stat-card:nth-child(4n+3) .stat-card-icon { background: linear-gradient(135deg, #5a3fc0, #8b6cf0); box-shadow: 0 6px 18px -4px rgba(139,108,240,0.5); }
+  .dg-portal .stat-card:nth-child(4n+4) .stat-card-icon { background: linear-gradient(135deg, #b86b0a, #f0a028); box-shadow: 0 6px 18px -4px rgba(240,160,40,0.45); }
+  .dg-portal .btn { transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease; }
+  .dg-portal .btn-primary:hover:not(:disabled), .dg-portal .btn-secondary:hover:not(:disabled) { transform: translateY(-1px); }
+  .dg-portal .btn-secondary { color: #8ab4ea; }
+  .dg-portal .dg-input { color: #c8d8f0; }
+  .dg-portal .dg-input:focus { box-shadow: 0 0 0 3px rgba(58,123,213,0.15); }
 
   .pt-shell { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; }
   .pt-side { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 22px 14px; box-sizing: border-box;
-    background: linear-gradient(180deg, #0d1838 0%, #090f26 100%); color: #c5d2ec;
+    background: linear-gradient(180deg, rgba(10,18,48,0.92) 0%, rgba(7,12,32,0.96) 100%);
     display: flex; flex-direction: column; gap: 18px; }
+  .pt-side::after { content: ""; position: fixed; top: 0; bottom: 0; left: 251px; width: 1px; pointer-events: none;
+    background: linear-gradient(180deg, rgba(106,176,255,0.0), rgba(106,176,255,0.55) 25%, rgba(20,200,130,0.45) 60%, rgba(139,108,240,0.35) 85%, rgba(139,108,240,0)); }
   .pt-topbar { display: none; }
   .pt-main { padding: 34px 40px 60px; max-width: 1240px; width: 100%; margin: 0 auto; box-sizing: border-box; }
   .pt-nav-btn { position: relative; display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 12px;
-    border-radius: 10px; border: none; background: none; cursor: pointer; text-align: left; color: #9fb0d2;
+    border-radius: 10px; border: 1px solid transparent; background: none; cursor: pointer; text-align: left; color: #7f9cc4;
     font-family: 'Space Grotesk', sans-serif; font-size: 13.5px; font-weight: 500; transition: background 0.15s, color 0.15s; }
-  .pt-nav-btn:hover { background: rgba(255,255,255,0.06); color: #ffffff; }
-  .pt-nav-btn.on { color: #ffffff; background: linear-gradient(135deg, rgba(58,123,213,0.35), rgba(58,123,213,0.15)); }
+  .pt-nav-btn:hover { background: rgba(58,123,213,0.08); color: #d0e8ff; }
+  .pt-nav-btn.on { color: #f0f4ff; border-color: rgba(58,123,213,0.3);
+    background: linear-gradient(135deg, rgba(40,87,160,0.45), rgba(58,123,213,0.18));
+    box-shadow: 0 6px 18px -8px rgba(58,123,213,0.7); }
   .pt-nav-btn.on::before { content: ""; position: absolute; left: -14px; top: 8px; bottom: 8px; width: 3px;
-    border-radius: 0 3px 3px 0; background: #6ab0ff; box-shadow: 0 0 10px rgba(106,176,255,0.8); }
-  .pt-nav-btn.on svg { color: #6ab0ff; }
-  .pt-group { font-family: 'Space Grotesk', sans-serif; font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em;
-    text-transform: uppercase; color: #5d6f96; padding: 0 12px; margin-bottom: 6px; }
+    border-radius: 0 3px 3px 0; background: var(--pt-accent, var(--pt-sky)); box-shadow: 0 0 10px var(--pt-accent, var(--pt-sky)); }
+  .pt-nav-btn.on svg { color: var(--pt-accent, var(--pt-sky)); }
+  .pt-group { display: flex; align-items: center; gap: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 10.5px;
+    font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #4f6a92; padding: 0 12px; margin-bottom: 6px; }
+  .pt-group::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pt-accent, var(--pt-sky));
+    box-shadow: 0 0 6px var(--pt-accent, var(--pt-sky)); }
   .pt-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: grid;
-    place-items: center; font-size: 11px; font-weight: 700; color: #3d2a00; background: #fbbf24; }
+    place-items: center; font-size: 11px; font-weight: 700; color: #241500; background: var(--pt-amber); }
+  .pt-title-bar { width: 56px; height: 3px; border-radius: 3px; margin-top: 10px;
+    background: linear-gradient(90deg, #3a7bd5, #14c882 60%, #8b6cf0); }
   @keyframes ptFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .pt-fade { animation: ptFade 0.28s ease; }
   @keyframes ptPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
@@ -3590,25 +3580,29 @@ const PORTAL_CSS = `
   @media (max-width: 900px) {
     .pt-shell { grid-template-columns: minmax(0, 1fr); }
     .pt-side { position: fixed; z-index: 50; left: 0; top: 0; width: 280px; transform: translateX(-100%);
-      transition: transform 0.25s ease; box-shadow: 20px 0 60px rgba(9,15,38,0.45); }
+      transition: transform 0.25s ease; background: #0a1230; box-shadow: 20px 0 60px rgba(0,0,0,0.6); }
+    .pt-side::after { display: none; }
     .pt-side.open { transform: none; }
     .pt-topbar { display: flex; position: sticky; top: 0; z-index: 40; align-items: center; gap: 12px; padding: 12px 16px;
-      background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--pt-line); }
+      background: rgba(9,15,38,0.9); backdrop-filter: blur(14px); border-bottom: 1px solid var(--pt-line); }
     .pt-main { padding: 20px 16px 48px; }
   }
 `;
+
+// One accent per sidebar section: dots, active bar and active icon.
+const GROUP_ACCENTS = { "Overview": "#6ab0ff", "Patients": "#14c882", "Your marketing": "#8b6cf0", "Getting started": "#f0a028" };
 
 function PortalBrand({ client }) {
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <img src={logoWordmark} alt="DigiGrowth" style={{ height: 22, display: "block", margin: "2px 12px 0" }} />
       {client && (
-        <div style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(106,176,255,0.18)",
-          background: "rgba(58,123,213,0.12)" }}>
-          <div style={{ fontSize: 14.5, fontWeight: 700, color: "#ffffff", lineHeight: 1.25 }}>{client.name}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: "#7fe0b8" }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399",
-              boxShadow: "0 0 8px rgba(52,211,153,0.9)", animation: "ptPulse 2s ease-in-out infinite" }} />
+        <div style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(58,123,213,0.25)",
+          background: "linear-gradient(135deg, rgba(40,87,160,0.35), rgba(20,200,130,0.08))" }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: "#f0f4ff", lineHeight: 1.25 }}>{client.name}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: "#8fd9bd" }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#14c882",
+              boxShadow: "0 0 8px rgba(20,200,130,0.9)", animation: "ptPulse 2s ease-in-out infinite" }} />
             Your portal is live
           </div>
         </div>
@@ -3655,7 +3649,7 @@ export default function ClientPortal() {
 
   if (notFound) {
     return (
-      <div style={{ minHeight: "100vh", background: "#f4f6fb", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", color: "#5b6b88" }}>
+      <div style={{ minHeight: "100vh", background: "#090f26", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", color: "#8aaad0" }}>
         This link is no longer valid.
       </div>
     );
@@ -3666,20 +3660,21 @@ export default function ClientPortal() {
   return (
     <div className="dg-portal" style={{
       minHeight: "100vh",
-      background: "#f4f6fb",
-      backgroundImage: "radial-gradient(1000px 420px at 70% -120px, rgba(58,123,213,0.10), transparent 70%)",
+      background: "#090f26",
+      backgroundImage: "radial-gradient(ellipse at 20% 0%, rgba(40,87,160,0.18) 0%, transparent 55%), radial-gradient(ellipse at 95% 10%, rgba(20,200,130,0.06) 0%, transparent 45%), radial-gradient(ellipse at 60% 100%, rgba(139,108,240,0.07) 0%, transparent 50%)",
+      backgroundAttachment: "fixed",
       fontFamily: "'Space Grotesk', sans-serif",
     }}>
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
       <style>{PORTAL_CSS}</style>
 
       <div className="pt-shell">
-        {menuOpen && <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 45, background: "rgba(9,15,38,0.45)" }} />}
+        {menuOpen && <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 45, background: "rgba(4,8,22,0.6)" }} />}
         <aside className={`pt-side${menuOpen ? " open" : ""}`}>
           <PortalBrand client={client} />
           <nav style={{ display: "grid", gap: 16 }}>
             {NAV_GROUPS.map((g) => (
-              <div key={g.label}>
+              <div key={g.label} style={{ "--pt-accent": GROUP_ACCENTS[g.label] }}>
                 <div className="pt-group">{g.label}</div>
                 <div style={{ display: "grid", gap: 2 }}>
                   {g.items.map((it) => (
@@ -3698,12 +3693,12 @@ export default function ClientPortal() {
         <div style={{ minWidth: 0 }}>
           <div className="pt-topbar">
             <button onClick={() => setMenuOpen(true)} aria-label="Open menu"
-              style={{ background: "#090f26", border: "none", borderRadius: 10, padding: 7, color: "#fff", cursor: "pointer", display: "grid" }}>
+              style={{ background: "rgba(58,123,213,0.15)", border: "1px solid rgba(58,123,213,0.3)", borderRadius: 10, padding: 7, color: "#d0e8ff", cursor: "pointer", display: "grid" }}>
               <NavIcon name="menu" size={20} />
             </button>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "#0f1b3d" }}>{current.label}</div>
-              {client && <div style={{ fontSize: 11.5, color: "#5b6b88", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{client.name}</div>}
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>{current.label}</div>
+              {client && <div style={{ fontSize: 11.5, color: "#7f9cc4", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{client.name}</div>}
             </div>
             {openAsks > 0 && (
               <button onClick={() => setTab("onboarding")} className="pt-badge" style={{ marginLeft: "auto", border: "none", cursor: "pointer", height: 24 }}>
@@ -3714,22 +3709,23 @@ export default function ClientPortal() {
 
           <main className="pt-main">
             {tab !== "dashboard" && (
-              <header style={{ marginBottom: 22 }}>
-                <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#0f1b3d" }}>{current.label}</h1>
-                {current.desc && <p style={{ margin: "6px 0 0", fontSize: 14, color: "#5b6b88", maxWidth: 680, lineHeight: 1.5 }}>{current.desc}</p>}
+              <header style={{ marginBottom: 24 }}>
+                <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#f0f4ff" }}>{current.label}</h1>
+                {current.desc && <p style={{ margin: "6px 0 0", fontSize: 14, color: "#8aaad0", maxWidth: 680, lineHeight: 1.5 }}>{current.desc}</p>}
+                <div className="pt-title-bar" />
               </header>
             )}
             {tab === "dashboard" && openAsks > 0 && (
               <button onClick={() => setTab("onboarding")} style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 12, marginBottom: 18, padding: "14px 18px",
                 borderRadius: 14, cursor: "pointer", textAlign: "left", fontFamily: "inherit", flexWrap: "wrap",
-                border: "1px solid #f2d58c", background: "#fff8e6", color: "#6b4a00",
+                border: "1px solid rgba(240,160,40,0.35)", background: "linear-gradient(135deg, rgba(240,160,40,0.14), rgba(240,160,40,0.03))", color: "#f0c078",
               }}>
                 <NavIcon name="rocket" size={20} />
                 <span style={{ fontSize: 14 }}>
-                  <b style={{ color: "#3d2a00" }}>We need {openAsks} thing{openAsks === 1 ? "" : "s"} from you</b> to keep everything moving.
+                  <b style={{ color: "#fde7b0" }}>We need {openAsks} thing{openAsks === 1 ? "" : "s"} from you</b> to keep everything moving.
                 </span>
-                <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 700, color: "#9a6410", whiteSpace: "nowrap" }}>Open setup steps →</span>
+                <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 700, color: "#f0a028", whiteSpace: "nowrap" }}>Open setup steps →</span>
               </button>
             )}
 
