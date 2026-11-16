@@ -506,7 +506,9 @@ async def answer_twiml(row) -> str:
         "metadata": {"row_id": row["id"], "client_id": row["client_id"], "phone": row["phone"], "token": row["token"]},
         "retell_llm_dynamic_variables": {**_dynamic_vars(row, cfg, tz),
                                          "visit_info": _visit_text(await _visit_info(row["client_id"]))},
-        "agent_override": {"agent": {"voicemail_option": vm}},
+        # Boost the lead's own first name too: "this is Dylan" was heard as
+        # "this is done" and the agent hung up (2026-11-16).
+        "agent_override": {"agent": {"voicemail_option": vm, "boosted_keywords": _keywords(cfg, row["lead_name"])}},
     }
     vr = VoiceResponse()
     try:
@@ -888,6 +890,9 @@ How the call goes:
   sentence ("It's __AGENT_NAME__ from {{clinic_name}}, following up on their form."), then say
   nothing more. When it goes quiet or the person comes on, open with "Hi, is this
   {{lead_first_name}}?" and continue as normal. Same if the call starts with silence.
+- In the opening, a reply that doesn't quite make sense (e.g. "yes, this is done") is almost always
+  speech recognition mishearing their name: treat it as "yes, this is me" and carry on with your intro.
+  Never end the call before you've introduced yourself and they've clearly said they're not interested.
   Don't call yourself an assistant, AI or virtual anything. But if they sincerely ask whether you're a
   real person or an AI, never claim to be human: say lightly that you're the clinic's AI assistant and
   carry on helping.
@@ -952,7 +957,7 @@ def _llm_body(cfg) -> dict:
         return tool
 
     tools = [
-        {"type": "end_call", "name": "end_call", "description": "Hang up once the call is finished and you've said goodbye."},
+        {"type": "end_call", "name": "end_call", "description": "Hang up only after the conversation is really over (they said they're done, not interested, or asked you to stop) and you've said goodbye. Never during the opening."},
         custom("check_availability", "Find real open appointment times. Returns the earliest day's two options.",
                {"after_date": {"type": "string", "description": "YYYY-MM-DD to search from; omit for today"}},
                speak=True, msg="Say only 'One sec.' in a flat, casual tone."),
@@ -990,6 +995,11 @@ def _llm_body(cfg) -> dict:
     }
 
 
+def _keywords(cfg, lead_name: str | None = None) -> list[str]:
+    first = (lead_name or "").strip().split(" ")[0]
+    return [k for k in [first, cfg["client_name"], agent_name(cfg)] if k] + PT_KEYWORDS
+
+
 def _agent_body(cfg, llm_id: str) -> dict:
     return {
         "agent_name": f"{cfg['client_name']} - DigiGrowth voice agent",
@@ -999,7 +1009,7 @@ def _agent_body(cfg, llm_id: str) -> dict:
         "voice_speed": float(cfg["voice_speed"]) if cfg["voice_speed"] else DEFAULT_VOICE_SPEED,
         **({"voice_model": ELEVEN_MODEL} if (cfg["voice_id"] or DEFAULT_VOICE_ID).startswith("11labs-") else {}),
         **NATURAL_SETTINGS,
-        "boosted_keywords": [k for k in [cfg["client_name"], agent_name(cfg)] if k] + PT_KEYWORDS,
+        "boosted_keywords": _keywords(cfg),
         "language": "en-US",
         "webhook_url": f"{_base_url()}/webhooks/retell",
         "webhook_events": ["call_ended", "call_analyzed"],
