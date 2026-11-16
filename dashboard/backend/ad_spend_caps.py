@@ -63,7 +63,7 @@ async def _get(http: httpx.AsyncClient, url: str, params: dict) -> dict:
 
 
 async def _account_info(http, token: str, account: str) -> dict:
-    return await _get(http, f"{_GRAPH}/act_{account}", {"access_token": token, "fields": "name,currency,timezone_name"})
+    return await _get(http, f"{_GRAPH}/act_{account}", {"access_token": token, "fields": "name,currency,timezone_name,user_tasks"})
 
 
 async def list_campaigns(account: str, http: httpx.AsyncClient | None = None) -> list[dict]:
@@ -169,9 +169,13 @@ async def _check_row(row) -> dict:
     async with httpx.AsyncClient() as http:
         info = await _account_info(http, token, account)
         currency = info.get("currency")
+        # Spend can be readable through a partner share while the system
+        # user has no role on the account, and then pausing fails (Advantage,
+        # 2026-11-16). Pausing needs ADVERTISE or MANAGE.
+        can_pause = bool({"ADVERTISE", "MANAGE"} & set(info.get("user_tasks") or []))
         spend = await _spend(http, token, account, campaign_ids, row["start_date"], info.get("timezone_name"))
         over = row["enabled"] and spend >= cap
-        if over:
+        if over and can_pause:
             for c in await list_campaigns(account, http):
                 if campaign_ids and c["id"] not in campaign_ids:
                     continue
@@ -187,7 +191,7 @@ async def _check_row(row) -> dict:
                    paused_at = CASE WHEN $4 THEN COALESCE(paused_at, now()) ELSE paused_at END,
                    paused_campaigns = $5::jsonb
                WHERE client_id = $1""",
-            row["client_id"], spend, currency, bool(over), json.dumps((prior + paused_now)[-50:]),
+            row["client_id"], spend, currency, bool(over and can_pause), json.dumps((prior + paused_now)[-50:]),
         )
         name = row["client_name"]
         d = row["start_date"]
@@ -219,6 +223,18 @@ async def _check_row(row) -> dict:
             await client_reactivation.on_ad_spend(row["client_id"], spend, cap)
         except Exception as e:
             print(f"[ad-spend-caps] client={row['client_id']} reactivation trigger failed: {e}", flush=True)
+    if row["enabled"] and not can_pause:
+        async with pool.acquire() as conn:
+            await _todo_once(
+                conn,
+                f"{row['client_name']}: ad spend cap can't pause the ads",
+                f"DigiGrowth's system user can read {row['client_name']}'s ad spend but has no role on their ad account, "
+                f"so the campaigns will NOT pause at {_money(cap, currency)}. Fix: DigiGrowth Business Settings → Users → "
+                f"System users → DigiGrowth OS Integration → Assign assets → Ad accounts → act_{account} → Manage "
+                f"campaigns. Spent so far: {_money(spend, currency)}.",
+            )
+        raise CapError("Can read spend but can't pause: assign the ad account to DigiGrowth's system user with "
+                       "Manage campaigns (Business Settings → System users → Assign assets).")
     return {"spend": spend, "cap": cap, "currency": currency, "paused": paused_now}
 
 

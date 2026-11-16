@@ -197,6 +197,11 @@ async def _signals(conn, client_id: int) -> dict[str, list[int]]:
     mark("ad_creatives", 3, when=bool(cfg.get("meta_ad_account_id") and cfg.get("meta_page_id")))
     mark("ad_creatives", 6, when=bool(cfg.get("meta_ad_account_id")))
     mark("ad_creatives", 7, when=bool(cfg.get("meta_page_id")))
+    # 9: ad spend cap on, checked, and able to pause (no error)
+    cap_ok = await conn.fetchval(
+        "SELECT 1 FROM ad_spend_caps WHERE client_id = $1 AND enabled AND cap > 0 "
+        "AND last_checked_at IS NOT NULL AND last_error IS NULL", client_id)
+    mark("ad_creatives", 9, when=bool(cap_ok))
 
     # client_portal: 0 booking link saved, 1 the client's own contact is linked
     mark("client_portal", 0, when=dg_live or bool(booking))
