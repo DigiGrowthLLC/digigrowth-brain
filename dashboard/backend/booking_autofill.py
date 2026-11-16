@@ -16,7 +16,6 @@ field empty rather than guess, and to list every guess in `notes`.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re

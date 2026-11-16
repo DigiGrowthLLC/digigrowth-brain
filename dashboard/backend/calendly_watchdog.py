@@ -29,7 +29,6 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-import calendly_integration
 from db import get_pool
 
 HEALTH_KEY = "dylan_calendly_webhook_health"

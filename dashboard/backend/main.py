@@ -39,7 +39,6 @@ import daily_sms_handoff
 import domain_health
 import dm_followup_sequence
 import sms_setter_ai
-import email_setter_ai
 import calendly_watchdog
 import email_handoff_sequence
 import email_followup_trigger
