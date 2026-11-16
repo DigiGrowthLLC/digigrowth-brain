@@ -67,9 +67,6 @@ async def retell_webhook(request: Request):
     if payload.get("event") == "transcript_updated":   # fires every turn; only feeds the screener nudge
         # The live transcript may sit beside "call" rather than inside it.
         call = {**(payload.get("call") or {}), **{k: v for k, v in payload.items() if "transcript" in k}}
-        if not any("transcript" in k for k in call):
-            print(f"[voice_agent] transcript_updated without transcript; top keys={sorted(payload)} "
-                  f"call keys={sorted(payload.get('call') or {})}", flush=True)  # TEMP debug
         va.note_transcript(call)
         return Response(status_code=204)
     try:

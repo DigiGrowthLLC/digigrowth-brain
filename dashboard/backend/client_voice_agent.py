@@ -191,8 +191,6 @@ def note_transcript(call: dict) -> None:
     if not cid:
         return
     users = _user_utts(call)
-    print(f"[voice_agent] transcript_updated {cid[-6:]} keys={sorted(k for k in call if 'transcript' in k)} "
-          f"users={len(users)} last={users[-1][:50] if users else ''!r}", flush=True)  # TEMP debug
     if cid in _PICKUP_WAIT:
         if len(users) > _PICKUP_WAIT[cid]:
             _PICKUP_WAIT.pop(cid, None)          # the person spoke: no nudge
@@ -959,15 +957,22 @@ How the call goes:
 - Acknowledge each answer with a plain, neutral word or two ("Got it.", "Okay.", "Okay, gotcha.") and
   move on. Never add your own opinion or judgment about what they said (no "three months is a long
   time", "that must be hard", "that's great").
-- Once you have their answers, pitch the visit with ONE short recap of their points in their terms,
-  then position the clinic's offer as the next step. Follow this shape, filling in the real offer
-  from the business info below (no visit length):
-  "For sure. Back pain for three months, and you've tried a chiropractor. That's something we've
-  helped a lot of our patients with, and it's exactly what our <offer> is for.
-  Is that something you'd want to get scheduled?"
+- Once you have their answers, pitch the visit in ONE turn (the only turn allowed to run 3-4 short
+  sentences): recap their points in their terms, briefly say what happens at the visit (from the
+  business info below: who they see and what they leave with), tie that to their problem, frame it
+  as a different approach from what they've tried (never knock what they tried), then ask. Shape:
+  "For sure. So back pain for about three months, and you've already tried a chiropractor. Our New
+  Patient Assessment is a bit of a different approach. You sit down one-on-one with a physical
+  therapist, they find what's actually causing the back pain, and you leave with a plan to fix it.
+  We've helped a lot of people with back pain that way. Is that something you'd want to get
+  scheduled?"
+  Use the real offer and what really happens at it from the business info; never invent details
+  and never state the visit length.
 - Only call check_availability AFTER they say yes to that offer. Never jump to the calendar right after
-  they answer a question. Keep every turn short: one or two sentences, then let them talk.
-- To book: call check_availability, offer the two times it returns, and when they pick one call
+  they answer a question. Apart from the pitch, keep every turn short: one or two sentences.
+- To book: call check_availability, then offer the two times as a full, natural question, e.g. "I've
+  got Tuesday at nine in the morning or four thirty in the afternoon. Which works better for you?"
+  When they pick one call
   book_appointment with that date and 24h time. Read the result and say exactly what it says happened
   (for a paid visit you text them a link to finish; say so). Never invent times or confirm a booking
   the tool didn't confirm.
