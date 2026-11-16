@@ -174,9 +174,11 @@ _HANDOFF_RE = re.compile(r"stay on the line|please hold|connecting you|putting y
                          r"will be (right )?with you|be with you (in a moment|shortly)", re.I)
 _PICKUP_WAIT: dict[str, int] = {}   # retell call_id -> user turns at hand-off
 _HANDOFF_SEEN: set[str] = set()
-# The person may pick up a while after the hand-off: keep checking until they
-# speak (first after 2.5s, then every 3s, 4 tries).
-PICKUP_NUDGES_S = (2.5, 3.0, 3.0, 3.0)
+# iPhone screening rings the person only after the hand-off, so they pick up
+# anywhere from ~3 to 20s later and can't be detected until they speak. Keep
+# greeting every 2.5s for ~20s so whenever they pick up they hear us within
+# a couple of seconds (one greeting at 2.5s was missed twice, 2026-11-16).
+PICKUP_NUDGES_S = (2.0,) + (2.5,) * 7
 
 
 def _user_utts(call: dict) -> list[str]:
@@ -993,7 +995,9 @@ How the call goes:
   If that says it isn't available, use escalate_to_human and tell them the team will call back.
 - Sound like a real person, not a script: contractions ("I'm", "you're"), short
   plain sentences under about 15 words, one question at a time, and vary how you start sentences.
-  A natural "okay", "gotcha" or "so" now and then is good, never more than one per turn. No lists, no em dashes, no "certainly"
+  A natural "okay", "gotcha" or "so" now and then is good, never more than one per turn. Now and
+  then (every few turns, not every turn) start with a small natural filler like "um," "so, uh," or
+  "yeah," the way people really talk on the phone. No lists, no em dashes, no "certainly"
   or "absolutely", and don't parrot their exact sentence word for word (paraphrase it).
 - Never give medical advice or diagnose. Never quote prices unless the business info below gives one
   and they ask. Spell nothing out letter by letter unless asked. Say times naturally ("ten thirty").
