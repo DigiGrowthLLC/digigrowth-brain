@@ -440,6 +440,27 @@ async def get_row(row_id: int, token: str):
     return row
 
 
+async def _visit_info(client_id: int) -> dict | None:
+    """The bookable visit on the clinic's DigiGrowth Booking calendar (the one
+    the booking tool books), so the agent knows its length and price."""
+    try:
+        import booking_conversion
+        got = await booking_conversion._ai_event(client_id)
+    except Exception:
+        return None
+    if not got:
+        return None
+    ev = got[1]
+    return {"name": ev.get("name"), "duration_min": ev.get("duration_min"), "price_cents": ev.get("price_cents") or 0}
+
+
+def _visit_text(v: dict | None) -> str:
+    if not v:
+        return "not listed on the calendar; use the business info"
+    price = f"${v['price_cents'] / 100:g}, paid when they book (the booking tool texts them a link to pay)" if v["price_cents"] else "free"
+    return f"{v['name']}, {v['duration_min']} minutes, {price}"
+
+
 def _dynamic_vars(row, cfg, tz: ZoneInfo) -> dict:
     now = datetime.now(tz)
     source = {
@@ -478,7 +499,8 @@ async def answer_twiml(row) -> str:
         "agent_id": cfg["retell_agent_id"],
         "from_number": (_caller(cfg, row) or (None, None))[1], "to_number": row["phone"], "direction": "outbound",
         "metadata": {"row_id": row["id"], "client_id": row["client_id"], "phone": row["phone"], "token": row["token"]},
-        "retell_llm_dynamic_variables": _dynamic_vars(row, cfg, tz),
+        "retell_llm_dynamic_variables": {**_dynamic_vars(row, cfg, tz),
+                                         "visit_info": _visit_text(await _visit_info(row["client_id"]))},
         "agent_override": {"agent": {"voicemail_option": vm}},
     }
     vr = VoiceResponse()
@@ -726,6 +748,11 @@ async def run_function(name: str, args: dict, call: dict) -> str:
         return await response_ai._execute_tool(client_id, phone, "check_availability", args)
     if name == "book_appointment":
         if row["source"] == "test":
+            v = await _visit_info(client_id)
+            if v and v["price_cents"]:
+                return (f"(Test call: nothing was booked or texted.) Act exactly as for a real paid visit: tell them "
+                        f"you've just texted them a link to lock in {args.get('date')} at {args.get('time')} and pay the "
+                        f"${v['price_cents'] / 100:g} there, and that the spot is held for them while they do.")
             return f"(Test call: nothing was booked.) Pretend it worked: confirm {args.get('date')} at {args.get('time')}."
         return await response_ai._execute_tool(client_id, phone, "propose_appointment", args)
     if name == "mark_not_interested":
@@ -837,6 +864,7 @@ _VOICE_RULES = """
 You are on a live PHONE CALL, not texting. Your name is __AGENT_NAME__ and you work at {{clinic_name}},
 helping new patients get booked.
 Who you're calling: {{lead_full_name}}. Why: {{lead_context}}. Right now it's {{today}}.
+The visit you book (from the clinic's calendar): {{visit_info}}. Use this for the visit's length and price.
 
 How the call goes:
 - Open by checking you've got the right person, then introduce yourself by first name and the clinic and
@@ -942,7 +970,8 @@ def _llm_body(cfg) -> dict:
         "general_tools": tools,
         "default_dynamic_variables": {"lead_first_name": "there", "lead_full_name": "unknown",
                                       "lead_context": "they reached out to the clinic",
-                                      "clinic_name": cfg["client_name"] or "the clinic", "today": ""},
+                                      "clinic_name": cfg["client_name"] or "the clinic", "today": "",
+                                      "visit_info": "use the business info"},
     }
 
 
@@ -1026,6 +1055,7 @@ async def status(client_id: int) -> dict:
                FROM client_voice_calls WHERE client_id = $1 AND created_at > now() - interval '30 days'""",
             client_id)
     return {
+        "visit": await _visit_info(client_id),
         "ready_problem": _ready(cfg) if cfg else "no config",
         "retell_key_set": bool(_api_key()),
         "stats_30d": dict(stats) if stats else {},
