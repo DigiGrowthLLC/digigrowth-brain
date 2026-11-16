@@ -168,6 +168,8 @@ async def update_campaign(client_id: int, campaign_id: int, body: CampaignBody):
 @router.post("/clients/{client_id}/reactivation/campaigns/{campaign_id}/start")
 async def start_campaign(client_id: int, campaign_id: int):
     """Start (or resume, or top up with newly eligible leads) a campaign."""
+    if client_reactivation.REACTIVATION_PAUSED:
+        raise HTTPException(status_code=409, detail="Database reactivation is turned off for now")
     pool = await get_pool()
     async with pool.acquire() as conn:
         campaign = await _campaign(conn, client_id, campaign_id)

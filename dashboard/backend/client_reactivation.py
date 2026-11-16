@@ -57,6 +57,10 @@ DEFAULT_TOUCHES = [
 AUDIENCE_SOURCES = ["past_patient", "old_inquiry", "import", "manual", "website", "inbound_sms", "meta_form", "funnel"]
 _FRESH_AD_SOURCES = ["meta_form", "funnel", "fb_dm", "ig_dm"]
 
+# Off switch (Dylan, 2026-11-16): reactivation stays OFF until he defines
+# how it should work. While True, no campaign can start and nothing sends.
+REACTIVATION_PAUSED = True
+
 SEND_START_HOUR = 10
 SEND_END_HOUR = 18
 # A reply this long after the last touch still counts as a reply to it.
@@ -227,6 +231,8 @@ async def send_due() -> None:
     """One pass over every active campaign: close out enrollments that
     replied / booked / dropped out, send follow-up touches that are due,
     then start new people up to the campaign's daily cap."""
+    if REACTIVATION_PAUSED:
+        return
     pool = await get_pool()
     now = datetime.now(dt_timezone.utc)
     async with pool.acquire() as conn:
