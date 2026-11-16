@@ -526,6 +526,37 @@ _ORIGIN_NOTES = {
 }
 
 
+# The relaxed, question-first approach (Dylan, 2026-11-16) for the clinic's
+# own list, social media leads and DMs: people who didn't sign up for the
+# offer. Replaces the client's conversation arc for those leads.
+GENTLE_ARC = [
+    "If they came to you already asking about the offer or to book, skip ahead and help them book. Otherwise "
+    "start with a check-in: how they've been doing with what's on file (or just how they've been). No offer, "
+    "no booking question yet.",
+    "If they're doing fine or it's resolved: be glad for them in a few plain words (\"Awesome, glad to hear "
+    "it. If it ever starts acting up again, feel free to reach out.\") and call close_conversation. No pitch, "
+    "no question.",
+    "If it's bothering them (still, or again): show you care briefly, then ask ONE relaxed question per text "
+    "to understand it, e.g. \"Oh no, when did it start acting up again?\" then \"Have you tried anything to "
+    "get it fixed?\" Two or three questions at most; skip any they've already answered.",
+    "Once it's clear it's a real problem the business's offer can help with: \"Okay, I just wanted to let you "
+    "know you'd qualify for our <the offer from the business info>. Is that something you'd want to get "
+    "scheduled?\" Then book as usual.",
+    "If they're unsure or not ready: no pressure. Leave the door open and stop asking.",
+]
+_GENTLE_SOURCES = {"past_patient", "old_inquiry", "import", "manual", "ig_dm", "fb_dm"}
+
+
+def is_gentle(origin: dict | None) -> bool:
+    """The relaxed approach for this lead? Their reactivation playbook decides
+    if they got one; otherwise who they are (the clinic's list, social DMs)."""
+    if not origin:
+        return False
+    if origin.get("playbook"):
+        return origin["playbook"] in ("checkin", "social")
+    return origin.get("lead_source") in _GENTLE_SOURCES
+
+
 def _origin_block(origin: dict | None) -> str:
     """The "who is this lead" section of the prompt, from the contact's
     lead_source/source_detail (+ the reactivation campaign that reached
@@ -538,10 +569,34 @@ def _origin_block(origin: dict | None) -> str:
         lines.append(note)
     if origin.get("source_detail"):
         lines.append(f"What the business knows about them: {origin['source_detail'].strip()}")
+    if origin.get("issue_tags"):
+        lines.append("What the clinic has them tagged with: " + ", ".join(origin["issue_tags"]) +
+                     ". Treat this as what's been bothering them, in these plain words only, never a diagnosis.")
+    if origin.get("notes"):
+        lines.append(
+            "The clinic's internal notes on them (PRIVATE: never quote, mention or hint at them, especially anything "
+            f"about money, scheduling habits or judgments; use them only to understand the person): {origin['notes']}"
+        )
+    if origin.get("lead_source") in ("import", "manual"):
+        lines.append(
+            "You don't know for sure whether they were treated here or only reached out once. Unless the notes say "
+            "they were seen, word things so they work either way (\"it's been a while\", \"how's your shoulder "
+            "been?\"), never \"since your last visit\"."
+        )
     if origin.get("campaign_angle"):
         lines.append(
             "This conversation started because the business reached out to them first, as part of "
             f"re-contacting its existing patients and leads. The angle of that outreach: {origin['campaign_angle'].strip()}"
+        )
+    if origin.get("playbook") == "last_call" and origin.get("ends_on"):
+        lines.append(f"The outreach told them the offer ends {origin['ends_on']}. That date is the only deadline you may mention.")
+    if origin.get("owner_name"):
+        o = origin["owner_name"]
+        lines.append(
+            f"You are texting as {o}, the owner, in first person: the outreach went out under {o}'s name as a "
+            f"familiar face. For this conversation that replaces any assistant name in the business info. If they "
+            f"sincerely ask whether they're talking to a real person or AI, never claim to be human: say you're "
+            f"the clinic's assistant texting on {o}'s behalf."
         )
     if not lines:
         return ""
@@ -555,7 +610,7 @@ async def _lead_origin(conn, client_id: int, phone: str, contact: dict | None = 
     contact lookup."""
     if contact is None:
         contact = await conn.fetchrow(
-            "SELECT id, lead_source, source_detail FROM contacts "
+            "SELECT id, lead_source, source_detail, tags, notes FROM contacts "
             "WHERE client_id = $1 AND NOT is_client_anchor AND coalesce(phone, '') != '' "
             "AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = right(regexp_replace($2, '\\D', '', 'g'), 10) "
             "ORDER BY created_at ASC LIMIT 1",
@@ -564,14 +619,30 @@ async def _lead_origin(conn, client_id: int, phone: str, contact: dict | None = 
         contact = dict(contact) if contact else None
     if not contact:
         return None
-    angle = await conn.fetchval(
-        "SELECT rc.angle FROM reactivation_enrollments re JOIN reactivation_campaigns rc ON rc.id = re.campaign_id "
+    if "tags" not in contact or "notes" not in contact:
+        extra = await conn.fetchrow("SELECT tags, notes FROM contacts WHERE id = $1", contact["id"])
+        contact = {**contact, **(dict(extra) if extra else {})}
+    import client_reactivation
+    campaign = await conn.fetchrow(
+        "SELECT rc.angle, rc.playbook, rc.ends_on FROM reactivation_enrollments re "
+        "JOIN reactivation_campaigns rc ON rc.id = re.campaign_id "
         "WHERE re.contact_id = $1 AND re.touches_sent > 0 ORDER BY re.last_touch_at DESC NULLS LAST LIMIT 1",
         contact["id"],
     )
+    playbook = campaign["playbook"] if campaign else None
+    owner_name = None
+    if playbook and client_reactivation.PLAYBOOKS.get(playbook, {}).get("sender") == "owner":
+        owner_name = (await client_reactivation.sender_names(conn, client_id))["owner"] or None
+    notes = (contact.get("notes") or "").strip()
+    ends_on = campaign["ends_on"] if campaign else None
     return {
         "lead_source": contact.get("lead_source"), "source_detail": contact.get("source_detail"),
-        "campaign_angle": angle,
+        "campaign_angle": campaign["angle"] if campaign else None,
+        "playbook": playbook,
+        "ends_on": f"{ends_on.strftime('%A, %B')} {ends_on.day}" if ends_on else None,
+        "owner_name": owner_name,
+        "issue_tags": client_reactivation.profile_tags(contact.get("tags")),
+        "notes": notes[:400] if notes else None,
     }
 
 
@@ -587,6 +658,8 @@ def _build_system_prompt(
     # weight than ones sandwiched in the middle, and repeating the "these
     # are mandatory" framing right here (on top of _SYSTEM_PREAMBLE's
     # opening mention) is deliberate reinforcement, not redundancy.
+    if is_gentle(origin):
+        sequence = GENTLE_ARC
     parts = [
         _SYSTEM_PREAMBLE,
         f"\nToday is {today_str} (the lead's local date/day of week). Use this to resolve "
@@ -1206,7 +1279,18 @@ async def write_outreach_text(client_id: int, phone: str, brief: str, preamble: 
         return None
 
 
-async def write_reactivation_text(client_id: int, phone: str, template: str, touch_num: int, total: int) -> str | None:
+_GENTLE_OUTREACH_ADDITION = (
+    "This outreach is a CHECK-IN, not a pitch: ask only how they're doing with what's on file (or how they've "
+    "been). No offer, no visit, no booking question, no price in these outreach texts.\n"
+)
+_LAST_CALL_OUTREACH_ADDITION = (
+    "This outreach is a heads-up that the offer they asked about is ending: say plainly when it ends (the "
+    "template's day), keep it short and low-key, and end with one easy question.\n"
+)
+
+
+async def write_reactivation_text(client_id: int, phone: str, template: str, touch_num: int, total: int,
+                                  playbook: str | None = None, origin_extra: dict | None = None) -> str | None:
     """One database-reactivation touch (client_reactivation.py), written for
     this lead from what the business knows about them (lead_source,
     source_detail, the campaign's angle) and any history on the thread.
@@ -1227,18 +1311,30 @@ async def write_reactivation_text(client_id: int, phone: str, template: str, tou
             messages = await _load_recent_messages(conn, client_id, phone)
             lessons = await _active_lessons(conn, client_id)
             origin = await _lead_origin(conn, client_id, phone)
+        # Before the first touch there's no sent enrollment for _lead_origin
+        # to find, so the campaign passes its playbook/sender/angle itself.
+        if origin_extra:
+            origin = {**(origin or {}), **{k: v for k, v in origin_extra.items() if v}}
         max_words = row["response_ai_max_words"]
         # No conversation arc: that's the booking flow for once they reply.
         system_prompt = _build_system_prompt(
             row["name"], row["response_ai_context"] or "", [], max_words, row["response_ai_rules"] or "",
             _today_str(await _clinic_tz(client_id, phone)), lessons=lessons, lead_phone=phone, origin=origin,
         ) + _REACTIVATION_PREAMBLE_ADDITION
-        goal = (
-            "This is the LAST text in this outreach: keep the door open warmly and say you won't keep "
-            "texting." if touch_num == total else
-            "This is the first text in this outreach." if touch_num == 1 else
-            f"This is text {touch_num} of {total}; they haven't replied to the earlier one(s)."
-        )
+        if playbook in ("checkin", "social"):
+            system_prompt += _GENTLE_OUTREACH_ADDITION
+            goal = ("This is the first text in this outreach." if touch_num == 1 else
+                    "This is a light follow-up; they didn't reply to the check-in. Keep it short and easy to ignore.")
+        elif playbook == "last_call":
+            system_prompt += _LAST_CALL_OUTREACH_ADDITION
+            goal = "Today is the offer's LAST DAY." if touch_num == total else "The offer ends in a couple of days."
+        else:
+            goal = (
+                "This is the LAST text in this outreach: keep the door open warmly and say you won't keep "
+                "texting." if touch_num == total else
+                "This is the first text in this outreach." if touch_num == 1 else
+                f"This is text {touch_num} of {total}; they haven't replied to the earlier one(s)."
+            )
         messages.append({"role": "user", "content": (
             f"[System note: write the outreach text now. {goal} The business's template for this text, "
             f"as a guide to its purpose and offer: \"{template}\"]"

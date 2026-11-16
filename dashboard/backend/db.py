@@ -2193,6 +2193,10 @@ async def _create_schema(pool: asyncpg.Pool):
                 UNIQUE (campaign_id, contact_id)
             );
             CREATE INDEX IF NOT EXISTS idx_reactivation_enrollments_status ON reactivation_enrollments(campaign_id, status);
+            -- Playbooks (client_reactivation.PLAYBOOKS): checkin / social / last_call.
+            -- ends_on = the offer's last day (last_call only).
+            ALTER TABLE reactivation_campaigns ADD COLUMN IF NOT EXISTS playbook TEXT NOT NULL DEFAULT 'checkin';
+            ALTER TABLE reactivation_campaigns ADD COLUMN IF NOT EXISTS ends_on DATE;
         """)
 
         # Social media conversation agent (client_dm_agent.py): Instagram and

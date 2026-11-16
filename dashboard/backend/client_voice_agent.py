@@ -373,6 +373,43 @@ async def start_for_funnel_partial(client_id: int, session_id: str, run_at: date
         print(f"[voice_agent] start_for_funnel_partial failed client={client_id}: {e}", flush=True)
 
 
+async def queue_last_call(client_id: int, phone: str, lead_name: str | None, is_meta: bool,
+                          lead_created_at: datetime | None, offer_note: str | None) -> bool:
+    """Database reactivation's last_call playbook: call an ad lead on the
+    offer's last day. Only when they consented to calls (Meta form after the
+    consent line went live, or the booking page's call box) and we're in
+    calling hours. One attempt + redial; no answer -> the last-day text
+    (_release_text). True = queued; False = caller texts instead. Never raises."""
+    try:
+        to = e164(phone)
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            cfg = await _config(conn, client_id)
+            if _ready(cfg) or not to:
+                return False
+            since = cfg["voice_consent_meta_since"]
+            consent = bool(is_meta and since and lead_created_at and lead_created_at >= since)
+            if not consent:
+                consent = bool(await conn.fetchval(
+                    """SELECT 1 FROM booking_partials WHERE client_id = $1 AND call_consent IS TRUE
+                         AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = $2 LIMIT 1""",
+                    client_id, _digits10(to)))
+            if not consent:
+                return False
+            if await conn.fetchval(
+                "SELECT 1 FROM client_voice_calls WHERE client_id = $1 AND phone = $2 "
+                "AND status IN ('pending', 'dialing', 'ringing', 'in_progress')", client_id, to):
+                return False
+            if not _in_window(datetime.now(await _tz(client_id, to))):
+                return False
+            await _insert_attempt(conn, client_id=client_id, phone=to, run_at=datetime.now(timezone.utc),
+                                  source="lastcall", attempt=1, lead_name=lead_name, note=offer_note)
+            return True
+    except Exception as e:
+        print(f"[voice_agent] queue_last_call failed client={client_id} phone={phone}: {e}", flush=True)
+        return False
+
+
 async def queue_test_call(client_id: int, phone: str, lead_name: str | None) -> int:
     to = e164(phone)
     if not to:
@@ -421,6 +458,8 @@ async def _stop_reason(conn, row) -> str | None:
            WHERE c.client_id = $1 AND right(regexp_replace(c.phone, '\\D', '', 'g'), 10) = $2""",
         client_id, d10,
     ) or []
+    if any(t in tags for t in ("dontcontact", "donotcontact", "dnc")):
+        return "don't contact"
     if "donotcall" in tags:
         return "do not call"
     if "smsoptedout" in tags:
@@ -538,6 +577,8 @@ def _dynamic_vars(row, cfg, tz: ZoneInfo) -> dict:
         "meta": "they just filled out the clinic's form on Facebook/Instagram",
         "funnel": "they started booking on the clinic's website but didn't finish",
         "callback": "they asked to be called back at this time",
+        "lastcall": "they filled out the clinic's ad form a few weeks ago but never booked. TODAY IS THE LAST DAY "
+                    "of that offer, and you're calling so they don't miss it",
         # A test plays out exactly like a fresh Meta lead, so it sounds real.
         "test": "they just filled out the clinic's form on Facebook/Instagram",
     }.get(row["source"], "they reached out to the clinic")
@@ -713,7 +754,7 @@ async def _after_attempt(row, outcome: str) -> None:
 
 
 async def _schedule_next(conn, row) -> None:
-    if row["source"] == "callback":
+    if row["source"] in ("callback", "lastcall"):  # lastcall: the offer ends today, no retries
         return
     nxt = row["attempt"] + 1
     if nxt > 4:
@@ -778,6 +819,11 @@ async def _release_text(conn, row, after_call: bool, voicemail: bool = False) ->
                 "Here's the call transcript:\n" + transcript[-3000:] +
                 "\nSend ONE short text that picks up naturally from that call (don't re-introduce yourself or repeat "
                 "what was said), making it easy to book whenever they're ready.")
+    elif row["source"] == "lastcall":
+        note = ("Today is the LAST DAY of the clinic's offer this lead asked about a few weeks ago (they never booked"
+                + (f"; {row['note']}" if row["note"] else "") + "). You just tried calling them twice"
+                + (" and left a voicemail" if voicemail else "") + ". Send ONE short text: today's the last day for "
+                "the offer, you didn't want them to miss it, and ask if they'd like you to grab them a time.")
     elif row["source"] == "funnel":
         note = ("This lead started booking on the clinic's website but didn't finish. You just tried calling them twice"
                 + (" and left a voicemail" if voicemail else "") + ". Send the opening text: mention you just tried "
@@ -952,6 +998,11 @@ How the call goes:
   above). Form lead: "This is __AGENT_NAME__ from {{clinic_name}}. I saw you filled out our form for
   <offer>. What's been going on?" Website lead: "...I saw you started booking <offer> on our
   website..." Never use an offer name that isn't in the business info; if unclear, say "our form".
+- Last-day call (the Why above says today is the last day of the offer): "This is __AGENT_NAME__ from
+  {{clinic_name}}. You filled out our form a few weeks back for <offer>, and I just wanted to let you
+  know today's the last day for it. Is that still something you're dealing with?" If yes, carry on
+  with the questions and pitch below as normal. If they're fine or not interested, say "Okay, no
+  problem." and wrap up politely.
 - Call screener (an automated voice asking your name and why you're calling): answer in one short
   sentence ("It's __AGENT_NAME__ from {{clinic_name}}, following up on their form."). When it
   hands you off ("please stay on the line"), just say "Sure." and wait. When the person comes on

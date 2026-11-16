@@ -68,6 +68,14 @@ UNQUALIFIED_SQL = r"""EXISTS (
     WHERE lower(regexp_replace(ut, '[^A-Za-z]', '', 'g')) = 'unqualified'
 )"""
 
+# A client's own "Don't contact" / "Do not contact" / DNC tag (any case or
+# separator): never reached out to by any automated outreach.
+DONT_CONTACT_NORMALIZED = ("dontcontact", "donotcontact", "dnc", "donotcall")
+DONT_CONTACT_SQL = r"""EXISTS (
+    SELECT 1 FROM unnest(coalesce(c.tags, '{}')) dt
+    WHERE lower(regexp_replace(dt, '[^A-Za-z]', '', 'g')) IN ('dontcontact', 'donotcontact', 'dnc', 'donotcall')
+)"""
+
 OPTED_OUT_SQL = r"""EXISTS (
     SELECT 1 FROM unnest(coalesce(c.tags, '{}')) ot
     WHERE lower(regexp_replace(ot, '[^A-Za-z]', '', 'g')) = 'smsoptedout'

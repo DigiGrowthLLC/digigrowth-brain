@@ -2066,7 +2066,7 @@ const MARKETING_GUIDES = {
       { text: "Check the client's A2P 10DLC campaign covers marketing texts (Twilio Console → the client's subaccount → Messaging → Regulatory Compliance → Campaigns → use case). A customer-care-only campaign gets reactivation texts filtered by carriers.",
         link: "https://console.twilio.com/us1/develop/sms/regulatory-compliance/campaigns", linkLabel: "Twilio Console → Campaigns" },
       { text: "Import each list from the client's portal (Leads → Import CSV) and pick its list type (past patients / old inquiries), so the leads get the Database Reactivation tag (+ Previous Patient) and the agent knows who they are. It dedupes against existing leads. Ticks itself once reactivation leads are in." },
-      { text: "Agents → Database Reactivation Agent → + NEW CAMPAIGN, one per audience. Set the daily cap (30/day default; lower for a small clinic so bookings fit real capacity), edit the 4 touches (day 0/2/6/14) to the client's agreed offer or a returning-patient version (plain characters only), and check PEOPLE for who's eligible. Exclusions are automatic: recent ad leads, upcoming or recent visits, opted out, Unqualified, anyone texted in the last 30 days. Ticks itself once a campaign exists." },
+      { text: "Agents → Database Reactivation Agent → + NEW CAMPAIGN and pick a playbook: Check-in (the clinic's own list, texted as the owner, checks in on their tagged issue and only offers a visit if something hurts), Social media leads (same relaxed check-in), or Last call (ad leads who didn't book, a heads-up 2 days before the offer ends and a call on the last day). Set the daily cap for check-ins (lower for a small clinic so bookings fit real capacity) and PREVIEW AUDIENCE. Exclusions are automatic: upcoming or recent visits, opted out, Unqualified, Don't contact, and for check-ins recent ad leads and anyone texted in the last 30 days. Ticks itself once a campaign exists." },
       { text: "Test on your own number first: add yourself as a lead in the client's portal (source past patient, Database Reactivation tag), run a one-person test campaign, reply, and check the Facebook Leads Agent picks it up and books. Delete the test lead and campaign after." },
       { text: "START the campaign (sends 10am-6pm Mon-Sat clinic time, up to the daily cap of first texts a day). Watch replies for the first 48 hours: they go to the Facebook Leads Agent, and escalations land in the portal inbox. Ticks itself once a campaign is running." },
     ],
@@ -2942,7 +2942,8 @@ function AgentCalendlyEventType({ config, onSaveFields }) {
 const LEAD_SOURCE_LABELS = {
   past_patient: "Past patients", old_inquiry: "Old inquiries", import: "Imported lists",
   manual: "Added by hand", website: "Website bookings", inbound_sms: "Texted in on their own",
-  meta_form: "Meta form leads (30+ days old)", funnel: "Funnel leads (30+ days old)",
+  ig_dm: "Instagram DMs", fb_dm: "Facebook DMs",
+  meta_form: "Meta form leads", funnel: "Funnel leads",
 };
 const REACTIVATION_STATUS_COLOR = {
   draft: "#5a7aa0", active: "#4ade80", paused: "#f0b429", done: "#6ab0ff",
@@ -2969,12 +2970,23 @@ function ReactivationChip({ label, count, on, onClick }) {
 }
 
 function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCancel }) {
+  const playbookInfo = (key) => options.playbooks.find((p) => p.key === key) || options.playbooks[0];
+  const [playbook, setPlaybook] = useState(campaign?.playbook || "checkin");
   const [name, setName] = useState(campaign?.name || "");
-  const [sources, setSources] = useState(campaign?.audience_sources || []);
+  const [sources, setSources] = useState(campaign?.audience_sources || playbookInfo("checkin").sources);
   const [tags, setTags] = useState(campaign?.audience_tags || []);
-  const [angle, setAngle] = useState(campaign?.angle || "");
+  const [angle, setAngle] = useState(campaign?.angle || playbookInfo("checkin").angle);
   const [dailyCap, setDailyCap] = useState(campaign?.daily_cap || 30);
-  const [touches, setTouches] = useState(campaign?.touches || options.default_touches);
+  const [touches, setTouches] = useState(campaign?.touches || playbookInfo("checkin").touches);
+  const [endsOn, setEndsOn] = useState(campaign?.ends_on || options.default_ends_on || "");
+  const lastCall = playbook === "last_call";
+  const pickPlaybook = (key) => {
+    setPlaybook(key); setPreview(null);
+    if (!campaign) {
+      const info = playbookInfo(key);
+      setSources(info.sources); setTags([]); setAngle(info.angle); setTouches(info.touches);
+    }
+  };
   const [preview, setPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -2988,7 +3000,7 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
   const runPreview = async () => {
     const r = await fetch(API(`/clients/${clientId}/reactivation/preview`), {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ audience_sources: sources, audience_tags: tags }),
+      body: JSON.stringify({ audience_sources: sources, audience_tags: tags, playbook, ends_on: endsOn || null }),
     });
     if (r.ok) setPreview(await r.json());
   };
@@ -2997,7 +3009,8 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
     setSaving(true); setError("");
     const body = {
       name, audience_sources: sources, audience_tags: tags, angle, daily_cap: Number(dailyCap) || 30,
-      touches: touches.map((t) => ({ day: Number(t.day) || 0, body: t.body })),
+      touches: touches.map((t) => ({ day: Number(t.day) || 0, body: t.body, ...(t.call ? { call: true } : {}) })),
+      playbook, ends_on: endsOn || null,
     };
     const r = await fetch(API(campaign ? `/clients/${clientId}/reactivation/campaigns/${campaign.id}` : `/clients/${clientId}/reactivation/campaigns`), {
       method: campaign ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -3013,17 +3026,35 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
 
   return (
     <div style={{ padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.15)" }}>
+      {label("PLAYBOOK")}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {options.playbooks.map((p) => (
+          <ReactivationChip key={p.key} label={p.label} count={p.sender_name ? `from ${p.sender_name}` : ""}
+            on={playbook === p.key} onClick={() => pickPlaybook(p.key)} />
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6, lineHeight: 1.5 }}>{playbookInfo(playbook).description}</div>
+
       {label("CAMPAIGN NAME")}
       <input className="dg-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Past patients, fall check-in" style={{ width: "100%", fontSize: 12 }} />
 
-      {label("WHO IT TEXTS: ANY LEAD MATCHING ONE OF THESE")}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {lastCall && (<>
+        {label("THE OFFER'S LAST DAY")}
+        <input className="dg-input" type="date" value={endsOn || ""} onChange={(e) => { setEndsOn(e.target.value); setPreview(null); }} style={{ fontSize: 12 }} />
+        <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6, lineHeight: 1.5 }}>
+          Defaults to 30 days after the ad campaign launched. Reaches Meta form and funnel leads from the {""}
+          60 days before this date who never booked.
+        </div>
+      </>)}
+
+      {!lastCall && label("WHO IT TEXTS: ANY LEAD MATCHING ONE OF THESE")}
+      {!lastCall && <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
         {options.sources.map((s) => (
           <ReactivationChip key={s.source} label={LEAD_SOURCE_LABELS[s.source] || s.source} count={s.count}
             on={sources.includes(s.source)} onClick={() => toggle(sources, setSources, s.source)} />
         ))}
-      </div>
-      {options.tags.length > 0 && (
+      </div>}
+      {!lastCall && options.tags.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
           {options.tags.map((t) => (
             <ReactivationChip key={t.tag} label={`#${t.tag}`} count={t.count}
@@ -3032,10 +3063,10 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
         </div>
       )}
       <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6, lineHeight: 1.5 }}>
-        Always skipped: anyone booked (upcoming or in the last 60 days), recent ad leads (last 30 days), anyone texted in the last 30 days, anyone in the regular follow-up, Unqualified, opted out, or already in another open campaign.
+        Always skipped: anyone booked (upcoming or in the last 60 days), Unqualified, opted out, tagged Don't contact, a thread a human took over or one that said no in the last 90 days, or already in another open campaign.{lastCall ? "" : " Also: recent ad leads (last 30 days), anyone texted in the last 30 days, anyone in the regular follow-up."}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={runPreview} disabled={!sources.length && !tags.length}>PREVIEW AUDIENCE</button>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={runPreview} disabled={lastCall ? !endsOn : (!sources.length && !tags.length)}>PREVIEW AUDIENCE</button>
         {preview && (
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10.5, color: "#6ab0ff" }}>
             {preview.count} would be texted
@@ -3045,7 +3076,7 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
       {preview?.sample?.length > 0 && (
         <div style={{ marginTop: 6, fontSize: 11, color: "#8aaad0", lineHeight: 1.6 }}>
           {preview.sample.map((p) => (
-            <div key={p.phone}>{p.name} · {LEAD_SOURCE_LABELS[p.lead_source] || p.lead_source || "no source"}{p.source_detail ? ` · ${p.source_detail}` : ""}</div>
+            <div key={p.phone}>{p.name} · {LEAD_SOURCE_LABELS[p.lead_source] || p.lead_source || "no source"}{p.issue ? ` · ${p.issue}` : ""}{p.source_detail ? ` · ${p.source_detail}` : ""}</div>
           ))}
         </div>
       )}
@@ -3055,26 +3086,31 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
         placeholder="e.g. Seasonal check-in for discharged patients; offer a returning-patient visit at the client's agreed price"
         style={{ width: "100%", fontSize: 12, resize: "vertical" }} />
 
-      {label("NEW PEOPLE TEXTED PER DAY")}
-      <input className="dg-input" type="number" min={1} value={dailyCap} onChange={(e) => setDailyCap(e.target.value)} style={{ width: 90, fontSize: 12 }} />
+      {!lastCall && label("NEW PEOPLE TEXTED PER DAY")}
+      {!lastCall && <input className="dg-input" type="number" min={1} value={dailyCap} onChange={(e) => setDailyCap(e.target.value)} style={{ width: 90, fontSize: 12 }} />}
 
       {label("TOUCHES (THE AGENT PERSONALIZES EACH ONE; SENT AS WRITTEN IF THE AGENT IS OFF)")}
       {touches.map((t, i) => (
         <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, color: "#5a7aa0" }}>DAY</span>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, color: "#5a7aa0" }}>{lastCall ? "DAYS LEFT" : "DAY"}</span>
             <input className="dg-input" type="number" min={0} value={t.day} onChange={(e) => setTouch(i, "day", e.target.value)} style={{ width: 54, fontSize: 12 }} />
+            {lastCall && (
+              <label style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, color: "#5a7aa0", display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
+                <input type="checkbox" checked={Boolean(t.call)} onChange={(e) => setTouch(i, "call", e.target.checked)} />CALL
+              </label>
+            )}
           </div>
           <textarea className="dg-input" rows={2} value={t.body} onChange={(e) => setTouch(i, "body", e.target.value)} style={{ flex: 1, fontSize: 12, resize: "vertical" }} />
           <button className="btn btn-secondary" style={{ fontSize: 10, padding: "4px 8px" }} onClick={() => setTouches(touches.filter((_, j) => j !== i))}>✕</button>
         </div>
       ))}
       <button className="btn btn-secondary" style={{ fontSize: 10 }}
-        onClick={() => setTouches([...touches, { day: (Number(touches[touches.length - 1]?.day) || 0) + 7, body: "" }])}>
+        onClick={() => setTouches([...touches, { day: lastCall ? 0 : (Number(touches[touches.length - 1]?.day) || 0) + 7, body: "" }])}>
         + ADD TOUCH
       </button>
       <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6 }}>
-        Use {"{first_name}"} and {"{business}"}. "Reply STOP to opt out." is added to the first text automatically. Sends 10am-6pm, Monday-Saturday, in each lead's time zone.
+        Use {"{first_name}"}, {"{sender}"}, {"{business}"}, {"{checkin_question}"} (e.g. "how's your shoulder been doing?" from their tags), {"{offer}"} and {"{end_day}"}. "Reply STOP to opt out." is added to the first text automatically. Sends 10am-6pm, Monday-Saturday, clinic time.{lastCall ? " CALL = the voice agent calls first if they consented to calls, and texts only if they don't pick up." : ""}
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
@@ -3140,7 +3176,7 @@ function ReactivationAgent({ clientId, agentEnabled }) {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
 
   const act = async (campaign, action) => {
-    if (action === "start" && !window.confirm(`Start "${campaign.name}"? It begins texting its audience (up to ${campaign.daily_cap} new people a day) from this client's number.`)) return;
+    if (action === "start" && !window.confirm(`Start "${campaign.name}"? It begins reaching out to its audience${campaign.playbook === "last_call" ? ` on the schedule before the offer ends (${campaign.ends_on})` : ` (up to ${campaign.daily_cap} new people a day)`} from this client's number.`)) return;
     if (action === "delete" && !window.confirm(`Delete "${campaign.name}"?`)) return;
     setBusy(campaign.id); setMessage("");
     const r = await fetch(
@@ -3179,8 +3215,11 @@ function ReactivationAgent({ clientId, agentEnabled }) {
               <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: REACTIVATION_STATUS_COLOR[c.status], letterSpacing: "0.06em" }}>{c.status.toUpperCase()}</span>
             </div>
             <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 4 }}>
-              {[...c.audience_sources.map((s) => LEAD_SOURCE_LABELS[s] || s), ...c.audience_tags.map((t) => `#${t}`)].join(", ") || "No audience picked"}
-              {" · "}{c.touches.length} touches · {c.daily_cap}/day
+              {(options.playbooks.find((p) => p.key === c.playbook) || {}).label || "Check-in"}{" · "}
+              {c.playbook === "last_call"
+                ? `offer ends ${c.ends_on || "(not set)"}`
+                : [...c.audience_sources.map((s) => LEAD_SOURCE_LABELS[s] || s), ...c.audience_tags.map((t) => `#${t}`)].join(", ") || "No audience picked"}
+              {" · "}{c.touches.length} touches{c.playbook === "last_call" ? "" : ` · ${c.daily_cap}/day`}
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8aaad0", marginTop: 6 }}>
               {c.stats.enrolled} enrolled · {c.stats.texted} texted · {c.stats.replied} replied · {c.stats.booked} booked · {c.stats.opted_out} opted out

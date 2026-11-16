@@ -2,6 +2,7 @@
 (client_reactivation.py) — backs the Clients panel's Agents tab →
 Database Reactivation Agent."""
 import json
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -20,14 +21,25 @@ class CampaignBody(BaseModel):
     angle: Optional[str] = None
     touches: Optional[list[dict]] = None
     daily_cap: Optional[int] = None
+    playbook: Optional[str] = None
+    ends_on: Optional[date] = None
 
 
 class AudienceBody(BaseModel):
     audience_sources: list[str] = []
     audience_tags: list[str] = []
+    playbook: str = client_reactivation.DEFAULT_PLAYBOOK
+    ends_on: Optional[date] = None
 
 
-def _clean_touches(touches: list[dict]) -> list[dict]:
+def _playbook(value: str | None) -> str:
+    pb = value or client_reactivation.DEFAULT_PLAYBOOK
+    if pb not in client_reactivation.PLAYBOOKS:
+        raise HTTPException(status_code=400, detail="Unknown playbook")
+    return pb
+
+
+def _clean_touches(touches: list[dict], playbook: str = client_reactivation.DEFAULT_PLAYBOOK) -> list[dict]:
     out = []
     for t in touches:
         body = (t.get("body") or "").strip()
@@ -37,9 +49,15 @@ def _clean_touches(touches: list[dict]) -> list[dict]:
             day = max(0, int(t.get("day") or 0))
         except (TypeError, ValueError):
             raise HTTPException(status_code=400, detail="Each touch's day must be a number")
-        out.append({"day": day, "body": body})
+        touch = {"day": day, "body": body}
+        if playbook == "last_call" and t.get("call"):
+            touch["call"] = True
+        out.append(touch)
     days = [t["day"] for t in out]
-    if days != sorted(days):
+    if playbook == "last_call":
+        if days != sorted(days, reverse=True):
+            raise HTTPException(status_code=400, detail="Days before the offer ends must count down in order")
+    elif days != sorted(days):
         raise HTTPException(status_code=400, detail="Touch days must go up in order")
     return out
 
@@ -78,11 +96,23 @@ async def reactivation_options(client_id: int):
             "WHERE client_id = $1 AND NOT is_client_anchor GROUP BY t ORDER BY n DESC",
             client_id,
         )
+        launched = await conn.fetchval(
+            "SELECT campaign_launched_at FROM client_marketing_config WHERE client_id = $1", client_id,
+        )
+        senders = await client_reactivation.sender_names(conn, client_id)
     counts = {r["lead_source"]: r["n"] for r in sources}
     return {
         "sources": [{"source": s, "count": counts.get(s, 0)} for s in client_reactivation.AUDIENCE_SOURCES],
         "tags": [{"tag": r["tag"], "count": r["n"]} for r in tags],
         "default_touches": client_reactivation.DEFAULT_TOUCHES,
+        "playbooks": [
+            {"key": k, "label": v["label"], "description": v["description"], "sources": v["sources"],
+             "angle": v["angle"], "touches": v["touches"],
+             "sender_name": senders["owner"] if v["sender"] == "owner" else senders["agent"]}
+            for k, v in client_reactivation.PLAYBOOKS.items()
+        ],
+        # The ad campaign's 30-day window, for a last_call campaign's end date.
+        "default_ends_on": (launched.date() + timedelta(days=30)).isoformat() if launched else None,
     }
 
 
@@ -91,12 +121,16 @@ async def preview_audience(client_id: int, body: AudienceBody):
     """How many leads an audience would text if started now, with a sample."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await client_reactivation.eligible_contacts(conn, client_id, body.audience_sources, body.audience_tags)
+        rows = await client_reactivation.eligible_contacts(
+            conn, client_id, body.audience_sources, body.audience_tags,
+            playbook=_playbook(body.playbook), ends_on=body.ends_on,
+        )
     return {
         "count": len(rows),
         "sample": [
             {"name": r["owner"] or r["phone"], "phone": r["phone"], "lead_source": r["lead_source"],
-             "source_detail": r["source_detail"]}
+             "source_detail": r["source_detail"],
+             "issue": ", ".join(client_reactivation.issue_tags(r["tags"])) or None}
             for r in rows[:10]
         ],
     }
@@ -117,18 +151,23 @@ async def create_campaign(client_id: int, body: CampaignBody):
     name = (body.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
-    touches = _clean_touches(body.touches) if body.touches is not None else client_reactivation.DEFAULT_TOUCHES
+    playbook = _playbook(body.playbook)
+    preset = client_reactivation.PLAYBOOKS[playbook]
+    touches = _clean_touches(body.touches, playbook) if body.touches is not None else preset["touches"]
     if not touches:
         raise HTTPException(status_code=400, detail="Add at least one touch")
+    sources = body.audience_sources if body.audience_sources is not None else preset["sources"]
+    angle = (body.angle or "").strip() or preset["angle"]
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO reactivation_campaigns (client_id, name, audience_sources, audience_tags, angle, touches, daily_cap)
-            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7) RETURNING *
+            INSERT INTO reactivation_campaigns (client_id, name, audience_sources, audience_tags, angle, touches,
+                                                daily_cap, playbook, ends_on)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9) RETURNING *
             """,
-            client_id, name, body.audience_sources or [], body.audience_tags or [], (body.angle or "").strip(),
-            json.dumps(touches), max(1, body.daily_cap or 30),
+            client_id, name, sources, body.audience_tags or [], angle,
+            json.dumps(touches), max(1, body.daily_cap or 30), playbook, body.ends_on,
         )
         return _row(row, await client_reactivation.campaign_stats(conn, row["id"]))
 
@@ -137,8 +176,13 @@ async def create_campaign(client_id: int, body: CampaignBody):
 async def update_campaign(client_id: int, campaign_id: int, body: CampaignBody):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await _campaign(conn, client_id, campaign_id)
+        current = await _campaign(conn, client_id, campaign_id)
+        playbook = _playbook(body.playbook or current["playbook"])
         fields = {}
+        if body.playbook is not None:
+            fields["playbook"] = playbook
+        if body.ends_on is not None:
+            fields["ends_on"] = body.ends_on
         if body.name is not None:
             if not body.name.strip():
                 raise HTTPException(status_code=400, detail="Name is required")
@@ -150,7 +194,7 @@ async def update_campaign(client_id: int, campaign_id: int, body: CampaignBody):
         if body.angle is not None:
             fields["angle"] = body.angle.strip()
         if body.touches is not None:
-            touches = _clean_touches(body.touches)
+            touches = _clean_touches(body.touches, playbook)
             if not touches:
                 raise HTTPException(status_code=400, detail="Add at least one touch")
             fields["touches"] = json.dumps(touches)
@@ -180,6 +224,8 @@ async def start_campaign(client_id: int, campaign_id: int):
         raise HTTPException(status_code=400, detail="This client has no Twilio number yet")
     if not client_reactivation.touches_of(campaign):
         raise HTTPException(status_code=400, detail="Add at least one touch first")
+    if client_reactivation.playbook_of(dict(campaign)) == "last_call" and not campaign["ends_on"]:
+        raise HTTPException(status_code=400, detail="Set the date the offer ends first")
     added = await client_reactivation.start_campaign(campaign_id)
     return {"ok": True, "added": added}
 
