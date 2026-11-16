@@ -89,9 +89,9 @@ NATURAL_SETTINGS = {
     "interruption_sensitivity": 0.8,
     # Low = steadier, flatter delivery. 1.2 sounded over-enthusiastic (Dylan, 2026-11-16).
     "voice_temperature": 0.7,
-    # Speak up after ~5s of silence: after a call screener hands the call to
+    # Speak up after 2.5s of silence (5s felt like dead air): after a call screener hands the call to
     # the person, nobody talks first, and the agent would otherwise wait.
-    "reminder_trigger_ms": 5000,
+    "reminder_trigger_ms": 2500,
     "reminder_max_count": 2,
 }
 
