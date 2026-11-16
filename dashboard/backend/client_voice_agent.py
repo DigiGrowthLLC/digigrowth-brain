@@ -174,7 +174,9 @@ _HANDOFF_RE = re.compile(r"stay on the line|please hold|connecting you|putting y
                          r"will be (right )?with you|be with you (in a moment|shortly)", re.I)
 _PICKUP_WAIT: dict[str, int] = {}   # retell call_id -> user turns at hand-off
 _HANDOFF_SEEN: set[str] = set()
-PICKUP_NUDGE_S = 2.5
+# The person may pick up a while after the hand-off: keep checking until they
+# speak (first after 2.5s, then every 3s, 4 tries).
+PICKUP_NUDGES_S = (2.5, 3.0, 3.0, 3.0)
 
 
 def _user_utts(call: dict) -> list[str]:
@@ -206,16 +208,20 @@ def note_transcript(call: dict) -> None:
 
 
 async def _pickup_nudge(call_id: str, first_name: str) -> None:
-    await asyncio.sleep(PICKUP_NUDGE_S)
-    if _PICKUP_WAIT.pop(call_id, None) is None:
-        return
-    try:
-        await _retell("PATCH", f"/v2/update-live-call/{call_id}", {"call_control": {
-            "trigger_response": True,
-            "additional_context": f'The call screener handed the call over and the person is on the line now. '
-                                  f'Say only: "Hi, is this {first_name}?"'}})
-    except Exception as e:
-        print(f"[voice_agent] pickup nudge failed for {call_id}: {e}", flush=True)
+    for i, delay in enumerate(PICKUP_NUDGES_S):
+        await asyncio.sleep(delay)
+        if call_id not in _PICKUP_WAIT:      # they spoke
+            return
+        line = f"Hi, is this {first_name}?" if i % 2 == 0 else "Hello?"
+        try:
+            await _retell("PATCH", f"/v2/update-live-call/{call_id}", {"call_control": {
+                "trigger_response": True,
+                "additional_context": f'The call screener handed the call over; the person may be picking up now '
+                                      f'and hasn't spoken yet. Say only: "{line}"'}})
+        except Exception as e:
+            print(f"[voice_agent] pickup nudge failed for {call_id}: {e}", flush=True)
+            break
+    _PICKUP_WAIT.pop(call_id, None)
 
 
 def verify_retell_signature(raw_body: bytes, header: str | None, max_age_ms: int = 300_000) -> bool:
@@ -958,16 +964,18 @@ How the call goes:
   move on. Never add your own opinion or judgment about what they said (no "three months is a long
   time", "that must be hard", "that's great").
 - Once you have their answers, pitch the visit in ONE turn (the only turn allowed to run 3-4 short
-  sentences): recap their points in their terms, briefly say what happens at the visit (from the
-  business info below: who they see and what they leave with), tie that to their problem, frame it
-  as a different approach from what they've tried (never knock what they tried), then ask. Shape:
-  "For sure. So back pain for about three months, and you've already tried a chiropractor. Our New
-  Patient Assessment is a bit of a different approach. You sit down one-on-one with a physical
-  therapist, they find what's actually causing the back pain, and you leave with a plan to fix it.
-  We've helped a lot of people with back pain that way. Is that something you'd want to get
-  scheduled?"
-  Use the real offer and what really happens at it from the business info; never invent details
-  and never state the visit length.
+  sentences). It must be about THEIR problem, not a description of the visit: recap what they told
+  you, then say how the visit helps with that exact problem, framed as a different approach from what
+  they've tried, then the outcome, then ask. Use their words (their body part, their pain), say it
+  like a person talking, and link the sentences ("so", "that's where", "that way"). Shape:
+  "For sure. So you've had back pain for about three months, and the chiropractor hasn't gotten rid
+  of it. That's where our New Patient Assessment comes in. It's a different approach: a physical
+  therapist figures out what's actually causing your back pain, so you're not just treating the
+  symptoms, and you leave with a plan to fix it. We've helped a lot of people with back pain get back
+  to normal that way. Is that something you'd want to get scheduled?"
+  Never list the visit's contents ("history", "movement screen", "whether PT can help"), never read
+  out the business info, never invent details, never state the visit length, and never knock what
+  they tried.
 - Only call check_availability AFTER they say yes to that offer. Never jump to the calendar right after
   they answer a question. Apart from the pitch, keep every turn short: one or two sentences.
 - To book: call check_availability, then offer the two times as a full, natural question, e.g. "I've
