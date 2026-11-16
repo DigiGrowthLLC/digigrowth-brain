@@ -8,3 +8,23 @@ apptset-agent/.env
 parallel-dialer/.env
 leadgen-agent/credentials.json
 executive-assistant/credentials.json
+
+# Media the server never reads. Kept in git for the local agents, but baking
+# ~330 MB of ad videos/images into every Railway image only slows builds and
+# deploys. Outreach/watch videos are served from R2, not from disk
+# (outreach_video.py, routers/watch.py). Binary media only: text files in
+# these folders stay so the OS agents can still read them. design-agent/ is
+# deliberately NOT touched: client_autosetup.py runs its tools/ + references/.
+dashboard/backend/watch_uploads/
+media-buying-agent/**/*.mp4
+media-buying-agent/**/*.mov
+media-buying-agent/**/*.webm
+media-buying-agent/**/*.png
+media-buying-agent/**/*.jpg
+media-buying-agent/**/*.jpeg
+content-agent/**/*.mp4
+content-agent/**/*.mov
+content-agent/**/*.webm
+content-agent/tmp/
+.git/
+.claude/worktrees/
