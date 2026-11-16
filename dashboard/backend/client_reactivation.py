@@ -955,7 +955,21 @@ async def queue(client_id: int) -> list[dict]:
             out.append({"kind": "voice_call", "id": r["id"], "name": r["lead_name"], "phone": r["phone"],
                         "campaign": "Voice agent", "what": what, "due": r["run_at"].isoformat(), "estimated": False,
                         "stoppable": False})
-    out.sort(key=lambda i: i["due"])
+
+        # Ad leads the last call will reach once the ad budget is spent (no
+        # date yet: it starts at the first spend check past the cap).
+        cap = await conn.fetchrow(
+            """SELECT a.cap, a.last_spend, cmc.react_lastcall_auto_cap FROM ad_spend_caps a
+               JOIN client_marketing_config cmc ON cmc.client_id = a.client_id
+               WHERE a.client_id = $1 AND a.enabled AND a.cap > 0""", client_id)
+        if cap and (cap["react_lastcall_auto_cap"] is None or cap["cap"] > cap["react_lastcall_auto_cap"]):
+            when = f"When the ${cap['cap']:,.0f} ad budget is spent (${cap['last_spend'] or 0:,.0f} so far)"
+            for r in await eligible_contacts(conn, client_id, [], [], None, "last_call"):
+                out.append({"kind": "pending_budget", "playbook": "last_call", "id": r["id"], "contact_id": r["id"],
+                            "name": r["owner"], "phone": r["phone"], "campaign": "Last call (waiting on the ad budget)",
+                            "what": "Last-call text", "due": None, "when_label": when, "estimated": False,
+                            "stoppable": False})
+    out.sort(key=lambda i: i["due"] or "9999")
     return out
 
 

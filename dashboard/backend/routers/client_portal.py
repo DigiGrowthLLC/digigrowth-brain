@@ -527,7 +527,7 @@ async def portal_reactivation_queue(token: str):
 
     client = await get_client_from_token(token)
     items = await cr.queue(client["id"])
-    keep = ("kind", "playbook", "name", "phone", "what", "campaign", "due", "estimated", "paused")
+    keep = ("kind", "playbook", "name", "phone", "what", "campaign", "due", "when_label", "estimated", "paused")
     return {"paused": cr.REACTIVATION_PAUSED, "items": [{k: i.get(k) for k in keep} for i in items]}
 
 

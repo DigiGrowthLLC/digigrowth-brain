@@ -1107,7 +1107,7 @@ function ReactivationQueueModal({ token, playbook, title, onClose }) {
               <tbody>
                 {items.map((it, i) => (
                   <tr key={i} style={{ borderTop: "1px solid rgba(58,123,213,0.08)" }}>
-                    <td style={{ padding: "7px 8px", color: "#e8f0ff", whiteSpace: "nowrap" }}>{fmt(it.due, it.estimated)}</td>
+                    <td style={{ padding: "7px 8px", color: "#e8f0ff", whiteSpace: "nowrap" }}>{it.due ? fmt(it.due, it.estimated) : it.when_label}</td>
                     <td style={{ padding: "7px 8px", color: "#e8f0ff" }}>{it.name || "—"}</td>
                     <td style={{ padding: "7px 8px", color: "#8aaad0", whiteSpace: "nowrap" }}>{it.phone}</td>
                     <td style={{ padding: "7px 8px", color: "#8aaad0" }}>{it.what}</td>

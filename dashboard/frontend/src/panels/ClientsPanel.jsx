@@ -3207,7 +3207,7 @@ function ReactivationQueue({ clientId }) {
             <tbody>
               {data.items.map((it) => (
                 <tr key={`${it.kind}-${it.id}`} style={{ borderTop: "1px solid rgba(58,123,213,0.08)", opacity: it.paused ? 0.55 : 1 }}>
-                  <td style={{ padding: "6px 8px", color: "#d0e8ff", whiteSpace: "nowrap" }}>{fmt(it.due, it.estimated)}</td>
+                  <td style={{ padding: "6px 8px", color: "#d0e8ff", whiteSpace: "nowrap" }}>{it.due ? fmt(it.due, it.estimated) : it.when_label}</td>
                   <td style={{ padding: "6px 8px", color: "#d0e8ff" }}>{it.name || "—"}</td>
                   <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{it.phone}</td>
                   <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{it.what}</td>
