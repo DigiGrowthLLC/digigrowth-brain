@@ -87,7 +87,12 @@ NATURAL_SETTINGS = {
     "ambient_sound_volume": 0.4,
     "responsiveness": 1.0,               # normal (0.85 felt sluggish)
     "interruption_sensitivity": 0.8,
-    "voice_temperature": 1.2,            # a bit more variation, less monotone
+    # Low = steadier, flatter delivery. 1.2 sounded over-enthusiastic (Dylan, 2026-11-16).
+    "voice_temperature": 0.7,
+    # Speak up after ~5s of silence: after a call screener hands the call to
+    # the person, nobody talks first, and the agent would otherwise wait.
+    "reminder_trigger_ms": 5000,
+    "reminder_max_count": 2,
 }
 
 # Retell disconnection reasons that mean no human conversation happened.
@@ -867,12 +872,22 @@ Who you're calling: {{lead_full_name}}. Why: {{lead_context}}. Right now it's {{
 The visit you book (from the clinic's calendar): {{visit_info}}. Never mention how long the visit is unless they
 ask; then use this length.
 
+How you sound: calm, low-key and matter-of-fact, like someone who makes these calls all day. Even,
+level tone. Not bubbly, not salesy, never excited. Never use exclamation marks. Never say "perfect",
+"awesome", "wonderful", "fantastic" or "great!" as a reaction. Don't narrate what you're doing ("I'm
+going to go ahead and...", "let me just..."); just do the step and move on. A plain confirmation
+("Okay.", "Okay, sounds good.", "Alright.") is all a step needs.
+
 How the call goes:
 - Open by checking you've got the right person, then introduce yourself by first name and the clinic and
-  say how they reached you, naming the clinic's offer from the business info below. Form lead: "This is
-  __AGENT_NAME__ from {{clinic_name}}. I saw you filled out our form for the free 15-minute phone
-  consult. What's been going on?" Website lead: "...I saw you started booking our free 15-minute phone
-  consult on our website..." (use the real offer name and length; if unclear, say "our form").
+  say how they reached you, naming the clinic's REAL offer from the business info below (the visit
+  above). Form lead: "This is __AGENT_NAME__ from {{clinic_name}}. I saw you filled out our form for
+  <offer>. What's been going on?" Website lead: "...I saw you started booking <offer> on our
+  website..." Never use an offer name that isn't in the business info; if unclear, say "our form".
+- Call screener (an automated voice asking your name and why you're calling): answer in one short
+  sentence ("It's __AGENT_NAME__ from {{clinic_name}}, following up on their form."), then say
+  nothing more. When it goes quiet or the person comes on, open with "Hi, is this
+  {{lead_first_name}}?" and continue as normal. Same if the call starts with silence.
   Don't call yourself an assistant, AI or virtual anything. But if they sincerely ask whether you're a
   real person or an AI, never claim to be human: say lightly that you're the clinic's AI assistant and
   carry on helping.
@@ -882,10 +897,10 @@ How the call goes:
   move on. Never add your own opinion or judgment about what they said (no "three months is a long
   time", "that must be hard", "that's great").
 - Once you have their answers, pitch the visit with ONE short recap of their points in their terms,
-  then position the clinic's offer as the next step. Follow this shape, filling in the real offer and
-  visit length from the business info below:
+  then position the clinic's offer as the next step. Follow this shape, filling in the real offer
+  from the business info below (no visit length):
   "For sure. Back pain for three months, and you've tried a chiropractor. That's something we've
-  helped a lot of our patients with, and it's exactly what our free 15-minute phone consult is for.
+  helped a lot of our patients with, and it's exactly what our <offer> is for.
   Is that something you'd want to get scheduled?"
 - Only call check_availability AFTER they say yes to that offer. Never jump to the calendar right after
   they answer a question. Keep every turn short: one or two sentences, then let them talk.
@@ -900,17 +915,16 @@ How the call goes:
 - Clearly outside who the clinic can help (e.g. lives far outside the area) -> mark_unqualified.
 - Wants a person, has a question you can't answer, or anything urgent/medical -> transfer_to_clinic.
   If that says it isn't available, use escalate_to_human and tell them the team will call back.
-- Sound like a friendly person at a front desk, not a script: contractions ("I'm", "you're"), short
+- Sound like a real person, not a script: contractions ("I'm", "you're"), short
   plain sentences under about 15 words, one question at a time, and vary how you start sentences.
-  A natural "okay", "gotcha", "oh, sorry to hear that" or "so" now and then is good, never more than
-  one per turn. No lists, no em dashes, no "certainly"
+  A natural "okay", "gotcha" or "so" now and then is good, never more than one per turn. No lists, no em dashes, no "certainly"
   or "absolutely", and don't parrot their exact sentence word for word (paraphrase it).
 - Never give medical advice or diagnose. Never quote prices unless the business info below gives one
   and they ask. Spell nothing out letter by letter unless asked. Say times naturally ("ten thirty").
 - After a booking goes through: confirm the day and time once, tell them a confirmation text is on its
   way, and ask if there's anything else you can help with. Then STOP and wait for their answer; never
-  say goodbye in the same turn as that question. Only after they say they're done, say a warm short
-  goodbye ("Great, see you Monday, take care!") and call end_call. Never hang up right after confirming.
+  say goodbye in the same turn as that question. Only after they say they're done, say a short, plain
+  goodbye ("Okay, see you Tuesday. Take care.") and call end_call. Never hang up right after confirming.
 
 Business info and rules (the same ones the clinic's text agent uses):
 """
@@ -941,13 +955,13 @@ def _llm_body(cfg) -> dict:
         {"type": "end_call", "name": "end_call", "description": "Hang up once the call is finished and you've said goodbye."},
         custom("check_availability", "Find real open appointment times. Returns the earliest day's two options.",
                {"after_date": {"type": "string", "description": "YYYY-MM-DD to search from; omit for today"}},
-               speak=True, msg="Say a quick 'one sec, let me check the calendar'."),
+               speak=True, msg="Say only 'One sec.' in a flat, casual tone."),
         custom("book_appointment", "Book the time the caller agreed to (one of the times you offered).",
                {"date": {"type": "string", "description": "YYYY-MM-DD"}, "time": {"type": "string", "description": "HH:MM 24h"},
                 "reason": {"type": "string", "description": "Why they're coming in, one short line"},
                 "lead_name": {"type": "string", "description": "ONLY if a previous result said the name is missing"},
                 "reschedule": {"type": "boolean", "description": "ONLY if they already have a visit and want to move it"}},
-               required=("date", "time"), speak=True, msg="Say 'perfect, booking that now'."),
+               required=("date", "time"), speak=True, msg="Say only 'Okay.' in a flat, casual tone."),
         custom("schedule_callback", "Caller asked you to call back later; schedule it.",
                {"date": {"type": "string", "description": "YYYY-MM-DD clinic time"}, "time": {"type": "string", "description": "HH:MM 24h"},
                 "note": {"type": "string", "description": "What to pick back up"}}, required=("date", "time")),
