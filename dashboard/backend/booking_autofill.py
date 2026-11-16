@@ -82,7 +82,7 @@ Rules:
 - Hours = when new patients can book, in the clinic's local time. Prefer an existing Calendly availability schedule over prose. If only general business hours are given, use those and note it.
 - Price: what the patient pays online at booking. The agency's offers are usually either a FREE consultation/screen (price 0) or a PAID assessment (often $49, shown as 'normally $150' with 'only 10 spots per month'). Use whichever the sources describe as the CURRENT patient offer. If a paid $49 offer is described but no 'normally' price or spots are given, use anchor 15000 and spots 10 and add a note saying you applied the agency's default.
 - If sources conflict (e.g. intake says one special, the funnel page another), prefer the funnel page / agent notes (most recent), and note the conflict.
-- Defaults when unstated: duration 60 for an assessment/evaluation, 20 for a free phone/video consult; location in_person with the clinic address if they treat in clinic; ask_question 'What brings you in?'.
+- A paid or in-person assessment/evaluation is ALWAYS 60 minutes, even if the sources state another length (Dylan's default for every practice, 2026-11-16; only Dylan or the client changes it by hand). Name it "New Patient Assessment", never "Discovery Visit". Defaults when unstated: 20 for a free phone/video consult; location in_person with the clinic address if they treat in clinic; ask_question 'What brings you in?'.
 - Visit name should match the offer's own wording where possible.
 - Keep notes short and specific."""
 
