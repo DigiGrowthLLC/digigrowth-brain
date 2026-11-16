@@ -472,7 +472,8 @@ async def answer_twiml(row) -> str:
         vm = {"action": {"type": "prompt", "text": (
             "You reached voicemail. Leave one short, friendly message under 20 seconds: say your first name and "
             "that you're calling from {{clinic_name}} about their request, that you'll send them a text in a "
-            "moment, and they can just reply there whenever it suits them. Don't mention prices.")}}
+            "moment, and they can just reply there whenever it suits them. Never ask them to call back and never "
+            "give a phone number. Don't mention prices.")}}
     body = {
         "agent_id": cfg["retell_agent_id"],
         "from_number": (_caller(cfg, row) or (None, None))[1], "to_number": row["phone"], "direction": "outbound",
