@@ -110,8 +110,8 @@ PLAYBOOKS = {
         "angle": "The ad offer they asked about is wrapping up: a last chance to get in at that offer.",
         "touches": [
             {"day": 0, "body": "Hey {first_name}, it's {sender} from {business}. Just a heads up, our "
-                               "{offer}{offer_reminder} is wrapping up. Didn't want you to miss out."},
-            {"day": 1, "call": True, "body": "Hey {first_name}, today's the last day for our {offer}{offer_reminder}. "
+                               "{offer} is wrapping up. Didn't want you to miss out."},
+            {"day": 1, "call": True, "body": "Hey {first_name}, today's the last day for our {offer}. "
                                              "Didn't want you to miss out. Want me to grab you a time?"},
         ],
     },
@@ -124,10 +124,10 @@ CHECKIN_CYCLE = CYCLES["checkin"]
 # offer as they last heard about -> "running it again"; changed -> "you
 # qualify for our new one". The AI rewrites these from the thread.
 OFFER_UPDATE_TOUCHES = {
-    "same": "Hey {first_name}, it's {sender} from {business}. We're running our {offer}{offer_reminder} again, in "
+    "same": "Hey {first_name}, it's {sender} from {business}. We're running our {offer} again, in "
             "case you didn't get the chance to book in last time.",
     "new": "Hey {first_name}, it's {sender} from {business}. Saw you missed out on our {previous_offer}. Just wanted "
-           "to let you know we're running a new special: our {offer}{offer_reminder}.",
+           "to let you know we're running a new special: our {offer}.",
 }
 # Launch checklist items on_ad_spend() ticks (launch_checklist_items.title, lowercased).
 _LAUNCH_ITEM = "launch campaign"

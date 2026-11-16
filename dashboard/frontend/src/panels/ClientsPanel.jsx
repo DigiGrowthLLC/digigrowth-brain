@@ -3262,12 +3262,10 @@ function ReactivationOffer({ clientId }) {
       <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
         <input className="dg-input" placeholder="Free Back Pain Discovery Call" value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ fontSize: 12, flex: "1 1 200px" }} />
-        <input className="dg-input" placeholder="a free 20-minute call with a physical therapist" value={form.detail}
-          onChange={(e) => setForm({ ...form, detail: e.target.value })} style={{ fontSize: 12, flex: "2 1 260px" }} />
         {dirty && <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={save}>SAVE</button>}
       </div>
       <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6, lineHeight: 1.5 }}>
-        Reads as: "our {form.name || "<offer>"}{form.detail ? ` (${form.detail})` : ""} is wrapping up". Change it when the client's
+        Reads as: "our {form.name || "<offer>"} is wrapping up". Change it when the client's
         offer changes: ad leads who heard about the old one get "saw you missed out on our {"<old>"}, we're running a new special" next time.
         {msg && <span style={{ color: "#6ab0ff" }}> {msg}</span>}
       </div>
