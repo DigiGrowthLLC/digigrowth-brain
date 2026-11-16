@@ -1064,6 +1064,27 @@ function BookingAlertSection({ token }) {
   );
 }
 
+// Database reactivation texts (client_reactivation.py), read-only: the
+// original message for each playbook this client runs, filled in for an
+// example patient, and when each goes out.
+function ReactivationMessagesSection({ token }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    fetch(`/portal-api/${token}/reactivation-messages`).then((r) => (r.ok ? r.json() : null)).then(setData).catch(() => {});
+  }, [token]);
+  if (!data || !data.sections?.length) return null;
+  return data.sections.map((sec) => (
+    <MessagingSection key={sec.playbook} title={sec.title} summary={sec.summary}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
+        {sec.messages.map((m, i) => (
+          <SequenceStepCard key={i} title={m.title} timing={m.timing} step={{ body: m.body }} />
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: "#5a6f8f", marginTop: 12 }}>{data.example}</div>
+    </MessagingSection>
+  ));
+}
+
 const SEQUENCE_MODAL_KEY = { prospect_followup: "followup", appointment_reminder: "reminder", no_show: "no_show", cancellation: "cancel" };
 
 function SequencesTab({ token }) {
@@ -1115,6 +1136,8 @@ function SequencesTab({ token }) {
       </div>
 
       <BookingAlertSection token={token} />
+
+      <ReactivationMessagesSection token={token} />
 
       {SEQUENCE_ORDER.map((key) => {
         const group = steps.filter((s) => s.sequence_key === key);

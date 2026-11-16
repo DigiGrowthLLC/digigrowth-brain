@@ -211,15 +211,22 @@ _TOOLS = [
         "name": "close_conversation",
         "description": (
             "Close this conversation when the lead says they're not interested, already found care, or "
-            "asks you to stop texting. Send one short, kind closing text in this same turn. After that "
-            "they get no automated follow-ups. If they text again later, the conversation reopens."
+            "asks you to stop texting, or (a check-in) they're doing fine and nothing is bothering them. "
+            "Send one short, kind closing text in this same turn. After that they get no automated "
+            "follow-ups. If they text again later, the conversation reopens."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "reason": {"type": "string", "description": "Short reason, e.g. 'Not interested right now'."},
+                "kind": {
+                    "type": "string", "enum": ["doing_fine", "not_interested"],
+                    "description": "doing_fine = they're feeling good / it resolved (the clinic may check in again "
+                                   "in a few months). not_interested = they said no, found care elsewhere, or want "
+                                   "no more texts.",
+                },
             },
-            "required": ["reason"],
+            "required": ["reason", "kind"],
         },
     },
     {
@@ -534,7 +541,8 @@ GENTLE_ARC = [
     "start with a check-in: how they've been doing with what's on file (or just how they've been). No offer, "
     "no booking question yet.",
     "If they're doing fine or it's resolved: be glad for them in a few plain words (\"Awesome, glad to hear "
-    "it. If it ever starts acting up again, feel free to reach out.\") and call close_conversation. No pitch, "
+    "it. If it ever starts acting up again, feel free to reach out.\") and call close_conversation (kind "
+    "doing_fine). No pitch, "
     "no question.",
     "If it's bothering them (still, or again): show you care briefly, then ask ONE relaxed question per text "
     "to understand it, e.g. \"Oh no, when did it start acting up again?\" then \"Have you tried anything to "
@@ -588,8 +596,17 @@ def _origin_block(origin: dict | None) -> str:
             "This conversation started because the business reached out to them first, as part of "
             f"re-contacting its existing patients and leads. The angle of that outreach: {origin['campaign_angle'].strip()}"
         )
-    if origin.get("playbook") == "last_call" and origin.get("ends_on"):
-        lines.append(f"The outreach told them the offer ends {origin['ends_on']}. That date is the only deadline you may mention.")
+    if origin.get("playbook") == "last_call":
+        if origin.get("ends_on"):
+            lines.append(f"The outreach told them the offer ends {origin['ends_on']}. That date is the only deadline you may mention.")
+        else:
+            lines.append("The outreach told them the offer they asked about is wrapping up. Don't name a date or "
+                         "invent a deadline; \"it's wrapping up\" is all you may say about timing.")
+    if origin.get("checkin_cycle"):
+        lines.append(
+            "The clinic checks in with them every few months until they come in; this is one of those later "
+            "check-ins. The thread above is your earlier conversation(s) with them."
+        )
     if origin.get("owner_name"):
         o = origin["owner_name"]
         lines.append(
@@ -1284,8 +1301,14 @@ _GENTLE_OUTREACH_ADDITION = (
     "been). No offer, no visit, no booking question, no price in these outreach texts.\n"
 )
 _LAST_CALL_OUTREACH_ADDITION = (
-    "This outreach is a heads-up that the offer they asked about is ending: say plainly when it ends (the "
-    "template's day), keep it short and low-key, and end with one easy question.\n"
+    "This outreach is a heads-up that the offer they asked about is wrapping up: keep it short and low-key, "
+    "never name a date the template doesn't, and end with one easy question.\n"
+)
+_CYCLE_OUTREACH_ADDITION = (
+    "This is a LATER check-in, months after the last one. Build on the earlier conversation in the thread: "
+    "if they mentioned something (their knee, a trip, a busy season, \"maybe later\"), ask about THAT now. "
+    "Never reuse the earlier opener's wording or re-introduce yourself at length, and don't repeat a "
+    "question they already answered. If there was no reply last time, try a different, simpler angle.\n"
 )
 
 
@@ -1323,11 +1346,14 @@ async def write_reactivation_text(client_id: int, phone: str, template: str, tou
         ) + _REACTIVATION_PREAMBLE_ADDITION
         if playbook in ("checkin", "social"):
             system_prompt += _GENTLE_OUTREACH_ADDITION
+            if (origin or {}).get("checkin_cycle"):
+                system_prompt += _CYCLE_OUTREACH_ADDITION
             goal = ("This is the first text in this outreach." if touch_num == 1 else
                     "This is a light follow-up; they didn't reply to the check-in. Keep it short and easy to ignore.")
         elif playbook == "last_call":
             system_prompt += _LAST_CALL_OUTREACH_ADDITION
-            goal = "Today is the offer's LAST DAY." if touch_num == total else "The offer ends in a couple of days."
+            goal = ("Today is the offer's LAST DAY." if touch_num == total
+                    else "The offer is wrapping up.")
         else:
             goal = (
                 "This is the LAST text in this outreach: keep the door open warmly and say you won't keep "
@@ -1752,9 +1778,11 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
 
     if tool_name == "close_conversation":
         async with pool.acquire() as conn:
+            kind = tool_input.get("kind") if tool_input.get("kind") in ("doing_fine", "not_interested") else "not_interested"
             await conn.execute(
-                "UPDATE client_lead_conversations SET status = 'closed' WHERE client_id = $1 AND phone = $2",
-                client_id, from_phone,
+                "UPDATE client_lead_conversations SET status = 'closed', closed_kind = $3, closed_reason = $4 "
+                "WHERE client_id = $1 AND phone = $2",
+                client_id, from_phone, kind, (tool_input.get("reason") or "").strip()[:300] or None,
             )
         return ("Closed. Send one short, kind closing text now with no question; no automated follow-ups "
                 "will go out after it.")

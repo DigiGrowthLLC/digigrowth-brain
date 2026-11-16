@@ -213,6 +213,44 @@ async def _send_touch(row: dict, touch_num: int, sms_step: dict) -> None:
             print(f"[client_followup_sequence] SMS failed for client={row['client_id']} phone={row['phone']}: {e}")
 
 
+async def _send_unenrolled_checkins(conn, now: datetime) -> None:
+    """A check-in the lead asked for (schedule_followup) from someone who
+    isn't in this sequence: anyone with an appointment on file (a cancel, a
+    no-show, a past patient answering a reactivation check-in) can't enroll,
+    but "text me next week" still has to happen. Skipped, and cleared, if
+    they've since booked something upcoming, opted out, been marked
+    Unqualified / Don't contact, or the thread is closed or with a human."""
+    rows = await conn.fetch(
+        rf"""
+        SELECT c.*, cl.name AS client_name,
+               (EXISTS (
+                   SELECT 1 FROM appointment_reminders a
+                   WHERE (a.contact_id = c.id OR right(regexp_replace(coalesce(a.prospect_phone, ''), '\D', '', 'g'), 10)
+                          = right(regexp_replace(c.phone, '\D', '', 'g'), 10))
+                     AND a.status != 'canceled' AND a.appointment_at > now()
+               ) OR {lead_flags.UNQUALIFIED_SQL} OR {lead_flags.OPTED_OUT_SQL} OR {lead_flags.DONT_CONTACT_SQL}
+                 OR {_PAUSED_SQL}) AS drop_it
+        FROM contacts c
+        JOIN clients cl ON cl.id = c.client_id
+        JOIN client_marketing_config cmc ON cmc.client_id = c.client_id
+        WHERE c.client_followup_snooze_until IS NOT NULL AND c.client_followup_snooze_until <= now()
+          AND c.client_followup_enrolled_at IS NULL
+          AND c.client_id IS NOT NULL AND NOT c.is_client_anchor AND coalesce(c.phone, '') != ''
+          AND coalesce(cmc.twilio_number, '') != ''
+        """
+    )
+    for record in rows:
+        row = dict(record)
+        if not row["drop_it"] and lead_flags.in_quiet_hours(await clinic_timezone(conn, row["client_id"], row["phone"]), now):
+            continue
+        await conn.execute(
+            "UPDATE contacts SET client_followup_snooze_until = NULL, client_followup_snooze_note = NULL WHERE id = $1",
+            row["id"],
+        )
+        if not row["drop_it"]:
+            await _send_checkin(row)
+
+
 async def send_due_touches():
     """Poll enrolled client leads and, per lead, either clear (booked / they
     replied), start a new silence cycle, or send whichever touch is next due
@@ -228,6 +266,7 @@ async def send_due_touches():
             f"WHERE c.client_followup_enrolled_at IS NOT NULL "
             f"AND ({_BOOKED_SQL} OR {lead_flags.UNQUALIFIED_SQL} OR {_PAUSED_SQL})"
         )
+        await _send_unenrolled_checkins(conn, now)
         rows = await conn.fetch(
             f"""
             SELECT c.*, cl.name AS client_name,

@@ -2066,9 +2066,9 @@ const MARKETING_GUIDES = {
       { text: "Check the client's A2P 10DLC campaign covers marketing texts (Twilio Console → the client's subaccount → Messaging → Regulatory Compliance → Campaigns → use case). A customer-care-only campaign gets reactivation texts filtered by carriers.",
         link: "https://console.twilio.com/us1/develop/sms/regulatory-compliance/campaigns", linkLabel: "Twilio Console → Campaigns" },
       { text: "Import each list from the client's portal (Leads → Import CSV) and pick its list type (past patients / old inquiries), so the leads get the Database Reactivation tag (+ Previous Patient) and the agent knows who they are. It dedupes against existing leads. Ticks itself once reactivation leads are in." },
-      { text: "Agents → Database Reactivation Agent → + NEW CAMPAIGN and pick a playbook: Check-in (the clinic's own list, texted as the owner, checks in on their tagged issue and only offers a visit if something hurts), Social media leads (same relaxed check-in), or Last call (ad leads who didn't book, a heads-up 2 days before the offer ends and a call on the last day). Set the daily cap for check-ins (lower for a small clinic so bookings fit real capacity) and PREVIEW AUDIENCE. Exclusions are automatic: upcoming or recent visits, opted out, Unqualified, Don't contact, and for check-ins recent ad leads and anyone texted in the last 30 days. Ticks itself once a campaign exists." },
+      { text: "Set the client's Meta ad spend cap (Marketing Setup, e.g. $600 signed = $500 cap): it drives the timing. First ad dollar spent → ticks Launch campaign, starts the Check-in campaign (the clinic's own list, texted as the owner, checks in on their tagged issue, only offers a visit if something hurts, again every 90 days until they book; texts only) and ticks Launch database reactivation. Cap reached → a Last call campaign starts (ad leads who never came in, incl. cancels and no-shows: a text, then a call 24h later if no reply). Optional: pre-build the Check-in in Agents → Database Reactivation Agent → + NEW CAMPAIGN to set its daily cap (lower for a small clinic) and PREVIEW AUDIENCE; the auto-start uses that draft. Ticks itself once a campaign exists." },
       { text: "Test on your own number first: add yourself as a lead in the client's portal (source past patient, Database Reactivation tag), run a one-person test campaign, reply, and check the Facebook Leads Agent picks it up and books. Delete the test lead and campaign after." },
-      { text: "START the campaign (sends 10am-6pm Mon-Sat clinic time, up to the daily cap of first texts a day). Watch replies for the first 48 hours: they go to the Facebook Leads Agent, and escalations land in the portal inbox. Ticks itself once a campaign is running." },
+      { text: "It starts by itself with the first ad dollar (or START it by hand). Sends 10am-6pm Mon-Sat clinic time, up to the daily cap of first texts a day; VIEW QUEUE shows who's next and when, including check-ins leads asked for. Watch replies for the first 48 hours: they go to the Facebook Leads Agent, and escalations land in the portal inbox. Ticks itself once a campaign is running." },
     ],
   },
   social: {
@@ -2978,7 +2978,8 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
   const [angle, setAngle] = useState(campaign?.angle || playbookInfo("checkin").angle);
   const [dailyCap, setDailyCap] = useState(campaign?.daily_cap || 30);
   const [touches, setTouches] = useState(campaign?.touches || playbookInfo("checkin").touches);
-  const [endsOn, setEndsOn] = useState(campaign?.ends_on || options.default_ends_on || "");
+  // Only a campaign saved with a real offer end date keeps one; new last calls have none.
+  const [endsOn] = useState(campaign?.ends_on || "");
   const lastCall = playbook === "last_call";
   const pickPlaybook = (key) => {
     setPlaybook(key); setPreview(null);
@@ -3038,14 +3039,13 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
       {label("CAMPAIGN NAME")}
       <input className="dg-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Past patients, fall check-in" style={{ width: "100%", fontSize: 12 }} />
 
-      {lastCall && (<>
-        {label("THE OFFER'S LAST DAY")}
-        <input className="dg-input" type="date" value={endsOn || ""} onChange={(e) => { setEndsOn(e.target.value); setPreview(null); }} style={{ fontSize: 12 }} />
-        <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6, lineHeight: 1.5 }}>
-          Defaults to 30 days after the ad campaign launched. Reaches Meta form and funnel leads from the {""}
-          60 days before this date who never booked.
+      {lastCall && (
+        <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 10, lineHeight: 1.5 }}>
+          Starts by itself when the client's ad budget (Meta ad spend cap on Marketing Setup) is spent. Reaches Meta form
+          and funnel leads since the ads launched who never came in: never booked, canceled or no-showed. Text first, then a
+          call 24 hours later if they haven't replied.
         </div>
-      </>)}
+      )}
 
       {!lastCall && label("WHO IT TEXTS: ANY LEAD MATCHING ONE OF THESE")}
       {!lastCall && <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -3066,7 +3066,7 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
         Always skipped: anyone booked (upcoming or in the last 60 days), Unqualified, opted out, tagged Don't contact, a thread a human took over or one that said no in the last 90 days, or already in another open campaign.{lastCall ? "" : " Also: recent ad leads (last 30 days), anyone texted in the last 30 days, anyone in the regular follow-up."}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={runPreview} disabled={lastCall ? !endsOn : (!sources.length && !tags.length)}>PREVIEW AUDIENCE</button>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={runPreview} disabled={!lastCall && !sources.length && !tags.length}>PREVIEW AUDIENCE</button>
         {preview && (
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10.5, color: "#6ab0ff" }}>
             {preview.count} would be texted
@@ -3093,7 +3093,7 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
       {touches.map((t, i) => (
         <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "flex-start" }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, color: "#5a7aa0" }}>{lastCall ? "DAYS LEFT" : "DAY"}</span>
+            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, color: "#5a7aa0" }}>DAY</span>
             <input className="dg-input" type="number" min={0} value={t.day} onChange={(e) => setTouch(i, "day", e.target.value)} style={{ width: 54, fontSize: 12 }} />
             {lastCall && (
               <label style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 8.5, color: "#5a7aa0", display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
@@ -3106,11 +3106,11 @@ function ReactivationCampaignEditor({ clientId, options, campaign, onSaved, onCa
         </div>
       ))}
       <button className="btn btn-secondary" style={{ fontSize: 10 }}
-        onClick={() => setTouches([...touches, { day: lastCall ? 0 : (Number(touches[touches.length - 1]?.day) || 0) + 7, body: "" }])}>
+        onClick={() => setTouches([...touches, { day: (Number(touches[touches.length - 1]?.day) || 0) + (lastCall ? 1 : 7), body: "" }])}>
         + ADD TOUCH
       </button>
       <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6 }}>
-        Use {"{first_name}"}, {"{sender}"}, {"{business}"}, {"{checkin_question}"} (e.g. "how's your shoulder been doing?" from their tags), {"{offer}"} and {"{end_day}"}. "Reply STOP to opt out." is added to the first text automatically. Sends 10am-6pm, Monday-Saturday, clinic time.{lastCall ? " CALL = the voice agent calls first if they consented to calls, and texts only if they don't pick up." : ""}
+        Use {"{first_name}"}, {"{sender}"}, {"{business}"}, {"{checkin_question}"} (e.g. "how's your shoulder been doing?" from their tags), {"{offer}"} and {"{end_day}"}. "Reply STOP to opt out." is added to the first text automatically. Sends 10am-6pm, Monday-Saturday, clinic time.{lastCall ? " CALL = the voice agent calls first if they consented to calls, and texts only if they don't pick up." : " Check-ins repeat every 90 days, building on the last conversation, until they book or say no."}
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
@@ -3148,11 +3148,85 @@ function ReactivationPeople({ clientId, campaignId }) {
               <td style={{ padding: "6px 8px", color: REACTIVATION_STATUS_COLOR[r.status] || "#8aaad0", fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5 }}>{r.status.replace("_", " ").toUpperCase()}</td>
               <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{r.touches_sent}</td>
               <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{r.last_touch_at ? new Date(r.last_touch_at).toLocaleDateString() : "—"}</td>
-              <td style={{ padding: "6px 8px", color: "#5a7aa0" }}>{r.end_reason || r.source_detail || ""}</td>
+              <td style={{ padding: "6px 8px", color: "#5a7aa0" }}>
+                {r.cycle > 1 ? `Check-in #${r.cycle} · ` : ""}
+                {r.end_reason || r.source_detail || ""}
+                {r.next_checkin_at ? ` · next check-in ${new Date(r.next_checkin_at).toLocaleDateString()}` : ""}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// Who hears from this client next, and when: reactivation texts and calls,
+// 90-day check-ins, check-ins leads asked for (schedule_followup) and calls
+// the voice agent has waiting (client_reactivation.queue()).
+function ReactivationQueue({ clientId }) {
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(null);
+  const load = () => fetch(API(`/clients/${clientId}/reactivation/queue`)).then((r) => (r.ok ? r.json() : { items: [] })).then(setData);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+  const stop = async (item) => {
+    const what = item.kind === "asked_followup" ? "Cancel this check-in they asked for?" : `Stop all reactivation texts to ${item.name || item.phone}, including future 90-day check-ins?`;
+    if (!window.confirm(what)) return;
+    setBusy(`${item.kind}-${item.id}`);
+    await fetch(API(`/clients/${clientId}/reactivation/queue/stop`), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: item.kind, id: String(item.id) }),
+    });
+    setBusy(null);
+    load();
+  };
+  if (!data) return <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
+  const fmt = (iso, est) => {
+    const d = new Date(est ? `${iso}T12:00:00` : iso);
+    return (est ? "~" : "") + d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) +
+      (est ? "" : ` ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`);
+  };
+  return (
+    <div style={{ padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.12)" }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.08em", marginBottom: 6 }}>
+        QUEUE · {data.items.length} UPCOMING{data.paused ? " · REACTIVATION IS SWITCHED OFF, NOTHING BELOW SENDS YET" : ""}
+      </div>
+      {!data.items.length ? (
+        <div style={{ fontSize: 12, color: "#5a7aa0" }}>Nobody is lined up right now.</div>
+      ) : (
+        <div style={{ maxHeight: 360, overflowY: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11.5 }}>
+            <thead>
+              <tr>
+                {["When", "Name", "Phone", "What", "From", ""].map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#5a7aa0" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.map((it) => (
+                <tr key={`${it.kind}-${it.id}`} style={{ borderTop: "1px solid rgba(58,123,213,0.08)", opacity: it.paused ? 0.55 : 1 }}>
+                  <td style={{ padding: "6px 8px", color: "#d0e8ff", whiteSpace: "nowrap" }}>{fmt(it.due, it.estimated)}</td>
+                  <td style={{ padding: "6px 8px", color: "#d0e8ff" }}>{it.name || "—"}</td>
+                  <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{it.phone}</td>
+                  <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{it.what}</td>
+                  <td style={{ padding: "6px 8px", color: "#5a7aa0" }}>{it.campaign}{it.paused ? " (paused)" : ""}</td>
+                  <td style={{ padding: "6px 8px" }}>
+                    {it.stoppable && (
+                      <button className="btn btn-secondary" style={{ fontSize: 9, padding: "3px 8px" }} disabled={busy === `${it.kind}-${it.id}`} onClick={() => stop(it)}>
+                        {it.kind === "asked_followup" ? "CANCEL" : "STOP"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div style={{ fontSize: 10.5, color: "#5a7aa0", marginTop: 6 }}>
+        ~ = estimated from the daily cap. Sends 10am-6pm Mon-Sat clinic time. STOP takes someone out for good (the owner or the patient said no).
+      </div>
     </div>
   );
 }
@@ -3164,6 +3238,7 @@ function ReactivationAgent({ clientId, agentEnabled }) {
   const [peopleFor, setPeopleFor] = useState(null);
   const [busy, setBusy] = useState(null);
   const [message, setMessage] = useState("");
+  const [showQueue, setShowQueue] = useState(false);
 
   const load = async () => {
     const [o, c] = await Promise.all([
@@ -3176,7 +3251,7 @@ function ReactivationAgent({ clientId, agentEnabled }) {
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
 
   const act = async (campaign, action) => {
-    if (action === "start" && !window.confirm(`Start "${campaign.name}"? It begins reaching out to its audience${campaign.playbook === "last_call" ? ` on the schedule before the offer ends (${campaign.ends_on})` : ` (up to ${campaign.daily_cap} new people a day)`} from this client's number.`)) return;
+    if (action === "start" && !window.confirm(`Start "${campaign.name}"? It begins reaching out to its audience${campaign.playbook === "last_call" ? " now (text, then a call 24 hours later if no reply)" : ` (up to ${campaign.daily_cap} new people a day)`} from this client's number.`)) return;
     if (action === "delete" && !window.confirm(`Delete "${campaign.name}"?`)) return;
     setBusy(campaign.id); setMessage("");
     const r = await fetch(
@@ -3194,6 +3269,15 @@ function ReactivationAgent({ clientId, agentEnabled }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowQueue(!showQueue)}>
+          {showQueue ? "HIDE QUEUE" : "VIEW QUEUE"}
+        </button>
+        <span style={{ fontSize: 11, color: "#5a7aa0" }}>
+          Check-ins start when the ads spend their first dollar; the last call when the ad budget is spent.
+        </span>
+      </div>
+      {showQueue && <ReactivationQueue clientId={clientId} />}
       {!agentEnabled && (
         <div style={{ fontSize: 11.5, color: "#f0b429" }}>
           The Facebook Leads Agent is off for this client, so touches go out exactly as written and replies wait for a human. Turn it on to have the agent personalize touches and answer replies.
@@ -3217,8 +3301,9 @@ function ReactivationAgent({ clientId, agentEnabled }) {
             <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 4 }}>
               {(options.playbooks.find((p) => p.key === c.playbook) || {}).label || "Check-in"}{" · "}
               {c.playbook === "last_call"
-                ? `offer ends ${c.ends_on || "(not set)"}`
+                ? "ad leads who never came in"
                 : [...c.audience_sources.map((s) => LEAD_SOURCE_LABELS[s] || s), ...c.audience_tags.map((t) => `#${t}`)].join(", ") || "No audience picked"}
+              {c.auto_trigger ? ` · started automatically (${c.auto_trigger === "first_spend" ? "first ad dollar" : "ad budget spent"})` : ""}
               {" · "}{c.touches.length} touches{c.playbook === "last_call" ? "" : ` · ${c.daily_cap}/day`}
             </div>
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8aaad0", marginTop: 6 }}>

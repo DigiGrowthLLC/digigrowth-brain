@@ -211,6 +211,14 @@ async def _check_row(row) -> dict:
                 f"(Meta ad spend cap) first, then switch the campaign back on in Ads Manager. Without a higher "
                 f"cap it gets paused again within 30 minutes.",
             )
+    # First dollar -> launch steps + check-in campaign; cap reached -> last
+    # call to everyone who never came in (client_reactivation.on_ad_spend).
+    if row["enabled"]:
+        try:
+            import client_reactivation
+            await client_reactivation.on_ad_spend(row["client_id"], spend, cap)
+        except Exception as e:
+            print(f"[ad-spend-caps] client={row['client_id']} reactivation trigger failed: {e}", flush=True)
     return {"spend": spend, "cap": cap, "currency": currency, "paused": paused_now}
 
 

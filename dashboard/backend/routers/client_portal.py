@@ -452,6 +452,64 @@ async def portal_sequences(token: str):
     return [dict(r) for r in rows]
 
 
+@router.get("/{token}/reactivation-messages")
+async def portal_reactivation_messages(token: str):
+    """The database reactivation texts for the Your Messaging tab, read-only:
+    each playbook this client runs (or the two every client gets: check-in
+    and last call), its texts filled in for an example patient, and when
+    each goes out. The AI personalizes every real text from the lead's file."""
+    import client_reactivation as cr
+
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        campaigns = await conn.fetch(
+            "SELECT * FROM reactivation_campaigns WHERE client_id = $1 ORDER BY id", client["id"])
+        by_playbook: dict[str, dict] = {}
+        for c in campaigns:
+            by_playbook.setdefault(cr.playbook_of(dict(c)), dict(c))
+        for pb in ("checkin", "last_call"):
+            if pb not in by_playbook:
+                by_playbook[pb] = {"playbook": pb, "touches": cr.PLAYBOOKS[pb]["touches"], "ends_on": None}
+        sections = []
+        for pb in ("checkin", "social", "last_call"):
+            c = by_playbook.get(pb)
+            if not c:
+                continue
+            ctx = await cr._campaign_context(conn, {**c, "client_id": client["id"], "client_name": client["name"]})
+            sample = {"owner": "Sarah", "tags": ["Shoulder"]}
+            touches = cr.touches_of(c)
+            messages = []
+            for i, t in enumerate(touches):
+                gap = int(t.get("day") or 0) - (int(touches[i - 1].get("day") or 0) if i else 0)
+                if i == 0:
+                    timing = {"checkin": "When your ads go live", "last_call": "When your ad budget is spent",
+                              "social": "First message"}[pb]
+                else:
+                    later = "24 hours later" if gap == 1 else f"{gap} days later"
+                    timing = f"{later}, if no reply" + (": a call first, this text if no answer" if t.get("call") else "")
+                messages.append({"title": f"Text {i + 1}", "timing": timing, "body": cr.fill(t["body"], sample, ctx)})
+            if pb == "checkin":
+                messages.append({
+                    "title": "Every 90 days", "timing": "Until they book",
+                    "body": "A fresh check-in that picks up from your last conversation with them (\"How's that "
+                            "shoulder been since we last talked?\"). Stops if they book, say no, or ask us to stop.",
+                })
+            summary = {
+                "checkin": f"Your past patients and old inquiries, texted from you{' (' + ctx['sender'] + ')' if ctx.get('sender') else ''} "
+                           "as a friendly check-in. Only offers a visit if something's bothering them. Texts only, never calls.",
+                "social": "People who messaged you on Instagram or Facebook and went quiet. Same relaxed check-in.",
+                "last_call": "Ad leads who never came in (never booked, canceled or no-showed): a heads-up before "
+                             "the promotion wraps up.",
+            }[pb]
+            sections.append({
+                "playbook": pb, "title": "Database Reactivation: " + cr.PLAYBOOKS[pb]["label"],
+                "summary": summary, "messages": messages,
+            })
+    return {"sections": sections, "example": "Shown for an example patient, Sarah, with a shoulder issue. Each real "
+                                             "text is personalized from that person's file."}
+
+
 @router.put("/{token}/sequence-steps/{step_id}/enabled")
 async def portal_set_step_enabled(token: str, step_id: int, body: SequenceEnabledSet):
     client = await get_client_from_token(token)

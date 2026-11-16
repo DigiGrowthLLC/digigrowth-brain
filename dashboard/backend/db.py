@@ -2197,6 +2197,29 @@ async def _create_schema(pool: asyncpg.Pool):
             -- ends_on = the offer's last day (last_call only).
             ALTER TABLE reactivation_campaigns ADD COLUMN IF NOT EXISTS playbook TEXT NOT NULL DEFAULT 'checkin';
             ALTER TABLE reactivation_campaigns ADD COLUMN IF NOT EXISTS ends_on DATE;
+            -- 'first_spend' / 'budget_spent' when client_reactivation.on_ad_spend started it.
+            ALTER TABLE reactivation_campaigns ADD COLUMN IF NOT EXISTS auto_trigger TEXT;
+            -- Check-in playbook: a new cycle every 90 days until they book.
+            ALTER TABLE reactivation_enrollments ADD COLUMN IF NOT EXISTS cycle INTEGER NOT NULL DEFAULT 1;
+            ALTER TABLE reactivation_enrollments ADD COLUMN IF NOT EXISTS next_checkin_at TIMESTAMPTZ;
+            CREATE INDEX IF NOT EXISTS idx_reactivation_enrollments_next_checkin
+                ON reactivation_enrollments(campaign_id, next_checkin_at) WHERE next_checkin_at IS NOT NULL;
+            -- Why the text agent closed a thread (close_conversation): 'doing_fine'
+            -- keeps 90-day check-ins going, 'not_interested' stops them.
+            ALTER TABLE client_lead_conversations ADD COLUMN IF NOT EXISTS closed_kind TEXT;
+            ALTER TABLE client_lead_conversations ADD COLUMN IF NOT EXISTS closed_reason TEXT;
+            -- Ad spend milestones that start reactivation (on_ad_spend).
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS ad_first_spend_at TIMESTAMPTZ;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_checkin_auto_at TIMESTAMPTZ;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_lastcall_auto_cap NUMERIC;
+        """)
+        # Clients whose ads were already running before the auto-start existed
+        # (Crosacore, Advantage): their first dollar is long spent, so the
+        # check-in auto-start must not fire for them. One-time by date.
+        await conn.execute("""
+            UPDATE client_marketing_config
+               SET ad_first_spend_at = campaign_launched_at, react_checkin_auto_at = campaign_launched_at
+             WHERE ad_first_spend_at IS NULL AND campaign_launched_at < '2026-11-17'
         """)
 
         # Social media conversation agent (client_dm_agent.py): Instagram and

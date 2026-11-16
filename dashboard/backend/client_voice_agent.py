@@ -577,7 +577,7 @@ def _dynamic_vars(row, cfg, tz: ZoneInfo) -> dict:
         "meta": "they just filled out the clinic's form on Facebook/Instagram",
         "funnel": "they started booking on the clinic's website but didn't finish",
         "callback": "they asked to be called back at this time",
-        "lastcall": "they filled out the clinic's ad form a few weeks ago but never booked. TODAY IS THE LAST DAY "
+        "lastcall": "they filled out the clinic's ad form a while back but never came in. TODAY IS THE LAST DAY "
                     "of that offer, and you're calling so they don't miss it",
         # A test plays out exactly like a fresh Meta lead, so it sounds real.
         "test": "they just filled out the clinic's form on Facebook/Instagram",
@@ -820,7 +820,7 @@ async def _release_text(conn, row, after_call: bool, voicemail: bool = False) ->
                 "\nSend ONE short text that picks up naturally from that call (don't re-introduce yourself or repeat "
                 "what was said), making it easy to book whenever they're ready.")
     elif row["source"] == "lastcall":
-        note = ("Today is the LAST DAY of the clinic's offer this lead asked about a few weeks ago (they never booked"
+        note = ("Today is the LAST DAY of the clinic's offer this lead asked about a while back (they never came in"
                 + (f"; {row['note']}" if row["note"] else "") + "). You just tried calling them twice"
                 + (" and left a voicemail" if voicemail else "") + ". Send ONE short text: today's the last day for "
                 "the offer, you didn't want them to miss it, and ask if they'd like you to grab them a time.")

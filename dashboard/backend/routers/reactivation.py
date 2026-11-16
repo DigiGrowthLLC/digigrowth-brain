@@ -54,10 +54,7 @@ def _clean_touches(touches: list[dict], playbook: str = client_reactivation.DEFA
             touch["call"] = True
         out.append(touch)
     days = [t["day"] for t in out]
-    if playbook == "last_call":
-        if days != sorted(days, reverse=True):
-            raise HTTPException(status_code=400, detail="Days before the offer ends must count down in order")
-    elif days != sorted(days):
+    if days != sorted(days):
         raise HTTPException(status_code=400, detail="Touch days must go up in order")
     return out
 
@@ -224,8 +221,6 @@ async def start_campaign(client_id: int, campaign_id: int):
         raise HTTPException(status_code=400, detail="This client has no Twilio number yet")
     if not client_reactivation.touches_of(campaign):
         raise HTTPException(status_code=400, detail="Add at least one touch first")
-    if client_reactivation.playbook_of(dict(campaign)) == "last_call" and not campaign["ends_on"]:
-        raise HTTPException(status_code=400, detail="Set the date the offer ends first")
     added = await client_reactivation.start_campaign(campaign_id)
     return {"ok": True, "added": added}
 
@@ -265,7 +260,7 @@ async def list_enrollments(client_id: int, campaign_id: int):
         rows = await conn.fetch(
             """
             SELECT re.id, re.status, re.touches_sent, re.first_touch_at, re.last_touch_at, re.end_reason,
-                   c.id AS contact_id, c.owner, c.phone, c.lead_source, c.source_detail
+                   re.cycle, re.next_checkin_at, c.id AS contact_id, c.owner, c.phone, c.lead_source, c.source_detail
             FROM reactivation_enrollments re JOIN contacts c ON c.id = re.contact_id
             WHERE re.campaign_id = $1
             ORDER BY (re.status IN ('replied', 'booked')) DESC, re.last_touch_at DESC NULLS LAST, re.id
@@ -273,3 +268,25 @@ async def list_enrollments(client_id: int, campaign_id: int):
             campaign_id,
         )
     return [dict(r) for r in rows]
+
+
+@router.get("/clients/{client_id}/reactivation/queue")
+async def reactivation_queue(client_id: int):
+    """Who's lined up to hear from this client next and when: reactivation
+    texts and calls, 90-day check-ins, check-ins leads asked for, and calls
+    the voice agent has waiting."""
+    return {"paused": client_reactivation.REACTIVATION_PAUSED, "items": await client_reactivation.queue(client_id)}
+
+
+class StopBody(BaseModel):
+    kind: str
+    id: str
+
+
+@router.post("/clients/{client_id}/reactivation/queue/stop")
+async def stop_queue_item(client_id: int, body: StopBody):
+    """Take someone out of the queue for good (a reactivation enrollment,
+    including its 90-day check-ins) or cancel a check-in they asked for."""
+    if not await client_reactivation.stop_queued(client_id, body.kind, body.id):
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True}
