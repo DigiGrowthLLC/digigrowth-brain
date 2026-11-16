@@ -61,9 +61,9 @@ from db import get_pool
 from merge_fields import first_name_from_owner
 from timezone_lookup import clinic_timezone
 
-# Off switch (Dylan, 2026-11-16): reactivation stays OFF until he approves
-# the playbooks below. While True, no campaign can start and nothing sends.
-REACTIVATION_PAUSED = True
+# Off switch: True = no campaign can start and nothing sends. Turned ON by
+# Dylan 2026-11-16 (playbooks + ad-spend timing approved).
+REACTIVATION_PAUSED = False
 
 # Plain GSM-7 characters only. Placeholders: {first_name} {sender}
 # {business} {checkin_question} {offer} {end_day}. "day" = days after the
