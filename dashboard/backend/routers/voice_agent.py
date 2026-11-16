@@ -64,6 +64,9 @@ async def _verified_json(request: Request) -> dict:
 @router.post("/webhooks/retell", include_in_schema=False)
 async def retell_webhook(request: Request):
     payload = await _verified_json(request)
+    if payload.get("event") == "transcript_updated":   # fires every turn; only feeds the screener nudge
+        va.note_transcript(payload.get("call") or {})
+        return Response(status_code=204)
     try:
         await va.retell_event(payload.get("event") or "", payload.get("call") or {})
     except Exception as e:

@@ -89,10 +89,10 @@ NATURAL_SETTINGS = {
     "interruption_sensitivity": 0.8,
     # Low = steadier, flatter delivery. 1.2 sounded over-enthusiastic (Dylan, 2026-11-16).
     "voice_temperature": 0.7,
-    # Speak up after 2.5s of silence (5s felt like dead air): after a call screener hands the call to
-    # the person, nobody talks first, and the agent would otherwise wait.
-    "reminder_trigger_ms": 2500,
-    "reminder_max_count": 2,
+    # Mid-call silence: give leads time to think before nudging. The quick
+    # 2.5s nudge after a call screener hands off is wait_for_person below.
+    "reminder_trigger_ms": 8000,
+    "reminder_max_count": 1,
 }
 
 # Retell disconnection reasons that mean no human conversation happened.
@@ -161,6 +161,44 @@ async def _retell(method: str, path: str, body: dict | None = None) -> dict:
     if r.status_code >= 400:
         raise RuntimeError(f"Retell {method} {path} -> {r.status_code}: {r.text[:300]}")
     return r.json() if r.content else {}
+
+
+# ── Call screener hand-off ───────────────────────────────────────────────────
+# After answering a call screener the agent calls wait_for_person and goes
+# quiet. Nobody speaks first once the person picks up, so 2.5s later (and
+# again 4s after that) we make it say "Hi, is this <name>?" unless the
+# person has spoken meanwhile (seen via Retell's transcript_updated webhook).
+# In-memory: one Railway instance, and a lost entry only means no nudge.
+_PICKUP_WAIT: dict[str, int] = {}   # retell call_id -> user turns at hand-off
+PICKUP_NUDGES_S = (2.5, 4.0)
+
+
+def _user_turns(call: dict) -> int:
+    items = call.get("transcript_object") or call.get("transcript_with_tool_calls") or []
+    return sum(1 for u in items if u.get("role") == "user" and (u.get("content") or "").strip())
+
+
+def note_transcript(call: dict) -> None:
+    """transcript_updated webhook: the person spoke -> no nudge needed."""
+    cid = call.get("call_id")
+    if cid in _PICKUP_WAIT and _user_turns(call) > _PICKUP_WAIT[cid]:
+        _PICKUP_WAIT.pop(cid, None)
+
+
+async def _pickup_nudge(call_id: str, first_name: str) -> None:
+    for delay in PICKUP_NUDGES_S:
+        await asyncio.sleep(delay)
+        if call_id not in _PICKUP_WAIT:
+            return
+        try:
+            await _retell("PATCH", f"/v2/update-live-call/{call_id}", {"call_control": {
+                "trigger_response": True,
+                "additional_context": f'The call screener has handed the call over and the person has not spoken yet. '
+                                      f'Say only: "Hi, is this {first_name}?"'}})
+        except Exception as e:
+            print(f"[voice_agent] pickup nudge failed for {call_id}: {e}", flush=True)
+            break
+    _PICKUP_WAIT.pop(call_id, None)
 
 
 def verify_retell_signature(raw_body: bytes, header: str | None, max_age_ms: int = 300_000) -> bool:
@@ -751,6 +789,13 @@ async def run_function(name: str, args: dict, call: dict) -> str:
         async with pool.acquire() as conn:
             await response_ai._get_or_create_conversation(conn, client_id, phone)
 
+    if name == "wait_for_person":
+        cid = call.get("call_id")
+        if cid:
+            _PICKUP_WAIT[cid] = _user_turns(call)
+            first = ((row["lead_name"] or "").strip().split(" ")[0]) or "there"
+            asyncio.create_task(_pickup_nudge(cid, first))
+        return "Waiting quietly for the person to come on the line."
     if name == "check_availability":
         return await response_ai._execute_tool(client_id, phone, "check_availability", args)
     if name == "book_appointment":
@@ -887,9 +932,10 @@ How the call goes:
   <offer>. What's been going on?" Website lead: "...I saw you started booking <offer> on our
   website..." Never use an offer name that isn't in the business info; if unclear, say "our form".
 - Call screener (an automated voice asking your name and why you're calling): answer in one short
-  sentence ("It's __AGENT_NAME__ from {{clinic_name}}, following up on their form."), then say
-  nothing more. When it goes quiet or the person comes on, open with "Hi, is this
-  {{lead_first_name}}?" and continue as normal. Same if the call starts with silence.
+  sentence ("It's __AGENT_NAME__ from {{clinic_name}}, following up on their form."). When it
+  hands you off ("please stay on the line"), call wait_for_person and say nothing. When the person
+  comes on or you're told to greet them, open with "Hi, is this {{lead_first_name}}?" and continue
+  as normal. If the call simply starts with silence, open the same way.
 - In the opening, a reply that doesn't quite make sense (e.g. "yes, this is done") is almost always
   speech recognition mishearing their name: treat it as "yes, this is me" and carry on with your intro.
   Never end the call before you've introduced yourself and they've clearly said they're not interested.
@@ -948,16 +994,18 @@ def _llm_body(cfg) -> dict:
     base = _base_url()
     fn_url = f"{base}/webhooks/retell/function"
 
-    def custom(name, description, props, required=(), speak=False, msg=None):
+    def custom(name, description, props, required=(), speak=False, msg=None, speak_after=True):
         tool = {"type": "custom", "name": name, "url": fn_url, "description": description,
                 "parameters": {"type": "object", "properties": props, "required": list(required)},
-                "speak_during_execution": speak, "speak_after_execution": True, "timeout_ms": 30000}
+                "speak_during_execution": speak, "speak_after_execution": speak_after, "timeout_ms": 30000}
         if msg:
             tool["execution_message_description"] = msg
         return tool
 
     tools = [
         {"type": "end_call", "name": "end_call", "description": "Hang up only after the conversation is really over (they said they're done, not interested, or asked you to stop) and you've said goodbye. Never during the opening."},
+        custom("wait_for_person", "Call right after you've answered a call screener, then stay silent until the person speaks or you're told to greet them.",
+               {}, speak_after=False),
         custom("check_availability", "Find real open appointment times. Returns the earliest day's two options.",
                {"after_date": {"type": "string", "description": "YYYY-MM-DD to search from; omit for today"}},
                speak=True, msg="Say only 'One sec.' in a flat, casual tone."),
@@ -1012,7 +1060,7 @@ def _agent_body(cfg, llm_id: str) -> dict:
         "boosted_keywords": _keywords(cfg),
         "language": "en-US",
         "webhook_url": f"{_base_url()}/webhooks/retell",
-        "webhook_events": ["call_ended", "call_analyzed"],
+        "webhook_events": ["call_ended", "call_analyzed", "transcript_updated"],
         "voicemail_option": {"action": {"type": "hangup"}},
         "end_call_after_silence_ms": 20000,
         "max_call_duration_ms": 900000,
