@@ -1073,7 +1073,7 @@ function ReactivationQueueModal({ token, playbook, title, onClose }) {
   useEffect(() => {
     fetch(`/portal-api/${token}/reactivation-queue`).then((r) => (r.ok ? r.json() : { items: [] })).then(setData).catch(() => setData({ items: [] }));
   }, [token]);
-  const items = (data?.items || []).filter((i) => i.kind === "reactivation" ? i.playbook === playbook : playbook === "checkin" && i.kind === "asked_followup");
+  const items = (data?.items || []).filter((i) => i.kind === "reactivation" || i.kind === "pending_budget" ? i.playbook === playbook : playbook === "checkin" && i.kind === "asked_followup");
   const fmt = (iso, est) => {
     const d = new Date(est ? `${iso}T12:00:00` : iso);
     return (est ? "~" : "") + d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) +
