@@ -489,6 +489,13 @@ async def portal_reactivation_messages(token: str):
                     later = "24 hours later" if gap == 1 else f"{gap} days later"
                     timing = f"{later}, if no reply" + (": a call first, this text if no answer" if t.get("call") else "")
                 messages.append({"title": f"Text {i + 1}", "timing": timing, "body": cr.fill(t["body"], sample, ctx)})
+            if pb == "last_call":
+                messages += [
+                    {"title": "Every 30 days", "timing": "Same offer, until they book",
+                     "body": cr.fill(cr.OFFER_UPDATE_TOUCHES["same"], sample, ctx)},
+                    {"title": "Every 30 days", "timing": "New offer, until they book",
+                     "body": cr.fill(cr.OFFER_UPDATE_TOUCHES["new"], sample, ctx)},
+                ]
             if pb == "checkin":
                 messages.append({
                     "title": "Every 90 days", "timing": "Until they book",
@@ -499,8 +506,8 @@ async def portal_reactivation_messages(token: str):
                 "checkin": f"Your past patients and old inquiries, texted from you{' (' + ctx['sender'] + ')' if ctx.get('sender') else ''} "
                            "as a friendly check-in. Only offers a visit if something's bothering them. Texts only, never calls.",
                 "social": "People who messaged you on Instagram or Facebook and went quiet. Same relaxed check-in.",
-                "last_call": "Ad leads who never came in (never booked, canceled or no-showed): a heads-up before "
-                             "the promotion wraps up.",
+                "last_call": "Ad leads who never came in (never booked, canceled or no-showed): a heads-up when "
+                             "the promotion wraps up, then an update on your current offer every 30 days until they book.",
             }[pb]
             sections.append({
                 "playbook": pb, "title": "Database Reactivation: " + cr.PLAYBOOKS[pb]["label"],
@@ -508,6 +515,18 @@ async def portal_reactivation_messages(token: str):
             })
     return {"sections": sections, "example": "Shown for an example patient, Sarah, with a shoulder issue. Each real "
                                              "text is personalized from that person's file."}
+
+
+@router.get("/{token}/reactivation-queue")
+async def portal_reactivation_queue(token: str):
+    """Who's lined up for a reactivation text or call and when (the same
+    queue DigiGrowth sees), read-only for the client."""
+    import client_reactivation as cr
+
+    client = await get_client_from_token(token)
+    items = await cr.queue(client["id"])
+    keep = ("kind", "playbook", "name", "phone", "what", "campaign", "due", "estimated", "paused")
+    return {"paused": cr.REACTIVATION_PAUSED, "items": [{k: i.get(k) for k in keep} for i in items]}
 
 
 @router.put("/{token}/sequence-steps/{step_id}/enabled")

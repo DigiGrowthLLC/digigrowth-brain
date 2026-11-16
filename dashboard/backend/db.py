@@ -2202,6 +2202,9 @@ async def _create_schema(pool: asyncpg.Pool):
             -- Check-in playbook: a new cycle every 90 days until they book.
             ALTER TABLE reactivation_enrollments ADD COLUMN IF NOT EXISTS cycle INTEGER NOT NULL DEFAULT 1;
             ALTER TABLE reactivation_enrollments ADD COLUMN IF NOT EXISTS next_checkin_at TIMESTAMPTZ;
+            -- The offer named in the last text they got (last_call's 30-day
+            -- update says "again" vs "our new one" from it).
+            ALTER TABLE reactivation_enrollments ADD COLUMN IF NOT EXISTS offer_sent TEXT;
             CREATE INDEX IF NOT EXISTS idx_reactivation_enrollments_next_checkin
                 ON reactivation_enrollments(campaign_id, next_checkin_at) WHERE next_checkin_at IS NOT NULL;
             -- Why the text agent closed a thread (close_conversation): 'doing_fine'

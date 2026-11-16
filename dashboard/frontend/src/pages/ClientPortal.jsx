@@ -1067,14 +1067,83 @@ function BookingAlertSection({ token }) {
 // Database reactivation texts (client_reactivation.py), read-only: the
 // original message for each playbook this client runs, filled in for an
 // example patient, and when each goes out.
+// Read-only list of who's lined up for a reactivation text or call, and when.
+function ReactivationQueueModal({ token, playbook, title, onClose }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    fetch(`/portal-api/${token}/reactivation-queue`).then((r) => (r.ok ? r.json() : { items: [] })).then(setData).catch(() => setData({ items: [] }));
+  }, [token]);
+  const items = (data?.items || []).filter((i) => i.kind === "reactivation" ? i.playbook === playbook : playbook === "checkin" && i.kind === "asked_followup");
+  const fmt = (iso, est) => {
+    const d = new Date(est ? `${iso}T12:00:00` : iso);
+    return (est ? "~" : "") + d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) +
+      (est ? "" : ` ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`);
+  };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(4,8,22,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} className="glass-card" style={{ width: "100%", maxWidth: 760, maxHeight: "85vh", display: "flex", flexDirection: "column", padding: "20px 24px", background: "#0c1430" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>{title}: Active Prospects</div>
+          <button onClick={onClose} className="btn btn-secondary" style={{ fontSize: 10.5, padding: "6px 12px" }}>Close</button>
+        </div>
+        <div style={{ fontSize: 12, color: "#6a84a8", marginTop: 4 }}>
+          Who's lined up next and when. {data?.paused ? "These start sending once DigiGrowth switches reactivation on." : "Texts go out 10am-6pm Mon-Sat, your time."}
+        </div>
+        <div className="dg-divider" style={{ margin: "14px 0" }} />
+        <div style={{ overflowY: "auto" }}>
+          {!data ? (
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a5a80" }}>LOADING...</div>
+          ) : !items.length ? (
+            <div style={{ fontSize: 12.5, color: "#6a84a8" }}>Nobody is lined up right now.</div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr>
+                  {["When", "Name", "Phone", "Next"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.06em" }}>{h.toUpperCase()}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, i) => (
+                  <tr key={i} style={{ borderTop: "1px solid rgba(58,123,213,0.08)" }}>
+                    <td style={{ padding: "7px 8px", color: "#e8f0ff", whiteSpace: "nowrap" }}>{fmt(it.due, it.estimated)}</td>
+                    <td style={{ padding: "7px 8px", color: "#e8f0ff" }}>{it.name || "—"}</td>
+                    <td style={{ padding: "7px 8px", color: "#8aaad0", whiteSpace: "nowrap" }}>{it.phone}</td>
+                    <td style={{ padding: "7px 8px", color: "#8aaad0" }}>{it.what}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        {items.some((i) => i.estimated) && (
+          <div style={{ fontSize: 11, color: "#5a6f8f", marginTop: 10 }}>~ = estimated: a set number of new people are texted each day.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ReactivationMessagesSection({ token }) {
   const [data, setData] = useState(null);
+  const [openQueue, setOpenQueue] = useState(null);
   useEffect(() => {
     fetch(`/portal-api/${token}/reactivation-messages`).then((r) => (r.ok ? r.json() : null)).then(setData).catch(() => {});
   }, [token]);
   if (!data || !data.sections?.length) return null;
   return data.sections.map((sec) => (
-    <MessagingSection key={sec.playbook} title={sec.title} summary={sec.summary}>
+    <MessagingSection
+      key={sec.playbook} title={sec.title} summary={sec.summary}
+      controls={
+        <button onClick={() => setOpenQueue(sec)} className="btn btn-secondary" style={{ fontSize: 10.5, padding: "6px 12px", whiteSpace: "nowrap" }}>
+          View Active Prospects
+        </button>
+      }
+    >
+      {openQueue?.playbook === sec.playbook && (
+        <ReactivationQueueModal token={token} playbook={sec.playbook} title={sec.title} onClose={() => setOpenQueue(null)} />
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 }}>
         {sec.messages.map((m, i) => (
           <SequenceStepCard key={i} title={m.title} timing={m.timing} step={{ body: m.body }} />

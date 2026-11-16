@@ -602,7 +602,14 @@ def _origin_block(origin: dict | None) -> str:
         else:
             lines.append("The outreach told them the offer they asked about is wrapping up. Don't name a date or "
                          "invent a deadline; \"it's wrapping up\" is all you may say about timing.")
-    if origin.get("checkin_cycle"):
+    if origin.get("checkin_cycle") and origin.get("playbook") == "last_call":
+        prev = origin.get("previous_offer")
+        lines.append(
+            "They asked about an earlier ad offer and never came in. Every month the clinic lets them know what "
+            "it's running now" + (f" (last time it was our {prev})" if prev else "") + ". The thread above is "
+            "your earlier conversation(s) with them."
+        )
+    elif origin.get("checkin_cycle"):
         lines.append(
             "The clinic checks in with them every few months until they come in; this is one of those later "
             "check-ins. The thread above is your earlier conversation(s) with them."
@@ -1304,6 +1311,12 @@ _LAST_CALL_OUTREACH_ADDITION = (
     "This outreach is a heads-up that the offer they asked about is wrapping up: keep it short and low-key, "
     "never name a date the template doesn't, and end with one easy question.\n"
 )
+_OFFER_UPDATE_ADDITION = (
+    "This is a monthly offer update to someone who asked about an earlier ad offer and never came in. Keep "
+    "it short and friendly, name the offer exactly as the template does, never invent a deadline, discount or "
+    "price the template doesn't state, and if they said something before (their pain, timing, \"maybe "
+    "later\"), tie it in. End with one easy question.\n"
+)
 _CYCLE_OUTREACH_ADDITION = (
     "This is a LATER check-in, months after the last one. Build on the earlier conversation in the thread: "
     "if they mentioned something (their knee, a trip, a busy season, \"maybe later\"), ask about THAT now. "
@@ -1350,6 +1363,12 @@ async def write_reactivation_text(client_id: int, phone: str, template: str, tou
                 system_prompt += _CYCLE_OUTREACH_ADDITION
             goal = ("This is the first text in this outreach." if touch_num == 1 else
                     "This is a light follow-up; they didn't reply to the check-in. Keep it short and easy to ignore.")
+        elif playbook == "last_call" and (origin or {}).get("checkin_cycle"):
+            system_prompt += _OFFER_UPDATE_ADDITION
+            goal = ("The clinic is running the SAME offer again: say so, in case they didn't get the chance to "
+                    "book last time." if origin.get("offer_update") != "new" else
+                    "The clinic has a NEW offer: say they missed the last one and they qualify for the new one "
+                    "(named in the template).")
         elif playbook == "last_call":
             system_prompt += _LAST_CALL_OUTREACH_ADDITION
             goal = ("Today is the offer's LAST DAY." if touch_num == total

@@ -18,7 +18,11 @@ not every lead should get the same message:
   never had a real appointment (never booked, canceled, no-showed). Starts
   by itself when the client's ad budget (ad_spend_caps.py cap) is spent: a
   text right away, then 24h later, if they haven't replied, a voice call (if
-  they consented to calls) that falls back to a text. No daily cap.
+  they consented to calls) that falls back to a text. No daily cap. Then
+  every 30 days until they book, one offer-update text (OFFER_UPDATE_TOUCHES):
+  "we're running <offer> again" if the offer is the same as the one they last
+  heard about, "you missed our last offer, you qualify for our new <offer>"
+  if it changed (enrollment.offer_sent vs the client's current offer).
 
 Auto-start (Dylan, 2026-11-16): on_ad_spend(), called by the ad spend cap
 watchdog every 30 min. First dollar spent -> ticks "Launch campaign" and
@@ -99,7 +103,8 @@ PLAYBOOKS = {
         "label": "Last call (ad leads who didn't book)",
         "description": "Meta form and funnel leads since the ads launched who never came in (never booked, canceled "
                        "or no-showed). Starts by itself when the ad budget is spent: a text, then a call 24 hours "
-                       "later if they haven't replied (text if no answer or no call consent).",
+                       "later if they haven't replied (text if no answer or no call consent). Then an offer-update "
+                       "text every 30 days until they book.",
         "sender": "agent",
         "sources": ["meta_form", "funnel"],
         "angle": "The ad offer they asked about is wrapping up: a last chance to get in at that offer.",
@@ -113,7 +118,17 @@ PLAYBOOKS = {
 }
 # Check-in playbook: a fresh check-in this long after the last conversation,
 # until they book (Dylan, 2026-11-16).
-CHECKIN_CYCLE = timedelta(days=90)
+CYCLES = {"checkin": timedelta(days=90), "last_call": timedelta(days=30)}
+CHECKIN_CYCLE = CYCLES["checkin"]
+# last_call, every 30 days after the first round (Dylan, 2026-11-16): same
+# offer as they last heard about -> "running it again"; changed -> "you
+# qualify for our new one". The AI rewrites these from the thread.
+OFFER_UPDATE_TOUCHES = {
+    "same": "Hey {first_name}, it's {sender} from {business}. Reaching out because we're running our {offer} again, "
+            "in case you didn't get the chance to book in last time.",
+    "new": "Hey {first_name}, it's {sender} from {business}. Saw that you missed our last offer, just wanted to let "
+           "you know you qualify for the {offer} we're running now.",
+}
 # Launch checklist items on_ad_spend() ticks (launch_checklist_items.title, lowercased).
 _LAUNCH_ITEM = "launch campaign"
 _REACTIVATION_ITEM = "launch database reactivation"
@@ -395,15 +410,31 @@ def fill(template: str, contact: dict, ctx: dict) -> str:
 
 
 async def _end(conn, enrollment_id: int, status: str, reason: str, playbook: str | None = None) -> None:
-    """Close an enrollment. A check-in that went unanswered or got a reply
-    (and no booking) gets its next check-in CHECKIN_CYCLE out."""
-    next_at = (datetime.now(dt_timezone.utc) + CHECKIN_CYCLE
-               if playbook == "checkin" and status in ("completed", "replied") else None)
+    """Close an enrollment. A check-in / last call that went unanswered or
+    got a reply (and no booking) gets its next round CYCLES[playbook] out."""
+    next_at = (datetime.now(dt_timezone.utc) + CYCLES[playbook]
+               if playbook in CYCLES and status in ("completed", "replied") else None)
     await conn.execute(
         "UPDATE reactivation_enrollments SET status = $2, end_reason = $3, ended_at = now(), next_checkin_at = $4 "
         "WHERE id = $1",
         enrollment_id, status, reason, next_at,
     )
+
+
+def offer_change(enrollment: dict, ctx: dict | None) -> str:
+    """'new' if the client's offer now differs from the one this person last
+    heard about, else 'same' (also when either is unknown)."""
+    prev = (enrollment.get("offer_sent") or "").strip().lower()
+    cur = ((ctx or {}).get("offer") or "").strip().lower()
+    return "new" if prev and cur and cur != "special" and prev != cur else "same"
+
+
+def touches_for(base: list[dict], playbook: str, enrollment: dict, ctx: dict | None) -> list[dict]:
+    """The touches for this person's current round: a last call's later
+    rounds are one offer-update text; everything else repeats the campaign's."""
+    if playbook == "last_call" and int(enrollment.get("cycle") or 1) > 1:
+        return [{"day": 0, "body": OFFER_UPDATE_TOUCHES[offer_change(enrollment, ctx)]}]
+    return base
 
 
 async def _send_touch(campaign: dict, enrollment: dict, touch_num: int, touches: list[dict], ctx: dict) -> str:
@@ -423,6 +454,8 @@ async def _send_touch(campaign: dict, enrollment: dict, touch_num: int, touches:
             "ends_on": f"{campaign['ends_on'].strftime('%A, %B')} {campaign['ends_on'].day}" if campaign.get("ends_on") else None,
             "owner_name": ctx["sender"] if PLAYBOOKS[playbook_of(campaign)]["sender"] == "owner" else None,
             "checkin_cycle": cycle if cycle > 1 else None,
+            "offer_update": offer_change(enrollment, ctx) if cycle > 1 and playbook_of(campaign) == "last_call" else None,
+            "previous_offer": enrollment.get("offer_sent") if cycle > 1 else None,
         },
     ) or template
     if not enrollment["touches_sent"] and cycle == 1 and "stop" not in text.lower():
@@ -461,6 +494,7 @@ async def send_due() -> None:
             campaign = dict(campaign)
             if playbook_of(campaign) == "checkin":
                 await _join_newly_eligible(campaign, now)
+            if playbook_of(campaign) in CYCLES:
                 await _restart_due_checkins(campaign)
             await _run_campaign(campaign, now)
         except Exception as e:
@@ -486,6 +520,7 @@ async def _restart_due_checkins(campaign: dict) -> None:
     the last one) is due starts a new cycle, unless they booked, said no, or
     have been talking with the clinic since (then it moves to 90 days after
     that conversation)."""
+    cycle_len = CYCLES[playbook_of(campaign)]
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -495,7 +530,7 @@ async def _restart_due_checkins(campaign: dict) -> None:
                    ({lead_flags.UNQUALIFIED_SQL} OR {lead_flags.DONT_CONTACT_SQL}) AS dont_contact,
                    EXISTS (
                        SELECT 1 FROM appointment_reminders a
-                       WHERE {_APPT_MATCH} AND a.status != 'canceled'
+                       WHERE {_APPT_MATCH} AND a.status != 'canceled' AND coalesce(a.outcome_show, '') != 'no_show'
                          AND (a.appointment_at > now() OR a.created_at > coalesce(re.first_touch_at, re.created_at))
                    ) AS booked,
                    (SELECT clc.status || ':' || coalesce(clc.closed_kind, '') FROM client_lead_conversations clc
@@ -533,9 +568,9 @@ async def _restart_due_checkins(campaign: dict) -> None:
                     "UPDATE reactivation_enrollments SET next_checkin_at = now() + interval '30 days' WHERE id = $1", r["id"])
                 continue
             last = r["last_message_at"]
-            if last and last + CHECKIN_CYCLE > datetime.now(dt_timezone.utc):
+            if last and last + cycle_len > datetime.now(dt_timezone.utc):
                 await conn.execute(
-                    "UPDATE reactivation_enrollments SET next_checkin_at = $2 WHERE id = $1", r["id"], last + CHECKIN_CYCLE)
+                    "UPDATE reactivation_enrollments SET next_checkin_at = $2 WHERE id = $1", r["id"], last + cycle_len)
                 continue
             await conn.execute(
                 """UPDATE reactivation_enrollments SET status = 'queued', cycle = cycle + 1, touches_sent = 0,
@@ -547,8 +582,8 @@ async def _restart_due_checkins(campaign: dict) -> None:
 
 
 async def _run_campaign(campaign: dict, now: datetime) -> None:
-    touches = touches_of(campaign)
-    if not touches:
+    base_touches = touches_of(campaign)
+    if not base_touches:
         return
     playbook = playbook_of(campaign)
     last_call = playbook == "last_call"
@@ -588,6 +623,7 @@ async def _run_campaign(campaign: dict, now: datetime) -> None:
         budget = 10 ** 6 if last_call else max(0, campaign["daily_cap"] - first_touches_today)
         for record in open_rows:
             e = dict(record)
+            touches = touches_for(base_touches, playbook, e, ctx)
             if e["opted_out"]:
                 await _end(conn, e["id"], "opted_out", "Opted out of texts")
                 continue
@@ -632,8 +668,8 @@ async def _run_campaign(campaign: dict, now: datetime) -> None:
             if result == "sent":
                 await conn.execute(
                     "UPDATE reactivation_enrollments SET status = 'active', touches_sent = $2, "
-                    "first_touch_at = coalesce(first_touch_at, now()), last_touch_at = now() WHERE id = $1",
-                    e["id"], sent + 1,
+                    "first_touch_at = coalesce(first_touch_at, now()), last_touch_at = now(), offer_sent = $3 WHERE id = $1",
+                    e["id"], sent + 1, ctx.get("offer") if ctx.get("offer") != "special" else None,
                 )
                 if sent == 0:
                     budget -= 1
@@ -641,8 +677,8 @@ async def _run_campaign(campaign: dict, now: datetime) -> None:
                 await _end(conn, e["id"], "opted_out", "Opted out of texts")
             # 'failed' stays open and is retried next pass.
 
-        # A check-in campaign never finishes: its 90-day cycles keep going.
-        if playbook != "checkin":
+        # Check-in and last call never finish: their 90 / 30-day rounds keep going.
+        if playbook not in CYCLES:
             remaining = await conn.fetchval(
                 "SELECT count(*) FROM reactivation_enrollments WHERE campaign_id = $1 AND status IN ('queued', 'active')",
                 campaign["id"],
@@ -805,7 +841,7 @@ async def queue(client_id: int) -> list[dict]:
         tz = _tz(await clinic_timezone(conn, client_id, None))
         local_now = now.astimezone(tz)
         rows = await conn.fetch(
-            """SELECT re.id, re.status, re.touches_sent, re.last_touch_at, re.next_checkin_at, re.cycle,
+            """SELECT re.id, re.status, re.touches_sent, re.last_touch_at, re.next_checkin_at, re.cycle, re.offer_sent,
                       rc.id AS campaign_id, rc.name AS campaign, rc.status AS campaign_status, rc.touches,
                       rc.daily_cap, rc.playbook, c.id AS contact_id, c.owner, c.phone
                FROM reactivation_enrollments re
@@ -818,10 +854,11 @@ async def queue(client_id: int) -> list[dict]:
         )
         position: dict[int, int] = {}
         for r in rows:
-            touches = touches_of(r)
-            item = {"kind": "reactivation", "id": r["id"], "contact_id": r["contact_id"], "name": r["owner"],
+            touches = touches_for(touches_of(r), r["playbook"], dict(r), None)
+            later = "30-day offer update" if r["playbook"] == "last_call" else "90-day check-in"
+            item = {"kind": "reactivation", "playbook": r["playbook"], "id": r["id"], "contact_id": r["contact_id"], "name": r["owner"],
                     "phone": r["phone"], "campaign": r["campaign"], "paused": r["campaign_status"] != "active"}
-            label = "90-day check-in" if (r["cycle"] or 1) > 1 else None
+            label = later if (r["cycle"] or 1) > 1 else None
             if r["status"] == "queued":
                 pos = position.get(r["campaign_id"], 0)
                 position[r["campaign_id"]] = pos + 1
@@ -839,7 +876,7 @@ async def queue(client_id: int) -> list[dict]:
                             what=("Call (text if no answer)" if call else f"Follow-up text {sent + 1}"))
             else:
                 item.update(due=r["next_checkin_at"].isoformat(), estimated=False,
-                            what=f"90-day check-in #{r['cycle']}", stoppable=True)
+                            what=f"{later} #{r['cycle']}", stoppable=True)
             item["stoppable"] = True
             out.append(item)
 
