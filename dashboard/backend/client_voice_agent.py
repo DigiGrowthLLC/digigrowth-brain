@@ -87,8 +87,8 @@ NATURAL_SETTINGS = {
     "ambient_sound_volume": 0.4,
     "responsiveness": 1.0,               # normal (0.85 felt sluggish)
     "interruption_sensitivity": 0.8,
-    # Low = steadier, flatter delivery. 1.2 sounded over-enthusiastic (Dylan, 2026-11-16).
-    "voice_temperature": 0.7,
+    # 1.2 sounded over-enthusiastic, 0.7 a bit flat; 0.9 = some mid-range variation (Dylan, 2026-11-16).
+    "voice_temperature": 0.9,
     # Mid-call silence: give leads time to think before nudging. The quick
     # 2.5s nudge after a call screener hands off is note_transcript below.
     "reminder_trigger_ms": 8000,
