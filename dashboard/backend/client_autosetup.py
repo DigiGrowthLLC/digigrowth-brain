@@ -594,6 +594,7 @@ cancellations) or claim.
 - Keep every merge field ({first_name}, {business}, {date}, {time}, {link}) exactly as written in each \
 message; add none and drop none.
 - No em dashes, en dashes, curly quotes or emoji anywhere. Keep each text short and plain.
+- Never state how long the visit is (no "30-minute" or "60 min"): it's "a $49 assessment", not "a 30-minute $49 assessment".
 - Reminders for an in-person visit say where to come if the material gives the address, instead of a video link.
 - Price anchor + scarcity (a paid offer only, and only what the material states): if it gives the offer's \
 regular price and a monthly spot limit (e.g. "$49, normally $150, only 10 each month"), weave both naturally into \

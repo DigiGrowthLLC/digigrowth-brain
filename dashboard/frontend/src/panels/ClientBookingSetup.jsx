@@ -505,13 +505,13 @@ const OFFER_PRESETS = [
     price_cents: 0, anchor_price_cents: null, spots_per_month: null, buffer_after_min: 0,
     description: "A video call with a physical therapist to talk through what's going on and whether we can help." } },
   { key: "assess49", label: "$49 Assessment", fields: {
-    name: "$49 New Patient Assessment", duration_min: 60, location_type: "in_person",
+    name: "$49 New Patient Assessment", duration_min: 30, location_type: "in_person",
     price_cents: 4900, anchor_price_cents: 15000, spots_per_month: 10, buffer_after_min: 15,
     description: "A full one-on-one assessment with a physical therapist. Leave knowing what's going on and the plan to fix it." } },
 ];
 
 const EMPTY_EVENT = {
-  name: "New Patient Assessment", description: "", duration_min: 60, location_type: "in_person", location_text: "",
+  name: "New Patient Assessment", description: "", duration_min: 30, location_type: "in_person", location_text: "",
   price_cents: 0, anchor_price_cents: null, spots_per_month: null, ask_question: "What brings you in?",
   buffer_before_min: 0, buffer_after_min: 15, min_notice_hours: 12, max_days_ahead: 30, daily_cap: null,
   slot_interval_min: 30, active: true, sort_order: 0,
