@@ -1414,16 +1414,36 @@ async def _complete_followup(system_prompt: str, messages: list[dict], max_words
         return None
 
 
+def _log_cache_usage(label: str, response) -> None:
+    """One log line per call so Railway logs show whether prompt caching
+    is paying off (cache_read should be non-zero on loop calls 2+)."""
+    try:
+        u = response.usage
+        print(
+            f"[cache] {label} in={u.input_tokens} read={getattr(u, 'cache_read_input_tokens', 0) or 0} "
+            f"write={getattr(u, 'cache_creation_input_tokens', 0) or 0} out={u.output_tokens}",
+            flush=True,
+        )
+    except Exception:
+        pass
+
+
 async def _run_agent_turn(client_id: int, from_phone: str, system_prompt: str, messages: list[dict]) -> str | None:
     api_client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     model = os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-5")
     text_parts: list[str] = []
 
+    # Prompt caching: tools + system prompt are byte-identical for every call
+    # in this tool loop (and for the lead's next text within 5 min), so later
+    # calls read them at ~10% of the input price. Same input to the model,
+    # same replies; only the billing changes.
+    cached_system = [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
     for _ in range(_MAX_TOOL_ITERATIONS):
         response = await asyncio.to_thread(
             api_client.messages.create,
-            model=model, max_tokens=1024, system=system_prompt, tools=_TOOLS, messages=messages,
+            model=model, max_tokens=1024, system=cached_system, tools=_TOOLS, messages=messages,
         )
+        _log_cache_usage("response_ai", response)
         messages.append({"role": "assistant", "content": response.content})
         text_parts = [b.text for b in response.content if b.type == "text"]
         tool_uses = [b for b in response.content if b.type == "tool_use"]

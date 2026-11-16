@@ -204,12 +204,15 @@ async def reply(business: str, context: str, tz_name: str | None, history: list[
     tz = _tz(tz_name)
     messages = list(history)
 
+    # Prompt caching: tools + system are identical across this tool loop and
+    # the visitor's next message within 5 min. Replies are unchanged.
+    cached_system = [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
     for _ in range(_MAX_TOOL_ITERATIONS):
         response = await asyncio.to_thread(
             api_client.beta.messages.create,
             model=model,
             max_tokens=4000,
-            system=system_prompt,
+            system=cached_system,
             tools=_TOOLS,
             messages=messages,
             # Chat turn: keep it quick. Thinking can't be turned off on
@@ -218,6 +221,12 @@ async def reply(business: str, context: str, tz_name: str | None, history: list[
             betas=["server-side-fallback-2026-07-01"],
             extra_body={"fallbacks": "default"},
         )
+        try:
+            u = response.usage
+            print(f"[cache] blueprint_chat in={u.input_tokens} read={u.cache_read_input_tokens or 0} "
+                  f"write={u.cache_creation_input_tokens or 0} out={u.output_tokens}", flush=True)
+        except Exception:
+            pass
         if response.stop_reason == "refusal":
             break
         # Full content (thinking blocks included) goes back within this

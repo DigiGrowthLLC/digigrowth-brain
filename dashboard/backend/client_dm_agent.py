@@ -480,11 +480,16 @@ async def run_agent(client_id: int, thread: dict, messages: list[dict], clinic_p
     tools = _tools()
     text_parts: list[str] = []
     escalated = False
+    # Prompt caching: tools + system are identical across this tool loop, so
+    # calls 2+ read them at ~10% of the input price. Replies are unchanged.
+    cached_system = [{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}]
     for _ in range(_MAX_TOOL_ITERATIONS):
         response = await asyncio.to_thread(
             api_client.messages.create,
-            model=model, max_tokens=1024, system=system_prompt, tools=tools, messages=messages,
+            model=model, max_tokens=1024, system=cached_system, tools=tools, messages=messages,
         )
+        from response_ai import _log_cache_usage
+        _log_cache_usage("dm_agent", response)
         messages.append({"role": "assistant", "content": response.content})
         text_parts = [b.text for b in response.content if b.type == "text"]
         tool_uses = [b for b in response.content if b.type == "tool_use"]
