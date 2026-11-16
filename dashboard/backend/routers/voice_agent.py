@@ -65,7 +65,12 @@ async def _verified_json(request: Request) -> dict:
 async def retell_webhook(request: Request):
     payload = await _verified_json(request)
     if payload.get("event") == "transcript_updated":   # fires every turn; only feeds the screener nudge
-        va.note_transcript(payload.get("call") or {})
+        # The live transcript may sit beside "call" rather than inside it.
+        call = {**(payload.get("call") or {}), **{k: v for k, v in payload.items() if "transcript" in k}}
+        if not any("transcript" in k for k in call):
+            print(f"[voice_agent] transcript_updated without transcript; top keys={sorted(payload)} "
+                  f"call keys={sorted(payload.get('call') or {})}", flush=True)  # TEMP debug
+        va.note_transcript(call)
         return Response(status_code=204)
     try:
         await va.retell_event(payload.get("event") or "", payload.get("call") or {})
