@@ -1370,8 +1370,8 @@ async def write_reactivation_text(client_id: int, phone: str, template: str, tou
             system_prompt += _OFFER_UPDATE_ADDITION
             goal = ("The clinic is running the SAME offer again: say so, in case they didn't get the chance to "
                     "book last time." if origin.get("offer_update") != "new" else
-                    "The clinic has a NEW offer: say they missed the last one and they qualify for the new one "
-                    "(named in the template).")
+                    "The clinic has a NEW offer: say they missed the last one (by name) and they qualify for the new one "
+                    "(by name), as the template does. Say \"you qualify for\", not \"we're running\".")
         elif playbook == "last_call":
             system_prompt += _LAST_CALL_OUTREACH_ADDITION
             goal = ("Today is the offer's LAST DAY." if touch_num == total

@@ -493,8 +493,10 @@ async def portal_reactivation_messages(token: str):
                 messages += [
                     {"title": "Every 30 days", "timing": "Same offer, until they book",
                      "body": cr.fill(cr.OFFER_UPDATE_TOUCHES["same"], sample, ctx)},
+                    # The example's "new" offer is a placeholder: the one they missed is the current one.
                     {"title": "Every 30 days", "timing": "New offer, until they book",
-                     "body": cr.fill(cr.OFFER_UPDATE_TOUCHES["new"], sample, ctx)},
+                     "body": cr.fill(cr.OFFER_UPDATE_TOUCHES["new"], {**sample, "offer_sent": ctx.get("offer")},
+                                     {**ctx, "offer": "X offer"})},
                 ]
             if pb == "checkin":
                 messages.append({

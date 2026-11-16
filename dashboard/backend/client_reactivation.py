@@ -127,7 +127,7 @@ OFFER_UPDATE_TOUCHES = {
     "same": "Hey {first_name}, it's {sender} from {business}. We're running our {offer} again, in "
             "case you didn't get the chance to book in last time.",
     "new": "Hey {first_name}, it's {sender} from {business}. Saw you missed out on our {previous_offer}. Just wanted "
-           "to let you know we're running a new special: our {offer}.",
+           "to let you know you qualify for our {offer}.",
 }
 # Launch checklist items on_ad_spend() ticks (launch_checklist_items.title, lowercased).
 _LAUNCH_ITEM = "launch campaign"
