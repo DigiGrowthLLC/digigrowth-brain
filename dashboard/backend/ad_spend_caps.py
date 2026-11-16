@@ -17,8 +17,12 @@ run_watchdog() (main.py, every 30 min):
   3. At the cap: every in-scope campaign whose status is ACTIVE is set to
      PAUSED, plus a To-Do. This repeats every run, so a campaign switched
      back on without raising the cap gets paused again within 30 minutes.
-  Raising the cap (PUT /clients/{id}/ad-spend-cap) re-arms the warning and
-  clears the paused state.
+  4. Also at the cap: one text to Dylan's phone from the OS number
+     (_text_dylan_once): "ads have been turned off" when it could pause them,
+     or "has reached the ad budget" (go pause it yourself) when the system
+     user can't. Once per cap value (texted_cap).
+  Raising the cap (PUT /clients/{id}/ad-spend-cap) re-arms the warning, the
+  text and clears the paused state.
 
 Spend lags Meta's real spend a little and the check runs every 30 minutes,
 so a campaign can overshoot by up to ~30 minutes of spend (well under $2 at
@@ -109,6 +113,26 @@ async def _pause(http, token: str, campaign_id: str) -> None:
     resp = await http.post(f"{_GRAPH}/{campaign_id}", data={"access_token": token, "status": "PAUSED"}, timeout=30)
     if resp.status_code != 200:
         raise CapError(f"Meta refused to pause campaign {campaign_id}: {resp.text.strip()[:300]}")
+
+
+async def _text_dylan_once(conn, row, cap: float, body: str) -> None:
+    """Texts Dylan from the OS (DigiGrowth's Twilio number) once per cap
+    value. Never raises: the cap check itself already did its job."""
+    import asyncio
+    from routers import sms as sms_router
+    from sms_setter_ai import ALERT_PHONE_KEY, _DEFAULT_ALERT_PHONE, _setting
+    claimed = await conn.fetchval(
+        "UPDATE ad_spend_caps SET texted_cap = $2 WHERE client_id = $1 "
+        "AND (texted_cap IS NULL OR texted_cap <> $2) RETURNING client_id",
+        row["client_id"], cap)
+    if not claimed:
+        return
+    try:
+        to = await _setting(conn, ALERT_PHONE_KEY) or os.environ.get("DYLAN_ALERT_PHONE") or _DEFAULT_ALERT_PHONE
+        await asyncio.to_thread(sms_router._send_twilio, to, body)
+    except Exception as e:
+        print(f"[ad-spend-caps] text to Dylan failed for client {row['client_id']}: {e}", flush=True)
+        await conn.execute("UPDATE ad_spend_caps SET texted_cap = NULL WHERE client_id = $1", row["client_id"])
 
 
 async def _todo_once(conn, text: str, description: str) -> None:
@@ -205,6 +229,16 @@ async def _check_row(row) -> dict:
                 f"on their Marketing Setup tab (Meta ad spend cap) before then.",
             )
             await conn.execute("UPDATE ad_spend_caps SET warned_at = now() WHERE client_id = $1", row["client_id"])
+        if over and can_pause:
+            await _text_dylan_once(
+                conn, row, cap,
+                f"Hey, {name}'s ads have been turned off. They reached their {_money(cap, currency)} ad budget "
+                f"({_money(spend, currency)} spent{since}).")
+        elif over:
+            await _text_dylan_once(
+                conn, row, cap,
+                f"Hey, {name} has reached their {_money(cap, currency)} ad budget ({_money(spend, currency)} "
+                f"spent{since}). The OS couldn't turn the ads off, so pause them in Ads Manager.")
         if paused_now:
             names = ", ".join(c["name"] or c["id"] for c in paused_now)
             await _todo_once(

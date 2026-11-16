@@ -2644,6 +2644,9 @@ async def _create_schema(pool: asyncpg.Pool):
                 paused_campaigns    JSONB NOT NULL DEFAULT '[]',
                 updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
             );
+            -- Cap value Dylan was last texted about reaching (ad_spend_caps.
+            -- _text_dylan_once): one text per cap, re-armed by raising it.
+            ALTER TABLE ad_spend_caps ADD COLUMN IF NOT EXISTS texted_cap NUMERIC(10,2);
         """)
 
         # Voice agent hold on the unfinished-booking text (client_voice_agent.py).
