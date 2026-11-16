@@ -1090,7 +1090,7 @@ function ReactivationQueueModal({ token, playbook, title, onClose }) {
           Who's lined up next and when. {data?.paused ? "These start sending once DigiGrowth switches reactivation on." : "Texts go out 10am-6pm Mon-Sat, your time."}
         </div>
         <div className="dg-divider" style={{ margin: "14px 0" }} />
-        <div style={{ overflowY: "auto" }}>
+        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}>
           {!data ? (
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a5a80" }}>LOADING...</div>
           ) : !items.length ? (
