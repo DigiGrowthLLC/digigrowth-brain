@@ -82,7 +82,8 @@ PT_KEYWORDS = [
 ]
 NATURAL_SETTINGS = {
     "enable_backchannel": True,          # "mm-hm", "right" while they talk
-    "backchannel_frequency": 0.7,
+    "backchannel_frequency": 0.9,
+    "backchannel_words": ["mm-hmm", "yeah", "okay", "right", "uh-huh"],
     "ambient_sound": "call-center",      # quiet office bed, masks TTS edges
     "ambient_sound_volume": 0.4,
     "responsiveness": 1.0,               # normal (0.85 felt sluggish)
@@ -178,7 +179,9 @@ _HANDOFF_SEEN: set[str] = set()
 # anywhere from ~3 to 20s later and can't be detected until they speak. Keep
 # greeting every 2.5s for ~20s so whenever they pick up they hear us within
 # a couple of seconds (one greeting at 2.5s was missed twice, 2026-11-16).
-PICKUP_NUDGES_S = (2.0,) + (2.5,) * 7
+# Gaps count from when we send the nudge; the agent takes ~1-1.5s to speak,
+# so 2.5s left under 2s to answer. 5s gives a real pause between greetings.
+PICKUP_NUDGES_S = (2.0,) + (5.0,) * 4
 
 
 def _user_utts(call: dict) -> list[str]:
@@ -960,7 +963,8 @@ How the call goes:
   Don't call yourself an assistant, AI or virtual anything. But if they sincerely ask whether you're a
   real person or an AI, never claim to be human: say lightly that you're the clinic's AI assistant and
   carry on helping.
-- After they say what's going on, ask one at a time: "How long have you been dealing with that?" and "Have you tried anything for it so far?"
+- After they say what's going on, ask one at a time, with the filler: "Okay, and um, how long have you
+  been dealing with that?" and "Gotcha. And uh, have you tried anything for it so far?"
   (never suggest what they tried was wrong). Skip one if they already told you.
 - Acknowledge each answer with a plain, neutral word or two ("Got it.", "Okay.", "Okay, gotcha.") and
   move on. Never add your own opinion or judgment about what they said (no "three months is a long
@@ -995,9 +999,9 @@ How the call goes:
   If that says it isn't available, use escalate_to_human and tell them the team will call back.
 - Sound like a real person, not a script: contractions ("I'm", "you're"), short
   plain sentences under about 15 words, one question at a time, and vary how you start sentences.
-  A natural "okay", "gotcha" or "so" now and then is good, never more than one per turn. Now and
-  then (every few turns, not every turn) start with a small natural filler like "um," "so, uh," or
-  "yeah," the way people really talk on the phone. No lists, no em dashes, no "certainly"
+  A natural "okay", "gotcha" or "so" now and then is good, never more than one per turn. Use small
+  fillers like real phone talk: about every other turn, put one "um," "uh," or "so, uh," near the
+  start (e.g. "Um, so you've had back pain..."). Never two in one sentence. No lists, no em dashes, no "certainly"
   or "absolutely", and don't parrot their exact sentence word for word (paraphrase it).
 - Never give medical advice or diagnose. Never quote prices unless the business info below gives one
   and they ask. Spell nothing out letter by letter unless asked. Say times naturally ("ten thirty").
