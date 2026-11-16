@@ -432,7 +432,19 @@ async def send_info_message(contact: dict, loom_url: str | None = None) -> bool:
 # ── Authenticated API endpoints ───────────────────────────────────────────────
 
 @router.get("/sms/conversations")
-async def list_conversations():
+async def list_conversations(since: Optional[str] = None):
+    """All conversations, newest first. `since` (an updated_at value from an
+    earlier response) returns only threads touched at/after it: the global
+    new-text notifier polls every 15s from every open OS tab, and pulling the
+    full ~200 KB list each time was most of Railway's egress bill."""
+    since_dt = None
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            if since_dt.tzinfo is None:
+                since_dt = since_dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            since_dt = None  # bad cursor: fall back to the full list
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -448,9 +460,11 @@ async def list_conversations():
                     ORDER BY sent_at DESC LIMIT 1) AS last_direction
             FROM sms_conversations sc
             LEFT JOIN contacts c ON c.id = sc.contact_id
-            WHERE c.client_id IS NULL OR c.is_client_anchor
+            WHERE (c.client_id IS NULL OR c.is_client_anchor)
+              AND ($1::timestamptz IS NULL OR sc.updated_at >= $1::timestamptz)
             ORDER BY sc.updated_at DESC NULLS LAST
-            """
+            """,
+            since_dt,
         )
     return [dict(r) for r in rows]
 

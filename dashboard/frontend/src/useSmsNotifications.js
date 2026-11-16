@@ -24,12 +24,25 @@ export default function useSmsNotifications(onNewInbound) {
       try { localStorage.setItem(SEEN_KEY, JSON.stringify(seen)); } catch {}
     };
 
+    // Newest updated_at the server has sent us (its own clock, so no skew).
+    // After the first full load, polls ask only for threads touched since
+    // then: the full list is ~200 KB and this runs every 15s in every open
+    // tab, which was most of Railway's egress bill.
+    let cursor = null;
+
     const poll = async () => {
       try {
-        const r = await fetch(API("/sms/conversations"));
+        const qs = cursor ? `?since=${encodeURIComponent(cursor)}` : "";
+        const r = await fetch(API(`/sms/conversations${qs}`));
         if (!r.ok) return;
         const convos = await r.json();
         const seen = loadSeen();
+
+        for (const c of convos) {
+          if (c.updated_at && (!cursor || new Date(c.updated_at) > new Date(cursor))) {
+            cursor = c.updated_at;
+          }
+        }
 
         for (const c of convos) {
           if (c.last_direction !== "inbound" || !c.updated_at) continue;
