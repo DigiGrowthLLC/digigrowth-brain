@@ -666,7 +666,9 @@ async def public_booking_page(key: str, request: Request):
         if clinic is None:
             raise HTTPException(404, "Booking page not found")
         return HTMLResponse(_not_open_page(clinic), status_code=404)
-    return HTMLResponse(render_page("book", ctx["client_name"], ctx["settings"]["accent_color"]))
+    from booking_page import client_pixel
+    pixel = await client_pixel(ctx["settings"]["client_id"], request)
+    return HTMLResponse(render_page("book", ctx["client_name"], ctx["settings"]["accent_color"], pixel))
 
 
 def _not_open_page(clinic: str) -> str:
@@ -823,11 +825,13 @@ def _manage_payload(ctx: dict) -> dict:
 
 
 @router.get("/booking/{token}", include_in_schema=False)
-async def manage_page(token: str):
+async def manage_page(token: str, request: Request):
     ctx = await be.get_by_token(token)
     if not ctx:
         raise HTTPException(404, "Booking not found")
-    return HTMLResponse(render_page("manage", ctx["clinic"], ctx["settings"]["accent_color"]))
+    from booking_page import client_pixel
+    pixel = await client_pixel(ctx["settings"]["client_id"], request)
+    return HTMLResponse(render_page("manage", ctx["clinic"], ctx["settings"]["accent_color"], pixel))
 
 
 @router.get("/booking/{token}/api/info", include_in_schema=False)

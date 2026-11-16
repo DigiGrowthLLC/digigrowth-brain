@@ -266,6 +266,11 @@ async def landing_page(slug: str, request: Request):
     # Inject OG tags right after <head> and the tracking snippet right before
     # </body> — the generator (design-agent) is expected to hand back a full
     # document with both those anchors present.
+    if row["client_id"] and "</head>" in page_html:
+        from booking_page import client_pixel, pixel_snippet
+        pixel = pixel_snippet(await client_pixel(row["client_id"], request))
+        if pixel:
+            page_html = page_html.replace("</head>", f"{pixel}\n</head>", 1)
     if "<head>" in page_html:
         page_html = page_html.replace("<head>", f"<head>\n{og_head}", 1)
     if "</body>" in page_html:
@@ -322,7 +327,7 @@ async def landing_page_chat(slug: str, body: ChatRequest, request: Request):
 
 
 @router.get("/lp/{slug}/book", include_in_schema=False)
-async def landing_page_book(slug: str, utm_content: str | None = None):
+async def landing_page_book(slug: str, request: Request, utm_content: str | None = None):
     """Every CTA on an auto-built client funnel (client_autosetup.py) points
     here instead of a hardcoded Calendly link, so the page works before the
     client's Calendly is connected and picks it up the moment it is.
@@ -334,10 +339,11 @@ async def landing_page_book(slug: str, utm_content: str | None = None):
     turned on for the client: the page is served right here, so it keeps
     working on the clinic's own funnel domain behind the Vercel proxy."""
     import booking_engine
-    from booking_page import render_page
+    from booking_page import client_pixel, render_page
     ctx = await booking_engine.resolve_public(slug, True)
     if ctx:
-        return HTMLResponse(render_page("book", ctx["client_name"], ctx["settings"]["accent_color"]))
+        pixel = await client_pixel(ctx["settings"]["client_id"], request)
+        return HTMLResponse(render_page("book", ctx["client_name"], ctx["settings"]["accent_color"], pixel))
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(

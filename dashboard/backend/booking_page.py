@@ -391,6 +391,7 @@ async function manageMode() {
     }
     if (info.status === "confirmed") {
       const fresh = qs.get("new") || qs.get("paid");
+      if (fresh && window.fbq && !window.__dgScheduled) { window.__dgScheduled = 1; fbq("track", "Schedule"); }
       main.innerHTML = `${progress(3)}<div class="ok"><div class="tick">✓</div><h2 style="font-size:22px">${fresh ? "You're booked!" : "Your appointment"}</h2>
         <p style="margin:0 0 4px"><b>${esc(when)}</b></p><p class="muted" style="margin:0">${esc(ev.name)} · ${ev.duration_min} min</p></div>
         ${info.meet_link ? `<a class="cta" href="${esc(info.meet_link)}" target="_blank" rel="noopener">Join video call</a>` : ""}
@@ -446,9 +447,38 @@ async function manageMode() {
 """
 
 
-def render_page(mode: str, clinic: str, accent: str) -> str:
+def pixel_snippet(pixel_id: str | None) -> str:
+    """Meta Pixel base code (PageView) for a client's funnel/booking pages.
+    Empty when the client has no pixel saved (Marketing Setup → Pixel)."""
+    pid = "".join(c for c in (pixel_id or "") if c.isdigit())
+    if not pid:
+        return ""
+    return ("<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?"
+            "n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;"
+            "n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];"
+            "s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');"
+            f"fbq('init','{pid}');fbq('track','PageView');</script>")
+
+
+async def client_pixel(client_id: int | None, request=None) -> str | None:
+    """The client's saved pixel ID, or None for Dylan's own visits
+    (tracking_exclusion) so his testing never feeds the client's ad data."""
+    if not client_id:
+        return None
+    if request is not None:
+        import tracking_exclusion
+        if await tracking_exclusion.is_excluded(request):
+            return None
+    from db import get_pool
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await conn.fetchval("SELECT meta_pixel_id FROM client_marketing_config WHERE client_id = $1", client_id)
+
+
+def render_page(mode: str, clinic: str, accent: str, pixel_id: str | None = None) -> str:
     title = f"Book with {clinic}" if mode == "book" else f"Your appointment with {clinic}"
     return (_TEMPLATE
+            .replace("</head>", pixel_snippet(pixel_id) + "</head>", 1)
             .replace("__TITLE__", html.escape(title))
             .replace("__CLINIC__", html.escape(clinic or ""))
             .replace("__ACCENT__", accent if accent and accent.startswith("#") and len(accent) == 7 else "#2f6fd6")

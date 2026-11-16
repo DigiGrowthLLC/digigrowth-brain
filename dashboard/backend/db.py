@@ -687,6 +687,12 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE watch_videos ADD COLUMN IF NOT EXISTS r2_key TEXT;
             CREATE INDEX IF NOT EXISTS idx_content_view_events_lookup ON content_view_events (source, content_key, contact_id);
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS guide_progress JSONB NOT NULL DEFAULT '{}';
+            -- Marketing Setup v2 (setup_steps.py, 2026-11-16): growth = ads,
+            -- voice agent, DMs, organic; foundations = text agent,
+            -- reactivation, follow-up + booking funnel, no ads.
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS service_package TEXT NOT NULL DEFAULT 'growth';
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS meta_form_id TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS setup_test JSONB NOT NULL DEFAULT '{}';
             -- Client's own funnel host (e.g. go.clientdomain.com), served by main.py's funnel_host_router
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS funnel_domain TEXT;
             -- Client's SMS Terms & Privacy page (A2P 10DLC), linked from the booking page's text-consent checkbox

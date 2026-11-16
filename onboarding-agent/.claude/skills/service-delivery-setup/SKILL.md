@@ -10,10 +10,13 @@ step at a time, with Dylan. The campaign build itself comes LAST and is handed t
 media-buying agent's `build-campaign-plan` skill (gated, see memory "Campaign Work Is
 Gated").
 
-The source of truth for what needs doing is the dashboard's **Marketing Setup → Setup
-Order** checklist (`MARKETING_GUIDES` + `SETUP_ORDER_PHASES` in
-`dashboard/frontend/src/panels/ClientsPanel.jsx`). This skill never keeps its own list:
-it reads that one, so adding a step there adds it here.
+The source of truth for what needs doing is the dashboard's **Setup** checklist (client →
+Details → Setup; ~18 steps in 5 phases, defined in `dashboard/backend/setup_steps.py`,
+served at `GET /api/clients/{id}/setup`). Steps have stable ids (`autobuild`, `review`,
+`meta_access`, `calendar`, `dns`, `a2p`, `lists`, `booking`, `lead_form`, `pixel`, `voice`,
+`social`, `ad_cap`, `campaign`, `organic`, `test`, `reactivation`, `golive`). Growth-only
+steps are hidden for a Foundations client (`PUT /api/clients/{id}/setup/package`). This
+skill never keeps its own list: it reads that one, so adding a step there adds it here.
 
 ## 1. Scan
 
@@ -21,12 +24,20 @@ it reads that one, so adding a step there adds it here.
 doppler run --project digigrowth --config prd -- python onboarding-agent/scripts/service_delivery_status.py "<client name or id>"
 ```
 
-It runs the dashboard's autocheck first (ticks every step the data proves done:
-number bought, AI replied to a real text, booking link saved, Lead Ads relay built,
-ad account saved, and so on; see `dashboard/backend/guide_autocheck.py`), then prints:
-the Setup Order by phase with `[x]`/`[ ]` and each step's `guide:index`, the client's
-portal action items, onboarding form progress, the client-visible launch checklist,
-Resources (including the auto-detected **DNS host**) and the key config.
+Most steps prove themselves from live data every time the checklist is read (funnel +
+number + agent + messages built, booking live, relay + form built, cap checked, ads
+spending...; `signals()` in `setup_steps.py`); the funnel domain is checked by the
+autocheck the script runs first. It prints the checklist by phase with `[x]`/`[ ]`, each
+step's id and its proof or how-to, the outstanding **client ask** (one message listing only
+what's still missing), the client's portal action items, onboarding form progress, the
+client-visible launch checklist, Resources (including the auto-detected **DNS host**) and
+the key config.
+
+Buttons on the Setup tab that you can also call: `POST /api/clients/{id}/setup/booking-autofill`
+(drafts hours, appointment type, patient contact info, page details), `.../setup/instant-form`
+(builds the Meta Instant Form with the consent line), `.../setup/voice-agent` (builds/syncs
+the Retell agent), `.../setup/test` then `.../setup/test/cleanup` (one-click end-to-end test on
++17542485326 and its cleanup).
 
 Then check the outside world the script can't see, only as far as the next steps need:
 - **Inbox** (Gmail connector, dylanrg@): access invites from the client (Meta portfolio,
@@ -57,9 +68,8 @@ tab (calendar, hours, appointment type from the offer presets; page details fill
 from the portal, website and funnel), then turns it on. Paid visits: the client clicks
 "Connect Stripe to Get Paid" in their portal (needs STRIPE_SECRET_KEY on the server). Check
 which calendars the booking account sees with `GET /api/booking/google`. Response AI step 6
-and Client Portal step 1 tick themselves once it's live. Calendly/GoHighLevel only for a
-client already running on them (GHL: Response AI steps 14-16, only when the client
-explicitly said so).
+tick themselves once it's live (`calendar`, `booking`). Calendly/GoHighLevel only for a
+client already running on them (GHL only when the client explicitly said so).
 
 **Clinic not on Google Calendar** (Outlook/Microsoft 365, Apple iCloud, practice software,
 Yahoo etc.; the portal guide has a tab for each): the booking engine only reads/writes Google,
@@ -86,24 +96,22 @@ For each step:
 - **Verify, then tick.** Confirm it's actually done (API, Meta MCP, inbox, DNS lookup, or a
   test), then tick it:
   ```bash
-  doppler run --project digigrowth --config prd -- python onboarding-agent/scripts/service_delivery_status.py <id> --tick response_ai:13 --tick response_ai:14
+  doppler run --project digigrowth --config prd -- python onboarding-agent/scripts/service_delivery_status.py <id> --tick a2p --tick review
   ```
-  Re-running the script also re-runs autocheck. Ticking a step in Setup Order ticks the
-  same slot in its own guide. Mark the unused booking path (Calendly vs GHL steps) done
-  once the other path is live, and the take-number step (sms:7) once a number exists.
+  Re-running the script also re-runs autocheck. Only tick steps that can't prove
+  themselves (`review`, `a2p`, `campaign`, `organic`, or a step that doesn't apply to this
+  client, e.g. `voice` when Dylan keeps it off).
 - Writes to production data (configs, deleting test leads, resetting stats, toggling the
   client's booking alert) are fine when they're part of the step Dylan asked for. Say
   what you changed. Anything outward-facing that isn't (texting the client, publishing,
   pushing code) needs his OK first.
 
-The client's portal launch checklist (their To Do tab) ticks itself: once every step of
-a guide is ticked, its item is checked off automatically (`sync_launch_checklist` in
-`dashboard/backend/guide_autocheck.py`): SMS Marketing -> "Set up SMS marketing",
-Response AI -> "Set up response AI", Landing Page -> "Create landing page", Paid Ad
-Creatives -> "Create paid ad creatives", Client Portal -> "Set up client portal". So
-finishing a guide is enough; confirm the item shows ticked in the scan. Items with no
-guide (onboarding call, database reactivation, launch campaign) are still ticked by
-hand: `PUT /api/clients/{id}/launch-checklist/{item_id}` with `{"completed": true}`
+The client's portal launch checklist (their To Do tab) ticks itself once the matching
+Setup steps are done (`LAUNCH_ITEM_STEPS` in `setup_steps.py`, synced by
+`guide_autocheck.sync_launch_checklist`): portal/landing page -> `autobuild`, SMS ->
+`autobuild` + `a2p`, response AI -> `review` + `booking`, ad creatives -> `campaign`,
+database reactivation -> `reactivation`. Items with no mapping (onboarding call, launch
+campaign) are still ticked by hand: `PUT /api/clients/{id}/launch-checklist/{item_id}` with `{"completed": true}`
 (ids from the scan).
 
 ## Playbook: what worked (2026-10-16, Advantage Therapy)
@@ -130,16 +138,17 @@ hand: `PUT /api/clients/{id}/launch-checklist/{item_id}` with `{"completed": tru
   domains). Save it as `funnel_domain` (`PUT /api/clients/{id}/marketing-config`), run
   `doppler run --project digigrowth --config prd -- python onboarding-agent/scripts/deploy_client_funnels.py`,
   then add a CNAME `go` -> `cname.vercel-dns.com` at the DNS host. Autocheck ticks
-  landing_page:2 once `https://go.<domain>/` serves the funnel. Update the portal Website
+  `dns` once `https://go.<domain>/` serves the funnel. Update the portal Website
   tab URL to the new domain so the client sees it.
 - **GoHighLevel (only when the client said so)**: one email = one GHL user, so if the
   invite lands in another agency, ask for an invite to `dylanrg+<client>@digigrowthllc.com`
   and open it in incognito. Calendar slugs are global (pick any unique one, the link uses
   the calendar ID). The booking-sync workflow URL comes from
-  `GET /api/clients/{id}/ghl-webhook-url` (also shown in the guide step). The calendar's
+  `GET /api/clients/{id}/ghl-webhook-url` (also shown in the Booking step). The calendar's
   confirmation email to the contact must be ON (it carries the Meet link); GHL reminders
   OFF (the dashboard sends them).
-- **Silent end-to-end test**: `PATCH /api/clients/{id}` `{"booking_notification_enabled": false}`,
+- **Silent end-to-end test**: the Setup tab's RUN TEST / CLEAN UP does this in one click
+  (turn the booking alert off first). By hand: `PATCH /api/clients/{id}` `{"booking_notification_enabled": false}`,
   book with your own details, check `GET /portal-api/{token}/appointments`, then
   `POST /api/appointment-reminders/{appt}/cancel` (silent by default), `DELETE
   /api/contacts/{lead}` (removes its appointments), reset funnel stats with `PUT
@@ -155,11 +164,11 @@ hand: `PUT /api/clients/{id}/launch-checklist/{item_id}` with `{"completed": tru
 
 ## Voice agent, reactivation, social (added 2026-11-15)
 
-Three guides in the Setup Order cover the service upgrades: **Set Up Voice Agent**,
-**Launch Database Reactivation**, **Set Up Social Media** (DM agent + organic posts).
-Each agent has its own row in the client's Agents tab.
+Setup steps `voice`, `reactivation`, `social` + `organic` cover the service upgrades. Each
+agent has its own row in the client's Agents & Messages tab.
 
-- **Voice agent (growth package only).** Foundations clients: tick every `voice_agent` step.
+- **Voice agent (growth package only; hidden for Foundations).** Auto-Setup builds the Retell
+  agent on Closed (switched off).
   The call + text flow is Dylan's (memory "voice-agent-call-text-flow"): call ~3 min after a
   Meta lead with no text first, redial, voicemail, then the text opener; retries +2h / next
   day / day after; stops on a text reply or booking. Funnel leads are called only if they
@@ -170,13 +179,14 @@ Each agent has its own row in the client's Agents tab.
   `POST /api/clients/{id}/voice-agent/sync`; test call: `POST /api/clients/{id}/voice-agent/test-call`
   `{"phone": "+17542485326"}`. Needs `RETELL_API_KEY` in Doppler AND Railway.
 - **Reactivation.** The client's exports go in the batched client ask. Lists are texted only,
-  never voice-called. Make sure the A2P campaign covers marketing before START.
+  never voice-called. Growth: starts itself at the first ad dollar / the cap. Foundations:
+  START by hand once lists are in and A2P covers marketing (Dylan, 2026-11-16).
 - **Social.** DMs already work through the Meta app (Demo Clinic got real ones). If a
   no-role account's DM never arrives, App Review is the blocker, not setup. Organic posts are
   scheduled by hand in Business Suite Planner for now and are framed as an ad booster.
 
 ## Done = ready for the campaign
 
-Every Setup Order step ticked, except ones that are genuinely waiting on time (A2P review, DNS propagation). Tell Dylan that clearly, list anything still waiting, and
+Every Setup step done, except ones that are genuinely waiting on time (A2P review, DNS propagation). Tell Dylan that clearly, list anything still waiting, and
 offer to start `build-campaign-plan` for the client (media-buying agent, gated). Don't start
 it unasked.

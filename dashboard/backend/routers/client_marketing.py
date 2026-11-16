@@ -236,9 +236,84 @@ async def take_number_from_client(client_id: int, from_client_id: int):
 
 @router.post("/clients/{client_id}/marketing-config/autocheck")
 async def autocheck_guide(client_id: int):
-    """Tick every Marketing Setup step the dashboard can prove is done
-    (guide_autocheck.py). Returns the newly ticked {guide: [step indexes]}."""
+    """Tick the network-proven Marketing Setup steps (guide_autocheck.py).
+    Returns the newly ticked step ids."""
     return {"ticked": await guide_autocheck.autocheck(client_id)}
+
+
+# ---- Marketing Setup v2 (setup_steps.py / setup_automation.py) ----
+
+@router.get("/clients/{client_id}/setup")
+async def get_setup(client_id: int):
+    import setup_steps
+    st = await setup_steps.status(client_id)
+    if not st:
+        raise HTTPException(404, "Client not found")
+    return st
+
+
+@router.put("/clients/{client_id}/setup/steps/{step_id}")
+async def tick_setup_step(client_id: int, step_id: str, body: dict):
+    import setup_steps
+    try:
+        await setup_steps.set_tick(client_id, step_id, bool(body.get("done")))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    await guide_autocheck.sync_launch_checklist(client_id)
+    return await setup_steps.status(client_id)
+
+
+@router.put("/clients/{client_id}/setup/package")
+async def set_setup_package(client_id: int, body: dict):
+    import setup_steps
+    pkg = body.get("package")
+    if pkg not in ("growth", "foundations"):
+        raise HTTPException(400, "package must be growth or foundations")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE clients SET service_package = $2 WHERE id = $1", client_id, pkg)
+    return await setup_steps.status(client_id)
+
+
+async def _setup_action(fn, client_id: int):
+    try:
+        return await fn(client_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        print(f"[setup] {fn.__name__} failed for client {client_id}: {e}", flush=True)
+        raise HTTPException(502, str(e)[:400])
+
+
+@router.post("/clients/{client_id}/setup/instant-form")
+async def setup_instant_form(client_id: int):
+    import setup_automation
+    return await _setup_action(setup_automation.create_instant_form, client_id)
+
+
+@router.post("/clients/{client_id}/setup/booking-autofill")
+async def setup_booking_autofill(client_id: int):
+    import setup_automation
+    status, detail = await _setup_action(setup_automation.autosetup_booking, client_id)
+    return {"status": status, "detail": detail}
+
+
+@router.post("/clients/{client_id}/setup/voice-agent")
+async def setup_voice_agent(client_id: int):
+    import client_voice_agent
+    return await _setup_action(client_voice_agent.sync_agent, client_id)
+
+
+@router.post("/clients/{client_id}/setup/test")
+async def setup_run_test(client_id: int):
+    import setup_automation
+    return await _setup_action(setup_automation.run_test, client_id)
+
+
+@router.post("/clients/{client_id}/setup/test/cleanup")
+async def setup_cleanup_test(client_id: int):
+    import setup_automation
+    return await _setup_action(setup_automation.cleanup_test, client_id)
 
 
 @router.get("/clients/{client_id}/funnel")

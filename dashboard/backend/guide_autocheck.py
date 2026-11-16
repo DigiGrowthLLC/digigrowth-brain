@@ -1,118 +1,26 @@
 """
-Ticks Marketing Setup guide steps (client_marketing_config.guide_progress)
-that the dashboard's own data proves are done, so Dylan only checks off the
-genuinely manual ones. Never unticks anything — a step Dylan marked done by
-hand, or one done before its signal existed, stays done.
+Marketing Setup auto-ticks that need the network, and the launch checklist sync.
 
-Step indexes mirror MARKETING_GUIDES in dashboard/frontend/src/panels/
-ClientsPanel.jsx (guide_progress is keyed by guide key + step index). Those
-guides are append-only, so an index here never changes meaning; when a step
-is appended there and is provable from data, add its signal here.
+Since Marketing Setup v2 (setup_steps.py, 2026-11-16) almost every step is
+proven live from the database every time the checklist is read, so this only
+handles what can't be checked cheaply on each read: the client's funnel domain
+actually serving our funnel. Proofs are written to
+client_marketing_config.guide_progress["v2"] and never unticked.
 
 Runs inside client_resources_autofill's 10-minute job for every real client,
 and on demand via POST /api/clients/{id}/marketing-config/autocheck (the
 onboarding agent's service-delivery-setup skill calls it after each step).
 
-Also home of sync_launch_checklist: once every step of a Marketing Setup
-guide is ticked, the matching item on the client's launch checklist (the
-portal's read-only "To Do" tab) is ticked too, so the client sees progress
-without Dylan checking things off twice.
+sync_launch_checklist: once every Marketing Setup step behind a launch
+checklist item is done, that item (the portal's read-only "To Do" tab) is
+ticked too, so the client sees progress without Dylan checking things off twice.
 """
-import json
-import os
-import pathlib
 import re
 
 import httpx
 
+import setup_steps
 from db import get_pool
-
-# Launch checklist item title (lowercased) -> the Marketing Setup guide whose
-# steps must all be ticked. Items not listed (onboarding call, launch
-# campaign, post-launch weeks) stay manual.
-LAUNCH_ITEM_GUIDES = {
-    "set up client portal": "client_portal",
-    "set up sms marketing": "sms",
-    "set up response ai": "response_ai",
-    "create landing page": "landing_page",
-    "create paid ad creatives": "ad_creatives",
-    "launch database reactivation": "reactivation",
-}
-
-_PANEL = pathlib.Path(__file__).resolve().parent.parent / "frontend" / "src" / "panels" / "ClientsPanel.jsx"
-_step_counts: dict[str, int] | None = None
-
-
-def guide_step_counts() -> dict[str, int]:
-    """{guide_key: number of steps}, read from MARKETING_GUIDES in
-    ClientsPanel.jsx (the repo ships in the image), so appending a step there
-    never leaves this count stale. Same parse as onboarding-agent's
-    service_delivery_status.py. Empty if the file can't be read."""
-    global _step_counts
-    if _step_counts is not None:
-        return _step_counts
-    counts: dict[str, int] = {}
-    try:
-        src = _PANEL.read_text(encoding="utf-8")
-        block = src[src.index("const MARKETING_GUIDES = {"):src.index("const SETUP_ORDER_PHASES")]
-    except (OSError, ValueError) as e:
-        print(f"[guide-autocheck] can't read guide step counts: {e}", flush=True)
-        return counts
-    current = None
-    for line in block.splitlines():
-        m = re.match(r"^  (\w+): \{$", line)
-        if m:
-            current = m.group(1)
-            counts[current] = 0
-        elif current:
-            counts[current] += len(re.findall(r'\{ text: "', line))
-    _step_counts = counts
-    return counts
-
-
-async def sync_launch_checklist(client_id: int) -> list[str]:
-    """Ticks each launch checklist item whose Marketing Setup guide is fully
-    ticked for this client. Never unticks (Dylan can still tick or untick
-    these by hand). Returns the titles newly ticked."""
-    counts = guide_step_counts()
-    if not counts:
-        return []
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT guide_progress FROM client_marketing_config WHERE client_id = $1", client_id)
-        progress = _decode(row["guide_progress"] if row else None, {})
-        items = await conn.fetch(
-            """SELECT li.id, li.title FROM launch_checklist_items li
-               LEFT JOIN client_launch_checklist_status s ON s.item_id = li.id AND s.client_id = $1
-               WHERE li.active AND s.completed_at IS NULL""",
-            client_id,
-        )
-        ticked = []
-        for item in items:
-            guide = LAUNCH_ITEM_GUIDES.get(item["title"].strip().lower())
-            total = counts.get(guide or "", 0)
-            slot = progress.get(guide) or {}
-            if not total or sum(1 for i in range(total) if slot.get(str(i))) < total:
-                continue
-            await conn.execute(
-                """INSERT INTO client_launch_checklist_status (client_id, item_id, completed_at)
-                   VALUES ($1, $2, now())
-                   ON CONFLICT (client_id, item_id) DO UPDATE SET completed_at = now()""",
-                client_id, item["id"],
-            )
-            ticked.append(item["title"])
-    if ticked:
-        print(f"[guide-autocheck] client {client_id}: launch checklist ticked {ticked}", flush=True)
-    return ticked
-
-
-def _decode(value, default):
-    if isinstance(value, str):
-        try:
-            return json.loads(value)
-        except ValueError:
-            return default
-    return value if value is not None else default
 
 
 async def _funnel_domain_live(domain: str | None) -> bool:
@@ -129,143 +37,50 @@ async def _funnel_domain_live(domain: str | None) -> bool:
         return False
 
 
-async def _signals(conn, client_id: int) -> dict[str, list[int]]:
-    """{guide_key: [step indexes proven done]} for one client."""
-    cfg = await conn.fetchrow("SELECT * FROM client_marketing_config WHERE client_id = $1", client_id)
-    client = await conn.fetchrow("SELECT * FROM clients WHERE id = $1", client_id)
-    if not cfg or not client:
-        return {}
-    cfg = dict(cfg)
-    inbound = await conn.fetchval(
-        "SELECT EXISTS (SELECT 1 FROM client_sms_messages WHERE client_id = $1 AND direction = 'inbound')", client_id)
-    ai_replied = await conn.fetchval(
-        "SELECT EXISTS (SELECT 1 FROM client_sms_messages WHERE client_id = $1 AND stage = 'ai_reply')", client_id)
-    anchor = await conn.fetchval(
-        "SELECT EXISTS (SELECT 1 FROM contacts WHERE client_id = $1 AND is_client_anchor)", client_id)
-    sequences = await conn.fetchval("SELECT count(*) FROM client_sequence_steps WHERE client_id = $1", client_id)
-
-    booking = (client["calendly_url"] or cfg.get("calendly_event_type_url") or "").strip()
-    on_ghl = bool(re.search(r"leadconnectorhq\.com|msgsndr\.com|/widget/booking/", booking))
-    on_calendly = bool(cfg.get("calendly_api_token") and cfg.get("calendly_event_type_url"))
-    ghl_live = bool(cfg.get("ghl_last_webhook_at"))
-    seq = _decode(cfg.get("response_ai_sequence"), [])
-    # DigiGrowth Booking (default since 2026-11-06): live = turned on with a
-    # bookable appointment type; booked = at least one real booking went
-    # through it end to end.
-    dg_live = bool(await conn.fetchval(
-        "SELECT 1 FROM booking_settings s WHERE s.client_id = $1 AND s.enabled AND s.calendar_id IS NOT NULL "
-        "AND EXISTS (SELECT 1 FROM booking_event_types e WHERE e.client_id = s.client_id AND e.active)", client_id))
-    dg_booked = bool(await conn.fetchval(
-        "SELECT 1 FROM bookings WHERE client_id = $1 AND status IN ('confirmed', 'cancelled') LIMIT 1", client_id))
-
-    done: dict[str, list[int]] = {}
-
-    def mark(guide: str, *idx: int, when: bool = True):
-        if when:
-            done.setdefault(guide, []).extend(idx)
-
-    number = bool(cfg.get("twilio_number"))
-    # sms: 0 number bought, 2 webhook (set on purchase), 3/5 a text landed,
-    # 4 AI uses this number, 6 call forwarding has a target, 7 number handover (n/a once a number exists)
-    mark("sms", 0, 2, 7, when=number)
-    mark("sms", 3, 5, when=number and inbound)
-    mark("sms", 4, when=number and bool(cfg.get("response_ai_enabled")))
-    mark("sms", 6, when=number and bool(cfg.get("call_forward_number") or client["phone"]))
-
-    # response_ai: 0 number, 1-2 agent + context, 3 sequence, 4 rules,
-    # 5 Calendly (the default) / 13-14 GHL (only when the client explicitly books
-    # on GoHighLevel) — either path completes booking, the other is n/a,
-    # 6 a real AI reply went out, 10 Lead Ads relay built, 15 GHL booking reached us
-    mark("response_ai", 0, when=number)
-    mark("response_ai", 1, 2, when=bool(cfg.get("response_ai_enabled") and cfg.get("response_ai_context")))
-    mark("response_ai", 3, when=bool(seq))
-    mark("response_ai", 4, when=bool(cfg.get("response_ai_rules") or cfg.get("response_ai_max_words")))
-    mark("response_ai", 5, when=dg_live or on_calendly or (on_ghl and ghl_live))
-    mark("response_ai", 13, 14, when=dg_live or on_calendly or (on_ghl and ghl_live))
-    mark("response_ai", 6, when=ai_replied)
-    mark("response_ai", 10, when=bool(cfg.get("make_scenario_id") and not cfg.get("lead_ads_error")))
-    mark("response_ai", 15, when=(on_ghl and ghl_live) or (dg_live and dg_booked))
-
-    # landing_page: 0 built, 3 live URL saved, 1 live on the pages domain,
-    # 2 the client's own funnel domain actually serves it
-    mark("landing_page", 0, 3, when=bool(cfg.get("landing_page_url")))
-    mark("landing_page", 1, when="/lp/" in (cfg.get("landing_page_url") or ""))
-    mark("landing_page", 2, when=await _funnel_domain_live(cfg.get("funnel_domain")))
-
-    # ad_creatives: 1 pixel ID saved, 3 ad account + Page saved, 6 ad account saved, 7 Page saved
-    mark("ad_creatives", 1, when=bool(cfg.get("meta_pixel_id")))
-    mark("ad_creatives", 3, when=bool(cfg.get("meta_ad_account_id") and cfg.get("meta_page_id")))
-    mark("ad_creatives", 6, when=bool(cfg.get("meta_ad_account_id")))
-    mark("ad_creatives", 7, when=bool(cfg.get("meta_page_id")))
-    # 9: ad spend cap on, checked, and able to pause (no error)
-    cap_ok = await conn.fetchval(
-        "SELECT 1 FROM ad_spend_caps WHERE client_id = $1 AND enabled AND cap > 0 "
-        "AND last_checked_at IS NOT NULL AND last_error IS NULL", client_id)
-    mark("ad_creatives", 9, when=bool(cap_ok))
-
-    # client_portal: 0 booking link saved, 1 the client's own contact is linked
-    mark("client_portal", 0, when=dg_live or bool(booking))
-    mark("client_portal", 1, when=anchor)
-
-    # automations: 1 sequence copy seeded (review is still worth doing, but the copy exists)
-    mark("automations", 1, when=sequences > 0)
-
-    # voice_agent: 0 Retell key on the server, 1 consent stamped, 2 agent built,
-    # 3 a test call connected, 4 switched on, 5 a real lead was called
-    voice_test = await conn.fetchval(
-        "SELECT 1 FROM client_voice_calls WHERE client_id = $1 AND source = 'test' AND answered_at IS NOT NULL LIMIT 1", client_id)
-    voice_real = await conn.fetchval(
-        "SELECT 1 FROM client_voice_calls WHERE client_id = $1 AND source <> 'test' AND dialed_at IS NOT NULL LIMIT 1", client_id)
-    mark("voice_agent", 0, when=bool(os.environ.get("RETELL_API_KEY")))
-    mark("voice_agent", 1, when=bool(cfg.get("voice_consent_meta_since")))
-    mark("voice_agent", 2, when=bool(cfg.get("retell_agent_id")))
-    mark("voice_agent", 3, when=bool(voice_test))
-    mark("voice_agent", 4, when=bool(cfg.get("voice_agent_enabled")))
-    mark("voice_agent", 5, when=bool(voice_real))
-
-    # reactivation: 2 reactivation leads imported, 3 a campaign exists, 5 one is running/ran
-    react_leads = await conn.fetchval(
-        """SELECT 1 FROM contacts WHERE client_id = $1 AND (lead_source IN ('past_patient', 'old_inquiry')
-             OR 'Database Reactivation' = ANY(tags) OR 'Previous Patient' = ANY(tags)) LIMIT 1""", client_id)
-    campaign = await conn.fetchrow(
-        "SELECT bool_or(started_at IS NOT NULL) AS started FROM reactivation_campaigns WHERE client_id = $1 HAVING count(*) > 0",
-        client_id)
-    mark("reactivation", 2, when=bool(react_leads))
-    mark("reactivation", 3, when=bool(campaign))
-    mark("reactivation", 5, when=bool(campaign and campaign["started"]))
-
-    # social: 1 DMs connected, 4 DM agent on, 5 a real DM thread exists
-    dm_thread = await conn.fetchval("SELECT 1 FROM client_dm_threads WHERE client_id = $1 LIMIT 1", client_id)
-    mark("social", 1, when=bool(cfg.get("dm_connected_at") and not cfg.get("dm_connect_error")))
-    mark("social", 4, when=bool(cfg.get("dm_agent_enabled")))
-    mark("social", 5, when=bool(dm_thread))
-    return done
+async def sync_launch_checklist(client_id: int) -> list[str]:
+    """Ticks each launch checklist item whose Marketing Setup steps are all
+    done for this client. Never unticks. Returns the titles newly ticked."""
+    done = await setup_steps.launch_checklist_done(client_id)
+    pool = await get_pool()
+    ticked = []
+    async with pool.acquire() as conn:
+        items = await conn.fetch(
+            """SELECT li.id, li.title FROM launch_checklist_items li
+               LEFT JOIN client_launch_checklist_status s ON s.item_id = li.id AND s.client_id = $1
+               WHERE li.active AND s.completed_at IS NULL""",
+            client_id,
+        )
+        for item in items:
+            needed = setup_steps.LAUNCH_ITEM_STEPS.get(item["title"].strip().lower())
+            if not needed or not all(n in done for n in needed):
+                continue
+            await conn.execute(
+                """INSERT INTO client_launch_checklist_status (client_id, item_id, completed_at)
+                   VALUES ($1, $2, now())
+                   ON CONFLICT (client_id, item_id) DO UPDATE SET completed_at = now()""",
+                client_id, item["id"],
+            )
+            ticked.append(item["title"])
+    if ticked:
+        print(f"[guide-autocheck] client {client_id}: launch checklist ticked {ticked}", flush=True)
+    return ticked
 
 
-async def autocheck(client_id: int) -> dict[str, list[int]]:
-    """Ticks every proven step for one client. Returns {guide: [newly ticked indexes]}."""
+async def autocheck(client_id: int) -> list[str]:
+    """Writes the network-proven ticks for one client. Returns step ids newly ticked."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        proven = await _signals(conn, client_id)
-        if not proven:
-            return {}
-        row = await conn.fetchrow("SELECT guide_progress FROM client_marketing_config WHERE client_id = $1", client_id)
-        progress = _decode(row["guide_progress"] if row else None, {})
-        newly: dict[str, list[int]] = {}
-        for guide, idxs in proven.items():
-            slot = progress.setdefault(guide, {})
-            for i in sorted(set(idxs)):
-                if not slot.get(str(i)):
-                    slot[str(i)] = True
-                    newly.setdefault(guide, []).append(i)
-        if newly:
-            await conn.execute(
-                "UPDATE client_marketing_config SET guide_progress = $2::jsonb, updated_at = now() WHERE client_id = $1",
-                client_id, json.dumps(progress),
-            )
-            print(f"[guide-autocheck] client {client_id}: ticked {newly}", flush=True)
-    # Every run, not just when something new was ticked: also catches guides
-    # finished by hand before this sync existed.
+        cfg = await conn.fetchrow(
+            "SELECT funnel_domain, guide_progress FROM client_marketing_config WHERE client_id = $1", client_id)
+    if not cfg:
+        return []
+    progress = setup_steps._decode(cfg["guide_progress"], {})
+    newly = []
+    if not (progress.get("v2") or {}).get("dns") and await _funnel_domain_live(cfg["funnel_domain"]):
+        await setup_steps.set_tick(client_id, "dns", True)
+        newly.append("dns")
+    if newly:
+        print(f"[guide-autocheck] client {client_id}: ticked {newly}", flush=True)
     await sync_launch_checklist(client_id)
     return newly
 
@@ -276,4 +91,8 @@ async def autocheck_all() -> None:
         ids = [r["id"] for r in await conn.fetch(
             "SELECT c.id FROM clients c JOIN client_marketing_config cmc ON cmc.client_id = c.id WHERE NOT c.is_test")]
     for client_id in ids:
-        await autocheck(client_id)
+        try:
+            await setup_steps.status(client_id)  # runs the one-time v2 migration of old ticks
+            await autocheck(client_id)
+        except Exception as e:
+            print(f"[guide-autocheck] client {client_id} failed: {e}", flush=True)

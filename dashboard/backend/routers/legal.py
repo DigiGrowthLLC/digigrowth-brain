@@ -122,3 +122,45 @@ conflict of law provisions.</p>
 <p>Questions about these Terms? Email us at
 <a href="mailto:dylangroenendijk@gmail.com">dylangroenendijk@gmail.com</a>.</p>
 </body></html>""")
+
+
+@router.get("/privacy/{slug}", response_class=HTMLResponse, include_in_schema=False)
+async def clinic_privacy_policy(slug: str):
+    """A client clinic's own privacy policy, for its Meta Instant Form
+    (setup_automation.create_instant_form) and funnel. Keyed by the funnel
+    slug; names the clinic and its patient contact phone/email."""
+    import html as _html
+    from fastapi import HTTPException
+    from db import get_pool
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """SELECT cl.name, cl.email, cl.phone, bs.contact_email, bs.contact_phone
+               FROM landing_pages lp JOIN clients cl ON cl.id = lp.client_id
+               LEFT JOIN booking_settings bs ON bs.client_id = cl.id WHERE lp.slug = $1""", slug)
+    if not row:
+        raise HTTPException(404, "Not found")
+    name = _html.escape(row["name"])
+    email = _html.escape(row["contact_email"] or row["email"] or "")
+    phone = _html.escape(row["contact_phone"] or row["phone"] or "")
+    contact = " or ".join(x for x in [f'<a href="mailto:{email}">{email}</a>' if email else "", phone] if x) or "the clinic"
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy | {name}</title><style>{_STYLE}</style></head><body>
+<h1>Privacy Policy</h1>
+<p class="updated">{name}</p>
+<h2>What we collect</h2>
+<p>When you request an appointment or information through our forms, ads or booking page, we collect your name,
+mobile number, email address and anything you choose to tell us about why you're reaching out.</p>
+<h2>How we use it</h2>
+<p>We use it to contact you about your request: to schedule, confirm and remind you about appointments, and to
+follow up by phone (which may include automated or AI-assisted calls) and by text, as you agreed when you
+submitted the form. Message and data rates may apply. Reply STOP to any text to opt out, or tell us on a call.</p>
+<h2>Who we share it with</h2>
+<p>We don't sell your information. We share it only with service providers that help us run scheduling,
+texting, calling and payments on our behalf, under confidentiality obligations, or when the law requires it.
+Text messaging opt-in data and consent are never shared with third parties for their marketing.</p>
+<h2>Retention and your rights</h2>
+<p>We keep your information as long as needed for your request and our records, or as the law requires. You can ask
+us to access, correct or delete it at any time: contact {contact}.</p>
+</body></html>""")

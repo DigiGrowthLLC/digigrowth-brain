@@ -159,17 +159,9 @@ async def _record_step(client_id: int, key: str, status: str, detail: str) -> No
 
 
 async def _check_guide_steps(client_id: int, guide: str, indexes: list[int]) -> None:
-    """Ticks guide_progress[guide][i] for steps this run actually did, the
-    same slots the SET UP GUIDE checkboxes write."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """UPDATE client_marketing_config
-               SET guide_progress = guide_progress || jsonb_build_object(
-                     $2::text, COALESCE(guide_progress -> $2, '{}'::jsonb) || $3::jsonb)
-               WHERE client_id = $1""",
-            client_id, guide, json.dumps({str(i): True for i in indexes}),
-        )
+    """Marketing Setup v2 (setup_steps.py) proves these steps from the data
+    itself, so there's nothing to tick: just bring the client's launch
+    checklist up to date."""
     await guide_autocheck.sync_launch_checklist(client_id)
 
 
@@ -207,6 +199,8 @@ async def run(client_id: int, force: bool = False) -> None:
             ("sms", _step_sms),
             ("response_ai", _step_response_ai),
             ("automations", _step_automations),
+            ("booking", _step_booking),
+            ("voice_agent", _step_voice),
         ]
         for key, fn in steps:
             try:
@@ -220,6 +214,16 @@ async def run(client_id: int, force: bool = False) -> None:
     except Exception as e:
         print(f"[autosetup] client {client_id} run failed: {e}")
         await _record(client_id, state="error", finished_at=_now(), error=str(e)[:600])
+
+
+async def _step_booking(client_id: int, ctx: dict) -> tuple[str, str]:
+    import setup_automation
+    return await setup_automation.autosetup_booking(client_id)
+
+
+async def _step_voice(client_id: int, ctx: dict) -> tuple[str, str]:
+    import setup_automation
+    return await setup_automation.autosetup_voice(client_id)
 
 
 async def _load(client_id: int) -> dict:
