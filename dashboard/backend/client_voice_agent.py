@@ -217,7 +217,7 @@ async def _pickup_nudge(call_id: str, first_name: str) -> None:
             await _retell("PATCH", f"/v2/update-live-call/{call_id}", {"call_control": {
                 "trigger_response": True,
                 "additional_context": f'The call screener handed the call over; the person may be picking up now '
-                                      f'and hasn't spoken yet. Say only: "{line}"'}})
+                                      f'and has not spoken yet. Say only: "{line}"'}})
         except Exception as e:
             print(f"[voice_agent] pickup nudge failed for {call_id}: {e}", flush=True)
             break
