@@ -28,38 +28,60 @@ const PORTAL_PERIOD_OPTIONS = [["today", "Today"], ["week", "Week"], ["month", "
 // client-side time check it would show up as "upcoming" indefinitely.
 const APPT_PAST_GRACE_MS = 60 * 60 * 1000;
 
-// Two-tier nav — groups the 10 underlying views into 5 primary tabs so the
-// bar doesn't overwhelm the client. Leaf ids below are unchanged from the
-// old flat TAB_LABELS (still what `tab` state holds and what every
-// {tab === "x" && ...} content branch further down matches on), so nothing
-// that navigates by leaf id (onGoToTab/setTab callers, action-item
-// link_tab values already stored in the DB) needed to change — only how
-// they're grouped/labeled in the nav bar did.
-const NAV = [
-  { id: "dashboard-group", label: "Dashboard", children: [
-    { id: "dashboard", label: "Overview" },
-    { id: "analytics", label: "Analytics" },
-    { id: "inbox", label: "Inbox" },
-    { id: "website", label: "Website" },
+// Portal navigation (revamp 2026-11-16): one flat sidebar in plain words,
+// grouped by what the client is trying to do, instead of two rows of tabs.
+// Leaf ids are unchanged (tab state, onGoToTab/setTab callers and action
+// items' stored link_tab values all still match on them).
+const NAV_GROUPS = [
+  { label: "Overview", items: [
+    { id: "dashboard", label: "Home", icon: "home", desc: "" },
+    { id: "analytics", label: "Results", icon: "chart", desc: "How your ads turn into leads, booked visits and patients." },
   ] },
-  { id: "crm-group", label: "Leads & Appointments", children: [
-    { id: "leads", label: "Leads" },
-    { id: "appointments", label: "Appointments" },
-    { id: "sequences", label: "Your Messaging" },
+  { label: "Patients", items: [
+    { id: "inbox", label: "Inbox", icon: "chat", desc: "Every text conversation with your leads. Read and reply right here." },
+    { id: "leads", label: "Leads", icon: "users", desc: "Everyone who has reached out. Click a name to see their details, tag them or book them." },
+    { id: "appointments", label: "Appointments", icon: "calendar", desc: "Upcoming and past visits booked for you. Mark who showed up so your results stay accurate." },
   ] },
-  { id: "getstarted-group", label: "Get Started", children: [
-    { id: "onboarding", label: "Onboarding" },
-    { id: "videos", label: "Videos" },
+  { label: "Your marketing", items: [
+    { id: "sequences", label: "Automatic Texts", icon: "bolt", desc: "The texts that go out for you automatically: confirmations, reminders and follow-ups. Switch any of them on or off." },
+    { id: "website", label: "Your Website", icon: "globe", desc: "Your booking page and how many visitors it turns into appointments." },
   ] },
-  { id: "todo", label: "To Do" },
-  { id: "upload", label: "Upload" },
+  { label: "Getting started", items: [
+    { id: "onboarding", label: "Setup Steps", icon: "rocket", desc: "A few things we need from you to get everything live. Work through them top to bottom." },
+    { id: "todo", label: "Launch Progress", icon: "check", desc: "What we're setting up for you and where each piece stands. Nothing to do here, it updates by itself." },
+    { id: "upload", label: "Upload Files", icon: "upload", desc: "Send us photos, your logo, patient lists or anything else we ask for." },
+    { id: "videos", label: "How-To Videos", icon: "play", desc: "Short walkthroughs of everything in your portal." },
+  ] },
 ];
+const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
-// Flat leaf-id -> label lookup derived from NAV — ActionItemRow's "Go to
-// {label}" link (item.link_tab references a leaf id directly) reads this.
-const TAB_LABELS = Object.fromEntries(
-  NAV.flatMap((g) => (g.children ? g.children.map((c) => [c.id, c.label]) : [[g.id, g.label]]))
-);
+// Flat leaf-id -> label lookup — ActionItemRow's "Go to {label}" link
+// (item.link_tab references a leaf id directly) reads this.
+const TAB_LABELS = Object.fromEntries(NAV_ITEMS.map((i) => [i.id, i.label]));
+
+const NAV_ICON_PATHS = {
+  home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z",
+  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  chat: "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z",
+  users: "M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM20 20v-1.5a3.5 3.5 0 0 0-2.5-3.4M15.5 4.2a3.5 3.5 0 0 1 0 6.6",
+  calendar: "M4 6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5v12a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5zM4 10h16M8 3v4M16 3v4",
+  bolt: "M13 2 4 14h7l-1 8 9-12h-7z",
+  globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18",
+  rocket: "M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M9 13l2 2M14.5 4.5c2-1.5 5.5-1.5 5.5-1.5s0 3.5-1.5 5.5L12 15l-3-3zM9 9H5l2.5-3H11M15 15v4l-3 2.5V18",
+  check: "M9 11.5 11.5 14 16 9M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z",
+  upload: "M12 15V4M7.5 8.5 12 4l4.5 4.5M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15",
+  play: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM10 8.5v7l6-3.5z",
+  menu: "M4 7h16M4 12h16M4 17h16",
+  close: "M6 6l12 12M18 6 6 18",
+};
+function NavIcon({ name, size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path d={NAV_ICON_PATHS[name]} />
+    </svg>
+  );
+}
 
 function Field({ q, value, onChange }) {
   return (
@@ -114,15 +136,15 @@ function ActionItemRow({ token, item, onUpdated, onGoToTab }) {
           {item.title}
         </div>
         {item.description && (
-          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
+          <div style={{ fontSize: 12, color: "#b8c3e6", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
         )}
         {item.link_tab && TAB_LABELS[item.link_tab] && (
-          <button onClick={() => onGoToTab(item.link_tab)} style={{ marginTop: 6, background: "none", border: "none", color: "#3a7bd5", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+          <button onClick={() => onGoToTab(item.link_tab)} style={{ marginTop: 6, background: "none", border: "none", color: "#8b9bff", fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
             ▶ Go to {TAB_LABELS[item.link_tab]}
           </button>
         )}
         {item.link_url && (
-          <a href={item.link_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#3a7bd5", fontSize: 11.5, textDecoration: "underline" }}>
+          <a href={item.link_url} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#8b9bff", fontSize: 11.5, textDecoration: "underline" }}>
             ▶ {item.link_url.includes("/stripe/connect") ? "Connect Stripe" : "Open Link"}
           </a>
         )}
@@ -191,7 +213,7 @@ function ChecklistRow({ item }) {
           {item.title}
         </div>
         {item.description && (
-          <div style={{ fontSize: 12, color: "#8aaad0", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
+          <div style={{ fontSize: 12, color: "#b8c3e6", marginTop: 3, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{item.description}</div>
         )}
       </div>
     </div>
@@ -203,7 +225,7 @@ function ChecklistPhaseGroup({ label, items }) {
   const doneCount = items.filter((i) => i.completed_at).length;
   return (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginBottom: 8 }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa", letterSpacing: "0.12em", marginBottom: 8 }}>
         {label.toUpperCase()} ({doneCount}/{items.length})
       </div>
       <div className="glass-card" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -237,14 +259,14 @@ function LaunchChecklistTab({ token }) {
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
           Watch as we get you ready to launch
         </div>
-        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, marginBottom: !loading && prelaunch.length > 0 ? 16 : 0 }}>
+        <div style={{ fontSize: 12.5, color: "#b8c3e6", lineHeight: 1.6, marginBottom: !loading && prelaunch.length > 0 ? 16 : 0 }}>
           This is our own checklist, not yours — we're handling every item below.
           Check back anytime to see our progress as we build out your campaign.
         </div>
         {!loading && prelaunch.length > 0 && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.1em" }}>
+              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa", letterSpacing: "0.1em" }}>
                 {doneCount} OF {prelaunch.length} COMPLETE
               </span>
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#6ab0ff" }}>{pct}%</span>
@@ -256,9 +278,9 @@ function LaunchChecklistTab({ token }) {
         )}
       </div>
 
-      {loading && <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>}
+      {loading && <div style={{ color: "#7884aa", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>}
       {!loading && items.length === 0 && (
-        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#2a4a6a", letterSpacing: "0.12em" }}>
+        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#6f7ca3", letterSpacing: "0.12em" }}>
           NOTHING ON THE CHECKLIST YET
         </div>
       )}
@@ -311,7 +333,7 @@ function RequestSection({ token }) {
     <div style={{ marginTop: 28 }}>
       <SectionHeading>Have Something You Need Done?</SectionHeading>
       <div className="glass-card" style={{ padding: 18, marginBottom: 16 }}>
-        <div style={{ fontSize: 12.5, color: "#8aaad0", marginBottom: 10, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12.5, color: "#b8c3e6", marginBottom: 10, lineHeight: 1.5 }}>
           Noticed something that needs fixing, or want us to add/change something? Let us know here.
         </div>
         <textarea
@@ -426,14 +448,14 @@ function UploadTab({ token }) {
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
           Send Us Files
         </div>
-        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12.5, color: "#b8c3e6", lineHeight: 1.6 }}>
           Got photos, videos, testimonials, logos, or documents we can use in your marketing? Upload
           them here and we'll take it from there.
         </div>
       </div>
 
       {configured === false && (
-        <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13, marginBottom: 20 }}>
+        <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#8f9bc0", fontSize: 13, marginBottom: 20 }}>
           File uploads aren't connected yet — check back soon.
         </div>
       )}
@@ -441,7 +463,7 @@ function UploadTab({ token }) {
       {configured && (
         <div className="glass-card" style={{ padding: 20, marginBottom: 24 }}>
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.12em", marginBottom: 6 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#7884aa", letterSpacing: "0.12em", marginBottom: 6 }}>
               NOTES (OPTIONAL)
             </div>
             <input
@@ -469,7 +491,7 @@ function UploadTab({ token }) {
             }}
           >
             <span style={{ fontSize: 26 }}>📁</span>
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#8aaad0" }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, color: "#b8c3e6" }}>
               Click to choose files, or drag them here
             </span>
           </label>
@@ -495,9 +517,9 @@ function UploadTab({ token }) {
                 <span style={{ fontSize: 16, flexShrink: 0 }}>📄</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, color: "#d0e8ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file_name}</div>
-                  {f.notes && <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{f.notes}</div>}
+                  {f.notes && <div style={{ fontSize: 11, color: "#8b96b8", marginTop: 2 }}>{f.notes}</div>}
                 </div>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", flexShrink: 0 }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa", flexShrink: 0 }}>
                   {fmtBytes(f.file_size)}
                 </div>
               </div>
@@ -555,11 +577,11 @@ function OnboardingFormSection({ token }) {
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: collapsed ? 0 : 12 }}
       >
         <SectionHeading>Onboarding Form ({completedCount}/{SECTIONS.length})</SectionHeading>
-        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>{collapsed ? "▼" : "▲"}</span>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa" }}>{collapsed ? "▼" : "▲"}</span>
       </div>
 
       {!collapsed && (loading ? (
-        <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>
+        <div style={{ color: "#7884aa", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 20 }}>LOADING...</div>
       ) : (
         SECTIONS.map((s) => {
           const isDone = !!responses[s.key]?.completed_at;
@@ -578,7 +600,7 @@ function OnboardingFormSection({ token }) {
                     ✓ COMPLETE
                   </span>
                 )}
-                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
+                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa" }}>
                   {isOpen ? "▲" : "▼"}
                 </span>
               </button>
@@ -694,7 +716,7 @@ function MessagingSection({ title, summary, controls, children }) {
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>{title}</div>
-          {summary && <div style={{ fontSize: 12, color: "#6a84a8", marginTop: 3 }}>{summary}</div>}
+          {summary && <div style={{ fontSize: 12, color: "#a3aed0", marginTop: 3 }}>{summary}</div>}
         </div>
         {controls}
       </div>
@@ -712,7 +734,7 @@ function SequenceStepCard({ title, timing, step, onToggle, busy }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: "#e8f0ff" }}>{title}</div>
           {timing && (
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.06em", marginTop: 3 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#8f9bc0", letterSpacing: "0.06em", marginTop: 3 }}>
               {timing.toUpperCase()}
             </div>
           )}
@@ -720,7 +742,7 @@ function SequenceStepCard({ title, timing, step, onToggle, busy }) {
         {onToggle && <OnOffSwitch on={step.enabled !== false} onChange={onToggle} busy={busy} />}
       </div>
       <div className="dg-divider" style={{ margin: "12px 0" }} />
-      <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{step.body}</div>
+      <div style={{ fontSize: 12.5, color: "#b8c3e6", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{step.body}</div>
     </div>
   );
 }
@@ -837,10 +859,10 @@ function AddToClientSequenceModal({ token, sequence, activeIds, onClose, onAdded
                     width: 480, maxWidth: "92vw", maxHeight: "80vh", display: "flex", flexDirection: "column", padding: "24px 28px", gap: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>{copy.addTitle}</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 14 }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#7884aa", cursor: "pointer", fontSize: 14 }}>✕</button>
         </div>
 
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>{copy.addHint}</div>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa" }}>{copy.addHint}</div>
 
         <input
           value={q}
@@ -853,16 +875,16 @@ function AddToClientSequenceModal({ token, sequence, activeIds, onClose, onAdded
         {err && <div style={{ fontSize: 11, color: "#e05555" }}>{err}</div>}
 
         <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-          {loading && <div style={{ fontSize: 11, color: "#3a5a80" }}>Loading…</div>}
+          {loading && <div style={{ fontSize: 11, color: "#7884aa" }}>Loading…</div>}
           {!loading && candidates.length === 0 && (
-            <div style={{ fontSize: 11, color: "#3a5a80" }}>{sequence === "followup" ? "No matching leads." : "No matching appointments."}</div>
+            <div style={{ fontSize: 11, color: "#7884aa" }}>{sequence === "followup" ? "No matching leads." : "No matching appointments."}</div>
           )}
           {candidates.map(a => (
             <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
                                       background: "#060a14", border: "0.5px solid #121e36", borderRadius: 6 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12, color: "#f0f4ff", fontWeight: 600 }}>{a.prospect_name || a.owner || a.business || a.phone || "—"}</div>
-                <div style={{ fontSize: 11, color: "#7a94b8" }}>{sequence === "followup" ? a.phone : fmtSeqDate(a.appointment_at)}</div>
+                <div style={{ fontSize: 11, color: "#a3aed0" }}>{sequence === "followup" ? a.phone : fmtSeqDate(a.appointment_at)}</div>
               </div>
               <button
                 onClick={() => add(a)}
@@ -923,7 +945,7 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
               {copy.title}
             </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80",
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#7884aa",
                           letterSpacing: "0.18em", marginTop: 2 }}>
               {rows.length.toLocaleString()} ACTIVE
             </div>
@@ -932,7 +954,7 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
             <button onClick={() => setShowAdd(true)} className="btn btn-primary" style={{ whiteSpace: "nowrap" }}>
               {copy.addLabel}
             </button>
-            <button onClick={onClose} style={{ background: "none", border: "none", color: "#3a5a80", cursor: "pointer", fontSize: 16 }}>✕</button>
+            <button onClick={onClose} style={{ background: "none", border: "none", color: "#7884aa", cursor: "pointer", fontSize: 16 }}>✕</button>
           </div>
         </div>
 
@@ -942,10 +964,10 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
 
         <div style={{ flex: 1, overflowY: "auto", padding: "14px 24px 20px" }}>
           {loading ? (
-            <div style={{ padding: "30px 0", textAlign: "center", fontSize: 11, color: "#3a5a80" }}>Loading…</div>
+            <div style={{ padding: "30px 0", textAlign: "center", fontSize: 11, color: "#7884aa" }}>Loading…</div>
           ) : rows.length === 0 ? (
             <div style={{ padding: "30px 0", textAlign: "center", fontFamily: "'Share Tech Mono', monospace",
-                          fontSize: 11, color: "#3a5a80", letterSpacing: "0.18em" }}>
+                          fontSize: 11, color: "#7884aa", letterSpacing: "0.18em" }}>
               {copy.emptyLabel}
             </div>
           ) : (
@@ -956,7 +978,7 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
                     <th key={h} style={{
                       padding: "6px 10px", textAlign: "left",
                       fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fontWeight: 600,
-                      letterSpacing: "0.18em", color: "#2a4a7a", textTransform: "uppercase",
+                      letterSpacing: "0.18em", color: "#6f7ca3", textTransform: "uppercase",
                     }}>{h}</th>
                   ))}
                 </tr>
@@ -965,8 +987,8 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
                 {rows.map(r => (
                   <tr key={r.id} style={{ borderBottom: "0.5px solid #121e36" }}>
                     <td style={{ padding: "8px 10px", fontSize: 12, color: "#f0f4ff" }}>{r.prospect_name || r.owner || "—"}</td>
-                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{r.step_label}</td>
-                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{fmtSeqDate(r.next_touch_due_at)}</td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#a3aed0" }}>{r.step_label}</td>
+                    <td style={{ padding: "8px 10px", fontSize: 11, color: "#a3aed0" }}>{fmtSeqDate(r.next_touch_due_at)}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right" }}>
                       <button
                         onClick={() => remove(r)}
@@ -1041,10 +1063,10 @@ function BookingAlertSection({ token }) {
       controls={<OnOffSwitch on={alert.enabled} onChange={setEnabled} busy={busy} />}
     >
       <div className="glass-card-sm" style={{ padding: 16, maxWidth: 520, opacity: alert.enabled ? 1 : 0.55 }}>
-        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{alert.body}</div>
+        <div style={{ fontSize: 12.5, color: "#b8c3e6", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{alert.body}</div>
         <div className="dg-divider" style={{ margin: "12px 0" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.08em" }}>GREETS</span>
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#8f9bc0", letterSpacing: "0.08em" }}>GREETS</span>
           <input
             value={name} onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") saveName(); }}
@@ -1088,21 +1110,21 @@ function ReactivationQueueModal({ token, playbook, title, onClose }) {
           <div style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: "#f0f4ff" }}>{title}: Active Prospects</div>
           <button onClick={onClose} className="btn btn-secondary" style={{ fontSize: 10.5, padding: "6px 12px" }}>Close</button>
         </div>
-        <div style={{ fontSize: 12, color: "#6a84a8", marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: "#a3aed0", marginTop: 4 }}>
           Who's lined up next and when. {data?.paused ? "These start sending once DigiGrowth switches reactivation on." : "Texts go out 10am-6pm Mon-Sat, your time."}
         </div>
         <div className="dg-divider" style={{ margin: "14px 0" }} />
         <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}>
           {!data ? (
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a5a80" }}>LOADING...</div>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#7884aa" }}>LOADING...</div>
           ) : !items.length ? (
-            <div style={{ fontSize: 12.5, color: "#6a84a8" }}>Nobody is lined up right now.</div>
+            <div style={{ fontSize: 12.5, color: "#a3aed0" }}>Nobody is lined up right now.</div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr>
                   {["When", "Name", "Phone", "Next"].map((h) => (
-                    <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.06em" }}>{h.toUpperCase()}</th>
+                    <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#8f9bc0", letterSpacing: "0.06em" }}>{h.toUpperCase()}</th>
                   ))}
                 </tr>
               </thead>
@@ -1111,8 +1133,8 @@ function ReactivationQueueModal({ token, playbook, title, onClose }) {
                   <tr key={i} style={{ borderTop: "1px solid rgba(58,123,213,0.08)" }}>
                     <td style={{ padding: "7px 8px", color: "#e8f0ff", whiteSpace: "nowrap" }}>{it.due ? fmt(it.due, it.estimated) : it.when_label}</td>
                     <td style={{ padding: "7px 8px", color: "#e8f0ff" }}>{it.name || "—"}</td>
-                    <td style={{ padding: "7px 8px", color: "#8aaad0", whiteSpace: "nowrap" }}>{it.phone}</td>
-                    <td style={{ padding: "7px 8px", color: "#8aaad0" }}>{it.what}</td>
+                    <td style={{ padding: "7px 8px", color: "#b8c3e6", whiteSpace: "nowrap" }}>{it.phone}</td>
+                    <td style={{ padding: "7px 8px", color: "#b8c3e6" }}>{it.what}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1120,7 +1142,7 @@ function ReactivationQueueModal({ token, playbook, title, onClose }) {
           )}
         </div>
         {items.some((i) => i.estimated) && (
-          <div style={{ fontSize: 11, color: "#5a6f8f", marginTop: 10 }}>~ = estimated: a set number of new people are texted each day.</div>
+          <div style={{ fontSize: 11, color: "#8b96b8", marginTop: 10 }}>~ = estimated: a set number of new people are texted each day.</div>
         )}
       </div>
     </div>
@@ -1151,7 +1173,7 @@ function ReactivationMessagesSection({ token }) {
           <SequenceStepCard key={i} title={m.title} timing={m.timing} step={{ body: m.body }} />
         ))}
       </div>
-      <div style={{ fontSize: 11, color: "#5a6f8f", marginTop: 12 }}>{data.example}</div>
+      <div style={{ fontSize: 11, color: "#8b96b8", marginTop: 12 }}>{data.example}</div>
     </MessagingSection>
   ));
 }
@@ -1191,7 +1213,7 @@ function SequencesTab({ token }) {
       .catch(() => setLoading(false));
   }, [token]);
 
-  if (loading) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading) return <div style={{ color: "#7884aa", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
 
   return (
     <div>
@@ -1199,7 +1221,7 @@ function SequencesTab({ token }) {
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>
           Your Patient Messaging
         </div>
-        <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12.5, color: "#b8c3e6", lineHeight: 1.6 }}>
           Your appointment reminders and follow-ups are live, texting from your own number.
           Below is every message, plus who's in each sequence right now. Switch off a single
           text, or a whole sequence, and it stops before its next send.
@@ -1254,7 +1276,7 @@ function SequencesTab({ token }) {
       })}
 
       {!loading && steps.length === 0 && (
-        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#2a4a6a", letterSpacing: "0.12em" }}>
+        <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#6f7ca3", letterSpacing: "0.12em" }}>
           NOTHING DRAFTED YET — CHECK BACK SOON
         </div>
       )}
@@ -1277,9 +1299,9 @@ function VideosTab({ token }) {
       .catch(() => setLoading(false));
   }, [token]);
 
-  if (loading) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading) return <div style={{ color: "#7884aa", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (videos.length === 0) return (
-    <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#2a4a6a", letterSpacing: "0.12em" }}>
+    <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#6f7ca3", letterSpacing: "0.12em" }}>
       NO VIDEOS YET — CHECK BACK SOON
     </div>
   );
@@ -1309,7 +1331,7 @@ function VideosTab({ token }) {
             )}
           </div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff", marginBottom: 4 }}>{v.title}</div>
-          {v.description && <div style={{ fontSize: 12.5, color: "#8aaad0", lineHeight: 1.5 }}>{v.description}</div>}
+          {v.description && <div style={{ fontSize: 12.5, color: "#b8c3e6", lineHeight: 1.5 }}>{v.description}</div>}
         </div>
       ))}
     </div>
@@ -1329,9 +1351,9 @@ function WebsiteTab({ token }) {
       .catch(() => setLoading(false));
   }, [token]);
 
-  if (loading) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading) return <div style={{ color: "#7884aa", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (sites.length === 0) return (
-    <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#2a4a6a", letterSpacing: "0.12em" }}>
+    <div style={{ textAlign: "center", padding: 60, fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#6f7ca3", letterSpacing: "0.12em" }}>
       NO WEBSITES YET — CHECK BACK SOON
     </div>
   );
@@ -1343,7 +1365,7 @@ function WebsiteTab({ token }) {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
             <div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 16, color: "#d0e8ff" }}>{s.label}</div>
-              <a href={s.url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: "#3a7bd5" }}>{s.url}</a>
+              <a href={s.url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: "#8b9bff" }}>{s.url}</a>
             </div>
             <a href={s.url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 11 }}>VISIT SITE &#8599;</a>
           </div>
@@ -1355,7 +1377,7 @@ function WebsiteTab({ token }) {
 
 function SectionHeading({ children }) {
   return (
-    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 12 }}>
+    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 12 }}>
       {children}
     </div>
   );
@@ -1412,7 +1434,7 @@ function DashChartTooltip({ active, payload, label }) {
       borderRadius: 10, padding: "8px 14px", fontSize: 12,
       fontFamily: "'Space Grotesk', sans-serif",
     }}>
-      <div style={{ color: "#8aaad0", marginBottom: 4 }}>{label}</div>
+      <div style={{ color: "#b8c3e6", marginBottom: 4 }}>{label}</div>
       {payload.map((p) => (
         <div key={p.dataKey} style={{ color: p.color, fontWeight: 600 }}>{p.name}: {p.value}</div>
       ))}
@@ -1433,7 +1455,7 @@ function GradientRateCard({ label, pct, sublabel, breakdown }) {
         }}>
           {pct != null ? `${pct}%` : "—"}
         </div>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginTop: 8 }}>
+        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa", letterSpacing: "0.12em", marginTop: 8 }}>
           {sublabel}
         </div>
       </div>
@@ -1443,7 +1465,7 @@ function GradientRateCard({ label, pct, sublabel, breakdown }) {
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             {breakdown.map(({ label: l, value, color }) => (
               <div key={l}>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.12em" }}>{l.toUpperCase()}</div>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#6f7ca3", letterSpacing: "0.12em" }}>{l.toUpperCase()}</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color, marginTop: 2 }}>{value}</div>
               </div>
             ))}
@@ -1480,7 +1502,7 @@ function UpcomingAppointmentsWidget({ token }) {
       <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0", marginBottom: 16 }}>
         Upcoming Appointments
       </div>
-      {loading && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>}
+      {loading && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#6f7ca3" }}>LOADING…</div>}
       {!loading && rows.length === 0 && (
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NOTHING UPCOMING</div>
       )}
@@ -1491,10 +1513,10 @@ function UpcomingAppointmentsWidget({ token }) {
             background: "rgba(58,123,213,0.06)", border: "1px solid rgba(58,123,213,0.12)",
             borderLeft: "3px solid #3a7bd5",
           }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.08em", marginBottom: 2 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#8b9bff", letterSpacing: "0.08em", marginBottom: 2 }}>
               {fmtLocal(r.appointment_at, r.prospect_timezone)}
             </div>
-            <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>{r.prospect_name || r.owner || "—"}</div>
+            <div style={{ fontSize: 13, color: "#b8c3e6", lineHeight: 1.4 }}>{r.prospect_name || r.owner || "—"}</div>
           </div>
         ))}
       </div>
@@ -1518,7 +1540,7 @@ function RecentLeadsWidget({ token }) {
       <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: "#d0dcf0", marginBottom: 16 }}>
         Recent Leads
       </div>
-      {loading && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>}
+      {loading && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#6f7ca3" }}>LOADING…</div>}
       {!loading && rows.length === 0 && (
         <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO LEADS YET</div>
       )}
@@ -1530,7 +1552,7 @@ function RecentLeadsWidget({ token }) {
           }}>
             <div>
               <div style={{ fontSize: 13, color: "#c4d0e8", fontWeight: 600 }}>{leadName(l) || "—"}</div>
-              <div style={{ fontSize: 10, color: "#5a7096", marginTop: 2 }}>{l.phone}</div>
+              <div style={{ fontSize: 10, color: "#8b96b8", marginTop: 2 }}>{l.phone}</div>
             </div>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#14c882", flexShrink: 0 }} />
           </div>
@@ -1553,7 +1575,7 @@ function DashboardTab({ token, contactName }) {
       .catch(() => setLoading(false));
   }, [token, period]);
 
-  if (loading && !stats) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading && !stats) return <div style={{ color: "#7884aa", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (!stats) return null;
 
   const appt = stats.appointments;
@@ -1593,7 +1615,7 @@ function DashboardTab({ token, contactName }) {
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
             Welcome back{contactName ? `, ${contactName}` : ""}
           </div>
-          <div style={{ fontSize: 12.5, color: "#5a7aa0", marginTop: 4 }}>
+          <div style={{ fontSize: 12.5, color: "#8f9bc0", marginTop: 4 }}>
             Here's how your campaign is performing.
           </div>
         </div>
@@ -1644,7 +1666,7 @@ function DashboardTab({ token, contactName }) {
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, color: "#d0dcf0", marginBottom: 4 }}>
             Channel Activity
           </div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a7bd5", letterSpacing: "0.1em", marginBottom: 18 }}>
+          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#8b9bff", letterSpacing: "0.1em", marginBottom: 18 }}>
             SMS
           </div>
           <ResponsiveContainer width="100%" height={140}>
@@ -1695,7 +1717,7 @@ function DashboardTab({ token, contactName }) {
             <DashTopStat label="Leads" value={adLeads.toLocaleString()} iconKey="leads" />
           </div>
         ) : (
-          <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
+          <div className="glass-card" style={{ textAlign: "center", padding: 30, color: "#8f9bc0", fontSize: 13 }}>
             Facebook Ads reporting isn't connected yet — once it is, spend and performance will show here automatically.
           </div>
         )}
@@ -1738,11 +1760,11 @@ const fmtDay = (iso) => (iso ? new Date(iso).toLocaleDateString("en-US", { month
 function KpiCard({ label, value, hint, big }) {
   return (
     <div className="glass-card-sm" style={{ padding: big ? "18px 20px" : "14px 16px" }}>
-      <div style={{ fontSize: 12, color: "#7a92b8", fontWeight: 500 }}>{label}</div>
+      <div style={{ fontSize: 12, color: "#a3aed0", fontWeight: 500 }}>{label}</div>
       <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: big ? 30 : 22, fontWeight: 700, color: "#f0f4ff", marginTop: 4, letterSpacing: "-0.02em" }}>
         {value}
       </div>
-      {hint && <div style={{ fontSize: 11.5, color: "#5a7aa0", marginTop: 2 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 11.5, color: "#8f9bc0", marginTop: 2 }}>{hint}</div>}
     </div>
   );
 }
@@ -1769,7 +1791,7 @@ function JourneyRow({ stage, index, top, first }) {
           }}>{index + 1}</div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: off ? "#5a7aa0" : "#f0f4ff" }}>{stage.label}</div>
-            <div style={{ fontSize: 11.5, color: "#5a7aa0" }}>
+            <div style={{ fontSize: 11.5, color: "#8f9bc0" }}>
               {off ? "Waiting on ad account access" : STEP_HELP[stage.key] || ""}
             </div>
           </div>
@@ -1793,7 +1815,7 @@ function JourneyRow({ stage, index, top, first }) {
                 {tone && <span style={{ width: 7, height: 7, borderRadius: 4, background: tone.color }} />}
                 {fmtPct(stage.rate)}
               </div>
-              <div style={{ fontSize: 11, color: "#5a7aa0" }}>
+              <div style={{ fontSize: 11, color: "#8f9bc0" }}>
                 {stage.rate_basis === "click-through rate" ? "click rate" : "of previous step"}
               </div>
             </>
@@ -1801,7 +1823,7 @@ function JourneyRow({ stage, index, top, first }) {
         )}
       </div>
       {stage.note && !off && (
-        <div style={{ fontSize: 11.5, color: "#7a92b8", margin: "6px 0 0 38px" }}>{stage.note}</div>
+        <div style={{ fontSize: 11.5, color: "#a3aed0", margin: "6px 0 0 38px" }}>{stage.note}</div>
       )}
     </div>
   );
@@ -1827,7 +1849,7 @@ function AnalyticsTab({ token }) {
       .catch((e) => { setErr(e.message); setLoading(false); });
   }, [token, period]);
 
-  if (loading && !data) return <div style={{ color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
+  if (loading && !data) return <div style={{ color: "#7884aa", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;
   if (err && !data) return <div className="glass-card" style={{ padding: 24, color: "#e05c5c", fontSize: 13 }}>{err}</div>;
   if (!data) return null;
 
@@ -1845,7 +1867,7 @@ function AnalyticsTab({ token }) {
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
             Analytics
           </div>
-          <div style={{ fontSize: 13, color: "#7a92b8", marginTop: 4 }}>
+          <div style={{ fontSize: 13, color: "#a3aed0", marginTop: 4 }}>
             {data.launched
               ? `Campaign live since ${fmtDay(data.launched_at)}`
               : "Your campaign isn't live yet"}
@@ -1873,7 +1895,7 @@ function AnalyticsTab({ token }) {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>Patient journey</div>
-            <div style={{ fontSize: 12.5, color: "#7a92b8", marginTop: 2 }}>
+            <div style={{ fontSize: 12.5, color: "#a3aed0", marginTop: 2 }}>
               How many people reach each step, and what share moves on to the next.
             </div>
           </div>
@@ -1896,7 +1918,7 @@ function AnalyticsTab({ token }) {
         )}
 
         {!path ? (
-          <div style={{ textAlign: "center", padding: 30, color: "#5a7aa0", fontSize: 13 }}>
+          <div style={{ textAlign: "center", padding: 30, color: "#8f9bc0", fontSize: 13 }}>
             Nothing to show yet.
           </div>
         ) : (
@@ -1905,7 +1927,7 @@ function AnalyticsTab({ token }) {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: 11.5, color: "#7a92b8" }}>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: 11.5, color: "#a3aed0" }}>
           {Object.values(STEP_TONE).map((t) => (
             <span key={t.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ width: 7, height: 7, borderRadius: 4, background: t.color }} />{t.label}
@@ -1971,12 +1993,12 @@ function OutcomeSummary({ appointment, onClick }) {
       {hasOutcome ? (
         <span>
           {showLabel && <span style={{ color: showColor }}>{showLabel}</span>}
-          {showLabel && closeLabel && <span style={{ color: "#3a5a80" }}> · </span>}
+          {showLabel && closeLabel && <span style={{ color: "#7884aa" }}> · </span>}
           {closeLabel && <span style={{ color: closeColor }}>{closeLabel}</span>}
-          {appointment.outcome_notes && <span style={{ color: "#5a6f8f" }}> · 📝</span>}
+          {appointment.outcome_notes && <span style={{ color: "#8b96b8" }}> · 📝</span>}
         </span>
       ) : (
-        <span style={{ color: "#5a6f8f" }}>Set outcome ›</span>
+        <span style={{ color: "#8b96b8" }}>Set outcome ›</span>
       )}
     </button>
   );
@@ -2050,13 +2072,13 @@ function AppointmentsTab({ token }) {
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(58,123,213,0.15)" }}>
               {["Patient", "Phone", "Email", "Notes", "Appointment", "Outcome", "Action"].map((h) => (
-                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
+                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#8b96b8", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && displayRows.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No appointments in this view.</td></tr>
+              <tr><td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#7884aa", fontSize: 12 }}>No appointments in this view.</td></tr>
             )}
             {displayRows.map((row) => (
               <tr key={row.id} style={{ borderBottom: "1px solid rgba(58,123,213,0.08)" }}>
@@ -2067,7 +2089,7 @@ function AppointmentsTab({ token }) {
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</td>
                 <td style={{ padding: "10px 14px" }}>
                   {row.status !== "canceled" && <OutcomeSummary appointment={row} onClick={() => setOutcomeTarget(row)} />}
-                  {row.status === "canceled" && <span style={{ fontSize: 11, color: "#3a5a80" }}>canceled</span>}
+                  {row.status === "canceled" && <span style={{ fontSize: 11, color: "#7884aa" }}>canceled</span>}
                 </td>
                 <td style={{ padding: "10px 14px" }}>
                   {row.status !== "canceled" && (
@@ -2374,8 +2396,8 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
     setConfirmDelete(false);
   };
 
-  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#3a7bd5" };
-  const labelStyle = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", letterSpacing: "0.15em", marginBottom: 4 };
+  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#8b9bff" };
+  const labelStyle = { fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#6f7ca3", letterSpacing: "0.15em", marginBottom: 4 };
   const formAnswers = parseFormAnswers(display.form_answers);
 
   return (
@@ -2390,11 +2412,11 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff" }}>
               {leadName(display) || "Unknown"}
             </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.12em", marginTop: 3 }}>
+            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa", letterSpacing: "0.12em", marginTop: 3 }}>
               {display.phone || "—"}
             </div>
           </div>
-          <button onClick={onClose} style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#3a5a80", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>✕</button>
+          <button onClick={onClose} style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#7884aa", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>✕</button>
         </div>
 
         <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 18, flex: 1 }}>
@@ -2495,7 +2517,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
             )}
           </div>
           {callMsg && (
-            <div style={{ fontSize: 11, color: "#8aaad0", fontFamily: "'Share Tech Mono', monospace", lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, color: "#b8c3e6", fontFamily: "'Share Tech Mono', monospace", lineHeight: 1.5 }}>
               {callMsg}
             </div>
           )}
@@ -2517,7 +2539,7 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
               {(display.tags || []).length > 0
                 ? display.tags.map((t) => <TagChip key={t} tag={tagByName(t)} onRemove={() => removeTag(t)} />)
-                : <span style={{ fontSize: 11, color: "#3a5a80" }}>No tags yet.</span>}
+                : <span style={{ fontSize: 11, color: "#7884aa" }}>No tags yet.</span>}
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <select value={tagPick} onChange={(e) => setTagPick(e.target.value)} className="dg-input" style={{ flex: 1, background: "#080c14" }}>
@@ -2613,7 +2635,7 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
           <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f4ff", fontFamily: "'Space Grotesk', sans-serif" }}>
             Book Appointment — {leadName(lead) || "Lead"}
           </span>
-          <button onClick={onClose} style={{ background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540", borderRadius: 6, color: "#5a6f8f", width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>✕</button>
+          <button onClick={onClose} style={{ background: "rgba(30,47,80,0.5)", border: "1px solid #1a2540", borderRadius: 6, color: "#8b96b8", width: 30, height: 30, cursor: "pointer", fontSize: 16 }}>✕</button>
         </div>
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -2624,7 +2646,7 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
               <div style={{
                 width: "100%", height: "100%", display: "flex", flexDirection: "column",
                 alignItems: "center", justifyContent: "center", gap: 8,
-                fontFamily: "'Share Tech Mono', monospace", color: "#3a5a80", textAlign: "center", padding: 24,
+                fontFamily: "'Share Tech Mono', monospace", color: "#7884aa", textAlign: "center", padding: 24,
               }}>
                 <div style={{ fontSize: 32 }}>📅</div>
                 <div style={{ fontSize: 13, color: "#8a9cc0", fontFamily: "'Space Grotesk', sans-serif" }}>No Calendly connected yet</div>
@@ -2650,7 +2672,7 @@ function PortalBookingModal({ token, lead, calendlyUrl, onClose }) {
                 </button>
               </>
             ) : (
-              <div style={{ fontSize: 11.5, color: "#5a6f8f", fontFamily: "'Space Grotesk', sans-serif" }}>
+              <div style={{ fontSize: 11.5, color: "#8b96b8", fontFamily: "'Space Grotesk', sans-serif" }}>
                 {checked ? "Book using the Calendly widget above — reminders will be scheduled automatically once it's booked (usually within a few seconds)." : "Checking…"}
               </div>
             )}
@@ -2689,7 +2711,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
   const [tagPickFor, setTagPickFor] = useState(null); // lead id currently showing the "add tag" picker
   const [selectedLead, setSelectedLead] = useState(null); // lead currently open in the contact card drawer
 
-  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#3a7bd5" };
+  const tagByName = (name) => allTags.find((t) => t.name === name) || { name, color: "#8b9bff" };
 
   const loadTags = async () => {
     const r = await fetch(`/portal-api/${token}/tags`);
@@ -2890,11 +2912,11 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
 
       {showImport && (
         <div className="glass-card" style={{ padding: "18px 20px", marginBottom: 20, display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontSize: 12, color: "#8aaad0", lineHeight: 1.6 }}>
+          <div style={{ fontSize: 12, color: "#b8c3e6", lineHeight: 1.6 }}>
             CSV with a <strong>phone</strong> column required. Recognized headers: name, phone, email, notes, condition, last visit.
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: "#8aaad0" }}>What kind of list is this?</span>
+            <span style={{ fontSize: 12, color: "#b8c3e6" }}>What kind of list is this?</span>
             <select className="dg-input" value={importListType} onChange={(e) => setImportListType(e.target.value)} style={{ fontSize: 11, padding: "6px 10px", width: 240 }}>
               <option value="past_patient">Past patients</option>
               <option value="old_inquiry">Old inquiries that never booked</option>
@@ -2908,7 +2930,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
                 {withPhone.length} leads ready · {parsed.length - withPhone.length} skipped (no phone)
               </div>
               <div>
-                <div style={{ fontSize: 11.5, color: "#8aaad0", marginBottom: 6 }}>
+                <div style={{ fontSize: 11.5, color: "#b8c3e6", marginBottom: 6 }}>
                   Tag these leads (optional) — useful for an old/lapsed patient list so you can tell them apart from fresh leads later:
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
@@ -2991,13 +3013,13 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Select all" style={{ cursor: "pointer" }} />
               </th>
               {["Name", "Phone", "Email", "Tags"].map((h) => (
-                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#5a6f8f", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
+                <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontSize: 10, color: "#8b96b8", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.05em" }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {!loading && leads.length === 0 && (
-              <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#3a5a80", fontSize: 12 }}>No leads yet.</td></tr>
+              <tr><td colSpan={5} style={{ padding: 20, textAlign: "center", color: "#7884aa", fontSize: 12 }}>No leads yet.</td></tr>
             )}
             {leads.map((l) => (
               <tr
@@ -3035,7 +3057,7 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
                     ) : (
                       <span
                         onClick={() => setTagPickFor(l.id)}
-                        style={{ cursor: "pointer", fontSize: 10, color: "#3a7bd5", fontFamily: "'Share Tech Mono', monospace" }}
+                        style={{ cursor: "pointer", fontSize: 10, color: "#8b9bff", fontFamily: "'Share Tech Mono', monospace" }}
                       >+ tag</span>
                     )}
                   </div>
@@ -3141,7 +3163,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
     }
   };
 
-  if (loading) return <div style={{ padding: 40, color: "#3a5a80", fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>LOADING...</div>;
+  if (loading) return <div style={{ padding: 40, color: "#7884aa", fontFamily: "'Share Tech Mono', monospace", fontSize: 11 }}>LOADING...</div>;
   if (!thread) return null;
 
   const { contact, messages } = thread;
@@ -3155,7 +3177,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
           {contact.owner || contact.business || "—"}
         </div>
-        <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: "#8b96b8", marginTop: 2 }}>
           {contact.phone || "No phone number on file"}
         </div>
       </div>
@@ -3204,8 +3226,8 @@ function InboxThread({ token, contactId, onSent, onBack }) {
                 border: outbound ? "1px solid rgba(58,123,213,0.3)" : "1px solid rgba(255,255,255,0.06)",
               }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 3 }}>
-                  <span className="mono" style={{ fontSize: 9, color: "#3a7bd5", letterSpacing: "0.06em" }}>{m.channel.toUpperCase()}</span>
-                  <span style={{ fontSize: 9, color: "#3a5a80" }}>{fmtMsgTime(m.sent_at)}</span>
+                  <span className="mono" style={{ fontSize: 9, color: "#8b9bff", letterSpacing: "0.06em" }}>{m.channel.toUpperCase()}</span>
+                  <span style={{ fontSize: 9, color: "#7884aa" }}>{fmtMsgTime(m.sent_at)}</span>
                 </div>
                 <div style={{ fontSize: 13, color: "#d0e8ff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div>
               </div>
@@ -3267,7 +3289,7 @@ function CampaignActivityPanel({ token }) {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600, color: "#d0e8ff" }}>
           Your Number Activity
         </span>
-        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80" }}>
+        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#7884aa" }}>
           {open ? "▾ HIDE" : "▸ SHOW"}
         </span>
       </button>
@@ -3282,7 +3304,7 @@ function CampaignActivityPanel({ token }) {
             {sms.map((m) => (
               <div key={m.id} style={{ padding: "8px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)" }}>
                 <div style={{ fontSize: 11, color: "#d0e8ff" }}>{m.body}</div>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 3 }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#7884aa", marginTop: 3 }}>
                   {m.direction === "outbound" ? `→ ${m.to_number}` : `← ${m.from_number}`} · {new Date(m.created_at).toLocaleString()}
                 </div>
               </div>
@@ -3450,7 +3472,7 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
                 </div>
                 <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                   {c.channels.map((ch) => (
-                    <span key={ch} className="mono" style={{ fontSize: 8, color: "#3a7bd5", letterSpacing: "0.06em" }}>{ch.toUpperCase()}</span>
+                    <span key={ch} className="mono" style={{ fontSize: 8, color: "#8b9bff", letterSpacing: "0.06em" }}>{ch.toUpperCase()}</span>
                   ))}
                   {/* The AI handed this thread off without telling the lead. */}
                   {c.needs_human && (
@@ -3475,7 +3497,7 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
           {selected ? (
             <InboxThread token={token} contactId={selected} onSent={load} onBack={narrow ? () => setSelected(null) : null} />
           ) : (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#3a5a80", fontSize: 13 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#7884aa", fontSize: 13 }}>
               Select a conversation
             </div>
           )}
@@ -3485,17 +3507,112 @@ function InboxTab({ token, initialContactId, onInitialContactConsumed }) {
   );
 }
 
+// Portal palette + overrides (revamp 2026-11-16). Scoped under .dg-portal so
+// the internal OS, which shares glass-card/stat-card/btn/dg-input, is never
+// touched. Deep ink background with a soft indigo/cyan aurora; brighter,
+// higher-contrast text and surfaces so it reads easily.
+const PORTAL_CSS = `
+  .dg-portal { --pt-bg: #070a17; --pt-panel: rgba(255,255,255,0.035); --pt-line: rgba(160,175,255,0.12);
+    --pt-text: #eef1ff; --pt-muted: #9aa6c9; --pt-dim: #66729a; --pt-accent: #7c8cff; --pt-accent2: #2dd4e6;
+    --pt-grad: linear-gradient(135deg, #6d6dff 0%, #3b9bff 55%, #2dd4e6 100%); color: var(--pt-text); }
+  .dg-portal .glass-card, .dg-portal .glass-card-sm, .dg-portal .stat-card {
+    background: linear-gradient(160deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.02) 100%);
+    border: 1px solid var(--pt-line); border-radius: 18px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 18px 40px -18px rgba(0,0,0,0.7);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .dg-portal .glass-card:hover, .dg-portal .glass-card-sm:hover { border-color: rgba(160,175,255,0.22); }
+  .dg-portal .stat-card { padding: 20px 22px; }
+  .dg-portal .stat-card:hover { transform: translateY(-2px); box-shadow: 0 22px 44px -18px rgba(76,110,255,0.35); }
+  .dg-portal .stat-card-value { font-size: 30px; color: #fff; }
+  .dg-portal .stat-card-label { font-size: 13px; color: var(--pt-muted); }
+  .dg-portal .stat-card-delta { font-size: 12px; }
+  .dg-portal .stat-card-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--pt-grad);
+    box-shadow: 0 8px 22px -6px rgba(76,130,255,0.6); }
+  .dg-portal .stat-card-icon svg { width: 22px; height: 22px; }
+  .dg-portal .btn { border-radius: 11px; letter-spacing: 0.03em; font-size: 12px; padding: 9px 18px;
+    transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease; }
+  .dg-portal .btn-primary { background: var(--pt-grad); color: #fff; box-shadow: 0 8px 22px -8px rgba(76,130,255,0.75); }
+  .dg-portal .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 28px -8px rgba(76,130,255,0.9); }
+  .dg-portal .btn-secondary { background: rgba(255,255,255,0.05); color: #c9d2f2; border: 1px solid var(--pt-line); }
+  .dg-portal .btn-secondary:hover:not(:disabled) { background: rgba(124,140,255,0.14); color: #fff; transform: translateY(-1px); }
+  .dg-portal .dg-input { background: rgba(255,255,255,0.04); border: 1px solid var(--pt-line); color: var(--pt-text); border-radius: 11px; }
+  .dg-portal .dg-input:focus { border-color: rgba(124,140,255,0.6); box-shadow: 0 0 0 3px rgba(124,140,255,0.15); }
+  .dg-portal .dg-input::placeholder { color: var(--pt-dim); }
+  .dg-portal .dg-divider { background: var(--pt-line); }
+  .dg-portal .sec-label { color: var(--pt-accent); }
+  .dg-portal ::-webkit-scrollbar-thumb { background: rgba(160,175,255,0.22); }
+
+  .pt-shell { display: grid; grid-template-columns: 252px minmax(0, 1fr); min-height: 100vh; }
+  .pt-side { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 22px 14px; box-sizing: border-box;
+    border-right: 1px solid var(--pt-line); background: rgba(7,10,23,0.6); backdrop-filter: blur(18px);
+    display: flex; flex-direction: column; gap: 18px; }
+  .pt-topbar { display: none; }
+  .pt-main { padding: 34px 40px 60px; max-width: 1240px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+  .pt-nav-btn { display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 12px; border-radius: 11px;
+    border: 1px solid transparent; background: none; cursor: pointer; text-align: left; color: var(--pt-muted);
+    font-family: 'Space Grotesk', sans-serif; font-size: 13.5px; font-weight: 500; transition: background 0.15s, color 0.15s; }
+  .pt-nav-btn:hover { background: rgba(255,255,255,0.045); color: var(--pt-text); }
+  .pt-nav-btn.on { color: #fff; background: linear-gradient(135deg, rgba(109,109,255,0.22), rgba(45,212,230,0.10));
+    border-color: rgba(124,140,255,0.32); box-shadow: 0 6px 18px -10px rgba(109,109,255,0.8); }
+  .pt-nav-btn.on svg { color: var(--pt-accent2); }
+  .pt-group { font-family: 'Space Grotesk', sans-serif; font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--pt-dim); padding: 0 12px; margin-bottom: 6px; }
+  .pt-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: grid;
+    place-items: center; font-size: 11px; font-weight: 700; color: #1a1205; background: #fbbf24; }
+  @keyframes ptFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .pt-fade { animation: ptFade 0.28s ease; }
+  @keyframes ptPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+  @media (max-width: 900px) {
+    .pt-shell { grid-template-columns: minmax(0, 1fr); }
+    .pt-side { position: fixed; z-index: 50; left: 0; top: 0; width: 280px; transform: translateX(-100%);
+      transition: transform 0.25s ease; background: #0a0e20; box-shadow: 20px 0 60px rgba(0,0,0,0.6); }
+    .pt-side.open { transform: none; }
+    .pt-topbar { display: flex; position: sticky; top: 0; z-index: 40; align-items: center; gap: 12px; padding: 12px 16px;
+      background: rgba(7,10,23,0.85); backdrop-filter: blur(16px); border-bottom: 1px solid var(--pt-line); }
+    .pt-main { padding: 20px 16px 48px; }
+  }
+`;
+
+function PortalBrand({ client }) {
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <img src={logoWordmark} alt="DigiGrowth" style={{ height: 22, display: "block", margin: "2px 12px 0" }} />
+      {client && (
+        <div style={{ padding: "12px 14px", borderRadius: 14, border: "1px solid var(--pt-line)",
+          background: "linear-gradient(135deg, rgba(109,109,255,0.14), rgba(45,212,230,0.06))" }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: "#fff", lineHeight: 1.25 }}>{client.name}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: "#8fe0c4" }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#34d399",
+              boxShadow: "0 0 8px rgba(52,211,153,0.9)", animation: "ptPulse 2s ease-in-out infinite" }} />
+            Your portal is live
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ClientPortal() {
   const { token } = useParams();
   const [client, setClient] = useState(null);
   const [notFound, setNotFound] = useState(false);
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTabRaw] = useState("dashboard");
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Open "things we need from you" (portal action items) for the sidebar badge.
+  const [openAsks, setOpenAsks] = useState(0);
   // Set by LeadDrawer's "Message" button (via LeadsTab's onMessage prop) to
-  // jump to the Inbox tab with that lead's thread already open — mirrors
-  // the internal CRM's ContactDrawer messageContact()/onNavigate("inbox",
-  // {contactId}) pattern. Lives here (not in InboxTab's own state) since
-  // Leads and Inbox are sibling tabs.
+  // jump to the Inbox tab with that lead's thread already open. Lives here
+  // since Leads and Inbox are sibling tabs.
   const [inboxTargetContactId, setInboxTargetContactId] = useState(null);
+
+  const setTab = (id) => {
+    setTabRaw(id);
+    setMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   useEffect(() => {
     fetch(`/portal-api/${token}`)
@@ -3507,201 +3624,120 @@ export default function ClientPortal() {
       .catch(() => setNotFound(true));
   }, [token]);
 
+  useEffect(() => {
+    fetch(`/portal-api/${token}/action-items`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((items) => setOpenAsks((items || []).filter((i) => !i.completed_at).length))
+      .catch(() => {});
+  }, [token, tab]);
+
   if (notFound) {
     return (
-      <div style={{ minHeight: "100vh", background: "#090f26", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", color: "#8aaad0" }}>
+      <div style={{ minHeight: "100vh", background: "#070a17", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", color: "#9aa6c9" }}>
         This link is no longer valid.
       </div>
     );
   }
 
+  const current = NAV_ITEMS.find((i) => i.id === tab) || NAV_ITEMS[0];
+
   return (
     <div className="dg-portal" style={{
       minHeight: "100vh",
-      background: "#090f26",
-      backgroundImage: "radial-gradient(ellipse at 20% 50%, rgba(40,87,160,0.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(58,123,213,0.05) 0%, transparent 50%)",
+      background: "#070a17",
+      backgroundImage: "radial-gradient(900px 500px at 12% -10%, rgba(109,109,255,0.16), transparent 60%), radial-gradient(800px 500px at 100% 0%, rgba(45,212,230,0.10), transparent 55%), radial-gradient(700px 600px at 60% 110%, rgba(124,92,255,0.08), transparent 60%)",
+      backgroundAttachment: "fixed",
       fontFamily: "'Space Grotesk', sans-serif",
     }}>
       <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
-      {/* Scoped under .dg-portal so this never touches the internal admin
-          dashboard, which shares the same glass-card/stat-card/btn class
-          names — this only adds motion/hover polish to the client-facing
-          portal page. */}
-      <style>{`
-        .dg-portal .glass-card, .dg-portal .glass-card-sm {
-          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-        }
-        .dg-portal .glass-card:hover, .dg-portal .glass-card-sm:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 28px rgba(10,20,50,0.35);
-        }
-        .dg-portal .stat-card {
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-          padding: 22px 26px;
-        }
-        .dg-portal .stat-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 30px rgba(58,123,213,0.18);
-        }
-        .dg-portal .stat-card-value { font-size: 32px; }
-        .dg-portal .stat-card-label { font-size: 13px; }
-        .dg-portal .stat-card-delta { font-size: 12px; }
-        .dg-portal .stat-card-icon { width: 58px; height: 58px; border-radius: 14px; }
-        .dg-portal .stat-card-icon svg { width: 24px; height: 24px; }
-        .dg-portal button, .dg-portal a.btn {
-          transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-        }
-        .dg-portal .btn-primary:hover, .dg-portal .btn-secondary:hover {
-          transform: translateY(-1px);
-        }
-        .dg-portal .dg-tab:hover { color: #9cc4f5 !important; }
-        .dg-portal .dg-tab-active {
-          position: relative;
-        }
-        .dg-portal .dg-tab-active::after {
-          content: "";
-          position: absolute; left: 16px; right: 16px; bottom: -1px; height: 2px;
-          background: linear-gradient(90deg, #3a7bd5, #6ab0ff);
-          box-shadow: 0 0 8px rgba(106,176,255,0.6);
-          border-radius: 2px;
-        }
-        @keyframes dgFadeIn {
-          from { opacity: 0; transform: translateY(6px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .dg-fade-in { animation: dgFadeIn 0.25s ease; }
-        @keyframes dgGlowPulse {
-          0%, 100% { opacity: 0.55; }
-          50% { opacity: 1; }
-        }
-        .dg-logo-glow { animation: dgGlowPulse 3.5s ease-in-out infinite; }
-      `}</style>
+      <style>{PORTAL_CSS}</style>
 
-      <div style={{
-        position: "relative",
-        padding: "18px 40px",
-        display: "flex", alignItems: "center", gap: 16,
-        background: "linear-gradient(180deg, rgba(58,123,213,0.07) 0%, rgba(58,123,213,0.01) 100%)",
-        boxShadow: "0 1px 0 rgba(58,123,213,0.15), 0 12px 30px -12px rgba(0,0,0,0.4)",
-      }}>
-        {/* Glowing gradient hairline instead of a flat border — reads as a
-            deliberate brand edge rather than a plain divider. */}
-        <div style={{
-          position: "absolute", left: 0, right: 0, bottom: 0, height: 1,
-          background: "linear-gradient(90deg, transparent, rgba(106,176,255,0.5) 20%, rgba(106,176,255,0.5) 80%, transparent)",
-        }} />
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div className="dg-logo-glow" style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
-              <img src={logoWordmark} alt="DigiGrowth" style={{ height: 24, display: "block" }} />
-            </div>
-            {client && (
-              <>
-                <div style={{ width: 1, height: 20, background: "rgba(106,176,255,0.3)", flexShrink: 0 }} />
-                <div style={{
-                  fontWeight: 700, fontSize: 16, letterSpacing: "-0.01em",
-                  background: "linear-gradient(90deg, #f0f4ff, #9cc4f5)",
-                  WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-                }}>
-                  {client.name}
+      <div className="pt-shell">
+        {menuOpen && <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 45, background: "rgba(0,0,0,0.5)" }} />}
+        <aside className={`pt-side${menuOpen ? " open" : ""}`}>
+          <PortalBrand client={client} />
+          <nav style={{ display: "grid", gap: 16 }}>
+            {NAV_GROUPS.map((g) => (
+              <div key={g.label}>
+                <div className="pt-group">{g.label}</div>
+                <div style={{ display: "grid", gap: 2 }}>
+                  {g.items.map((it) => (
+                    <button key={it.id} className={`pt-nav-btn${tab === it.id ? " on" : ""}`} onClick={() => setTab(it.id)}>
+                      <NavIcon name={it.icon} />
+                      {it.label}
+                      {it.id === "onboarding" && openAsks > 0 && <span className="pt-badge" title="Things we need from you">{openAsks}</span>}
+                    </button>
+                  ))}
                 </div>
-              </>
+              </div>
+            ))}
+          </nav>
+        </aside>
+
+        <div style={{ minWidth: 0 }}>
+          <div className="pt-topbar">
+            <button onClick={() => setMenuOpen(true)} aria-label="Open menu"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid var(--pt-line)", borderRadius: 10, padding: 7, color: "#fff", cursor: "pointer", display: "grid" }}>
+              <NavIcon name="menu" size={20} />
+            </button>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>{current.label}</div>
+              {client && <div style={{ fontSize: 11.5, color: "var(--pt-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{client.name}</div>}
+            </div>
+            {openAsks > 0 && (
+              <button onClick={() => setTab("onboarding")} className="pt-badge" style={{ marginLeft: "auto", border: "none", cursor: "pointer", height: 24 }}>
+                {openAsks} to do
+              </button>
             )}
           </div>
-          <div style={{ height: 2, borderRadius: 2, background: "linear-gradient(90deg, #3a7bd5, #6ab0ff, transparent)" }} />
-        </div>
 
-        <div style={{
-          marginLeft: "auto", display: "flex", alignItems: "center", gap: 8,
-          padding: "6px 14px", borderRadius: 999,
-          background: "rgba(20,200,130,0.08)", border: "1px solid rgba(20,200,130,0.22)",
-        }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: "50%", background: "#14c882", flexShrink: 0,
-            boxShadow: "0 0 6px 1px rgba(20,200,130,0.7)", animation: "dgGlowPulse 2s ease-in-out infinite",
-          }} />
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#8fd9bd", letterSpacing: "0.14em" }}>
-            LIVE PORTAL
-          </span>
-        </div>
-      </div>
-
-      <div style={{ maxWidth: 1240, margin: "0 auto", padding: "36px 24px" }}>
-        <div style={{
-          display: "flex", gap: 4, marginBottom: 4, borderBottom: "1px solid rgba(58,123,213,0.1)",
-          overflowX: "auto", WebkitOverflowScrolling: "touch",
-        }}>
-          {NAV.map((g) => {
-            const active = g.children ? g.children.some((c) => c.id === tab) : g.id === tab;
-            return (
-              <button
-                key={g.id}
-                onClick={() => setTab(g.children ? g.children[0].id : g.id)}
-                className={active ? "dg-tab dg-tab-active" : "dg-tab"}
-                style={{
-                  background: "none", border: "none", cursor: "pointer", flexShrink: 0,
-                  padding: "10px 16px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
-                  color: active ? "#6ab0ff" : "#5a7aa0",
-                  borderRadius: "6px 6px 0 0",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {g.label}
+          <main className="pt-main">
+            {tab !== "dashboard" && (
+              <header style={{ marginBottom: 22 }}>
+                <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", color: "#fff" }}>{current.label}</h1>
+                {current.desc && <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--pt-muted)", maxWidth: 680, lineHeight: 1.5 }}>{current.desc}</p>}
+              </header>
+            )}
+            {tab === "dashboard" && openAsks > 0 && (
+              <button onClick={() => setTab("onboarding")} style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 12, marginBottom: 18, padding: "14px 18px",
+                borderRadius: 16, cursor: "pointer", textAlign: "left", fontFamily: "inherit", flexWrap: "wrap",
+                border: "1px solid rgba(251,191,36,0.35)", background: "linear-gradient(135deg, rgba(251,191,36,0.14), rgba(251,191,36,0.04))", color: "#fde7b0",
+              }}>
+                <NavIcon name="rocket" size={20} />
+                <span style={{ fontSize: 14 }}>
+                  <b style={{ color: "#fff" }}>We need {openAsks} thing{openAsks === 1 ? "" : "s"} from you</b> to keep everything moving.
+                </span>
+                <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 600, color: "#fbbf24", whiteSpace: "nowrap" }}>Open setup steps →</span>
               </button>
-            );
-          })}
-        </div>
+            )}
 
-        {(() => {
-          const activeGroup = NAV.find((g) => (g.children ? g.children.some((c) => c.id === tab) : g.id === tab));
-          if (!activeGroup?.children) return null;
-          return (
-            <div style={{ display: "flex", gap: 6, marginBottom: 4, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              {activeGroup.children.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setTab(c.id)}
-                  style={{
-                    background: tab === c.id ? "rgba(58,123,213,0.14)" : "transparent",
-                    border: tab === c.id ? "1px solid rgba(58,123,213,0.3)" : "1px solid transparent",
-                    borderRadius: 999, cursor: "pointer", padding: "5px 14px", flexShrink: 0,
-                    fontFamily: "'Space Grotesk', sans-serif", fontSize: 11.5, fontWeight: 600,
-                    color: tab === c.id ? "#9cc4f5" : "#5a7aa0",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {c.label}
-                </button>
-              ))}
+            <div key={tab} className="pt-fade">
+              {tab === "dashboard" && <DashboardTab token={token} contactName={client?.contact_name} />}
+              {tab === "analytics" && <AnalyticsTab token={token} />}
+              {tab === "appointments" && <AppointmentsTab token={token} />}
+              {tab === "leads" && (
+                <LeadsTab
+                  token={token}
+                  calendlyUrl={client?.calendly_url}
+                  onMessage={(contactId) => { setInboxTargetContactId(contactId); setTab("inbox"); }}
+                />
+              )}
+              {tab === "inbox" && (
+                <InboxTab
+                  token={token}
+                  initialContactId={inboxTargetContactId}
+                  onInitialContactConsumed={() => setInboxTargetContactId(null)}
+                />
+              )}
+              {tab === "website" && <WebsiteTab token={token} />}
+              {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
+              {tab === "sequences" && <SequencesTab token={token} />}
+              {tab === "videos" && <VideosTab token={token} />}
+              {tab === "todo" && <LaunchChecklistTab token={token} />}
+              {tab === "upload" && <UploadTab token={token} />}
             </div>
-          );
-        })()}
-
-        <div key={tab} className="dg-fade-in" style={{ marginTop: 20 }}>
-        {tab === "dashboard" && <DashboardTab token={token} contactName={client?.contact_name} />}
-        {tab === "analytics" && <AnalyticsTab token={token} />}
-        {tab === "appointments" && <AppointmentsTab token={token} />}
-        {tab === "leads" && (
-          <LeadsTab
-            token={token}
-            calendlyUrl={client?.calendly_url}
-            onMessage={(contactId) => { setInboxTargetContactId(contactId); setTab("inbox"); }}
-          />
-        )}
-        {tab === "inbox" && (
-          <InboxTab
-            token={token}
-            initialContactId={inboxTargetContactId}
-            onInitialContactConsumed={() => setInboxTargetContactId(null)}
-          />
-        )}
-        {tab === "website" && <WebsiteTab token={token} />}
-        {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
-        {tab === "sequences" && <SequencesTab token={token} />}
-        {tab === "videos" && <VideosTab token={token} />}
-        {tab === "todo" && <LaunchChecklistTab token={token} />}
-        {tab === "upload" && <UploadTab token={token} />}
+          </main>
         </div>
       </div>
     </div>
