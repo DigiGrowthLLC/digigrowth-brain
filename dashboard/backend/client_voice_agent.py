@@ -178,8 +178,11 @@ PICKUP_NUDGE_S = 2.5
 
 
 def _user_utts(call: dict) -> list[str]:
-    items = call.get("transcript_object") or call.get("transcript_with_tool_calls") or []
-    return [u.get("content") or "" for u in items if u.get("role") == "user" and (u.get("content") or "").strip()]
+    items = call.get("transcript_with_tool_calls") or call.get("transcript_object") or []
+    out = [u.get("content") or "" for u in items if u.get("role") == "user" and (u.get("content") or "").strip()]
+    if not out and call.get("transcript"):
+        out = [ln[5:].strip() for ln in call["transcript"].splitlines() if ln.startswith("User:") and ln[5:].strip()]
+    return out
 
 
 def note_transcript(call: dict) -> None:
@@ -188,6 +191,8 @@ def note_transcript(call: dict) -> None:
     if not cid:
         return
     users = _user_utts(call)
+    print(f"[voice_agent] transcript_updated {cid[-6:]} keys={sorted(k for k in call if 'transcript' in k)} "
+          f"users={len(users)} last={users[-1][:50] if users else ''!r}", flush=True)  # TEMP debug
     if cid in _PICKUP_WAIT:
         if len(users) > _PICKUP_WAIT[cid]:
             _PICKUP_WAIT.pop(cid, None)          # the person spoke: no nudge
