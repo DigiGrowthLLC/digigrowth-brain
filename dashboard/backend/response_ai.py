@@ -1309,11 +1309,14 @@ _GENTLE_OUTREACH_ADDITION = (
 )
 _LAST_CALL_OUTREACH_ADDITION = (
     "This outreach is a heads-up that the offer they asked about is wrapping up: keep it short and low-key, "
-    "never name a date the template doesn't, and end with one easy question.\n"
+    "never name a date the template doesn't, and end with one easy question. Name the offer exactly as the "
+    "template does (never \"our special\" or \"our promotion\" instead of its name) and keep the short "
+    "reminder of what it is.\n"
 )
 _OFFER_UPDATE_ADDITION = (
     "This is a monthly offer update to someone who asked about an earlier ad offer and never came in. Keep "
-    "it short and friendly, name the offer exactly as the template does, never invent a deadline, discount or "
+    "it short and friendly, name the offer(s) exactly as the template does (never \"our special\" in place of "
+    "the name) with the short reminder of what it is, never invent a deadline, discount or "
     "price the template doesn't state, and if they said something before (their pain, timing, \"maybe "
     "later\"), tie it in. End with one easy question.\n"
 )

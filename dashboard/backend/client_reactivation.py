@@ -109,10 +109,10 @@ PLAYBOOKS = {
         "sources": ["meta_form", "funnel"],
         "angle": "The ad offer they asked about is wrapping up: a last chance to get in at that offer.",
         "touches": [
-            {"day": 0, "body": "Hey {first_name}, it's {sender} from {business}. Just a heads up, our {offer} "
-                               "promotion is wrapping up. Didn't want you to miss out if that pain is still bugging you."},
-            {"day": 1, "call": True, "body": "Hey {first_name}, today's the last day for our {offer}. Just didn't "
-                                             "want you to miss out. Want me to grab you a time?"},
+            {"day": 0, "body": "Hey {first_name}, it's {sender} from {business}. Just a heads up, our "
+                               "{offer}{offer_reminder} is wrapping up. Didn't want you to miss out."},
+            {"day": 1, "call": True, "body": "Hey {first_name}, today's the last day for our {offer}{offer_reminder}. "
+                                             "Didn't want you to miss out. Want me to grab you a time?"},
         ],
     },
 }
@@ -124,10 +124,10 @@ CHECKIN_CYCLE = CYCLES["checkin"]
 # offer as they last heard about -> "running it again"; changed -> "you
 # qualify for our new one". The AI rewrites these from the thread.
 OFFER_UPDATE_TOUCHES = {
-    "same": "Hey {first_name}, it's {sender} from {business}. Reaching out because we're running our {offer} again, "
-            "in case you didn't get the chance to book in last time.",
-    "new": "Hey {first_name}, it's {sender} from {business}. Saw that you missed our last offer, just wanted to let "
-           "you know you qualify for the {offer} we're running now.",
+    "same": "Hey {first_name}, it's {sender} from {business}. We're running our {offer}{offer_reminder} again, in "
+            "case you didn't get the chance to book in last time.",
+    "new": "Hey {first_name}, it's {sender} from {business}. Saw you missed out on our {previous_offer}. Just wanted "
+           "to let you know we're running a new special: our {offer}{offer_reminder}.",
 }
 # Launch checklist items on_ad_spend() ticks (launch_checklist_items.title, lowercased).
 _LAUNCH_ITEM = "launch campaign"
@@ -385,14 +385,70 @@ async def _campaign_context(conn, campaign: dict) -> dict:
     import client_voice_agent
     names = await sender_names(conn, campaign["client_id"])
     sender = names["owner"] if PLAYBOOKS[playbook_of(campaign)]["sender"] == "owner" else names["agent"]
-    visit = await client_voice_agent._visit_info(campaign["client_id"])
+    offer = await current_offer(conn, campaign["client_id"])
     ends_on = campaign.get("ends_on")
     return {
         "sender": sender or names["agent"] or "the team",
         "business": campaign["client_name"] or "",
-        "offer": (visit or {}).get("name") or "special",
+        "offer": offer["name"] or "special",
+        "offer_detail": offer["detail"],
         "end_day": ends_on.strftime("%A") if ends_on else "soon",
     }
+
+
+async def current_offer(conn, client_id: int) -> dict:
+    """The offer the texts name: {"name", "detail", "auto"}. Set on the OS's
+    Database Reactivation Agent (OFFER IN THESE TEXTS). Empty -> filled once
+    from the client's agent context by the model (saved, auto=True, Dylan
+    can edit), else the DigiGrowth Booking visit's name."""
+    row = await conn.fetchrow(
+        "SELECT reactivation_offer_name, reactivation_offer_detail, reactivation_offer_auto, response_ai_context "
+        "FROM client_marketing_config WHERE client_id = $1", client_id)
+    if row and (row["reactivation_offer_name"] or "").strip():
+        return {"name": row["reactivation_offer_name"].strip(), "detail": (row["reactivation_offer_detail"] or "").strip(),
+                "auto": bool(row["reactivation_offer_auto"])}
+    if row and (row["response_ai_context"] or "").strip():
+        got = await _extract_offer(row["response_ai_context"])
+        if got and got.get("name"):
+            await conn.execute(
+                "UPDATE client_marketing_config SET reactivation_offer_name = $2, reactivation_offer_detail = $3, "
+                "reactivation_offer_auto = TRUE WHERE client_id = $1 AND coalesce(reactivation_offer_name, '') = ''",
+                client_id, got["name"][:80], (got.get("detail") or "")[:140])
+            return {"name": got["name"][:80], "detail": (got.get("detail") or "")[:140], "auto": True}
+    import client_voice_agent
+    visit = await client_voice_agent._visit_info(client_id)
+    return {"name": (visit or {}).get("name") or "", "detail": "", "auto": True}
+
+
+async def _extract_offer(context: str) -> dict | None:
+    """Name the clinic's current patient offer from its agent context, the
+    way it'd read in a text: {"name": "Free Back Pain Discovery Call",
+    "detail": "a free 20-minute call with a PT"}. None on any failure."""
+    import asyncio
+    import os
+    import anthropic
+    try:
+        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+        r = await asyncio.to_thread(
+            client.messages.create,
+            model=os.environ.get("AGENTS_CLAUDE_MODEL", "claude-sonnet-5"), max_tokens=200,
+            system=(
+                "From a physical therapy clinic's business info, name the ONE offer its ads currently promote to new "
+                "patients. Reply with JSON only: {\"name\": the offer's name as it would read after \"our\" in a "
+                "text, Title Case, 2-6 words, e.g. \"Free Back Pain Discovery Call\" or \"$49 New Patient "
+                "Assessment\"; \"detail\": what they get, 4-12 plain words starting lowercase, e.g. \"a free 20-minute "
+                "call with a physical therapist\"}. Use only what the text says; if there's no clear offer, "
+                "{\"name\": \"\", \"detail\": \"\"}. Plain ASCII, no em dashes."
+            ),
+            messages=[{"role": "user", "content": context[:12000]}],
+        )
+        text = "".join(b.text for b in r.content if b.type == "text").strip()
+        text = text[text.find("{"):text.rfind("}") + 1]
+        got = json.loads(text)
+        return {"name": str(got.get("name") or "").strip(), "detail": str(got.get("detail") or "").strip()}
+    except Exception as e:
+        print(f"[client_reactivation] offer extraction failed: {e}", flush=True)
+        return None
 
 
 def fill(template: str, contact: dict, ctx: dict) -> str:
@@ -402,6 +458,8 @@ def fill(template: str, contact: dict, ctx: dict) -> str:
         "{sender}": ctx.get("sender") or "",
         "{business}": ctx.get("business") or "",
         "{offer}": ctx.get("offer") or "",
+        "{offer_reminder}": f" ({ctx['offer_detail']})" if ctx.get("offer_detail") else "",
+        "{previous_offer}": contact.get("offer_sent") or "last offer",
         "{end_day}": ctx.get("end_day") or "",
         "{checkin_question}": checkin_question(contact.get("tags")),
     }.items():
@@ -694,7 +752,8 @@ async def _queue_last_call(campaign: dict, e: dict, ctx: dict) -> bool:
     is_meta = e.get("lead_source") == "meta_form" or "meta_lead" in (e.get("tags") or [])
     return await client_voice_agent.queue_last_call(
         campaign["client_id"], e["phone"], e.get("owner"), is_meta, e.get("contact_created_at"),
-        f"the offer is our {ctx['offer']}" if ctx.get("offer") and ctx["offer"] != "special" else None,
+        (f"the offer is our {ctx['offer']}" + (f", {ctx['offer_detail']}" if ctx.get("offer_detail") else ""))
+        if ctx.get("offer") and ctx["offer"] != "special" else None,
     )
 
 

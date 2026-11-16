@@ -270,6 +270,35 @@ async def list_enrollments(client_id: int, campaign_id: int):
     return [dict(r) for r in rows]
 
 
+class OfferBody(BaseModel):
+    name: str
+    detail: str = ""
+
+
+@router.get("/clients/{client_id}/reactivation/offer")
+async def get_offer(client_id: int):
+    """The offer the reactivation texts name (auto-filled once from the
+    agent context if never set)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        return await client_reactivation.current_offer(conn, client_id)
+
+
+@router.put("/clients/{client_id}/reactivation/offer")
+async def set_offer(client_id: int, body: OfferBody):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name the offer")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE client_marketing_config SET reactivation_offer_name = $2, reactivation_offer_detail = $3, "
+            "reactivation_offer_auto = FALSE WHERE client_id = $1",
+            client_id, name[:80], body.detail.strip()[:140],
+        )
+    return {"name": name[:80], "detail": body.detail.strip()[:140], "auto": False}
+
+
 @router.get("/clients/{client_id}/reactivation/queue")
 async def reactivation_queue(client_id: int):
     """Who's lined up to hear from this client next and when: reactivation

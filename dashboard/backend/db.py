@@ -2215,6 +2215,10 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS ad_first_spend_at TIMESTAMPTZ;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_checkin_auto_at TIMESTAMPTZ;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_lastcall_auto_cap NUMERIC;
+            -- The offer reactivation texts name (client_reactivation.current_offer).
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS reactivation_offer_name TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS reactivation_offer_detail TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS reactivation_offer_auto BOOLEAN NOT NULL DEFAULT FALSE;
         """)
         # Clients whose ads were already running before the auto-start existed
         # (Crosacore, Advantage): their first dollar is long spent, so the

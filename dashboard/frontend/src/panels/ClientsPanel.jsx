@@ -3232,6 +3232,49 @@ function ReactivationQueue({ clientId }) {
   );
 }
 
+// The offer every reactivation text names, plus a one-line reminder of what
+// it is ("our Free Back Pain Discovery Call (a free 20-minute call with a
+// PT)"). Auto-filled from the agent context the first time; change it when
+// the client's offer changes (the last call's 30-day text then says "new").
+function ReactivationOffer({ clientId }) {
+  const [offer, setOffer] = useState(null);
+  const [form, setForm] = useState({ name: "", detail: "" });
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    fetch(API(`/clients/${clientId}/reactivation/offer`)).then((r) => (r.ok ? r.json() : null)).then((o) => {
+      setOffer(o || { name: "", detail: "" }); setForm({ name: o?.name || "", detail: o?.detail || "" });
+    });
+  }, [clientId]);
+  if (!offer) return null;
+  const dirty = form.name !== (offer.name || "") || form.detail !== (offer.detail || "");
+  const save = async () => {
+    const r = await fetch(API(`/clients/${clientId}/reactivation/offer`), {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+    });
+    const d = await r.json().catch(() => null);
+    if (r.ok) { setOffer(d); setMsg("Saved"); } else setMsg(d?.detail || "Failed");
+  };
+  return (
+    <div style={{ padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.12)" }}>
+      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5, color: "#5a7aa0", letterSpacing: "0.08em" }}>
+        OFFER IN THESE TEXTS{offer.auto && offer.name ? " · AUTO-FILLED, CHECK IT" : ""}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+        <input className="dg-input" placeholder="Free Back Pain Discovery Call" value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ fontSize: 12, flex: "1 1 200px" }} />
+        <input className="dg-input" placeholder="a free 20-minute call with a physical therapist" value={form.detail}
+          onChange={(e) => setForm({ ...form, detail: e.target.value })} style={{ fontSize: 12, flex: "2 1 260px" }} />
+        {dirty && <button className="btn btn-primary" style={{ fontSize: 10 }} onClick={save}>SAVE</button>}
+      </div>
+      <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 6, lineHeight: 1.5 }}>
+        Reads as: "our {form.name || "<offer>"}{form.detail ? ` (${form.detail})` : ""} is wrapping up". Change it when the client's
+        offer changes: ad leads who heard about the old one get "saw you missed out on our {"<old>"}, we're running a new special" next time.
+        {msg && <span style={{ color: "#6ab0ff" }}> {msg}</span>}
+      </div>
+    </div>
+  );
+}
+
 function ReactivationAgent({ clientId, agentEnabled }) {
   const [options, setOptions] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
@@ -3279,6 +3322,7 @@ function ReactivationAgent({ clientId, agentEnabled }) {
         </span>
       </div>
       {showQueue && <ReactivationQueue clientId={clientId} />}
+      <ReactivationOffer clientId={clientId} />
       {!agentEnabled && (
         <div style={{ fontSize: 11.5, color: "#f0b429" }}>
           The Facebook Leads Agent is off for this client, so touches go out exactly as written and replies wait for a human. Turn it on to have the agent personalize touches and answer replies.
