@@ -505,6 +505,15 @@ async def lifespan(app: FastAPI):
         max_instances=1,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=35),
     )
+    # Default voice settings live in code: re-sync every client's Retell agent
+    # after each deploy so all clients (and future ones) stay on the defaults.
+    scheduler.add_job(
+        client_voice_agent.sync_all_agents,
+        "date",
+        run_date=datetime.now(timezone.utc) + timedelta(seconds=60),
+        id="client-voice-agent-sync",
+        replace_existing=True,
+    )
     scheduler.add_job(
         client_reactivation.send_due,
         IntervalTrigger(minutes=5),

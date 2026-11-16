@@ -1103,6 +1103,24 @@ def _agent_body(cfg, llm_id: str) -> dict:
     }
 
 
+async def sync_all_agents() -> None:
+    """Run once after each deploy: push the current default voice settings and
+    prompt rules to every client that already has a Retell agent, so changes
+    to the defaults reach all clients without clicking SYNC on each one."""
+    if not _api_key():
+        return
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        ids = [r["client_id"] for r in await conn.fetch(
+            "SELECT client_id FROM client_marketing_config WHERE coalesce(retell_agent_id, '') != ''")]
+    for cid in ids:
+        try:
+            await sync_agent(cid)
+        except Exception as e:
+            print(f"[voice_agent] startup sync failed for client {cid}: {e}", flush=True)
+    print(f"[voice_agent] startup sync done for {len(ids)} agent(s)", flush=True)
+
+
 async def sync_agent(client_id: int) -> dict:
     """Create or update this client's Retell LLM + agent from the text agent's
     current context/rules. Safe to re-run (do it after editing the context)."""
