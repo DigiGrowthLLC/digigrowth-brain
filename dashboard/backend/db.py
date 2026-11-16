@@ -2551,6 +2551,10 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS page_autofilled_at TIMESTAMPTZ;
             ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS page_autofill_note TEXT;
             ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS logo_url TEXT;
+            -- Shown to patients in the booking confirmation text ("Questions?
+            -- Call ... or email ..."). NULL = fall back to clients.email/phone.
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS contact_email TEXT;
+            ALTER TABLE booking_settings ADD COLUMN IF NOT EXISTS contact_phone TEXT;
 
             -- One row per booking-page visit that left a name + mobile but
             -- may not have finished (session_id = the page load). booking_id

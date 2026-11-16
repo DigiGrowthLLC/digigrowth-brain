@@ -218,8 +218,10 @@ async def get_booking(client_id: int):
         landing = await conn.fetch(
             "SELECT slug FROM landing_pages WHERE client_id = $1 ORDER BY created_at", client_id,
         )
+        client_contact = await conn.fetchrow("SELECT email, phone FROM clients WHERE id = $1", client_id)
     return {
         "settings": _jsonable(s),
+        "client_contact": {"email": client_contact["email"], "phone": client_contact["phone"]} if client_contact else {},
         "effective_timezone": tz,
         "event_types": [_jsonable(dict(e)) for e in events],
         "hours": [_jsonable(dict(h)) for h in hours],
@@ -270,6 +272,16 @@ async def save_booking_settings(client_id: int, payload: dict):
             if payload["refund_policy"] not in _REFUND_POLICIES:
                 raise HTTPException(400, "refund_policy must be none, 24h or always")
             updates["refund_policy"] = payload["refund_policy"]
+        if "contact_email" in payload:
+            v = (payload["contact_email"] or "").strip() or None
+            if v and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", v):
+                raise HTTPException(400, "That email doesn't look right.")
+            updates["contact_email"] = v
+        if "contact_phone" in payload:
+            v = (payload["contact_phone"] or "").strip() or None
+            if v and len(re.sub(r"\D", "", v)) < 10:
+                raise HTTPException(400, "Phone needs at least 10 digits.")
+            updates["contact_phone"] = v
         for f in ("provider_name", "provider_title", "photo_url", "logo_url", "what_to_expect"):
             if f in payload:
                 updates[f] = (payload[f] or "").strip()[:2000] or None

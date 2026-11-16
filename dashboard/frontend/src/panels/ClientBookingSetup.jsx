@@ -287,9 +287,10 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
       provider_name: s.provider_name || "", provider_title: s.provider_title || "", photo_url: s.photo_url || "", logo_url: s.logo_url || "",
       what_to_expect: s.what_to_expect || "", review_rating: s.review_rating ?? "", review_count: s.review_count ?? "",
       reviews: [0, 1, 2].map((i) => rv[i] || { text: "", author: "" }),
+      contact_phone: s.contact_phone || "", contact_email: s.contact_email || "",
     });
     // eslint-disable-next-line
-  }, [s.provider_name, s.provider_title, s.photo_url, s.logo_url, s.what_to_expect, s.review_rating, s.review_count, s.reviews]);
+  }, [s.provider_name, s.provider_title, s.photo_url, s.logo_url, s.what_to_expect, s.review_rating, s.review_count, s.reviews, s.contact_phone, s.contact_email]);
   const [query, setQuery] = useState("");
   if (!form) return null;
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -312,6 +313,17 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
         {data.page_autofill_running ? "Pulling the therapist, photo, reviews and visit details from the client portal, their website and their funnel..."
           : s.page_autofill_note ? <>Auto-filled {s.page_autofilled_at ? new Date(s.page_autofilled_at).toLocaleDateString() : ""}: {s.page_autofill_note}</>
           : "Fills itself from the client portal, their website and their funnel. Reviews are only ever copied word for word."}
+      </div>
+      <div style={row}>
+        <Field name="Patient questions: phone" width={200}>
+          <input className="dg-input" value={form.contact_phone} onChange={set("contact_phone")} placeholder={data.client_contact?.phone || "(555) 123-4567"} />
+        </Field>
+        <Field name="Patient questions: email">
+          <input className="dg-input" value={form.contact_email} onChange={set("contact_email")} placeholder={data.client_contact?.email || "frontdesk@clinic.com"} />
+        </Field>
+      </div>
+      <div style={{ ...note, marginTop: 4, marginBottom: 10 }}>
+        Goes in the instant confirmation text: "Questions? Call ... or email ...". Left blank, it uses the phone and email on the client's record (shown greyed out).
       </div>
       <div style={row}>
         <Field name="Therapist name"><input className="dg-input" value={form.provider_name} onChange={set("provider_name")} placeholder="Brian Smith" /></Field>
