@@ -24,9 +24,20 @@ permanently skipped, same as reminder_engine.py. The 24h and 6h windows wait
 out quiet hours (9pm-8am in the clinic's timezone, lead_flags.py); the 1h
 window always sends, since it's tied to an appointment the lead booked.
 Leads tagged Unqualified get no reminders.
+
+Booking Confirmation (step_order -2, "Right away"): one text the moment a NEW
+appointment lands, from any source (DigiGrowth Booking, Calendly, GHL, the
+CRM). DigiGrowth Booking sends it instantly from booking_engine._finalize via
+send_confirmation() (with the location + reschedule link added); everything
+else gets it on the next 5-minute poll. Only for appointment rows created in
+the last _CONFIRM_FRESH (so a reschedule, a re-arm or an appointment that
+predates this step never gets a "you're booked" text). Claimed atomically in
+reminder_steps_sent["-2"] so it can't go out twice. Always sends, quiet hours
+or not, since the patient just booked.
 """
 
 import json
+import re
 from datetime import datetime, timedelta, timezone as dt_timezone
 from zoneinfo import ZoneInfo
 
@@ -38,6 +49,35 @@ from timezone_lookup import clinic_timezone
 _SEQUENCE_KEY = "appointment_reminder"
 _WINDOW_HOURS_BY_TOUCH = [24, 6, 1]
 _SKIPPED = "skipped"  # sent-map value for a window deliberately not sent
+_CONFIRM_KEY = "-2"  # step_order of the Booking Confirmation text
+_CONFIRM_FRESH = timedelta(minutes=30)
+
+
+def _pretty_phone(phone: str) -> str:
+    d = re.sub(r"\D", "", phone or "")
+    if len(d) == 11 and d.startswith("1"):
+        d = d[1:]
+    return f"({d[:3]}) {d[3:6]}-{d[6:]}" if len(d) == 10 else (phone or "").strip()
+
+
+async def contact_line(conn, client_id: int) -> str:
+    """'Questions? Call (555) 123-4567 or email frontdesk@clinic.com.' from the
+    Booking setup's patient contact fields, falling back to the client record.
+    Empty when neither has anything."""
+    c = await conn.fetchrow(
+        """SELECT cl.email, cl.phone, bs.contact_email, bs.contact_phone FROM clients cl
+           LEFT JOIN booking_settings bs ON bs.client_id = cl.id WHERE cl.id = $1""", client_id)
+    if not c:
+        return ""
+    phone = (c["contact_phone"] or c["phone"] or "").strip()
+    email = (c["contact_email"] or c["email"] or "").strip()
+    if phone and email:
+        return f"Questions? Call {_pretty_phone(phone)} or email {email}."
+    if phone:
+        return f"Questions? Call {_pretty_phone(phone)}."
+    if email:
+        return f"Questions? Email {email}."
+    return ""
 
 
 def _format_date_time(appointment_at: datetime, tz_name: str | None) -> tuple[str, str]:
@@ -49,15 +89,78 @@ def _format_date_time(appointment_at: datetime, tz_name: str | None) -> tuple[st
     return local.strftime("%A, %B %-d"), local.strftime("%-I:%M %p %Z")
 
 
-def _fill(template: str, row: dict, client_name: str) -> str:
+def _fill(template: str, row: dict, client_name: str, contact: str = "") -> str:
     date_str, time_str = _format_date_time(row["appointment_at"], row.get("prospect_timezone"))
-    return (
+    text = (
         (template or "")
         .replace("{first_name}", first_name_from_owner(row.get("prospect_name")))
         .replace("{business}", client_name)
         .replace("{date}", date_str)
         .replace("{time}", time_str)
+        .replace("{contact}", contact)
     )
+    return re.sub(r"[ \t]{2,}", " ", text).strip()
+
+
+async def _claim_confirmation(conn, ar_id: int, value: str) -> bool:
+    """Stamp reminder_steps_sent["-2"] only if nothing has yet. True = we own it."""
+    return bool(await conn.fetchval(
+        """UPDATE appointment_reminders
+           SET reminder_steps_sent = COALESCE(reminder_steps_sent, '{}'::jsonb) || jsonb_build_object($2::text, $3::text)
+           WHERE id = $1 AND NOT (COALESCE(reminder_steps_sent, '{}'::jsonb) ? $2::text)
+           RETURNING id""", ar_id, _CONFIRM_KEY, value))
+
+
+async def _send_confirmation_row(row: dict, step, config, extra: str = "") -> bool:
+    """Claim + send the Booking Confirmation for one appointment row."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if not await _claim_confirmation(conn, row["id"], datetime.now(dt_timezone.utc).isoformat()):
+            return False
+        contact = await contact_line(conn, row["lead_client_id"])
+    text = _fill(step["body"], row, row["client_name"], contact)
+    if extra:
+        text = f"{text} {extra}".strip()
+    ok = bool((step["body"] or "").strip()) and await _send_step(row["lead_client_id"], config, step, row, text)
+    if not ok:
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE appointment_reminders SET reminder_steps_sent = reminder_steps_sent || jsonb_build_object($2::text, $3::text) WHERE id = $1",
+                row["id"], _CONFIRM_KEY, _SKIPPED)
+    return ok
+
+
+async def send_confirmation(appointment_id: int, extra: str = "") -> bool | None:
+    """Send the Booking Confirmation for a just-created appointment now.
+    None = this client has no enabled confirmation step (caller may send its
+    own text); False = not sent (already sent, no phone/number, unqualified);
+    True = sent. `extra` is appended (DigiGrowth Booking's location +
+    reschedule link)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            f"""SELECT ar.*, c.client_id AS lead_client_id, cl.name AS client_name, c.phone AS contact_phone,
+                       {lead_flags.UNQUALIFIED_SQL} AS unqualified
+                FROM appointment_reminders ar
+                JOIN contacts c ON c.id = ar.contact_id
+                JOIN clients cl ON cl.id = c.client_id
+                WHERE ar.id = $1 AND c.client_id IS NOT NULL AND NOT c.is_client_anchor""", appointment_id)
+        if not row:
+            return None
+        row = dict(row)
+        step = await conn.fetchrow(
+            "SELECT step_order, channel, subject, body FROM client_sequence_steps "
+            "WHERE client_id = $1 AND sequence_key = $2 AND step_order < 0 AND enabled AND channel = 'sms' "
+            "ORDER BY step_order LIMIT 1", row["lead_client_id"], _SEQUENCE_KEY)
+        if not step:
+            return None
+        if row["unqualified"] or row["status"] != "scheduled" or row["appointment_at"] <= datetime.now(dt_timezone.utc):
+            return False
+        config = await conn.fetchrow(
+            "SELECT twilio_number FROM client_marketing_config WHERE client_id = $1", row["lead_client_id"])
+        row["prospect_timezone"] = await clinic_timezone(
+            conn, row["lead_client_id"], row.get("prospect_phone") or row.get("contact_phone"))
+    return await _send_confirmation_row(row, step, config, extra)
 
 
 async def send_due_reminders():
@@ -111,8 +214,19 @@ async def send_due_reminders():
                 conn, client_id, row.get("prospect_phone") or row.get("contact_phone"),
             )
 
+        # Booking Confirmation: only for a genuinely new appointment row.
+        confirm = next((st for st in steps if st["step_order"] < 0 and st["channel"] == "sms"), None)
+        if (confirm and _CONFIRM_KEY not in sent_map and row.get("created_at")
+                and now - row["created_at"] <= _CONFIRM_FRESH):
+            if await _send_confirmation_row(row, confirm, config):
+                sent_map[_CONFIRM_KEY] = now.isoformat()
+            else:
+                sent_map[_CONFIRM_KEY] = _SKIPPED
+
         by_touch: dict[int, list] = {}
         for step in steps:
+            if step["step_order"] < 0:
+                continue
             touch = step["step_order"] // 2
             if touch >= len(_WINDOW_HOURS_BY_TOUCH):
                 print(f"[client_appointment_reminders] client {client_id} step {step['step_order']} has no defined timing — skipping")
@@ -155,8 +269,10 @@ async def send_due_reminders():
 
         if changed:
             async with pool.acquire() as conn:
+                # Merge, never overwrite: send_confirmation() may have
+                # stamped "-2" since this row was read.
                 await conn.execute(
-                    "UPDATE appointment_reminders SET reminder_steps_sent = $2 WHERE id = $1",
+                    "UPDATE appointment_reminders SET reminder_steps_sent = reminder_steps_sent || $2::jsonb WHERE id = $1",
                     row["id"], json.dumps(sent_map),
                 )
 
@@ -227,7 +343,7 @@ async def list_active(client_id: int) -> list[dict]:
             client_id,
         )
         touch_count = await conn.fetchval(
-            "SELECT COUNT(DISTINCT step_order / 2) FROM client_sequence_steps WHERE client_id = $1 AND sequence_key = $2",
+            "SELECT COUNT(DISTINCT step_order / 2) FROM client_sequence_steps WHERE client_id = $1 AND sequence_key = $2 AND step_order >= 0",
             client_id, _SEQUENCE_KEY,
         )
     touch_count = min(touch_count or len(_WINDOW_HOURS_BY_TOUCH), len(_WINDOW_HOURS_BY_TOUCH))

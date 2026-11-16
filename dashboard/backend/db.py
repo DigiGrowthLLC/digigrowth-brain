@@ -865,6 +865,18 @@ async def _create_schema(pool: asyncpg.Pool):
             WHERE NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id)
             """
         )
+        # Booking Confirmation (step_order -2) for every client that has
+        # appointment reminders but no confirmation step yet (2026-11-16).
+        await conn.execute(
+            """
+            INSERT INTO client_sequence_steps (client_id, sequence_key, step_order, label, channel, subject, body)
+            SELECT c.id, 'appointment_reminder', -2, 'Booking Confirmation (SMS)', 'sms', NULL,
+                   'Hi {first_name}, you''re booked with {business} on {date} at {time}. {contact}'
+            FROM clients c
+            WHERE EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = 'appointment_reminder')
+            AND NOT EXISTS (SELECT 1 FROM client_sequence_steps WHERE client_id = c.id AND sequence_key = 'appointment_reminder' AND step_order < 0)
+            """
+        )
         # Backfill Touch 2/Touch 3 steps (step_order 2-5) for existing
         # clients whose no_show/cancellation sequences were seeded before
         # this build, back when they were one-shot (Touch 1 only). The

@@ -911,7 +911,7 @@ function ClientLaunchChecklist({ clientId }) {
 // tab). Not wired to any real send yet; this is just content editing.
 const SEQUENCE_GROUP_LABELS = {
   prospect_followup: { title: "Prospect Follow-Up", timing: "3h / +24h / +3d / +7d after no reply" },
-  appointment_reminder: { title: "Appointment Reminders", timing: "24h / 6h / 1h before" },
+  appointment_reminder: { title: "Appointment Reminders", timing: "on booking / 24h / 6h / 1h before" },
   no_show: { title: "No Show Follow-Up", timing: "now / 3h / 24h" },
   cancellation: { title: "Cancellation Follow-Up", timing: "now / 3h / 24h" },
 };

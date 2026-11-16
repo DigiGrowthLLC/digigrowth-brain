@@ -635,11 +635,12 @@ const SEQUENCE_ORDER = ["prospect_followup", "appointment_reminder", "no_show", 
 // _WINDOW_HOURS_BY_TOUCH and client_appointment_sequence.py's _TOUCH_DELAYS.
 const SEQUENCE_TIMING = {
   prospect_followup: ["3 hours without a reply", "24 hours later", "3 days later", "7 days later"],
-  appointment_reminder: ["24 hours before", "6 hours before", "1 hour before"],
+  appointment_reminder: ["Right after booking", "24 hours before", "6 hours before", "1 hour before"],
   no_show: ["Right away", "After 3 hours", "After 24 hours"],
   cancellation: ["Right away", "After 3 hours", "After 24 hours"],
 };
-const REMINDER_TITLES = ["24 Hour Reminder", "6 Hour Reminder", "1 Hour Reminder"];
+// Index 0 = the Booking Confirmation (step_order -2), then the 24h/6h/1h windows.
+const REMINDER_TITLES = ["Booking Confirmation", "24 Hour Reminder", "6 Hour Reminder", "1 Hour Reminder"];
 
 // One column per touch: each touch owns a step_order pair (0-1 = Touch 1,
 // 2-3 = Touch 2…; only the SMS step is left in it now), grouped from
@@ -649,8 +650,9 @@ function sequenceColumns(key, group) {
   const sorted = [...group].sort((a, b) => a.step_order - b.step_order);
   const cols = [];
   for (const s of sorted) {
-    const i = Math.floor(s.step_order / 2);
-    const title = key === "appointment_reminder" ? (REMINDER_TITLES[i] || `Reminder ${i + 1}`) : `Touch ${i + 1}`;
+    const i = Math.floor(s.step_order / 2) + (key === "appointment_reminder" ? 1 : 0);
+    if (i < 0) continue;
+    const title = key === "appointment_reminder" ? (REMINDER_TITLES[i] || `Reminder ${i}`) : `Touch ${i + 1}`;
     if (!cols[i]) cols[i] = { title, timing: (SEQUENCE_TIMING[key] || [])[i], steps: [] };
     cols[i].steps.push(s);
   }

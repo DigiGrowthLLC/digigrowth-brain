@@ -38,6 +38,10 @@ _DEFAULT_SEQUENCE_STEPS = [
     # its pair (0 = 24h before, 2 = 6h, 4 = 1h; client_appointment_reminders.py).
     # The odd slots were the email half of each pair, gone since DigiGrowth
     # stopped offering client email (2026-10-28).
+    # -2 = Booking Confirmation, sent right after a new booking ({contact} =
+    # "Questions? Call ... or email ..." from Booking setup / client record).
+    ("appointment_reminder", -2, "Booking Confirmation (SMS)", "sms", None,
+     "Hi {first_name}, you're booked with {business} on {date} at {time}. {contact}"),
     ("appointment_reminder", 0, "24 Hour Reminder (SMS)", "sms", None,
      "Hi {first_name}, a friendly reminder about your free consultation with {business} tomorrow, {date} at {time}. It's a quick Google Meet video call, the link is in your calendar invite. Reply CONFIRM to confirm, or let us know if you need to reschedule."),
     ("appointment_reminder", 2, "6 Hour Reminder (SMS)", "sms", None,

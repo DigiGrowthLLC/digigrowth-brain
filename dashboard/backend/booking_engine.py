@@ -36,7 +36,6 @@ import hashlib
 import hmac
 import json
 import os
-import re
 import secrets
 import time as _time
 import uuid
@@ -717,29 +716,6 @@ async def _context(conn, booking_id: int) -> tuple[dict, dict, dict, str, str]:
     return b, ev, s, clinic, tz
 
 
-def _pretty_phone(phone: str) -> str:
-    d = re.sub(r"\D", "", phone or "")
-    if len(d) == 11 and d.startswith("1"):
-        d = d[1:]
-    return f"({d[:3]}) {d[3:6]}-{d[6:]}" if len(d) == 10 else (phone or "").strip()
-
-
-async def contact_line(conn, client_id: int, s: dict) -> str:
-    """'Questions? Call (555) 123-4567 or email frontdesk@clinic.com.' from the
-    booking setup's patient contact fields, falling back to the client record.
-    Empty when neither has anything."""
-    c = await conn.fetchrow("SELECT email, phone FROM clients WHERE id = $1", client_id)
-    phone = (s.get("contact_phone") or (c and c["phone"]) or "").strip()
-    email = (s.get("contact_email") or (c and c["email"]) or "").strip()
-    if phone and email:
-        return f"Questions? Call {_pretty_phone(phone)} or email {email}."
-    if phone:
-        return f"Questions? Call {_pretty_phone(phone)}."
-    if email:
-        return f"Questions? Email {email}."
-    return ""
-
-
 def _location_line(ev: dict, meet_link: str | None) -> str:
     if ev["location_type"] == "google_meet":
         return f"Join here: {meet_link}" if meet_link else "We'll send your video link."
@@ -800,11 +776,27 @@ async def _finalize(booking_id: int) -> None:
         except Exception as e:
             print(f"[booking] record_booking failed for booking {booking_id}: {e}")
 
+    # The client's editable Booking Confirmation (Appointment Reminders tab),
+    # with this booking's location + reschedule link added. Falls back to the
+    # built-in text when the client has that step off or missing.
+    import client_appointment_reminders as car
+    extra = " ".join(x for x in [
+        _location_line(ev, b.get("meet_link")),
+        f"Need to reschedule or cancel? {manage_url(b['manage_token'])}",
+    ] if x)
+    async with pool.acquire() as conn:
+        appt_id = await conn.fetchval("SELECT appointment_id FROM bookings WHERE id = $1", booking_id)
+    if appt_id:
+        try:
+            if await car.send_confirmation(appt_id, extra) is not None:
+                return
+        except Exception as e:
+            print(f"[booking] confirmation step failed for booking {booking_id}: {e}")
     day, at = _fmt_local(b["start_at"], tz)
     first = (b["name"] or "").split()[0] if b["name"] else "there"
     try:
         async with pool.acquire() as conn:
-            contact = await contact_line(conn, b["client_id"], s)
+            contact = await car.contact_line(conn, b["client_id"])
     except Exception as e:
         print(f"[booking] contact line failed for booking {booking_id}: {e}")
         contact = ""
