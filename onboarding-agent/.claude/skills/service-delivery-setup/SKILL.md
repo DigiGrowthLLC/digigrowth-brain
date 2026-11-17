@@ -13,7 +13,7 @@ Gated").
 The source of truth for what needs doing is the dashboard's **Setup** checklist (client →
 Details → Setup; ~18 steps in 5 phases, defined in `dashboard/backend/setup_steps.py`,
 served at `GET /api/clients/{id}/setup`). Steps have stable ids (`autobuild`, `review`,
-`meta_access`, `calendar`, `dns`, `a2p`, `lists`, `booking`, `lead_form`, `pixel`, `voice`,
+`meta_access`, `calendar`, `dns`, `booking_domain`, `a2p`, `lists`, `booking`, `lead_form`, `pixel`, `voice`,
 `social`, `ad_cap`, `campaign`, `organic`, `test`, `reactivation`, `golive`). Growth-only
 steps are hidden for a Foundations client (`PUT /api/clients/{id}/setup/package`). This
 skill never keeps its own list: it reads that one, so adding a step there adds it here.
@@ -144,6 +144,14 @@ campaign) are still ticked by hand: `PUT /api/clients/{id}/launch-checklist/{ite
   then add a CNAME `go` -> `cname.vercel-dns.com` at the DNS host. Autocheck ticks
   `dns` once `https://go.<domain>/` serves the funnel. Update the portal Website
   tab URL to the new domain so the client sees it.
+- **Booking domain (`booking_domain` step, 2026-11-17)**: same DNS access, second record:
+  CNAME `book` -> `cname.vercel-dns.com`. Needs the booking page to exist (Booking AUTOFILL).
+  Save `booking_domain` (e.g. `book.clientdomain.com`), run the same
+  `deploy_client_funnels.py` (it serves `/book/<booking_slug>` at the root of that host).
+  Then re-run `service_delivery_status.py` for the client: its autocheck call is the ONLY
+  thing that checks this domain (not the 10-minute job). Once it serves their page the step
+  ticks and every booking link we hand out switches to `https://book.<domain>`. If the
+  domain later breaks, re-run the status script so links fall back to ours.
 - **GoHighLevel (only when the client said so)**: one email = one GHL user, so if the
   invite lands in another agency, ask for an invite to `dylanrg+<client>@digigrowthllc.com`
   and open it in incognito. Calendar slugs are global (pick any unique one, the link uses

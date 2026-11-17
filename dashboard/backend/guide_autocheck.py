@@ -83,8 +83,10 @@ async def sync_launch_checklist(client_id: int) -> list[str]:
     return ticked
 
 
-async def autocheck(client_id: int) -> list[str]:
-    """Writes the network-proven ticks for one client. Returns step ids newly ticked."""
+async def autocheck(client_id: int, booking: bool = True) -> list[str]:
+    """Writes the network-proven ticks for one client. Returns step ids newly ticked.
+    booking=False skips the booking-domain check: it only runs on demand (the
+    service-delivery skill / the OS's autocheck call), not in the 10-minute job."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         cfg = await conn.fetchrow(
@@ -98,15 +100,16 @@ async def autocheck(client_id: int) -> list[str]:
     if not (progress.get("v2") or {}).get("dns") and await _funnel_domain_live(cfg["funnel_domain"]):
         await setup_steps.set_tick(client_id, "dns", True)
         newly.append("dns")
-    # Booking host: re-proven every run, so a broken or changed domain drops
-    # back to our own link (booking_engine.booking_page_url) instead of
-    # sending patients to a dead page.
-    live = bool(cfg["booking_domain"]) and await _booking_domain_live(cfg["booking_domain"], slug)
-    if live != bool(cfg["booking_domain_live_at"]):
+    # Booking host: checked on demand. Live -> every booking link switches to
+    # it (booking_engine.booking_page_url); not live (anymore) -> back to ours.
+    live = booking and bool(cfg["booking_domain"]) and await _booking_domain_live(cfg["booking_domain"], slug)
+    if booking and live != bool(cfg["booking_domain_live_at"]):
+        import booking_engine
         async with pool.acquire() as conn:
             await conn.execute(
                 "UPDATE client_marketing_config SET booking_domain_live_at = CASE WHEN $2 THEN now() END "
                 "WHERE client_id = $1", client_id, live)
+            await booking_engine.load_booking_domains(conn)
         if live:
             newly.append("booking_domain")
     if newly:
@@ -123,9 +126,6 @@ async def autocheck_all() -> None:
     for client_id in ids:
         try:
             await setup_steps.status(client_id)  # runs the one-time v2 migration of old ticks
-            await autocheck(client_id)
+            await autocheck(client_id, booking=False)
         except Exception as e:
             print(f"[guide-autocheck] client {client_id} failed: {e}", flush=True)
-    import booking_engine
-    async with pool.acquire() as conn:
-        await booking_engine.load_booking_domains(conn)

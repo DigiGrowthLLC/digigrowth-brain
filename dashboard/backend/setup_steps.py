@@ -82,10 +82,11 @@ STEPS = [
      "how": "Same DNS access as the funnel step. Add a second record: CNAME, host \"book\", value "
             "cname.vercel-dns.com (never touch the root @ records). Save the domain below, then run "
             "deploy_client_funnels.py (the onboarding agent does it): it puts their booking page at the root of "
-            "that host. Needs their booking page made first (the Booking step's AUTOFILL creates it). Ticks "
-            "itself once https://<domain>/ serves their booking page; from then on every booking link we hand "
-            "out (texts, AI agents, portal, Booking Links) uses it. If the domain ever stops working, links fall "
-            "back to ours automatically.",
+            "that host. Needs their booking page made first (the Booking step's AUTOFILL creates it). Then run "
+            "the service delivery skill: it checks the domain once and ticks this step when "
+            "https://<domain>/ serves their booking page. From then on every booking link we hand out (texts, AI "
+            "agents, portal, Booking Links) uses it. It's not re-checked in the background: if the domain ever "
+            "breaks, run the check again and links fall back to ours.",
      "fields": [{"key": "booking_domain", "label": "Booking domain", "placeholder": "book.clientdomain.com"}]},
     {"id": "a2p", "services": TEXTING, "phase": "handover", "package": "all", "title": "A2P 10DLC registered (marketing use case)",
      "how": "Needs their legal business name + EIN (exactly as on the IRS letter). Register the Brand right away on "
