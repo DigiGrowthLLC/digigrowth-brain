@@ -39,9 +39,9 @@ function TodoItem({ todo, overdue, onComplete, onDelete, onSaveDescription }) {
   };
   return (
     <div style={{ borderTop: `1px solid ${T.line}`, padding: "11px 0" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
         <button onClick={() => onComplete(todo.id)} aria-label="Mark done" title="Mark done" style={{
-          flexShrink: 0, width: 20, height: 20, cursor: "pointer", borderRadius: 7, border: `1.5px solid ${T.lineStrong}`, background: "transparent",
+          flexShrink: 0, width: 20, height: 20, marginTop: 0, cursor: "pointer", borderRadius: 7, border: `1.5px solid ${T.lineStrong}`, background: "transparent",
         }} />
         <div onClick={() => { setDraft(todo.description || ""); setExpanded((e) => !e); }} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}
           title={todo.description ? "View or edit notes" : "Add notes"}>

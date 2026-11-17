@@ -21,6 +21,20 @@ function timeAgo(ts) {
 
 const pct = (n, d) => (d > 0 ? `${((n / d) * 100).toFixed(1)}%` : "–");
 
+// A card that fills its grid row; the body scrolls inside it, so every card in
+// a row ends at the same line no matter how much it holds.
+function Panel({ title, hint, right, children, style }) {
+  return (
+    <Card style={{ flex: "1 1 0", height: "100%", minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", ...style }}>
+      <SectionTitle title={title} hint={hint} right={right} />
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflowY: "auto", overflowX: "hidden" }}>{children}</div>
+    </Card>
+  );
+}
+
+// Agent messages are written in markdown ("## Lead gen run — ... **Doral, FL**").
+const plain = (t) => String(t || "").replace(/^#+\s*/gm, "").replace(/\*\*|__|`/g, "").replace(/\s+/g, " ").trim();
+
 // ── To-Do (today + overdue only) ────────────────────────────────────────────
 function TodoWidgetRow({ t, overdue, onComplete, onRemove, onSaveDescription }) {
   const [expanded, setExpanded] = useState(false);
@@ -31,9 +45,9 @@ function TodoWidgetRow({ t, overdue, onComplete, onRemove, onSaveDescription }) 
   };
   return (
     <div style={{ padding: "9px 0", borderTop: `1px solid ${T.line}` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
         <button onClick={() => onComplete(t.id)} aria-label="Mark done" title="Mark done" style={{
-          flexShrink: 0, width: 18, height: 18, cursor: "pointer", borderRadius: 6,
+          flexShrink: 0, width: 18, height: 18, marginTop: 1, cursor: "pointer", borderRadius: 6,
           border: `1.5px solid ${T.lineStrong}`, background: "transparent",
         }} />
         <span onClick={() => { setDraft(t.description || ""); setExpanded((e) => !e); }}
@@ -44,7 +58,7 @@ function TodoWidgetRow({ t, overdue, onComplete, onRemove, onSaveDescription }) 
         </span>
         <InboxLinkButton href={inboxLinkFrom(t.description)} />
         {t.due_date && overdue && <Pill tone="bad">Overdue</Pill>}
-        <button onClick={() => onRemove(t.id)} aria-label="Delete" style={{ fontSize: 13, color: T.textMute, cursor: "pointer", background: "none", border: "none" }}>✕</button>
+        <button onClick={() => onRemove(t.id)} aria-label="Delete" style={{ fontSize: 13, color: T.textMute, cursor: "pointer", background: "none", border: "none", lineHeight: "19px", padding: 0 }}>✕</button>
       </div>
       {expanded && (
         <div style={{ padding: "8px 0 0 28px", display: "grid", gap: 6 }}>
@@ -80,7 +94,7 @@ function TodoList({ onNavigate }) {
 
   const due = (todos || []).filter(isTodoDue);
   return (
-    <Card style={{ display: "flex", flexDirection: "column", minHeight: 300 }}>
+    <Card style={{ flex: "1 1 0", height: "100%", minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <SectionTitle title="To-Do" hint="Due today and overdue"
         right={<button className="btn btn-ghost" style={{ padding: "5px 12px" }} onClick={() => onNavigate?.("todos")}>All to-dos →</button>} />
       <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
@@ -88,13 +102,12 @@ function TodoList({ onNavigate }) {
           placeholder="Quick add…" className="dg-input" aria-label="New to-do" />
         <button onClick={add} className="btn btn-primary">Add</button>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", maxHeight: 360 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
         {todos === null ? <Loading /> : due.length === 0 ? <Empty>All clear for today.</Empty> :
-          due.slice(0, 8).map((t) => (
+          due.map((t) => (
             <TodoWidgetRow key={t.id} t={t} overdue={t.due_date && t.due_date.slice(0, 10) < todayStr}
               onComplete={complete} onRemove={remove} onSaveDescription={saveDescription} />
           ))}
-        {due.length > 8 && <div style={{ fontSize: 12.5, color: T.textMute, paddingTop: 8 }}>+{due.length - 8} more in To-Do</div>}
       </div>
     </Card>
   );
@@ -111,23 +124,22 @@ function CalendarWidget({ events, loading, error }) {
   };
   const notSetUp = error && /missing|configured/i.test(error);
   return (
-    <Card>
-      <SectionTitle title="Today's calendar" right={todayEvents.length ? <Pill tone="info">{todayEvents.length}</Pill> : null} />
+    <Panel title="Today's calendar" right={todayEvents.length ? <Pill tone="info">{todayEvents.length}</Pill> : null}>
       {loading ? <Loading /> : error ? <Empty>{notSetUp ? "Google Calendar isn't connected." : error}</Empty>
         : todayEvents.length === 0 ? <Empty>Nothing on the calendar today.</Empty> : (
           <div style={{ display: "grid", gap: 8 }}>
             {todayEvents.map((ev) => (
-              <div key={ev.id} style={{ display: "grid", gridTemplateColumns: "92px 1fr", gap: 10, padding: "9px 12px", borderRadius: 10, background: T.surface2, border: `1px solid ${T.line}` }}>
+              <div key={ev.id} style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr)", gap: 10, padding: "9px 12px", borderRadius: 10, background: T.surface2, border: `1px solid ${T.line}` }}>
                 <span style={{ fontSize: 12.5, color: "#8fb8ff", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmt(ev.start, ev.end, ev.all_day)}</span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, color: T.text, lineHeight: 1.35 }}>{ev.title}</div>
-                  {ev.location && <div style={{ fontSize: 12, color: T.textMute, marginTop: 2 }}>{ev.location}</div>}
+                  {ev.location && <div style={{ fontSize: 12, color: T.textMute, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={ev.location}>{ev.location}</div>}
                 </div>
               </div>
             ))}
           </div>
         )}
-    </Card>
+    </Panel>
   );
 }
 
@@ -280,66 +292,69 @@ export default function DashboardPanel({ onNavigate }) {
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr]" style={{ gap: 18, alignItems: "start" }}>
-          <div style={{ display: "grid", gap: 18 }}>
-            <Card>
-              <SectionTitle title="Outreach funnel" hint={periodLabel} />
-              {stats ? (
-                <Funnel stages={[
-                  { label: "Outreach", value: outreach, color: "#4d8ef0" },
-                  { label: "Answered", value: calling.total_answered ?? 0, color: "#6aa5ff" },
-                  { label: "Reached", value: calling.total_reached ?? 0, color: "#2fd08f" },
-                  { label: "Booked", value: calling.total_appointments ?? 0, color: "#f2ad3d" },
-                ]} />
-              ) : <Loading />}
-            </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 18 }}>
-              <Card>
-                <SectionTitle title="Needs a reply" right={clientMsgs.length ? <Pill tone="warn">{clientMsgs.length}</Pill> : null} />
-                <div style={{ display: "grid", gap: 8, maxHeight: 320, overflowY: "auto" }}>
-                  {clientMsgs.length === 0 ? <Empty>All caught up.</Empty> : clientMsgs.map((m) => (
-                    <AttentionRow key={m.phone} tone="warn" title={m.business || m.owner || m.phone} sub={m.last_message}
-                      right={<span style={{ fontSize: 12, color: T.textMute, whiteSpace: "nowrap" }}>{timeAgo(m.last_inbound_at)}</span>}
-                      onClick={() => { onNavigate?.("inbox", { channel: "sms", phone: m.phone }); setClientMsgs((p) => p.filter((x) => x.phone !== m.phone)); }} />
-                  ))}
-                </div>
-              </Card>
-              <Card>
-                <SectionTitle title="Agent activity" right={agentMsgs.length ? <Pill tone="info">{agentMsgs.length} new</Pill> : null} />
-                <div style={{ display: "grid", gap: 8, maxHeight: 320, overflowY: "auto" }}>
-                  {agentMsgs.length === 0 ? <Empty>No new messages from your agents.</Empty> : agentMsgs.map((m) => (
-                    <AttentionRow key={m.id} title={m.message} sub={`${m.agent ?? "system"} · ${timeAgo(m.created_at)}`}
-                      onClick={() => { onNavigate?.("agents", m.agent); markRead(m.id); }} />
-                  ))}
-                </div>
-              </Card>
+        {/* Row: funnel + pipeline */}
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] lg:h-[290px]" style={{ gap: 18 }}>
+          <Panel title="Outreach funnel" hint={periodLabel}>
+            {stats ? (
+              <Funnel stages={[
+                { label: "Outreach", value: outreach, color: "#4d8ef0" },
+                { label: "Answered", value: calling.total_answered ?? 0, color: "#6aa5ff" },
+                { label: "Reached", value: calling.total_reached ?? 0, color: "#2fd08f" },
+                { label: "Booked", value: calling.total_appointments ?? 0, color: "#f2ad3d" },
+              ]} />
+            ) : <Loading />}
+          </Panel>
+          <Panel title="Pipeline" hint={periodLabel}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, paddingTop: 6 }}>
+              <Stat label="Total contacts" value={contacts.total ?? 0} />
+              <Stat label="New this period" value={contacts.new ?? 0} tone="good" />
+              <Stat label="Booked by SMS" value={sms.booked ?? 0} />
+              <Stat label="Active conversations" value={sms.active ?? 0} />
             </div>
-          </div>
+          </Panel>
+        </div>
 
-          <div style={{ display: "grid", gap: 18 }}>
-            {clientAttention.length > 0 && (
-              <Card style={{ borderColor: "rgba(242,173,61,0.35)" }}>
-                <SectionTitle title="Clients needing you" right={<button className="btn btn-ghost" style={{ padding: "5px 12px" }} onClick={() => onNavigate?.("clients")}>Clients →</button>} />
-                <div style={{ display: "grid", gap: 8 }}>
+        {/* Row: today */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 xl:h-[460px]" style={{ gap: 18 }}>
+          <div className="flex flex-col h-[420px] xl:h-auto" style={{ minWidth: 0 }}><TodoList onNavigate={onNavigate} /></div>
+          <div className="flex flex-col h-[420px] xl:h-auto" style={{ minWidth: 0 }}><CalendarWidget events={calEvents} loading={calLoading} error={calError} /></div>
+          <div className="flex flex-col h-[420px] xl:h-auto md:col-span-2 xl:col-span-1" style={{ minWidth: 0 }}>
+            <Panel title="Needs a reply" right={clientMsgs.length ? <Pill tone="warn">{clientMsgs.length}</Pill> : null}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
+                {clientMsgs.length === 0 ? <Empty>All caught up.</Empty> : clientMsgs.map((m) => (
+                  <AttentionRow key={m.phone} tone="warn" title={m.business || m.owner || m.phone} sub={m.last_message}
+                    right={<span style={{ fontSize: 12, color: T.textMute, whiteSpace: "nowrap" }}>{timeAgo(m.last_inbound_at)}</span>}
+                    onClick={() => { onNavigate?.("inbox", { channel: "sms", phone: m.phone }); setClientMsgs((p) => p.filter((x) => x.phone !== m.phone)); }} />
+                ))}
+              </div>
+            </Panel>
+          </div>
+        </div>
+
+        {/* Row: clients + agents */}
+        <div className={`grid grid-cols-1 ${clientAttention.length ? "lg:grid-cols-2" : ""} lg:h-[320px]`} style={{ gap: 18 }}>
+          {clientAttention.length > 0 && (
+            <div className="flex flex-col h-[320px] lg:h-auto" style={{ minWidth: 0 }}>
+              <Panel title="Clients needing you" style={{ borderColor: "rgba(242,173,61,0.35)" }}
+                right={<button className="btn btn-ghost" style={{ padding: "5px 12px" }} onClick={() => onNavigate?.("clients")}>Clients →</button>}>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
                   {clientAttention.map(({ c, why }) => (
                     <AttentionRow key={c.id} tone="warn" title={c.name} sub={why.join(" · ")} right={<HealthBadge health={c.health} compact />}
                       onClick={() => onNavigate?.("clients", { clientId: c.id })} />
                   ))}
                 </div>
-              </Card>
-            )}
-            <CalendarWidget events={calEvents} loading={calLoading} error={calError} />
-            <TodoList onNavigate={onNavigate} />
-            <Card>
-              <SectionTitle title="Pipeline" hint={periodLabel} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                <Stat label="Total contacts" value={contacts.total ?? 0} />
-                <Stat label="New this period" value={contacts.new ?? 0} tone="good" />
-                <Stat label="Booked by SMS" value={sms.booked ?? 0} />
-                <Stat label="Active conversations" value={sms.active ?? 0} />
+              </Panel>
+            </div>
+          )}
+          <div className="flex flex-col h-[320px] lg:h-auto" style={{ minWidth: 0 }}>
+            <Panel title="Agent activity" right={agentMsgs.length ? <Pill tone="info">{agentMsgs.length} new</Pill> : null}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
+                {agentMsgs.length === 0 ? <Empty>No new messages from your agents.</Empty> : agentMsgs.map((m) => (
+                  <AttentionRow key={m.id} title={plain(m.message)} sub={`${m.agent ?? "system"} · ${timeAgo(m.created_at)}`}
+                    onClick={() => { onNavigate?.("agents", m.agent); markRead(m.id); }} />
+                ))}
               </div>
-            </Card>
+            </Panel>
           </div>
         </div>
       </div>
