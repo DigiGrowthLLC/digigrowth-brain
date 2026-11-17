@@ -3290,7 +3290,15 @@ function SocialMediaAgent({ clientId, config, onSaveFields }) {
 // leads first, texts after no answer. Growth package only.
 const VOICE_OUTCOME_COLOR = { booked: "#3ecf8e", answered: "#8ab4f8", not_interested: "#f0b429", no_answer: "#5a7aa0", voicemail: "#5a7aa0", skipped: "#3a5a80", error: "#e05c5c", unknown: "#f0b429" };
 
-function VoiceAgent({ clientId, config, onSaveFields }) {
+// kind="react": the separate Database Reactivation voice agent (own Retell
+// agent, own switch; shares the voice, name and consent stamp).
+function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
+  const react = kind === "react";
+  const base = react ? `/clients/${clientId}/reactivation-voice` : `/clients/${clientId}/voice-agent`;
+  const agentId = react ? config?.react_retell_agent_id : config?.retell_agent_id;
+  const syncedAt = react ? config?.react_voice_synced_at : config?.voice_synced_at;
+  const syncError = react ? config?.react_voice_sync_error : config?.voice_sync_error;
+  const enabledKey = react ? "react_voice_enabled" : "voice_agent_enabled";
   const [data, setData] = useState(null);
   const [voices, setVoices] = useState([]);
   const [busy, setBusy] = useState("");
@@ -3299,10 +3307,10 @@ function VoiceAgent({ clientId, config, onSaveFields }) {
   const [openCall, setOpenCall] = useState(null);
 
   const load = async () => {
-    const r = await fetch(API(`/clients/${clientId}/voice-agent`));
+    const r = await fetch(API(base));
     if (r.ok) setData(await r.json());
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [clientId, kind]);
   useEffect(() => {
     if (!data?.retell_key_set || voices.length) return;
     fetch(API(`/voice-agent/voices`)).then((r) => (r.ok ? r.json() : [])).then((v) => setVoices(Array.isArray(v) ? v : [])).catch(() => {});
@@ -3336,10 +3344,11 @@ function VoiceAgent({ clientId, config, onSaveFields }) {
           {row("RETELL_API_KEY on the server", null, Boolean(data?.retell_key_set))}
           {row("Client's Twilio number", config?.twilio_number, Boolean(config?.twilio_number))}
           {row("Text agent context (the voice agent uses the same one)", null, Boolean(config?.response_ai_context))}
-          {row("Retell agent", config?.voice_synced_at ? `synced ${new Date(config.voice_synced_at).toLocaleString()}` : null, Boolean(config?.retell_agent_id))}
-          {config?.voice_sync_error && <div style={{ fontSize: 11, color: "#e05c5c", margin: "2px 0 4px" }}>{config.voice_sync_error}</div>}
+          {row(react ? "Reactivation Retell agent (separate from the ads one)" : "Retell agent", syncedAt ? `synced ${new Date(syncedAt).toLocaleString()}` : null, Boolean(agentId))}
+          {syncError && <div style={{ fontSize: 11, color: "#e05c5c", margin: "2px 0 4px" }}>{syncError}</div>}
           {row("AI-call consent line live on the Meta Instant Form", config?.voice_consent_meta_since ? `since ${new Date(config.voice_consent_meta_since).toLocaleString()}` : "Meta leads are NOT called until you stamp this", Boolean(config?.voice_consent_meta_since))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+            {!react && <>
             <select className="dg-input" style={{ maxWidth: 260, fontSize: 11 }} value={config?.voice_id || ""} onChange={(e) => onSaveFields({ voice_id: e.target.value || null })}>
               <option value="">Default voice</option>
               {voices.map((v) => <option key={v.voice_id} value={v.voice_id}>{v.voice_name} · {v.provider} · {v.gender || ""} {v.accent || ""}</option>)}
@@ -3348,29 +3357,32 @@ function VoiceAgent({ clientId, config, onSaveFields }) {
               onBlur={(e) => { const n = parseFloat(e.target.value); const val = Number.isFinite(n) ? Math.min(2, Math.max(0.5, n)) : null; if (val !== (config?.voice_speed ?? null)) onSaveFields({ voice_speed: val }); }} />
             <input className="dg-input" style={{ maxWidth: 150, fontSize: 11 }} placeholder="Name (default: voice's)" defaultValue={config?.voice_agent_name || ""}
               onBlur={(e) => { if ((e.target.value || "") !== (config?.voice_agent_name || "")) onSaveFields({ voice_agent_name: e.target.value.trim() || null }); }} />
-            <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={!!busy} onClick={() => act("Sync agent", `/clients/${clientId}/voice-agent/sync`)}>
-              {busy === "Sync agent" ? "SYNCING…" : config?.retell_agent_id ? "SYNC AGENT" : "CREATE AGENT"}
+            </>}
+            <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={!!busy} onClick={() => act("Sync agent", `${base}/sync`)}>
+              {busy === "Sync agent" ? "SYNCING…" : agentId ? "SYNC AGENT" : "CREATE AGENT"}
             </button>
-            <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={!!busy} onClick={() => act("Consent stamp", `/clients/${clientId}/voice-agent/consent-live?live=${config?.voice_consent_meta_since ? "false" : "true"}`)}>
+            {!react && <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={!!busy} onClick={() => act("Consent stamp", `/clients/${clientId}/voice-agent/consent-live?live=${config?.voice_consent_meta_since ? "false" : "true"}`)}>
               {config?.voice_consent_meta_since ? "CLEAR CONSENT STAMP" : "CONSENT LINE IS LIVE NOW"}
-            </button>
+            </button>}
           </div>
-          <div style={{ fontSize: 10.5, color: "#5a7aa0", marginTop: 6 }}>Re-sync after changing the voice, speed (1.0 = normal), name, or the Facebook Leads Agent's context/rules. It introduces itself by that name and the clinic.</div>
+          <div style={{ fontSize: 10.5, color: "#5a7aa0", marginTop: 6 }}>{react
+            ? "Uses the Voice Agent's voice, speed and name (set them there), and the Facebook Leads Agent's context/rules. Re-sync after changing any of those."
+            : "Re-sync after changing the voice, speed (1.0 = normal), name, or the Facebook Leads Agent's context/rules. It introduces itself by that name and the clinic."}</div>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#d0e8ff", marginTop: 12, cursor: "pointer" }}>
-            <input type="checkbox" checked={Boolean(config?.voice_agent_enabled)} onChange={(e) => onSaveFields({ voice_agent_enabled: e.target.checked })} />
-            Voice agent calls new leads (also shows the call-consent box on the booking page)
+            <input type="checkbox" checked={Boolean(config?.[enabledKey])} onChange={(e) => onSaveFields({ [enabledKey]: e.target.checked })} />
+            {react ? "Reactivation voice agent calls ad leads in the offer's final week (last-call campaign)" : "Voice agent calls new leads (also shows the call-consent box on the booking page)"}
           </label>
-          {data?.ready_problem && config?.voice_agent_enabled && <div style={{ fontSize: 11, color: "#f0b429", marginTop: 4 }}>Not calling yet: {data.ready_problem}</div>}
+          {data?.ready_problem && config?.[enabledKey] && <div style={{ fontSize: 11, color: "#f0b429", marginTop: 4 }}>Not calling yet: {data.ready_problem}</div>}
           {msg && <div style={{ fontSize: 11, color: msg.ok ? "#3ecf8e" : "#e05c5c", marginTop: 6 }}>{msg.text}</div>}
           <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 8, lineHeight: 1.55 }}>
-            Flow: AI call ~3 min after a Meta lead (funnel: 10 min after they leave the booking page unfinished), no text first. No answer → immediate redial → voicemail, then the text agent's opener. Retries +2h, next day ~10:30, day after ~16:30, 8am-8pm clinic time only. Stops when they text back, book, opt out or say stop. After-hours leads get the text now and the first call at 9am.
+            {react ? <>Flow: when the ad budget is spent, the last-call campaign texts each ad lead who never came in. 24 hours later (if they haven't replied) this agent calls: "You filled out our form on [date] for [offer], and this is the final week we're running it, so I wanted to let you know before it's gone." No answer → redial → voicemail, then a final-week text. One try, 8am-8pm clinic time. Only leads who consented to AI calls (Meta form after the consent stamp, or the booking page's call box); everyone else gets the text.</> : <>Flow: AI call ~3 min after a Meta lead (funnel: 10 min after they leave the booking page unfinished), no text first. No answer → immediate redial → voicemail, then the text agent's opener. Retries +2h, next day ~10:30, day after ~16:30, 8am-8pm clinic time only. Stops when they text back, book, opt out or say stop. After-hours leads get the text now and the first call at 9am.</>}
           </div>
         </div>
       ))}
       {block("TEST CALL (no booking, no texts, no tags)", (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input className="dg-input" style={{ maxWidth: 200, fontSize: 12 }} placeholder="(754) 248-5326" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
-          <button className="btn btn-primary" style={{ fontSize: 10 }} disabled={!!busy || !testPhone.trim()} onClick={() => act("Test call", `/clients/${clientId}/voice-agent/test-call`, { phone: testPhone })}>
+          <button className="btn btn-primary" style={{ fontSize: 10 }} disabled={!!busy || !testPhone.trim()} onClick={() => act("Test call", `${base}/test-call`, { phone: testPhone })}>
             {busy === "Test call" ? "QUEUING…" : "CALL ME"}
           </button>
           <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={load}>REFRESH</button>
@@ -3613,6 +3625,16 @@ function ClientAgentSetup({ clientId }) {
         onToggle={() => setOpenAgent(openAgent === "voice" ? null : "voice")}
       >
         <VoiceAgent clientId={clientId} config={config} onSaveFields={saveFields} />
+      </AgentAccordionItem>
+
+      <AgentAccordionItem
+        title="Database Reactivation Voice Agent"
+        status={onOff(config?.react_voice_enabled)}
+        subtitle="Separate from the ads Voice Agent. Calls ad leads who never came in during the offer's final week: 'you filled out our form on [date], wanted to let you know before it's gone'."
+        open={openAgent === "reactvoice"}
+        onToggle={() => setOpenAgent(openAgent === "reactvoice" ? null : "reactvoice")}
+      >
+        <VoiceAgent clientId={clientId} config={config} onSaveFields={saveFields} kind="react" />
       </AgentAccordionItem>
 
       {agents.map((a) => (

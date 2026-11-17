@@ -34,6 +34,15 @@ number, so transfer_to_clinic redirects the live Twilio call ourselves.
 
 State: one row per dial attempt in client_voice_calls; seq_id groups a lead's
 attempts. process_due() (main.py, every 20s) dials due rows.
+
+Two Retell agents per client (agent_kind on each call row):
+  - 'ads': the agent above, for new Meta / funnel leads (voice_agent_enabled).
+  - 'react': the DATABASE REACTIVATION voice agent (Dylan, 2026-11-17), its own
+    Retell LLM + agent and its own switch (react_voice_enabled). It places the
+    last_call playbook's call (client_reactivation._queue_last_call): "this is
+    the final week of our <offer>, you filled out our form on <date>, wanted to
+    let you know before it's gone". Same voice, name, consent rules, booking
+    tools and calling hours as the ads agent.
 """
 from __future__ import annotations
 
@@ -270,15 +279,19 @@ async def _config(conn, client_id: int):
     )
 
 
-def _ready(cfg) -> str | None:
-    """None if this client's voice agent can place calls, else why not."""
+def _agent_id(cfg, kind: str = "ads") -> str | None:
+    return cfg["react_retell_agent_id"] if kind == "react" else cfg["retell_agent_id"]
+
+
+def _ready(cfg, kind: str = "ads") -> str | None:
+    """None if this client's voice agent ('ads' or 'react') can place calls, else why not."""
     if not cfg:
         return "no marketing config"
-    if not cfg["voice_agent_enabled"]:
-        return "voice agent off"
+    if not (cfg["react_voice_enabled"] if kind == "react" else cfg["voice_agent_enabled"]):
+        return "reactivation voice agent off" if kind == "react" else "voice agent off"
     if not _api_key():
         return "RETELL_API_KEY not set"
-    if not cfg["retell_agent_id"]:
+    if not _agent_id(cfg, kind):
         return "Retell agent not created yet"
     if not (cfg["twilio_number"] and cfg["twilio_subaccount_sid"]):
         return "no Twilio number"
@@ -299,13 +312,14 @@ async def _insert_attempt(conn, *, client_id: int, phone: str, run_at: datetime,
                           attempt: int, seq_id: int | None = None, double_dial: bool = False,
                           lead_name: str | None = None, lead_email: str | None = None,
                           partial_id: int | None = None, texted_first: bool = False,
-                          note: str | None = None) -> int:
+                          note: str | None = None, agent_kind: str = "ads",
+                          lead_since: datetime | None = None) -> int:
     row_id = await conn.fetchval(
         """INSERT INTO client_voice_calls (client_id, phone, lead_name, lead_email, source, partial_id,
-               seq_id, attempt, double_dial, texted_first, run_at, token, note)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id""",
+               seq_id, attempt, double_dial, texted_first, run_at, token, note, agent_kind, lead_since)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id""",
         client_id, phone, lead_name, lead_email, source, partial_id, seq_id, attempt, double_dial,
-        texted_first, run_at, secrets.token_urlsafe(16), note,
+        texted_first, run_at, secrets.token_urlsafe(16), note, agent_kind, lead_since,
     )
     if seq_id is None:
         await conn.execute("UPDATE client_voice_calls SET seq_id = id WHERE id = $1", row_id)
@@ -375,8 +389,8 @@ async def start_for_funnel_partial(client_id: int, session_id: str, run_at: date
 
 async def queue_last_call(client_id: int, phone: str, lead_name: str | None, is_meta: bool,
                           lead_created_at: datetime | None, offer_note: str | None) -> bool:
-    """Database reactivation's last_call playbook: call an ad lead on the
-    offer's last day. Only when they consented to calls (Meta form after the
+    """Database reactivation's last_call playbook: the REACTIVATION voice
+    agent calls an ad lead in the offer's final week. Only when they consented to calls (Meta form after the
     consent line went live, or the booking page's call box) and we're in
     calling hours. One attempt + redial; no answer -> the last-day text
     (_release_text). True = queued; False = caller texts instead. Never raises."""
@@ -385,7 +399,7 @@ async def queue_last_call(client_id: int, phone: str, lead_name: str | None, is_
         pool = await get_pool()
         async with pool.acquire() as conn:
             cfg = await _config(conn, client_id)
-            if _ready(cfg) or not to:
+            if _ready(cfg, "react") or not to:
                 return False
             since = cfg["voice_consent_meta_since"]
             consent = bool(is_meta and since and lead_created_at and lead_created_at >= since)
@@ -403,26 +417,28 @@ async def queue_last_call(client_id: int, phone: str, lead_name: str | None, is_
             if not _in_window(datetime.now(await _tz(client_id, to))):
                 return False
             await _insert_attempt(conn, client_id=client_id, phone=to, run_at=datetime.now(timezone.utc),
-                                  source="lastcall", attempt=1, lead_name=lead_name, note=offer_note)
+                                  source="lastcall", attempt=1, lead_name=lead_name, note=offer_note,
+                                  agent_kind="react", lead_since=lead_created_at)
             return True
     except Exception as e:
         print(f"[voice_agent] queue_last_call failed client={client_id} phone={phone}: {e}", flush=True)
         return False
 
 
-async def queue_test_call(client_id: int, phone: str, lead_name: str | None) -> int:
+async def queue_test_call(client_id: int, phone: str, lead_name: str | None, kind: str = "ads") -> int:
     to = e164(phone)
     if not to:
         raise ValueError("Enter a 10-digit US number")
     pool = await get_pool()
     async with pool.acquire() as conn:
         cfg = await _config(conn, client_id)
-        if not cfg or not cfg["retell_agent_id"]:
+        if not cfg or not _agent_id(cfg, kind):
             raise ValueError("Create the Retell agent first (SYNC AGENT)")
         if not (cfg["twilio_number"] and cfg["twilio_subaccount_sid"]) and not os.environ.get("TWILIO_PHONE_NUMBER"):
             raise ValueError("This client has no Twilio number yet")
         return await _insert_attempt(conn, client_id=client_id, phone=to, run_at=datetime.now(timezone.utc),
-                                     source="test", attempt=1, lead_name=lead_name or "Test Lead")
+                                     source="test", attempt=1, lead_name=lead_name or "Test Lead", agent_kind=kind,
+                                     lead_since=(datetime.now(timezone.utc) - timedelta(days=21)) if kind == "react" else None)
 
 
 # ── Stop rules ───────────────────────────────────────────────────────────────
@@ -497,7 +513,8 @@ async def _dial(row) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         cfg = await _config(conn, row["client_id"])
-        not_ready = _ready(cfg) if row["source"] != "test" else (None if cfg and cfg["retell_agent_id"] else "no agent")
+        kind = row["agent_kind"] or "ads"
+        not_ready = _ready(cfg, kind) if row["source"] != "test" else (None if cfg and _agent_id(cfg, kind) else "no agent")
         stop = not_ready or await _stop_reason(conn, row)
         if stop:
             await conn.execute(
@@ -571,18 +588,30 @@ def _visit_text(v: dict | None) -> str:
     return f"{v['name']}, {v['duration_min']} minutes, {price}"
 
 
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 11 <= n % 100 <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
 def _dynamic_vars(row, cfg, tz: ZoneInfo) -> dict:
     now = datetime.now(tz)
     source = {
         "meta": "they just filled out the clinic's form on Facebook/Instagram",
         "funnel": "they started booking on the clinic's website but didn't finish",
         "callback": "they asked to be called back at this time",
-        "lastcall": "they filled out the clinic's ad form a while back but never came in. TODAY IS THE LAST DAY "
+        "lastcall": "they filled out the clinic's ad form a while back but never came in. This is the FINAL WEEK "
                     "of that offer, and you're calling so they don't miss it",
         # A test plays out exactly like a fresh Meta lead, so it sounds real.
         "test": "they just filled out the clinic's form on Facebook/Instagram",
     }.get(row["source"], "they reached out to the clinic")
+    react = (row["agent_kind"] or "ads") == "react"
+    if react and row["source"] in ("test", "callback"):
+        source = ("they filled out the clinic's ad form a while back but never came in. This is the FINAL WEEK "
+                  "of that offer, and you're calling so they don't miss it"
+                  + ("; they asked to be called back at this time" if row["source"] == "callback" else ""))
+    since = row["lead_since"]
+    form_date = since.astimezone(tz).strftime("%B ") + _ordinal(since.astimezone(tz).day) if since else ""
     return {
+        "form_date": form_date or "a few weeks back",
         "lead_first_name": _first(row["lead_name"]) or "there",
         "lead_full_name": (row["lead_name"] or "").strip() or "unknown",
         "lead_context": source + (f". Note: {row['note']}" if row["note"] else ""),
@@ -601,14 +630,21 @@ async def answer_twiml(row) -> str:
     tz = await _tz(row["client_id"], row["phone"])
     # Voicemail: leave one only on the double-dial; every other attempt hangs up.
     vm = {"action": {"type": "hangup"}}
-    if row["double_dial"] or row["source"] == "test":
+    react = (row["agent_kind"] or "ads") == "react"
+    if react and (row["double_dial"] or row["source"] == "test"):
+        vm = {"action": {"type": "prompt", "text": (
+            "You reached voicemail. Leave one short, friendly message under 20 seconds: say your first name and "
+            "that you're calling from {{clinic_name}} because this is the final week of the offer they filled out "
+            "our form for, and you didn't want them to miss it. Say you'll send them a text in a moment and they "
+            "can just reply there. Never ask them to call back and never give a phone number. Don't mention prices.")}}
+    elif row["double_dial"] or row["source"] == "test":
         vm = {"action": {"type": "prompt", "text": (
             "You reached voicemail. Leave one short, friendly message under 20 seconds: say your first name and "
             "that you're calling from {{clinic_name}} about their request, that you'll send them a text in a "
             "moment, and they can just reply there whenever it suits them. Never ask them to call back and never "
             "give a phone number. Don't mention prices.")}}
     body = {
-        "agent_id": cfg["retell_agent_id"],
+        "agent_id": _agent_id(cfg, "react" if react else "ads"),
         "from_number": (_caller(cfg, row) or (None, None))[1], "to_number": row["phone"], "direction": "outbound",
         "metadata": {"row_id": row["id"], "client_id": row["client_id"], "phone": row["phone"], "token": row["token"]},
         "retell_llm_dynamic_variables": {**_dynamic_vars(row, cfg, tz),
@@ -736,7 +772,8 @@ async def _after_attempt(row, outcome: str) -> None:
                                       run_at=datetime.now(timezone.utc) + timedelta(seconds=15), source=row["source"],
                                       attempt=1, seq_id=row["seq_id"], double_dial=True, lead_name=row["lead_name"],
                                       lead_email=row["lead_email"], partial_id=row["partial_id"],
-                                      texted_first=row["texted_first"], note=row["note"])
+                                      texted_first=row["texted_first"], note=row["note"],
+                                      agent_kind=row["agent_kind"] or "ads", lead_since=row["lead_since"])
                 return
             if row["attempt"] == 1 or row["source"] == "callback":
                 await _release_text(conn, row, after_call=False,
@@ -820,9 +857,9 @@ async def _release_text(conn, row, after_call: bool, voicemail: bool = False) ->
                 "\nSend ONE short text that picks up naturally from that call (don't re-introduce yourself or repeat "
                 "what was said), making it easy to book whenever they're ready.")
     elif row["source"] == "lastcall":
-        note = ("Today is the LAST DAY of the clinic's offer this lead asked about a while back (they never came in"
+        note = ("This is the FINAL WEEK of the clinic's offer this lead asked about a while back (they never came in"
                 + (f"; {row['note']}" if row["note"] else "") + "). You just tried calling them twice"
-                + (" and left a voicemail" if voicemail else "") + ". Send ONE short text: today's the last day for "
+                + (" and left a voicemail" if voicemail else "") + ". Send ONE short text: it's the final week for "
                 "the offer, you didn't want them to miss it, and ask if they'd like you to grab them a time.")
     elif row["source"] == "funnel":
         note = ("This lead started booking on the clinic's website but didn't finish. You just tried calling them twice"
@@ -915,7 +952,8 @@ async def _schedule_callback(row, args: dict) -> str:
         await _cancel_rest(conn, row["seq_id"], "lead asked for a callback")
         await _insert_attempt(conn, client_id=row["client_id"], phone=row["phone"], run_at=when, source="callback",
                               attempt=1, seq_id=row["seq_id"], lead_name=row["lead_name"], lead_email=row["lead_email"],
-                              texted_first=True, note=args.get("note"))
+                              texted_first=True, note=args.get("note"), agent_kind=row["agent_kind"] or "ads",
+                              lead_since=row["lead_since"])
     return f"Scheduled. Confirm you'll call them back {when.strftime('%A at %I:%M %p').replace(' 0', ' ')} and end the call."
 
 
@@ -1065,6 +1103,40 @@ Business info and rules (the same ones the clinic's text agent uses):
 """
 
 
+# The database reactivation voice agent's call script (its own Retell LLM).
+# Everything after the opening (questions, pitch, booking, tone) is the same
+# as the ads agent, so the shared rules are reused from _VOICE_RULES.
+_REACT_OPENING = """
+You are on a live PHONE CALL, not texting. Your name is __AGENT_NAME__ and you work at {{clinic_name}}.
+This is a DATABASE REACTIVATION call: {{lead_full_name}} filled out the clinic's ad form on {{form_date}}
+but never came in. Why you're calling: {{lead_context}}. Right now it's {{today}}.
+The visit you book (from the clinic's calendar): {{visit_info}}. Never mention how long the visit is unless they
+ask; then use this length.
+
+The opening (this call's whole reason, keep it to this):
+- After they confirm it's them: "Hey {{lead_first_name}}, this is __AGENT_NAME__ from {{clinic_name}}. You filled out
+  our form on {{form_date}} for <offer>, and this is the final week we're running it, so I just wanted to let you
+  know before it's gone. Is that still something you're dealing with?"
+  <offer> = the clinic's REAL offer from the business info below (the visit above); never invent one. If unclear,
+  say "our form for a visit".
+- If they're still dealing with it, carry on with the questions, pitch and booking below as normal, and tie the
+  pitch back to the offer ending this week ("so you can still get in on it before it's gone").
+- If they're fine now or not interested: "Okay, no problem. Glad you're doing better." and wrap up politely
+  (mark_not_interested only if they say they don't want calls or aren't interested).
+- If they don't remember the form: "No worries, it was one of our Facebook ads a few weeks back." and carry on.
+- Never pressure. Mention the deadline once in the opening and at most once more in the pitch.
+
+Everything else about the call:
+"""
+
+
+def _react_rules() -> str:
+    """The ads agent's rules minus its own opening lines (kept from 'Call
+    screener' on), so tone, questions, pitch and booking stay identical."""
+    i = _VOICE_RULES.index("- Call screener")
+    return _REACT_OPENING + _VOICE_RULES[i:].replace("following up on their form", "following up on their request")
+
+
 def agent_name(cfg) -> str:
     """The name the agent introduces itself by: set per client, else the
     voice's own name (retell-Cimo -> Cimo, 11labs-Marissa -> Marissa)."""
@@ -1074,7 +1146,7 @@ def agent_name(cfg) -> str:
     return vid.split("-", 1)[-1].split("-")[0].capitalize()
 
 
-def _llm_body(cfg) -> dict:
+def _llm_body(cfg, kind: str = "ads") -> dict:
     base = _base_url()
     fn_url = f"{base}/webhooks/retell/function"
 
@@ -1112,7 +1184,7 @@ def _llm_body(cfg) -> dict:
     ]
     business = (cfg["response_ai_context"] or "").strip()
     rules = (cfg["response_ai_rules"] or "").strip()
-    prompt = _VOICE_RULES.replace("__AGENT_NAME__", agent_name(cfg)) + business + (f"\n\nExtra rules from the clinic (ignore any about texting format):\n{rules}" if rules else "")
+    prompt = (_react_rules() if kind == "react" else _VOICE_RULES).replace("__AGENT_NAME__", agent_name(cfg)) + business + (f"\n\nExtra rules from the clinic (ignore any about texting format):\n{rules}" if rules else "")
     return {
         "general_prompt": prompt,
         "begin_message": "Hi, is this {{lead_first_name}}?",
@@ -1121,7 +1193,7 @@ def _llm_body(cfg) -> dict:
         "default_dynamic_variables": {"lead_first_name": "there", "lead_full_name": "unknown",
                                       "lead_context": "they reached out to the clinic",
                                       "clinic_name": cfg["client_name"] or "the clinic", "today": "",
-                                      "visit_info": "use the business info"},
+                                      "visit_info": "use the business info", "form_date": "a few weeks back"},
     }
 
 
@@ -1130,9 +1202,9 @@ def _keywords(cfg, lead_name: str | None = None) -> list[str]:
     return [k for k in [first, cfg["client_name"], agent_name(cfg)] if k] + PT_KEYWORDS
 
 
-def _agent_body(cfg, llm_id: str) -> dict:
+def _agent_body(cfg, llm_id: str, kind: str = "ads") -> dict:
     return {
-        "agent_name": f"{cfg['client_name']} - DigiGrowth voice agent",
+        "agent_name": f"{cfg['client_name']} - DigiGrowth " + ("reactivation voice agent" if kind == "react" else "voice agent"),
         "response_engine": {"type": "retell-llm", "llm_id": llm_id},
         "voice_id": cfg["voice_id"] or DEFAULT_VOICE_ID,
         # Slightly slower than normal sounds more natural on the phone (Dylan, 2026-11-15).
@@ -1164,17 +1236,26 @@ async def sync_all_agents() -> None:
     async with pool.acquire() as conn:
         ids = [r["client_id"] for r in await conn.fetch(
             "SELECT client_id FROM client_marketing_config WHERE coalesce(retell_agent_id, '') != ''")]
+        react_ids = [r["client_id"] for r in await conn.fetch(
+            "SELECT client_id FROM client_marketing_config WHERE coalesce(react_retell_agent_id, '') != ''")]
     for cid in ids:
         try:
             await sync_agent(cid)
         except Exception as e:
             print(f"[voice_agent] startup sync failed for client {cid}: {e}", flush=True)
+    for cid in react_ids:
+        try:
+            await sync_agent(cid, "react")
+        except Exception as e:
+            print(f"[voice_agent] startup reactivation sync failed for client {cid}: {e}", flush=True)
     print(f"[voice_agent] startup sync done for {len(ids)} agent(s)", flush=True)
 
 
-async def sync_agent(client_id: int) -> dict:
-    """Create or update this client's Retell LLM + agent from the text agent's
-    current context/rules. Safe to re-run (do it after editing the context)."""
+async def sync_agent(client_id: int, kind: str = "ads") -> dict:
+    """Create or update this client's Retell LLM + agent ('ads' or the
+    separate 'react' reactivation agent) from the text agent's current
+    context/rules. Safe to re-run (do it after editing the context)."""
+    p = "react_" if kind == "react" else ""
     pool = await get_pool()
     async with pool.acquire() as conn:
         cfg = await _config(conn, client_id)
@@ -1182,26 +1263,27 @@ async def sync_agent(client_id: int) -> dict:
         raise ValueError("Client not found")
     if not (cfg["response_ai_context"] or "").strip():
         raise ValueError("Write the Facebook Leads Agent's context first; the voice agent uses the same one")
+    llm_col, agent_col = f"{p}retell_llm_id", f"{p}retell_agent_id"
     try:
-        if cfg["retell_llm_id"]:
-            await _retell("PATCH", f"/update-retell-llm/{cfg['retell_llm_id']}", _llm_body(cfg))
-            llm_id = cfg["retell_llm_id"]
+        if cfg[llm_col]:
+            await _retell("PATCH", f"/update-retell-llm/{cfg[llm_col]}", _llm_body(cfg, kind))
+            llm_id = cfg[llm_col]
         else:
-            llm_id = (await _retell("POST", "/create-retell-llm", _llm_body(cfg)))["llm_id"]
-        if cfg["retell_agent_id"]:
-            await _retell("PATCH", f"/update-agent/{cfg['retell_agent_id']}", _agent_body(cfg, llm_id))
-            agent_id = cfg["retell_agent_id"]
+            llm_id = (await _retell("POST", "/create-retell-llm", _llm_body(cfg, kind)))["llm_id"]
+        if cfg[agent_col]:
+            await _retell("PATCH", f"/update-agent/{cfg[agent_col]}", _agent_body(cfg, llm_id, kind))
+            agent_id = cfg[agent_col]
         else:
-            agent_id = (await _retell("POST", "/create-agent", _agent_body(cfg, llm_id)))["agent_id"]
+            agent_id = (await _retell("POST", "/create-agent", _agent_body(cfg, llm_id, kind)))["agent_id"]
     except Exception as e:
         async with pool.acquire() as conn:
-            await conn.execute("UPDATE client_marketing_config SET voice_sync_error = $2 WHERE client_id = $1",
+            await conn.execute(f"UPDATE client_marketing_config SET {p}voice_sync_error = $2 WHERE client_id = $1",
                                client_id, str(e)[:400])
         raise
     async with pool.acquire() as conn:
         await conn.execute(
-            """UPDATE client_marketing_config SET retell_llm_id = $2, retell_agent_id = $3, voice_synced_at = now(),
-                   voice_sync_error = NULL, voice_id = coalesce(voice_id, $4) WHERE client_id = $1""",
+            f"""UPDATE client_marketing_config SET {llm_col} = $2, {agent_col} = $3, {p}voice_synced_at = now(),
+                   {p}voice_sync_error = NULL, voice_id = coalesce(voice_id, $4) WHERE client_id = $1""",
             client_id, llm_id, agent_id, DEFAULT_VOICE_ID)
     return {"ok": True, "llm_id": llm_id, "agent_id": agent_id}
 
@@ -1212,24 +1294,26 @@ async def list_voices() -> list[dict]:
             for v in voices if isinstance(v, dict)]
 
 
-async def status(client_id: int) -> dict:
+async def status(client_id: int, kind: str = "ads") -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
         cfg = await _config(conn, client_id)
         calls = await conn.fetch(
             """SELECT id, phone, lead_name, source, attempt, double_dial, status, outcome, error, run_at, dialed_at,
                       duration_ms, summary, recording_url, transcript, disconnection_reason, seq_id
-               FROM client_voice_calls WHERE client_id = $1 ORDER BY coalesce(dialed_at, run_at) DESC LIMIT 60""",
-            client_id)
+               FROM client_voice_calls WHERE client_id = $1 AND agent_kind = $2
+               ORDER BY coalesce(dialed_at, run_at) DESC LIMIT 60""",
+            client_id, kind)
         stats = await conn.fetchrow(
             """SELECT count(DISTINCT seq_id) FILTER (WHERE source <> 'test') AS leads,
                       count(DISTINCT seq_id) FILTER (WHERE source <> 'test' AND outcome IN ('answered','booked','not_interested')) AS reached,
                       count(DISTINCT seq_id) FILTER (WHERE source <> 'test' AND outcome = 'booked') AS booked
-               FROM client_voice_calls WHERE client_id = $1 AND created_at > now() - interval '30 days'""",
-            client_id)
+               FROM client_voice_calls WHERE client_id = $1 AND agent_kind = $2
+                 AND created_at > now() - interval '30 days'""",
+            client_id, kind)
     return {
         "visit": await _visit_info(client_id),
-        "ready_problem": _ready(cfg) if cfg else "no config",
+        "ready_problem": _ready(cfg, kind) if cfg else "no config",
         "retell_key_set": bool(_api_key()),
         "stats_30d": dict(stats) if stats else {},
         "calls": [dict(c) for c in calls],

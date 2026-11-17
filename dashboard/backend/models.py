@@ -235,6 +235,7 @@ class ClientMarketingConfigUpdate(BaseModel):
     meta_page_id: Optional[str] = None
     dm_agent_enabled: Optional[bool] = None
     voice_agent_enabled: Optional[bool] = None
+    react_voice_enabled: Optional[bool] = None   # database reactivation voice agent (separate Retell agent)
     voice_id: Optional[str] = None
     voice_agent_name: Optional[str] = None
     voice_speed: Optional[float] = None

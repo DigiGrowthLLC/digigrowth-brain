@@ -128,6 +128,29 @@ async def consent_live(client_id: int, live: bool = True):
     return {"ok": True}
 
 
+# Database reactivation voice agent: its own Retell agent, same endpoints shape.
+@admin_router.get("/clients/{client_id}/reactivation-voice")
+async def react_status(client_id: int):
+    return await va.status(client_id, "react")
+
+
+@admin_router.post("/clients/{client_id}/reactivation-voice/sync")
+async def react_sync(client_id: int):
+    try:
+        return await va.sync_agent(client_id, "react")
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@admin_router.post("/clients/{client_id}/reactivation-voice/test-call")
+async def react_test_call(client_id: int, body: TestCallBody):
+    try:
+        row_id = await va.queue_test_call(client_id, body.phone, body.name, "react")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "row_id": row_id}
+
+
 @admin_router.get("/voice-agent/voices")
 async def voices():
     try:

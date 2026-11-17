@@ -2339,6 +2339,15 @@ async def _create_schema(pool: asyncpg.Pool):
                 updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             CREATE INDEX IF NOT EXISTS idx_client_voice_calls_due ON client_voice_calls(run_at) WHERE status = 'pending';
+            -- Which Retell agent places the call: 'ads' (new Meta/funnel leads) or
+            -- 'react' (the separate database reactivation voice agent, 2026-11-17).
+            ALTER TABLE client_voice_calls ADD COLUMN IF NOT EXISTS agent_kind TEXT NOT NULL DEFAULT 'ads';
+            ALTER TABLE client_voice_calls ADD COLUMN IF NOT EXISTS lead_since TIMESTAMPTZ;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_voice_enabled BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_llm_id TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_agent_id TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_voice_synced_at TIMESTAMPTZ;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_voice_sync_error TEXT;
             CREATE INDEX IF NOT EXISTS idx_client_voice_calls_client ON client_voice_calls(client_id, phone);
         """)
 
