@@ -155,25 +155,47 @@ def report_url(slug: str) -> str:
 # ---------------------------------------------------------------- campaign window
 
 async def campaign_window(conn, client_id: int) -> dict:
+    """The current campaign's window. A campaign ends at the first of:
+    campaign_ended_at (set by hand), the ad spend cap being reached
+    (ad_spend_caps.cap_reached_at, Dylan 2026-11-17: "the campaign is over
+    when the ad budget is spent"), or launch + campaign_length_days. With a
+    cap and no length set it runs until the budget is spent. `budget` gives
+    spend vs cap, which also drives the goal pace."""
     row = await conn.fetchrow(
-        """SELECT campaign_launched_at, campaign_ended_at,
-                  coalesce(campaign_length_days, $2) AS length_days,
-                  campaign_booking_goal, coalesce(csm_reports_enabled, true) AS enabled
-           FROM client_marketing_config WHERE client_id = $1""",
-        client_id, DEFAULT_LENGTH_DAYS)
+        """SELECT m.campaign_launched_at, m.campaign_ended_at, m.campaign_length_days,
+                  m.campaign_booking_goal, m.campaign_goal_label, coalesce(m.csm_reports_enabled, true) AS enabled,
+                  c.cap, c.last_spend, c.enabled AS cap_on, c.cap_reached_at, c.last_checked_at
+           FROM client_marketing_config m LEFT JOIN ad_spend_caps c ON c.client_id = m.client_id
+           WHERE m.client_id = $1""",
+        client_id)
+    goal = row["campaign_booking_goal"] if row else None
+    label = ((row["campaign_goal_label"] if row else None) or "bookings").strip() or "bookings"
+    budget = None
+    if row and row["cap_on"] and row["cap"]:
+        cap, spent = float(row["cap"]), float(row["last_spend"] or 0)
+        budget = {"cap": cap, "spent": round(spent, 2), "pct": min(100, round(spent / cap * 100)), "reached": spent >= cap}
+    length = int(row["campaign_length_days"]) if row and row["campaign_length_days"] else None
+    base = {"goal": goal, "goal_label": label, "enabled": row["enabled"] if row else True, "budget": budget,
+            "length_days": length or (None if budget else DEFAULT_LENGTH_DAYS)}
     if not row or not row["campaign_launched_at"]:
-        return {"launched_at": None, "ends_at": None, "length_days": (row or {}).get("length_days") or DEFAULT_LENGTH_DAYS,
-                "goal": row["campaign_booking_goal"] if row else None, "enabled": row["enabled"] if row else True,
-                "state": "not_launched"}
+        return {**base, "launched_at": None, "ends_at": None, "state": "not_launched"}
     launched = row["campaign_launched_at"]
-    ends = row["campaign_ended_at"] or (launched + timedelta(days=int(row["length_days"])))
     now = datetime.now(timezone.utc)
+    candidates = []
+    if row["campaign_ended_at"]:
+        candidates.append(row["campaign_ended_at"])
+    if budget and budget["reached"]:
+        candidates.append(row["cap_reached_at"] or row["last_checked_at"] or now)
+    if length or not budget:
+        candidates.append(launched + timedelta(days=length or DEFAULT_LENGTH_DAYS))
+    ends = min(candidates) if candidates else None
+    ended = bool(ends and now >= ends)
+    upto = min(now, ends) if ends else now
     return {
-        "launched_at": launched, "ends_at": ends, "length_days": int(row["length_days"]),
-        "goal": row["campaign_booking_goal"], "enabled": row["enabled"],
-        "state": "ended" if now >= ends else "running",
-        "days_elapsed": max(0, min((now - launched).days, (ends - launched).days)),
-        "week": max(1, math.ceil(max(1, (min(now, ends) - launched).days) / 7)),
+        **base, "launched_at": launched, "ends_at": ends,
+        "state": "ended" if ended else "running",
+        "days_elapsed": max(0, (upto - launched).days),
+        "week": max(1, math.ceil(max(1, (upto - launched).days) / 7)),
     }
 
 
@@ -233,7 +255,7 @@ async def gather(client_id: int, kind: str) -> dict:
             "launched_at": win["launched_at"].isoformat() if win["launched_at"] else None,
             "ends_at": win["ends_at"].isoformat() if win["ends_at"] else None,
             "length_days": win["length_days"], "days_elapsed": win.get("days_elapsed"),
-            "week": win.get("week"), "goal": win["goal"],
+            "week": win.get("week"), "goal": win["goal"], "goal_label": win["goal_label"], "budget": win.get("budget"),
         },
         "to_date": total,
         "ai_agent_to_date": await _ai_agent_stats(client_id, None),
@@ -255,8 +277,11 @@ async def gather(client_id: int, kind: str) -> dict:
 
     goal = win["goal"]
     booked = (total["kpis"] or {}).get("booked") or 0
-    if goal and win.get("length_days"):
-        expected = goal * (win.get("days_elapsed") or 0) / win["length_days"]
+    if goal and (win.get("budget") or win.get("length_days")):
+        # Pace by budget spent when there's a cap, else by days elapsed.
+        frac = (win["budget"]["spent"] / win["budget"]["cap"]) if win.get("budget") else \
+            (win.get("days_elapsed") or 0) / win["length_days"]
+        expected = goal * min(1.0, frac)
         data["pace"] = {"goal": goal, "booked": booked, "expected_by_now": round(expected, 1),
                         "on_pace": booked >= math.floor(expected), "pct_of_goal": round(booked / goal * 100)}
     return data
@@ -297,7 +322,9 @@ def _system_prompt(brief: str, kind: str) -> str:
         "- Use ONLY the numbers in the data. Never invent, estimate, or round a number into something it isn't. "
         "If a metric is null or marked low data, say it's too early to read rather than guessing.\n"
         "- Targets: each funnel stage has a 'target' (good-at-or-above %). 'status' good/ok/poor/low_data is already computed; trust it.\n"
-        "- 'pace' (if present) compares bookings to the campaign goal; mention it near the top.\n"
+        "- 'pace' (if present) compares bookings to the campaign goal; mention it near the top. The goal counts "
+        "campaign.goal_label (e.g. 'consultations', 'assessments'): use that word, not 'bookings'. "
+        "campaign.budget (if present) is ad spend vs the ad budget; the campaign ends when it's spent.\n"
         "- Never quote prices or offer terms unless they appear in the data. No em dashes.\n"
         "- If the client asked questions or left suggestions, acknowledge them where relevant.\n"
         "- 'lead_quality' (if present) is the clinic's own rating of booked patients (good fit / not a fit + notes). "
@@ -544,6 +571,45 @@ async def answer_feedback(feedback_id: int, answer: str, email_it: bool) -> dict
     return {"ok": True, "emailed": emailed}
 
 
+async def draft_final(client_id: int, why: str = "") -> dict | None:
+    """Build the final report as a draft (never sent) + a To-Do to approve it.
+    Once per campaign. Called by run_daily and the moment the ad budget is
+    spent (ad_spend_caps -> on_budget_spent)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        win = await campaign_window(conn, client_id)
+        if not win["launched_at"] or not win["enabled"]:
+            return None
+        if await conn.fetchval("SELECT 1 FROM client_reports WHERE client_id = $1 AND kind = 'final' "
+                               "AND campaign_launched_at = $2", client_id, win["launched_at"]):
+            return None
+        name = await conn.fetchval("SELECT name FROM clients WHERE id = $1", client_id)
+    r = await create_report(client_id, "final", send=False)
+    async with pool.acquire() as conn:
+        await _todo_once(conn, f"Approve {name}'s final campaign report",
+                         f"{why + ' ' if why else ''}Draft: {report_url(r['slug'])}\n\nIncludes the next-campaign plan and "
+                         "testimonial ask. Ask Claude to publish it as an Artifact to review or change it, then Approve & send "
+                         "in Clients -> client -> Agents -> Client Success Manager.")
+    print(f"[client_success] final report drafted for client {client_id}: {report_url(r['slug'])}")
+    return r
+
+
+async def on_budget_spent(client_id: int, spend: float, cap: float) -> None:
+    """ad_spend_caps: the cap was just reached -> the campaign is over, draft the final report now."""
+    try:
+        settings = await get_settings()
+        if not _on(settings["csm_enabled"]):
+            return
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            test = await conn.fetchval("SELECT coalesce(is_test, false) FROM clients WHERE id = $1", client_id)
+        if test:
+            return
+        await draft_final(client_id, f"The ${cap:,.0f} ad budget is spent (${spend:,.2f}), so the campaign is over.")
+    except Exception as e:
+        print(f"[client_success] final report on budget spent failed for {client_id}: {e}")
+
+
 # ---------------------------------------------------------------- scheduler
 
 async def run_daily() -> None:
@@ -581,13 +647,6 @@ async def run_daily() -> None:
                 print(f"[client_success] weekly report for client {cid}: {report_url(r['slug'])} sent={r.get('sent_channels')}")
             elif kind == "final":
                 # Final reports wait for Dylan: they carry the renewal + testimonial asks.
-                r = await create_report(cid, kind, send=False)
-                async with pool.acquire() as conn:
-                    name = await conn.fetchval("SELECT name FROM clients WHERE id = $1", cid)
-                    await _todo_once(conn, f"Approve {name}'s final campaign report",
-                                     f"Draft: {report_url(r['slug'])}\n\nIncludes the next-campaign plan and testimonial ask. "
-                                     "Ask Claude to publish it as an Artifact to review or change it, then APPROVE & SEND "
-                                     "in Outreach Templates -> Client Success Reports -> Reports.")
-                print(f"[client_success] final report drafted for client {cid}: {report_url(r['slug'])}")
+                await draft_final(cid)
         except Exception as e:
             print(f"[client_success] client {cid} failed: {e}")

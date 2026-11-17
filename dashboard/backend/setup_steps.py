@@ -140,9 +140,11 @@ STEPS = [
      "how": "How many bookings this client was promised and how long the campaign runs (usually what was agreed on "
             "the sales call or in the Blueprint, e.g. 7 in 30 days). Drives the client's weekly report pace bar, the "
             "halfway and goal-hit milestone texts, the at-risk health score and when the final report (with the "
-            "next-campaign plan) is drafted. Leave length blank for 30 days.",
+            "next-campaign plan) is drafted. The campaign ends when the ad spend cap is reached (set it in the Ad spend "
+            "cap step); a length is only needed for a client without a cap.",
      "fields": [{"key": "campaign_booking_goal", "label": "Bookings goal", "placeholder": "7"},
-                {"key": "campaign_length_days", "label": "Campaign length (days)", "placeholder": "30"}]},
+                {"key": "campaign_goal_label", "label": "Goal counts", "placeholder": "assessments"},
+                {"key": "campaign_length_days", "label": "Length in days (blank = ends at ad budget)", "placeholder": ""}]},
     {"id": "organic", "services": ["social_media"], "phase": "ads", "package": "growth", "title": "Organic posts scheduled",
      "how": "Tidy the Page and Instagram (images, bio, website = their funnel). Schedule the approved creatives in "
             "Planner, Facebook + Instagram together, one every 3 days for 30 days, mid-morning clinic time. Caption = "

@@ -183,10 +183,13 @@ def render_html(report: dict) -> str:
     # Four numbers
     if pace:
         pct = min(100, pace["pct_of_goal"])
+        bud = camp.get("budget")
+        progress_line = (f'{_money(bud["spent"])} of {_money(bud["cap"])} ad budget spent' if bud
+                         else f'Day {camp.get("days_elapsed")} of {camp.get("length_days")}')
         goal_tile = (f'<div class="kpi"><span class="lbl">Campaign goal</span>'
-                     f'<span class="num">{pace["booked"]}<small> / {pace["goal"]} booked</small></span>'
+                     f'<span class="num">{pace["booked"]}<small> / {pace["goal"]} {_e(camp.get("goal_label") or "booked")}</small></span>'
                      f'<div class="prog"><i style="width:{pct}%"></i></div>'
-                     f'<span class="chg flat">Day {camp.get("days_elapsed")} of {camp.get("length_days")}</span></div>')
+                     f'<span class="chg flat">{_e(progress_line)}</span></div>')
     else:
         goal_tile = (f'<div class="kpi"><span class="lbl">Showed up</span><span class="num">{_num(k.get("shows"))}</span>'
                      f'{_delta(k.get("shows"), lk.get("shows"))}</div>')

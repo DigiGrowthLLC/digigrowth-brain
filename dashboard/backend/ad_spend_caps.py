@@ -210,12 +210,15 @@ async def _check_row(row) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
         prior = json.loads(row["paused_campaigns"]) if isinstance(row["paused_campaigns"], str) else (row["paused_campaigns"] or [])
+        newly_reached = bool(over) and not await conn.fetchval(
+            "SELECT cap_reached_at FROM ad_spend_caps WHERE client_id = $1", row["client_id"])
         await conn.execute(
             """UPDATE ad_spend_caps SET last_spend = $2, currency = $3, last_checked_at = now(), last_error = NULL,
                    paused_at = CASE WHEN $4 THEN COALESCE(paused_at, now()) ELSE paused_at END,
-                   paused_campaigns = $5::jsonb
+                   paused_campaigns = $5::jsonb,
+                   cap_reached_at = CASE WHEN $6 THEN COALESCE(cap_reached_at, now()) ELSE NULL END
                WHERE client_id = $1""",
-            row["client_id"], spend, currency, bool(over and can_pause), json.dumps((prior + paused_now)[-50:]),
+            row["client_id"], spend, currency, bool(over and can_pause), json.dumps((prior + paused_now)[-50:]), bool(over),
         )
         name = row["client_name"]
         d = row["start_date"]
@@ -257,6 +260,11 @@ async def _check_row(row) -> dict:
             await client_reactivation.on_ad_spend(row["client_id"], spend, cap)
         except Exception as e:
             print(f"[ad-spend-caps] client={row['client_id']} reactivation trigger failed: {e}", flush=True)
+    # Ad budget spent = the campaign is over: the CSM drafts the final report
+    # right away for Dylan's approval (client_success.on_budget_spent).
+    if newly_reached:
+        import client_success
+        await client_success.on_budget_spent(row["client_id"], spend, cap)
     if row["enabled"] and not can_pause:
         async with pool.acquire() as conn:
             await _todo_once(

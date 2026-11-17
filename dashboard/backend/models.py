@@ -229,7 +229,8 @@ class ClientMarketingConfigUpdate(BaseModel):
     sms_terms_url: Optional[str] = None
     meta_pixel_id: Optional[str] = None
     campaign_booking_goal: Optional[int] = None   # client_success.py pace bar + milestones
-    campaign_length_days: Optional[int] = None    # default 30 when unset
+    campaign_length_days: Optional[int] = None    # optional; with an ad spend cap the campaign ends at the cap
+    campaign_goal_label: Optional[str] = None     # "assessments", "consultations"... shown on client reports
     meta_ad_account_id: Optional[str] = None
     meta_page_id: Optional[str] = None
     dm_agent_enabled: Optional[bool] = None

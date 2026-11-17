@@ -80,7 +80,8 @@ async def list_clients():
             win = await csm.campaign_window(conn, r["id"])
             out.append({**dict(r), "health": health.get(r["id"]),
                         "launched_at": win["launched_at"], "ends_at": win["ends_at"],
-                        "length_days": win["length_days"], "goal": win["goal"], "enabled": win["enabled"],
+                        "length_days": win["length_days"], "goal": win["goal"], "goal_label": win["goal_label"],
+                        "budget": win["budget"], "enabled": win["enabled"],
                         "state": win["state"], "week": win.get("week"), "days_elapsed": win.get("days_elapsed")})
     return out
 
@@ -109,6 +110,9 @@ async def update_client(client_id: int, body: dict):
             v = body[key]
             args.append(None if v in (None, "") else cast(v))
             sets.append(f"{key} = ${len(args)}")
+    if "campaign_goal_label" in body:
+        args.append((body["campaign_goal_label"] or "").strip() or None)
+        sets.append(f"campaign_goal_label = ${len(args)}")
     if "campaign_ended_at" in body:
         v = body["campaign_ended_at"]
         args.append(datetime.fromisoformat(v) if v else None)

@@ -136,7 +136,9 @@ export default function ClientSuccessAgent({ clientId }) {
   };
 
   const launched = sum.state !== "not_launched";
+  const money = (v) => `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   const stateText = !launched ? "Campaign not launched yet" : sum.state === "ended" ? `Campaign ended ${fmtDate(sum.ends_at)}`
+    : sum.budget ? `Week ${sum.week} · ${money(sum.budget.spent)} of ${money(sum.budget.cap)} ad budget`
     : `Week ${sum.week} · day ${sum.days_elapsed} of ${sum.length_days}`;
   const drafts = checkins.filter((k) => k.status === "draft");
   const open = feedback.filter((f) => f.message && !f.answer);
@@ -159,16 +161,18 @@ export default function ClientSuccessAgent({ clientId }) {
               onBlur={(e) => patchClient({ campaign_booking_goal: e.target.value })} aria-label="Bookings goal" />
           </div>
           <div>
-            <div style={{ fontSize: 12.5, color: T.textMute, marginBottom: 4 }}>Length (days)</div>
-            <input type="number" min="7" defaultValue={sum.length_days ?? 30} style={{ ...inputStyle, width: 110 }}
-              onBlur={(e) => patchClient({ campaign_length_days: e.target.value || 30 })} aria-label="Campaign length" />
+            <div style={{ fontSize: 12.5, color: T.textMute, marginBottom: 4 }}>Goal counts</div>
+            <input defaultValue={sum.goal_label && sum.goal_label !== "bookings" ? sum.goal_label : ""} placeholder="assessments" style={{ ...inputStyle, width: 150 }}
+              onBlur={(e) => patchClient({ campaign_goal_label: e.target.value })} aria-label="What the goal counts" />
           </div>
-          {launched && sum.length_days ? (
-            <div><div style={{ fontSize: 12.5, color: T.textMute, marginBottom: 8 }}>Time elapsed</div><Progress value={sum.days_elapsed || 0} max={sum.length_days} /></div>
+          {sum.budget ? (
+            <div><div style={{ fontSize: 12.5, color: T.textMute, marginBottom: 8 }}>Ad budget: {money(sum.budget.spent)} of {money(sum.budget.cap)}</div><Progress value={sum.budget.spent} max={sum.budget.cap} /></div>
+          ) : launched && sum.length_days ? (
+            <div><div style={{ fontSize: 12.5, color: T.textMute, marginBottom: 8 }}>Day {sum.days_elapsed} of {sum.length_days}</div><Progress value={sum.days_elapsed || 0} max={sum.length_days} /></div>
           ) : null}
         </div>
         <div style={{ fontSize: 12.5, color: T.textMute, marginTop: 14, lineHeight: 1.5 }}>
-          Weekly reports go out automatically every Monday. The final report, check-ins and answers wait for you. Wording for all of it lives in Business Resources → Outreach Templates → Client Success Templates.
+          The campaign ends when the ad spend cap is reached; the final report is drafted then and waits for your approval, like check-ins and answers. Weekly reports go out automatically every Monday. Wording for all of it lives in Business Resources → Outreach Templates → Client Success Templates.
         </div>
       </Card>
 

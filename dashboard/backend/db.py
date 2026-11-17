@@ -2663,6 +2663,12 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS campaign_booking_goal INTEGER;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS campaign_ended_at TIMESTAMPTZ;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS csm_reports_enabled BOOLEAN NOT NULL DEFAULT true;
+            -- What the goal counts ("assessments", "consultations"); shown on reports.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS campaign_goal_label TEXT;
+            -- When the ad spend cap was first reached for the current cap value: the
+            -- campaign ends there (client_success.campaign_window). Cleared when the
+            -- cap is raised above spend.
+            ALTER TABLE ad_spend_caps ADD COLUMN IF NOT EXISTS cap_reached_at TIMESTAMPTZ;
             CREATE TABLE IF NOT EXISTS client_reports (
                 id                   SERIAL PRIMARY KEY,
                 client_id            INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,

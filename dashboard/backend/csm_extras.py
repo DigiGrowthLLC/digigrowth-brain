@@ -88,17 +88,19 @@ async def compute_health(conn, client_id: int) -> dict | None:
     factors, reasons = {}, []
 
     # Results (45)
-    days = (min(datetime.now(timezone.utc), win["ends_at"]) - win["launched_at"]).days
+    days = (min(datetime.now(timezone.utc), win["ends_at"] or datetime.now(timezone.utc)) - win["launched_at"]).days
     total = (await build_funnel(client_id, "all"))["kpis"]
     booked, leads = total.get("booked") or 0, total.get("leads") or 0
     if days < 5:
         pts = 35
     elif win["goal"]:
-        expected = max(0.5, win["goal"] * min(days, win["length_days"]) / win["length_days"])
+        frac = (win["budget"]["spent"] / win["budget"]["cap"]) if win.get("budget") else \
+            min(days, win["length_days"]) / win["length_days"]
+        expected = max(0.5, win["goal"] * min(1.0, frac))
         ratio = booked / expected
         pts = round(min(1.0, ratio) * 45)
         if ratio < 0.6:
-            reasons.append(f"Behind pace: {booked} booked vs about {expected:.0f} expected by day {days} (goal {win['goal']})")
+            reasons.append(f"Behind pace: {booked} {win['goal_label']} booked vs about {expected:.0f} expected so far (goal {win['goal']})")
     else:
         week = (await build_funnel(client_id, "week"))["kpis"]
         pts = 45 if (week.get("booked") or 0) > 0 else 22 if (week.get("leads") or 0) > 0 else 10
@@ -213,6 +215,14 @@ def _reached(kpis: dict, goal: int | None) -> set[str]:
 
 
 async def run_milestones() -> None:
+    try:
+        await sync_post_launch_checklist()
+    except Exception as e:
+        print(f"[csm_extras] post-launch checklist sync failed: {e}")
+    await _run_milestones()
+
+
+async def _run_milestones() -> None:
     from client_funnel import build_funnel
     from routers import sms as sms_router
 
@@ -271,6 +281,50 @@ async def run_milestones() -> None:
                 print(f"[csm_extras] milestone {key} sent to client {cid}")
         except Exception as e:
             print(f"[csm_extras] milestone check failed for {cid}: {e}")
+
+
+# ---------------------------------------------------------------- post-launch checklist
+
+_WEEKS_RE = re.compile(r"^\s*weeks?\s+(\d+)(?:\s*[-–—]\s*(\d+))?", re.I)
+
+
+async def sync_post_launch_checklist() -> None:
+    """Ticks the portal's Post Launch steps ("Week 1 ...", "Week 2 ...",
+    "Weeks 3-4 ...") once the campaign has run through that week, and all of
+    them once the campaign is over (ad budget spent). Never unticks; once the
+    timeline has passed a step it stays ticked (re-ticked if unticked by hand)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        items = await conn.fetch(
+            "SELECT id, title FROM launch_checklist_items WHERE phase = 'post_launch' AND active")
+        clients = [r["id"] for r in await conn.fetch(
+            """SELECT c.id FROM clients c JOIN client_marketing_config m ON m.client_id = c.id
+               WHERE m.campaign_launched_at IS NOT NULL AND NOT coalesce(c.is_test, false)""")]
+    steps = []
+    for it in items:
+        m = _WEEKS_RE.match(it["title"] or "")
+        if m:
+            steps.append((it["id"], int(m.group(2) or m.group(1))))
+    if not steps:
+        return
+    now = datetime.now(timezone.utc)
+    for cid in clients:
+        try:
+            async with pool.acquire() as conn:
+                win = await cs.campaign_window(conn, cid)
+                if not win["launched_at"]:
+                    continue
+                days = ((win["ends_at"] if win["state"] == "ended" else now) - win["launched_at"]).days
+                for item_id, last_week in steps:
+                    if win["state"] == "ended" or days >= last_week * 7:
+                        await conn.execute(
+                            """INSERT INTO client_launch_checklist_status (client_id, item_id, completed_at)
+                               VALUES ($1, $2, now())
+                               ON CONFLICT (client_id, item_id) DO UPDATE
+                                 SET completed_at = coalesce(client_launch_checklist_status.completed_at, now())""",
+                            cid, item_id)
+        except Exception as e:
+            print(f"[csm_extras] post-launch checklist sync failed for {cid}: {e}")
 
 
 # ---------------------------------------------------------------- 3. onboarding check-ins

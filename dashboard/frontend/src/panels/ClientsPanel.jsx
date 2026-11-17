@@ -146,6 +146,7 @@ function Avatar({ client, size = 40 }) {
 function campaignLine(cs) {
   if (!cs || cs.state === "not_launched") return "Campaign not live yet";
   if (cs.state === "ended") return `Campaign ended ${fmtDate(cs.ends_at)}`;
+  if (cs.budget) return `Week ${cs.week} · $${Math.round(cs.budget.spent).toLocaleString()} of $${Math.round(cs.budget.cap).toLocaleString()} spent`;
   return `Week ${cs.week} · day ${cs.days_elapsed} of ${cs.length_days}`;
 }
 
@@ -202,9 +203,11 @@ function ClientOverview({ client, cs, setup, onGoTab }) {
           <SectionTitle title="Campaign" right={<HealthBadge health={cs?.health} />} />
           <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
             <Stat label="Status" value={!cs || cs.state === "not_launched" ? "Not live" : cs.state === "ended" ? "Ended" : `Week ${cs.week}`} sub={campaignLine(cs)} />
-            <Stat label="Bookings goal" value={cs?.goal ?? "–"} sub={`${cs?.length_days || 30}-day campaign`} />
+            <Stat label="Goal" value={cs?.goal ?? "–"} sub={cs?.budget ? `${cs.goal_label || "bookings"} · $${Math.round(cs.budget.cap).toLocaleString()} ad budget` : `${cs?.goal_label || "bookings"} · ${cs?.length_days || 30}-day campaign`} />
           </div>
-          {cs && cs.state !== "not_launched" && <div style={{ marginTop: 14 }}><Progress value={cs.days_elapsed || 0} max={cs.length_days || 30} /></div>}
+          {cs && cs.state !== "not_launched" && <div style={{ marginTop: 14 }}>{cs.budget
+            ? <Progress value={cs.budget.spent} max={cs.budget.cap} />
+            : <Progress value={cs.days_elapsed || 0} max={cs.length_days || 30} />}</div>}
         </Card>
         <Card onClick={() => onGoTab("setup")}>
           <SectionTitle title="Setup" right={setup && <Pill tone={setup.done >= setup.total ? "good" : "info"}>{setup.done}/{setup.total}</Pill>} />
