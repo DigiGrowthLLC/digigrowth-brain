@@ -313,13 +313,13 @@ async def _insert_attempt(conn, *, client_id: int, phone: str, run_at: datetime,
                           lead_name: str | None = None, lead_email: str | None = None,
                           partial_id: int | None = None, texted_first: bool = False,
                           note: str | None = None, agent_kind: str = "ads",
-                          lead_since: datetime | None = None) -> int:
+                          lead_since: datetime | None = None, form_info: str | None = None) -> int:
     row_id = await conn.fetchval(
         """INSERT INTO client_voice_calls (client_id, phone, lead_name, lead_email, source, partial_id,
-               seq_id, attempt, double_dial, texted_first, run_at, token, note, agent_kind, lead_since)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id""",
+               seq_id, attempt, double_dial, texted_first, run_at, token, note, agent_kind, lead_since, form_info)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id""",
         client_id, phone, lead_name, lead_email, source, partial_id, seq_id, attempt, double_dial,
-        texted_first, run_at, secrets.token_urlsafe(16), note, agent_kind, lead_since,
+        texted_first, run_at, secrets.token_urlsafe(16), note, agent_kind, lead_since, form_info,
     )
     if seq_id is None:
         await conn.execute("UPDATE client_voice_calls SET seq_id = id WHERE id = $1", row_id)
@@ -418,11 +418,28 @@ async def queue_last_call(client_id: int, phone: str, lead_name: str | None, is_
                 return False
             await _insert_attempt(conn, client_id=client_id, phone=to, run_at=datetime.now(timezone.utc),
                                   source="lastcall", attempt=1, lead_name=lead_name, note=offer_note,
-                                  agent_kind="react", lead_since=lead_created_at)
+                                  agent_kind="react", lead_since=lead_created_at,
+                                  form_info=await _form_info(conn, client_id, to))
             return True
     except Exception as e:
         print(f"[voice_agent] queue_last_call failed client={client_id} phone={phone}: {e}", flush=True)
         return False
+
+
+async def _form_info(conn, client_id: int, phone: str) -> str | None:
+    """The lead's answers to the Meta form's own questions (contacts.form_answers),
+    as "Question: answer; ..." for the reactivation call's opener."""
+    raw = await conn.fetchval(
+        """SELECT form_answers FROM contacts WHERE client_id = $1 AND form_answers IS NOT NULL
+             AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = $2 ORDER BY created_at DESC LIMIT 1""",
+        client_id, _digits10(phone))
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return None
+    parts = [f"{a.get('question')}: {a.get('answer')}" for a in (raw or []) if isinstance(a, dict) and a.get("answer")]
+    return "; ".join(parts)[:600] or None
 
 
 async def queue_test_call(client_id: int, phone: str, lead_name: str | None, kind: str = "ads") -> int:
@@ -438,7 +455,9 @@ async def queue_test_call(client_id: int, phone: str, lead_name: str | None, kin
             raise ValueError("This client has no Twilio number yet")
         return await _insert_attempt(conn, client_id=client_id, phone=to, run_at=datetime.now(timezone.utc),
                                      source="test", attempt=1, lead_name=lead_name or "Test Lead", agent_kind=kind,
-                                     lead_since=(datetime.now(timezone.utc) - timedelta(days=21)) if kind == "react" else None)
+                                     lead_since=(datetime.now(timezone.utc) - timedelta(days=21)) if kind == "react" else None,
+                                     # A sample answer so the test opener sounds like a real lead's.
+                                     form_info="What are you dealing with?: Back pain" if kind == "react" else None)
 
 
 # ── Stop rules ───────────────────────────────────────────────────────────────
@@ -612,6 +631,7 @@ def _dynamic_vars(row, cfg, tz: ZoneInfo) -> dict:
     form_date = since.astimezone(tz).strftime("%B ") + _ordinal(since.astimezone(tz).day) if since else ""
     return {
         "form_date": form_date or "a few weeks back",
+        "form_answers": row["form_info"] or "none on file",
         "lead_first_name": _first(row["lead_name"]) or "there",
         "lead_full_name": (row["lead_name"] or "").strip() or "unknown",
         "lead_context": source + (f". Note: {row['note']}" if row["note"] else ""),
@@ -773,7 +793,8 @@ async def _after_attempt(row, outcome: str) -> None:
                                       attempt=1, seq_id=row["seq_id"], double_dial=True, lead_name=row["lead_name"],
                                       lead_email=row["lead_email"], partial_id=row["partial_id"],
                                       texted_first=row["texted_first"], note=row["note"],
-                                      agent_kind=row["agent_kind"] or "ads", lead_since=row["lead_since"])
+                                      agent_kind=row["agent_kind"] or "ads", lead_since=row["lead_since"],
+                                      form_info=row["form_info"])
                 return
             if row["attempt"] == 1 or row["source"] == "callback":
                 await _release_text(conn, row, after_call=False,
@@ -953,7 +974,7 @@ async def _schedule_callback(row, args: dict) -> str:
         await _insert_attempt(conn, client_id=row["client_id"], phone=row["phone"], run_at=when, source="callback",
                               attempt=1, seq_id=row["seq_id"], lead_name=row["lead_name"], lead_email=row["lead_email"],
                               texted_first=True, note=args.get("note"), agent_kind=row["agent_kind"] or "ads",
-                              lead_since=row["lead_since"])
+                              lead_since=row["lead_since"], form_info=row["form_info"])
     return f"Scheduled. Confirm you'll call them back {when.strftime('%A at %I:%M %p').replace(' 0', ' ')} and end the call."
 
 
@@ -1113,18 +1134,24 @@ but never came in. Why you're calling: {{lead_context}}. Right now it's {{today}
 The visit you book (from the clinic's calendar): {{visit_info}}. Never mention how long the visit is unless they
 ask; then use this length.
 
-The opening (this call's whole reason, keep it to this):
+What they told us on the form: {{form_answers}}
+
+The opening (open on THEIR issue from the form, not the offer):
 - After they confirm it's them: "Hey {{lead_first_name}}, this is __AGENT_NAME__ from {{clinic_name}}. You filled out
-  our form on {{form_date}} for <offer>, and this is the final week we're running it, so I just wanted to let you
-  know before it's gone. Is that still something you're dealing with?"
-  <offer> = the clinic's REAL offer from the business info below (the visit above); never invent one. If unclear,
-  say "our form for a visit".
-- If they're still dealing with it, carry on with the questions, pitch and booking below as normal, and tie the
-  pitch back to the offer ending this week ("so you can still get in on it before it's gone").
+  our form on {{form_date}} about some <issue> you were dealing with. Is that still bothering you?"
+  <issue> = what they said they're dealing with on the form, in plain spoken words ("back pain", "knee pain",
+  "shoulder pain", "sciatica"); lowercase, no form wording. If the form answers don't name an issue: "You filled out our
+  form on {{form_date}} about getting some help with pain. Is that still something you're dealing with?"
+- If they're still dealing with it: you already know WHAT it is, so skip "what's been going on" and go straight
+  to "Okay, and um, how long have you been dealing with that?", then the rest of the questions, pitch and booking
+  below as normal.
+- The offer's final week goes in the pitch, once: after the pitch's recap, say "and this is the final week we're
+  running our <offer>, so I wanted to make sure you didn't miss it", then ask. <offer> = the clinic's REAL offer
+  from the business info below (the visit above); never invent one.
 - If they're fine now or not interested: "Okay, no problem. Glad you're doing better." and wrap up politely
   (mark_not_interested only if they say they don't want calls or aren't interested).
 - If they don't remember the form: "No worries, it was one of our Facebook ads a few weeks back." and carry on.
-- Never pressure. Mention the deadline once in the opening and at most once more in the pitch.
+- Never pressure.
 
 Everything else about the call:
 """
@@ -1193,7 +1220,8 @@ def _llm_body(cfg, kind: str = "ads") -> dict:
         "default_dynamic_variables": {"lead_first_name": "there", "lead_full_name": "unknown",
                                       "lead_context": "they reached out to the clinic",
                                       "clinic_name": cfg["client_name"] or "the clinic", "today": "",
-                                      "visit_info": "use the business info", "form_date": "a few weeks back"},
+                                      "visit_info": "use the business info", "form_date": "a few weeks back",
+                                      "form_answers": "none on file"},
     }
 
 
@@ -1285,6 +1313,13 @@ async def sync_agent(client_id: int, kind: str = "ads") -> dict:
             f"""UPDATE client_marketing_config SET {llm_col} = $2, {agent_col} = $3, {p}voice_synced_at = now(),
                    {p}voice_sync_error = NULL, voice_id = coalesce(voice_id, $4) WHERE client_id = $1""",
             client_id, llm_id, agent_id, DEFAULT_VOICE_ID)
+    # The reactivation agent shares the Facebook ads agent's voice settings:
+    # re-syncing the ads agent re-syncs it too, so they never drift apart.
+    if kind == "ads" and cfg["react_retell_agent_id"]:
+        try:
+            await sync_agent(client_id, "react")
+        except Exception as e:
+            print(f"[voice_agent] reactivation agent re-sync failed for client {client_id}: {e}", flush=True)
     return {"ok": True, "llm_id": llm_id, "agent_id": agent_id}
 
 

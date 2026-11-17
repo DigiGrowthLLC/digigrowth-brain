@@ -2347,6 +2347,9 @@ async def _create_schema(pool: asyncpg.Pool):
             -- 'react' (the separate database reactivation voice agent, 2026-11-17).
             ALTER TABLE client_voice_calls ADD COLUMN IF NOT EXISTS agent_kind TEXT NOT NULL DEFAULT 'ads';
             ALTER TABLE client_voice_calls ADD COLUMN IF NOT EXISTS lead_since TIMESTAMPTZ;
+            -- The lead's own Meta form answers ("What are you dealing with?: Back pain"),
+            -- so the reactivation call opens on their issue.
+            ALTER TABLE client_voice_calls ADD COLUMN IF NOT EXISTS form_info TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_voice_enabled BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_llm_id TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_agent_id TEXT;

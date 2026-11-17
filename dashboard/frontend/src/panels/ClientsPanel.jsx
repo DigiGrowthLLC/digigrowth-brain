@@ -3366,7 +3366,7 @@ function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
             </button>}
           </div>
           <div style={{ fontSize: 10.5, color: "#5a7aa0", marginTop: 6 }}>{react
-            ? "Uses the Voice Agent's voice, speed and name (set them there), and the Facebook Leads Agent's context/rules. Re-sync after changing any of those."
+            ? "Uses the Facebook Ads Voice Agent's voice, speed and name (set them there; syncing that agent syncs this one too), and the Facebook Leads Agent's context/rules."
             : "Re-sync after changing the voice, speed (1.0 = normal), name, or the Facebook Leads Agent's context/rules. It introduces itself by that name and the clinic."}</div>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#d0e8ff", marginTop: 12, cursor: "pointer" }}>
             <input type="checkbox" checked={Boolean(config?.[enabledKey])} onChange={(e) => onSaveFields({ [enabledKey]: e.target.checked })} />
@@ -3375,7 +3375,7 @@ function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
           {data?.ready_problem && config?.[enabledKey] && <div style={{ fontSize: 11, color: "#f0b429", marginTop: 4 }}>Not calling yet: {data.ready_problem}</div>}
           {msg && <div style={{ fontSize: 11, color: msg.ok ? "#3ecf8e" : "#e05c5c", marginTop: 6 }}>{msg.text}</div>}
           <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 8, lineHeight: 1.55 }}>
-            {react ? <>Flow: when the ad budget is spent, the last-call campaign texts each ad lead who never came in. 24 hours later (if they haven't replied) this agent calls: "You filled out our form on [date] for [offer], and this is the final week we're running it, so I wanted to let you know before it's gone." No answer → redial → voicemail, then a final-week text. One try, 8am-8pm clinic time. Only leads who consented to AI calls (Meta form after the consent stamp, or the booking page's call box); everyone else gets the text.</> : <>Flow: AI call ~3 min after a Meta lead (funnel: 10 min after they leave the booking page unfinished), no text first. No answer → immediate redial → voicemail, then the text agent's opener. Retries +2h, next day ~10:30, day after ~16:30, 8am-8pm clinic time only. Stops when they text back, book, opt out or say stop. After-hours leads get the text now and the first call at 9am.</>}
+            {react ? <>Flow: when the ad budget is spent, the last-call campaign texts each ad lead who never came in. 24 hours later (if they haven't replied) this agent calls: "You filled out our form on [date] about some [issue from their form answers]. Is that still bothering you?" Then the usual questions, and the pitch mentions it's the final week of the offer. No answer → redial → voicemail, then a final-week text. One try, 8am-8pm clinic time. Only leads who consented to AI calls (Meta form after the consent stamp, or the booking page's call box); everyone else gets the text.</> : <>Flow: AI call ~3 min after a Meta lead (funnel: 10 min after they leave the booking page unfinished), no text first. No answer → immediate redial → voicemail, then the text agent's opener. Retries +2h, next day ~10:30, day after ~16:30, 8am-8pm clinic time only. Stops when they text back, book, opt out or say stop. After-hours leads get the text now and the first call at 9am.</>}
           </div>
         </div>
       ))}
@@ -3618,7 +3618,7 @@ function ClientAgentSetup({ clientId }) {
       </AgentAccordionItem>
 
       <AgentAccordionItem
-        title="Voice Agent"
+        title="Facebook Ads Voice Agent"
         status={onOff(config?.voice_agent_enabled)}
         subtitle="Calls new Meta and funnel leads within minutes (Retell, from the client's own number) and books them; texts take over when nobody answers. Growth package only."
         open={openAgent === "voice"}
@@ -3630,7 +3630,7 @@ function ClientAgentSetup({ clientId }) {
       <AgentAccordionItem
         title="Database Reactivation Voice Agent"
         status={onOff(config?.react_voice_enabled)}
-        subtitle="Separate from the ads Voice Agent. Calls ad leads who never came in during the offer's final week: 'you filled out our form on [date], wanted to let you know before it's gone'."
+        subtitle="Separate from the Facebook Ads Voice Agent (same voice). Calls ad leads who never came in during the offer's final week: 'you filled out our form on [date] about some [their issue]. Is that still bothering you?'"
         open={openAgent === "reactvoice"}
         onToggle={() => setOpenAgent(openAgent === "reactvoice" ? null : "reactvoice")}
       >
