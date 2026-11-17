@@ -40,7 +40,7 @@ ALL_SERVICES = [
     {"id": "dm_agent", "label": "AI replies to Facebook & Instagram DMs",
      "hint": "Answers your DMs and books the people who message you."},
     {"id": "reactivation", "label": "Past patient reactivation",
-     "hint": "Texts your past patients and old inquiries to bring them back in."},
+     "hint": "We text the past patients and old inquiries you upload into your portal to bring them back in. Only the people you submit are contacted."},
     {"id": "followup", "label": "Automatic reminders & follow-up texts",
      "hint": "Booking confirmations, reminders, and no-show / cancellation follow-ups."},
 ]
@@ -61,7 +61,7 @@ CHOICES = [
     {"id": "dm_agent", "label": "AI replies to Facebook & Instagram DMs",
      "hint": "Answers your DMs and books the people who message you.", "services": ["dm_agent"]},
     {"id": "reactivation", "label": "Past patient reactivation",
-     "hint": "Texts your past patients and old inquiries to bring them back in.", "services": ["reactivation"]},
+     "hint": "We text the past patients and old inquiries you upload into your portal to bring them back in. Only the people you submit are contacted.", "services": ["reactivation"]},
     {"id": "followup", "label": "Automatic reminders & follow-up texts",
      "hint": "Booking confirmations, reminders, and no-show / cancellation follow-ups.", "services": ["followup"]},
 ]
