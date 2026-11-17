@@ -58,7 +58,11 @@ that step. Order:
    (written for the client: plain characters only, no em dashes or curly quotes, per the
    SMS GSM-7 rule; short). Don't text the client yourself (memory "Don't Text Clients
    Unless Necessary").
-3. Time-gated steps (A2P review, DNS propagation) get started as early as possible.
+3. Time-gated steps (A2P review, DNS propagation) get started as early as possible. For
+   A2P that means the Brand right away, but the Campaign only once the Instant Form with
+   its consent disclaimer is published and screenshotted: follow
+   `onboarding-agent/context/a2p-registration-sop.md` (a campaign without public opt-in
+   proof was rejected for Pinnacle, costing weeks).
 4. Tests, then pre-launch cleanup, then hand off to the campaign build.
 
 **Booking: DigiGrowth Booking is the default (since 2026-11-06).** The client shares the

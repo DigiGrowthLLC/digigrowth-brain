@@ -78,8 +78,12 @@ STEPS = [
      "fields": [{"key": "funnel_domain", "label": "Funnel domain", "placeholder": "go.clientdomain.com"}],
      "legacy": [("landing_page", 2)]},
     {"id": "a2p", "services": TEXTING, "phase": "handover", "package": "all", "title": "A2P 10DLC registered (marketing use case)",
-     "how": "Needs their legal business name + EIN. Register the Brand + Campaign on the client's Twilio subaccount. "
-            "Pick a use case that covers marketing (reactivation texts get filtered on a customer-care-only campaign).",
+     "how": "Needs their legal business name + EIN (exactly as on the IRS letter). Register the Brand right away on "
+            "the client's Twilio subaccount. Submit the Campaign (Low Volume Mixed, covers marketing) only AFTER the "
+            "Instant Form with its consent disclaimer is published: the opt-in field must quote each consent line "
+            "word for word and link a public screenshot of the form, or carriers reject it (error 30909). Tick "
+            "\"embedded links\" if any sample has a link. Rejections arrive by email from a2p10dlc@twilio.com "
+            "(the console can still say In progress). Full SOP: onboarding-agent/context/a2p-registration-sop.md.",
      "link": "https://console.twilio.com/us1/develop/sms/regulatory-compliance/brand-registrations",
      "linkLabel": "Twilio → Regulatory Compliance", "legacy": [("sms", 1)]},
     {"id": "lists", "services": ["reactivation"], "phase": "handover", "package": "all", "title": "Past patient + old inquiry lists imported",
