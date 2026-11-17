@@ -85,7 +85,9 @@ def _blueprint(hook_id: int, client_name: str) -> dict:
     base = dialer_engine.base_url()
     if not base:
         raise RuntimeError("DASHBOARD_URL not set — can't build the relay URL.")
-    fields = [{"key": "page_id", "value": "{{1.pageId}}"}, {"key": "leadgen_id", "value": "{{1.leadgenId}}"}]
+    fields = [{"key": "page_id", "value": "{{1.pageId}}"}, {"key": "leadgen_id", "value": "{{1.leadgenId}}"},
+              # "fb" / "ig": where they filled out the form (empty if Make doesn't expose it).
+              {"key": "platform", "value": "{{1.platform}}"}]
     fields += [{"key": f, "value": "{{1.data.%s}}" % f} for f in _LEAD_FIELDS]
     fields.append({"key": "answers_json", "value": "{{2.json}}"})
     return {

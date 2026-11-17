@@ -2160,6 +2160,9 @@ async def _create_schema(pool: asyncpg.Pool):
         # shown on the lead's contact card in the client portal. Written by
         # routers/meta_lead_webhooks.py; the latest submission wins.
         await conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS form_answers JSONB")
+        # Where a Meta lead filled out the form: 'facebook' / 'instagram' (Meta's lead
+        # `platform`), so the reactivation voice agent can say "our Instagram lead form".
+        await conn.execute("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS lead_platform TEXT")
         # Backfill from the tags older leads already carry. Only touches rows
         # with no source yet, so it's a one-time fill that never overwrites.
         await conn.execute("""

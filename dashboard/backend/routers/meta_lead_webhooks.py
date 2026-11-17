@@ -90,7 +90,17 @@ def _verify_signature(raw_body: bytes, signature_header: str | None) -> bool:
     return hmac.compare_digest(expected, signature_header.removeprefix("sha256="))
 
 
-_NON_ANSWER_FIELDS = _PHONE_FIELD_NAMES | _EMAIL_FIELD_NAMES | _NAME_FIELD_NAMES | {"page_id", "leadgen_id", "id"}
+_NON_ANSWER_FIELDS = _PHONE_FIELD_NAMES | _EMAIL_FIELD_NAMES | _NAME_FIELD_NAMES | {"page_id", "leadgen_id", "id", "platform"}
+
+
+def _platform(value) -> str | None:
+    """Meta's lead `platform` ("fb" / "ig", or spelled out) -> 'facebook' / 'instagram'."""
+    v = str(value or "").strip().lower()
+    if v in ("ig", "instagram"):
+        return "instagram"
+    if v in ("fb", "facebook"):
+        return "facebook"
+    return None
 
 
 def _humanize(text: str) -> str:
@@ -147,29 +157,31 @@ async def _get_page_access_token(http: httpx.AsyncClient, page_id: str, system_u
     return page_token
 
 
-async def _fetch_lead_fields(leadgen_id: str, page_id: str, system_user_token: str) -> list[dict]:
+async def _fetch_lead_fields(leadgen_id: str, page_id: str, system_user_token: str) -> tuple[list[dict], str | None]:
     async with httpx.AsyncClient() as http:
         page_token = await _get_page_access_token(http, page_id, system_user_token)
         resp = await http.get(
             f"{_GRAPH_BASE}/{leadgen_id}",
-            params={"access_token": page_token, "fields": "field_data"},
+            params={"access_token": page_token, "fields": "field_data,platform"},
             timeout=30,
         )
         if resp.status_code != 200:
             raise RuntimeError(f"Meta Graph API returned {resp.status_code}: {resp.text.strip()[:300]}")
-        return resp.json().get("field_data", [])
+        j = resp.json()
+        return j.get("field_data", []), _platform(j.get("platform"))
 
 
 async def _process_lead(client_id: int | None, leadgen_id: str, page_id: str, token: str) -> None:
     try:
-        field_data = await _fetch_lead_fields(leadgen_id, page_id, token)
+        field_data, platform = await _fetch_lead_fields(leadgen_id, page_id, token)
     except Exception as e:
         print(f"[meta_lead_webhooks] failed to fetch lead {leadgen_id} for client={client_id}: {e}")
         return
-    await _ingest_lead(client_id, leadgen_id, field_data)
+    await _ingest_lead(client_id, leadgen_id, field_data, platform)
 
 
-async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[dict]) -> str:
+async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[dict],
+                       platform: str | None = None) -> str:
     """Shared by both entry points — Meta's own webhook (after the Graph API
     fetch above) and the Make.com relay below (which hands over field_data
     already resolved). Returns a short status string for the Make relay's
@@ -212,9 +224,10 @@ async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[
 
         row = await conn.fetchrow(
             """
-            INSERT INTO contacts (id, business, owner, phone, email, status, client_id, tags, lead_source, form_answers)
-            VALUES ($1, NULL, $2, $3, $4, 'new', $5, ARRAY['meta_lead'], 'meta_form', $6::jsonb)
+            INSERT INTO contacts (id, business, owner, phone, email, status, client_id, tags, lead_source, form_answers, lead_platform)
+            VALUES ($1, NULL, $2, $3, $4, 'new', $5, ARRAY['meta_lead'], 'meta_form', $6::jsonb, $7)
             ON CONFLICT (phone) DO UPDATE SET
+                lead_platform = COALESCE(EXCLUDED.lead_platform, contacts.lead_platform),
                 owner      = COALESCE(EXCLUDED.owner, contacts.owner),
                 email      = COALESCE(EXCLUDED.email, contacts.email),
                 form_answers = COALESCE(EXCLUDED.form_answers, contacts.form_answers),
@@ -225,7 +238,7 @@ async def _ingest_lead(client_id: int | None, leadgen_id: str, field_data: list[
                 updated_at = now()
             RETURNING *
             """,
-            str(uuid.uuid4()), name, phone, email, client_id, json.dumps(answers) if answers else None,
+            str(uuid.uuid4()), name, phone, email, client_id, json.dumps(answers) if answers else None, platform,
         )
 
     # Every lead this webhook ever sees came from a paid Meta Lead Ads form
@@ -353,5 +366,6 @@ async def make_leadgen_inbound(request: Request):
         print(f"[meta_lead_webhooks] make relay: page_id={page_id!r} not mapped — skipping lead {leadgen_id}")
         return {"status": "skipped: page not mapped"}
 
-    status = await _ingest_lead(client_id, leadgen_id, field_data)
+    platform = _platform(body.get("platform") or (answers.get("platform") if isinstance(answers, dict) else None))
+    status = await _ingest_lead(client_id, leadgen_id, field_data, platform)
     return {"status": status}

@@ -429,16 +429,22 @@ async def queue_last_call(client_id: int, phone: str, lead_name: str | None, is_
 async def _form_info(conn, client_id: int, phone: str) -> str | None:
     """The lead's answers to the Meta form's own questions (contacts.form_answers),
     as "Question: answer; ..." for the reactivation call's opener."""
-    raw = await conn.fetchval(
-        """SELECT form_answers FROM contacts WHERE client_id = $1 AND form_answers IS NOT NULL
+    rec = await conn.fetchrow(
+        """SELECT form_answers, lead_platform FROM contacts WHERE client_id = $1
+             AND (form_answers IS NOT NULL OR lead_platform IS NOT NULL)
              AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = $2 ORDER BY created_at DESC LIMIT 1""",
         client_id, _digits10(phone))
+    if not rec:
+        return None
+    raw = rec["form_answers"]
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)
         except Exception:
-            return None
+            raw = None
     parts = [f"{a.get('question')}: {a.get('answer')}" for a in (raw or []) if isinstance(a, dict) and a.get("answer")]
+    if rec["lead_platform"]:
+        parts.insert(0, f"Filled out on: {rec['lead_platform'].capitalize()}")
     return "; ".join(parts)[:600] or None
 
 
@@ -457,7 +463,7 @@ async def queue_test_call(client_id: int, phone: str, lead_name: str | None, kin
                                      source="test", attempt=1, lead_name=lead_name or "Test Lead", agent_kind=kind,
                                      lead_since=(datetime.now(timezone.utc) - timedelta(days=21)) if kind == "react" else None,
                                      # A sample answer so the test opener sounds like a real lead's.
-                                     form_info="What are you dealing with?: Back pain" if kind == "react" else None)
+                                     form_info="Filled out on: Facebook; What are you dealing with?: Back pain" if kind == "react" else None)
 
 
 # ── Stop rules ───────────────────────────────────────────────────────────────
@@ -1138,16 +1144,20 @@ What they told us on the form: {{form_answers}}
 
 The opening (open on THEIR issue from the form, not the offer):
 - After they confirm it's them: "Hey {{lead_first_name}}, this is __AGENT_NAME__ from {{clinic_name}}. You filled out
-  our form on {{form_date}} about some <issue> you were dealing with. Is that still bothering you?"
+  our <platform> lead form on {{form_date}} for our <offer>, about some <issue> you were dealing with. Is that still
+  bothering you?"
+  <platform> = "Facebook" or "Instagram", from "Filled out on" in the form answers. If that isn't there, leave the
+  platform out: "You filled out our lead form on...".
+  <offer> = the clinic's REAL offer from the business info below (the visit above), e.g. "free consultation"; never
+  invent one. If unclear, leave "for our <offer>" out.
   <issue> = what they said they're dealing with on the form, in plain spoken words ("back pain", "knee pain",
-  "shoulder pain", "sciatica"); lowercase, no form wording. If the form answers don't name an issue: "You filled out our
-  form on {{form_date}} about getting some help with pain. Is that still something you're dealing with?"
+  "shoulder pain", "sciatica"); lowercase, no form wording. If the form answers don't name an issue, end with
+  "...for our <offer>. Are you still dealing with what was bothering you?"
 - If they're still dealing with it: you already know WHAT it is, so skip "what's been going on" and go straight
   to "Okay, and um, how long have you been dealing with that?", then the rest of the questions, pitch and booking
   below as normal.
 - The offer's final week goes in the pitch, once: after the pitch's recap, say "and this is the final week we're
-  running our <offer>, so I wanted to make sure you didn't miss it", then ask. <offer> = the clinic's REAL offer
-  from the business info below (the visit above); never invent one.
+  running our <offer>, so I wanted to make sure you didn't miss it", then ask.
 - If they're fine now or not interested: "Okay, no problem. Glad you're doing better." and wrap up politely
   (mark_not_interested only if they say they don't want calls or aren't interested).
 - If they don't remember the form: "No worries, it was one of our Facebook ads a few weeks back." and carry on.
