@@ -7273,10 +7273,10 @@
       "last_scraped_date": "2026-11-16"
     },
     "Redwood City, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 126,
-      "qualified_count": 8,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 155,
+      "qualified_count": 9,
       "last_scraped_date": "2026-11-16"
     },
     "Newport Beach, CA": {
