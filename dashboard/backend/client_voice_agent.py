@@ -40,7 +40,7 @@ Two Retell agents per client (agent_kind on each call row):
   - 'react': the DATABASE REACTIVATION voice agent (Dylan, 2026-11-17), its own
     Retell LLM + agent and its own switch (react_voice_enabled). It places the
     last_call playbook's call (client_reactivation._queue_last_call): "this is
-    the final week of our <offer>, you filled out our form on <date>, wanted to
+    the final week of our <offer>, you filled out our form a couple weeks ago, wanted to
     let you know before it's gone". Same voice, name, consent rules, booking
     tools and calling hours as the ads agent.
 """
@@ -1195,11 +1195,12 @@ The opening (open on THEIR issue from the form, not the offer):
   instead of "this is ... from", and let the details trail in casually ("...something about some back
   pain?") instead of one long, tidy sentence. Say the offer's name lightly in passing, not announced.
 - After they confirm it's them: "Hey {{lead_first_name}}, it's {{agent_name}} over at {{clinic_name}}. So, um, you
-  filled out our <platform> form back on {{form_date}} for our <offer>, something about some <issue>. Is that
-  right?" Then WAIT for them to confirm (this checks you've got the right person and that they know what
+  filled out our <platform> form a couple weeks ago for our <offer>, something about some <issue>. Is that
+  right?" Say "a couple weeks ago", never the exact date (Dylan, 2026-11-17); only give the date
+  ({{form_date}}) if they ask when. Then WAIT for them to confirm (this checks you've got the right person and that they know what
   you're calling about). Once they say yes: "Okay. Is that still bothering you?"
   <platform> = "Facebook" or "Instagram", from "Filled out on" in the form answers. If that isn't there, leave the
-  platform out: "You filled out our lead form on...".
+  platform out: "You filled out our lead form a couple weeks ago...".
   <offer> = the offer's FULL NAME exactly as the business info below names it (e.g. free "Why Does It Keep Coming
   Back?" call), never a generic "free call" or "consultation"; never invent one. If unclear, leave "for our <offer>" out.
   <issue> = what they said they're dealing with on the form, in plain spoken words ("back pain", "knee pain",
