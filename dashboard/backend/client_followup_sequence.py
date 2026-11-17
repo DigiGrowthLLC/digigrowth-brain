@@ -132,6 +132,16 @@ _PAUSED_SQL = r"""EXISTS (
       AND right(regexp_replace(clc.phone, '\D', '', 'g'), 10) = right(regexp_replace(coalesce(c.phone, ''), '\D', '', 'g'), 10)
 )"""
 
+# The lead is in an open database-reactivation round (check-in / last call):
+# that campaign sends its own touches and owns the lead until it ends, so
+# no "gone quiet" nudges on top (Advantage's last-call leads got one 3h
+# after the reactivation text, 2026-11-17). If they reply, the round ends
+# as 'replied' and the AI conversation's follow-ups work as normal.
+_IN_REACTIVATION_SQL = """EXISTS (
+    SELECT 1 FROM reactivation_enrollments re
+    WHERE re.contact_id = c.id AND re.status IN ('queued', 'active')
+)"""
+
 # client_sms_messages rows for contact `c`'s phone on its own client's number.
 _THREAD_SQL = r"""
     FROM client_sms_messages m
@@ -168,6 +178,7 @@ async def maybe_enroll(client_id: int, phone: str) -> None:
                   AND coalesce(c.phone, '') != ''
                   AND right(regexp_replace(c.phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
                   AND NOT {_BOOKED_SQL} AND NOT {lead_flags.UNQUALIFIED_SQL} AND NOT {_PAUSED_SQL}
+                  AND NOT {_IN_REACTIVATION_SQL}
                 """,
                 client_id, phone,
             )
@@ -259,12 +270,13 @@ async def send_due_touches():
     now = datetime.now(dt_timezone.utc)
     async with pool.acquire() as conn:
         # Booked and Unqualified leads leave the sequence for good; closed
-        # and escalated threads leave until something reopens them.
+        # and escalated threads, and leads in an open reactivation round,
+        # leave until something re-enrolls them.
         await conn.execute(
             f"UPDATE contacts c SET client_followup_enrolled_at = NULL, {_CLEAR_CYCLE}, "
             "client_followup_snooze_until = NULL, client_followup_snooze_note = NULL "
             f"WHERE c.client_followup_enrolled_at IS NOT NULL "
-            f"AND ({_BOOKED_SQL} OR {lead_flags.UNQUALIFIED_SQL} OR {_PAUSED_SQL})"
+            f"AND ({_BOOKED_SQL} OR {lead_flags.UNQUALIFIED_SQL} OR {_PAUSED_SQL} OR {_IN_REACTIVATION_SQL})"
         )
         await _send_unenrolled_checkins(conn, now)
         rows = await conn.fetch(
