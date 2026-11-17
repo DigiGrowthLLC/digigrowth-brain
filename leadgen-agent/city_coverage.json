@@ -7280,11 +7280,11 @@
       "last_scraped_date": "2026-11-16"
     },
     "Newport Beach, CA": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 91,
+      "qualified_count": 3,
+      "last_scraped_date": "2026-11-16"
     },
     "Brooklyn Park, MN": {
       "status": "not_started",
