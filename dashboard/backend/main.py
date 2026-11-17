@@ -795,4 +795,6 @@ if os.path.isdir(frontend_dist):
 
     @app.get("/{full_path:path}")
     async def spa_fallback(full_path: str):
-        return FileResponse(os.path.join(frontend_dist, "index.html"))
+        # no-cache: browsers re-check index.html every load, so a deploy
+        # shows up right away (the hashed /assets files stay cacheable).
+        return FileResponse(os.path.join(frontend_dist, "index.html"), headers={"Cache-Control": "no-cache"})

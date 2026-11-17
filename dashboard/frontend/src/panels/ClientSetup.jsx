@@ -406,7 +406,7 @@ function StepRow({ step, open, onToggle, onTick, ...rest }) {
 // What we do for this client (backend client_services.py). The client picks
 // these on their portal intake; Dylan can correct them here. Only the steps
 // for these services show below and in the client's portal.
-function ServicesCard({ clientId, setup, onChange }) {
+function ServicesCard({ clientId, setup, onChange, portalUrl }) {
   const [busy, setBusy] = useState(false);
   const [showAnswers, setShowAnswers] = useState(false);
   const have = setup.services || [];
@@ -418,7 +418,7 @@ function ServicesCard({ clientId, setup, onChange }) {
     { services: have.includes(id) ? have.filter((x) => x !== id) : [...have, id] });
   const answers = setup.intake_answers || {};
   const qs = (setup.intake_questions || []).filter((q) => answers[q.key] !== undefined);
-  const source = setup.intake_pending ? "Waiting on the client's portal intake (showing the package defaults until then)"
+  const source = setup.intake_pending ? "Waiting on the client's portal intake"
     : setup.services_from === "intake" ? "Picked by the client on their portal intake"
     : setup.services_from === "set by Dylan" ? "Set by you" : "Package defaults (client hasn't answered the intake)";
   return (
@@ -451,6 +451,19 @@ function ServicesCard({ clientId, setup, onChange }) {
           );
         })}
       </div>
+      {setup.intake_pending && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 10px", borderRadius: 6,
+          background: "rgba(240,160,40,0.1)", border: "1px solid rgba(240,160,40,0.35)" }}>
+          <span style={{ ...label, fontSize: 12, color: "#f0c078" }}>
+            Questionnaire is ON: their portal opens on it until they answer.
+          </span>
+          {portalUrl && (
+            <a href={portalUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 9.5, marginLeft: "auto", textDecoration: "none" }}>
+              OPEN PORTAL ↗
+            </a>
+          )}
+        </div>
+      )}
       {showAnswers && (
         <div style={{ display: "grid", gap: 4 }}>
           {qs.map((q) => (
@@ -536,7 +549,7 @@ export default function ClientSetup({ clientId, onGoTab }) {
         </button>
       </div>
 
-      <ServicesCard clientId={clientId} setup={setup} onChange={setSetup} />
+      <ServicesCard clientId={clientId} setup={setup} onChange={setSetup} portalUrl={client?.portal_url} />
 
       {setup.phases.map((ph) => {
         const steps = setup.steps.filter((s) => s.phase === ph.id);
