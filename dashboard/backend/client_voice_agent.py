@@ -347,10 +347,12 @@ async def start_for_meta_lead(client_id: int, phone: str, lead_name: str | None,
             due = (datetime.now(timezone.utc) + FIRST_CALL_DELAY).astimezone(tz)
             if _in_window(due):
                 await _insert_attempt(conn, client_id=client_id, phone=to, run_at=due, source="meta",
-                                      attempt=1, lead_name=lead_name, lead_email=lead_email)
+                                      attempt=1, lead_name=lead_name, lead_email=lead_email,
+                                      form_info=await _form_info(conn, client_id, to))
                 return True
             await _insert_attempt(conn, client_id=client_id, phone=to, run_at=_next_window(due), source="meta",
-                                  attempt=1, lead_name=lead_name, lead_email=lead_email, texted_first=True)
+                                  attempt=1, lead_name=lead_name, lead_email=lead_email, texted_first=True,
+                                  form_info=await _form_info(conn, client_id, to))
             return False
     except Exception as e:
         print(f"[voice_agent] start_for_meta_lead failed client={client_id} phone={phone}: {e}", flush=True)
@@ -463,7 +465,7 @@ async def queue_test_call(client_id: int, phone: str, lead_name: str | None, kin
                                      source="test", attempt=1, lead_name=lead_name or "Test Lead", agent_kind=kind,
                                      lead_since=(datetime.now(timezone.utc) - timedelta(days=21)) if kind == "react" else None,
                                      # A sample answer so the test opener sounds like a real lead's.
-                                     form_info="Filled out on: Facebook; What are you dealing with?: Back pain" if kind == "react" else None)
+                                     form_info="Filled out on: Facebook; What are you dealing with?: Back pain")
 
 
 # ── Stop rules ───────────────────────────────────────────────────────────────
@@ -851,7 +853,8 @@ async def _schedule_next(conn, row) -> None:
         run_at = cand
     await _insert_attempt(conn, client_id=row["client_id"], phone=row["phone"], run_at=run_at, source=row["source"],
                           attempt=nxt, seq_id=row["seq_id"], lead_name=row["lead_name"], lead_email=row["lead_email"],
-                          partial_id=row["partial_id"], texted_first=True, note=row["note"])
+                          partial_id=row["partial_id"], texted_first=True, note=row["note"],
+                          agent_kind=row["agent_kind"] or "ads", lead_since=row["lead_since"], form_info=row["form_info"])
 
 
 async def _cancel_rest(conn, seq_id: int | None, reason: str) -> None:
@@ -1048,6 +1051,7 @@ _VOICE_RULES = """
 You are on a live PHONE CALL, not texting. Your name is {{agent_name}} and you work at {{clinic_name}},
 helping new patients get booked.
 Who you're calling: {{lead_full_name}}. Why: {{lead_context}}. Right now it's {{today}}.
+What they told us on the form: {{form_answers}}
 The visit you book (from the clinic's calendar): {{visit_info}}. Never mention how long the visit is unless they
 ask; then use this length.
 
@@ -1060,7 +1064,11 @@ going to go ahead and...", "let me just..."); just do the step and move on. A pl
 How the call goes:
 - Open by checking you've got the right person, then introduce yourself by first name and the clinic and
   say how they reached you, naming the clinic's REAL offer from the business info below (the visit
-  above). Form lead: "This is {{agent_name}} from {{clinic_name}}. I saw you filled out our form for
+  above). Form lead whose form answers name what they're dealing with: "This is {{agent_name}} from
+  {{clinic_name}}. I saw you filled out our <platform> form for <offer>, about some <issue>. How long has
+  that been going on?" (<issue> in plain spoken words, e.g. "back pain"; <platform> = Facebook or
+  Instagram from "Filled out on", else leave it out). Then skip the "how long" question below since you
+  just asked it. Only if the form answers don't say what's wrong: "...I saw you filled out our form for
   <offer>. What's been going on?" Website lead: "...I saw you started booking <offer> on our
   website..." Never use an offer name that isn't in the business info; if unclear, say "our form".
 - Last-day call (the Why above says today is the last day of the offer): "This is {{agent_name}} from
