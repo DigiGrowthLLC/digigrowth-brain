@@ -7259,9 +7259,9 @@
       "last_scraped_date": "2026-11-16"
     },
     "Boynton Beach, FL": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 163,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 180,
       "qualified_count": 9,
       "last_scraped_date": "2026-11-16"
     },
