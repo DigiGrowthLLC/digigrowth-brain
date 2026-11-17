@@ -195,6 +195,11 @@ async def save_script(client_id: int, kind: str, body: ScriptBody):
     return {"ok": True, "custom": bool(text), "synced": synced}
 
 
+@admin_router.get("/voice-agent/styles")
+async def styles():
+    return [{"key": k, "label": v["label"]} for k, v in va.VOICE_STYLES.items()]
+
+
 @admin_router.get("/voice-agent/voices")
 async def voices():
     try:

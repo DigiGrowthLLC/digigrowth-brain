@@ -3351,6 +3351,7 @@ function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
   const enabledKey = react ? "react_voice_enabled" : "voice_agent_enabled";
   const [data, setData] = useState(null);
   const [voices, setVoices] = useState([]);
+  const [styles, setStyles] = useState([]);
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState(null);
   const [testPhone, setTestPhone] = useState("");
@@ -3364,6 +3365,7 @@ function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
   useEffect(() => {
     if (!data?.retell_key_set || voices.length) return;
     fetch(API(`/voice-agent/voices`)).then((r) => (r.ok ? r.json() : [])).then((v) => setVoices(Array.isArray(v) ? v : [])).catch(() => {});
+    fetch(API(`/voice-agent/styles`)).then((r) => (r.ok ? r.json() : [])).then((v) => setStyles(Array.isArray(v) ? v : [])).catch(() => {});
   }, [data, voices.length]);
 
   const act = async (label, path, body) => {
@@ -3399,6 +3401,10 @@ function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
           {row("AI-call consent line live on the Meta Instant Form", config?.voice_consent_meta_since ? `since ${new Date(config.voice_consent_meta_since).toLocaleString()}` : "Meta leads are NOT called until you stamp this", Boolean(config?.voice_consent_meta_since))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
             {!react && <>
+            <select className="dg-input" style={{ maxWidth: 280, fontSize: 11 }} title="Voice style (both voice agents). Re-sync after changing." value={config?.voice_style || "tuned"}
+              onChange={async (e) => { await onSaveFields({ voice_style: e.target.value }); act("Sync agent", `${base}/sync`); }}>
+              {(styles.length ? styles : [{ key: "tuned", label: "Tuned (original)" }]).map((s) => <option key={s.key} value={s.key}>Style: {s.label}</option>)}
+            </select>
             <select className="dg-input" style={{ maxWidth: 260, fontSize: 11 }} value={config?.voice_id || ""} onChange={(e) => onSaveFields({ voice_id: e.target.value || null })}>
               <option value="">Default voice</option>
               {voices.map((v) => <option key={v.voice_id} value={v.voice_id}>{v.voice_name} · {v.provider} · {v.gender || ""} {v.accent || ""}</option>)}

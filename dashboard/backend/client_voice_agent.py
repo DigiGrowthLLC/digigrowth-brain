@@ -105,6 +105,25 @@ NATURAL_SETTINGS = {
     "reminder_max_count": 1,
 }
 
+# Voice style presets (Dylan, 2026-11-17: Retell's homepage "Kate" demo
+# sounded better than ours). Retell doesn't publish the demo's config, so these
+# let him A/B on test calls. Both of a client's agents use the same style.
+#   tuned: the original settings above (v3 conversational, office ambience,
+#          backchannel "mm-hmm"s, temperature 0.9).
+#   stock: Retell's defaults, i.e. what a stock Kate agent sounds like: the
+#          provider's default model, no background noise, no backchannel.
+#   v4:    stock + ElevenLabs' newest model (eleven_v4).
+_STOCK = {
+    "ambient_sound": None, "enable_backchannel": False, "voice_temperature": 1.0,
+    "responsiveness": 1.0, "interruption_sensitivity": 1.0,
+    "reminder_trigger_ms": 8000, "reminder_max_count": 1,
+}
+VOICE_STYLES = {
+    "tuned": {"label": "Tuned (original: office background, mm-hmms)", "voice_model": ELEVEN_MODEL, "settings": NATURAL_SETTINGS},
+    "stock": {"label": "Retell stock (like the homepage demo)", "voice_model": None, "settings": _STOCK},
+    "v4": {"label": "Retell stock + ElevenLabs v4", "voice_model": "eleven_v4", "settings": _STOCK},
+}
+
 # Retell disconnection reasons that mean no human conversation happened.
 _NOT_CONNECTED = {
     "dial_busy", "dial_failed", "dial_no_answer", "invalid_destination", "user_declined",
@@ -1268,6 +1287,10 @@ def _keywords(cfg, lead_name: str | None = None) -> list[str]:
     return [k for k in [first, cfg["client_name"], agent_name(cfg)] if k] + PT_KEYWORDS
 
 
+def _style(cfg) -> dict:
+    return VOICE_STYLES.get(cfg["voice_style"] or "tuned", VOICE_STYLES["tuned"])
+
+
 def _agent_body(cfg, llm_id: str, kind: str = "ads") -> dict:
     return {
         "agent_name": f"{cfg['client_name']} - DigiGrowth " + ("reactivation voice agent" if kind == "react" else "voice agent"),
@@ -1275,8 +1298,8 @@ def _agent_body(cfg, llm_id: str, kind: str = "ads") -> dict:
         "voice_id": cfg["voice_id"] or DEFAULT_VOICE_ID,
         # Slightly slower than normal sounds more natural on the phone (Dylan, 2026-11-15).
         "voice_speed": float(cfg["voice_speed"]) if cfg["voice_speed"] else DEFAULT_VOICE_SPEED,
-        **({"voice_model": ELEVEN_MODEL} if (cfg["voice_id"] or DEFAULT_VOICE_ID).startswith("11labs-") else {}),
-        **NATURAL_SETTINGS,
+        **({"voice_model": _style(cfg)["voice_model"]} if (cfg["voice_id"] or DEFAULT_VOICE_ID).startswith("11labs-") else {}),
+        **_style(cfg)["settings"],
         "boosted_keywords": _keywords(cfg),
         "language": "en-US",
         "webhook_url": f"{_base_url()}/webhooks/retell",

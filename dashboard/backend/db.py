@@ -2357,6 +2357,9 @@ async def _create_schema(pool: asyncpg.Pool):
             -- script in client_voice_agent.default_script). Business info is appended.
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_script_ads TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_script_react TEXT;
+            -- Voice style preset for both voice agents (client_voice_agent.VOICE_STYLES);
+            -- NULL = 'tuned' (the original settings).
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_style TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_voice_enabled BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_llm_id TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_agent_id TEXT;
