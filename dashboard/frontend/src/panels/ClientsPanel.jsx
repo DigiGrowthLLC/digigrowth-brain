@@ -3428,6 +3428,12 @@ function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
             <input type="checkbox" checked={Boolean(config?.[enabledKey])} onChange={(e) => onSaveFields({ [enabledKey]: e.target.checked })} />
             {react ? "Reactivation voice agent calls ad leads in the offer's final week (last-call campaign)" : "Voice agent calls new leads (also shows the call-consent box on the booking page)"}
           </label>
+          {react && (
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#d0e8ff", marginTop: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={Boolean(config?.react_call_without_consent)} onChange={(e) => onSaveFields({ react_call_without_consent: e.target.checked })} />
+              Also call ad leads who didn't give AI-call consent (otherwise they get the text)
+            </label>
+          )}
           {data?.ready_problem && config?.[enabledKey] && <div style={{ fontSize: 11, color: "#f0b429", marginTop: 4 }}>Not calling yet: {data.ready_problem}</div>}
           {msg && <div style={{ fontSize: 11, color: msg.ok ? "#3ecf8e" : "#e05c5c", marginTop: 6 }}>{msg.text}</div>}
           <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 8, lineHeight: 1.55 }}>

@@ -2361,6 +2361,9 @@ async def _create_schema(pool: asyncpg.Pool):
             -- NULL = 'stock' (Retell defaults); 'tuned' = the original preset.
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_style TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_voice_enabled BOOLEAN NOT NULL DEFAULT false;
+            -- Dylan's call per client: the reactivation agent also calls ad
+            -- leads who never ticked/stamped AI-call consent (Advantage, 2026-11-17).
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_call_without_consent BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_llm_id TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_agent_id TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_voice_synced_at TIMESTAMPTZ;

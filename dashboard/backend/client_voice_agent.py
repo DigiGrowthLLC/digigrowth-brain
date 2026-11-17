@@ -412,7 +412,8 @@ async def queue_last_call(client_id: int, phone: str, lead_name: str | None, is_
                           lead_created_at: datetime | None, offer_note: str | None) -> bool:
     """Database reactivation's last_call playbook: the REACTIVATION voice
     agent calls an ad lead in the offer's final week. Only when they consented to calls (Meta form after the
-    consent line went live, or the booking page's call box) and we're in
+    consent line went live, or the booking page's call box), unless Dylan turned on
+    react_call_without_consent for the client, and we're in
     calling hours. One attempt + redial; no answer -> the last-day text
     (_release_text). True = queued; False = caller texts instead. Never raises."""
     try:
@@ -429,7 +430,7 @@ async def queue_last_call(client_id: int, phone: str, lead_name: str | None, is_
                     """SELECT 1 FROM booking_partials WHERE client_id = $1 AND call_consent IS TRUE
                          AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = $2 LIMIT 1""",
                     client_id, _digits10(to)))
-            if not consent:
+            if not consent and not cfg["react_call_without_consent"]:
                 return False
             if await conn.fetchval(
                 "SELECT 1 FROM client_voice_calls WHERE client_id = $1 AND phone = $2 "
