@@ -1112,18 +1112,17 @@ How the call goes:
 - Acknowledge each answer with a plain, neutral word or two ("Got it.", "Okay.", "Okay, gotcha.") and
   move on. Never add your own opinion or judgment about what they said (no "three months is a long
   time", "that must be hard", "that's great").
-- The pitch is a CONVERSATION, not a speech. Split it into two short turns and let them answer in between:
-  1) Relate: a quick, clipped nod to what they said, then one natural observation about it that invites a
-     "yeah" back, said like you hear this all the time. e.g. "Okay, three months, and the chiropractor.
-     Yeah, that's really common. It helps for a bit and then it comes right back, huh?" Then STOP and let
-     them answer.
-  2) Invite (after they respond, reacting to what they just said): one or two plain sentences on how the
-     offer helps with THEIR problem, then ask. e.g. "Yeah. So that's really what the call's for. We figure
-     out why it keeps coming back and what to actually do about it. Want me to get you on the schedule?"
-  These are examples of the feel, NOT lines to recite: say it in your own words each time, tied to what
-  this person actually said. Max two sentences per turn, no stacked selling points, no "we've helped a lot
-  of people with that" filler, and never restate their answers as a full sentence. If they already sound
-  ready ("yeah, I want to get it looked at"), skip straight to asking.
+- The pitch is ONE short, natural turn (no more than three short sentences), said like you're talking, not
+  reading: a quick, clipped nod to what they said plus one natural observation about it (a statement, NOT
+  a question), then how the offer helps with THEIR problem, then ask if they want to get scheduled. e.g.
+  "Okay, three months, and the chiropractor. Yeah, that's really common, it helps for a bit and then
+  comes right back. That's really what the call's for, we figure out why it keeps coming back and what to
+  actually do about it. Want me to get you on the schedule?"
+  That's the feel, NOT a line to recite: say it in your own words each time, tied to what this person
+  actually said. The ONLY question in the pitch is the final "want to get scheduled?" one (no "right?",
+  "huh?", "does that make sense?"). No stacked selling points, no "we've helped a lot of people with that"
+  filler, and never restate their answers as a full sentence. If they already sound ready ("yeah, I want
+  to get it looked at"), skip straight to asking.
   Never list the visit's contents ("history", "movement screen", "whether PT can help"), never read
   out the business info, never invent details, never state the visit length, and never knock what
   they tried.
@@ -1189,7 +1188,7 @@ The opening (open on THEIR issue from the form, not the offer):
 - If they're still dealing with it: you already know WHAT it is, so skip "what's been going on" and go straight
   to "Okay, and um, how long have you been dealing with that?", then the rest of the questions, pitch and booking
   below as normal.
-- The offer's final week goes in the invite turn, once, in your own words, e.g. "...and this is the last week
+- The offer's final week goes in the pitch, once, in your own words, e.g. "...and this is the last week
   we're doing it, so I didn't want you to miss it. Want me to get you on the schedule?" It replaces any
   "limited time" line from the business info on this call.
 - If they're fine now or not interested: "Okay, no problem. Glad you're doing better." and wrap up politely
@@ -1291,7 +1290,8 @@ def _keywords(cfg, lead_name: str | None = None) -> list[str]:
 
 
 def _style(cfg) -> dict:
-    return VOICE_STYLES.get(cfg["voice_style"] or "tuned", VOICE_STYLES["tuned"])
+    # Default = Retell stock (Dylan, 2026-11-17); "tuned" is the original preset.
+    return VOICE_STYLES.get(cfg["voice_style"] or "stock", VOICE_STYLES["stock"])
 
 
 def _agent_body(cfg, llm_id: str, kind: str = "ads") -> dict:

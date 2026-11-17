@@ -3401,7 +3401,7 @@ function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
           {row("AI-call consent line live on the Meta Instant Form", config?.voice_consent_meta_since ? `since ${new Date(config.voice_consent_meta_since).toLocaleString()}` : "Meta leads are NOT called until you stamp this", Boolean(config?.voice_consent_meta_since))}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
             {!react && <>
-            <select className="dg-input" style={{ maxWidth: 280, fontSize: 11 }} title="Voice style (both voice agents). Re-sync after changing." value={config?.voice_style || "tuned"}
+            <select className="dg-input" style={{ maxWidth: 280, fontSize: 11 }} title="Voice style (both voice agents). Re-sync after changing." value={config?.voice_style || "stock"}
               onChange={async (e) => { await onSaveFields({ voice_style: e.target.value }); act("Sync agent", `${base}/sync`); }}>
               {(styles.length ? styles : [{ key: "tuned", label: "Tuned (original)" }]).map((s) => <option key={s.key} value={s.key}>Style: {s.label}</option>)}
             </select>
