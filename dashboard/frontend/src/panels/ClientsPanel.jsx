@@ -129,6 +129,9 @@ function DetailsSection({ title, collapsible, children }) {
   );
 }
 
+const AVATAR_COLORS = ["#3a7bd5", "#14c882", "#8b6cf0", "#f0a028", "#22b8cf", "#e84393"];
+const avatarColor = (id) => AVATAR_COLORS[(Number(id) || 0) % AVATAR_COLORS.length];
+
 function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact }) {
   const [copied, setCopied] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -139,6 +142,11 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
   const [linking, setLinking] = useState(false);
   const [pendingContact, setPendingContact] = useState(null);
   const [savingLink, setSavingLink] = useState(false);
+  const [setup, setSetup] = useState(null);
+  useEffect(() => {
+    fetch(API(`/clients/${client.id}/setup`)).then((r) => (r.ok ? r.json() : null)).then(setSetup).catch(() => {});
+    // Re-read when the details close, so ticks made inside show on the bar.
+  }, [client.id, showDetails]);
 
   const copyLink = () => {
     navigator.clipboard.writeText(client.portal_url).then(() => {
@@ -158,54 +166,58 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
   const revoked = !!client.token_revoked_at;
 
   return (
-    <div style={{ borderRadius: 10, background: "rgba(255,255,255,0.02)", marginBottom: 8 }}>
-      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px" }}>
+    <div style={{ borderRadius: 14, marginBottom: 10, border: `1px solid ${showDetails ? "rgba(58,123,213,0.3)" : "rgba(58,123,213,0.1)"}`,
+      background: showDetails ? "rgba(58,123,213,0.05)" : "rgba(255,255,255,0.02)", transition: "border-color 0.15s, background 0.15s" }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+        <div style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0, display: "grid", placeItems: "center",
+          fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff",
+          background: `linear-gradient(135deg, ${avatarColor(client.id)}, rgba(40,87,160,0.9))`,
+          boxShadow: "0 6px 16px -8px rgba(58,123,213,0.8)" }}>
+          {(client.name || "?").trim().charAt(0)}
+        </div>
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 15, color: "#e8f0ff" }}>
               {client.name}
             </span>
-            <span className={`badge ${client.status === "active" ? "badge-green" : client.status === "paused" ? "badge-amber" : "badge-gray"}`}>
-              {client.status}
-            </span>
+            <span title={client.status} style={{ width: 8, height: 8, borderRadius: "50%",
+              background: client.status === "active" ? "#14c882" : client.status === "paused" ? "#f0a028" : "#5a6f8f",
+              boxShadow: client.status === "active" ? "0 0 6px rgba(20,200,130,0.8)" : "none" }} />
             {client.is_test && (
-              <span className="badge badge-blue" title="Only this client's portal can use DigiGrowth's real shared Twilio credentials (calling, SMS send) — every other client always gets the 'not connected yet' stub.">
-                TEST CLIENT — LIVE INTEGRATIONS
-              </span>
+              <span className="badge badge-blue" title="Only this client's portal can use DigiGrowth's real shared Twilio credentials (calling, SMS send).">TEST CLIENT</span>
             )}
             {revoked && <span className="badge badge-red">TOKEN REVOKED</span>}
             {!client.booking_notification_enabled && (
-              <span className="badge badge-gray" title="This client will not receive an SMS when a new appointment is booked for their lead">
-                BOOKING SMS OFF
-              </span>
+              <span className="badge badge-gray" title="This client will not receive an SMS when a new appointment is booked for their lead">BOOKING SMS OFF</span>
             )}
-            {client.linked_contact ? (
-              <span className="badge badge-blue" title="Onboarding follow-up will send this client's portal link">
-                LINKED: {client.linked_contact.owner || client.linked_contact.business || "contact"}
-              </span>
-            ) : (
-              <span className="badge badge-amber" title="No contact linked — the next-morning onboarding email/SMS has nothing to send for this client">
-                NO CONTACT LINKED
-              </span>
+            {!client.linked_contact && (
+              <span className="badge badge-amber" title="No contact linked: the next-morning onboarding email/SMS has nothing to send for this client">NO CONTACT LINKED</span>
             )}
           </div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a5a80", marginTop: 4 }}>
-            Onboarding {client.onboarding_progress} · {client.contact_name || "no contact set"}
+          <div style={{ fontSize: 12, color: "#7f9cc4", marginTop: 4 }}>
+            {client.linked_contact?.owner || client.contact_name || "No contact set"}
+            <span style={{ color: "#3a5a80" }}> · </span>Onboarding {client.onboarding_progress}
           </div>
+          {setup && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7, maxWidth: 320 }}
+              title={`Marketing Setup: ${setup.done} of ${setup.total} steps done`}>
+              <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(58,123,213,0.15)", overflow: "hidden" }}>
+                <div style={{ width: `${Math.round((setup.done / Math.max(1, setup.total)) * 100)}%`, height: "100%",
+                  background: setup.done >= setup.total ? "#14c882" : "linear-gradient(90deg, #2857a0, #6ab0ff)" }} />
+              </div>
+              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", whiteSpace: "nowrap" }}>
+                SETUP {setup.done}/{setup.total}
+              </span>
+            </div>
+          )}
         </div>
 
-        <a href={client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10, textDecoration: "none" }}>
-          VIEW PORTAL ↗
+        <button className={showDetails ? "btn btn-secondary" : "btn btn-primary"} style={{ fontSize: 10.5 }} onClick={() => setShowDetails((s) => !s)}>
+          {showDetails ? "CLOSE" : "OPEN"}
+        </button>
+        <a href={client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10.5, textDecoration: "none" }}>
+          PORTAL ↗
         </a>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={copyLink}>
-          {copied ? "COPIED" : "COPY LINK"}
-        </button>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setShowDetails((s) => !s)}>
-          {showDetails ? "HIDE DETAILS" : "DETAILS"}
-        </button>
-        <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onEdit(client)}>
-          EDIT
-        </button>
 
         <button
           ref={menuButtonRef}
@@ -230,6 +242,12 @@ function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkCon
               background: "#0d1a3a", border: "1px solid rgba(58,123,213,0.25)", borderRadius: 8,
               minWidth: 160, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
             }}>
+              <button onClick={() => { copyLink(); setShowMenu(false); }} style={menuItemStyle}>
+                {copied ? "Copied" : "Copy Portal Link"}
+              </button>
+              <button onClick={() => { onEdit(client); setShowMenu(false); }} style={menuItemStyle}>
+                Edit Client
+              </button>
               <button
                 onClick={() => { setPendingContact(client.linked_contact || null); setLinking((s) => !s); setShowMenu(false); }}
                 style={menuItemStyle}
@@ -3741,6 +3759,7 @@ export default function ClientsPanel() {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [newLink, setNewLink] = useState(null);
+  const [pageTab, setPageTab] = useState("clients");
 
   const load = async () => {
     const r = await fetch(API("/clients"));
@@ -3800,24 +3819,53 @@ export default function ClientsPanel() {
   return (
     <div className="px-4 py-4 sm:px-7 sm:py-6" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 0 }}>
 
-      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, gap: 10 }}>
+      <div className="flex-wrap" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 16, gap: 10 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
             Clients
           </div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.14em", marginTop: 4 }}>
-            {clients.length} CLIENT{clients.length !== 1 ? "S" : ""}
+          <div style={{ fontSize: 12.5, color: "#7f9cc4", marginTop: 4 }}>
+            {clients.length} client{clients.length !== 1 ? "s" : ""}
+            {" · "}{clients.filter((c) => c.status === "active").length} active
+            {" · "}Open a client for their setup checklist, agents, messages and info.
           </div>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => { setEditing(null); setNewLink(null); setShowForm((s) => !s); }}
-          style={{ fontSize: 11, padding: "8px 18px", letterSpacing: "0.08em" }}
-        >
-          {showForm ? "CANCEL" : "+ NEW CLIENT"}
-        </button>
+        {pageTab === "clients" && (
+          <button
+            className="btn btn-primary"
+            onClick={() => { setEditing(null); setNewLink(null); setShowForm((s) => !s); }}
+            style={{ fontSize: 11, padding: "8px 18px", letterSpacing: "0.08em" }}
+          >
+            {showForm ? "CANCEL" : "+ NEW CLIENT"}
+          </button>
+        )}
       </div>
 
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid rgba(58,123,213,0.12)" }}>
+        {[["clients", "Clients"], ["content", "Portal content (all clients)"]].map(([id, name]) => (
+          <button key={id} onClick={() => setPageTab(id)} style={{
+            background: "none", border: "none", cursor: "pointer", padding: "9px 14px", whiteSpace: "nowrap",
+            fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
+            color: pageTab === id ? "#6ab0ff" : "#5a7aa0",
+            borderBottom: `2px solid ${pageTab === id ? "#3a7bd5" : "transparent"}`, marginBottom: -1,
+          }}>{name}</button>
+        ))}
+      </div>
+
+      {pageTab === "content" && (
+        <>
+          <div style={{ fontSize: 12.5, color: "#7f9cc4", marginBottom: 6, lineHeight: 1.5 }}>
+            Shared by every client portal: the how-to videos, the next steps each client checks off during onboarding,
+            and the launch checklist template shown on their Launch Progress page.
+          </div>
+          <VideosSection />
+          <ActionItemsSection />
+          <LaunchChecklistSection />
+        </>
+      )}
+
+      {pageTab === "clients" && (
+      <>
       {newLink && (
         <div className="glass-card" style={{ padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 12, color: "#8aaad0" }}>Portal link created:</span>
@@ -3836,7 +3884,7 @@ export default function ClientsPanel() {
         />
       )}
 
-      <div className="glass-card" style={{ padding: "12px 8px" }}>
+      <div>
         {loading && (
           <div style={{ padding: "40px 20px", textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.16em" }}>
             LOADING…
@@ -3860,9 +3908,8 @@ export default function ClientsPanel() {
         ))}
       </div>
 
-      <VideosSection />
-      <ActionItemsSection />
-      <LaunchChecklistSection />
+      </>
+      )}
     </div>
   );
 }

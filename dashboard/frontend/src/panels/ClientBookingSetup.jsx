@@ -53,6 +53,8 @@ function Field({ name, children, width }) {
   return <label style={{ width: width || "auto", flex: width ? "0 0 auto" : 1, minWidth: 120 }}><span style={label}>{name}</span>{children}</label>;
 }
 
+const BOOKING_TABS = [["overview", "Overview"], ["schedule", "Schedule"], ["visits", "Visits & payments"], ["page", "Booking page"]];
+
 const dollars = (c) => (c == null || c === "" ? "" : (c / 100).toString());
 const cents = (d) => (d === "" || d == null ? null : Math.round(parseFloat(d) * 100));
 const t5 = (t) => (t || "").slice(0, 5);
@@ -65,6 +67,7 @@ export default function ClientBookingSetup({ clientId }) {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState(null);
   const [drafting, setDrafting] = useState(false);
+  const [tab, setTab] = useState("overview");
 
   const load = async () => {
     try { setData(await call(`/clients/${clientId}/booking`)); } catch (e) { setErr(e.message); }
@@ -100,74 +103,115 @@ export default function ClientBookingSetup({ clientId }) {
         <div style={{ marginBottom: 10, fontSize: 12, color: err ? "#ff8a8a" : "#8fd9bd" }}>{err || msg}</div>
       )}
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-        <button className="btn btn-secondary" disabled={drafting || busy} onClick={async () => {
-          setDrafting(true); setErr(""); setMsg(""); setDraft(null);
-          try { setDraft(await call(`/clients/${clientId}/booking/autofill/preview`, { method: "POST" })); }
-          catch (e) { setErr(e.message); }
-          finally { setDrafting(false); }
-        }}>{drafting ? "Reading client info..." : "✨ Auto-fill from client info"}</button>
-      </div>
       {draft && <AutofillReview draft={draft} data={data} busy={busy}
-        onApply={async (body) => { const r = await run(() => call(`/clients/${clientId}/booking/autofill/apply`, { method: "POST", body: JSON.stringify(body) }), "Applied. Review the sections below, then Check availability."); if (r) setDraft(null); }}
+        onApply={async (body) => { const r = await run(() => call(`/clients/${clientId}/booking/autofill/apply`, { method: "POST", body: JSON.stringify(body) }), "Applied. Review the Schedule and Visits tabs, then check availability."); if (r) setDraft(null); }}
         onClose={() => setDraft(null)} />}
 
-      <Section
-        title="DigiGrowth Booking"
-        right={
-          <button className={s.enabled ? "btn btn-secondary" : "btn btn-primary"} disabled={busy}
-            onClick={() => save({ enabled: !s.enabled }, s.enabled ? "Booking turned off (funnel falls back to Calendly)" : "Booking is live")}>
-            {s.enabled ? "Turn off" : "Turn on"}
-          </button>
-        }
-      >
-        <div style={{ ...note, marginBottom: 8 }}>
-          Status: <b style={{ color: s.enabled ? "#14c882" : "#f0a028" }}>{s.enabled ? "LIVE" : "OFF"}</b>
-          {" · "}When live, the funnel's Book button, the client portal's Book button and the link below all use this
-          instead of Calendly.
-        </div>
-        {!s.enabled && (() => {
-          const todo = [
-            !s.calendar_id && "pick the clinic's calendar (step 1)",
-            data.hours.length === 0 && "set new patient hours (step 2)",
-            !data.event_types.some((e) => e.active) && "add an appointment type (step 4)",
-          ].filter(Boolean);
-          return (
-            <div style={{ ...note, marginBottom: 8, color: todo.length ? "#f0a028" : "#8fd9bd" }}>
-              {todo.length
-                ? <>The link below won't open for patients until it's turned on. Left to do: {todo.join(", ")}.</>
-                : <>Everything's set. Check availability (step 6), then click Turn on to make the link live.</>}
+      {/* Status header: live/off, what's left, the link, and the two main actions. */}
+      {(() => {
+        const checks = [
+          { label: "Calendar", ok: Boolean(s.calendar_id), tab: "schedule" },
+          { label: "Hours", ok: data.hours.length > 0, tab: "schedule" },
+          { label: "Visit type", ok: data.event_types.some((e) => e.active), tab: "visits" },
+          ...(data.event_types.some((e) => e.active && e.price_cents > 0)
+            ? [{ label: "Stripe", ok: Boolean(s.stripe_charges_enabled), tab: "visits" }] : []),
+        ];
+        const ready = checks.every((c) => c.ok);
+        return (
+          <div className="glass-card-sm" style={{ padding: "18px 20px", marginBottom: 14,
+            borderLeft: `3px solid ${s.enabled ? "#14c882" : ready ? "#3a7bd5" : "#f0a028"}` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "4px 12px", borderRadius: 999,
+                fontFamily: "'Share Tech Mono', monospace", fontSize: 10.5, letterSpacing: "0.1em",
+                color: s.enabled ? "#14c882" : "#f0a028", background: s.enabled ? "rgba(20,200,130,0.1)" : "rgba(240,160,40,0.1)",
+                border: `1px solid ${s.enabled ? "rgba(20,200,130,0.3)" : "rgba(240,160,40,0.3)"}` }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: s.enabled ? "#14c882" : "#f0a028" }} />
+                {s.enabled ? "LIVE" : "OFF"}
+              </span>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: 1 }}>
+                {checks.map((c) => (
+                  <button key={c.label} onClick={() => setTab(c.tab)} title={c.ok ? "Done" : "Not set yet"}
+                    style={{ cursor: "pointer", fontSize: 11.5, padding: "3px 10px", borderRadius: 999,
+                      border: `1px solid ${c.ok ? "rgba(20,200,130,0.25)" : "rgba(240,160,40,0.35)"}`,
+                      background: "transparent", color: c.ok ? "#8fd9bd" : "#f0c078" }}>
+                    {c.ok ? "✓" : "○"} {c.label}
+                  </button>
+                ))}
+              </div>
+              <button className="btn btn-secondary" style={{ fontSize: 10.5 }} disabled={drafting || busy} onClick={async () => {
+                setDrafting(true); setErr(""); setMsg(""); setDraft(null);
+                try { setDraft(await call(`/clients/${clientId}/booking/autofill/preview`, { method: "POST" })); }
+                catch (e) { setErr(e.message); }
+                finally { setDrafting(false); }
+              }}>{drafting ? "READING CLIENT INFO…" : "✨ AUTO-FILL"}</button>
+              <button className={s.enabled ? "btn btn-secondary" : "btn btn-primary"} style={{ fontSize: 10.5 }} disabled={busy || (!s.enabled && !ready)}
+                title={!s.enabled && !ready ? "Finish the items on the left first" : ""}
+                onClick={() => save({ enabled: !s.enabled }, s.enabled ? "Booking turned off (funnel falls back to Calendly)" : "Booking is live")}>
+                {s.enabled ? "TURN OFF" : "TURN ON"}
+              </button>
             </div>
-          );
-        })()}
-        <div style={row}>
-          <Field name="Booking link">
-            <div style={{ display: "flex", gap: 6 }}>
-              <input className="dg-input" readOnly value={data.public_url} style={{ flex: 1 }} />
-              <a className="btn btn-secondary" href={data.public_url} target="_blank" rel="noreferrer">Open</a>
+            <div style={{ display: "flex", gap: 6, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <input className="dg-input" readOnly value={data.public_url} style={{ flex: "1 1 320px", fontSize: 12 }} onFocus={(e) => e.target.select()} />
+              <button className="btn btn-secondary" style={{ fontSize: 10.5 }} onClick={() => { navigator.clipboard?.writeText(data.public_url); setMsg("Link copied"); }}>COPY</button>
+              <a className="btn btn-secondary" style={{ fontSize: 10.5, textDecoration: "none" }} href={data.public_url} target="_blank" rel="noreferrer">OPEN ↗</a>
             </div>
-          </Field>
-          <Field name="Link name" width={180}>
-            <input className="dg-input" defaultValue={s.booking_slug} onBlur={(e) => e.target.value !== s.booking_slug && save({ booking_slug: e.target.value })} />
-          </Field>
-          <Field name="Button color" width={110}>
-            <input className="dg-input" type="color" defaultValue={s.accent_color} onBlur={(e) => save({ accent_color: e.target.value })} style={{ height: 34, padding: 2 }} />
-          </Field>
-        </div>
-        {data.funnel_urls.length > 0 && (
-          <div style={{ ...note, marginTop: 8 }}>Funnel booking pages: {data.funnel_urls.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" style={{ color: "#6ab0ff", marginRight: 10 }}>{u.split("/lp/")[1]}</a>)}</div>
-        )}
-      </Section>
+            <div style={{ ...note, marginTop: 8 }}>
+              {s.enabled
+                ? "Live: the funnel's Book button, the client portal and the AI agents all use this link."
+                : ready ? "Everything's set. Check availability on the Overview tab, then Turn on."
+                : "The link won't open for patients until it's turned on."}
+              {data.funnel_urls.length > 0 && <> Funnel pages: {data.funnel_urls.map((u) => <a key={u} href={u} target="_blank" rel="noreferrer" style={{ color: "#6ab0ff", marginRight: 8 }}>{u.split("/lp/")[1]}</a>)}</>}
+            </div>
+          </div>
+        );
+      })()}
 
-      <FunnelCard funnel={data.funnel} />
-      <CalendarSection data={data} google={google} save={save} busy={busy} />
-      <HoursSection data={data} clientId={clientId} run={run} busy={busy} />
-      <OverridesSection data={data} clientId={clientId} run={run} busy={busy} />
-      <EventTypesSection data={data} clientId={clientId} run={run} reload={load} busy={busy} />
-      <PageDetailsSection data={data} clientId={clientId} save={save} run={run} busy={busy} />
-      <PaymentsSection data={data} clientId={clientId} save={save} run={run} reload={load} busy={busy} />
-      <PreviewSection data={data} clientId={clientId} />
-      <BookingsSection clientId={clientId} />
+      <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: "1px solid rgba(58,123,213,0.12)", overflowX: "auto" }}>
+        {BOOKING_TABS.map(([id, name]) => (
+          <button key={id} onClick={() => setTab(id)} style={{
+            background: "none", border: "none", cursor: "pointer", padding: "9px 14px", whiteSpace: "nowrap",
+            fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
+            color: tab === id ? "#6ab0ff" : "#5a7aa0",
+            borderBottom: `2px solid ${tab === id ? "#3a7bd5" : "transparent"}`, marginBottom: -1,
+          }}>{name}</button>
+        ))}
+      </div>
+
+      {tab === "overview" && (
+        <>
+          <FunnelCard funnel={data.funnel} />
+          <PreviewSection data={data} clientId={clientId} />
+          <BookingsSection clientId={clientId} />
+        </>
+      )}
+      {tab === "schedule" && (
+        <>
+          <CalendarSection data={data} google={google} save={save} busy={busy} />
+          <HoursSection data={data} clientId={clientId} run={run} busy={busy} />
+          <OverridesSection data={data} clientId={clientId} run={run} busy={busy} />
+        </>
+      )}
+      {tab === "visits" && (
+        <>
+          <EventTypesSection data={data} clientId={clientId} run={run} reload={load} busy={busy} />
+          <PaymentsSection data={data} clientId={clientId} save={save} run={run} reload={load} busy={busy} />
+        </>
+      )}
+      {tab === "page" && (
+        <>
+          <Section title="Link and look">
+            <div style={row}>
+              <Field name="Link name">
+                <input className="dg-input" defaultValue={s.booking_slug} onBlur={(e) => e.target.value !== s.booking_slug && save({ booking_slug: e.target.value })} />
+              </Field>
+              <Field name="Button color" width={110}>
+                <input className="dg-input" type="color" defaultValue={s.accent_color} onBlur={(e) => save({ accent_color: e.target.value })} style={{ height: 34, padding: 2 }} />
+              </Field>
+            </div>
+          </Section>
+          <PageDetailsSection data={data} clientId={clientId} save={save} run={run} busy={busy} />
+        </>
+      )}
     </div>
   );
 }
@@ -311,7 +355,12 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
     }>
       <div style={{ ...note, marginBottom: 10, color: data.page_autofill_running ? "#6ab0ff" : "#6f88ad" }}>
         {data.page_autofill_running ? "Pulling the therapist, photo, reviews and visit details from the client portal, their website and their funnel..."
-          : s.page_autofill_note ? <>Auto-filled {s.page_autofilled_at ? new Date(s.page_autofilled_at).toLocaleDateString() : ""}: {s.page_autofill_note}</>
+          : s.page_autofill_note ? (
+            <details>
+              <summary style={{ cursor: "pointer" }}>Auto-filled {s.page_autofilled_at ? new Date(s.page_autofilled_at).toLocaleDateString() : ""} from the portal, website and funnel (show notes)</summary>
+              <div style={{ marginTop: 6 }}>{s.page_autofill_note}</div>
+            </details>
+          )
           : "Fills itself from the client portal, their website and their funnel. Reviews are only ever copied word for word."}
       </div>
       <div style={row}>
@@ -383,7 +432,7 @@ function CalendarSection({ data, google, save, busy }) {
   const readable = (google?.calendars || []).filter((c) => c.id !== s.calendar_id);
   const current = (google?.calendars || []).find((c) => c.id === s.calendar_id);
   return (
-    <Section title="1 · Clinic calendar">
+    <Section title="Clinic calendar">
       {!google ? <div style={note}>Checking Google…</div> : !google.ok ? (
         <div style={{ ...note, color: "#ff8a8a" }}>Can't reach Google Calendar: {google.error}</div>
       ) : (
@@ -441,7 +490,7 @@ function HoursSection({ data, clientId, run, busy }) {
   useEffect(() => { setBlocks(data.hours.map((x) => ({ ...x, start_time: t5(x.start_time), end_time: t5(x.end_time) }))); }, [data.hours]);
   const set = (i, patch) => setBlocks((b) => b.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   return (
-    <Section title="2 · New patient hours" right={
+    <Section title="New patient hours" right={
       <button className="btn btn-primary" disabled={busy} onClick={() => run(() => call(`/clients/${clientId}/booking/hours`, { method: "PUT", body: JSON.stringify({ hours: blocks }) }), "Hours saved")}>Save hours</button>
     }>
       <div style={{ ...note, marginBottom: 8 }}>When new patients can book, in the clinic's timezone. Add two blocks on a day to skip lunch.</div>
@@ -476,7 +525,7 @@ function OverridesSection({ data, clientId, run, busy }) {
   useEffect(() => { setRows(data.overrides.map(norm)); }, [data.overrides]);
   const set = (i, patch) => setRows((r) => r.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   return (
-    <Section title="3 · Days off & special hours" right={
+    <Section title="Days off & special hours" right={
       <button className="btn btn-primary" disabled={busy} onClick={() => run(() => call(`/clients/${clientId}/booking/overrides`, { method: "PUT", body: JSON.stringify({ overrides: rows }) }), "Days off saved")}>Save</button>
     }>
       {rows.length === 0 && <div style={note}>None. Holidays, vacations or one-off hours go here.</div>}
@@ -544,7 +593,7 @@ function EventTypesSection({ data, clientId, run, reload, busy }) {
     if (r) reload();
   };
   return (
-    <Section title="4 · Appointment types" right={!editing && <button className="btn btn-secondary" onClick={() => setEditing({ ...EMPTY_EVENT, id: null })}>+ New</button>}>
+    <Section title="Appointment types" right={!editing && <button className="btn btn-secondary" onClick={() => setEditing({ ...EMPTY_EVENT, id: null })}>+ New</button>}>
       {data.event_types.length === 0 && !editing && <div style={note}>None yet. Add the visit patients book (e.g. New Patient Assessment).</div>}
       {data.event_types.map((ev) => (
         <div key={ev.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid rgba(58,123,213,0.08)", opacity: ev.active ? 1 : 0.5 }}>
@@ -633,7 +682,7 @@ function PaymentsSection({ data, clientId, save, run, reload, busy }) {
     // eslint-disable-next-line
   }, [clientId, s.stripe_account_id]);
   return (
-    <Section title="5 · Payments (Stripe)">
+    <Section title="Payments (Stripe)">
       {!data.stripe_platform_configured ? (
         <div style={{ ...note, color: "#f0a028" }}>
           Stripe platform not set up yet: add <code>STRIPE_SECRET_KEY</code> (your Stripe account with Connect enabled) and
@@ -692,7 +741,7 @@ function PreviewSection({ data, clientId }) {
   if (!data.event_types.length) return null;
   const fmt = (iso, tz) => new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(iso));
   return (
-    <Section title="6 · Check availability" right={
+    <Section title="Check availability" right={
       <div style={{ display: "flex", gap: 6 }}>
         <select className="dg-input" value={eventId} onChange={(e) => setEventId(e.target.value)}>{data.event_types.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}</select>
         <button className="btn btn-secondary" onClick={load}>Show next 7 days</button>

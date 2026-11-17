@@ -47,9 +47,15 @@ export default function BookingPanel() {
   if (selected) {
     return (
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 24 }}>
-        <button className="btn btn-secondary" onClick={() => { setSelected(null); load(); }} style={{ marginBottom: 14 }}>← All booking links</button>
-        <div className="sec-label">Booking Links</div>
-        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#e8f0ff", margin: "4px 0 14px" }}>{selected.name}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, fontSize: 12.5 }}>
+          <button onClick={() => { setSelected(null); load(); }}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#6ab0ff", fontFamily: "inherit", fontSize: 12.5 }}>
+            ← Booking Links
+          </button>
+          <span style={{ color: "#3a5a80" }}>/</span>
+          <span style={{ color: "#8aaad0" }}>{selected.name}</span>
+        </div>
+        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", color: "#f0f4ff", margin: "0 0 16px" }}>{selected.name}</h2>
         <ClientBookingSetup clientId={selected.id} />
       </div>
     );
@@ -62,21 +68,28 @@ export default function BookingPanel() {
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 24 }}>
-      <div className="sec-label">Booking Links</div>
-      <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#e8f0ff", margin: "4px 0 6px" }}>DigiGrowth Booking</h2>
-      <div style={{ ...note, marginBottom: 16 }}>
-        Our own booking pages for each clinic, replacing Calendly. Clinics share their Google Calendar with{" "}
-        <b style={{ color: "#d0e8ff" }}>{google ? (google.ok ? google.account : "— Google not reachable —") : "…"}</b>{" "}
-        ("Make changes to events"); patients book on the link, it lands on their calendar, and your reminders and follow-ups run as usual.
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>Booking Links</div>
+          <div style={{ ...note, marginTop: 4, maxWidth: 620 }}>
+            Each clinic's own booking page. Patients book on the link, it lands on the clinic's Google Calendar, and reminders and follow-ups run as usual.
+          </div>
+        </div>
+        <div title="Clinics share their Google Calendar with this account (Make changes to events)"
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999, fontSize: 11.5,
+            border: `1px solid ${google && !google.ok ? "rgba(224,90,90,0.4)" : "rgba(58,123,213,0.25)"}`, background: "rgba(58,123,213,0.08)", color: "#9cc4f5" }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: google ? (google.ok ? "#14c882" : "#e05a5a") : "#5a7aa0" }} />
+          Calendars shared with {google ? (google.ok ? google.account : "(Google not reachable)") : "…"}
+        </div>
       </div>
 
       {err && <div style={{ color: "#ff8a8a", fontSize: 12, marginBottom: 12 }}>{err}</div>}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 18 }}>
-        {[["Live links", live], ["Upcoming bookings", upcomingTotal], ["Booked (30 days)", booked30]].map(([k, v]) => (
-          <div key={k} className="stat-card" style={{ padding: 14 }}>
+        {[["Live links", live, "#14c882"], ["Upcoming bookings", upcomingTotal, "#6ab0ff"], ["Booked (30 days)", booked30, "#a080f0"]].map(([k, v, c]) => (
+          <div key={k} className="stat-card" style={{ padding: "14px 18px", borderLeft: `3px solid ${c}`, display: "block" }}>
             <div style={{ ...mono, fontSize: 10, color: "#5a7aa0", letterSpacing: "0.1em", textTransform: "uppercase" }}>{k}</div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#e8f0ff" }}>{data ? v : "—"}</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, color: "#f0f4ff", marginTop: 4 }}>{data ? v : "—"}</div>
           </div>
         ))}
       </div>
@@ -90,17 +103,27 @@ export default function BookingPanel() {
         {clients.map((c) => {
           const [label, color] = statusOf(c);
           return (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", borderTop: "1px solid rgba(58,123,213,0.1)", flexWrap: "wrap" }}>
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 6px", borderTop: "1px solid rgba(58,123,213,0.1)", flexWrap: "wrap" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, display: "grid", placeItems: "center",
+                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#fff",
+                background: `linear-gradient(135deg, ${color}, rgba(40,87,160,0.9))` }}>{c.name.trim().charAt(0)}</div>
               <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600, color: "#d0e8ff" }}>{c.name}{c.status !== "active" && <span style={{ ...note, marginLeft: 6 }}>({c.status})</span>}</div>
-                <div style={note}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#e8f0ff" }}>{c.name}{c.status !== "active" && <span style={{ ...note, marginLeft: 6 }}>({c.status})</span>}</div>
+                <div style={{ ...note, marginTop: 2 }}>
                   {c.public_url ? (
                     <>
                       <a href={c.public_url} target="_blank" rel="noreferrer" style={{ color: "#6ab0ff" }}>{c.public_url.replace(/^https?:\/\//, "")}</a>
                       <button onClick={() => copy(c.public_url)} style={{ background: "none", border: "none", color: "#5a7aa0", cursor: "pointer", fontSize: 11, marginLeft: 6 }}>{copied === c.public_url ? "copied" : "copy"}</button>
                     </>
                   ) : "No booking link yet"}
-                  {c.missing.length > 0 && <span style={{ color: "#f0a028" }}> · needs: {c.missing.join(", ")}</span>}
+                  {c.missing.length > 0 && (
+                    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap", marginLeft: 8, verticalAlign: "middle" }}>
+                      {c.missing.map((m) => (
+                        <span key={m} style={{ fontSize: 10.5, padding: "1px 8px", borderRadius: 999, color: "#f0c078",
+                          border: "1px solid rgba(240,160,40,0.35)", background: "rgba(240,160,40,0.08)" }}>needs {m}</span>
+                      ))}
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{ ...note, width: 170 }}>
