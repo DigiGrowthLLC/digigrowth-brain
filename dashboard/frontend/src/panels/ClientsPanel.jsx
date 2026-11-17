@@ -191,7 +191,7 @@ function ClientOverview({ client, cs, setup, onGoTab }) {
   if (!client.booking_notification_enabled) warnings.push("Booking texts to the client are off.");
   if (client.token_revoked_at) warnings.push("Their portal link is revoked.");
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
       {warnings.length > 0 && (
         <Card pad={14} style={{ borderColor: "rgba(242,173,61,0.35)" }}>
           {warnings.map((w) => <div key={w} style={{ fontSize: 13, color: T.warn, padding: "2px 0" }}>• {w}</div>)}
@@ -260,7 +260,7 @@ function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDele
   const menuItem = { display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "9px 14px", fontSize: 13, color: T.text, cursor: "pointer", fontFamily: T.font };
 
   return (
-    <div style={{ display: "grid", gap: 18 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 18 }}>
       <button onClick={onBack} style={{ justifySelf: "start", background: "none", border: "none", padding: 0, cursor: "pointer", color: "#8fb8ff", fontSize: 13, fontWeight: 600 }}>← All clients</button>
       <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
         <Avatar client={client} size={52} />

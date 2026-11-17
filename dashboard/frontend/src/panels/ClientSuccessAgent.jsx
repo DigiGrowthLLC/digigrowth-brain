@@ -144,7 +144,7 @@ export default function ClientSuccessAgent({ clientId }) {
   const lqSum = lq.summary[0];
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
       {/* Status */}
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>

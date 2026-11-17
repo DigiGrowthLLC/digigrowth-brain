@@ -121,7 +121,7 @@ export default function TodoPanel() {
 
   return (
     <div className="px-4 py-4 sm:px-8 sm:py-7" style={{ flex: 1, overflowY: "auto" }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", display: "grid", gap: 18 }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 18 }}>
         <PageHeader title="To-Do" subtitle={todos ? `${todos.length} open task${todos.length !== 1 ? "s" : ""}` : "Loading…"} />
 
         <Card pad={0}>

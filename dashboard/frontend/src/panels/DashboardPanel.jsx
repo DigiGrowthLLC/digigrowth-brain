@@ -254,7 +254,7 @@ export default function DashboardPanel({ onNavigate }) {
 
   return (
     <div className="px-4 py-4 sm:px-8 sm:py-7" style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-      <div style={{ maxWidth: 1240, margin: "0 auto", display: "grid", gap: 18 }}>
+      <div style={{ maxWidth: 1240, margin: "0 auto", display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 18 }}>
         <PageHeader
           title={`${greeting}, Dylan`}
           subtitle={today}
