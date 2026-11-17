@@ -58,6 +58,9 @@ class CreateRequest(BaseModel):
 class ChatRequest(BaseModel):
     messages: list = []
     timezone: str | None = None
+    # Which entry point the demo is playing (website, meta_lead, reactivation,
+    # missed_call). Only a key: blueprint_chat.py owns the prompt text.
+    scenario: str | None = None
 
 
 class HeroPresignRequest(BaseModel):
@@ -314,8 +317,9 @@ async def landing_page_chat(slug: str, body: ChatRequest, request: Request):
         raise HTTPException(status_code=400, detail="No message to reply to")
 
     try:
-        text = await blueprint_chat.reply(
+        text, events = await blueprint_chat.reply(
             row["business"] or "the practice", row["chat_context"], body.timezone, history,
+            scenario=body.scenario or "website", opener=blueprint_chat.opening_text(body.messages),
         )
     except Exception as e:
         print(f"[landing_pages] chat failed for {slug}: {e}")
@@ -323,7 +327,8 @@ async def landing_page_chat(slug: str, body: ChatRequest, request: Request):
     # "replies" = the separate texts the agent wrote (answer, then the next
     # question); the page shows each as its own bubble. "reply" keeps the
     # joined text for the transcript the browser sends back next turn.
-    return {"reply": text, "replies": blueprint_chat.split_texts(text)}
+    # "events" = simulated actions (booked, escalated ...) shown as notes.
+    return {"reply": text, "replies": blueprint_chat.split_texts(text), "events": events}
 
 
 @router.get("/lp/{slug}/book", include_in_schema=False)

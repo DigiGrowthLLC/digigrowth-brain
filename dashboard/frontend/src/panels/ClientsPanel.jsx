@@ -8,6 +8,8 @@ import { API } from "../api.js";
 import { SECTIONS } from "../onboardingSections.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
 import ClientSetup from "./ClientSetup.jsx";
+import ClientSuccessAgent from "./ClientSuccessAgent.jsx";
+import { T, Card, PageHeader, SectionTitle, Tabs, Pill, Stat, Progress, Empty, Loading, HealthBadge, fmtDate, inputStyle } from "../ui.jsx";
 
 function OnboardingAnswers({ clientId }) {
   const [detail, setDetail] = useState(null);
@@ -99,29 +101,15 @@ function OnboardingAnswers({ clientId }) {
   );
 }
 
-// The Details panel's sub-tabs — replaces what used to be 5 separate
-// toggle buttons (Onboarding/Checklist/Sequences/Requests/Uploads), each
-// with its own always-mounted-when-open panel. One toggle, one panel,
-// pick which sub-view with a small pill row inside it.
-const DETAILS_TABS = [
-  { id: "setup", label: "Setup" },
-  { id: "agents", label: "Agents & Messages" },
-  { id: "info", label: "Client Info" },
-  { id: "finance", label: "Finance" },
-];
-
-// A titled block inside a Details tab, so tabs that stack several views
-// (Agents & Messages, Client Info) read as clear sections.
+// A titled block inside a client page tab (Client info, Setup's To Do).
 function DetailsSection({ title, collapsible, children }) {
   const [open, setOpen] = useState(!collapsible);
   return (
-    <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)" }}>
+    <div style={{ borderTop: `1px solid ${T.line}` }}>
       <div onClick={collapsible ? () => setOpen((o) => !o) : undefined}
-        style={{ padding: "12px 16px 0", display: "flex", alignItems: "center", gap: 8, cursor: collapsible ? "pointer" : "default" }}>
-        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#9cc4f5" }}>
-          {title.toUpperCase()}
-        </span>
-        {collapsible && <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: "#3a5a80" }}>{open ? "▾" : "▸"}</span>}
+        style={{ padding: "16px 20px 4px", display: "flex", alignItems: "center", gap: 8, cursor: collapsible ? "pointer" : "default" }}>
+        <span style={{ fontFamily: T.display, fontSize: 15, fontWeight: 600, color: T.text }}>{title}</span>
+        {collapsible && <span style={{ fontSize: 12, color: T.textMute }}>{open ? "▾" : "▸"}</span>}
       </div>
       {open && children}
       {collapsible && !open && <div style={{ height: 12 }} />}
@@ -129,221 +117,229 @@ function DetailsSection({ title, collapsible, children }) {
   );
 }
 
-const AVATAR_COLORS = ["#3a7bd5", "#14c882", "#8b6cf0", "#f0a028", "#22b8cf", "#e84393"];
+// ── Client list + client page (2026-11-17 redesign) ─────────────────────────
+// The list is a grid of client cards (health, campaign, setup progress at a
+// glance); opening one replaces the list with a full client page whose tabs
+// replace the old expand-in-place Details panel.
+const DETAIL_TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "setup", label: "Setup" },
+  { id: "agents", label: "Agents" },
+  { id: "messages", label: "Messages" },
+  { id: "info", label: "Client info" },
+  { id: "finance", label: "Finance" },
+];
+
+const AVATAR_COLORS = ["#4d8ef0", "#2fd08f", "#8b6cf0", "#f2ad3d", "#22b8cf", "#e84393"];
 const avatarColor = (id) => AVATAR_COLORS[(Number(id) || 0) % AVATAR_COLORS.length];
 
-function ClientRow({ client, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact }) {
-  const [copied, setCopied] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [detailsTab, setDetailsTab] = useState("setup");
-  const [showMenu, setShowMenu] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
-  const menuButtonRef = useRef(null);
-  const [linking, setLinking] = useState(false);
-  const [pendingContact, setPendingContact] = useState(null);
-  const [savingLink, setSavingLink] = useState(false);
-  const [setup, setSetup] = useState(null);
-  useEffect(() => {
-    fetch(API(`/clients/${client.id}/setup`)).then((r) => (r.ok ? r.json() : null)).then(setSetup).catch(() => {});
-    // Re-read when the details close, so ticks made inside show on the bar.
-  }, [client.id, showDetails]);
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(client.portal_url).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  };
-
-  const saveLink = async () => {
-    setSavingLink(true);
-    await onLinkContact(client.id, pendingContact?.id || null);
-    setSavingLink(false);
-    setLinking(false);
-    setPendingContact(null);
-  };
-
-  const revoked = !!client.token_revoked_at;
-
+function Avatar({ client, size = 40 }) {
   return (
-    <div style={{ borderRadius: 14, marginBottom: 10, border: `1px solid ${showDetails ? "rgba(58,123,213,0.3)" : "rgba(58,123,213,0.1)"}`,
-      background: showDetails ? "rgba(58,123,213,0.05)" : "rgba(255,255,255,0.02)", transition: "border-color 0.15s, background 0.15s" }}>
-      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0, display: "grid", placeItems: "center",
-          fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff",
-          background: `linear-gradient(135deg, ${avatarColor(client.id)}, rgba(40,87,160,0.9))`,
-          boxShadow: "0 6px 16px -8px rgba(58,123,213,0.8)" }}>
-          {(client.name || "?").trim().charAt(0)}
-        </div>
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 15, color: "#e8f0ff" }}>
-              {client.name}
-            </span>
-            <span title={client.status} style={{ width: 8, height: 8, borderRadius: "50%",
-              background: client.status === "active" ? "#14c882" : client.status === "paused" ? "#f0a028" : "#5a6f8f",
-              boxShadow: client.status === "active" ? "0 0 6px rgba(20,200,130,0.8)" : "none" }} />
-            {client.is_test && (
-              <span className="badge badge-blue" title="Only this client's portal can use DigiGrowth's real shared Twilio credentials (calling, SMS send).">TEST CLIENT</span>
-            )}
-            {revoked && <span className="badge badge-red">TOKEN REVOKED</span>}
-            {!client.booking_notification_enabled && (
-              <span className="badge badge-gray" title="This client will not receive an SMS when a new appointment is booked for their lead">BOOKING SMS OFF</span>
-            )}
-            {!client.linked_contact && (
-              <span className="badge badge-amber" title="No contact linked: the next-morning onboarding email/SMS has nothing to send for this client">NO CONTACT LINKED</span>
-            )}
-          </div>
-          <div style={{ fontSize: 12, color: "#7f9cc4", marginTop: 4 }}>
-            {client.linked_contact?.owner || client.contact_name || "No contact set"}
-            <span style={{ color: "#3a5a80" }}> · </span>Onboarding {client.onboarding_progress}
-          </div>
-          {setup && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7, maxWidth: 320 }}
-              title={`Marketing Setup: ${setup.done} of ${setup.total} steps done`}>
-              <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(58,123,213,0.15)", overflow: "hidden" }}>
-                <div style={{ width: `${Math.round((setup.done / Math.max(1, setup.total)) * 100)}%`, height: "100%",
-                  background: setup.done >= setup.total ? "#14c882" : "linear-gradient(90deg, #2857a0, #6ab0ff)" }} />
-              </div>
-              <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", whiteSpace: "nowrap" }}>
-                SETUP {setup.done}/{setup.total}
-              </span>
-            </div>
-          )}
-        </div>
-
-        <button className={showDetails ? "btn btn-secondary" : "btn btn-primary"} style={{ fontSize: 10.5 }} onClick={() => setShowDetails((s) => !s)}>
-          {showDetails ? "CLOSE" : "OPEN"}
-        </button>
-        <a href={client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ fontSize: 10.5, textDecoration: "none" }}>
-          PORTAL ↗
-        </a>
-
-        <button
-          ref={menuButtonRef}
-          className="btn btn-secondary"
-          style={{ fontSize: 10, padding: "6px 10px" }}
-          onClick={() => {
-            if (!showMenu && menuButtonRef.current) {
-              const r = menuButtonRef.current.getBoundingClientRect();
-              setMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right });
-            }
-            setShowMenu((s) => !s);
-          }}
-          title="More actions"
-        >
-          ⋯
-        </button>
-        {showMenu && createPortal(
-          <>
-            <div style={{ position: "fixed", inset: 0, zIndex: 1000 }} onClick={() => setShowMenu(false)} />
-            <div style={{
-              position: "fixed", top: menuPos.top, right: menuPos.right, zIndex: 1001,
-              background: "#0d1a3a", border: "1px solid rgba(58,123,213,0.25)", borderRadius: 8,
-              minWidth: 160, overflow: "hidden", boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
-            }}>
-              <button onClick={() => { copyLink(); setShowMenu(false); }} style={menuItemStyle}>
-                {copied ? "Copied" : "Copy Portal Link"}
-              </button>
-              <button onClick={() => { onEdit(client); setShowMenu(false); }} style={menuItemStyle}>
-                Edit Client
-              </button>
-              <button
-                onClick={() => { setPendingContact(client.linked_contact || null); setLinking((s) => !s); setShowMenu(false); }}
-                style={menuItemStyle}
-              >
-                {linking ? "Cancel Linking" : "Link Contact"}
-              </button>
-              {revoked ? (
-                <button onClick={() => { onRegenerate(client.id); setShowMenu(false); }} style={menuItemStyle}>
-                  Regenerate Token
-                </button>
-              ) : (
-                <button onClick={() => { onRevoke(client.id); setShowMenu(false); }} style={menuItemStyle}>
-                  Revoke Token
-                </button>
-              )}
-              <button
-                onClick={() => { onDelete(client.id); setShowMenu(false); }}
-                style={{ ...menuItemStyle, color: "#e05c5c" }}
-              >
-                Delete Client
-              </button>
-            </div>
-          </>,
-          document.body
-        )}
-      </div>
-      {linking && (
-        <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-          <ContactPicker selected={pendingContact} onSelect={setPendingContact} />
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button className="btn btn-primary" style={{ fontSize: 11 }} onClick={saveLink} disabled={savingLink}>
-              {savingLink ? "SAVING…" : "SAVE LINK"}
-            </button>
-          </div>
-        </div>
-      )}
-      {showDetails && (
-        <div>
-          <div style={{ display: "flex", gap: 6, padding: "10px 16px 0", borderTop: "1px solid rgba(58,123,213,0.1)", overflowX: "auto" }}>
-            {DETAILS_TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setDetailsTab(t.id)}
-                style={{
-                  background: detailsTab === t.id ? "rgba(58,123,213,0.14)" : "transparent",
-                  border: detailsTab === t.id ? "1px solid rgba(58,123,213,0.3)" : "1px solid transparent",
-                  borderRadius: 999, cursor: "pointer", padding: "5px 12px", flexShrink: 0,
-                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
-                  color: detailsTab === t.id ? "#9cc4f5" : "#5a7aa0",
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          {detailsTab === "setup" && (
-            <>
-              <ClientSetup clientId={client.id} onGoTab={setDetailsTab} />
-              <DetailsSection title="Client's To Do (what they see in their portal)" collapsible>
-                <ClientLaunchChecklist clientId={client.id} />
-              </DetailsSection>
-            </>
-          )}
-          {detailsTab === "agents" && (
-            <>
-              <DetailsSection title="AI agents"><ClientAgentSetup clientId={client.id} /></DetailsSection>
-              <DetailsSection title="Messages (confirmation, reminders, no-show, cancellation, follow-up)"><ClientSequences clientId={client.id} /></DetailsSection>
-            </>
-          )}
-          {detailsTab === "info" && (
-            <>
-              <DetailsSection title="Onboarding answers"><OnboardingAnswers clientId={client.id} /></DetailsSection>
-              <DetailsSection title="Requests"><ClientRequests clientId={client.id} /></DetailsSection>
-              <DetailsSection title="Uploads"><ClientUploads clientId={client.id} /></DetailsSection>
-              <DetailsSection title="Resources and logins"><ClientResources clientId={client.id} /></DetailsSection>
-            </>
-          )}
-          {detailsTab === "finance" && <ClientFinance clientId={client.id} />}
-        </div>
-      )}
+    <div style={{ width: size, height: size, borderRadius: size * 0.3, flexShrink: 0, display: "grid", placeItems: "center",
+      fontFamily: T.display, fontWeight: 700, fontSize: size * 0.42, color: "#fff",
+      background: `linear-gradient(135deg, ${avatarColor(client.id)}, rgba(40,87,160,0.9))` }}>
+      {(client.name || "?").trim().charAt(0)}
     </div>
   );
 }
 
-const menuItemStyle = {
-  display: "block", width: "100%", textAlign: "left", padding: "9px 14px",
-  background: "none", border: "none", cursor: "pointer",
-  fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#c4d0e8",
-};
+function campaignLine(cs) {
+  if (!cs || cs.state === "not_launched") return "Campaign not live yet";
+  if (cs.state === "ended") return `Campaign ended ${fmtDate(cs.ends_at)}`;
+  return `Week ${cs.week} · day ${cs.days_elapsed} of ${cs.length_days}`;
+}
 
-// Search-and-pick widget for linking the CRM contact/prospect this client's
-// deal actually came from. Points contacts.client_id at the client once
-// selected (create_client / link-contact endpoints) — this is what
-// onboarding_sequence.py's next-morning follow-up resolves to find which
-// client's portal link to send, so a client with no contact linked never
-// gets that email/SMS sent for it.
+function ClientCard({ client, cs, setup, onOpen }) {
+  const flags = [];
+  if (client.is_test) flags.push(<Pill key="t" tone="info">Test</Pill>);
+  if (client.token_revoked_at) flags.push(<Pill key="r" tone="bad">Portal revoked</Pill>);
+  if (!client.linked_contact) flags.push(<Pill key="c" tone="warn">No contact</Pill>);
+  if (cs?.open_questions > 0) flags.push(<Pill key="q" tone="info">{cs.open_questions} question{cs.open_questions > 1 ? "s" : ""}</Pill>);
+  return (
+    <Card pad={18} onClick={onOpen} style={{ display: "grid", gap: 14, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <Avatar client={client} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <span style={{ fontFamily: T.display, fontWeight: 600, fontSize: 15.5, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{client.name}</span>
+            <span title={client.status} style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+              background: client.status === "active" ? T.good : client.status === "paused" ? T.warn : "#5a6f8f" }} />
+          </div>
+          <div style={{ fontSize: 12.5, color: T.textMute, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {client.linked_contact?.owner || client.contact_name || "No contact set"} · {client.service_package === "foundations" ? "Foundations" : "Growth"}
+          </div>
+        </div>
+        <HealthBadge health={cs?.health} compact />
+      </div>
+      <div style={{ display: "grid", gap: 6 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: T.textDim }}>
+          <span>{campaignLine(cs)}</span>
+          {setup && <span style={{ color: setup.done >= setup.total ? T.good : T.textMute }}>Setup {setup.done}/{setup.total}</span>}
+        </div>
+        {setup && <Progress value={setup.done} max={setup.total} tone={setup.done >= setup.total ? "good" : "info"} height={5} />}
+      </div>
+      {flags.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{flags}</div>}
+    </Card>
+  );
+}
+
+function ClientOverview({ client, cs, setup, onGoTab }) {
+  const next = setup?.steps?.find((s) => !s.done);
+  const waiting = (cs?.finals_waiting || 0) + (cs?.checkins_waiting || 0) + (cs?.open_questions || 0);
+  const warnings = [];
+  if (!client.linked_contact) warnings.push("No contact linked: onboarding emails and texts have nobody to go to.");
+  if (!client.booking_notification_enabled) warnings.push("Booking texts to the client are off.");
+  if (client.token_revoked_at) warnings.push("Their portal link is revoked.");
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      {warnings.length > 0 && (
+        <Card pad={14} style={{ borderColor: "rgba(242,173,61,0.35)" }}>
+          {warnings.map((w) => <div key={w} style={{ fontSize: 13, color: T.warn, padding: "2px 0" }}>• {w}</div>)}
+        </Card>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+        <Card>
+          <SectionTitle title="Campaign" right={<HealthBadge health={cs?.health} />} />
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+            <Stat label="Status" value={!cs || cs.state === "not_launched" ? "Not live" : cs.state === "ended" ? "Ended" : `Week ${cs.week}`} sub={campaignLine(cs)} />
+            <Stat label="Bookings goal" value={cs?.goal ?? "–"} sub={`${cs?.length_days || 30}-day campaign`} />
+          </div>
+          {cs && cs.state !== "not_launched" && <div style={{ marginTop: 14 }}><Progress value={cs.days_elapsed || 0} max={cs.length_days || 30} /></div>}
+        </Card>
+        <Card onClick={() => onGoTab("setup")}>
+          <SectionTitle title="Setup" right={setup && <Pill tone={setup.done >= setup.total ? "good" : "info"}>{setup.done}/{setup.total}</Pill>} />
+          {setup ? <Progress value={setup.done} max={setup.total} tone={setup.done >= setup.total ? "good" : "info"} /> : <Loading />}
+          <div style={{ fontSize: 13, color: T.textDim, marginTop: 12 }}>
+            {next ? <>Next: <span style={{ color: T.text }}>{next.title}</span></> : "Everything is set up."}
+          </div>
+        </Card>
+        <Card onClick={() => onGoTab("agents")} style={waiting ? { borderColor: "rgba(242,173,61,0.35)" } : undefined}>
+          <SectionTitle title="Client success" right={waiting ? <Pill tone="warn">{waiting} waiting</Pill> : <Pill tone="good">All clear</Pill>} />
+          <div style={{ display: "grid", gap: 6, fontSize: 13, color: T.textDim }}>
+            <span>{cs?.reports || 0} report{cs?.reports === 1 ? "" : "s"} sent or drafted</span>
+            {cs?.finals_waiting > 0 && <span style={{ color: T.warn }}>Final report waiting for your approval</span>}
+            {cs?.checkins_waiting > 0 && <span style={{ color: T.warn }}>Onboarding check-in waiting for your approval</span>}
+            {cs?.open_questions > 0 && <span style={{ color: T.warn }}>{cs.open_questions} client question{cs.open_questions > 1 ? "s" : ""} to answer</span>}
+          </div>
+        </Card>
+      </div>
+      <Card>
+        <SectionTitle title="Contact" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, fontSize: 13.5 }}>
+          <div><div style={{ fontSize: 12, color: T.textMute }}>Owner</div><div style={{ color: T.text }}>{client.linked_contact?.owner || client.contact_name || "–"}</div></div>
+          <div><div style={{ fontSize: 12, color: T.textMute }}>Email</div><div style={{ color: T.text, wordBreak: "break-all" }}>{client.email || "–"}</div></div>
+          <div><div style={{ fontSize: 12, color: T.textMute }}>Phone</div><div style={{ color: T.text }}>{client.phone || "–"}</div></div>
+          <div><div style={{ fontSize: 12, color: T.textMute }}>Onboarding form</div><div style={{ color: T.text }}>{client.onboarding_progress}</div></div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact, reloadCs }) {
+  const [tab, setTab] = useState("overview");
+  const [setup, setSetup] = useState(null);
+  const [menu, setMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [pendingContact, setPendingContact] = useState(null);
+  const [savingLink, setSavingLink] = useState(false);
+
+  useEffect(() => {
+    fetch(API(`/clients/${client.id}/setup`)).then((r) => (r.ok ? r.json() : null)).then(setSetup).catch(() => {});
+  }, [client.id, tab]);
+  useEffect(() => { reloadCs?.(); /* eslint-disable-next-line */ }, [tab]);
+
+  const copyLink = () => navigator.clipboard.writeText(client.portal_url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); });
+  const revoked = !!client.token_revoked_at;
+  const waiting = (cs?.finals_waiting || 0) + (cs?.checkins_waiting || 0) + (cs?.open_questions || 0);
+  const tabs = DETAIL_TABS.map((t) => (
+    t.id === "setup" && setup ? { ...t, count: setup.total - setup.done || null } :
+    t.id === "agents" && waiting ? { ...t, count: waiting, alert: true } : t
+  ));
+  const menuItem = { display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "9px 14px", fontSize: 13, color: T.text, cursor: "pointer", fontFamily: T.font };
+
+  return (
+    <div style={{ display: "grid", gap: 18 }}>
+      <button onClick={onBack} style={{ justifySelf: "start", background: "none", border: "none", padding: 0, cursor: "pointer", color: "#8fb8ff", fontSize: 13, fontWeight: 600 }}>← All clients</button>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <Avatar client={client} size={52} />
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <h1 style={{ fontFamily: T.display, fontSize: 26, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>{client.name}</h1>
+            <Pill tone={client.status === "active" ? "good" : client.status === "paused" ? "warn" : "neutral"} dot>{client.status}</Pill>
+            {client.is_test && <Pill tone="info">Test client</Pill>}
+          </div>
+          <div style={{ fontSize: 13.5, color: T.textMute, marginTop: 4 }}>
+            {client.linked_contact?.owner || client.contact_name || "No contact"} · {client.service_package === "foundations" ? "Foundations" : "Growth"} package · {campaignLine(cs)}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", position: "relative" }}>
+          <a href={client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ textDecoration: "none" }}>Open portal ↗</a>
+          <button className="btn btn-secondary" onClick={copyLink}>{copied ? "Copied" : "Copy portal link"}</button>
+          <button className="btn btn-secondary" aria-label="More actions" onClick={() => setMenu((m) => !m)}>⋯</button>
+          {menu && (
+            <>
+              <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setMenu(false)} />
+              <div style={{ position: "absolute", top: 42, right: 0, zIndex: 41, minWidth: 190, borderRadius: 12, overflow: "hidden", background: "#0f1a3c", border: `1px solid ${T.lineStrong}`, boxShadow: "0 12px 32px rgba(0,0,0,.5)" }}>
+                <button style={menuItem} onClick={() => { onEdit(client); setMenu(false); }}>Edit client</button>
+                <button style={menuItem} onClick={() => { setPendingContact(client.linked_contact || null); setLinking(true); setMenu(false); }}>Link contact</button>
+                {revoked
+                  ? <button style={menuItem} onClick={() => { onRegenerate(client.id); setMenu(false); }}>Regenerate portal link</button>
+                  : <button style={menuItem} onClick={() => { onRevoke(client.id); setMenu(false); }}>Revoke portal link</button>}
+                <button style={{ ...menuItem, color: T.bad }} onClick={() => { onDelete(client.id); setMenu(false); }}>Delete client</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {linking && (
+        <Card>
+          <SectionTitle title="Link a CRM contact" hint="The person onboarding emails and texts go to." />
+          <ContactPicker selected={pendingContact} onSelect={setPendingContact} />
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+            <button className="btn btn-secondary" onClick={() => setLinking(false)}>Cancel</button>
+            <button className="btn btn-primary" disabled={savingLink} onClick={async () => {
+              setSavingLink(true); await onLinkContact(client.id, pendingContact?.id || null); setSavingLink(false); setLinking(false);
+            }}>{savingLink ? "Saving…" : "Save link"}</button>
+          </div>
+        </Card>
+      )}
+
+      <Tabs tabs={tabs} value={tab} onChange={setTab} />
+
+      <div>
+        {tab === "overview" && <ClientOverview client={client} cs={cs} setup={setup} onGoTab={setTab} />}
+        {tab === "setup" && (
+          <Card pad={0} style={{ overflow: "hidden" }}>
+            <ClientSetup clientId={client.id} onGoTab={(t) => setTab(t === "agents" ? "agents" : t === "info" ? "info" : t)} />
+            <DetailsSection title="Client's To Do (what they see in their portal)" collapsible>
+              <ClientLaunchChecklist clientId={client.id} />
+            </DetailsSection>
+          </Card>
+        )}
+        {tab === "agents" && <ClientAgentSetup clientId={client.id} />}
+        {tab === "messages" && (
+          <Card pad={0} style={{ overflow: "hidden" }}>
+            <div style={{ padding: "18px 20px 0" }}><SectionTitle title="Automatic messages" hint="Confirmation, reminders, no-show, cancellation and follow-up texts for this client's patients." /></div>
+            <ClientSequences clientId={client.id} />
+          </Card>
+        )}
+        {tab === "info" && (
+          <Card pad={0} style={{ overflow: "hidden" }}>
+            <DetailsSection title="Onboarding answers"><OnboardingAnswers clientId={client.id} /></DetailsSection>
+            <DetailsSection title="Requests"><ClientRequests clientId={client.id} /></DetailsSection>
+            <DetailsSection title="Uploads"><ClientUploads clientId={client.id} /></DetailsSection>
+            <DetailsSection title="Resources and logins"><ClientResources clientId={client.id} /></DetailsSection>
+          </Card>
+        )}
+        {tab === "finance" && <Card pad={0} style={{ overflow: "hidden" }}><ClientFinance clientId={client.id} /></Card>}
+      </div>
+    </div>
+  );
+}
+
 function ContactPicker({ selected, onSelect, disabled }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -615,7 +611,46 @@ const ACTION_ITEM_LINK_OPTIONS = [
 ];
 const ACTION_ITEM_LINK_LABELS = Object.fromEntries(ACTION_ITEM_LINK_OPTIONS.map((o) => [o.value, o.label]));
 
-function ActionItemRow({ item, onDelete }) {
+// Which client services an item belongs to (backend client_services.py).
+// None ticked = every client sees it; otherwise only clients with one of them.
+let _serviceOptions = null;
+function ServiceTags({ path, item, onChanged }) {
+  const [opts, setOpts] = useState(_serviceOptions || []);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (_serviceOptions) return;
+    fetch(API("/client-services")).then((r) => (r.ok ? r.json() : [])).then((d) => { _serviceOptions = d; setOpts(d); });
+  }, []);
+  const have = item.services || [];
+  const toggle = async (id) => {
+    setBusy(true);
+    await fetch(API(`${path}/${item.id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ services: have.includes(id) ? have.filter((x) => x !== id) : [...have, id] }),
+    });
+    setBusy(false);
+    onChanged();
+  };
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6, alignItems: "center" }}>
+      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.06em" }}>
+        {have.length ? "ONLY FOR:" : "EVERY CLIENT · LIMIT TO:"}
+      </span>
+      {opts.map((o) => {
+        const on = have.includes(o.id);
+        return (
+          <button key={o.id} disabled={busy} onClick={() => toggle(o.id)} title={o.hint} style={{
+            fontSize: 9.5, padding: "2px 7px", borderRadius: 999, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif",
+            border: on ? "1px solid rgba(74,222,128,0.5)" : "1px solid rgba(58,123,213,0.15)",
+            background: on ? "rgba(74,222,128,0.12)" : "transparent", color: on ? "#bff0d0" : "#3f5f88",
+          }}>{o.label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ActionItemRow({ item, onDelete, onChanged }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -633,6 +668,7 @@ function ActionItemRow({ item, onDelete }) {
             LINKS TO {item.link_url}
           </div>
         )}
+        <ServiceTags path="/action-items" item={item} onChanged={onChanged} />
       </div>
       <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(item.id)}>DELETE</button>
     </div>
@@ -725,7 +761,7 @@ function ActionItemsSection() {
         {!loading && items.length === 0 && (
           <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO STEPS YET</div>
         )}
-        {items.map((item) => <ActionItemRow key={item.id} item={item} onDelete={remove} />)}
+        {items.map((item) => <ActionItemRow key={item.id} item={item} onDelete={remove} onChanged={load} />)}
       </div>
     </div>
   );
@@ -748,7 +784,7 @@ const CHECKLIST_PHASE_OPTIONS = [
   { value: "prelaunch", label: "Prelaunch" },
 ];
 
-function ChecklistItemRow({ item, onDelete }) {
+function ChecklistItemRow({ item, onDelete, onChanged }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.02)", marginBottom: 6 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -756,6 +792,7 @@ function ChecklistItemRow({ item, onDelete }) {
         {item.description && (
           <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>{item.description}</div>
         )}
+        <ServiceTags path="/launch-checklist-items" item={item} onChanged={onChanged} />
       </div>
       <button className="btn btn-danger" style={{ fontSize: 10 }} onClick={() => onDelete(item.id)}>DELETE</button>
     </div>
@@ -851,7 +888,7 @@ function LaunchChecklistSection() {
               {!loading && phaseItems.length === 0 && (
                 <div style={{ padding: 20, textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52" }}>NO ITEMS YET</div>
               )}
-              {phaseItems.map((item) => <ChecklistItemRow key={item.id} item={item} onDelete={remove} />)}
+              {phaseItems.map((item) => <ChecklistItemRow key={item.id} item={item} onDelete={remove} onChanged={load} />)}
             </div>
           </div>
         );
@@ -3379,39 +3416,26 @@ function VoiceAgent({ clientId, config, onSaveFields }) {
 // One collapsible row in the Agents tab's accordion — click the header to
 // expand/collapse, same interaction as the Finance tab's transaction rows
 // (expandedTxn above).
-function AgentAccordionItem({ title, subtitle, open, onToggle, onDelete, children }) {
+function AgentAccordionItem({ title, subtitle, open, onToggle, onDelete, status, children }) {
   return (
-    <div style={{ marginBottom: 12, borderRadius: 10, border: "1px solid rgba(58,123,213,0.15)", overflow: "hidden" }}>
-      <div
-        onClick={onToggle}
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "12px 14px", cursor: "pointer",
-          background: open ? "rgba(58,123,213,0.08)" : "rgba(255,255,255,0.02)",
-        }}
-      >
-        <div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: "#e8f0ff" }}>{title}</div>
-          {subtitle && <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 2 }}>{subtitle}</div>}
+    <Card pad={0} style={{ marginBottom: 12, overflow: "visible", borderColor: open ? T.lineStrong : undefined }}>
+      <div onClick={onToggle} role="button" tabIndex={0}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggle(); } }}
+        style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", cursor: "pointer" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: T.display, fontWeight: 600, fontSize: 15, color: T.text }}>{title}</span>
+            {status && <Pill tone={status.tone} dot>{status.label}</Pill>}
+          </div>
+          {subtitle && <div style={{ fontSize: 13, color: T.textMute, marginTop: 3, lineHeight: 1.45 }}>{subtitle}</div>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {onDelete && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              style={{
-                padding: "3px 9px", borderRadius: 5, border: "1px solid rgba(220,60,60,0.25)",
-                background: "rgba(220,60,60,0.06)", color: "#dc3c3c",
-                fontFamily: "'Share Tech Mono', monospace", fontSize: 8, cursor: "pointer", letterSpacing: "0.06em",
-              }}
-            >
-              ✕
-            </button>
-          )}
-          <span style={{ color: "#5a7aa0", fontSize: 11, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>▶</span>
-        </div>
+        {onDelete && (
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="btn btn-danger" style={{ padding: "4px 10px", fontSize: 12 }}>Remove</button>
+        )}
+        <span style={{ color: T.textMute, fontSize: 14, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>›</span>
       </div>
-      {open && <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>{children}</div>}
-    </div>
+      {open && <div style={{ padding: "4px 18px 18px", borderTop: `1px solid ${T.line}`, paddingTop: 16 }}>{children}</div>}
+    </Card>
   );
 }
 
@@ -3488,22 +3512,29 @@ function ClientAgentSetup({ clientId }) {
   if (loading) return <div style={{ padding: 16, fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a7a" }}>LOADING…</div>;
 
   const section = (title, description, children) => (
-    <div style={{ marginBottom: 20, padding: 14, borderRadius: 10, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(58,123,213,0.1)" }}>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: "#e8f0ff", marginBottom: 2 }}>{title}</div>
-      {description && <div style={{ fontSize: 11.5, color: "#8aaad0", marginBottom: 10 }}>{description}</div>}
+    <div style={{ marginBottom: 14, padding: 16, borderRadius: 12, background: T.surface2, border: `1px solid ${T.line}` }}>
+      <SectionTitle title={title} hint={description} />
       {children}
     </div>
   );
+  const onOff = (on) => (on ? { tone: "good", label: "On" } : { tone: "neutral", label: "Off" });
 
   return (
-    <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(58,123,213,0.1)" }}>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a", marginBottom: 14, lineHeight: 1.5 }}>
-        Every AI agent running for this client lives here, one per accordion row below. Click a row to expand its config.
-      </div>
+    <div>
+      <AgentAccordionItem
+        title="Client Success Manager"
+        subtitle="Weekly reports, the final report, health score, milestone texts, onboarding check-ins and the client's questions."
+        status={{ tone: "info", label: "AI CSM" }}
+        open={openAgent === "csm"}
+        onToggle={() => setOpenAgent(openAgent === "csm" ? null : "csm")}
+      >
+        <ClientSuccessAgent clientId={clientId} />
+      </AgentAccordionItem>
 
       <AgentAccordionItem
-        title="Facebook Leads Agent"
-        subtitle="The self-built AI SMS response agent (response_ai.py) — replies to inbound leads on their own Twilio number."
+        title="Text Agent (Facebook leads)"
+        subtitle="Texts new leads from the client's own number, answers questions and books them."
+        status={onOff(config?.response_ai_enabled)}
         open={openAgent === "facebook"}
         onToggle={() => setOpenAgent(openAgent === "facebook" ? null : "facebook")}
       >
@@ -3563,6 +3594,7 @@ function ClientAgentSetup({ clientId }) {
 
       <AgentAccordionItem
         title="Social Media Conversation Agent"
+        status={onOff(config?.dm_agent_enabled)}
         subtitle="Answers Instagram and Facebook DMs and books them, getting their number inside Meta's 24-hour window."
         open={openAgent === "social"}
         onToggle={() => setOpenAgent(openAgent === "social" ? null : "social")}
@@ -3572,6 +3604,7 @@ function ClientAgentSetup({ clientId }) {
 
       <AgentAccordionItem
         title="Voice Agent"
+        status={onOff(config?.voice_agent_enabled)}
         subtitle="Calls new Meta and funnel leads within minutes (Retell, from the client's own number) and books them; texts take over when nobody answers. Growth package only."
         open={openAgent === "voice"}
         onToggle={() => setOpenAgent(openAgent === "voice" ? null : "voice")}
@@ -3606,7 +3639,7 @@ function ClientAgentSetup({ clientId }) {
           <button className="btn btn-secondary" onClick={() => { setShowAddAgent(false); setNewAgentName(""); }} style={{ fontSize: 11 }}>CANCEL</button>
         </div>
       ) : (
-        <button className="btn btn-secondary" onClick={() => setShowAddAgent(true)} style={{ fontSize: 11, marginTop: 8 }}>+ ADD AGENT</button>
+        <button className="btn btn-ghost" onClick={() => setShowAddAgent(true)} style={{ marginTop: 4 }}>+ Add agent slot</button>
       )}
     </div>
   );
@@ -3754,20 +3787,44 @@ function ClientResources({ clientId }) {
 
 export default function ClientsPanel() {
   const [clients, setClients] = useState([]);
+  const [csMap, setCsMap] = useState({});
+  const [setups, setSetups] = useState({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [newLink, setNewLink] = useState(null);
   const [pageTab, setPageTab] = useState("clients");
+  const [openId, setOpenId] = useState(() => Number(new URLSearchParams(window.location.search).get("client")) || null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("active");
 
+  const loadCs = async () => {
+    const r = await fetch("/api/client-success/clients");
+    if (r.ok) setCsMap(Object.fromEntries((await r.json()).map((c) => [c.id, c])));
+  };
+  const loadOneCs = async (id) => {
+    const r = await fetch(`/api/client-success/clients/${id}`);
+    if (r.ok) { const d = await r.json(); setCsMap((m) => ({ ...m, [id]: { ...(m[id] || {}), ...d } })); }
+  };
   const load = async () => {
     const r = await fetch(API("/clients"));
-    if (r.ok) setClients(await r.json());
+    if (r.ok) {
+      const list = await r.json();
+      setClients(list);
+      Promise.all(list.map((c) => fetch(API(`/clients/${c.id}/setup`)).then((x) => (x.ok ? x.json() : null)).then((d) => [c.id, d]).catch(() => [c.id, null])))
+        .then((pairs) => setSetups(Object.fromEntries(pairs)));
+    }
     setLoading(false);
+    loadCs();
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (openId) url.searchParams.set("client", openId); else url.searchParams.delete("client");
+    window.history.replaceState(window.history.state, "", url);
+  }, [openId]);
 
   const saveClient = async (form) => {
     setSaving(true);
@@ -3792,22 +3849,14 @@ export default function ClientsPanel() {
     load();
   };
 
-  const regenerate = async (id) => {
-    await fetch(API(`/clients/${id}/regenerate-token`), { method: "POST" });
-    load();
-  };
-
-  const revoke = async (id) => {
-    await fetch(API(`/clients/${id}/revoke-token`), { method: "POST" });
-    load();
-  };
-
+  const regenerate = async (id) => { await fetch(API(`/clients/${id}/regenerate-token`), { method: "POST" }); load(); };
+  const revoke = async (id) => { await fetch(API(`/clients/${id}/revoke-token`), { method: "POST" }); load(); };
   const remove = async (id) => {
     if (!window.confirm("Delete this client? Onboarding answers and portal access will be removed.")) return;
     await fetch(API(`/clients/${id}`), { method: "DELETE" });
+    setOpenId(null);
     load();
   };
-
   const linkContact = async (id, contactId) => {
     await fetch(API(`/clients/${id}/link-contact`), {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -3816,100 +3865,105 @@ export default function ClientsPanel() {
     load();
   };
 
+  const open = clients.find((c) => c.id === openId);
+  const editForm = (showForm || editing) && (
+    <div style={{ marginBottom: 18 }}>
+      <ClientForm initial={editing} saving={saving} onSave={saveClient} onCancel={() => { setShowForm(false); setEditing(null); }} />
+    </div>
+  );
+
+  if (open) {
+    return (
+      <div className="px-4 py-4 sm:px-8 sm:py-7" style={{ flex: 1, overflowY: "auto" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+          {editForm}
+          <ClientPage client={open} cs={csMap[open.id]} onBack={() => setOpenId(null)}
+            onEdit={(c) => { setEditing(c); setShowForm(false); }} onRegenerate={regenerate} onRevoke={revoke}
+            onDelete={remove} onLinkContact={linkContact} reloadCs={() => loadOneCs(open.id)} />
+        </div>
+      </div>
+    );
+  }
+
+  const active = clients.filter((c) => c.status === "active");
+  const atRisk = clients.filter((c) => csMap[c.id]?.health?.band === "red").length;
+  const live = clients.filter((c) => csMap[c.id]?.state === "running").length;
+  const waiting = clients.reduce((n, c) => n + (csMap[c.id]?.open_questions || 0), 0);
+  const q = query.trim().toLowerCase();
+  const shown = clients
+    .filter((c) => (filter === "active" ? c.status === "active" && !c.is_test : true))
+    .filter((c) => !q || [c.name, c.contact_name, c.linked_contact?.owner].some((v) => (v || "").toLowerCase().includes(q)));
+
   return (
-    <div className="px-4 py-4 sm:px-7 sm:py-6" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 0 }}>
-
-      <div className="flex-wrap" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 16, gap: 10 }}>
-        <div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
-            Clients
-          </div>
-          <div style={{ fontSize: 12.5, color: "#7f9cc4", marginTop: 4 }}>
-            {clients.length} client{clients.length !== 1 ? "s" : ""}
-            {" · "}{clients.filter((c) => c.status === "active").length} active
-            {" · "}Open a client for their setup checklist, agents, messages and info.
-          </div>
-        </div>
-        {pageTab === "clients" && (
-          <button
-            className="btn btn-primary"
-            onClick={() => { setEditing(null); setNewLink(null); setShowForm((s) => !s); }}
-            style={{ fontSize: 11, padding: "8px 18px", letterSpacing: "0.08em" }}
-          >
-            {showForm ? "CANCEL" : "+ NEW CLIENT"}
-          </button>
-        )}
-      </div>
-
-      <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid rgba(58,123,213,0.12)" }}>
-        {[["clients", "Clients"], ["content", "Portal content (all clients)"]].map(([id, name]) => (
-          <button key={id} onClick={() => setPageTab(id)} style={{
-            background: "none", border: "none", cursor: "pointer", padding: "9px 14px", whiteSpace: "nowrap",
-            fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
-            color: pageTab === id ? "#6ab0ff" : "#5a7aa0",
-            borderBottom: `2px solid ${pageTab === id ? "#3a7bd5" : "transparent"}`, marginBottom: -1,
-          }}>{name}</button>
-        ))}
-      </div>
-
-      {pageTab === "content" && (
-        <>
-          <div style={{ fontSize: 12.5, color: "#7f9cc4", marginBottom: 6, lineHeight: 1.5 }}>
-            Shared by every client portal: the how-to videos, the next steps each client checks off during onboarding,
-            and the launch checklist template shown on their Launch Progress page.
-          </div>
-          <VideosSection />
-          <ActionItemsSection />
-          <LaunchChecklistSection />
-        </>
-      )}
-
-      {pageTab === "clients" && (
-      <>
-      {newLink && (
-        <div className="glass-card" style={{ padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 12, color: "#8aaad0" }}>Portal link created:</span>
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 12, color: "#6ab0ff", flex: 1, wordBreak: "break-all" }}>{newLink}</span>
-          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => { navigator.clipboard.writeText(newLink); }}>COPY</button>
-          <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setNewLink(null)}>DISMISS</button>
-        </div>
-      )}
-
-      {(showForm || editing) && (
-        <ClientForm
-          initial={editing}
-          saving={saving}
-          onSave={saveClient}
-          onCancel={() => { setShowForm(false); setEditing(null); }}
+    <div className="px-4 py-4 sm:px-8 sm:py-7" style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+        <PageHeader
+          title="Clients"
+          subtitle="Everything for each client in one place: setup, AI agents, messages, reports and info."
+          actions={pageTab === "clients" && (
+            <button className="btn btn-primary" onClick={() => { setEditing(null); setNewLink(null); setShowForm((s) => !s); }}>
+              {showForm ? "Cancel" : "+ New client"}
+            </button>
+          )}
         />
-      )}
 
-      <div>
-        {loading && (
-          <div style={{ padding: "40px 20px", textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.16em" }}>
-            LOADING…
-          </div>
+        <Tabs value={pageTab} onChange={setPageTab} style={{ marginBottom: 20 }}
+          tabs={[{ id: "clients", label: "Clients" }, { id: "content", label: "Shared portal content" }]} />
+
+        {pageTab === "content" && (
+          <>
+            <div style={{ fontSize: 13.5, color: T.textMute, marginBottom: 6, lineHeight: 1.5 }}>
+              Shared by every client portal: the how-to videos, the next steps each client checks off during onboarding,
+              and the launch checklist template shown on their Launch Progress page.
+            </div>
+            <VideosSection />
+            <ActionItemsSection />
+            <LaunchChecklistSection />
+          </>
         )}
-        {!loading && clients.length === 0 && (
-          <div style={{ padding: "40px 20px", textAlign: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.16em" }}>
-            NO CLIENTS YET
-          </div>
+
+        {pageTab === "clients" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 20 }}>
+              <Card pad={16}><Stat label="Active clients" value={active.filter((c) => !c.is_test).length} /></Card>
+              <Card pad={16}><Stat label="Campaigns live" value={live} /></Card>
+              <Card pad={16}><Stat label="At risk" value={atRisk} tone={atRisk ? "bad" : undefined} /></Card>
+              <Card pad={16}><Stat label="Client questions waiting" value={waiting} tone={waiting ? "warn" : undefined} /></Card>
+            </div>
+
+            {newLink && (
+              <Card pad={14} style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13, color: T.textDim }}>Portal link created:</span>
+                <span style={{ fontSize: 13, color: "#8fb8ff", flex: 1, wordBreak: "break-all" }}>{newLink}</span>
+                <button className="btn btn-secondary" onClick={() => navigator.clipboard.writeText(newLink)}>Copy</button>
+                <button className="btn btn-secondary" onClick={() => setNewLink(null)}>Dismiss</button>
+              </Card>
+            )}
+
+            {editForm}
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search clients…" aria-label="Search clients"
+                style={{ ...inputStyle, maxWidth: 320 }} />
+              <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 10, background: "rgba(120,150,210,0.08)" }}>
+                {[["active", "Active"], ["all", "All"]].map(([id, label]) => (
+                  <button key={id} onClick={() => setFilter(id)} style={{ border: "none", cursor: "pointer", padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                    background: filter === id ? "rgba(77,142,240,0.2)" : "transparent", color: filter === id ? T.text : T.textMute }}>{label}</button>
+                ))}
+              </div>
+              <span style={{ fontSize: 12.5, color: T.textMute, marginLeft: "auto" }}>{shown.length} shown</span>
+            </div>
+
+            {loading ? <Loading /> : shown.length === 0 ? <Empty>{clients.length ? "No clients match." : "No clients yet."}</Empty> : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+                {shown.map((c) => (
+                  <ClientCard key={c.id} client={c} cs={csMap[c.id]} setup={setups[c.id]} onOpen={() => setOpenId(c.id)} />
+                ))}
+              </div>
+            )}
+          </>
         )}
-        {clients.map((c) => (
-          <ClientRow
-            key={c.id}
-            client={c}
-            onEdit={(client) => { setEditing(client); setShowForm(false); setNewLink(null); }}
-            onRegenerate={regenerate}
-            onRevoke={revoke}
-            onDelete={remove}
-            onLinkContact={linkContact}
-          />
-        ))}
       </div>
-
-      </>
-      )}
     </div>
   );
 }

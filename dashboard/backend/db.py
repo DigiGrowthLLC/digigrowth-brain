@@ -2655,3 +2655,132 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE booking_partials ADD COLUMN IF NOT EXISTS voice_hold BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE booking_partials ADD COLUMN IF NOT EXISTS voice_released_at TIMESTAMPTZ;
         """)
+
+        # AI Client Success Manager (client_success.py): weekly + final campaign
+        # reports, the client's questions/suggestions on them, per-client settings.
+        await conn.execute("""
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS campaign_length_days INTEGER;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS campaign_booking_goal INTEGER;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS campaign_ended_at TIMESTAMPTZ;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS csm_reports_enabled BOOLEAN NOT NULL DEFAULT true;
+            CREATE TABLE IF NOT EXISTS client_reports (
+                id                   SERIAL PRIMARY KEY,
+                client_id            INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                kind                 TEXT NOT NULL,              -- weekly | final
+                week_number          INTEGER,
+                campaign_launched_at TIMESTAMPTZ,
+                period_start         TIMESTAMPTZ,
+                period_end           TIMESTAMPTZ,
+                slug                 TEXT NOT NULL UNIQUE,
+                html                 TEXT NOT NULL,
+                data                 JSONB NOT NULL DEFAULT '{}',
+                analysis             JSONB NOT NULL DEFAULT '{}',
+                analysis_source      TEXT,                       -- ai | rules
+                sent_at              TIMESTAMPTZ,
+                sent_channels        TEXT[] NOT NULL DEFAULT '{}',
+                send_error           TEXT,
+                artifact_url         TEXT,
+                viewed_at            TIMESTAMPTZ,
+                view_count           INTEGER NOT NULL DEFAULT 0,
+                created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_reports_client ON client_reports(client_id, created_at DESC);
+            CREATE TABLE IF NOT EXISTS client_report_feedback (
+                id             SERIAL PRIMARY KEY,
+                report_id      INTEGER REFERENCES client_reports(id) ON DELETE CASCADE,
+                client_id      INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                kind           TEXT NOT NULL DEFAULT 'feedback',  -- question | suggestion | feedback
+                message        TEXT NOT NULL DEFAULT '',
+                rating         INTEGER,
+                testimonial_ok BOOLEAN NOT NULL DEFAULT false,
+                wants_next     BOOLEAN NOT NULL DEFAULT false,
+                answer         TEXT,
+                answered_at    TIMESTAMPTZ,
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+        """)
+
+        # AI CSM part 2 (csm_extras.py): health score history, milestone and
+        # onboarding check-in drafts, the client's lead-quality ratings.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS client_health (
+                id          SERIAL PRIMARY KEY,
+                client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                score       INTEGER NOT NULL,
+                band        TEXT NOT NULL,
+                factors     JSONB NOT NULL DEFAULT '{}',
+                reasons     TEXT[] NOT NULL DEFAULT '{}',
+                computed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_client_health_client ON client_health(client_id, computed_at DESC);
+            CREATE TABLE IF NOT EXISTS client_milestones (
+                client_id            INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                campaign_launched_at TIMESTAMPTZ NOT NULL,
+                key                  TEXT NOT NULL,
+                sent_at              TIMESTAMPTZ,
+                created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (client_id, campaign_launched_at, key)
+            );
+            CREATE TABLE IF NOT EXISTS client_checkins (
+                client_id  INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                key        TEXT NOT NULL,              -- d1 | d3 | d7
+                subject    TEXT NOT NULL DEFAULT '',
+                body       TEXT NOT NULL DEFAULT '',
+                status     TEXT NOT NULL DEFAULT 'draft',   -- draft (awaiting Dylan) | sent | dismissed
+                sent_at    TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (client_id, key)
+            );
+            CREATE TABLE IF NOT EXISTS lead_quality_ratings (
+                id             SERIAL PRIMARY KEY,
+                client_id      INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                appointment_id INTEGER NOT NULL UNIQUE REFERENCES appointment_reminders(id) ON DELETE CASCADE,
+                contact_id     TEXT,
+                rating         TEXT NOT NULL,          -- good | not_fit
+                note           TEXT,
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+        """)
+        # Per-client services + portal intake (client_services.py, 2026-11-17).
+        # intake_required is added with DEFAULT false so every client that
+        # exists today is grandfathered (no gate), then flipped to DEFAULT
+        # true so clients created from now on answer the intake first.
+        await conn.execute("""
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS services JSONB;
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS portal_intake JSONB NOT NULL DEFAULT '{}';
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS intake_completed_at TIMESTAMPTZ;
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS intake_required BOOLEAN NOT NULL DEFAULT false;
+            ALTER TABLE clients ALTER COLUMN intake_required SET DEFAULT true;
+        """)
+        # Which services each portal Setup Step / Launch Progress item belongs
+        # to (NULL = every client). Seeded by title only on the deploy that
+        # adds the column, so later edits in the OS stick.
+        _svc_seed = {
+            "onboarding_action_items": {
+                "Give Meta Ads Manager Access": ["paid_ads", "social_media", "dm_agent"],
+                "Import Your Old Leads": ["reactivation"],
+                "Connect Stripe to Get Paid": ["online_booking", "funnel", "ai_text", "ai_voice"],
+                "Give Us Access to Your Domain Settings": ["funnel"],
+                "Share Your Google Calendar with DigiGrowth": ["online_booking", "funnel", "ai_text", "ai_voice"],
+                "Upload Marketing Material": ["paid_ads", "social_media", "funnel"],
+            },
+            "launch_checklist_items": {
+                "Week 1 — Let Meta Collect Data": ["paid_ads"],
+                "Week 2 — Analyze Data & Find Areas of Improvement": ["paid_ads"],
+                "Weeks 3-4 — Implement Finalized Campaign & Drive Conversions": ["paid_ads"],
+                "Set up SMS marketing": ["ai_text", "ai_voice", "reactivation", "followup"],
+                "Set up response AI": ["ai_text"],
+                "Create landing page": ["funnel"],
+                "Create paid ad creatives": ["paid_ads"],
+                "Launch database reactivation": ["reactivation"],
+                "Launch campaign": ["paid_ads"],
+            },
+        }
+        for _table, _titles in _svc_seed.items():
+            _has = await conn.fetchval(
+                "SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = 'services'", _table)
+            if _has:
+                continue
+            await conn.execute(f"ALTER TABLE {_table} ADD COLUMN IF NOT EXISTS services TEXT[]")
+            for _title, _svcs in _titles.items():
+                await conn.execute(f"UPDATE {_table} SET services = $2 WHERE title = $1", _title, _svcs)

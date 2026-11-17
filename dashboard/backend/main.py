@@ -47,6 +47,9 @@ import send_info_queue
 import identity_warmup
 import meta_ads
 import ad_spend_caps
+import client_success
+import csm_extras
+from routers import client_success as client_success_router
 import no_show_sequence
 import onboarding_sequence
 import reminder_engine
@@ -644,6 +647,33 @@ async def lifespan(app: FastAPI):
         max_instances=1,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=90),
     )
+    # AI Client Success Manager: weekly campaign reports (Mondays) and the
+    # final report once a campaign ends, auto-sent to the client. 10:00 ET,
+    # after the 5:00 Meta stats sync so the numbers are fresh.
+    scheduler.add_job(
+        client_success.run_daily,
+        CronTrigger(hour=10, minute=0, timezone=eastern),
+        id="client-success-reports",
+        replace_existing=True,
+        max_instances=1,
+    )
+    # CSM part 2: health scores, onboarding check-ins, renewal drafts (daily,
+    # after the reports) and campaign milestones (every 30 min).
+    scheduler.add_job(
+        csm_extras.run_daily,
+        CronTrigger(hour=10, minute=5, timezone=eastern),
+        id="csm-extras-daily",
+        replace_existing=True,
+        max_instances=1,
+    )
+    scheduler.add_job(
+        csm_extras.run_milestones,
+        IntervalTrigger(minutes=30),
+        id="csm-milestones",
+        replace_existing=True,
+        max_instances=1,
+        next_run_time=datetime.now(timezone.utc) + timedelta(minutes=3),
+    )
     scheduler.add_job(
         meta_ads.sync_meta_ad_stats,
         CronTrigger(hour=5, minute=0, timezone=eastern),
@@ -728,6 +758,8 @@ app.include_router(watch.admin_router, prefix="/api", dependencies=[Depends(requ
 app.include_router(watch.router)       # no auth — clicked from a texted link
 app.include_router(landing_pages.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(landing_pages.router)  # no auth — clicked from a texted link
+app.include_router(client_success_router.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(client_success_router.router)  # no auth: client report pages /report/{slug}, scoped by unguessable slug
 app.include_router(content_tracking.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(content_tracking.router)  # no auth — hit via sendBeacon from the public website and /watch pages
 app.include_router(public_sops.router)  # no auth — readable by team

@@ -228,6 +228,8 @@ class ClientMarketingConfigUpdate(BaseModel):
     funnel_domain: Optional[str] = None
     sms_terms_url: Optional[str] = None
     meta_pixel_id: Optional[str] = None
+    campaign_booking_goal: Optional[int] = None   # client_success.py pace bar + milestones
+    campaign_length_days: Optional[int] = None    # default 30 when unset
     meta_ad_account_id: Optional[str] = None
     meta_page_id: Optional[str] = None
     dm_agent_enabled: Optional[bool] = None
@@ -325,6 +327,8 @@ class ActionItemUpdate(BaseModel):
     link_url: Optional[str] = None
     sort_order: Optional[int] = None
     active: Optional[bool] = None
+    # client_services.py ids; empty = shown to every client
+    services: Optional[list[str]] = None
 
 
 class ActionItemComplete(BaseModel):
@@ -344,6 +348,8 @@ class LaunchChecklistItemUpdate(BaseModel):
     phase: Optional[str] = None
     sort_order: Optional[int] = None
     active: Optional[bool] = None
+    # client_services.py ids; empty = shown to every client
+    services: Optional[list[str]] = None
 
 
 class LaunchChecklistStatusUpdate(BaseModel):

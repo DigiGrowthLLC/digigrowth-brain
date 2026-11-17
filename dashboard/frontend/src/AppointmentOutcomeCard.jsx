@@ -29,9 +29,15 @@ function fmtWhen(ts) {
   return new Date(ts).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose, onSaved, showRevenueFields = false }) {
+// ratingUrl (client portal only): once Showed + Closed are picked, the card
+// asks whether the patient was a good fit — the lead-quality loop in
+// backend csm_extras.py (tags the contact, feeds reports, flags targeting).
+export default function AppointmentOutcomeCard({ appointment, patchUrl, ratingUrl, onClose, onSaved, showRevenueFields = false }) {
   const [show, setShow]   = useState(appointment.outcome_show || null);
   const [close, setClose] = useState(appointment.outcome_close || null);
+  const [fit, setFit]     = useState(appointment.fit_rating || null);
+  const [fitNote, setFitNote] = useState(appointment.fit_note || "");
+  const askFit = !!ratingUrl && show === "show" && close === "closed";
   const [notes, setNotes] = useState(appointment.outcome_notes || "");
   // Agency-level sales KPIs (Dylan's own pipeline only) -- only ever read,
   // sent, and rendered when showRevenueFields is true (internal
@@ -68,7 +74,14 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
         setSaving(false);
         return;
       }
-      const saved = { ...appointment, outcome_show: show, outcome_close: close, outcome_notes: notes.trim() || null };
+      if (askFit && fit) {
+        await fetch(ratingUrl, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rating: fit, note: fitNote.trim() }),
+        }).catch(() => {});
+      }
+      const saved = { ...appointment, outcome_show: show, outcome_close: close, outcome_notes: notes.trim() || null,
+        ...(askFit && fit ? { fit_rating: fit, fit_note: fitNote.trim() || null } : {}) };
       if (showRevenueFields) {
         saved.pricing = body.pricing;
         saved.call_length = body.call_length;
@@ -122,6 +135,28 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, onClose,
               onClick={() => setClose(close === "not_closed" ? null : "not_closed")}>NOT CLOSED</Pill>
           </div>
         </div>
+
+        {askFit && (
+          <div style={{ padding: 14, borderRadius: 10, background: "rgba(58,123,213,0.08)", border: "1px solid rgba(58,123,213,0.25)" }}>
+            <div style={labelStyle}>WAS THIS PATIENT A GOOD FIT?</div>
+            <div style={{ fontSize: 12, color: "#7f9cc4", marginBottom: 10 }}>
+              Tells us who to find more of. Only DigiGrowth sees this.
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Pill active={fit === "good"} color="#14c882" disabled={saving}
+                onClick={() => setFit(fit === "good" ? null : "good")}>👍 GOOD FIT</Pill>
+              <Pill active={fit === "not_fit"} color="#dc3c3c" disabled={saving}
+                onClick={() => setFit(fit === "not_fit" ? null : "not_fit")}>👎 NOT A FIT</Pill>
+            </div>
+            {fit && (
+              <input
+                value={fitNote} onChange={(e) => setFitNote(e.target.value)}
+                className="dg-input" style={{ width: "100%", boxSizing: "border-box", marginTop: 10, fontSize: 12 }}
+                placeholder={fit === "good" ? "What made them a great fit? (optional)" : "Why not? e.g. wanted insurance billing (optional)"}
+              />
+            )}
+          </div>
+        )}
 
         {showRevenueFields && close === "closed" && (
           <div>

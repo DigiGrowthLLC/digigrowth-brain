@@ -65,6 +65,8 @@ def main():
 
     print(f"# {client['name']} (client {cid}) - contact {client.get('contact_name')} - package {setup['package']}")
     print(f"portal: {full.get('portal_url')}")
+    print(f"services ({setup.get('services_from')}{', intake not answered yet' if setup.get('intake_pending') else ''}): "
+          f"{', '.join(setup.get('services') or [])}")
     if ticked:
         print(f"auto-ticked just now: {ticked}")
     for ph in setup["phases"]:

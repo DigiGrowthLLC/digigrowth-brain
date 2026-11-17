@@ -19,21 +19,32 @@ import useSmsNotifications from "./useSmsNotifications.js";
 import SmsToasts, { AUTO_DISMISS_MS } from "./SmsToasts.jsx";
 import logoWordmark from "./assets/logo-wordmark.png";
 
-const NAV = [
-  { id: "home",      label: "Dashboard" },
-  { id: "crm",       label: "CRM" },
-  { id: "dialer",    label: "Dialer" },
-  { id: "appointments", label: "Appointments" },
-  { id: "clients",   label: "Clients" },
-  { id: "booking",   label: "Booking Links" },
-  { id: "inbox",     label: "Inbox" },
-  { id: "agents",    label: "Agents" },
-  { id: "todos",     label: "To-Do" },
-  { id: "analytics", label: "Analytics" },
-  { id: "finances",  label: "Finances" },
-  { id: "website",   label: "Website" },
-  { id: "sops",      label: "Business Resources" },
+// Grouped sidebar (2026-11-17 refresh): same panels and ids, organized by
+// what Dylan is doing — finding clients, serving them, running the business.
+const NAV_GROUPS = [
+  { label: null, items: [
+    { id: "home",      label: "Dashboard" },
+    { id: "todos",     label: "To-Do" },
+  ] },
+  { label: "Sales", items: [
+    { id: "crm",       label: "CRM" },
+    { id: "dialer",    label: "Dialer" },
+    { id: "inbox",     label: "Inbox" },
+    { id: "appointments", label: "Appointments" },
+  ] },
+  { label: "Clients", items: [
+    { id: "clients",   label: "Clients" },
+    { id: "booking",   label: "Booking Links" },
+  ] },
+  { label: "Business", items: [
+    { id: "analytics", label: "Analytics" },
+    { id: "finances",  label: "Finances" },
+    { id: "website",   label: "Website" },
+    { id: "sops",      label: "Resources" },
+    { id: "agents",    label: "AI Agents" },
+  ] },
 ];
+const NAV = NAV_GROUPS.flatMap((g) => g.items);
 
 const NAV_ICONS = {
   home: (
@@ -131,7 +142,7 @@ const NAV_ICONS = {
 };
 
 const LogoMark = () => (
-  <img src={logoWordmark} alt="DigiGrowth" style={{ height: 52, flexShrink: 0, display: "block" }} />
+  <img src={logoWordmark} alt="DigiGrowth" style={{ height: 40, flexShrink: 0, display: "block" }} />
 );
 
 const VALID_PANELS = new Set(NAV.map(n => n.id));
@@ -167,6 +178,9 @@ export default function App() {
       url.searchParams.set("panel", panel);
       url.searchParams.delete("contact");
       url.searchParams.delete("phone");
+      // Clients deep link: ?client=<id> opens that client's page.
+      if (panel === "clients" && ctx?.clientId) url.searchParams.set("client", ctx.clientId);
+      else url.searchParams.delete("client");
       window.history.pushState({ panel }, "", url);
     }
   };
@@ -268,91 +282,67 @@ export default function App() {
           (mobileNavOpen ? "translate-x-0" : "-translate-x-full")
         }
         style={{
-          width: 220,
-          background: "linear-gradient(180deg, rgba(9,15,38,0.98) 0%, rgba(7,12,30,0.98) 100%)",
-          borderRight: "1px solid rgba(58,123,213,0.07)",
+          width: 228,
+          background: "rgba(7,12,30,0.92)",
+          borderRight: "1px solid rgba(120,150,210,0.1)",
           display: "flex", flexDirection: "column", flexShrink: 0,
           backdropFilter: "blur(20px)",
         }}>
 
         {/* Brand */}
-        <div style={{ padding: "22px 18px 20px", borderBottom: "1px solid rgba(58,123,213,0.07)" }}>
+        <div style={{ padding: "20px 20px 14px" }}>
           <div style={{ display: "flex", alignItems: "center" }}>
             <LogoMark />
           </div>
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: "14px 12px", display: "flex", flexDirection: "column", gap: 3 }}>
-          {NAV.map(({ id, label }) => {
-            const isActive = active === id;
-            return (
-              <a key={id}
-                href={`?panel=${id}`}
-                onClick={e => {
-                  // Plain left-click stays in this SPA tab; ctrl/cmd/middle
-                  // click and "Open link in new tab" from the browser's own
-                  // right-click menu fall through to the real href instead,
-                  // since this is a genuine <a> now (not a JS-only button).
-                  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-                  e.preventDefault();
-                  navigateTo(id);
-                }}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 14px", borderRadius: 12,
-                  border: "none", cursor: "pointer", textDecoration: "none",
-                  background: isActive
-                    ? "linear-gradient(90deg, #2857a0 0%, #3a7bd5 100%)"
-                    : "transparent",
-                  boxShadow: isActive ? "0 4px 18px rgba(58,123,213,0.4)" : "none",
-                  transition: "all 0.2s", textAlign: "left",
-                }}
-                onMouseEnter={e => {
-                  if (!isActive) e.currentTarget.style.background = "rgba(58,123,213,0.08)";
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) e.currentTarget.style.background = "transparent";
-                }}
-              >
-                <span style={{
-                  color: isActive ? "#6ab0ff" : "#3a5a80",
-                  display: "flex", flexShrink: 0,
-                }}>
-                  {NAV_ICONS[id]}
-                </span>
-                <span style={{
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 13, fontWeight: isActive ? 600 : 400,
-                  color: isActive ? "#ffffff" : "#6080a8",
-                }}>
-                  {label}
-                </span>
-              </a>
-            );
-          })}
+        <nav style={{ flex: 1, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={gi} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: gi ? 14 : 0 }}>
+              {group.label && (
+                <div style={{ padding: "0 12px 6px", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4f6189" }}>
+                  {group.label}
+                </div>
+              )}
+              {group.items.map(({ id, label }) => {
+                const isActive = active === id;
+                return (
+                  <a key={id}
+                    href={`?panel=${id}`}
+                    onClick={e => {
+                      // Plain left-click stays in this SPA tab; ctrl/cmd/middle
+                      // click and "Open link in new tab" fall through to the real href.
+                      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                      e.preventDefault();
+                      navigateTo(id);
+                    }}
+                    aria-current={isActive ? "page" : undefined}
+                    style={{
+                      position: "relative", width: "100%", display: "flex", alignItems: "center", gap: 11,
+                      padding: "8px 12px", borderRadius: 9, textDecoration: "none",
+                      background: isActive ? "rgba(77,142,240,0.14)" : "transparent",
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(120,150,210,0.07)"; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                  >
+                    {isActive && <span style={{ position: "absolute", left: -12, top: 8, bottom: 8, width: 3, borderRadius: 3, background: "#4d8ef0" }} />}
+                    <span style={{ color: isActive ? "#8fb8ff" : "#5d7099", display: "flex", flexShrink: 0 }}>
+                      {NAV_ICONS[id]}
+                    </span>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: isActive ? 600 : 500, color: isActive ? "#eaf1ff" : "#9aabcb" }}>
+                      {label}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
-        {/* Bottom card (Need help style) */}
-        <div style={{
-          margin: "0 12px 16px",
-          padding: "14px 16px",
-          borderRadius: 16,
-          background: "linear-gradient(135deg, rgba(40,87,160,0.25) 0%, rgba(58,123,213,0.12) 100%)",
-          border: "1px solid rgba(58,123,213,0.15)",
-        }}>
-          <div style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 12, fontWeight: 600, color: "#c4d0e8", marginBottom: 3,
-          }}>
-            DigiGrowth LLC
-          </div>
-          <div style={{
-            fontFamily: "'Share Tech Mono', monospace",
-            fontSize: 9, color: "#3a5a80", letterSpacing: "0.12em",
-          }}>
-            CLIENT ACQ. PLATFORM
-          </div>
+        <div style={{ padding: "12px 24px 18px", borderTop: "1px solid rgba(120,150,210,0.1)", fontSize: 12, color: "#4f6189" }}>
+          DigiGrowth LLC
         </div>
       </aside>
 
@@ -366,7 +356,7 @@ export default function App() {
         {active === "inbox"    && <InboxPanel initialTarget={navContext} />}
         {active === "dialer"   && <DialerPanel />}
         {active === "appointments" && <AppointmentsPanel />}
-        {active === "clients"   && <ClientsPanel />}
+        {active === "clients"   && <ClientsPanel key={navContext?.clientId || "list"} />}
         {active === "booking"   && <BookingPanel />}
         {active === "agents"    && <AgentsPanel initialAgentId={navContext} />}
         {active === "analytics" && <AnalyticsPanel />}

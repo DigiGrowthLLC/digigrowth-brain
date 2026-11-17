@@ -348,6 +348,9 @@ async def send_due_touches():
     now = datetime.now(dt_timezone.utc)
     sent_this_poll = 0
     async with pool.acquire() as conn:
+        import daily_sms_handoff
+        if await daily_sms_handoff.outreach_paused(conn):
+            return
         await auto_enroll(conn)
         rows = await conn.fetch(
             """

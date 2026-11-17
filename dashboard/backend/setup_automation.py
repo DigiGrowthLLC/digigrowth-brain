@@ -96,10 +96,11 @@ async def autosetup_voice(client_id: int) -> tuple[str, str]:
     import client_voice_agent
     pool = await get_pool()
     async with pool.acquire() as conn:
-        pkg = await conn.fetchval("SELECT service_package FROM clients WHERE id = $1", client_id)
+        crow = await conn.fetchrow("SELECT service_package, services FROM clients WHERE id = $1", client_id)
         cfg = await _cfg(conn, client_id)
-    if (pkg or "growth") != "growth":
-        return "skipped", "Foundations client: no voice agent"
+    import client_services
+    if "ai_voice" not in client_services.effective(dict(crow) if crow else {}):
+        return "skipped", "Voice agent isn't one of this client's services"
     if not os.environ.get("RETELL_API_KEY"):
         return "skipped", "RETELL_API_KEY isn't set on the server"
     if cfg.get("retell_agent_id"):

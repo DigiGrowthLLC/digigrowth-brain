@@ -7,7 +7,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { SECTIONS } from "../onboardingSections.js";
+import { SECTIONS as ALL_SECTIONS } from "../onboardingSections.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
 import AppointmentOutcomeCard from "../AppointmentOutcomeCard.jsx";
 
@@ -531,7 +531,9 @@ function UploadTab({ token }) {
   );
 }
 
-function OnboardingFormSection({ token }) {
+function OnboardingFormSection({ token, hiddenSections }) {
+  // Sections that don't apply to this client's services (client_services.py SECTION_SERVICES).
+  const SECTIONS = ALL_SECTIONS.filter((s) => !(hiddenSections || []).includes(s.key));
   const [responses, setResponses] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
@@ -627,11 +629,11 @@ function OnboardingFormSection({ token }) {
   );
 }
 
-function OnboardingTab({ token, onGoToTab }) {
+function OnboardingTab({ token, onGoToTab, hiddenSections }) {
   return (
     <div>
       <NextStepsSection token={token} onGoToTab={onGoToTab} />
-      <OnboardingFormSection token={token} />
+      <OnboardingFormSection token={token} hiddenSections={hiddenSections} />
     </div>
   );
 }
@@ -1568,6 +1570,42 @@ function RecentLeadsWidget({ token }) {
   );
 }
 
+// Weekly + final campaign reports from DigiGrowth's client success manager
+// (backend client_success.py). Hidden until the first report has been sent.
+function CampaignReportsCard({ token }) {
+  const [reports, setReports] = useState([]);
+  useEffect(() => {
+    fetch(`/portal-api/${token}/reports`).then((r) => (r.ok ? r.json() : [])).then(setReports).catch(() => {});
+  }, [token]);
+  if (!reports.length) return null;
+  const fmt = (d) => new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return (
+    <div className="glass-card" style={{ padding: 18, marginBottom: 16 }}>
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, color: "#e8f0ff", marginBottom: 4 }}>
+        Campaign reports
+      </div>
+      <div style={{ fontSize: 12, color: "#7f9cc4", marginBottom: 10 }}>
+        How your campaign is performing, what we're improving, and a place to send us your questions and ideas.
+      </div>
+      {reports.map((r) => (
+        <a key={r.slug} href={r.url} target="_blank" rel="noreferrer"
+          style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", marginTop: 6, borderRadius: 10,
+            background: "rgba(58,123,213,0.08)", border: "1px solid rgba(58,123,213,0.18)", textDecoration: "none" }}>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13, color: r.kind === "final" ? "#14c882" : "#9cc4f5", whiteSpace: "nowrap" }}>
+            {r.kind === "final" ? "Final report" : `Week ${r.week_number}`}
+          </span>
+          <span style={{ flex: 1, fontSize: 12.5, color: "#c4d0e8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {r.headline || ""}
+          </span>
+          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0", whiteSpace: "nowrap" }}>
+            {fmt(r.created_at)} ↗
+          </span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function DashboardTab({ token, contactName }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2124,6 +2162,7 @@ function AppointmentsTab({ token }) {
         <AppointmentOutcomeCard
           appointment={outcomeTarget}
           patchUrl={`/portal-api/${token}/appointments/${outcomeTarget.id}`}
+          ratingUrl={`/portal-api/${token}/lead-quality/${outcomeTarget.id}`}
           onClose={() => setOutcomeTarget(null)}
           onSaved={handleOutcomeSaved}
         />
@@ -3611,6 +3650,137 @@ function PortalBrand({ client }) {
   );
 }
 
+// New-client intake (2026-11-17, backend client_services.py): shown in place
+// of the whole portal until answered. The services they check decide which
+// Setup Steps, Launch Progress items and questionnaire sections they see
+// (and which Marketing Setup steps Dylan sees in the OS).
+function IntakeOption({ on, multi, onClick, children, hint }) {
+  return (
+    <button type="button" onClick={onClick} style={{
+      display: "flex", alignItems: "flex-start", gap: 12, width: "100%", textAlign: "left", padding: "12px 14px",
+      borderRadius: 12, cursor: "pointer", fontFamily: "inherit",
+      border: on ? "1px solid rgba(58,123,213,0.7)" : "1px solid rgba(58,123,213,0.18)",
+      background: on ? "linear-gradient(135deg, rgba(40,87,160,0.4), rgba(58,123,213,0.12))" : "rgba(255,255,255,0.02)",
+    }}>
+      <span style={{
+        flexShrink: 0, width: 20, height: 20, marginTop: 1, borderRadius: multi ? 6 : "50%",
+        border: on ? "1px solid #6ab0ff" : "1px solid rgba(106,176,255,0.35)", background: on ? "#3a7bd5" : "transparent",
+        color: "#fff", fontSize: 12, fontWeight: 700, display: "grid", placeItems: "center",
+      }}>{on ? "✓" : ""}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 14, fontWeight: 600, color: on ? "#f0f4ff" : "#c8daf2" }}>{children}</span>
+        {hint && <span style={{ display: "block", fontSize: 12.5, color: "#7f9cc4", marginTop: 2, lineHeight: 1.45 }}>{hint}</span>}
+      </span>
+    </button>
+  );
+}
+
+function IntakeGate({ token, onDone }) {
+  const [form, setForm] = useState(null);
+  const [services, setServices] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [err, setErr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch(`/portal-api/${token}/intake`)
+      .then((r) => r.json())
+      .then((d) => { setForm(d); setServices(d.selected || []); setAnswers(d.answers || {}); })
+      .catch(() => setErr("Couldn't load the questions. Refresh to try again."));
+  }, [token]);
+
+  if (!form) {
+    return <div style={{ padding: 60, textAlign: "center", color: "#7f9cc4", fontSize: 13 }}>{err || "Loading..."}</div>;
+  }
+
+  const applies = (q) => !q.services || q.services.some((s) => services.includes(s));
+  const visible = form.questions.filter((q) => applies(q) && (!q.show_if || answers[q.show_if[0]] === q.show_if[1]));
+  const toggleService = (id) => setServices((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const setAns = (k, v) => setAnswers((p) => ({ ...p, [k]: v }));
+  const toggleMulti = (k, opt) => {
+    const cur = answers[k] || [];
+    setAns(k, cur.includes(opt) ? cur.filter((x) => x !== opt) : [...cur, opt]);
+  };
+
+  const submit = async () => {
+    setErr("");
+    if (!services.length) { setErr("Check at least one service we're providing for you."); return; }
+    const missing = visible.find((q) => !q.optional && !q.show_if
+      && !(Array.isArray(answers[q.key]) ? answers[q.key].length : String(answers[q.key] || "").trim()));
+    if (missing) { setErr(`Please answer: ${missing.label}`); return; }
+    setSaving(true);
+    const r = await fetch(`/portal-api/${token}/intake`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ services, answers }),
+    });
+    const d = await r.json().catch(() => ({}));
+    setSaving(false);
+    if (!r.ok) { setErr(d.detail || "Something went wrong. Please try again."); return; }
+    onDone();
+  };
+
+  const first = (form.contact_name || "").split(" ")[0];
+  const card = { padding: "22px 22px 24px", borderRadius: 18, border: "1px solid rgba(58,123,213,0.2)",
+    background: "linear-gradient(160deg, rgba(20,32,72,0.75), rgba(10,18,48,0.75))", backdropFilter: "blur(14px)" };
+  const qLabel = { fontSize: 15, fontWeight: 600, color: "#e8f0ff", marginBottom: 12, lineHeight: 1.4 };
+
+  return (
+    <div style={{ maxWidth: 680, margin: "0 auto", padding: "40px 16px 64px" }}>
+      <img src={logoWordmark} alt="DigiGrowth" style={{ height: 24, display: "block", marginBottom: 28 }} />
+      <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", color: "#f0f4ff", lineHeight: 1.2 }}>
+        Welcome{first ? `, ${first}` : ""}! Let's set up your portal.
+      </h1>
+      <p style={{ margin: "10px 0 0", fontSize: 15, color: "#8aaad0", lineHeight: 1.55 }}>
+        A few quick questions so your portal only shows the steps that matter for {form.name}. Takes about a minute.
+      </p>
+      <div className="pt-title-bar" style={{ marginBottom: 26 }} />
+
+      <div style={{ display: "grid", gap: 18 }}>
+        <div style={card}>
+          <div style={qLabel}>What services are we providing for you?</div>
+          <div style={{ fontSize: 12.5, color: "#7f9cc4", margin: "-6px 0 14px" }}>
+            Check everything that applies. Not sure about one? Check what you remember and we'll confirm on your onboarding call.
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {form.services.map((s) => (
+              <IntakeOption key={s.id} multi on={services.includes(s.id)} hint={s.hint} onClick={() => toggleService(s.id)}>
+                {s.label}
+              </IntakeOption>
+            ))}
+          </div>
+        </div>
+
+        {services.length > 0 && visible.map((q) => (
+          <div key={q.key} style={card}>
+            <div style={qLabel}>{q.label}</div>
+            {q.type === "text" ? (
+              <textarea className="dg-input" rows={q.multiline ? 3 : 1} placeholder={q.placeholder || ""}
+                value={answers[q.key] || ""} onChange={(e) => setAns(q.key, e.target.value)}
+                style={{ width: "100%", resize: "vertical", fontFamily: "inherit", fontSize: 14 }} />
+            ) : (
+              <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+                {q.options.map((o) => (
+                  <IntakeOption key={o} multi={q.type === "multi"}
+                    on={q.type === "multi" ? (answers[q.key] || []).includes(o) : answers[q.key] === o}
+                    onClick={() => (q.type === "multi" ? toggleMulti(q.key, o) : setAns(q.key, o))}>
+                    {o}
+                  </IntakeOption>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {err && <div style={{ color: "#f87171", fontSize: 13.5 }}>{err}</div>}
+        <button className="btn btn-primary" onClick={submit} disabled={saving}
+          style={{ padding: "14px 20px", fontSize: 15, fontWeight: 700, justifySelf: "start" }}>
+          {saving ? "Saving..." : "Continue to my portal →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ClientPortal() {
   const { token } = useParams();
   const [client, setClient] = useState(null);
@@ -3630,15 +3800,14 @@ export default function ClientPortal() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  useEffect(() => {
-    fetch(`/portal-api/${token}`)
-      .then((r) => {
-        if (!r.ok) { setNotFound(true); return null; }
-        return r.json();
-      })
-      .then((data) => { if (data) setClient(data); })
-      .catch(() => setNotFound(true));
-  }, [token]);
+  const loadClient = () => fetch(`/portal-api/${token}`)
+    .then((r) => {
+      if (!r.ok) { setNotFound(true); return null; }
+      return r.json();
+    })
+    .then((data) => { if (data) setClient(data); })
+    .catch(() => setNotFound(true));
+  useEffect(() => { loadClient(); }, [token]);
 
   useEffect(() => {
     fetch(`/portal-api/${token}/action-items`)
@@ -3656,6 +3825,20 @@ export default function ClientPortal() {
   }
 
   const current = NAV_ITEMS.find((i) => i.id === tab) || NAV_ITEMS[0];
+
+  if (client?.intake_pending) {
+    return (
+      <div className="dg-portal" style={{
+        minHeight: "100vh", background: "#090f26", fontFamily: "'Space Grotesk', sans-serif",
+        backgroundImage: "radial-gradient(ellipse at 20% 0%, rgba(40,87,160,0.18) 0%, transparent 55%), radial-gradient(ellipse at 95% 10%, rgba(20,200,130,0.06) 0%, transparent 45%)",
+        backgroundAttachment: "fixed",
+      }}>
+        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+        <style>{PORTAL_CSS}</style>
+        <IntakeGate token={token} onDone={() => { loadClient(); setTabRaw("onboarding"); window.scrollTo({ top: 0 }); }} />
+      </div>
+    );
+  }
 
   return (
     <div className="dg-portal" style={{
@@ -3730,6 +3913,7 @@ export default function ClientPortal() {
             )}
 
             <div key={tab} className="pt-fade">
+              {tab === "dashboard" && <CampaignReportsCard token={token} />}
               {tab === "dashboard" && <DashboardTab token={token} contactName={client?.contact_name} />}
               {tab === "analytics" && <AnalyticsTab token={token} />}
               {tab === "appointments" && <AppointmentsTab token={token} />}
@@ -3748,7 +3932,7 @@ export default function ClientPortal() {
                 />
               )}
               {tab === "website" && <WebsiteTab token={token} />}
-              {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} />}
+              {tab === "onboarding" && <OnboardingTab token={token} onGoToTab={setTab} hiddenSections={client?.hidden_sections} />}
               {tab === "sequences" && <SequencesTab token={token} />}
               {tab === "videos" && <VideosTab token={token} />}
               {tab === "todo" && <LaunchChecklistTab token={token} />}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { T, Tabs, Toggle, inputStyle } from "../ui.jsx";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Color } from "@tiptap/extension-color";
@@ -364,6 +365,11 @@ const ONBOARDING_ITEM = { id: ONBOARDING_PSEUDO_ID, title: "Onboarding Sequence 
 // portal self-booking) — see client_booking_notification.py.
 const CLIENT_BOOKING_PSEUDO_ID = "__client_booking__";
 const CLIENT_BOOKING_ITEM = { id: CLIENT_BOOKING_PSEUDO_ID, title: "Client Booking Alert (SMS)", clientBookingTemplate: true };
+
+// AI client success manager: weekly + final campaign reports to each client
+// (ClientSuccessEditor below, /api/client-success/*).
+const CLIENT_SUCCESS_PSEUDO_ID = "__client_success__";
+const CLIENT_SUCCESS_ITEM = { id: CLIENT_SUCCESS_PSEUDO_ID, title: "Client Success Templates", clientSuccess: true };
 
 // Same pattern again, for the email-handoff opener — backed by GET/PUT
 // /api/dialer/email-handoff-template. Email-only, a one-time copy of the SMS
@@ -961,6 +967,160 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
             Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> for the client's first name and{" "}
             <code style={{ color: "#6ab0ff" }}>{"{portal_link}"}</code> for their client portal link.
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Client Success Templates ────────────────────────────────────────────────
+// Shared wording for the AI Client Success Manager. Everything per client
+// (reports, approvals, health, questions, patient quality) lives in
+// Clients -> client -> Agents -> Client Success Manager (ClientSuccessAgent.jsx).
+// Backed by /api/client-success/settings (dashboard/backend/client_success.py).
+const CSM_FIELDS = [
+  "csm_enabled", "csm_send_email", "csm_send_sms",
+  "csm_weekly_email_subject", "csm_weekly_email_body", "csm_weekly_sms",
+  "csm_final_email_subject", "csm_final_email_body", "csm_final_sms", "csm_ai_brief",
+  "csm_milestones_channel", "csm_ms_first_lead", "csm_ms_halfway", "csm_ms_goal_hit",
+  "csm_checkins_enabled", "csm_checkin_subject", "csm_checkin_body", "csm_final_testimonial_text",
+];
+const CSM_MILESTONES = [
+  ["first_lead", "First lead", "The first lead comes in after launch."],
+  ["halfway", "Halfway to goal", "Bookings reach half the campaign goal."],
+  ["goal_hit", "Goal reached", "Bookings reach the campaign goal."],
+];
+const csmOn = (v) => ["on", "true", "1", "yes"].includes(String(v || "").toLowerCase());
+
+function ClientSuccessEditor({ categories, onCategoryChange }) {
+  const [values, setValues] = useState({});
+  const [saved, setSaved] = useState({});
+  const [category, setCategory] = useState("Client Success");
+  const [customCatMode, setCustomCatMode] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const [view, setView] = useState("reports");
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch("/api/client-success/settings");
+      if (r.ok) {
+        const data = await r.json();
+        setValues(data);
+        setSaved({ ...data, category: data.category || "Client Success" });
+        setCategory(data.category || "Client Success");
+        onCategoryChange?.(data.category || "Client Success");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const dirty = CSM_FIELDS.some(k => (values[k] || "") !== (saved[k] || "")) || category !== saved.category;
+  const set = (k, v) => setValues(p => ({ ...p, [k]: v }));
+  const flip = (k) => set(k, csmOn(values[k]) ? "off" : "on");
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/client-success/settings", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, category }),
+      });
+      if (r.ok) {
+        setSaved({ ...values, category });
+        onCategoryChange?.(category);
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2500);
+      }
+    } finally { setSaving(false); }
+  };
+
+  if (loading) return <div style={{ flex: 1, display: "grid", placeItems: "center", color: T.textMute }}>Loading…</div>;
+
+  const field = (k, label, rows) => (
+    <label style={{ display: "grid", gap: 6, marginTop: 14 }}>
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: T.textDim }}>{label}</span>
+      {rows ? <textarea rows={rows} style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }} value={values[k] || ""} onChange={e => set(k, e.target.value)} />
+        : <input style={inputStyle} value={values[k] || ""} onChange={e => set(k, e.target.value)} />}
+    </label>
+  );
+  const hint = (t) => <div style={{ fontSize: 12.5, color: T.textMute, marginTop: 8, lineHeight: 1.5 }}>{t}</div>;
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{ padding: "14px 36px", borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "center", gap: 14, flexShrink: 0, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 260, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          Shared wording for the AI Client Success Manager. Each client's reports, approvals, health and questions are in <b style={{ color: T.text }}>Clients → client → Agents → Client Success Manager</b>.
+        </div>
+        <Toggle on={csmOn(values.csm_enabled)} onChange={() => flip("csm_enabled")} label={csmOn(values.csm_enabled) ? "Running" : "Paused for all clients"} />
+        <CategoryPicker categories={categories} category={category} setCategory={setCategory} customCatMode={customCatMode} setCustomCatMode={setCustomCatMode} />
+        {savedFlash && <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>}
+        <button className="btn btn-primary" onClick={save} disabled={saving || !dirty}>{saving ? "Saving…" : "Save"}</button>
+      </div>
+
+      <div style={{ padding: "6px 36px 0", flexShrink: 0 }}>
+        <Tabs value={view} onChange={setView} tabs={[
+          { id: "reports", label: "Report emails" },
+          { id: "final", label: "Final report" },
+          { id: "milestones", label: "Milestone texts" },
+          { id: "onboarding", label: "Onboarding check-ins" },
+          { id: "brief", label: "AI writing style" },
+        ]} />
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "8px 36px 40px" }}>
+        <div style={{ maxWidth: 760 }}>
+          {view === "reports" && (
+            <>
+              <div style={{ display: "flex", gap: 24, marginTop: 16 }}>
+                <Toggle on={csmOn(values.csm_send_email)} onChange={() => flip("csm_send_email")} label="Send by email" />
+                <Toggle on={csmOn(values.csm_send_sms)} onChange={() => flip("csm_send_sms")} label="Also send by text" />
+              </div>
+              {hint("Weekly reports go out automatically every Monday at 10am ET. Merge fields: {first_name} {clinic} {week} {link}. Texts are off by default; keep them to plain characters (no em dashes, curly quotes or emoji).")}
+              {field("csm_weekly_email_subject", "Weekly report: email subject")}
+              {field("csm_weekly_email_body", "Weekly report: email body", 8)}
+              {field("csm_weekly_sms", "Weekly report: text message", 3)}
+            </>
+          )}
+          {view === "final" && (
+            <>
+              {hint("The final report is drafted when a campaign ends and only goes out once you approve it in the client's Client Success Manager. It includes \"Your next campaign\" (written by Claude from the results) and the testimonial ask below.")}
+              {field("csm_final_email_subject", "Final report: email subject")}
+              {field("csm_final_email_body", "Final report: email body", 8)}
+              {field("csm_final_sms", "Final report: text message", 3)}
+              {field("csm_final_testimonial_text", "\"Share your experience\" section (testimonial ask)", 4)}
+              {hint("Merge fields: {clinic} {first_name} {review_link_line} (a Google review link when DIGIGROWTH_REVIEW_URL is set).")}
+            </>
+          )}
+          {view === "milestones" && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13, color: T.textDim, marginRight: 4 }}>Send milestones by</span>
+                {[["sms", "Text"], ["email", "Email"], ["off", "Off"]].map(([ch, label]) => {
+                  const on = (values.csm_milestones_channel || "sms") === ch;
+                  return <button key={ch} onClick={() => set("csm_milestones_channel", ch)} style={{ border: `1px solid ${on ? "rgba(77,142,240,0.5)" : T.line}`, background: on ? T.accentSoft : "transparent", color: on ? T.text : T.textMute, padding: "6px 14px", borderRadius: 99, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{label}</button>;
+                })}
+              </div>
+              {hint("Checked every 30 minutes while a campaign runs; each one goes out once per campaign. Merge fields: {first_name} {clinic} {booked} {goal} {leads}.")}
+              {CSM_MILESTONES.map(([k, label, when]) => field(`csm_ms_${k}`, `${label} · ${when}`, 2))}
+            </>
+          )}
+          {view === "onboarding" && (
+            <>
+              <div style={{ marginTop: 16 }}>
+                <Toggle on={csmOn(values.csm_checkins_enabled)} onChange={() => flip("csm_checkins_enabled")} label={csmOn(values.csm_checkins_enabled) ? "Check-ins drafted" : "Check-ins off"} />
+              </div>
+              {hint("Drafted on day 1, 3 and 7 after a client is added, until launch. Each one waits for your approval in that client's Client Success Manager. Merge fields: {first_name} {clinic} {done} {total} {needs} {portal_link} {day}.")}
+              {field("csm_checkin_subject", "Subject")}
+              {field("csm_checkin_body", "Body", 12)}
+            </>
+          )}
+          {view === "brief" && (
+            <>
+              {field("csm_ai_brief", "How Claude writes the report analysis", 10)}
+              {hint("Applies to the headline, what's working, what we're fixing, next steps, how your team can help, questions for the client and the next-campaign plan. Numbers always come straight from the client's data, and Claude is told never to invent or round them.")}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -2707,6 +2867,10 @@ export default function SOPsPanel() {
   const [dmFollowupCategory, setDmFollowupCategory] = useState("General");
   const [onboardingCategory, setOnboardingCategory] = useState("General");
   const [clientBookingCategory, setClientBookingCategory] = useState("General");
+  const [clientSuccessCategory, setClientSuccessCategory] = useState("Client Success");
+  useEffect(() => {
+    fetch("/api/client-success/settings").then(r => (r.ok ? r.json() : null)).then(d => { if (d?.category) setClientSuccessCategory(d.category); }).catch(() => {});
+  }, []);
   const [emailHandoffCategory, setEmailHandoffCategory] = useState("General");
   const [gkDeferralCategory, setGkDeferralCategory] = useState("General");
   const [remCategory, setRemCategory] = useState("General");
@@ -2829,7 +2993,7 @@ export default function SOPsPanel() {
     ...sops.map(s => s.category || "General"),
     ...(activeSection === "outreach_templates"
       ? [
-          sendInfoCategory, noShowCategory, cancelCategory, dmFollowupCategory, onboardingCategory, clientBookingCategory, emailHandoffCategory, gkDeferralCategory, remCategory,
+          sendInfoCategory, noShowCategory, cancelCategory, dmFollowupCategory, onboardingCategory, clientBookingCategory, clientSuccessCategory, emailHandoffCategory, gkDeferralCategory, remCategory,
           ...sequences.map(s => s.category || "General"),
           ...callScripts.map(s => s.category || "General"),
         ]
@@ -2973,6 +3137,7 @@ export default function SOPsPanel() {
     { ...DM_FOLLOWUP_ITEM,      category: dmFollowupCategory, icon: "💭" },
     { ...ONBOARDING_ITEM,       category: onboardingCategory, icon: "🎉" },
     { ...CLIENT_BOOKING_ITEM,   category: clientBookingCategory, icon: "📣" },
+    { ...CLIENT_SUCCESS_ITEM,   category: clientSuccessCategory, icon: "📊" },
     { ...EMAIL_HANDOFF_ITEM,    category: emailHandoffCategory, icon: "📧" },
     { ...GK_DEFERRAL_ITEM,      category: gkDeferralCategory, icon: "📨" },
     ...sequences.map(seq => ({
@@ -3039,10 +3204,10 @@ export default function SOPsPanel() {
         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
         <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.emailHandoffTemplate && !selectedItem?.gkDeferralTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.clientSuccess && !selectedItem?.emailHandoffTemplate && !selectedItem?.gkDeferralTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
             <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.emailHandoffTemplate && !selectedItem?.gkDeferralTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.clientSuccess && !selectedItem?.emailHandoffTemplate && !selectedItem?.gkDeferralTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
             <button
               onClick={save}
               disabled={saving || !title.trim()}
@@ -3059,7 +3224,7 @@ export default function SOPsPanel() {
               }}
             >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
           )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.emailHandoffTemplate && !selectedItem?.gkDeferralTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
+          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.clientSuccess && !selectedItem?.emailHandoffTemplate && !selectedItem?.gkDeferralTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
             <button
               onClick={() => deleteSOP(selectedItem)}
               title="Delete this document"
@@ -3226,6 +3391,8 @@ export default function SOPsPanel() {
             <OnboardingKickoffEditor categories={categories} onCategoryChange={setOnboardingCategory} />
           ) : selectedItem?.clientBookingTemplate ? (
             <ClientBookingAlertEditor categories={categories} onCategoryChange={setClientBookingCategory} />
+          ) : selectedItem?.clientSuccess ? (
+            <ClientSuccessEditor categories={categories} onCategoryChange={setClientSuccessCategory} />
           ) : selectedItem?.emailHandoffTemplate ? (
             <EmailHandoffEditor categories={categories} onCategoryChange={setEmailHandoffCategory} />
           ) : selectedItem?.gkDeferralTemplate ? (

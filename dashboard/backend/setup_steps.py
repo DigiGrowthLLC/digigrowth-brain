@@ -13,13 +13,18 @@ computed live in signals(). A step is done when it's proven OR ticked.
 
 Package: clients.service_package = 'growth' (ads, voice agent, DMs, organic)
 or 'foundations' ($500/mo: text agent, reactivation, follow-up + booking
-funnel; no ads). Steps marked growth-only are left out for Foundations.
+funnel; no ads). Since 2026-11-17 the steps shown follow the client's own
+services (client_services.py, answered on their portal intake): a step
+with "services" shows when the client has at least one of them. Clients who
+never answered fall back to their package's defaults.
 """
 from __future__ import annotations
 
 import json
 import os
 
+import client_services
+from client_services import BOOKING, META, TEXTING
 from db import get_pool
 
 PHASES = [
@@ -50,7 +55,7 @@ STEPS = [
      "action": "review", "legacy": [("automations", 5)]},
 
     # ---- handover
-    {"id": "meta_access", "phase": "handover", "package": "growth", "title": "Meta access: Page, Instagram, ad account",
+    {"id": "meta_access", "services": META, "phase": "handover", "package": "growth", "title": "Meta access: Page, Instagram, ad account",
      "how": "Client: Business Settings → Partners → add DigiGrowth (business ID 695946576605909) with the Page, "
             "Instagram and ad account, Full control / Manage campaigns. You: accept the portfolio invite, then "
             "DigiGrowth Business Settings → System users → assign the ad account (Manage campaigns: the spend cap "
@@ -60,38 +65,38 @@ STEPS = [
      "fields": [{"key": "meta_ad_account_id", "label": "Ad account ID", "placeholder": "123456789012345"},
                 {"key": "meta_page_id", "label": "Page ID", "placeholder": "987654321098765"}],
      "action": "meta_sync"},
-    {"id": "calendar", "phase": "handover", "package": "all", "title": "Calendar shared (+ Stripe if the visit is paid)",
+    {"id": "calendar", "services": BOOKING, "phase": "handover", "package": "all", "title": "Calendar shared (+ Stripe if the visit is paid)",
      "how": "Client shares the Google Calendar they book patients on with dylanrg@digigrowthllc.com, \"Make changes "
             "to events\" (their portal walks them through it). Paid visit: they click \"Connect Stripe to Get Paid\" "
             "in their portal. GoHighLevel/Calendly clients: see the Booking step instead.",
      "action": "booking"},
-    {"id": "dns", "phase": "handover", "package": "all", "title": "Funnel on their own domain",
+    {"id": "dns", "services": ["funnel"], "phase": "handover", "package": "all", "title": "Funnel on their own domain",
      "how": "Find where DNS is really edited (Resources shows the detected DNS host; often not the registrar). "
             "Get access there, or send the client the record: CNAME, host \"go\", value cname.vercel-dns.com. "
             "Never touch the root @ records. Save the domain below, then run deploy_client_funnels.py (the onboarding "
             "agent does it). Ticks itself once https://<domain>/ serves the funnel.",
      "fields": [{"key": "funnel_domain", "label": "Funnel domain", "placeholder": "go.clientdomain.com"}],
      "legacy": [("landing_page", 2)]},
-    {"id": "a2p", "phase": "handover", "package": "all", "title": "A2P 10DLC registered (marketing use case)",
+    {"id": "a2p", "services": TEXTING, "phase": "handover", "package": "all", "title": "A2P 10DLC registered (marketing use case)",
      "how": "Needs their legal business name + EIN. Register the Brand + Campaign on the client's Twilio subaccount. "
             "Pick a use case that covers marketing (reactivation texts get filtered on a customer-care-only campaign).",
      "link": "https://console.twilio.com/us1/develop/sms/regulatory-compliance/brand-registrations",
      "linkLabel": "Twilio → Regulatory Compliance", "legacy": [("sms", 1)]},
-    {"id": "lists", "phase": "handover", "package": "all", "title": "Past patient + old inquiry lists imported",
+    {"id": "lists", "services": ["reactivation"], "phase": "handover", "package": "all", "title": "Past patient + old inquiry lists imported",
      "how": "CSV exports from their EHR: past patients (discharged or dropped off) and old inquiries that never "
             "booked, with name, mobile, last visit + reason if they have it, minus anyone seen in the last 60 days. "
             "Import each in their portal (Leads → Import CSV) with its list type. Texts only, never voice-called.",
      "action": "portal"},
 
     # ---- connect
-    {"id": "booking", "phase": "connect", "package": "all", "title": "Booking live",
+    {"id": "booking", "services": BOOKING, "phase": "connect", "package": "all", "title": "Booking live",
      "how": "AUTOFILL drafts hours, the appointment type and patient contact info from their site, offer and portal "
             "answers: check it, pick their calendar, then Turn on in Booking Links. The funnel, portal and agents "
             "switch to it on their own. Only for a client who books on GoHighLevel: paste the GHL booking link + "
             "Private Integration token under the agent's Calendar (GoHighLevel) and add the booking-sync workflow "
             "(webhook URL in the Agents tab).",
      "action": "booking_autofill", "legacy": [("response_ai", 5)]},
-    {"id": "lead_form", "phase": "connect", "package": "growth", "title": "Instant Form + lead relay",
+    {"id": "lead_form", "services": ["paid_ads"], "phase": "connect", "package": "growth", "title": "Instant Form + lead relay",
      "how": "CREATE FORM builds the Instant Form on their Page (full name, phone, email; the text + AI-call consent "
             "line; thank-you button to their booking link). The lead relay builds itself when the Page ID is saved; "
             "if it shows an error: Make → Credentials → \"DigiGrowth FB\" → Reauthorize with this Page ticked, and "
@@ -99,35 +104,42 @@ STEPS = [
             "CONSENT LINE IS LIVE so the voice agent may call new Meta leads.",
      "link": "https://us2.make.com/2119565/connections", "linkLabel": "Make → Credentials",
      "action": "lead_form", "legacy": [("response_ai", 11)]},
-    {"id": "pixel", "phase": "connect", "package": "growth", "title": "Meta Pixel on the funnel",
+    {"id": "pixel", "services": ["paid_ads"], "phase": "connect", "package": "growth", "title": "Meta Pixel on the funnel",
      "how": "Create or open the client's pixel in Events Manager and save its ID. The funnel and booking pages load "
             "it automatically (PageView, plus Schedule when a booking completes). Check it fires with Pixel Helper.",
      "link": "https://business.facebook.com/events_manager2/list/pixel/", "linkLabel": "Events Manager",
      "fields": [{"key": "meta_pixel_id", "label": "Pixel ID", "placeholder": "1234567890123456"}]},
-    {"id": "voice", "phase": "connect", "package": "growth", "title": "Voice agent on",
+    {"id": "voice", "services": ["ai_voice"], "phase": "connect", "package": "growth", "title": "Voice agent on",
      "how": "Built automatically from the text agent. Agents → Voice Agent: TEST CALL to your number (it should "
             "confirm who it's talking to, offer two real times, handle a callback request, transfer to the clinic), "
             "then switch on \"Voice agent calls new leads\". Meta leads are only called after the consent stamp "
             "(Instant Form step). Tell the client to pick up when their own number calls.",
      "action": "agents"},
-    {"id": "social", "phase": "connect", "package": "growth", "title": "DM agent on (Facebook + Instagram)",
+    {"id": "social", "services": ["dm_agent"], "phase": "connect", "package": "growth", "title": "DM agent on (Facebook + Instagram)",
      "how": "Instagram must be a Professional account linked to the Page. Agents → Social Media Conversation Agent → "
             "CONNECT DMS. Turn off Meta's own auto-replies (Business Suite → Inbox → Automations) and on Instagram "
             "allow Connected tools access to messages. TEST CHAT, then switch the agent on.",
      "link": "https://business.facebook.com/latest/inbox/automations", "linkLabel": "Inbox → Automations",
      "action": "agents"},
-    {"id": "ad_cap", "phase": "connect", "package": "growth", "title": "Ad spend cap set",
+    {"id": "ad_cap", "services": ["paid_ads"], "phase": "connect", "package": "growth", "title": "Ad spend cap set",
      "how": "Cap = what they signed minus $100 for software (e.g. $600 → 500), start = launch day. Pauses the "
             "campaigns at the cap and times reactivation: first dollar starts check-ins, cap reached starts the "
             "last call. Needs the system user on the ad account with Manage campaigns.",
      "action": "ad_cap"},
 
     # ---- ads
-    {"id": "campaign", "phase": "ads", "package": "growth", "title": "Campaign approved and uploaded",
+    {"id": "campaign", "services": ["paid_ads"], "phase": "ads", "package": "growth", "title": "Campaign approved and uploaded",
      "how": "Media-buying agent: deep research → campaign plan → ads, each gated for your approval. Upload into the "
             "client's ad account with the Instant Form above, then publish when everything else is green.",
      "link": "https://business.facebook.com/adsmanager", "linkLabel": "Ads Manager", "legacy": [("ad_creatives", 5)]},
-    {"id": "organic", "phase": "ads", "package": "growth", "title": "Organic posts scheduled",
+    {"id": "campaign_goal", "services": ["paid_ads"], "phase": "ads", "package": "growth", "title": "Campaign goal and length set",
+     "how": "How many bookings this client was promised and how long the campaign runs (usually what was agreed on "
+            "the sales call or in the Blueprint, e.g. 7 in 30 days). Drives the client's weekly report pace bar, the "
+            "halfway and goal-hit milestone texts, the at-risk health score and when the final report (with the "
+            "next-campaign plan) is drafted. Leave length blank for 30 days.",
+     "fields": [{"key": "campaign_booking_goal", "label": "Bookings goal", "placeholder": "7"},
+                {"key": "campaign_length_days", "label": "Campaign length (days)", "placeholder": "30"}]},
+    {"id": "organic", "services": ["social_media"], "phase": "ads", "package": "growth", "title": "Organic posts scheduled",
      "how": "Tidy the Page and Instagram (images, bio, website = their funnel). Schedule the approved creatives in "
             "Planner, Facebook + Instagram together, one every 3 days for 30 days, mid-morning clinic time. Caption = "
             "the hook and story without ad-only urgency, soft CTA, 3-5 local hashtags.",
@@ -141,12 +153,12 @@ STEPS = [
             "then CLEAN UP deletes the test lead, cancels the test booking and resets the funnel's stats. Turn the "
             "client's booking alert off first if you don't want them notified.",
      "action": "test", "legacy": [("response_ai", 15)]},
-    {"id": "reactivation", "phase": "launch", "package": "all", "title": "Database reactivation running",
+    {"id": "reactivation", "services": ["reactivation"], "phase": "launch", "package": "all", "title": "Database reactivation running",
      "how": "Growth: starts itself at the first ad dollar (check-ins) and the cap (last call). Foundations: START it by "
             "hand in Agents → Database Reactivation Agent once the lists are in and A2P is approved. VIEW QUEUE shows "
             "who's next.",
      "action": "agents"},
-    {"id": "golive", "phase": "launch", "package": "growth", "title": "Ads live, client told",
+    {"id": "golive", "services": ["paid_ads"], "phase": "launch", "package": "growth", "title": "Ads live, client told",
      "how": "Publish the campaign. Tell the client what's live: texts and calls come from their own number, transfers "
             "reach them during business hours, results show in their portal. Ticks itself at the first ad dollar.",
      "legacy": [("client_portal", 6)]},
@@ -174,8 +186,8 @@ def _decode(value, default):
     return value if value is not None else default
 
 
-def steps_for(package: str) -> list[dict]:
-    return [s for s in STEPS if s["package"] == "all" or package == "growth"]
+def steps_for(services) -> list[dict]:
+    return [s for s in STEPS if client_services.applies(s.get("services"), services)]
 
 
 async def signals(conn, client_id: int) -> dict[str, str]:
@@ -222,6 +234,9 @@ async def signals(conn, client_id: int) -> dict[str, str]:
 
     if cfg.get("make_scenario_id") and not cfg.get("lead_ads_error") and cfg.get("meta_form_id"):
         out["lead_form"] = "Form built and relay connected"
+    if cfg.get("campaign_booking_goal"):
+        out["campaign_goal"] = (f"{cfg['campaign_booking_goal']} bookings in "
+                                f"{cfg.get('campaign_length_days') or 30} days")
     if cfg.get("meta_pixel_id"):
         out["pixel"] = f"Pixel {cfg['meta_pixel_id']} loads on the funnel"
     if cfg.get("voice_agent_enabled"):
@@ -261,7 +276,9 @@ def _migrate(progress: dict) -> dict:
 async def status(client_id: int) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
-        client = await conn.fetchrow("SELECT id, name, service_package FROM clients WHERE id = $1", client_id)
+        client = await conn.fetchrow(
+            "SELECT id, name, service_package, services, portal_intake, intake_required, intake_completed_at "
+            "FROM clients WHERE id = $1", client_id)
         if not client:
             return {}
         row = await conn.fetchrow(
@@ -276,8 +293,9 @@ async def status(client_id: int) -> dict:
         proven = await signals(conn, client_id)
     ticks = progress.get("v2") or {}
     package = client["service_package"] or "growth"
+    services = client_services.effective(dict(client))
     steps = []
-    for s in steps_for(package):
+    for s in steps_for(services):
         auto = proven.get(s["id"])
         steps.append({**{k: v for k, v in s.items() if k != "legacy"},
                       "done": bool(auto or ticks.get(s["id"])), "proof": auto, "ticked": bool(ticks.get(s["id"]))})
@@ -292,14 +310,24 @@ async def status(client_id: int) -> dict:
         "meta_form_id": row["meta_form_id"] if row else None,
         "consent_since": row["voice_consent_meta_since"].isoformat() if row and row["voice_consent_meta_since"] else None,
         "lead_ads_error": row["lead_ads_error"] if row else None,
-        "client_ask": client_ask(client["name"], package, {s["id"] for s in steps if s["done"]}),
+        "client_ask": client_ask(client["name"], {s["id"] for s in steps},
+                                 {s["id"] for s in steps if s["done"]}),
+        "services": services,
+        "services_from": "intake" if client["intake_completed_at"] else (
+            "set by Dylan" if client["services"] is not None else "package"),
+        "service_options": client_services.SERVICES,
+        "intake_pending": client_services.intake_pending(dict(client)),
+        "intake_answers": _decode(client["portal_intake"], {}),
+        "intake_questions": client_services.INTAKE_QUESTIONS,
     }
 
 
-def client_ask(name: str, package: str, done: set[str]) -> str:
-    """The one batched handover message, listing only what's still missing."""
+def client_ask(name: str, shown: set[str], done: set[str]) -> str:
+    """The one batched handover message, listing only what's still missing
+    (and only for steps that apply to this client's services)."""
+    done = done | {s["id"] for s in STEPS if s["id"] not in shown}
     items = []
-    if package == "growth" and "meta_access" not in done:
+    if "meta_access" not in done:
         items.append("Facebook: in Business Settings → Partners, add DigiGrowth (business ID 695946576605909) with "
                      "your Page, Instagram and ad account (Full control / Manage campaigns).")
     if "calendar" not in done:
@@ -337,10 +365,30 @@ async def set_tick(client_id: int, step_id: str, value: bool) -> None:
 
 
 async def launch_checklist_done(client_id: int) -> set[str]:
-    """Step ids done for this client (proven or ticked), for the launch checklist sync."""
+    """Step ids done for this client (proven or ticked), for the launch checklist
+    sync. Steps that don't apply to their services count as done."""
     st = await status(client_id)
-    return {s["id"] for s in st.get("steps", []) if s["done"]}
+    shown = {s["id"] for s in st.get("steps", [])}
+    return {s["id"] for s in st.get("steps", []) if s["done"]} | {s["id"] for s in STEPS if s["id"] not in shown}
 
 
 def retell_configured() -> bool:
     return bool(os.environ.get("RETELL_API_KEY"))
+
+
+async def set_services(client_id: int, services: list[str]) -> None:
+    """Dylan's override from Marketing Setup (doesn't touch the intake answers)."""
+    services = [x for x in services if x in client_services.SERVICE_IDS]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE clients SET services = $2::jsonb, updated_at = now() WHERE id = $1",
+                           client_id, json.dumps(services))
+
+
+async def ask_intake_again(client_id: int, on: bool) -> None:
+    """Gate (or un-gate) the client's portal behind the intake again."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE clients SET intake_required = $2, intake_completed_at = CASE WHEN $2 THEN NULL "
+            "ELSE coalesce(intake_completed_at, now()) END, updated_at = now() WHERE id = $1", client_id, on)

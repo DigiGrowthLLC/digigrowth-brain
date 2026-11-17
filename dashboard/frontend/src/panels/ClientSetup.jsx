@@ -229,14 +229,15 @@ function GhlWebhookUrl({ clientId }) {
 // ── Step pieces ─────────────────────────────────────────────────────────────
 
 function StepFields({ clientId, fields, config, onSaved }) {
-  const [vals, setVals] = useState(() => Object.fromEntries(fields.map((f) => [f.key, config?.[f.key] || ""])));
+  const [vals, setVals] = useState(() => Object.fromEntries(fields.map((f) => [f.key, String(config?.[f.key] ?? "")])));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const dirty = fields.some((f) => (vals[f.key] || "") !== (config?.[f.key] || ""));
+  // String(): numeric fields (campaign goal/length) come back as numbers.
+  const dirty = fields.some((f) => String(vals[f.key] ?? "") !== String(config?.[f.key] ?? ""));
   const save = async () => {
     setBusy(true); setMsg("");
     try {
-      const body = Object.fromEntries(fields.map((f) => [f.key, (vals[f.key] || "").trim() || null]));
+      const body = Object.fromEntries(fields.map((f) => [f.key, String(vals[f.key] ?? "").trim() || null]));
       await call(`/clients/${clientId}/marketing-config`, { method: "PUT", body: JSON.stringify(body) });
       setMsg("Saved");
       await onSaved();
@@ -379,7 +380,7 @@ function StepRow({ step, open, onToggle, onTick, ...rest }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ ...label, fontSize: 12.5, fontWeight: 600, color: step.done ? "#8fb8a0" : "#d0e0f5" }}>{step.title}</div>
           <div style={{ ...mono, fontSize: 9.5, marginTop: 1, color: step.proof ? "#6fbf95" : "#4a6a90" }}>
-            {step.proof || (step.ticked ? "Marked done by hand" : step.package === "growth" ? "Growth" : "")}
+            {step.proof || (step.ticked ? "Marked done by hand" : "")}
           </div>
         </div>
         <span style={{ ...mono, fontSize: 12, color: "#3a5a80" }}>{open ? "▾" : "▸"}</span>
@@ -396,6 +397,68 @@ function StepRow({ step, open, onToggle, onTick, ...rest }) {
               Mark done (or not needed for this client)
             </label>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// What we do for this client (backend client_services.py). The client picks
+// these on their portal intake; Dylan can correct them here. Only the steps
+// for these services show below and in the client's portal.
+function ServicesCard({ clientId, setup, onChange }) {
+  const [busy, setBusy] = useState(false);
+  const [showAnswers, setShowAnswers] = useState(false);
+  const have = setup.services || [];
+  const save = async (path, body) => {
+    setBusy(true);
+    try { onChange(await call(path, { method: "PUT", body: JSON.stringify(body) })); } finally { setBusy(false); }
+  };
+  const toggle = (id) => save(`/clients/${clientId}/setup/services`,
+    { services: have.includes(id) ? have.filter((x) => x !== id) : [...have, id] });
+  const answers = setup.intake_answers || {};
+  const qs = (setup.intake_questions || []).filter((q) => answers[q.key] !== undefined);
+  const source = setup.intake_pending ? "Waiting on the client's portal intake (showing the package defaults until then)"
+    : setup.services_from === "intake" ? "Picked by the client on their portal intake"
+    : setup.services_from === "set by Dylan" ? "Set by you" : "Package defaults (client hasn't answered the intake)";
+  return (
+    <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(58,123,213,0.12)", background: "rgba(255,255,255,0.02)", display: "grid", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ ...label, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#9cc4f5" }}>SERVICES</span>
+        <span style={{ ...mono, fontSize: 9.5 }}>{source}</span>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          {qs.length > 0 && (
+            <button className="btn btn-secondary" style={{ fontSize: 9.5 }} onClick={() => setShowAnswers((v) => !v)}>
+              {showAnswers ? "HIDE ANSWERS" : "INTAKE ANSWERS"}
+            </button>
+          )}
+          <button className="btn btn-secondary" style={{ fontSize: 9.5 }} disabled={busy}
+            title={setup.intake_pending ? "Let the client into their portal without answering" : "Their portal opens on the intake again, answers prefilled"}
+            onClick={() => save(`/clients/${clientId}/setup/intake`, { ask: !setup.intake_pending })}>
+            {setup.intake_pending ? "SKIP INTAKE" : "ASK CLIENT AGAIN"}
+          </button>
+        </span>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {(setup.service_options || []).map((o) => {
+          const on = have.includes(o.id);
+          return (
+            <button key={o.id} disabled={busy} title={o.hint} onClick={() => toggle(o.id)} style={{
+              ...label, fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 999, cursor: "pointer",
+              border: on ? "1px solid rgba(74,222,128,0.5)" : "1px solid rgba(58,123,213,0.2)",
+              background: on ? "rgba(74,222,128,0.12)" : "transparent", color: on ? "#bff0d0" : "#5a7aa0",
+            }}>{on ? "✓ " : ""}{o.label}</button>
+          );
+        })}
+      </div>
+      {showAnswers && (
+        <div style={{ display: "grid", gap: 4 }}>
+          {qs.map((q) => (
+            <div key={q.key} style={{ fontSize: 11.5, color: "#9fb4d4" }}>
+              <span style={{ color: "#5a7aa0" }}>{q.label}</span>{" "}
+              {Array.isArray(answers[q.key]) ? answers[q.key].join(", ") : answers[q.key]}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -472,6 +535,8 @@ export default function ClientSetup({ clientId, onGoTab }) {
           {showDone ? "HIDE DONE" : "SHOW DONE"}
         </button>
       </div>
+
+      <ServicesCard clientId={clientId} setup={setup} onChange={setSetup} />
 
       {setup.phases.map((ph) => {
         const steps = setup.steps.filter((s) => s.phase === ph.id);

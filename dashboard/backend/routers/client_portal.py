@@ -21,6 +21,7 @@ import os
 import uuid
 from datetime import datetime as _dt, timezone as _tz
 from typing import Optional
+from zoneinfo import ZoneInfo as _ZoneInfo
 
 import asyncpg
 from fastapi import APIRouter, HTTPException
@@ -33,6 +34,7 @@ from models import (
     BookingAlertNameSet,
 )
 import client_appointment_reminders
+import client_services
 import client_appointment_sequence
 import client_followup_sequence
 import client_dialer
@@ -109,7 +111,63 @@ async def portal_home(token: str):
         # UI shows "not connected" in place of the iframe when this is null.
         # DigiGrowth Booking (booking_engine.py) replaces it once turned on.
         "calendly_url": await _booking_or_calendly_url(client),
+        # New clients answer the intake (services + a few questions) before
+        # the rest of the portal shows (client_services.py).
+        "intake_pending": client_services.intake_pending(client),
+        "services": client_services.effective(client),
+        # Get Started questionnaire sections that don't apply to them.
+        "hidden_sections": [k for k, need in client_services.SECTION_SERVICES.items()
+                            if not client_services.applies(need, client_services.effective(client))],
     }
+
+
+@router.get("/{token}/intake")
+async def portal_intake_form(token: str):
+    client = await get_client_from_token(token)
+    chosen = client_services._decode(client.get("services"))
+    return {
+        "services": client_services.SERVICES,
+        "questions": client_services.INTAKE_QUESTIONS,
+        "selected": chosen if isinstance(chosen, list) else [],
+        "answers": client_services._decode(client.get("portal_intake")) or {},
+        "contact_name": client.get("contact_name"),
+        "name": client["name"],
+    }
+
+
+@router.post("/{token}/intake")
+async def portal_intake_submit(token: str, body: dict):
+    client = await get_client_from_token(token)
+    services = [s for s in (body.get("services") or []) if s in client_services.SERVICE_IDS]
+    if not services:
+        raise HTTPException(status_code=400, detail="Check at least one service")
+    answers = client_services.clean_answers(services, body.get("answers") or {})
+    missing = [q["label"] for q in client_services.INTAKE_QUESTIONS
+               if client_services.applies(q["services"], services) and not q.get("optional")
+               and not q.get("show_if") and q["key"] not in answers]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Please answer: {missing[0]}")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        first_time = not client.get("intake_completed_at")
+        await conn.execute(
+            """UPDATE clients SET services = $2::jsonb, portal_intake = $3::jsonb,
+                   intake_completed_at = now(), updated_at = now() WHERE id = $1""",
+            client["id"], json.dumps(services), json.dumps(answers),
+        )
+        # Dylan hears about it on his To-Do list (never a text to him or the client).
+        lines = [f"Services: {', '.join(client_services.labels(services))}"]
+        by_key = {q["key"]: q["label"] for q in client_services.INTAKE_QUESTIONS}
+        for k, v in answers.items():
+            lines.append(f"{by_key.get(k, k)} {', '.join(v) if isinstance(v, list) else v}")
+        title = f"{client['name']} {'finished' if first_time else 'updated'} their portal intake"
+        if not await conn.fetchval("SELECT 1 FROM todos WHERE NOT done AND text = $1", title):
+            await conn.execute(
+                "INSERT INTO todos (text, description, due_date) VALUES ($1, $2, $3)",
+                title, "\n".join(lines) + "\n\nMarketing Setup now shows only the steps for these services.",
+                _dt.now(_ZoneInfo("America/New_York")).date(),
+            )
+    return {"ok": True, "services": services}
 
 
 async def _booking_or_calendly_url(client: dict) -> str | None:
@@ -299,7 +357,8 @@ async def portal_action_items(token: str):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT ai.id, ai.title, ai.description, ai.link_tab, ai.link_url, ai.sort_order, c.completed_at
+            SELECT ai.id, ai.title, ai.description, ai.link_tab, ai.link_url, ai.sort_order, ai.services,
+                   c.completed_at
             FROM onboarding_action_items ai
             LEFT JOIN client_action_item_completions c
                 ON c.action_item_id = ai.id AND c.client_id = $1
@@ -316,8 +375,11 @@ async def portal_action_items(token: str):
             client["id"],
         )
     out = []
+    have = client_services.effective(client)
     for r in rows:
         d = dict(r)
+        if not client_services.applies(d.pop("services"), have):
+            continue
         if d["title"] == STRIPE_ITEM_TITLE:
             # Only clinics with a paid visit need Stripe; it ticks itself
             # once Stripe says they can take payments.
@@ -423,7 +485,7 @@ async def portal_todo(token: str):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT li.id, li.title, li.description, li.phase, li.sort_order, s.completed_at
+            SELECT li.id, li.title, li.description, li.phase, li.sort_order, li.services, s.completed_at
             FROM launch_checklist_items li
             LEFT JOIN client_launch_checklist_status s
                 ON s.item_id = li.id AND s.client_id = $1
@@ -432,7 +494,42 @@ async def portal_todo(token: str):
             """,
             client["id"],
         )
-    return [dict(r) for r in rows]
+    have = client_services.effective(client)
+    out = []
+    for r in rows:
+        d = dict(r)
+        if client_services.applies(d.pop("services"), have):
+            out.append(d)
+    return out
+
+
+@router.post("/{token}/lead-quality/{appointment_id}")
+async def portal_rate_patient(token: str, appointment_id: int, body: dict):
+    import csm_extras
+    client = await get_client_from_token(token)
+    try:
+        ok = await csm_extras.rate_patient(client["id"], appointment_id, body.get("rating"), body.get("note") or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not ok:
+        raise HTTPException(404, "Appointment not found")
+    return {"ok": True}
+
+
+@router.get("/{token}/reports")
+async def portal_reports(token: str):
+    """This client's campaign reports (weekly + final) from the AI client
+    success manager (client_success.py), newest first, sent ones only."""
+    import client_success
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT kind, week_number, period_start, period_end, slug, analysis->>'headline' AS headline, created_at "
+            "FROM client_reports WHERE client_id = $1 AND sent_at IS NOT NULL ORDER BY created_at DESC LIMIT 30",
+            client["id"],
+        )
+    return [{**dict(r), "url": client_success.report_url(r["slug"])} for r in rows]
 
 
 @router.get("/{token}/sequences")
@@ -973,8 +1070,10 @@ async def portal_appointments(token: str, status: str = "scheduled"):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             f"""
-            SELECT ar.*, c.owner, c.notes FROM appointment_reminders ar
+            SELECT ar.*, c.owner, c.notes, q.rating AS fit_rating, q.note AS fit_note
+            FROM appointment_reminders ar
             JOIN contacts c ON c.id = ar.contact_id
+            LEFT JOIN lead_quality_ratings q ON q.appointment_id = ar.id
             {where}
             ORDER BY ar.appointment_at ASC
             """,

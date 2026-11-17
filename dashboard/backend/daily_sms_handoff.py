@@ -45,7 +45,20 @@ OPENER_GAP_SECONDS = 25
 LOCAL_SEND_HOURS = (8, 20)   # prospect's own time, [start, end)
 
 
+PAUSE_KEY = "outreach_paused"   # "true" = all automatic prospect SMS stops (Dylan, 2026-11-10)
+
+
+async def outreach_paused(conn) -> bool:
+    """Dylan's global outreach pause. Checked here (handoff move + openers)
+    and by dm_followup_sequence.py, so one switch stops every automatic
+    text to his own prospects."""
+    row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = $1", PAUSE_KEY)
+    return bool(row and (row["value"] or "").strip().lower() in ("true", "1", "on"))
+
+
 async def _enabled(conn) -> bool:
+    if await outreach_paused(conn):
+        return False
     row = await conn.fetchrow("SELECT value FROM dialer_settings WHERE key = $1", ENABLED_KEY)
     return not (row and (row["value"] or "").strip().lower() in ("false", "0", "off"))
 
@@ -103,6 +116,10 @@ async def send_due_openers() -> int:
         # unanswered all day. The 8am status move still happens regardless;
         # waiting openers go out once the PC is back.
         if not (await sms_setter_ai.worker_status(conn))["worker_online"]:
+            return 0
+        # Turning the handoff off (or pausing outreach) also holds openers
+        # already stamped by an earlier 8am move.
+        if not await _enabled(conn):
             return 0
         rows = await conn.fetch(
             """

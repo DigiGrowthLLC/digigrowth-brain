@@ -275,6 +275,29 @@ async def set_setup_package(client_id: int, body: dict):
     return await setup_steps.status(client_id)
 
 
+@router.get("/client-services")
+async def list_client_services():
+    import client_services
+    return client_services.SERVICES
+
+
+@router.put("/clients/{client_id}/setup/services")
+async def set_setup_services(client_id: int, body: dict):
+    """Dylan's override of the services the client picked on their portal intake."""
+    import setup_steps
+    await setup_steps.set_services(client_id, body.get("services") or [])
+    await guide_autocheck.sync_launch_checklist(client_id)
+    return await setup_steps.status(client_id)
+
+
+@router.put("/clients/{client_id}/setup/intake")
+async def set_setup_intake(client_id: int, body: dict):
+    """ask=true: the client's portal opens on the intake again (answers prefilled)."""
+    import setup_steps
+    await setup_steps.ask_intake_again(client_id, bool(body.get("ask")))
+    return await setup_steps.status(client_id)
+
+
 async def _setup_action(fn, client_id: int):
     try:
         return await fn(client_id)
