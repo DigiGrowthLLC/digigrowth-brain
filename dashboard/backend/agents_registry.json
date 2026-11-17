@@ -62,5 +62,13 @@
     "root_dir": "../../media-buying-agent",
     "color": "#f2b705",
     "badge_class": "badge-amber"
+  },
+  {
+    "id": "mindset-coach",
+    "name": "Mindset Coach",
+    "description": "Dylan's personal mindset coach: identity, limiting beliefs, self-sabotage, values and needs (Marcus Stadden frameworks)",
+    "root_dir": "../../mindset-coach",
+    "color": "#14b8a6",
+    "badge_class": "badge-gray"
   }
 ]

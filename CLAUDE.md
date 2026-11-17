@@ -18,6 +18,7 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 - `railway.toml` — build/deploy config at repo root (`dockerfilePath = "dashboard/Dockerfile"`)
 - `executive-assistant/` — EA agent (calendar, email, priorities, daily briefing)
 - `content-agent/` — content creation (social posts, ad copy, videos, scripts)
+- `mindset-coach/` — Dylan's personal mindset coach (identity, limiting beliefs, self-sabotage, values/needs). Framework notes from Marcus Stadden videos in `knowledge/`, Dylan's own beliefs/protocols in `context/`. **"Add this video to my mindset coach"** → its `add-source` skill
 - `leadgen-agent/` — Google Maps scraper + lead qualifier
 - `apptset-agent/` — home of the live AI SMS/email setter worker and its playbooks (below) + the newsletter; its older standalone SMS-setter scripts are legacy
 - `onboarding-agent/` — client onboarding. **"Help me set up (my) service delivery for <client>"** (or "onboard <client>", "what's left to launch <client>") → run its `service-delivery-setup` skill (`onboarding-agent/.claude/skills/service-delivery-setup/SKILL.md`): scans the client's Marketing Setup checklist and walks Dylan through it step by step, ticking steps off as they're verified. DigiGrowth Booking is the default booking tool (below); Calendly/GoHighLevel only for clients already on them
