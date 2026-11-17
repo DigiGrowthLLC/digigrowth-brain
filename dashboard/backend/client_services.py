@@ -23,18 +23,19 @@ from __future__ import annotations
 
 import json
 
-SERVICES = [
+# Every service the checklists know about (step/item tags in the OS use these).
+ALL_SERVICES = [
     {"id": "paid_ads", "label": "Paid ads on Facebook & Instagram",
      "hint": "We run ads that bring you new patient leads."},
     {"id": "social_media", "label": "Social media management",
      "hint": "We post to your Facebook and Instagram for you."},
-    {"id": "funnel", "label": "Landing page / booking funnel",
-     "hint": "A page on your own web address that turns visitors into booked visits."},
-    {"id": "online_booking", "label": "Online booking page",
-     "hint": "Patients pick a time themselves and it lands on your calendar."},
-    {"id": "ai_text", "label": "AI appointment setter (text)",
+    {"id": "funnel", "label": "Landing page / booking funnel (every client)",
+     "hint": "A page on their own web address that turns visitors into booked visits."},
+    {"id": "online_booking", "label": "Online booking page (every client)",
+     "hint": "Patients pick a time themselves and it lands on their calendar."},
+    {"id": "ai_text", "label": "AI appointment setter: texts",
      "hint": "Texts new leads within minutes, answers questions and books them."},
-    {"id": "ai_voice", "label": "AI voice agent (calls)",
+    {"id": "ai_voice", "label": "AI appointment setter: calls",
      "hint": "Calls new leads within minutes of them reaching out."},
     {"id": "dm_agent", "label": "AI replies to Facebook & Instagram DMs",
      "hint": "Answers your DMs and books the people who message you."},
@@ -43,7 +44,41 @@ SERVICES = [
     {"id": "followup", "label": "Automatic reminders & follow-up texts",
      "hint": "Booking confirmations, reminders, and no-show / cancellation follow-ups."},
 ]
-SERVICE_IDS = [s["id"] for s in SERVICES]
+SERVICE_IDS = [s["id"] for s in ALL_SERVICES]
+
+# Every client gets these; they're never asked about.
+ALWAYS = ["funnel", "online_booking"]
+# What the client (and Dylan's Services card) actually ticks. A choice can
+# stand for several services: the AI agent is one box for texts + calls.
+CHOICES = [
+    {"id": "paid_ads", "label": "Paid ads on Facebook & Instagram",
+     "hint": "We run ads that bring you new patient leads.", "services": ["paid_ads"]},
+    {"id": "social_media", "label": "Social media management",
+     "hint": "We post to your Facebook and Instagram for you.", "services": ["social_media"]},
+    {"id": "ai_agent", "label": "AI appointment setter (texts + calls)",
+     "hint": "Reaches new leads within minutes by text and phone, answers questions and books them.",
+     "services": ["ai_text", "ai_voice"]},
+    {"id": "dm_agent", "label": "AI replies to Facebook & Instagram DMs",
+     "hint": "Answers your DMs and books the people who message you.", "services": ["dm_agent"]},
+    {"id": "reactivation", "label": "Past patient reactivation",
+     "hint": "Texts your past patients and old inquiries to bring them back in.", "services": ["reactivation"]},
+    {"id": "followup", "label": "Automatic reminders & follow-up texts",
+     "hint": "Booking confirmations, reminders, and no-show / cancellation follow-ups.", "services": ["followup"]},
+]
+SERVICES = CHOICES  # what the intake shows
+
+
+def expand(choice_ids) -> list[str]:
+    """Ticked choices -> the services they stand for, plus the ALWAYS ones."""
+    out = list(ALWAYS)
+    for c in CHOICES:
+        if c["id"] in (choice_ids or []):
+            out += [x for x in c["services"] if x not in out]
+    return out
+
+
+def to_choices(services) -> list[str]:
+    return [c["id"] for c in CHOICES if set(c["services"]) & set(services or [])]
 
 PACKAGE_DEFAULTS = {
     "growth": SERVICE_IDS,
@@ -67,29 +102,10 @@ SECTION_SERVICES = {
 # `services`: shown only when one of these is checked. `type`: choice
 # (single pick), multi (checkboxes) or text.
 INTAKE_QUESTIONS = [
-    {"key": "first_visit", "type": "choice", "services": BOOKING,
-     "label": "Is a new patient's first visit free or paid?",
-     "options": ["Free", "Paid", "Not sure yet"]},
-    {"key": "first_visit_price", "type": "text", "services": BOOKING, "show_if": ["first_visit", "Paid"],
-     "label": "What does the first visit cost?", "placeholder": "$99"},
     {"key": "meta_assets", "type": "multi", "services": META,
      "label": "Which of these do you already have?",
      "options": ["Facebook business Page", "Instagram account", "Meta (Facebook) ad account",
                  "Meta Business Portfolio (Business Manager)", "None of these yet"]},
-    {"key": "domain_owner", "type": "choice", "services": ["funnel"],
-     "label": "Who can make changes to your website's domain?",
-     "options": ["Me", "A web designer or agency", "Someone else on my team", "Not sure"]},
-    {"key": "patient_lists", "type": "choice", "services": ["reactivation"],
-     "label": "Can you export a list of past patients from your patient system?",
-     "options": ["Yes", "Yes, but I'll need help", "No / not sure"]},
-    {"key": "launch_timing", "type": "choice", "services": None,
-     "label": "When would you like everything live?",
-     "options": ["As soon as possible", "Within 2 weeks", "Within a month", "No rush"]},
-    {"key": "contact_pref", "type": "choice", "services": None,
-     "label": "Best way to reach you with quick questions?",
-     "options": ["Text", "Email", "Phone call"]},
-    {"key": "anything_else", "type": "text", "services": None, "multiline": True,
-     "label": "Anything else we should know before we start? (optional)", "optional": True},
 ]
 
 
@@ -138,5 +154,5 @@ def clean_answers(services: list[str], answers: dict) -> dict:
 
 
 def labels(ids) -> list[str]:
-    by = {s["id"]: s["label"] for s in SERVICES}
+    by = {s["id"]: s["label"] for s in CHOICES}
     return [by[i] for i in ids if i in by]

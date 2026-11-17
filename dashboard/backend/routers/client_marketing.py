@@ -278,7 +278,7 @@ async def set_setup_package(client_id: int, body: dict):
 @router.get("/client-services")
 async def list_client_services():
     import client_services
-    return client_services.SERVICES
+    return client_services.ALL_SERVICES
 
 
 @router.put("/clients/{client_id}/setup/services")

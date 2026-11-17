@@ -315,7 +315,8 @@ async def status(client_id: int) -> dict:
         "services": services,
         "services_from": "intake" if client["intake_completed_at"] else (
             "set by Dylan" if client["services"] is not None else "package"),
-        "service_options": client_services.SERVICES,
+        "service_options": client_services.CHOICES,
+        "services_shown": client_services.to_choices(services),
         "intake_pending": client_services.intake_pending(dict(client)),
         "intake_answers": _decode(client["portal_intake"], {}),
         "intake_questions": client_services.INTAKE_QUESTIONS,
@@ -377,8 +378,8 @@ def retell_configured() -> bool:
 
 
 async def set_services(client_id: int, services: list[str]) -> None:
-    """Dylan's override from Marketing Setup (doesn't touch the intake answers)."""
-    services = [x for x in services if x in client_services.SERVICE_IDS]
+    """Dylan's override from Marketing Setup (choice ids, as the intake ticks them)."""
+    services = client_services.expand(services)
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("UPDATE clients SET services = $2::jsonb, updated_at = now() WHERE id = $1",

@@ -409,7 +409,7 @@ function StepRow({ step, open, onToggle, onTick, ...rest }) {
 function ServicesCard({ clientId, setup, onChange, portalUrl }) {
   const [busy, setBusy] = useState(false);
   const [showAnswers, setShowAnswers] = useState(false);
-  const have = setup.services || [];
+  const have = setup.services_shown || [];
   const save = async (path, body) => {
     setBusy(true);
     try { onChange(await call(path, { method: "PUT", body: JSON.stringify(body) })); } finally { setBusy(false); }

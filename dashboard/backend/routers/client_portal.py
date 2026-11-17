@@ -128,7 +128,7 @@ async def portal_intake_form(token: str):
     return {
         "services": client_services.SERVICES,
         "questions": client_services.INTAKE_QUESTIONS,
-        "selected": chosen if isinstance(chosen, list) else [],
+        "selected": client_services.to_choices(chosen) if isinstance(chosen, list) else [],
         "answers": client_services._decode(client.get("portal_intake")) or {},
         "contact_name": client.get("contact_name"),
         "name": client["name"],
@@ -138,9 +138,10 @@ async def portal_intake_form(token: str):
 @router.post("/{token}/intake")
 async def portal_intake_submit(token: str, body: dict):
     client = await get_client_from_token(token)
-    services = [s for s in (body.get("services") or []) if s in client_services.SERVICE_IDS]
-    if not services:
+    choices = [c["id"] for c in client_services.CHOICES if c["id"] in (body.get("services") or [])]
+    if not choices:
         raise HTTPException(status_code=400, detail="Check at least one service")
+    services = client_services.expand(choices)
     answers = client_services.clean_answers(services, body.get("answers") or {})
     missing = [q["label"] for q in client_services.INTAKE_QUESTIONS
                if client_services.applies(q["services"], services) and not q.get("optional")
@@ -156,7 +157,7 @@ async def portal_intake_submit(token: str, body: dict):
             client["id"], json.dumps(services), json.dumps(answers),
         )
         # Dylan hears about it on his To-Do list (never a text to him or the client).
-        lines = [f"Services: {', '.join(client_services.labels(services))}"]
+        lines = [f"Services: {', '.join(client_services.labels(choices))}"]
         by_key = {q["key"]: q["label"] for q in client_services.INTAKE_QUESTIONS}
         for k, v in answers.items():
             lines.append(f"{by_key.get(k, k)} {', '.join(v) if isinstance(v, list) else v}")
