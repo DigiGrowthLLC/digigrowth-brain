@@ -6,7 +6,9 @@ GET  /dashboard/summary?period=day|week|month|all[&date=YYYY-MM-DD] — calling 
 GET  /dashboard/agent-messages                 — agent activity feed
 POST /dashboard/agent-messages                 — post a message (called by agents)
 POST /dashboard/agent-messages/{id}/read       — mark read
+POST /dashboard/agent-messages/read-all        — mark all read (Clear)
 GET  /dashboard/client-messages                — SMS threads waiting for reply
+POST /dashboard/client-messages/clear          — mark them all read (Clear)
 GET  /dashboard/calendar                       — upcoming calendar events
 GET  /dashboard/todos                          — all todos
 POST /dashboard/todos                          — create todo
@@ -189,6 +191,15 @@ async def post_agent_message(payload: dict):
     return {"id": row["id"]}
 
 
+@router.post("/dashboard/agent-messages/read-all")
+async def mark_all_read():
+    """Dashboard Agent Activity → Clear."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        n = await conn.execute("UPDATE agent_messages SET read = true WHERE NOT read")
+    return {"ok": True, "cleared": int(n.split()[-1])}
+
+
 @router.post("/dashboard/agent-messages/{msg_id}/read")
 async def mark_read(msg_id: int):
     pool = await get_pool()
@@ -231,6 +242,21 @@ async def client_messages():
             """
         )
     return [dict(r) for r in rows]
+
+
+@router.post("/dashboard/client-messages/clear")
+async def clear_client_messages():
+    """Dashboard Needs Reply → Clear: marks every waiting thread read, the same
+    as opening each one in the Inbox (sets last_read_at)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        n = await conn.execute(
+            """UPDATE sms_conversations sc SET last_read_at = now()
+               WHERE sc.status = 'active'
+                 AND EXISTS (SELECT 1 FROM sms_messages m WHERE m.phone = sc.phone AND m.direction = 'inbound'
+                               AND m.sent_at >= now() - interval '48 hours'
+                               AND (sc.last_read_at IS NULL OR m.sent_at > sc.last_read_at))""")
+    return {"ok": True, "cleared": int(n.split()[-1])}
 
 
 # ── Calendar ─────────────────────────────────────────────────────────────────
