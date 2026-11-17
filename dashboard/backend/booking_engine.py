@@ -64,7 +64,33 @@ def public_base() -> str:
             or "https://digigrowth-brain-production.up.railway.app").rstrip("/")
 
 
+# booking_slug -> the client's own booking host (book.clientdomain.com), only
+# once guide_autocheck has seen it serve their page (booking_domain_live_at).
+# Refreshed every 10 minutes and at startup, so links never point at a host
+# that isn't working.
+_LIVE_DOMAINS: dict[str, str] = {}
+
+
+def bare_host(value: str) -> str:
+    import re as _re
+    return _re.sub(r"^https?://", "", (value or "").strip().lower()).split("/")[0].split(":")[0]
+
+
+async def load_booking_domains(conn) -> None:
+    rows = await conn.fetch(
+        """SELECT s.booking_slug, m.booking_domain FROM booking_settings s
+           JOIN client_marketing_config m ON m.client_id = s.client_id
+           WHERE s.booking_slug IS NOT NULL AND m.booking_domain_live_at IS NOT NULL
+             AND coalesce(m.booking_domain, '') <> ''""")
+    _LIVE_DOMAINS.clear()
+    for r in rows:
+        _LIVE_DOMAINS[r["booking_slug"]] = bare_host(r["booking_domain"])
+
+
 def booking_page_url(booking_slug: str) -> str:
+    host = _LIVE_DOMAINS.get(booking_slug)
+    if host:
+        return f"https://{host}"
     return f"{public_base()}/book/{booking_slug}"
 
 

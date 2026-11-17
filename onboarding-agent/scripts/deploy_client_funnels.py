@@ -7,9 +7,15 @@ images) and the view beacon through, so booking, chat and Website stats keep
 working and edits in the OS show up immediately. Railway's plan caps custom
 domains per service, hence Vercel.
 
+Also serves each client's booking page on its own host (booking_domain on
+the Marketing Setup tab, e.g. book.advantagetherapy.vegas): / proxies to
+/book/<booking_slug> and /api/... to /book/<booking_slug>/api/... (the page
+calls its API relative to its own path). guide_autocheck.py ticks the step
+and switches every booking link to that host once it serves the page.
+
 Rebuilds client-funnels/vercel.json from the dashboard, deploys it to
 production and adds any new domain to the project. Then the DNS host needs a
-CNAME: host = the label ("go"), value = cname.vercel-dns.com.
+CNAME: host = the label ("go" / "book"), value = cname.vercel-dns.com.
 
   doppler run --project digigrowth --config prd -- python onboarding-agent/scripts/deploy_client_funnels.py
 """
@@ -47,6 +53,20 @@ def funnels() -> dict[str, str]:
     return hosts
 
 
+def booking_hosts() -> dict[str, str]:
+    """{booking host: booking_slug} for every client with a booking_domain."""
+    slugs = {c["id"]: c.get("booking_slug") for c in (api("GET", "/api/booking/overview") or {}).get("clients", [])}
+    hosts = {}
+    for client in api("GET", "/api/clients"):
+        cfg = api("GET", f"/api/clients/{client['id']}/marketing-config") or {}
+        host = bare_host(cfg.get("booking_domain") or "")
+        if host and slugs.get(client["id"]):
+            hosts[host] = slugs[client["id"]]
+        elif host:
+            print(f"! {client['name']}: booking_domain {host} set but no booking page yet (run AUTOFILL), skipped")
+    return hosts
+
+
 def vercel(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["vercel", *args, "--scope", SCOPE], cwd=PROJECT_DIR,
                           capture_output=True, text=True, shell=os.name == "nt")
@@ -55,12 +75,21 @@ def vercel(*args: str) -> subprocess.CompletedProcess:
 def main():
     pages = (os.environ.get("LANDING_PAGES_URL") or "https://pages.digigrowthllc.com").rstrip("/")
     hosts = funnels()
-    if not hosts:
-        sys.exit("No client has a funnel_domain saved yet.")
+    books = booking_hosts()
+    if not hosts and not books:
+        sys.exit("No client has a funnel_domain or booking_domain saved yet.")
 
     rewrites = [
         {"source": "/", "has": [{"type": "host", "value": host}], "destination": f"{pages}/lp/{slug}"}
         for host, slug in sorted(hosts.items())
+    ] + [
+        rule
+        for host, slug in sorted(books.items())
+        for rule in (
+            {"source": "/", "has": [{"type": "host", "value": host}], "destination": f"{pages}/book/{slug}"},
+            {"source": "/api/:path*", "has": [{"type": "host", "value": host}],
+             "destination": f"{pages}/book/{slug}/api/:path*"},
+        )
     ] + [
         {"source": "/lp/:path*", "destination": f"{pages}/lp/:path*"},
         {"source": "/track/view-event", "destination": f"{pages}/track/view-event"},
@@ -69,6 +98,8 @@ def main():
     (PROJECT_DIR / "vercel.json").write_text(json.dumps({"rewrites": rewrites}, indent=2) + "\n", encoding="utf-8")
     for host, slug in sorted(hosts.items()):
         print(f"{host} -> {pages}/lp/{slug}")
+    for host, slug in sorted(books.items()):
+        print(f"{host} -> {pages}/book/{slug}")
 
     if not (PROJECT_DIR / ".vercel" / "project.json").exists():
         r = vercel("link", "--yes", "--project", PROJECT)
@@ -83,7 +114,7 @@ def main():
         sys.exit(r.stderr)
     print("deployed:", r.stdout.strip().splitlines()[-1])
 
-    for host in sorted(hosts):
+    for host in sorted(set(hosts) | set(books)):
         r = vercel("domains", "add", host, PROJECT)
         out = (r.stdout + r.stderr).strip()
         if r.returncode and "already" not in out.lower():

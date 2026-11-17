@@ -332,6 +332,12 @@ async def _post_weekly_cleanup_report() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await get_pool()
+    try:  # clients' own booking hosts, so links use them from the first request
+        import booking_engine
+        async with (await get_pool()).acquire() as _conn:
+            await booking_engine.load_booking_domains(_conn)
+    except Exception as e:
+        print(f"[startup] booking domains not loaded: {e}", flush=True)
 
     scheduler = AsyncIOScheduler()
     scheduler_registry.set_scheduler(scheduler)

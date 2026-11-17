@@ -77,6 +77,16 @@ STEPS = [
             "agent does it). Ticks itself once https://<domain>/ serves the funnel.",
      "fields": [{"key": "funnel_domain", "label": "Funnel domain", "placeholder": "go.clientdomain.com"}],
      "legacy": [("landing_page", 2)]},
+    {"id": "booking_domain", "services": BOOKING, "phase": "handover", "package": "all",
+     "title": "Booking link on their own domain",
+     "how": "Same DNS access as the funnel step. Add a second record: CNAME, host \"book\", value "
+            "cname.vercel-dns.com (never touch the root @ records). Save the domain below, then run "
+            "deploy_client_funnels.py (the onboarding agent does it): it puts their booking page at the root of "
+            "that host. Needs their booking page made first (the Booking step's AUTOFILL creates it). Ticks "
+            "itself once https://<domain>/ serves their booking page; from then on every booking link we hand "
+            "out (texts, AI agents, portal, Booking Links) uses it. If the domain ever stops working, links fall "
+            "back to ours automatically.",
+     "fields": [{"key": "booking_domain", "label": "Booking domain", "placeholder": "book.clientdomain.com"}]},
     {"id": "a2p", "services": TEXTING, "phase": "handover", "package": "all", "title": "A2P 10DLC registered (marketing use case)",
      "how": "Needs their legal business name + EIN (exactly as on the IRS letter). Register the Brand right away on "
             "the client's Twilio subaccount. Submit the Campaign (Low Volume Mixed, covers marketing) only AFTER the "
@@ -243,6 +253,8 @@ async def signals(conn, client_id: int) -> dict[str, str]:
     if cfg.get("campaign_booking_goal"):
         out["campaign_goal"] = (f"{cfg['campaign_booking_goal']} bookings in "
                                 f"{cfg.get('campaign_length_days') or 30} days")
+    if cfg.get("booking_domain") and cfg.get("booking_domain_live_at"):
+        out["booking_domain"] = f"{cfg['booking_domain']} serves their booking page"
     if cfg.get("meta_pixel_id"):
         out["pixel"] = f"Pixel {cfg['meta_pixel_id']} loads on the funnel"
     if cfg.get("voice_agent_enabled"):
@@ -341,9 +353,10 @@ def client_ask(name: str, shown: set[str], done: set[str]) -> str:
         items.append("Google Calendar: share the calendar you book patients on with dylanrg@digigrowthllc.com, "
                      "permission \"Make changes to events\" (your portal walks you through it). If the visit is "
                      "paid, also click \"Connect Stripe to Get Paid\" in your portal.")
-    if "dns" not in done:
-        items.append("Website domain: access to wherever your domain's DNS is managed (or we'll send you one "
-                     "record to add), so your booking page can live at go.<your domain>.")
+    if "dns" not in done or "booking_domain" not in done:
+        items.append("Website domain: access to wherever your domain's DNS is managed (or we'll send you the "
+                     "records to add), so your landing page and booking link can live on your own web address "
+                     "(go.<your domain> and book.<your domain>).")
     if "a2p" not in done:
         items.append("Your legal business name and EIN, for the texting registration carriers require.")
     if "lists" not in done:

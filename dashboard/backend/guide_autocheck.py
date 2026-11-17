@@ -37,6 +37,23 @@ async def _funnel_domain_live(domain: str | None) -> bool:
         return False
 
 
+async def _booking_domain_live(domain: str | None, slug: str | None) -> bool:
+    """The client's booking host serves THEIR booking page through the
+    client-funnels proxy (root = /book/<slug>, /api/... passed through)."""
+    import booking_engine as be
+    host = be.bare_host(domain or "")
+    if not host or not slug:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as http:
+            page = await http.get(f"https://{host}/")
+            info = await http.get(f"https://{host}/api/info")
+        return (page.status_code == 200 and "dgb_s_" in page.text
+                and info.status_code == 200 and "clinic" in info.text)
+    except httpx.HTTPError:
+        return False
+
+
 async def sync_launch_checklist(client_id: int) -> list[str]:
     """Ticks each launch checklist item whose Marketing Setup steps are all
     done for this client. Never unticks. Returns the titles newly ticked."""
@@ -71,7 +88,9 @@ async def autocheck(client_id: int) -> list[str]:
     pool = await get_pool()
     async with pool.acquire() as conn:
         cfg = await conn.fetchrow(
-            "SELECT funnel_domain, guide_progress FROM client_marketing_config WHERE client_id = $1", client_id)
+            "SELECT funnel_domain, booking_domain, booking_domain_live_at, guide_progress "
+            "FROM client_marketing_config WHERE client_id = $1", client_id)
+        slug = await conn.fetchval("SELECT booking_slug FROM booking_settings WHERE client_id = $1", client_id)
     if not cfg:
         return []
     progress = setup_steps._decode(cfg["guide_progress"], {})
@@ -79,6 +98,17 @@ async def autocheck(client_id: int) -> list[str]:
     if not (progress.get("v2") or {}).get("dns") and await _funnel_domain_live(cfg["funnel_domain"]):
         await setup_steps.set_tick(client_id, "dns", True)
         newly.append("dns")
+    # Booking host: re-proven every run, so a broken or changed domain drops
+    # back to our own link (booking_engine.booking_page_url) instead of
+    # sending patients to a dead page.
+    live = bool(cfg["booking_domain"]) and await _booking_domain_live(cfg["booking_domain"], slug)
+    if live != bool(cfg["booking_domain_live_at"]):
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE client_marketing_config SET booking_domain_live_at = CASE WHEN $2 THEN now() END "
+                "WHERE client_id = $1", client_id, live)
+        if live:
+            newly.append("booking_domain")
     if newly:
         print(f"[guide-autocheck] client {client_id}: ticked {newly}", flush=True)
     await sync_launch_checklist(client_id)
@@ -96,3 +126,6 @@ async def autocheck_all() -> None:
             await autocheck(client_id)
         except Exception as e:
             print(f"[guide-autocheck] client {client_id} failed: {e}", flush=True)
+    import booking_engine
+    async with pool.acquire() as conn:
+        await booking_engine.load_booking_domains(conn)

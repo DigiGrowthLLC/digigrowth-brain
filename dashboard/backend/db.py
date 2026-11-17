@@ -695,6 +695,10 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS setup_test JSONB NOT NULL DEFAULT '{}';
             -- Client's own funnel host (e.g. go.clientdomain.com), served by main.py's funnel_host_router
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS funnel_domain TEXT;
+            -- Client's own booking-link host (e.g. book.clientdomain.com), proxied by the
+            -- client-funnels Vercel project; live_at = guide_autocheck saw it serve their page.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS booking_domain TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS booking_domain_live_at TIMESTAMPTZ;
             -- Client's SMS Terms & Privacy page (A2P 10DLC), linked from the booking page's text-consent checkbox
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS sms_terms_url TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS response_ai_enabled BOOLEAN NOT NULL DEFAULT false;

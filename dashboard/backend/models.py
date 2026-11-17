@@ -226,6 +226,7 @@ class ClientMarketingConfigUpdate(BaseModel):
     ghl_api_token: Optional[str] = None
     landing_page_url: Optional[str] = None
     funnel_domain: Optional[str] = None
+    booking_domain: Optional[str] = None   # e.g. book.clientdomain.com (setup step booking_domain)
     sms_terms_url: Optional[str] = None
     meta_pixel_id: Optional[str] = None
     campaign_booking_goal: Optional[int] = None   # client_success.py pace bar + milestones
