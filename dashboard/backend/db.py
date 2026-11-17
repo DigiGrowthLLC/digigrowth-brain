@@ -2353,6 +2353,10 @@ async def _create_schema(pool: asyncpg.Pool):
             -- The lead's own Meta form answers ("What are you dealing with?: Back pain"),
             -- so the reactivation call opens on their issue.
             ALTER TABLE client_voice_calls ADD COLUMN IF NOT EXISTS form_info TEXT;
+            -- Per-client call scripts Dylan edits in the Agents tab (NULL = the default
+            -- script in client_voice_agent.default_script). Business info is appended.
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_script_ads TEXT;
+            ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS voice_script_react TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_voice_enabled BOOLEAN NOT NULL DEFAULT false;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_llm_id TEXT;
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS react_retell_agent_id TEXT;

@@ -151,6 +151,50 @@ async def react_test_call(client_id: int, body: TestCallBody):
     return {"ok": True, "row_id": row_id}
 
 
+# Editable call scripts (kind = "ads" for the Facebook Ads Voice Agent,
+# "react" for the Database Reactivation Voice Agent).
+class ScriptBody(BaseModel):
+    script: str | None = None   # None / empty = back to the default script
+
+
+@admin_router.get("/clients/{client_id}/voice-script/{kind}")
+async def get_script(client_id: int, kind: str):
+    if kind not in ("ads", "react"):
+        raise HTTPException(404, "Unknown agent")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        custom = await conn.fetchval(f"SELECT voice_script_{kind} FROM client_marketing_config WHERE client_id = $1", client_id)
+    default = va.default_script(kind)
+    return {"script": (custom or "").strip() or default, "default": default, "custom": bool((custom or "").strip())}
+
+
+@admin_router.put("/clients/{client_id}/voice-script/{kind}")
+async def save_script(client_id: int, kind: str, body: ScriptBody):
+    """Save the script and push it to the live Retell agent right away."""
+    if kind not in ("ads", "react"):
+        raise HTTPException(404, "Unknown agent")
+    text = (body.script or "").strip()
+    if text == va.default_script(kind).strip():
+        text = ""
+    if len(text) > 30000:
+        raise HTTPException(400, "Script is too long (30,000 characters max)")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(f"UPDATE client_marketing_config SET voice_script_{kind} = $2 WHERE client_id = $1",
+                           client_id, text or None)
+        agent = await conn.fetchval(
+            f"SELECT {'react_retell_agent_id' if kind == 'react' else 'retell_agent_id'} FROM client_marketing_config WHERE client_id = $1",
+            client_id)
+    synced = False
+    if agent:
+        try:
+            await va.sync_agent(client_id, kind)
+            synced = True
+        except Exception as e:
+            raise HTTPException(400, f"Saved, but the agent didn't sync: {e}")
+    return {"ok": True, "custom": bool(text), "synced": synced}
+
+
 @admin_router.get("/voice-agent/voices")
 async def voices():
     try:

@@ -1045,7 +1045,7 @@ async def transfer_done_twiml(row, dial_status: str) -> str:
 # ── Retell agent per client ──────────────────────────────────────────────────
 
 _VOICE_RULES = """
-You are on a live PHONE CALL, not texting. Your name is __AGENT_NAME__ and you work at {{clinic_name}},
+You are on a live PHONE CALL, not texting. Your name is {{agent_name}} and you work at {{clinic_name}},
 helping new patients get booked.
 Who you're calling: {{lead_full_name}}. Why: {{lead_context}}. Right now it's {{today}}.
 The visit you book (from the clinic's calendar): {{visit_info}}. Never mention how long the visit is unless they
@@ -1060,16 +1060,16 @@ going to go ahead and...", "let me just..."); just do the step and move on. A pl
 How the call goes:
 - Open by checking you've got the right person, then introduce yourself by first name and the clinic and
   say how they reached you, naming the clinic's REAL offer from the business info below (the visit
-  above). Form lead: "This is __AGENT_NAME__ from {{clinic_name}}. I saw you filled out our form for
+  above). Form lead: "This is {{agent_name}} from {{clinic_name}}. I saw you filled out our form for
   <offer>. What's been going on?" Website lead: "...I saw you started booking <offer> on our
   website..." Never use an offer name that isn't in the business info; if unclear, say "our form".
-- Last-day call (the Why above says today is the last day of the offer): "This is __AGENT_NAME__ from
+- Last-day call (the Why above says today is the last day of the offer): "This is {{agent_name}} from
   {{clinic_name}}. You filled out our form a few weeks back for <offer>, and I just wanted to let you
   know today's the last day for it. Is that still something you're dealing with?" If yes, carry on
   with the questions and pitch below as normal. If they're fine or not interested, say "Okay, no
   problem." and wrap up politely.
 - Call screener (an automated voice asking your name and why you're calling): answer in one short
-  sentence ("It's __AGENT_NAME__ from {{clinic_name}}, following up on their form."). When it
+  sentence ("It's {{agent_name}} from {{clinic_name}}, following up on their form."). When it
   hands you off ("please stay on the line"), just say "Sure." and wait. When the person comes on
   or you're told to greet them, open with "Hi, is this {{lead_first_name}}?" and continue as
   normal. If the call simply starts with silence, open the same way.
@@ -1125,25 +1125,24 @@ How the call goes:
   way, and ask if there's anything else you can help with. Then STOP and wait for their answer; never
   say goodbye in the same turn as that question. Only after they say they're done, say a short, plain
   goodbye ("Okay, see you Tuesday. Take care.") and call end_call. Never hang up right after confirming.
-
-Business info and rules (the same ones the clinic's text agent uses):
 """
 
 
 # The database reactivation voice agent's call script (its own Retell LLM).
-# Everything after the opening (questions, pitch, booking, tone) is the same
-# as the ads agent, so the shared rules are reused from _VOICE_RULES.
-_REACT_OPENING = """
-You are on a live PHONE CALL, not texting. Your name is __AGENT_NAME__ and you work at {{clinic_name}}.
+# Everything except the opening (tone, questions, pitch, booking) is the same
+# as the ads agent, so those parts are reused from _VOICE_RULES.
+_REACT_HEAD = """
+You are on a live PHONE CALL, not texting. Your name is {{agent_name}} and you work at {{clinic_name}}.
 This is a DATABASE REACTIVATION call: {{lead_full_name}} filled out the clinic's ad form on {{form_date}}
 but never came in. Why you're calling: {{lead_context}}. Right now it's {{today}}.
 The visit you book (from the clinic's calendar): {{visit_info}}. Never mention how long the visit is unless they
 ask; then use this length.
-
+"""
+_REACT_OPENING = """
 What they told us on the form: {{form_answers}}
 
 The opening (open on THEIR issue from the form, not the offer):
-- After they confirm it's them: "Hey {{lead_first_name}}, this is __AGENT_NAME__ from {{clinic_name}}. You filled out
+- After they confirm it's them: "Hey {{lead_first_name}}, this is {{agent_name}} from {{clinic_name}}. You filled out
   our <platform> lead form on {{form_date}} for our <offer>, about some <issue> you were dealing with. Is that still
   bothering you?"
   <platform> = "Facebook" or "Instagram", from "Filled out on" in the form answers. If that isn't there, leave the
@@ -1168,10 +1167,24 @@ Everything else about the call:
 
 
 def _react_rules() -> str:
-    """The ads agent's rules minus its own opening lines (kept from 'Call
-    screener' on), so tone, questions, pitch and booking stay identical."""
+    """Reactivation header + the ads agent's "How you sound" tone section
+    (same delivery) + the reactivation opening + the ads agent's rules from
+    'Call screener' on, so tone, questions, pitch and booking stay identical."""
+    t0, t1 = _VOICE_RULES.index("How you sound"), _VOICE_RULES.index("How the call goes:")
     i = _VOICE_RULES.index("- Call screener")
-    return _REACT_OPENING + _VOICE_RULES[i:].replace("following up on their form", "following up on their request")
+    return (_REACT_HEAD + "\n" + _VOICE_RULES[t0:t1].rstrip() + "\n" + _REACT_OPENING
+            + _VOICE_RULES[i:].replace("following up on their form", "following up on their request"))
+
+
+def default_script(kind: str = "ads") -> str:
+    """The built-in call script (what the Agents tab shows until it's edited)."""
+    return (_react_rules() if kind == "react" else _VOICE_RULES).strip() + "\n"
+
+
+def script_for(cfg, kind: str = "ads") -> str:
+    """This client's script: Dylan's edited one if saved, else the default."""
+    custom = (cfg[f"voice_script_{kind}"] or "").strip()
+    return (custom + "\n") if custom else default_script(kind)
 
 
 def agent_name(cfg) -> str:
@@ -1221,13 +1234,15 @@ def _llm_body(cfg, kind: str = "ads") -> dict:
     ]
     business = (cfg["response_ai_context"] or "").strip()
     rules = (cfg["response_ai_rules"] or "").strip()
-    prompt = (_react_rules() if kind == "react" else _VOICE_RULES).replace("__AGENT_NAME__", agent_name(cfg)) + business + (f"\n\nExtra rules from the clinic (ignore any about texting format):\n{rules}" if rules else "")
+    prompt = (script_for(cfg, kind).replace("__AGENT_NAME__", "{{agent_name}}")
+              + "\nBusiness info and rules (the same ones the clinic's text agent uses):\n" + business
+              + (f"\n\nExtra rules from the clinic (ignore any about texting format):\n{rules}" if rules else ""))
     return {
         "general_prompt": prompt,
         "begin_message": "Hi, is this {{lead_first_name}}?",
         "start_speaker": "agent",
         "general_tools": tools,
-        "default_dynamic_variables": {"lead_first_name": "there", "lead_full_name": "unknown",
+        "default_dynamic_variables": {"agent_name": agent_name(cfg), "lead_first_name": "there", "lead_full_name": "unknown",
                                       "lead_context": "they reached out to the clinic",
                                       "clinic_name": cfg["client_name"] or "the clinic", "today": "",
                                       "visit_info": "use the business info", "form_date": "a few weeks back",

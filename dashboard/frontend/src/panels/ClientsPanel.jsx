@@ -3290,6 +3290,56 @@ function SocialMediaAgent({ clientId, config, onSaveFields }) {
 // leads first, texts after no answer. Growth package only.
 const VOICE_OUTCOME_COLOR = { booked: "#3ecf8e", answered: "#8ab4f8", not_interested: "#f0b429", no_answer: "#5a7aa0", voicemail: "#5a7aa0", skipped: "#3a5a80", error: "#e05c5c", unknown: "#f0b429" };
 
+// The call script an agent follows, editable per client. Saving pushes it to
+// the live Retell agent; "Reset to default" goes back to the built-in script.
+function VoiceScriptEditor({ clientId, kind }) {
+  const [data, setData] = useState(null);
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const load = async () => {
+    const r = await fetch(API(`/clients/${clientId}/voice-script/${kind}`));
+    if (r.ok) { const j = await r.json(); setData(j); setText(j.script); }
+  };
+  useEffect(() => { if (open && !data) load(); /* eslint-disable-next-line */ }, [open]);
+  const save = async (script) => {
+    setBusy(true); setMsg(null);
+    const r = await fetch(API(`/clients/${clientId}/voice-script/${kind}`), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ script }) });
+    const j = await r.json().catch(() => ({}));
+    setMsg(r.ok ? { ok: true, text: j.synced ? "Saved. The agent uses it from the next call." : "Saved. It goes live when the agent is created." } : { ok: false, text: j.detail || "Save failed" });
+    setBusy(false);
+    await load();
+  };
+  const dirty = data && text !== data.script;
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => setOpen((o) => !o)}>
+        {open ? "HIDE SCRIPT" : "REVIEW / EDIT SCRIPT"}
+      </button>
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {!data ? <div style={{ fontSize: 11.5, color: "#5a7aa0" }}>Loading…</div> : <>
+            <div style={{ fontSize: 11, color: "#8aaad0", marginBottom: 6, lineHeight: 1.5 }}>
+              {data.custom ? "Edited script (yours)." : "Default script."} Change any wording and save; the agent follows it from the next call.
+              Words in {"{{double braces}}"} are filled in per call (lead's name, clinic, date…), keep them as they are.
+              The clinic's business info and rules are added below this automatically.
+            </div>
+            <textarea className="dg-input" value={text} onChange={(e) => setText(e.target.value)} rows={22}
+              style={{ width: "100%", fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: 11.5, lineHeight: 1.5, resize: "vertical" }} />
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <button className="btn btn-primary" style={{ fontSize: 10 }} disabled={busy || !dirty} onClick={() => save(text)}>{busy ? "SAVING…" : "SAVE & UPDATE AGENT"}</button>
+              {dirty && <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={busy} onClick={() => setText(data.script)}>UNDO CHANGES</button>}
+              {data.custom && <button className="btn btn-secondary" style={{ fontSize: 10 }} disabled={busy} onClick={() => { if (window.confirm("Go back to the default script? Your edits will be lost.")) save(null); }}>RESET TO DEFAULT</button>}
+              {msg && <span style={{ fontSize: 11, color: msg.ok ? "#3ecf8e" : "#e05c5c" }}>{msg.text}</span>}
+            </div>
+          </>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // kind="react": the separate Database Reactivation voice agent (own Retell
 // agent, own switch; shares the voice, name and consent stamp).
 function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
@@ -3379,6 +3429,7 @@ function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
           </div>
         </div>
       ))}
+      {block("CALL SCRIPT", <VoiceScriptEditor clientId={clientId} kind={kind} />)}
       {block("TEST CALL (no booking, no texts, no tags)", (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input className="dg-input" style={{ maxWidth: 200, fontSize: 12 }} placeholder="(754) 248-5326" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
