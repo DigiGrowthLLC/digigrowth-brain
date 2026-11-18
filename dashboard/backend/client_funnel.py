@@ -280,12 +280,20 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
 
     # ---- Funnel page path
     a_page = appts[False] or empty
+    # When every ad is an Instant Form (Meta reports zero landing page views
+    # but form leads come in), no ad sends anyone to the page: its visits come
+    # from texts and links. Measuring them against ad clicks (form opens)
+    # showed Advantage a fake 2% "leak" (9 of 438). Then the path starts at the
+    # page, with no ad stages and no target. (Dylan, 2026-11-17)
+    page_from_ads = not (meta_connected and not meta_lpv and paths)
     if funnel_views or steps or a_page["booked"] or (has_page and not paths):
-        st = ad_stages("page")
-        fv_rate = _pct(funnel_views, link_clicks) if meta_connected else None
+        st = ad_stages("page") if page_from_ads else []
+        fv_rate = _pct(funnel_views, link_clicks) if meta_connected and page_from_ads else None
         st.append({"key": "funnel_visits", "label": "Funnel page visits", "source": "funnel", "value": funnel_views,
                    "available": bool(site_ids or lp_slugs) or prelaunch, "rate": fv_rate,
-                   "status": _status(fv_rate, "funnel_visits", link_clicks)})
+                   "status": _status(fv_rate, "funnel_visits", link_clicks) if page_from_ads else None,
+                   "note": None if page_from_ads else "From texts and links (your ads are Instant Forms)",
+                   **({} if page_from_ads else {"tkey": "_no_target"})})
         prev_key_val = funnel_views
         if booking_on:
             bv, bs, sub = steps.get("view", 0), steps.get("details", 0), steps.get("submit", 0)
@@ -305,7 +313,8 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
         # step to measure against, so funnel page → booked gets no target.
         st += outcome_stages(a_page, "booked_page" if booking_on else "booked_ext", prev_key_val,
                              "Booked & paid" if paid_offer else "Booked a visit")
-        paths.append({"key": "page", "label": "Funnel page", "stages": chain(st), "leads": leads["total"] - leads["form"],
+        paths.append({"key": "page", "label": "Funnel page" if page_from_ads else "Funnel page (from texts and links)",
+                      "stages": chain(st), "leads": leads["total"] - leads["form"],
                       "booked": a_page["booked"], "shows": a_page["shows"], "patients": a_page["closed"]})
 
     # Meta reports delivery per ad account, so with both ad types running the

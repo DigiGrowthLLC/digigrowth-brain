@@ -251,6 +251,11 @@ section.alt{background:linear-gradient(180deg,rgba(11,18,48,.85),rgba(7,12,31,.6
 .ap .bad{color:var(--red);font-size:13.5px}
 @media (max-width:700px){.ap{grid-template-columns:1fr}.seg .q{width:100%}}
 
+.quick{padding:4px 24px}
+.qr{display:grid;grid-template-columns:38px minmax(0,1fr);gap:16px;padding:18px 0;border-top:1px solid var(--line)}
+.qr:first-child{border-top:0}
+.qr h4{margin:6px 0 10px;font-size:16.5px}
+.quick ul.ticks li{color:var(--ink);font-size:15px}
 /* quick read */
 .g-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .g-cards .card{padding:22px}
@@ -292,6 +297,13 @@ form{display:grid;gap:14px;margin-top:22px;max-width:660px}
 .rate{min-width:42px;padding:9px 0;border-radius:9px;border:1px solid var(--line2);background:rgba(255,255,255,.03);color:var(--ink);font:600 15px 'Space Grotesk',sans-serif;cursor:pointer}
 .rate:hover{border-color:rgba(95,212,255,.45)}
 .rate.on{background:rgba(58,123,213,.3);border-color:var(--cyan);color:#fff}
+.stars{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
+.star{min-width:0;padding:4px;border:0;background:none;color:rgba(148,170,255,.35);line-height:0}
+.star svg{width:36px;height:36px;fill:currentColor;transition:transform .12s ease,color .12s ease}
+.star:hover svg{transform:scale(1.08)}
+.stars:hover .star{color:#f5c84c}.stars .star:hover~.star{color:rgba(148,170,255,.35)}
+.star.on{background:none;color:#f5c84c}
+.stars-l{margin-left:12px;font-size:14px;color:var(--muted)}
 .scale{display:flex;justify-content:space-between;max-width:520px;font-size:12px;color:var(--dim)}
 select,textarea{width:100%;background:rgba(5,9,25,.6);border:1px solid var(--line2);border-radius:10px;color:var(--ink);padding:11px 13px;font:inherit}
 select:focus,textarea:focus{outline:none;border-color:var(--cyan)}
@@ -470,23 +482,19 @@ def render_html(report: dict) -> str:
     period_word = "whole campaign" if final else "this week"
 
     # Numbered section heads, like the blueprint ("01 ── Results")
-    counter = [0]
-
     def idx(label: str, icon: str) -> str:
-        counter[0] += 1
-        return (f'<div class="idx"><span class="n">{counter[0]:02d}</span><span class="ln"></span>'
+        return (f'<div class="idx"><span class="n">{{NUM}}</span><span class="ln"></span>'
                 f'{_icon(icon)}{_e(label)}</div>')
 
     def head(label: str, icon: str, h2: str = "", sub: str = "") -> str:
         return (f'<div class="head reveal">{idx(label, icon)}'
                 + (f'<h2>{h2}</h2>' if h2 else "") + (f'<p>{_e(sub)}</p>' if sub else "") + '</div>')
 
-    alt = [False]
+    blocks: dict[str, str] = {}
 
-    def section(inner: str, sid: str = "") -> str:
-        alt[0] = not alt[0]
-        return (f'<section{f" id={sid!r}" if sid else ""}{" class=alt" if alt[0] else ""}>'
-                f'<div class="wrap">{inner}</div></section>')
+    def add(block: tuple) -> None:
+        inner, sid = block
+        blocks[sid] = inner
 
     # Status (spec strip)
     if pace:
@@ -503,7 +511,6 @@ def render_html(report: dict) -> str:
     status_html = (f'<span class="st-{status[0]}"><span class="sdot"></span>{status[1]}</span>' if status else "–")
     lock_left = (f'<img src="{_e(logo)}" alt="{_e(clinic)} logo">' if logo else "") + f'<span class="cn">{_e(clinic)}</span>'
 
-    sections = []
 
     # ---- Results: goal bar + the portal's four headline numbers
     goal_html = ""
@@ -529,25 +536,24 @@ def render_html(report: dict) -> str:
         + kpi("Cost per booking", _money(k.get("cost_per_booking")), "ad spend ÷ visits booked",
               k.get("cost_per_booking"), lk.get("cost_per_booking"), True)
         + kpi("Ad spend", _money(k.get("spend")), spend_hint))
-    sections.append(section(
+    add((
         head("Results", "chart", "Your results, " + ("start to finish" if final else "this week"),
              "The same numbers you see on the Results tab in your portal." + ("" if final else " Each one is compared with last week."))
         + f'<div class="stack">{goal_html}<div class="kpis reveal">{kpis}</div>{REPORTED_NOTE}</div>', "results"))
 
-    # ---- The quick read
-    quick = (
-        f'<div class="card"><div class="top"><span class="ib grn">{_icon("check")}</span><h4>What\'s working</h4></div>'
-        f'<ul class="ticks">{_items(a.get("on_target"))}</ul></div>'
-        f'<div class="card"><div class="top"><span class="ib amb">{_icon("alert")}</span><h4>What we\'re fixing</h4></div>'
-        f'<ul class="ticks">{_items(a.get("off_target"))}</ul></div>'
-        f'<div class="card"><div class="top"><span class="ib">{_icon("arrow")}</span><h4>{"What we recommend" if final else "Next week"}</h4></div>'
-        f'<ul class="ticks">{_items(a.get("next_steps"))}</ul></div>')
-    help_html = ""
-    if a.get("client_asks"):
-        help_html = (f'<div class="card help reveal"><span class="ib">{_icon("star")}</span><div>'
-                     f'<b>How your team can help</b><ul class="ticks">{_items(a["client_asks"])}</ul></div></div>')
-    sections.append(section(head("The quick read", "layers", "What happened, and what we're doing about it")
-                            + f'<div class="g-cards reveal">{quick}</div>{help_html}', "read"))
+    # ---- The quick read: one card, a row per list (past tense on the final report)
+    def qrow(cls, icon, label, items):
+        if not items:
+            return ""
+        return (f'<div class="qr"><span class="ib {cls}">{_icon(icon)}</span><div><h4>{label}</h4>'
+                f'<ul class="ticks">{_items(items)}</ul></div></div>')
+
+    quick = (qrow("grn", "check", "What worked" if final else "What's working", a.get("on_target"))
+             + qrow("amb", "alert", "What held it back" if final else "What we're fixing", a.get("off_target"))
+             + qrow("", "arrow", "What we recommend next" if final else "Next week", a.get("next_steps"))
+             + qrow("", "star", "How your team can help", a.get("client_asks")))
+    add((head("The quick read", "layers", "The campaign in 30 seconds" if final else "This week in 30 seconds")
+         + f'<div class="card quick reveal">{quick or "<p class=muted>Nothing to flag this time.</p>"}</div>', "read"))
 
     # ---- Patient journey + costs + ad performance + AI assistant (portal layout)
     leak = scope.get("biggest_leak")
@@ -581,13 +587,13 @@ def render_html(report: dict) -> str:
             ("Leads texted", _num(ai.get("leads")), None), ("Replied", _num(ai.get("replied")), None),
             ("Booked", _num(ai.get("booked")), None),
             ("Reply rate", _pct(round(ai["replied"] / ai["leads"] * 100)) if ai.get("replied") is not None else "–", None)])
-    sections.append(section(
+    add((
         head("Patient journey", "users", "From ad to new patient",
              "Every step a patient takes, " + ("across the whole campaign." if final else "this week."))
         + f'<div class="stack">{journey}<div class="trio">{costs}{adperf}{ai_html}</div></div>', "journey"))
 
     # ---- Appointments waiting on an outcome (loaded live, saved from the page)
-    sections.append(section(
+    add((
         head("Needs your update", "check", "Appointments waiting on an outcome",
              "Your show rate and close rate only count visits your team has marked. Mark each one below and "
              "it's saved straight to your portal.")
@@ -596,7 +602,7 @@ def render_html(report: dict) -> str:
 
     # ---- Final: week by week
     if final and data.get("weeks"):
-        sections.append(section(head("Week by week", "chart", "Visits booked, week by week")
+        add((head("Week by week", "chart", "Visits booked, week by week")
                                 + f'<div class="card reveal">{_bars(data["weeks"])}</div>', "weeks"))
 
     # ---- Patient quality + answered questions
@@ -616,18 +622,18 @@ def render_html(report: dict) -> str:
         f'<div class="card qa reveal"><div class="q">You asked: {_e(f["message"])}</div><div>{_e(f["answer"])}</div></div>'
         for f in answered)
     if lq_html and qa_html:
-        sections.append(section(head("Patients + your questions", "users", "Patient quality, and your answers")
+        add((head("Patients + your questions", "users", "Patient quality, and your answers")
                                 + f'<div class="two">{lq_html}<div>{qa_html}</div></div>', "quality"))
     elif lq_html:
-        sections.append(section(head("Patient quality", "users", "Patient quality (your ratings)") + lq_html, "quality"))
+        add((head("Patient quality", "users", "Patient quality (your ratings)") + lq_html, "quality"))
     elif qa_html:
-        sections.append(section(head("You asked", "chat", "You asked, we answered") + qa_html, "answers"))
+        add((head("You asked", "chat", "You asked, we answered") + qa_html, "answers"))
 
     # ---- Final: next campaign, with its own yes button
     if final:
         nc = a.get("next_campaign") or {}
         if nc.get("plan") or nc.get("intro"):
-            sections.append(section(
+            add((
                 f'<div class="guar reveal">{idx("Your next campaign", "rocket")}'
                 f'<h2>Here\'s how we\'d <span class="grad">build on these results</span>.</h2>'
                 f'<p class="lead">{_e(nc.get("intro"))}</p><ul class="ticks">{_items(nc.get("plan"))}</ul>'
@@ -647,16 +653,17 @@ def render_html(report: dict) -> str:
         intro = _e(intro.replace("{review_link_line}", "").strip())
         review_html = (f'<p class="review">A quick Google review helps too: '
                        f'<a href="{_e(review)}" target="_blank" rel="noopener">leave a Google review</a>.</p>' if review else "")
-        nps = "".join(f'<button type="button" class="rate" data-group="nps" data-v="{i}" aria-label="{i} out of 10">{i}</button>'
-                      for i in range(0, 11))
-        sections.append(section(f"""<div class="guar reveal" id="testimonial">
+        star = ('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.8 2.9 5.9 6.5.9-4.7 4.6 1.1 6.4L12 17.6l-5.8 3'
+                '.1 1.1-6.4-4.7-4.6 6.5-.9z"/></svg>')
+        nps = "".join(f'<button type="button" class="rate star" data-group="nps" data-v="{i}" '
+                      f'aria-label="{i} star{"s" if i > 1 else ""}">{star}</button>' for i in range(1, 6))
+        add((f"""<div class="guar reveal" id="testimonial">
   {idx("Share your experience", "heart")}
-  <h2>How was it working with us?</h2>
+  <h2>Tell us how it went.</h2>
   <p class="lead">{intro}</p>
   <form id="tForm">
-    <div><div class="fl">How likely are you to recommend DigiGrowth to another clinic owner?</div></div>
-    <div class="rates">{nps}</div>
-    <div class="scale"><span>0 = not at all</span><span>10 = definitely</span></div>
+    <div><div class="fl">How was your experience?</div></div>
+    <div class="stars">{nps}<span class="stars-l" id="starL">Tap a star</span></div>
     <label class="fl" for="tMsg">Your testimonial<small>What was it like before, and what changed for {_e(clinic)}?</small></label>
     <textarea id="tMsg" placeholder="Before working with DigiGrowth, we..."></textarea>
     <label class="chk"><input type="checkbox" id="tOk" checked> You can share this on your website and social media with my first name and clinic name.</label>
@@ -675,7 +682,7 @@ def render_html(report: dict) -> str:
                         for i in range(1, 6))
         checkin = (f'<div class="fl">Quick check-in: how are you feeling about the campaign this week?</div>'
                    f'<div class="rates">{pulse}</div><div class="scale" style="max-width:240px"><span>1 = worried</span><span>5 = great</span></div>')
-    sections.append(section(f"""<div class="guar reveal" id="feedback">
+    add((f"""<div class="guar reveal" id="feedback">
   {idx("Questions or ideas", "chat")}
   <h2>Have a question? <span class="grad">Ask Dylan here.</span></h2>
   <p class="lead">You know your patients best. Anything you send here goes straight to Dylan, and you'll get an answer before the next report.</p>
@@ -690,6 +697,15 @@ def render_html(report: dict) -> str:
     <div class="err" id="qErr">That didn't go through. Please try again.</div>
   </form>
 </div>""", "questions"))
+
+    # Order (Dylan, 2026-11-17): results, then what the clinic needs to do, then the read and the detail;
+    # the forms near the end and the next-campaign pitch last.
+    order = ["results", "outcomes", "read", "journey", "weeks", "quality", "answers", "share", "questions", "next"]
+    parts = []
+    for i, sid in enumerate([o for o in order if o in blocks]):
+        inner = blocks[sid].replace("{NUM}", "%02d" % (i + 1))
+        parts.append(f'<section id="{sid}"{" class=alt" if i % 2 == 0 else ""}><div class="wrap">{inner}</div></section>')
+    assembled = "".join(parts)
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -719,7 +735,7 @@ def render_html(report: dict) -> str:
   </div>
 </header>
 
-{"".join(sections)}
+{assembled}
 
 <footer><div class="wrap"><span>Prepared for {_e(clinic)} by DigiGrowth</span><span>digigrowthllc.com</span></div></footer>
 
@@ -730,7 +746,8 @@ if('IntersectionObserver' in window){{var io=new IntersectionObserver(function(e
 else{{els.forEach(function(el){{el.classList.add('in')}})}}
 var picked={{}};
 document.querySelectorAll('.rate').forEach(function(b){{b.onclick=function(){{var g=b.dataset.group;
-document.querySelectorAll('.rate[data-group="'+g+'"]').forEach(function(x){{x.classList.remove('on')}});b.classList.add('on');picked[g]=+b.dataset.v}}}});
+document.querySelectorAll('.rate[data-group="'+g+'"]').forEach(function(x){{x.classList.toggle('on',g==='nps'?+x.dataset.v<=+b.dataset.v:x===b)}});picked[g]=+b.dataset.v;
+if(g==='nps'){{var sl=document.getElementById('starL');if(sl)sl.textContent=['','Poor','Fair','Good','Great','Excellent'][picked[g]]}}}}}});
 var url=location.pathname.replace(/\\/$/,'')+'/feedback';
 function send(body,btn,ok,err,done){{btn.disabled=true;document.getElementById(err).style.display='none';
 fetch(url,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}})

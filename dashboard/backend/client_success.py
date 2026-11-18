@@ -351,7 +351,16 @@ def _system_prompt(brief: str, kind: str) -> str:
         "Treat it as the most important signal about targeting: thank them for rating, and turn 'not a fit' notes into "
         "a concrete next step. If 'unrated' > 0, one client_asks bullet should ask them to answer 'good fit?' for those "
         "patients when marking appointments in their portal.\n"
-        "- Keep bullets under 25 words.\n\n" + _SCHEMA_HINT
+        "- The quick read (on_target, off_target, next_steps, client_asks) is scanned in seconds by a busy owner: "
+        "at most 3 bullets per list (client_asks at most 2), each one plain sentence under 15 words, one idea each, "
+        "no jargon (say 'people who clicked', not 'CTR'). Don't repeat the same point across lists; leave a list "
+        "short rather than padding it.\n"
+        + ("- The campaign is OVER: write the headline, summary, on_target and off_target in the past tense "
+           "('the ads brought in 31 leads', 'fewer people showed up than we wanted'). next_steps are recommendations "
+           "for the next campaign.\n" if kind == "final" else "")
+        + "- If a path's first stage after the ads has no rate and no target (e.g. 'Funnel page' when the ads were "
+        "Instant Forms only), those visits came from texts and links, not ads: never call it a leak or compare it to ad clicks.\n\n"
+        + _SCHEMA_HINT
     )
 
 
@@ -553,13 +562,14 @@ async def add_feedback(slug: str, body: dict) -> bool:
             r["id"], r["client_id"], kind, msg, rating, bool(body.get("testimonial_ok")), bool(body.get("wants_next")))
         bits = []
         if rating is not None:
-            bits.append(f"rated {rating}/{10 if r['kind'] == 'final' else 5}")
+            bits.append(f"rated {rating}/5" + (" stars for their experience" if kind == "testimonial" else ""))
         if body.get("wants_next"):
             bits.append("WANTS TO TALK ABOUT THE NEXT CAMPAIGN")
         if body.get("testimonial_ok"):
             bits.append("OK to use as testimonial")
         verb = {"question": "asked a question", "suggestion": "left a suggestion", "testimonial": "left a testimonial"}.get(kind, "left feedback")
-        low = rating is not None and ((r["kind"] == "final" and rating <= 6) or (r["kind"] == "weekly" and rating <= 2))
+        # Both ratings are out of 5 now (weekly check-in, final "would you recommend" stars).
+        low = rating is not None and rating <= 2
         text = f"{'⚠ ' if low else ''}{r['name']} {verb if msg else 'responded'} on their report"
         await conn.execute("INSERT INTO todos (text, description, due_date) VALUES ($1, $2, $3)",
                            text, f"{'; '.join(bits)}\n\n{msg}\n\nAnswer it: Business Resources -> Outreach Templates -> Client Success Reports.",
