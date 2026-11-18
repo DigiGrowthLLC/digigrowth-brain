@@ -106,8 +106,8 @@ TEMPLATE_DEFAULTS = {
     # when DIGIGROWTH_REVIEW_URL is set, else empty).
     "csm_final_testimonial_text": (
         "If the campaign made a difference for {clinic}, would you share a couple of sentences about working with us? "
-        "Tick the testimonial box below and write whatever comes to mind (what it was like before, what changed). "
-        "A short phone video works too if you're up for it. {review_link_line}"
+        "Write whatever comes to mind in the box below: what it was like before, and what changed. "
+        "A short phone video works too if you're up for it (just reply to the report email with it). {review_link_line}"
     ),
 }
 
@@ -210,6 +210,16 @@ async def _ai_agent_stats(client_id: int, days: int | None) -> dict | None:
         return None
 
 
+def _for_prompt(data: dict) -> dict:
+    """The report data minus the per-path journey (the page's layout data;
+    the flat `stages` list already gives Claude the same numbers)."""
+    out = dict(data)
+    for key in ("week", "to_date"):
+        if isinstance(out.get(key), dict):
+            out[key] = {k: v for k, v in out[key].items() if k != "paths"}
+    return out
+
+
 def _slim_funnel(f: dict) -> dict:
     """The parts of client_funnel.build_funnel the report uses."""
     stages = []
@@ -220,7 +230,12 @@ def _slim_funnel(f: dict) -> dict:
             stages.append({"path": p.get("label"), "label": s.get("label"), "count": s.get("value"),
                            "rate": s.get("rate"), "status": s.get("status"),
                            "target": (s.get("target") or {}).get("good")})
-    return {"kpis": f.get("kpis", {}), "stages": stages, "biggest_leak": f.get("biggest_leak"),
+    # Per-path journey for the report page (laid out like the portal's Results tab).
+    paths = [{"key": p.get("key"), "label": p.get("label"),
+              "stages": [{k: s.get(k) for k in ("key", "label", "value", "rate", "rate_basis", "status", "note", "available")}
+                         | {"target": (s.get("target") or {}).get("good")} for s in p.get("stages", [])]}
+             for p in f.get("paths", [])]
+    return {"kpis": f.get("kpis", {}), "stages": stages, "paths": paths, "biggest_leak": f.get("biggest_leak"),
             "meta_connected": (f.get("meta") or {}).get("connected"), "paid_offer": f.get("paid_offer")}
 
 
@@ -357,7 +372,7 @@ async def write_analysis(data: dict, brief: str) -> tuple[dict, str]:
             model=os.environ.get("CSM_MODEL", "claude-opus-5-5"),
             max_tokens=16000,
             system=_system_prompt(brief, data["kind"]),
-            messages=[{"role": "user", "content": "Report data:\n" + json.dumps(data, default=str, indent=1)}],
+            messages=[{"role": "user", "content": "Report data:\n" + json.dumps(_for_prompt(data), default=str, indent=1)}],
         )
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         out = _extract_json(text)
@@ -523,7 +538,7 @@ async def _todo_once(conn, text: str, description: str) -> None:
 
 async def add_feedback(slug: str, body: dict) -> bool:
     msg = str(body.get("message") or "").strip()[:4000]
-    kind = body.get("kind") if body.get("kind") in ("question", "suggestion", "feedback") else "feedback"
+    kind = body.get("kind") if body.get("kind") in ("question", "suggestion", "feedback", "testimonial") else "feedback"
     rating = body.get("rating")
     rating = int(rating) if isinstance(rating, (int, float)) and 0 <= rating <= 10 else None
     pool = await get_pool()
@@ -543,7 +558,7 @@ async def add_feedback(slug: str, body: dict) -> bool:
             bits.append("WANTS TO TALK ABOUT THE NEXT CAMPAIGN")
         if body.get("testimonial_ok"):
             bits.append("OK to use as testimonial")
-        verb = {"question": "asked a question", "suggestion": "left a suggestion"}.get(kind, "left feedback")
+        verb = {"question": "asked a question", "suggestion": "left a suggestion", "testimonial": "left a testimonial"}.get(kind, "left feedback")
         low = rating is not None and ((r["kind"] == "final" and rating <= 6) or (r["kind"] == "weekly" and rating <= 2))
         text = f"{'⚠ ' if low else ''}{r['name']} {verb if msg else 'responded'} on their report"
         await conn.execute("INSERT INTO todos (text, description, due_date) VALUES ($1, $2, $3)",

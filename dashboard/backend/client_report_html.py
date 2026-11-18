@@ -19,6 +19,7 @@ glass cards with line icons. Dark only, like the blueprint.
 from __future__ import annotations
 
 import html
+import math
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -123,8 +124,8 @@ background-size:64px 64px;mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.35)
 body>*{position:relative;z-index:1}
 a{color:var(--cyan)}
 .wrap{max-width:1040px;margin:0 auto;padding:0 24px}
-.mono{font-family:'Share Tech Mono',monospace}
 .i{width:18px;height:18px;flex:none;display:block}
+.mono{font-family:'Share Tech Mono',monospace;letter-spacing:.12em;text-transform:uppercase;font-size:11px;color:var(--dim)}
 
 /* top bar */
 .bar{background:rgba(5,9,25,.85);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
@@ -159,35 +160,102 @@ h1{font-size:clamp(30px,4.6vw,52px);line-height:1.06;margin:16px 0 0;max-width:9
 /* sections */
 section{padding:72px 0;position:relative}
 section.alt{background:linear-gradient(180deg,rgba(11,18,48,.85),rgba(7,12,31,.6));border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-.head{max-width:760px;margin:0 0 32px}
+.head{max-width:760px;margin:0 0 28px}
 .idx{display:flex;align-items:center;gap:12px;font-family:'Share Tech Mono',monospace;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
 .idx .n{color:var(--cyan)}
 .idx .ln{flex:0 0 48px;height:1px;background:linear-gradient(90deg,var(--cyan),transparent)}
 .idx .i{width:16px;height:16px;color:var(--cyan)}
-.head h2{font-size:clamp(26px,3.4vw,38px);line-height:1.1;margin:14px 0 10px;letter-spacing:-.025em;font-weight:700}
+.head h2{font-size:clamp(26px,3.4vw,38px);line-height:1.1;margin:14px 0 10px;letter-spacing:-.025em;font-weight:700;text-wrap:balance}
 .head p{color:var(--muted);margin:0;font-size:16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
 .ib{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:none;border:1px solid rgba(95,212,255,.28);background:rgba(58,123,213,.12);color:var(--cyan)}
 .ib.amb{border-color:rgba(245,165,36,.3);background:rgba(245,165,36,.1);color:var(--amber)}
 .ib.grn{border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.1);color:var(--green)}
+.stack{display:grid;gap:16px}
 
-/* numbers */
-.outs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-.out{padding:22px 20px;min-width:0}
-.out .k{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
-.out .v{font-size:44px;font-weight:700;letter-spacing:-.03em;line-height:1;margin:14px 0 10px;font-variant-numeric:tabular-nums}
-.out .v small{font-size:17px;color:var(--muted);font-weight:500;letter-spacing:0}
-.out.hl{border-color:rgba(95,212,255,.4);background:linear-gradient(180deg,rgba(58,123,213,.16),rgba(58,123,213,.04))}
-.chg{font-size:13px;font-weight:600}.chg.good{color:var(--green)}.chg.bad{color:var(--red)}.chg.flat,.chg.none{color:var(--muted);font-weight:500}
-.prog{height:6px;border-radius:99px;background:rgba(148,170,255,.12);overflow:hidden;margin:0 0 10px}
+/* results: goal + headline numbers (same four as the portal's Results tab) */
+.goal{padding:22px 24px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 24px;align-items:end;border-color:rgba(95,212,255,.35);background:linear-gradient(180deg,rgba(58,123,213,.16),rgba(58,123,213,.04))}
+.goal .big{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1.05}
+.goal .big small{font-size:18px;color:var(--muted);font-weight:500;letter-spacing:0}
+.goal .side{text-align:right;font-size:14px;color:var(--muted)}
+.goal .side b{display:block;font-size:15px;margin-bottom:2px}
+.goal .prog{grid-column:1/-1}
+.prog{height:8px;border-radius:99px;background:rgba(148,170,255,.12);overflow:hidden}
 .prog i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--blue))}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{padding:18px 20px;min-width:0}
+.kpi .lbl{font-size:13px;color:var(--muted);font-weight:500}
+.kpi .v{font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1.1;margin:6px 0 4px;font-variant-numeric:tabular-nums}
+.kpi .h{font-size:12.5px;color:var(--dim)}
+.chg{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:600}.chg.good{color:var(--green)}.chg.bad{color:var(--red)}.chg.flat,.chg.none{color:var(--muted);font-weight:500}
+
+/* patient journey (mirrors the portal's JourneyRow) */
+.journey{padding:20px 22px}
+.journey h3{margin:0;font-size:17px}
+.journey .sub{font-size:13.5px;color:var(--muted);margin-top:2px}
+.leak{margin-top:14px;padding:11px 14px;border-radius:9px;background:rgba(245,165,36,.08);border:1px solid rgba(245,165,36,.2);font-size:14px;color:#ecdcb4}
+.leak b{color:var(--amber)}
+.path-h{margin:20px 0 2px;font-family:'Share Tech Mono',monospace;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan)}
+.jrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line)}
+.jrow.first{border-top:0}
+.jrow .nm{display:flex;align-items:center;gap:12px;flex:1 1 210px;min-width:0}
+.jrow .no{width:26px;height:26px;border-radius:13px;flex:none;display:grid;place-items:center;background:rgba(58,123,213,.15);color:#6ab0ff;font-size:12px;font-weight:700}
+.jrow .t{font-size:14.5px;font-weight:600}
+.jrow .hp{font-size:12px;color:var(--dim)}
+.jrow .bw{display:flex;align-items:center;gap:12px;flex:2 1 220px;min-width:0}
+.jrow .trk{flex:1;height:10px;border-radius:5px;background:rgba(255,255,255,.05);overflow:hidden}
+.jrow .trk i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--blue),var(--cyan))}
+.jrow .ct{width:76px;text-align:right;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.jrow .rt{width:130px;margin-left:auto;text-align:right}
+.jrow .rt b{display:inline-flex;align-items:center;gap:6px;font-size:14.5px}
+.jrow .rt span{display:block;font-size:11.5px;color:var(--dim)}
+.jrow .nt{flex-basis:100%;font-size:12px;color:var(--muted);margin-left:38px}
+.jrow.off .t,.jrow.off .ct{color:var(--dim)}
+.rep{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:6px;font-size:10.5px;font-weight:600;letter-spacing:.02em;vertical-align:2px;color:var(--amber);background:rgba(245,165,36,.1);border:1px solid rgba(245,165,36,.28);white-space:nowrap}
+.rep.kr{display:table;margin:8px 0 0}
+.fnote{font-size:12.5px;color:var(--muted);margin:0}
+.fnote b{color:var(--amber);font-weight:600}
+.tone-good{color:var(--green)}.tone-ok{color:var(--amber)}.tone-poor{color:var(--red)}
+.tdot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.trio{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.mini{padding:20px 22px}
+.mini h3{margin:0 0 12px;font-size:16px}
+.mini .g{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mini .g>div{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.02);min-width:0}
+.mini .lbl{font-size:12.5px;color:var(--muted)}
+.mini .num{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+.mini .h{font-size:11.5px;color:var(--dim)}
+
+/* appointments waiting on an outcome */
+.appts{padding:6px 22px}
+.ap-empty{padding:18px 0;color:var(--muted);font-size:14.5px}
+.ap{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,2fr);gap:12px 20px;padding:18px 0;border-top:1px solid var(--line)}
+.ap:first-child{border-top:0}
+.ap .who b{display:block;font-size:15.5px}
+.ap .who span{font-size:13px;color:var(--muted)}
+.ap .ctl{display:grid;gap:10px;min-width:0}
+.seg{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.seg .q{font-size:12.5px;color:var(--dim);width:150px}
+.opt{padding:8px 14px;border-radius:9px;border:1px solid var(--line2);background:rgba(255,255,255,.03);color:var(--ink);font:600 14px 'Space Grotesk',sans-serif;cursor:pointer}
+.opt:hover{border-color:rgba(95,212,255,.45)}
+.opt.on.pos{background:rgba(52,211,153,.16);border-color:var(--green);color:var(--green)}
+.opt.on.neg{background:rgba(255,123,123,.12);border-color:var(--red);color:var(--red)}
+.opt:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.ap textarea{min-height:56px}
+.ap .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ap .btn{padding:9px 18px;font-size:14px;box-shadow:none}
+.ap [hidden]{display:none!important}
+.ap .ok{color:var(--green);font-size:13.5px;font-weight:600}
+.ap .bad{color:var(--red);font-size:13.5px}
+@media (max-width:700px){.ap{grid-template-columns:1fr}.seg .q{width:100%}}
 
 /* quick read */
 .g-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .g-cards .card{padding:22px}
-.g-cards .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-.g-cards .no{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--dim);letter-spacing:.1em}
-.g-cards h4{margin:0 0 8px;font-size:17px;letter-spacing:-.01em}
+.g-cards .top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.g-cards h4{margin:0;font-size:17px;letter-spacing:-.01em}
 ul.ticks{list-style:none;padding:0;margin:0;display:grid;gap:10px}
 ul.ticks li{position:relative;padding-left:18px;color:var(--muted);font-size:14.5px;line-height:1.5}
 ul.ticks li::before{content:"";position:absolute;left:0;top:.62em;width:7px;height:7px;border-radius:2px;background:var(--cyan);opacity:.75}
@@ -195,13 +263,13 @@ ul.ticks li.empty{padding-left:0}ul.ticks li.empty::before{display:none}
 .help{display:flex;gap:16px;align-items:flex-start;margin-top:16px;padding:20px 22px;border-color:rgba(95,212,255,.3)}
 .help b{display:block;margin-bottom:8px;font-size:16px}
 
-/* feature (next campaign / feedback): the blueprint's close block */
+/* feature panels (next campaign, testimonial, questions): the blueprint's close block */
 .guar{padding:44px 40px 40px;background:radial-gradient(ellipse at 0% 0%,rgba(58,123,213,.25),transparent 55%),radial-gradient(ellipse at 100% 100%,rgba(143,123,255,.14),transparent 50%),#060b1e;border:1px solid rgba(95,212,255,.25);border-radius:18px;position:relative;overflow:hidden}
-.guar h2{font-size:clamp(26px,3.6vw,42px);margin:14px 0 12px;line-height:1.06;letter-spacing:-.03em;max-width:780px}
+.guar h2{font-size:clamp(26px,3.6vw,42px);margin:14px 0 12px;line-height:1.06;letter-spacing:-.03em;max-width:780px;text-wrap:balance}
 .guar .lead{margin:0 0 20px}
 .guar ul.ticks li{color:var(--ink)}
-.ask{margin:22px 0 0;padding-top:18px;border-top:1px dashed var(--line2);font-weight:600}
-.ask span{display:block;font-weight:400;color:var(--muted);font-size:14px;margin-top:4px}
+.cta{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:24px;padding-top:20px;border-top:1px dashed var(--line2)}
+.cta p{margin:0;font-weight:600;flex:1 1 260px}
 
 /* chart, quality, Q&A */
 .chart{overflow-x:auto;padding:24px 22px 16px}
@@ -210,53 +278,34 @@ ul.ticks li.empty{padding-left:0}ul.ticks li.empty::before{display:none}
 .lq{padding:22px}
 .lq .row{display:flex;gap:28px;flex-wrap:wrap;margin-bottom:14px}
 .lq .num{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1}
-.lq .num+span{display:block;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:6px}
+.lq .num+span{display:block;font-size:13px;color:var(--muted);margin-top:6px}
 .qa{padding:18px 22px}
 .qa+.qa{margin-top:12px}
-.qa .q{font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:.06em;color:var(--cyan);margin-bottom:6px}
-.qa .a{color:var(--ink)}
+.qa .q{font-size:13px;color:var(--cyan);margin-bottom:6px}
 .muted{color:var(--muted);font-size:14.5px}
 
-/* full numbers */
-details{background:var(--card);border:1px solid var(--line);border-radius:14px}
-summary{cursor:pointer;padding:18px 22px;font-weight:600;font-size:16px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
-summary::-webkit-details-marker{display:none}
-summary::after{content:"+";font-family:'Share Tech Mono',monospace;font-size:20px;color:var(--cyan)}
-details[open] summary::after{content:"\\2013"}
-.det{padding:0 22px 22px;display:grid;gap:24px}
-.det h3{font-family:'Share Tech Mono',monospace;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 8px;color:var(--dim);font-weight:400}
-.tw{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:14.5px;font-variant-numeric:tabular-nums}
-th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
-th{font-family:'Share Tech Mono',monospace;color:var(--dim);font-weight:400;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
-.st{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:6px;border:1px solid}
-.st.good{color:var(--green);border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08)}
-.st.ok{color:var(--amber);border-color:rgba(245,165,36,.3);background:rgba(245,165,36,.08)}
-.st.poor{color:var(--red);border-color:rgba(255,123,123,.3);background:rgba(255,123,123,.08)}
-.st.low_data{color:var(--muted);border-color:var(--line2);background:rgba(255,255,255,.02)}
-.mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.mini>div{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.02)}
-.mini .num{font-size:24px;font-weight:700;letter-spacing:-.02em}
-.mini .lbl{font-family:'Share Tech Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
-
-/* feedback form */
-form{display:grid;gap:12px;margin-top:22px;max-width:640px}
-.fl{font-family:'Share Tech Mono',monospace;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+/* forms */
+form{display:grid;gap:14px;margin-top:22px;max-width:660px}
+.fl{font-size:14.5px;font-weight:600}
+.fl small{display:block;font-weight:400;color:var(--muted);font-size:13px}
 .rates{display:flex;flex-wrap:wrap;gap:6px}
 .rate{min-width:42px;padding:9px 0;border-radius:9px;border:1px solid var(--line2);background:rgba(255,255,255,.03);color:var(--ink);font:600 15px 'Space Grotesk',sans-serif;cursor:pointer}
 .rate:hover{border-color:rgba(95,212,255,.45)}
 .rate.on{background:rgba(58,123,213,.3);border-color:var(--cyan);color:#fff}
+.scale{display:flex;justify-content:space-between;max-width:520px;font-size:12px;color:var(--dim)}
 select,textarea{width:100%;background:rgba(5,9,25,.6);border:1px solid var(--line2);border-radius:10px;color:var(--ink);padding:11px 13px;font:inherit}
 select:focus,textarea:focus{outline:none;border-color:var(--cyan)}
-textarea{min-height:110px;resize:vertical}
-.chk{display:flex;gap:10px;align-items:center;font-size:14.5px;color:var(--muted)}
-.chk input{accent-color:var(--blue);width:16px;height:16px}
+textarea{min-height:120px;resize:vertical}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;color:var(--muted)}
+.chk input{accent-color:var(--blue);width:16px;height:16px;margin-top:3px;flex:none}
 .btn{justify-self:start;background:linear-gradient(90deg,var(--blue),#4f8ff0);border:0;color:#fff;font:600 15px 'Space Grotesk',sans-serif;padding:12px 24px;border-radius:10px;cursor:pointer;box-shadow:0 10px 30px rgba(58,123,213,.35)}
-.btn:disabled{opacity:.6}
-.btn:focus-visible,.rate:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.btn:disabled{opacity:.6;cursor:default}
+.btn:focus-visible,.rate:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .qs{margin:18px 0 0;padding:16px 18px}
 .qs b{display:block;margin-bottom:8px}
 .thanks{display:none;color:var(--green);font-weight:600}
+.err{display:none;color:var(--red);font-size:14px}
+.review{margin:18px 0 0;font-size:14.5px;color:var(--muted)}
 
 footer{color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;border-top:1px solid var(--line)}
 footer .wrap{display:flex;justify-content:space-between;gap:12px;padding-top:22px;padding-bottom:30px;flex-wrap:wrap}
@@ -266,7 +315,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;padding-top:22p
 @media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}.orb{animation:none}html{scroll-behavior:auto}}
 
 @media (max-width:900px){
-  .outs{grid-template-columns:1fr 1fr}
+  .kpis{grid-template-columns:1fr 1fr}
   .g-cards,.two{grid-template-columns:1fr}
   .spec{grid-template-columns:1fr 1fr}
   .spec>div,.spec>div+div{padding:14px 14px 14px 0;border-left:0;border-bottom:1px solid var(--line)}
@@ -276,20 +325,131 @@ footer .wrap{display:flex;justify-content:space-between;gap:12px;padding-top:22p
   .guar{padding:32px 22px 26px}
   .bar .r{margin-left:0}
 }
+@media (max-width:560px){
+  .goal{grid-template-columns:1fr}
+  .goal .side{text-align:left}
+  .jrow{gap:8px 12px}
+  .jrow .nm{flex:1 1 0}
+  .jrow .rt{order:1;width:auto;margin-left:auto}
+  .jrow .bw{order:2;flex:1 1 100%;padding-left:38px}
+  .jrow .nt{order:3}
+}
 @media (max-width:480px){
   .wrap{padding:0 16px}
   .hero{padding-top:40px}
   h1{font-size:30px}
   .head h2{font-size:25px}
   .lead{font-size:15.5px}
-  .out{padding:18px 16px}
-  .out .v{font-size:34px}
-  .mini{grid-template-columns:1fr 1fr}
+  .kpi{padding:16px}
+  .kpi .v{font-size:28px}
+  .goal .big{font-size:32px}
+  .journey,.mini{padding:18px 16px}
   .bar .sep,.bar .r{display:none}
   .lockup{margin-bottom:22px}
   .kicker{font-size:11.5px;letter-spacing:.12em}
 }
 """
+
+# Plain-English line under each journey step (same as the portal's STEP_HELP).
+STEP_HELP = {
+    "impressions": "Times your ad was shown",
+    "link_clicks": "Clicked the ad",
+    "leads": "Filled out the ad's form",
+    "replied": "Texted back",
+    "funnel_visits": "Landed on your page",
+    "booking_views": "Opened the booking page",
+    "booking_started": "Entered their name and number",
+    "checkout": "Reached the payment step",
+    "booked": "Booked a visit",
+    "showed": "Came to their visit",
+    "patient": "Started care with you",
+}
+TONE = {"good": "On target", "ok": "Close", "poor": "Below target"}
+# Steps the clinic reports by hand (show/no-show and closed in the portal's Appointments).
+CLIENT_REPORTED = {"showed", "patient"}
+REP_TAG = '<span class="rep">Reported by your team</span>'
+REPORTED_NOTE = ('<p class="fnote"><b>*</b> Show-ups and new patients come from what your team marks in your portal '
+                 "(Appointments: showed / closed). Visits that haven't been marked yet aren't counted, so the show rate "
+                 "and close rate only reflect the visits you've updated.</p>")
+
+
+# "Appointments waiting on an outcome": loads GET /report/<slug>/appointments
+# and saves with PATCH /report/<slug>/appointments/<id> (routers/client_success.py).
+APPTS_JS = r'''
+(function(){
+var box=document.getElementById('apList'),msg=document.getElementById('apMsg');if(!box)return;
+var base=location.pathname.replace(/\/$/,'')+'/appointments';
+function esc(t){var d=document.createElement('div');d.textContent=t==null?'':t;return d.innerHTML}
+function left(){var n=box.querySelectorAll('.ap').length;
+msg.textContent=n?(n+(n===1?' visit needs':' visits need')+' an outcome.'):"You're all caught up. Every past visit has an outcome."}
+function row(a){var el=document.createElement('div');el.className='ap';var st={show:a.outcome_show,close:a.outcome_close};
+el.innerHTML='<div class="who"><b>'+esc(a.name)+'</b><span>'+esc(a.when)+'</span></div><div class="ctl">'+
+'<div class="seg"><span class="q">Did they come in?</span><button type="button" class="opt pos" data-f="show" data-v="show">Showed up</button>'+
+'<button type="button" class="opt neg" data-f="show" data-v="no_show">No-show</button></div>'+
+'<div class="seg cl"><span class="q">Did they start care?</span><button type="button" class="opt pos" data-f="close" data-v="closed">Became a patient</button>'+
+'<button type="button" class="opt neg" data-f="close" data-v="not_closed">Not yet</button></div>'+
+'<textarea placeholder="Notes (optional): what happened, what they need, why they didn\'t start care..." aria-label="Notes for '+esc(a.name)+'">'+esc(a.notes)+'</textarea>'+
+'<div class="row"><button type="button" class="btn">Save</button><span class="ok" hidden>Saved</span><span class="bad" hidden></span></div></div>';
+var cl=el.querySelector('.cl');
+function paint(){el.querySelectorAll('.opt').forEach(function(b){b.classList.toggle('on',st[b.dataset.f]===b.dataset.v)});cl.hidden=st.show!=='show'}
+el.querySelectorAll('.opt').forEach(function(b){b.onclick=function(){st[b.dataset.f]=b.dataset.v;if(b.dataset.f==='show'&&b.dataset.v!=='show')st.close=null;paint()}});
+var save=el.querySelector('.btn'),ok=el.querySelector('.ok'),bad=el.querySelector('.bad');
+save.onclick=function(){bad.hidden=true;ok.hidden=true;
+if(!st.show){bad.textContent='Pick "Showed up" or "No-show" first.';bad.hidden=false;return}
+save.disabled=true;
+fetch(base+'/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({outcome_show:st.show,outcome_close:st.show==='show'?st.close:null,outcome_notes:el.querySelector('textarea').value})})
+.then(function(r){if(!r.ok)throw 0;var done=st.show==='no_show'||(st.show==='show'&&st.close);
+if(done){ok.textContent='Saved';ok.hidden=false;setTimeout(function(){el.remove();left()},900)}
+else{save.disabled=false;ok.textContent='Saved. Come back and mark whether they became a patient.';ok.hidden=false}})
+.catch(function(){save.disabled=false;bad.textContent="That didn't save. Please try again.";bad.hidden=false})};
+paint();return el}
+fetch(base).then(function(r){if(!r.ok)throw 0;return r.json()})
+.then(function(d){(d.appointments||[]).forEach(function(a){box.appendChild(row(a))});left()})
+.catch(function(){msg.textContent="Couldn't load your appointments here. You can mark them in your portal under Appointments."})
+})();
+'''
+
+
+def _step_width(value, top) -> float:
+    """Log-scale bar width, like the portal: impressions are often 1000x bookings."""
+    if not value or not top:
+        return 0
+    return max(6, min(100, math.log10(value + 1) / math.log10(top + 1) * 100))
+
+
+def _journey(scope: dict) -> str:
+    paths = scope.get("paths") or []
+    if not paths and scope.get("stages"):   # reports built before paths were stored
+        paths = [{"label": "", "stages": [dict(s, key="", available=True) for s in scope["stages"]]}]
+    out = []
+    for p in paths:
+        stages = p.get("stages") or []
+        top = max([s.get("value") or 0 for s in stages if s.get("available", True)] or [0])
+        if len(paths) > 1:
+            out.append(f'<div class="path-h">{_e(p.get("label"))}</div>')
+        for i, s in enumerate(stages):
+            off = s.get("available") is False
+            tone = s.get("status") if s.get("status") in TONE else None
+            rate = '<div class="rt"></div>'
+            if i and not off and s.get("rate") is not None:
+                basis = "click rate" if s.get("rate_basis") == "click-through rate" else "of previous step"
+                tgt = f' title="Target: {_e(s["target"])}% or better"' if s.get("target") else ""
+                rate = (f'<div class="rt"{tgt}><b class="{"tone-" + tone if tone else ""}">'
+                        f'{"<i class=tdot></i>" if tone else ""}{_pct(s["rate"])}</b><span>{basis}</span></div>')
+            note = f'<div class="nt">{_e(s["note"])}</div>' if s.get("note") and not off else ""
+            bar = (f'<i style="width:{_step_width(s.get("value"), top):.0f}%"></i>'
+                   if not off and (s.get("value") or 0) > 0 else "")
+            out.append(
+                f'<div class="jrow{" first" if i == 0 and len(paths) == 1 else ""}{" off" if off else ""}">'
+                f'<div class="nm"><span class="no">{i + 1}</span><div><div class="t">{_e(s.get("label"))}'
+                f'{REP_TAG if s.get("key") in CLIENT_REPORTED else ""}</div>'
+                f'<div class="hp">{"Waiting on ad account access" if off else _e(STEP_HELP.get(s.get("key"), ""))}</div></div></div>'
+                f'<div class="bw"><div class="trk">{bar}</div><div class="ct">{"–" if off else _num(s.get("value"))}</div></div>'
+                f'{rate}'
+                f'{note}'
+                f'</div>')
+    return "".join(out)
 
 
 def render_html(report: dict) -> str:
@@ -302,18 +462,23 @@ def render_html(report: dict) -> str:
     k = scope.get("kpis") or {}
     lk = {} if final else (((data.get("last_week") or {}).get("kpis")) or {})
     pace = data.get("pace")
+    bud = camp.get("budget")
 
     title = "Final campaign report" if final else f"Week {report['week_number']} report"
     dates = f"{_date(report['period_start'])} – {_date(report['period_end'])}"
     issued = _date(datetime.now(ET).isoformat())
+    period_word = "whole campaign" if final else "this week"
 
-    # Numbered section heads, like the blueprint ("01 ── The numbers")
+    # Numbered section heads, like the blueprint ("01 ── Results")
     counter = [0]
 
-    def head(label: str, icon: str, h2: str = "", sub: str = "") -> str:
+    def idx(label: str, icon: str) -> str:
         counter[0] += 1
-        return (f'<div class="head reveal"><div class="idx"><span class="n">{counter[0]:02d}</span><span class="ln"></span>'
-                f'{_icon(icon)}{_e(label)}</div>'
+        return (f'<div class="idx"><span class="n">{counter[0]:02d}</span><span class="ln"></span>'
+                f'{_icon(icon)}{_e(label)}</div>')
+
+    def head(label: str, icon: str, h2: str = "", sub: str = "") -> str:
+        return (f'<div class="head reveal">{idx(label, icon)}'
                 + (f'<h2>{h2}</h2>' if h2 else "") + (f'<p>{_e(sub)}</p>' if sub else "") + '</div>')
 
     alt = [False]
@@ -336,44 +501,47 @@ def render_html(report: dict) -> str:
         status = None
         goal_v = f'Day {_e(camp.get("days_elapsed"))} of {_e(camp.get("length_days"))}' if camp.get("days_elapsed") else "Campaign"
     status_html = (f'<span class="st-{status[0]}"><span class="sdot"></span>{status[1]}</span>' if status else "–")
-
     lock_left = (f'<img src="{_e(logo)}" alt="{_e(clinic)} logo">' if logo else "") + f'<span class="cn">{_e(clinic)}</span>'
 
-    # 01: the four numbers
+    sections = []
+
+    # ---- Results: goal bar + the portal's four headline numbers
+    goal_html = ""
     if pace:
         pct = min(100, pace["pct_of_goal"])
-        bud = camp.get("budget")
-        progress_line = (f'{_money(bud["spent"])} of {_money(bud["cap"])} ad budget spent' if bud
-                         else f'Day {camp.get("days_elapsed")} of {camp.get("length_days")}')
-        goal_tile = (f'<div class="out card hl"><div class="k">Campaign goal</div>'
-                     f'<div class="v">{pace["booked"]}<small> / {pace["goal"]}</small></div>'
-                     f'<div class="prog"><i style="width:{pct}%"></i></div>'
-                     f'<span class="chg flat">{_e(progress_line)}</span></div>')
-    else:
-        goal_tile = (f'<div class="out card"><div class="k">Showed up</div><div class="v">{_num(k.get("shows"))}</div>'
-                     f'{_delta(k.get("shows"), lk.get("shows"))}</div>')
-    period_word = "total" if final else "this week"
-    outs = (
-        f'<div class="out card{"" if pace else " hl"}"><div class="k">Booked {period_word}</div><div class="v">{_num(k.get("booked"))}</div>'
-        f'{"" if final else _delta(k.get("booked"), lk.get("booked"))}</div>'
-        f'<div class="out card"><div class="k">Cost per booking</div><div class="v">{_money(k.get("cost_per_booking"))}</div>'
-        f'{"" if final else _delta(k.get("cost_per_booking"), lk.get("cost_per_booking"), True)}</div>'
-        f'<div class="out card"><div class="k">New leads</div><div class="v">{_num(k.get("leads"))}</div>'
-        f'{"" if final else _delta(k.get("leads"), lk.get("leads"))}</div>'
-        + goal_tile)
-    sections = [section(
-        head("The numbers", "chart", "The four numbers that matter" + ("" if final else " this week"),
-             "The whole campaign, start to finish." if final else "Each one compared with last week.")
-        + f'<div class="outs reveal">{outs}</div>', "numbers")]
+        side = (f'<b>{_money(bud["spent"])} of {_money(bud["cap"])}</b>ad budget spent' if bud
+                else f'<b>Day {_e(camp.get("days_elapsed"))} of {_e(camp.get("length_days"))}</b>of the campaign')
+        goal_html = (f'<div class="card goal reveal"><div><div class="mono">Campaign goal</div>'
+                     f'<div class="big">{pace["booked"]}<small> of {pace["goal"]} {_e(camp.get("goal_label") or "booked")}</small></div></div>'
+                     f'<div class="side">{side}</div><div class="prog"><i style="width:{pct}%"></i></div></div>')
 
-    # 02: the quick read
+    def kpi(label, value, hint, cur=None, prev=None, lower=False, reported=False):
+        chg = "" if final or cur is None else _delta(cur, prev, lower)
+        tag = REP_TAG.replace('class="rep"', 'class="rep kr"') if reported else ""
+        return (f'<div class="card kpi"><div class="lbl">{label}{"*" if reported else ""}</div><div class="v">{value}</div>'
+                f'<div class="h">{hint}</div>{chg}{tag}</div>')
+
+    spend_hint = (f"of the {_money(bud['cap'])} budget" if final and bud else period_word)
+    kpis = (
+        kpi("New patients", _num(k.get("patients")), f'{_num(k.get("shows"))} came to their visit', k.get("patients"), lk.get("patients"),
+              reported=True)
+        + kpi("Visits booked", _num(k.get("booked")), f'from {_num(k.get("leads"))} leads', k.get("booked"), lk.get("booked"))
+        + kpi("Cost per booking", _money(k.get("cost_per_booking")), "ad spend ÷ visits booked",
+              k.get("cost_per_booking"), lk.get("cost_per_booking"), True)
+        + kpi("Ad spend", _money(k.get("spend")), spend_hint))
+    sections.append(section(
+        head("Results", "chart", "Your results, " + ("start to finish" if final else "this week"),
+             "The same numbers you see on the Results tab in your portal." + ("" if final else " Each one is compared with last week."))
+        + f'<div class="stack">{goal_html}<div class="kpis reveal">{kpis}</div>{REPORTED_NOTE}</div>', "results"))
+
+    # ---- The quick read
     quick = (
-        f'<div class="card"><div class="top"><span class="ib grn">{_icon("check")}</span><span class="no">01</span></div>'
-        f'<h4>What\'s working</h4><ul class="ticks">{_items(a.get("on_target"))}</ul></div>'
-        f'<div class="card"><div class="top"><span class="ib amb">{_icon("alert")}</span><span class="no">02</span></div>'
-        f'<h4>What we\'re fixing</h4><ul class="ticks">{_items(a.get("off_target"))}</ul></div>'
-        f'<div class="card"><div class="top"><span class="ib">{_icon("arrow")}</span><span class="no">03</span></div>'
-        f'<h4>{"What we recommend" if final else "Next week"}</h4><ul class="ticks">{_items(a.get("next_steps"))}</ul></div>')
+        f'<div class="card"><div class="top"><span class="ib grn">{_icon("check")}</span><h4>What\'s working</h4></div>'
+        f'<ul class="ticks">{_items(a.get("on_target"))}</ul></div>'
+        f'<div class="card"><div class="top"><span class="ib amb">{_icon("alert")}</span><h4>What we\'re fixing</h4></div>'
+        f'<ul class="ticks">{_items(a.get("off_target"))}</ul></div>'
+        f'<div class="card"><div class="top"><span class="ib">{_icon("arrow")}</span><h4>{"What we recommend" if final else "Next week"}</h4></div>'
+        f'<ul class="ticks">{_items(a.get("next_steps"))}</ul></div>')
     help_html = ""
     if a.get("client_asks"):
         help_html = (f'<div class="card help reveal"><span class="ib">{_icon("star")}</span><div>'
@@ -381,23 +549,57 @@ def render_html(report: dict) -> str:
     sections.append(section(head("The quick read", "layers", "What happened, and what we're doing about it")
                             + f'<div class="g-cards reveal">{quick}</div>{help_html}', "read"))
 
-    # Final: next campaign + week by week
-    if final:
-        nc = a.get("next_campaign") or {}
-        if nc.get("plan") or nc.get("intro"):
-            counter[0] += 1
-            sections.append(section(
-                f'<div class="guar reveal"><div class="idx"><span class="n">{counter[0]:02d}</span><span class="ln"></span>'
-                f'{_icon("rocket")}Your next campaign</div>'
-                f'<h2>Here\'s how we\'d <span class="grad">build on these results</span>.</h2>'
-                f'<p class="lead">{_e(nc.get("intro"))}</p><ul class="ticks">{_items(nc.get("plan"))}</ul>'
-                f'<p class="ask">{_e(nc.get("ask"))}<span>Tick "I\'d like to talk about the next campaign" at the bottom and I\'ll reach out.</span></p>'
-                f'</div>', "next"))
-        if data.get("weeks"):
-            sections.append(section(head("Week by week", "chart", "Bookings, week by week")
-                                    + f'<div class="card reveal">{_bars(data["weeks"])}</div>', "weeks"))
+    # ---- Patient journey + costs + ad performance + AI assistant (portal layout)
+    leak = scope.get("biggest_leak")
+    leak_html = (f'<div class="leak"><b>Biggest opportunity:</b> {_e((leak.get("label") or "").lower())} is at '
+                 f'{_pct(leak.get("rate"))} (target {_pct(leak.get("target"))}).</div>' if leak else "")
+    legend = "".join(f'<span class="tone-{t}"><i class="tdot"></i><span style="color:var(--muted)">{lab}</span></span>'
+                     for t, lab in TONE.items()) + "<span>No dot = not enough data yet</span>"
+    journey = (f'<div class="card journey reveal"><h3>Patient journey</h3>'
+               f'<div class="sub">How many people reached each step, and what share moved on to the next.</div>'
+               f'{leak_html}<div style="margin-top:8px">{_journey(scope)}</div><div class="legend">{legend}</div>'
+               f'<div style="margin-top:10px">{REPORTED_NOTE}</div></div>')
 
-    # Patient quality + Q&A (side by side when both exist)
+    def mini(title_, cells):
+        return (f'<div class="card mini reveal"><h3>{title_}</h3><div class="g">' + "".join(
+            f'<div><div class="lbl">{l}</div><div class="num">{v}</div>{f"<div class=h>{h}</div>" if h else ""}</div>'
+            for l, v, h in cells) + '</div></div>')
+
+    costs = mini("What each result costs", [
+        ("Per lead", _money(k.get("cost_per_lead")), None), ("Per booked visit", _money(k.get("cost_per_booking")), None),
+        ("Per visit attended*", _money(k.get("cost_per_show")), None), ("Per new patient*", _money(k.get("cost_per_patient")), None)])
+    last_cell = (("Prepaid visits collected", _money(k.get("prepaid_revenue")), f'{_num(k.get("prepaid_count"))} paid bookings')
+                 if k.get("prepaid_revenue") is not None else ("Leads", _num(k.get("leads")), None))
+    adperf = mini("Ad performance", [
+        ("Times shown", _num(k.get("impressions")), f'{_money(k.get("cpm"))} per 1,000' if k.get("cpm") is not None else None),
+        ("Click rate", _pct(k.get("ctr")), f'{_num(k.get("link_clicks"))} clicks' if k.get("link_clicks") is not None else None),
+        ("Cost per click", _money(k.get("cpc")), None), last_cell])
+    ai = data.get("ai_agent_to_date") if final else data.get("ai_agent_week")
+    ai_html = ""
+    if ai and ai.get("leads"):
+        ai_html = mini("Your AI text assistant", [
+            ("Leads texted", _num(ai.get("leads")), None), ("Replied", _num(ai.get("replied")), None),
+            ("Booked", _num(ai.get("booked")), None),
+            ("Reply rate", _pct(round(ai["replied"] / ai["leads"] * 100)) if ai.get("replied") is not None else "–", None)])
+    sections.append(section(
+        head("Patient journey", "users", "From ad to new patient",
+             "Every step a patient takes, " + ("across the whole campaign." if final else "this week."))
+        + f'<div class="stack">{journey}<div class="trio">{costs}{adperf}{ai_html}</div></div>', "journey"))
+
+    # ---- Appointments waiting on an outcome (loaded live, saved from the page)
+    sections.append(section(
+        head("Needs your update", "check", "Appointments waiting on an outcome",
+             "Your show rate and close rate only count visits your team has marked. Mark each one below and "
+             "it's saved straight to your portal.")
+        + '<div class="card appts reveal" id="appts"><div class="ap-empty" id="apMsg">Loading your appointments...</div>'
+          '<div id="apList"></div></div>', "outcomes"))
+
+    # ---- Final: week by week
+    if final and data.get("weeks"):
+        sections.append(section(head("Week by week", "chart", "Visits booked, week by week")
+                                + f'<div class="card reveal">{_bars(data["weeks"])}</div>', "weeks"))
+
+    # ---- Patient quality + answered questions
     lq = data.get("lead_quality")
     lq_html = ""
     if lq and (lq["good"] + lq["not_fit"] or lq.get("unrated")):
@@ -411,7 +613,7 @@ def render_html(report: dict) -> str:
                    f'{f"<ul class=ticks style=margin-bottom:12px>{notes}</ul>" if notes else ""}<p class="muted" style="margin:0">{ask}</p></div>')
     answered = [f for f in data.get("client_feedback", []) if f.get("answer")][-4:]
     qa_html = "".join(
-        f'<div class="card qa reveal"><div class="q">You asked: {_e(f["message"])}</div><div class="a">{_e(f["answer"])}</div></div>'
+        f'<div class="card qa reveal"><div class="q">You asked: {_e(f["message"])}</div><div>{_e(f["answer"])}</div></div>'
         for f in answered)
     if lq_html and qa_html:
         sections.append(section(head("Patients + your questions", "users", "Patient quality, and your answers")
@@ -421,79 +623,73 @@ def render_html(report: dict) -> str:
     elif qa_html:
         sections.append(section(head("You asked", "chat", "You asked, we answered") + qa_html, "answers"))
 
-    # Folded details
-    rows = ""
-    for s in scope.get("stages", []):
-        st = s.get("status") or "low_data"
-        lab = {"good": "On target", "ok": "Close", "poor": "Below target", "low_data": "Too early"}.get(st, st)
-        rows += (f"<tr><td>{_e(s['label'])}</td><td>{_num(s.get('count'))}</td><td>{_pct(s.get('rate'))}</td>"
-                 f"<td>{_pct(s.get('target'))}</td><td><span class='st {st}'>{lab}</span></td></tr>")
-    det = []
-    if rows:
-        det.append('<div><h3>Step by step, from ad to booking</h3><p class="muted" style="margin:0 0 8px">Each rate is the share who made it '
-                   'from the step before.</p><div class="tw"><table><thead><tr><th>Step</th><th>Count</th><th>Rate</th><th>Target</th>'
-                   f'<th></th></tr></thead><tbody>{rows}</tbody></table></div></div>')
-    t = data["to_date"]["kpis"] or {}
-    if not final:
-        det.append('<div><h3>Campaign so far</h3><div class="mini">'
-                   f'<div><div class="lbl">Booked</div><div class="num">{_num(t.get("booked"))}</div></div>'
-                   f'<div><div class="lbl">Showed up</div><div class="num">{_num(t.get("shows"))}</div></div>'
-                   f'<div><div class="lbl">Became patients</div><div class="num">{_num(t.get("patients"))}</div></div>'
-                   f'<div><div class="lbl">Leads</div><div class="num">{_num(t.get("leads"))}</div></div>'
-                   f'<div><div class="lbl">Cost per lead</div><div class="num">{_money(t.get("cost_per_lead"))}</div></div>'
-                   f'<div><div class="lbl">Ad spend</div><div class="num">{_money(t.get("spend"))}</div></div></div></div>')
-    else:
-        det.append('<div><h3>Whole campaign</h3><div class="mini">'
-                   f'<div><div class="lbl">Showed up</div><div class="num">{_num(t.get("shows"))}</div></div>'
-                   f'<div><div class="lbl">Became patients</div><div class="num">{_num(t.get("patients"))}</div></div>'
-                   f'<div><div class="lbl">Ad spend</div><div class="num">{_money(t.get("spend"))}</div></div></div></div>')
-    ai = data.get("ai_agent_to_date") if final else data.get("ai_agent_week")
-    if ai and ai.get("leads"):
-        det.append(f'<div><h3>Your AI text assistant {"(whole campaign)" if final else "(this week)"}</h3><div class="mini">'
-                   f'<div><div class="lbl">Leads texted</div><div class="num">{_num(ai.get("leads"))}</div></div>'
-                   f'<div><div class="lbl">Replied</div><div class="num">{_num(ai.get("replied"))}</div></div>'
-                   f'<div><div class="lbl">Booked</div><div class="num">{_num(ai.get("booked"))}</div></div></div></div>')
-    if det:
-        sections.append(section(head("Full numbers", "grid", "", "Everything behind the numbers above, step by step.")
-                                + f'<details class="reveal"><summary>See the full numbers</summary><div class="det">{"".join(det)}</div></details>',
-                                "details"))
+    # ---- Final: next campaign, with its own yes button
+    if final:
+        nc = a.get("next_campaign") or {}
+        if nc.get("plan") or nc.get("intro"):
+            sections.append(section(
+                f'<div class="guar reveal">{idx("Your next campaign", "rocket")}'
+                f'<h2>Here\'s how we\'d <span class="grad">build on these results</span>.</h2>'
+                f'<p class="lead">{_e(nc.get("intro"))}</p><ul class="ticks">{_items(nc.get("plan"))}</ul>'
+                f'<div class="cta"><p>{_e(nc.get("ask") or "Want to keep going?")}</p>'
+                f'<button class="btn" type="button" id="nextBtn">Yes, let\'s talk about it</button>'
+                f'<span class="thanks" id="nextOk">Great. Dylan will reach out to set up a time.</span>'
+                f'<span class="err" id="nextErr">That didn\'t go through. Please try again.</span></div></div>', "next"))
 
-    # Testimonial ask (final)
+    # ---- Final: share your experience (a real testimonial form)
     if final:
         review = os.environ.get("DIGIGROWTH_REVIEW_URL", "").strip()
-        tt = (report.get("testimonial_text") or "").replace("{clinic}", clinic).replace(
+        intro = (report.get("testimonial_text") or "").replace("{clinic}", clinic).replace(
             "{first_name}", data["client"].get("first_name") or "")
-        tt_html = _e(tt).replace("{review_link_line}", (
-            f'A quick Google review would mean a lot too: <a href="{_e(review)}" target="_blank" rel="noopener">leave a review</a>.'
-            if review else ""))
-        if tt_html.strip():
-            sections.append(section(head("Share your experience", "heart", "Share your experience")
-                                    + f'<div class="card reveal" style="padding:22px"><p style="margin:0">{tt_html}</p></div>', "share"))
-
-    # Feedback (the blueprint's close block)
-    qs = "".join(f"<li>{_e(q)}</li>" for q in (a.get("questions_for_client") or []))
-    rmin, rmax = (0, 10) if final else (1, 5)
-    rating_q = ("How likely are you to recommend DigiGrowth to another clinic owner?" if final
-                else "How are you feeling about the campaign this week?")
-    rates = "".join(f'<button type="button" class="rate" data-v="{i}" aria-label="{i}">{i}</button>' for i in range(rmin, rmax + 1))
-    extra = ('<label class="chk"><input type="checkbox" id="testimonial"> You can share my feedback as a testimonial (first name only)</label>'
-             '<label class="chk"><input type="checkbox" id="next"> I\'d like to talk about the next campaign</label>') if final else ""
-    counter[0] += 1
-    sections.append(section(f"""<div class="guar reveal" id="feedback">
-  <div class="idx"><span class="n">{counter[0]:02d}</span><span class="ln"></span>{_icon("chat")}Questions or ideas</div>
-  <h2>You know your patients best. <span class="grad">Tell us what you see.</span></h2>
-  <p class="lead">Anything you send here comes straight to Dylan, and you'll get an answer before the next report.</p>
-  {f'<div class="card qs"><b>I would love your take on:</b><ul class="ticks">{qs}</ul></div>' if qs else ''}
-  <form id="fb">
-    <div class="fl">{_e(rating_q)} ({rmin} to {rmax})</div>
-    <div class="rates">{rates}</div>
-    <select id="kind" aria-label="Type"><option value="question">I have a question</option><option value="suggestion">I have a suggestion</option><option value="feedback">General feedback</option></select>
-    <textarea id="msg" aria-label="Your message" placeholder="Type here..."></textarea>
-    {extra}
-    <button class="btn" type="submit">Send to Dylan</button>
-    <div class="thanks" id="ok">Got it, thank you. Dylan will get back to you.</div>
+        # Older saved wording pointed at a checkbox; the box is now right here.
+        intro = intro.replace("Tick the testimonial box below and write whatever comes to mind (what it was like before, what changed).",
+                              "Write whatever comes to mind in the box below: what it was like before, and what changed.")
+        intro = _e(intro.replace("{review_link_line}", "").strip())
+        review_html = (f'<p class="review">A quick Google review helps too: '
+                       f'<a href="{_e(review)}" target="_blank" rel="noopener">leave a Google review</a>.</p>' if review else "")
+        nps = "".join(f'<button type="button" class="rate" data-group="nps" data-v="{i}" aria-label="{i} out of 10">{i}</button>'
+                      for i in range(0, 11))
+        sections.append(section(f"""<div class="guar reveal" id="testimonial">
+  {idx("Share your experience", "heart")}
+  <h2>How was it working with us?</h2>
+  <p class="lead">{intro}</p>
+  <form id="tForm">
+    <div><div class="fl">How likely are you to recommend DigiGrowth to another clinic owner?</div></div>
+    <div class="rates">{nps}</div>
+    <div class="scale"><span>0 = not at all</span><span>10 = definitely</span></div>
+    <label class="fl" for="tMsg">Your testimonial<small>What was it like before, and what changed for {_e(clinic)}?</small></label>
+    <textarea id="tMsg" placeholder="Before working with DigiGrowth, we..."></textarea>
+    <label class="chk"><input type="checkbox" id="tOk" checked> You can share this on your website and social media with my first name and clinic name.</label>
+    <button class="btn" type="submit">Send my testimonial</button>
+    <div class="thanks" id="tThanks">Thank you, that means a lot. Dylan will see it right away.</div>
+    <div class="err" id="tErr">That didn't go through. Please try again.</div>
   </form>
-</div>"""))
+  {review_html}
+</div>""", "share"))
+
+    # ---- Questions or ideas (questions only; the weekly check-in rating lives here too)
+    qs = "".join(f"<li>{_e(q)}</li>" for q in (a.get("questions_for_client") or []))
+    checkin = ""
+    if not final:
+        pulse = "".join(f'<button type="button" class="rate" data-group="pulse" data-v="{i}" aria-label="{i} out of 5">{i}</button>'
+                        for i in range(1, 6))
+        checkin = (f'<div class="fl">Quick check-in: how are you feeling about the campaign this week?</div>'
+                   f'<div class="rates">{pulse}</div><div class="scale" style="max-width:240px"><span>1 = worried</span><span>5 = great</span></div>')
+    sections.append(section(f"""<div class="guar reveal" id="feedback">
+  {idx("Questions or ideas", "chat")}
+  <h2>Have a question? <span class="grad">Ask Dylan here.</span></h2>
+  <p class="lead">You know your patients best. Anything you send here goes straight to Dylan, and you'll get an answer before the next report.</p>
+  {f'<div class="card qs"><b>I would love your take on:</b><ul class="ticks">{qs}</ul></div>' if qs else ''}
+  <form id="qForm">
+    {checkin}
+    <label class="fl" for="kind">What is it about?</label>
+    <select id="kind"><option value="question">I have a question</option><option value="suggestion">I have a suggestion</option><option value="feedback">Something else</option></select>
+    <textarea id="msg" aria-label="Your message" placeholder="Type your question or idea..."></textarea>
+    <button class="btn" type="submit">Send to Dylan</button>
+    <div class="thanks" id="qThanks">Got it, thank you. Dylan will get back to you.</div>
+    <div class="err" id="qErr">That didn't go through. Please try again.</div>
+  </form>
+</div>""", "questions"))
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -529,12 +725,29 @@ def render_html(report: dict) -> str:
 
 <script>
 (function(){{
-if('IntersectionObserver' in window){{var io=new IntersectionObserver(function(es){{es.forEach(function(e){{if(e.isIntersecting){{e.target.classList.add('in');io.unobserve(e.target)}}}})}},{{threshold:0.08}});
-document.querySelectorAll('.reveal').forEach(function(el){{io.observe(el)}})}}else{{document.querySelectorAll('.reveal').forEach(function(el){{el.classList.add('in')}})}}
-var r=null;document.querySelectorAll('.rate').forEach(function(b){{b.onclick=function(){{document.querySelectorAll('.rate').forEach(function(x){{x.classList.remove('on')}});b.classList.add('on');r=+b.dataset.v}}}});
-var f=document.getElementById('fb');f.onsubmit=function(e){{e.preventDefault();var m=document.getElementById('msg').value.trim();
-var t=document.getElementById('testimonial'),n=document.getElementById('next');
-if(!m&&r===null&&!(n&&n.checked)&&!(t&&t.checked))return;var btn=f.querySelector('.btn');btn.disabled=true;
-fetch(location.pathname.replace(/\\/$/,'')+'/feedback',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{kind:document.getElementById('kind').value,message:m,rating:r,testimonial_ok:!!(t&&t.checked),wants_next:!!(n&&n.checked)}})}})
-.then(function(x){{if(!x.ok)throw 0;document.getElementById('ok').style.display='block';document.getElementById('msg').value='';}}).catch(function(){{btn.disabled=false;btn.textContent='Could not send, try again'}})}}}})();
+var els=document.querySelectorAll('.reveal');
+if('IntersectionObserver' in window){{var io=new IntersectionObserver(function(es){{es.forEach(function(e){{if(e.isIntersecting){{e.target.classList.add('in');io.unobserve(e.target)}}}})}},{{threshold:0.06}});els.forEach(function(el){{io.observe(el)}})}}
+else{{els.forEach(function(el){{el.classList.add('in')}})}}
+var picked={{}};
+document.querySelectorAll('.rate').forEach(function(b){{b.onclick=function(){{var g=b.dataset.group;
+document.querySelectorAll('.rate[data-group="'+g+'"]').forEach(function(x){{x.classList.remove('on')}});b.classList.add('on');picked[g]=+b.dataset.v}}}});
+var url=location.pathname.replace(/\\/$/,'')+'/feedback';
+function send(body,btn,ok,err,done){{btn.disabled=true;document.getElementById(err).style.display='none';
+fetch(url,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(body)}})
+.then(function(x){{if(!x.ok)throw 0;document.getElementById(ok).style.display='block';if(done)done()}})
+.catch(function(){{btn.disabled=false;document.getElementById(err).style.display='block'}})}}
+var nb=document.getElementById('nextBtn');
+if(nb)nb.onclick=function(){{send({{kind:'feedback',message:'',wants_next:true}},nb,'nextOk','nextErr',function(){{nb.style.display='none'}})}};
+var tf=document.getElementById('tForm');
+if(tf)tf.onsubmit=function(e){{e.preventDefault();var m=document.getElementById('tMsg').value.trim();
+if(!m&&picked.nps===undefined)return;
+send({{kind:'testimonial',message:m,rating:picked.nps===undefined?null:picked.nps,testimonial_ok:document.getElementById('tOk').checked}},
+tf.querySelector('.btn'),'tThanks','tErr',function(){{document.getElementById('tMsg').value=''}})}};
+var qf=document.getElementById('qForm');
+if(qf)qf.onsubmit=function(e){{e.preventDefault();var m=document.getElementById('msg').value.trim();
+if(!m&&picked.pulse===undefined)return;var btn=qf.querySelector('.btn');
+send({{kind:document.getElementById('kind').value,message:m,rating:picked.pulse===undefined?null:picked.pulse}},btn,'qThanks','qErr',
+function(){{document.getElementById('msg').value='';btn.disabled=false}})}};
+}})();
+{APPTS_JS}
 </script></body></html>"""

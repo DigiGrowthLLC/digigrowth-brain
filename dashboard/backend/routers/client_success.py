@@ -46,6 +46,63 @@ async def report_feedback(slug: str, body: dict):
     return {"ok": True}
 
 
+# "Appointments waiting on an outcome" on every report (Dylan, 2026-11-17):
+# show/no-show and closed/not closed are entered by hand, so the report lets
+# the clinic fill in the missing ones right there. Loaded live (the page HTML
+# is stored once) and saved through the portal's own outcome handler, so the
+# no-show sequence and every other side effect behave exactly as in the portal.
+
+async def _report_client(conn, slug: str):
+    r = await conn.fetchrow(
+        """SELECT r.client_id, c.portal_token FROM client_reports r JOIN clients c ON c.id = r.client_id
+           WHERE r.slug = $1""", slug)
+    if not r:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return r
+
+
+@router.get("/report/{slug}/appointments", include_in_schema=False)
+async def report_open_appointments(slug: str):
+    from client_funnel import _not_test
+    from timezone_lookup import clinic_timezone
+    from zoneinfo import ZoneInfo
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rc = await _report_client(conn, slug)
+        tz = ZoneInfo(await clinic_timezone(conn, rc["client_id"]))
+        since = await conn.fetchval(
+            "SELECT campaign_launched_at FROM client_marketing_config WHERE client_id = $1", rc["client_id"])
+        rows = await conn.fetch(
+            f"""SELECT ar.id, ar.appointment_at, ar.outcome_show, ar.outcome_close, ar.outcome_notes, c.owner
+                FROM appointment_reminders ar JOIN contacts c ON c.id = ar.contact_id
+                WHERE c.client_id = $1 AND NOT c.is_client_anchor AND {_not_test('c.phone')}
+                  AND ar.status != 'canceled' AND ar.appointment_at <= now()
+                  AND ar.appointment_at >= coalesce($2, now() - interval '90 days')
+                  AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.appointment_id = ar.id AND b.excluded)
+                  AND (ar.outcome_show IS NULL OR (ar.outcome_show = 'show' AND ar.outcome_close IS NULL))
+                ORDER BY ar.appointment_at DESC LIMIT 60""",
+            rc["client_id"], since)
+    out = []
+    for r in rows:
+        at = r["appointment_at"].astimezone(tz)
+        out.append({"id": r["id"], "name": (r["owner"] or "").strip() or "Patient",
+                    "when": f"{at.strftime('%a %b')} {at.day}, {at.strftime('%I:%M %p').lstrip('0')}",
+                    "outcome_show": r["outcome_show"], "outcome_close": r["outcome_close"],
+                    "notes": r["outcome_notes"] or ""})
+    return {"appointments": out}
+
+
+@router.patch("/report/{slug}/appointments/{appointment_id}", include_in_schema=False)
+async def report_set_outcome(slug: str, appointment_id: int, body: dict):
+    from routers.client_portal import portal_update_appointment_outcome
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rc = await _report_client(conn, slug)
+    allowed = {k: v for k, v in (body or {}).items() if k in ("outcome_show", "outcome_close", "outcome_notes")}
+    row = await portal_update_appointment_outcome(rc["portal_token"], appointment_id, allowed)
+    return {"ok": True, "outcome_show": row.get("outcome_show"), "outcome_close": row.get("outcome_close")}
+
+
 # ---------------------------------------------------------------- admin
 
 @admin_router.get("/client-success/settings")

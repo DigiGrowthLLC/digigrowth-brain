@@ -70,8 +70,13 @@ def _status(rate, key, base, min_base=MIN_BASE):
 # Reactivation lists (past patients imported for re-engagement) are not ad
 # funnel traffic: counting them made Pinnacle, with no ads running, show 174
 # "leads" (its Database Reactivation import) and a ~0% lead-to-booking rate.
-_NOT_ACQUISITION = ("coalesce({col}, '') NOT IN ('past_patient', 'import') "
-                    "AND NOT ('Database Reactivation' = ANY(coalesce({tags}, ARRAY[]::text[])))")
+# Lists are recognized by their source. The "Database Reactivation" tag only
+# marks a list contact when no source was recorded: the follow-up / no-show
+# sequences also put that tag on real ad leads who never replied, and
+# excluding those dropped 10 of Advantage's 31 Meta leads from its final
+# report (Dylan, 2026-11-17).
+_NOT_ACQUISITION = ("coalesce({col}, '') NOT IN ('past_patient', 'import', 'old_inquiry', 'manual') "
+                    "AND NOT ({col} IS NULL AND 'Database Reactivation' = ANY(coalesce({tags}, ARRAY[]::text[])))")
 
 
 def _not_test(phone_col: str) -> str:
