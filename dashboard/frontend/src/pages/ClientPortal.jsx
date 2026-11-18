@@ -3631,11 +3631,20 @@ const PORTAL_CSS = `
 // One accent per sidebar section: dots, active bar and active icon.
 const GROUP_ACCENTS = { "Overview": "#6ab0ff", "Patients": "#14c882", "Your marketing": "#8b6cf0", "Getting started": "#f0a028" };
 
-function PortalBrand() {
+// Co-branded lockup: "DigiGrowth × <clinic name>".
+function PortalBrand({ client }) {
   return (
-    // alignSelf: the sidebar is a flex column, which would otherwise stretch
-    // the wordmark to the full sidebar width and distort it.
-    <img src={logoWordmark} alt="DigiGrowth" style={{ height: 40, width: "auto", alignSelf: "flex-start", display: "block", margin: "0 12px" }} />
+    <div style={{ display: "grid", gap: 6, padding: "0 12px" }}>
+      {/* justifySelf keeps the wordmark at its natural width instead of
+          stretching it to the full sidebar width (which distorts it). */}
+      <img src={logoWordmark} alt="DigiGrowth" style={{ height: 40, width: "auto", justifySelf: "start", display: "block" }} />
+      {client?.name && (
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+          <span style={{ fontSize: 15, fontWeight: 500, color: "#6ab0ff", flexShrink: 0 }}>×</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#f0f4ff", lineHeight: 1.3, overflowWrap: "anywhere" }}>{client.name}</span>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -3843,7 +3852,7 @@ export default function ClientPortal() {
       <div className="pt-shell">
         {menuOpen && <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 45, background: "rgba(4,8,22,0.6)" }} />}
         <aside className={`pt-side${menuOpen ? " open" : ""}`}>
-          <PortalBrand />
+          <PortalBrand client={client} />
           <nav style={{ display: "grid", gap: 16 }}>
             {NAV_GROUPS.map((g) => (
               <div key={g.label} style={{ "--pt-accent": GROUP_ACCENTS[g.label] }}>
