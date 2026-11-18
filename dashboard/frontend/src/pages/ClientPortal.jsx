@@ -3633,7 +3633,9 @@ const GROUP_ACCENTS = { "Overview": "#6ab0ff", "Patients": "#14c882", "Your mark
 
 function PortalBrand() {
   return (
-    <img src={logoWordmark} alt="DigiGrowth" style={{ height: 22, display: "block", margin: "2px 12px 0" }} />
+    // alignSelf: the sidebar is a flex column, which would otherwise stretch
+    // the wordmark to the full sidebar width and distort it.
+    <img src={logoWordmark} alt="DigiGrowth" style={{ height: 40, width: "auto", alignSelf: "flex-start", display: "block", margin: "0 12px" }} />
   );
 }
 
