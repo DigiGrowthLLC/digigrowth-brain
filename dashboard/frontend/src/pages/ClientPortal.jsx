@@ -3639,11 +3639,15 @@ function PortalBrand({ client }) {
           stretching it to the full sidebar width (which distorts it). */}
       <img src={logoWordmark} alt="DigiGrowth" style={{ height: 40, width: "auto", justifySelf: "start", display: "block" }} />
       {client?.name && (
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
-          <span style={{ fontSize: 15, fontWeight: 500, color: "#6ab0ff", flexShrink: 0 }}>×</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <span style={{ fontSize: 28, fontWeight: 400, lineHeight: 1, color: "#6ab0ff", flexShrink: 0,
+            textShadow: "0 0 10px rgba(106,176,255,0.6)" }}>×</span>
           <span style={{ fontSize: 15, fontWeight: 700, color: "#f0f4ff", lineHeight: 1.3, overflowWrap: "anywhere" }}>{client.name}</span>
         </div>
       )}
+      {/* One gradient underline under the whole lockup, same as the page-title bar. */}
+      <div style={{ height: 3, borderRadius: 3, marginTop: 4,
+        background: "linear-gradient(90deg, #3a7bd5, #14c882 60%, #8b6cf0)", boxShadow: "0 0 10px rgba(58,123,213,0.45)" }} />
     </div>
   );
 }
