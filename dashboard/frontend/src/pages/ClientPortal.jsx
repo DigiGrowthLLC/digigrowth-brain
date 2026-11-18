@@ -3642,12 +3642,12 @@ function PortalBrand({ client }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <span style={{ fontSize: 28, fontWeight: 400, lineHeight: 1, color: "#6ab0ff", flexShrink: 0,
             textShadow: "0 0 10px rgba(106,176,255,0.6)" }}>×</span>
-          <span style={{
-            minWidth: 0, fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontWeight: 600,
-            fontSize: 19, letterSpacing: "0.01em", lineHeight: 1.25, overflowWrap: "anywhere",
-            background: "linear-gradient(90deg, #ffffff 0%, #d6e8ff 55%, #9fc9ff 100%)",
-            WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent",
-          }}>{client.name}</span>
+          <span style={{ display: "grid", gap: 5, minWidth: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "#f0f4ff", lineHeight: 1.3, overflowWrap: "anywhere" }}>{client.name}</span>
+            {/* Blue underline in the nav's own blues (active pill #3a7bd5 → accent #6ab0ff). */}
+            <span style={{ display: "block", height: 1, borderRadius: 1,
+              background: "linear-gradient(90deg, #3a7bd5, #6ab0ff)", boxShadow: "0 0 6px rgba(106,176,255,0.5)" }} />
+          </span>
         </div>
       )}
     </div>
@@ -3837,7 +3837,7 @@ export default function ClientPortal() {
         backgroundImage: "radial-gradient(ellipse at 20% 0%, rgba(40,87,160,0.18) 0%, transparent 55%), radial-gradient(ellipse at 95% 10%, rgba(20,200,130,0.06) 0%, transparent 45%)",
         backgroundAttachment: "fixed",
       }}>
-        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,600&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
         <style>{PORTAL_CSS}</style>
         <IntakeGate token={token} onDone={() => { loadClient(); setTabRaw("onboarding"); window.scrollTo({ top: 0 }); }} />
       </div>
@@ -3852,7 +3852,7 @@ export default function ClientPortal() {
       backgroundAttachment: "fixed",
       fontFamily: "'Space Grotesk', sans-serif",
     }}>
-      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,600&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
       <style>{PORTAL_CSS}</style>
 
       <div className="pt-shell">
