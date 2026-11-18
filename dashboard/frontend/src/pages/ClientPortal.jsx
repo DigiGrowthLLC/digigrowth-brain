@@ -3631,23 +3631,31 @@ const PORTAL_CSS = `
 // One accent per sidebar section: dots, active bar and active icon.
 const GROUP_ACCENTS = { "Overview": "#6ab0ff", "Patients": "#14c882", "Your marketing": "#8b6cf0", "Getting started": "#f0a028" };
 
+// Same gradient as the page-title bar (.pt-title-bar).
+const BRAND_UNDERLINE = { display: "block", height: 3, borderRadius: 3,
+  background: "linear-gradient(90deg, #3a7bd5, #14c882 60%, #8b6cf0)", boxShadow: "0 0 10px rgba(58,123,213,0.45)" };
+
 // Co-branded lockup: "DigiGrowth × <clinic name>".
 function PortalBrand({ client }) {
   return (
     <div style={{ display: "grid", gap: 6, padding: "0 12px" }}>
       {/* justifySelf keeps the wordmark at its natural width instead of
           stretching it to the full sidebar width (which distorts it). */}
-      <img src={logoWordmark} alt="DigiGrowth" style={{ height: 40, width: "auto", justifySelf: "start", display: "block" }} />
+      {/* Each half gets its own gradient underline, sized to its own width. */}
+      <div style={{ justifySelf: "start", display: "grid", gap: 4 }}>
+        <img src={logoWordmark} alt="DigiGrowth" style={{ height: 40, width: "auto", display: "block" }} />
+        <div style={BRAND_UNDERLINE} />
+      </div>
       {client?.name && (
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <span style={{ fontSize: 28, fontWeight: 400, lineHeight: 1, color: "#6ab0ff", flexShrink: 0,
             textShadow: "0 0 10px rgba(106,176,255,0.6)" }}>×</span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: "#f0f4ff", lineHeight: 1.3, overflowWrap: "anywhere" }}>{client.name}</span>
+          <span style={{ display: "grid", gap: 5, minWidth: 0 }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: "#f0f4ff", lineHeight: 1.3, overflowWrap: "anywhere" }}>{client.name}</span>
+            <span style={BRAND_UNDERLINE} />
+          </span>
         </div>
       )}
-      {/* One gradient underline under the whole lockup, same as the page-title bar. */}
-      <div style={{ height: 3, borderRadius: 3, marginTop: 4,
-        background: "linear-gradient(90deg, #3a7bd5, #14c882 60%, #8b6cf0)", boxShadow: "0 0 10px rgba(58,123,213,0.45)" }} />
     </div>
   );
 }
