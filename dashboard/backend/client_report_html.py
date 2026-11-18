@@ -11,7 +11,10 @@ a minute. So the page reads top-down as:
   6. Everything else (step-by-step funnel, campaign to date, AI assistant)
      folded under "See the full numbers"
   7. Questions/ideas form (+ testimonial ask on the final report)
-Light by default for readability, follows the phone's dark mode.
+Styled like the Patient Acquisition Blueprint (design-agent/references/
+blueprint-template.html, Dylan 2026-11-17): dark navy grid backdrop, glow orb,
+mono status bar, clinic x DigiGrowth lockup, spec strip, numbered section heads,
+glass cards with line icons. Dark only, like the blueprint.
 """
 from __future__ import annotations
 
@@ -75,90 +78,224 @@ def _bars(weeks: list[dict]) -> str:
     width = len(vals) * (w + gap) - gap
     bars = []
     for i, v in enumerate(vals):
-        bh = max(4, round(v / top * (h - 30)))
+        bh = max(4, round(v / top * (h - 46)))  # headroom for the value label above the tallest bar
         x = i * (w + gap)
         y = h - 22 - bh
         bars.append(
-            f'<rect x="{x}" y="{y}" width="{w}" height="{bh}" rx="6" class="bar"/>'
+            f'<rect x="{x}" y="{y}" width="{w}" height="{bh}" rx="6" class="b"/>'
             f'<text x="{x + w / 2}" y="{y - 6}" text-anchor="middle" class="bv">{v}</text>'
             f'<text x="{x + w / 2}" y="{h - 4}" text-anchor="middle" class="bl">Wk {weeks[i]["week"]}</text>')
     return (f'<div class="chart"><svg viewBox="-4 0 {width + 8} {h}" width="{width + 8}" height="{h}" role="img" '
-            f'aria-label="Bookings per week">{"".join(bars)}</svg></div>')
+            f'aria-label="Bookings per week"><defs><linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">'
+            f'<stop offset="0" stop-color="#5fd4ff"/><stop offset="1" stop-color="#3a7bd5"/></linearGradient></defs>'
+            f'{"".join(bars)}</svg></div>')
+
+
+def _icon(name: str) -> str:
+    """Inline line icons (stroke = currentColor), same idea as the blueprint's: no emoji."""
+    paths = {
+        "check": '<path d="M20 6 9 17l-5-5"/>',
+        "alert": '<path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+        "arrow": '<path d="M5 12h14"/><path d="m13 6 6 6-6 6"/>',
+        "star": '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>',
+        "chart": '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
+        "grid": '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+        "users": '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+        "chat": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+        "rocket": '<path d="M4.5 16.5c-1.5 1.3-2 5-2 5s3.7-.5 5-2c.7-.8.7-2.1-.1-2.9a2.2 2.2 0 0 0-2.9-.1z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.9A12.9 12.9 0 0 1 22 2c0 2.7-.8 7.5-6 11a22.4 22.4 0 0 1-4 2z"/><path d="M9 12H4s.6-3 2-4c1.6-1.1 5 0 5 0"/><path d="M12 15v5s3-.6 4-2c1.1-1.6 0-5 0-5"/>',
+        "layers": '<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/>',
+        "heart": '<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/>',
+    }
+    return (f'<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+            f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{paths[name]}</svg>')
 
 
 CSS = """
-:root{--bg:#f4f6fb;--card:#fff;--line:#e3e8f2;--fg:#0f1b33;--mut:#5d6b85;--soft:#eef3fc;
---acc:#2f6fd0;--good:#0f9d63;--goodbg:#e6f6ee;--warn:#b86e00;--warnbg:#fff3df;--bad:#c93b3b;--badbg:#fdecec;color-scheme:light}
-@media (prefers-color-scheme:dark){:root{--bg:#0a1024;--card:#111a35;--line:#22304f;--fg:#e9f0ff;--mut:#91a3c4;--soft:#16224a;
---acc:#6aa5ff;--good:#3ddc97;--goodbg:rgba(61,220,151,.12);--warn:#f5b24c;--warnbg:rgba(245,178,76,.12);--bad:#ff7b7b;--badbg:rgba(255,123,123,.12);color-scheme:dark}}
+:root{--bg:#070c1f;--bg2:#0b1230;--ink:#eef2ff;--muted:#94a0c4;--dim:#5d6a92;--line:rgba(148,170,255,.13);--line2:rgba(148,170,255,.22);
+--card:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));
+--blue:#3a7bd5;--cyan:#5fd4ff;--violet:#8f7bff;--amber:#f5a524;--green:#34d399;--red:#ff7b7b;color-scheme:dark}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
-.wrap{max-width:820px;margin:0 auto;padding:28px max(16px,env(safe-area-inset-left)) 64px max(16px,env(safe-area-inset-right));display:grid;gap:16px}
-h1,h2,.num{font-family:"Space Grotesk",Inter,sans-serif}
-.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
-.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--acc)}
-h1{font-size:28px;line-height:1.15;margin:4px 0 2px;letter-spacing:-.01em}
-.dates{color:var(--mut);font-size:14px}
-.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:6px 12px;border-radius:99px;white-space:nowrap}
-.pill.good{background:var(--goodbg);color:var(--good)}.pill.warn{background:var(--warnbg);color:var(--warn)}.pill.bad{background:var(--badbg);color:var(--bad)}
-.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px}
-.hero{padding:24px}
-.hero p.big{color:var(--fg);font-family:"Space Grotesk",Inter,sans-serif;font-size:21px;font-weight:600;line-height:1.35;margin:0 0 8px;text-wrap:balance}
-.hero p{margin:0;color:var(--mut)}
-.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:grid;gap:2px;min-width:0}
-.kpi .lbl{font-size:12.5px;color:var(--mut)}
-.kpi .num{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.kpi .num small{font-size:14px;color:var(--mut);font-weight:500}
-.chg{font-size:12px;font-weight:600}.chg.good{color:var(--good)}.chg.bad{color:var(--bad)}.chg.flat,.chg.none{color:var(--mut);font-weight:500}
-.prog{height:8px;border-radius:99px;background:var(--soft);overflow:hidden;margin-top:6px}
-.prog i{display:block;height:100%;border-radius:99px;background:var(--acc)}
-.quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.col{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
-.col h2{font-size:15px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
-.ico{width:22px;height:22px;border-radius:7px;display:inline-grid;place-items:center;font-size:13px;font-weight:700;flex-shrink:0}
-.col.ok .ico{background:var(--goodbg);color:var(--good)}.col.fix .ico{background:var(--warnbg);color:var(--warn)}.col.next .ico{background:var(--soft);color:var(--acc)}
-ul{margin:0;padding-left:18px}li{margin:5px 0}li.empty{list-style:none;margin-left:-18px;color:var(--mut)}
-.help{display:flex;gap:12px;align-items:flex-start;background:var(--soft);border-radius:14px;padding:14px 16px}
-.help b{display:block;margin-bottom:2px}
-h2.sec{font-size:17px;margin:0 0 10px}
-.feature{border-color:var(--good);background:linear-gradient(0deg,var(--goodbg),var(--goodbg)),var(--card)}
-.chart{overflow-x:auto}.chart .bar{fill:var(--acc)}.chart .bv{fill:var(--fg);font:600 13px Inter,sans-serif}.chart .bl{fill:var(--mut);font:12px Inter,sans-serif}
-.lq{display:flex;gap:18px;flex-wrap:wrap;align-items:baseline}
-.lq .num{font-size:22px;font-weight:700}
-.qa{padding:10px 0;border-top:1px solid var(--line)}.qa:first-of-type{border-top:0;padding-top:0}
-.qa .q{color:var(--mut);font-size:14px}.qa .a{margin-top:3px}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif;font-size:15.5px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+background-image:linear-gradient(rgba(148,170,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(148,170,255,.045) 1px,transparent 1px);
+background-size:64px 64px;mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.35) 60%,rgba(0,0,0,.15));-webkit-mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.35) 60%,rgba(0,0,0,.15))}
+body>*{position:relative;z-index:1}
+a{color:var(--cyan)}
+.wrap{max-width:1040px;margin:0 auto;padding:0 24px}
+.mono{font-family:'Share Tech Mono',monospace}
+.i{width:18px;height:18px;flex:none;display:block}
+
+/* top bar */
+.bar{background:rgba(5,9,25,.85);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.bar .wrap{display:flex;align-items:center;gap:14px;padding-top:10px;padding-bottom:10px;flex-wrap:wrap}
+.bar b{color:var(--ink);font-weight:400}
+.bar .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green)}
+.bar .sep{color:var(--line2)}
+.bar .r{margin-left:auto}
+
+/* hero */
+.hero{position:relative;padding:64px 0 0;overflow:hidden}
+.orb{position:absolute;width:640px;height:640px;border-radius:50%;filter:blur(110px);opacity:.32;background:radial-gradient(circle,var(--blue),transparent 65%);top:-300px;right:-120px;animation:drift 16s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate(-80px,60px) scale(1.1)}}
+.lockup{display:inline-flex;align-items:center;gap:14px;padding:8px 16px 8px 10px;border:1px solid var(--line2);border-radius:10px;background:rgba(255,255,255,.03);margin-bottom:30px;max-width:100%}
+.lockup img{height:34px;width:auto;max-width:150px;object-fit:contain;background:#fff;padding:4px 8px;border-radius:7px;box-sizing:content-box}
+.lockup .cn{font-weight:600;padding-left:6px}
+.lockup .x{color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:13px}
+.lockup .dg{font-weight:700;letter-spacing:.01em}
+.kicker{font-family:'Share Tech Mono',monospace;color:var(--cyan);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase}
+h1{font-size:clamp(30px,4.6vw,52px);line-height:1.06;margin:16px 0 0;max-width:920px;letter-spacing:-.03em;font-weight:700;text-wrap:balance}
+.grad{background:linear-gradient(90deg,var(--cyan),var(--blue) 55%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{color:var(--muted);font-size:17px;max-width:760px;margin:18px 0 0}
+.spec{display:grid;grid-template-columns:1.2fr 1fr 1fr 1.2fr .8fr;margin-top:44px;border-top:1px solid var(--line2);border-bottom:1px solid var(--line)}
+.spec>div{padding:16px 18px 18px 0;min-width:0}
+.spec>div+div{padding-left:18px;border-left:1px solid var(--line)}
+.spec .k{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:5px}
+.spec .v{font-size:15px;font-weight:500;line-height:1.35}
+.spec .v.hl{color:var(--cyan)}
+.st-good{color:var(--green)!important}.st-warn{color:var(--amber)!important}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:7px;vertical-align:middle;box-shadow:0 0 8px currentColor}
+
+/* sections */
+section{padding:72px 0;position:relative}
+section.alt{background:linear-gradient(180deg,rgba(11,18,48,.85),rgba(7,12,31,.6));border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.head{max-width:760px;margin:0 0 32px}
+.idx{display:flex;align-items:center;gap:12px;font-family:'Share Tech Mono',monospace;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.idx .n{color:var(--cyan)}
+.idx .ln{flex:0 0 48px;height:1px;background:linear-gradient(90deg,var(--cyan),transparent)}
+.idx .i{width:16px;height:16px;color:var(--cyan)}
+.head h2{font-size:clamp(26px,3.4vw,38px);line-height:1.1;margin:14px 0 10px;letter-spacing:-.025em;font-weight:700}
+.head p{color:var(--muted);margin:0;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.ib{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:none;border:1px solid rgba(95,212,255,.28);background:rgba(58,123,213,.12);color:var(--cyan)}
+.ib.amb{border-color:rgba(245,165,36,.3);background:rgba(245,165,36,.1);color:var(--amber)}
+.ib.grn{border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.1);color:var(--green)}
+
+/* numbers */
+.outs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.out{padding:22px 20px;min-width:0}
+.out .k{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+.out .v{font-size:44px;font-weight:700;letter-spacing:-.03em;line-height:1;margin:14px 0 10px;font-variant-numeric:tabular-nums}
+.out .v small{font-size:17px;color:var(--muted);font-weight:500;letter-spacing:0}
+.out.hl{border-color:rgba(95,212,255,.4);background:linear-gradient(180deg,rgba(58,123,213,.16),rgba(58,123,213,.04))}
+.chg{font-size:13px;font-weight:600}.chg.good{color:var(--green)}.chg.bad{color:var(--red)}.chg.flat,.chg.none{color:var(--muted);font-weight:500}
+.prog{height:6px;border-radius:99px;background:rgba(148,170,255,.12);overflow:hidden;margin:0 0 10px}
+.prog i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--cyan),var(--blue))}
+
+/* quick read */
+.g-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.g-cards .card{padding:22px}
+.g-cards .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.g-cards .no{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--dim);letter-spacing:.1em}
+.g-cards h4{margin:0 0 8px;font-size:17px;letter-spacing:-.01em}
+ul.ticks{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+ul.ticks li{position:relative;padding-left:18px;color:var(--muted);font-size:14.5px;line-height:1.5}
+ul.ticks li::before{content:"";position:absolute;left:0;top:.62em;width:7px;height:7px;border-radius:2px;background:var(--cyan);opacity:.75}
+ul.ticks li.empty{padding-left:0}ul.ticks li.empty::before{display:none}
+.help{display:flex;gap:16px;align-items:flex-start;margin-top:16px;padding:20px 22px;border-color:rgba(95,212,255,.3)}
+.help b{display:block;margin-bottom:8px;font-size:16px}
+
+/* feature (next campaign / feedback): the blueprint's close block */
+.guar{padding:44px 40px 40px;background:radial-gradient(ellipse at 0% 0%,rgba(58,123,213,.25),transparent 55%),radial-gradient(ellipse at 100% 100%,rgba(143,123,255,.14),transparent 50%),#060b1e;border:1px solid rgba(95,212,255,.25);border-radius:18px;position:relative;overflow:hidden}
+.guar h2{font-size:clamp(26px,3.6vw,42px);margin:14px 0 12px;line-height:1.06;letter-spacing:-.03em;max-width:780px}
+.guar .lead{margin:0 0 20px}
+.guar ul.ticks li{color:var(--ink)}
+.ask{margin:22px 0 0;padding-top:18px;border-top:1px dashed var(--line2);font-weight:600}
+.ask span{display:block;font-weight:400;color:var(--muted);font-size:14px;margin-top:4px}
+
+/* chart, quality, Q&A */
+.chart{overflow-x:auto;padding:24px 22px 16px}
+.chart .b{fill:url(#bg1)}.chart .bv{fill:var(--ink);font:600 14px 'Space Grotesk',sans-serif}.chart .bl{fill:var(--dim);font:12px 'Share Tech Mono',monospace;letter-spacing:.06em}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.lq{padding:22px}
+.lq .row{display:flex;gap:28px;flex-wrap:wrap;margin-bottom:14px}
+.lq .num{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.lq .num+span{display:block;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:6px}
+.qa{padding:18px 22px}
+.qa+.qa{margin-top:12px}
+.qa .q{font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:.06em;color:var(--cyan);margin-bottom:6px}
+.qa .a{color:var(--ink)}
+.muted{color:var(--muted);font-size:14.5px}
+
+/* full numbers */
 details{background:var(--card);border:1px solid var(--line);border-radius:14px}
-summary{cursor:pointer;padding:16px 20px;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center}
-summary::-webkit-details-marker{display:none}summary::after{content:"+";font-size:20px;color:var(--mut)}details[open] summary::after{content:"–"}
-.det{padding:0 20px 20px;display:grid;gap:18px}
-.det h3{font-size:14px;margin:0 0 6px;color:var(--mut);font-weight:600}
-.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
-th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--mut);font-weight:500;font-size:12.5px}
-.st{font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px}
-.st.good{background:var(--goodbg);color:var(--good)}.st.ok{background:var(--warnbg);color:var(--warn)}.st.poor{background:var(--badbg);color:var(--bad)}.st.low_data{background:var(--soft);color:var(--mut)}
+summary{cursor:pointer;padding:18px 22px;font-weight:600;font-size:16px;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-family:'Share Tech Mono',monospace;font-size:20px;color:var(--cyan)}
+details[open] summary::after{content:"\\2013"}
+.det{padding:0 22px 22px;display:grid;gap:24px}
+.det h3{font-family:'Share Tech Mono',monospace;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 8px;color:var(--dim);font-weight:400}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14.5px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-family:'Share Tech Mono',monospace;color:var(--dim);font-weight:400;font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.st{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:6px;border:1px solid}
+.st.good{color:var(--green);border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08)}
+.st.ok{color:var(--amber);border-color:rgba(245,165,36,.3);background:rgba(245,165,36,.08)}
+.st.poor{color:var(--red);border-color:rgba(255,123,123,.3);background:rgba(255,123,123,.08)}
+.st.low_data{color:var(--muted);border-color:var(--line2);background:rgba(255,255,255,.02)}
 .mini{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.mini div{background:var(--soft);border-radius:10px;padding:10px 12px}.mini .num{font-size:19px;font-weight:700}.mini .lbl{font-size:12px;color:var(--mut)}
-.muted{color:var(--mut);font-size:14px}
-form{display:grid;gap:10px;margin-top:12px}
+.mini>div{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.02)}
+.mini .num{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.mini .lbl{font-family:'Share Tech Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+
+/* feedback form */
+form{display:grid;gap:12px;margin-top:22px;max-width:640px}
+.fl{font-family:'Share Tech Mono',monospace;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .rates{display:flex;flex-wrap:wrap;gap:6px}
-.rate{min-width:42px;padding:9px 0;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;cursor:pointer}
-.rate.on{background:var(--acc);border-color:var(--acc);color:#fff}
-select,textarea{width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:10px 12px;font:inherit}
-textarea{min-height:100px;resize:vertical}
-.chk{display:flex;gap:8px;align-items:center;font-size:14px}
-.btn{justify-self:start;background:var(--acc);border:0;color:#fff;font:inherit;font-weight:600;padding:11px 22px;border-radius:10px;cursor:pointer}
-.btn:focus-visible,.rate:focus-visible,summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.thanks{display:none;color:var(--good);font-weight:600}
-footer{text-align:center;color:var(--mut);font-size:12.5px;margin-top:8px}
-@media (max-width:680px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.quick,.mini{grid-template-columns:minmax(0,1fr)}h1{font-size:24px}.hero p.big{font-size:19px}}
+.rate{min-width:42px;padding:9px 0;border-radius:9px;border:1px solid var(--line2);background:rgba(255,255,255,.03);color:var(--ink);font:600 15px 'Space Grotesk',sans-serif;cursor:pointer}
+.rate:hover{border-color:rgba(95,212,255,.45)}
+.rate.on{background:rgba(58,123,213,.3);border-color:var(--cyan);color:#fff}
+select,textarea{width:100%;background:rgba(5,9,25,.6);border:1px solid var(--line2);border-radius:10px;color:var(--ink);padding:11px 13px;font:inherit}
+select:focus,textarea:focus{outline:none;border-color:var(--cyan)}
+textarea{min-height:110px;resize:vertical}
+.chk{display:flex;gap:10px;align-items:center;font-size:14.5px;color:var(--muted)}
+.chk input{accent-color:var(--blue);width:16px;height:16px}
+.btn{justify-self:start;background:linear-gradient(90deg,var(--blue),#4f8ff0);border:0;color:#fff;font:600 15px 'Space Grotesk',sans-serif;padding:12px 24px;border-radius:10px;cursor:pointer;box-shadow:0 10px 30px rgba(58,123,213,.35)}
+.btn:disabled{opacity:.6}
+.btn:focus-visible,.rate:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.qs{margin:18px 0 0;padding:16px 18px}
+.qs b{display:block;margin-bottom:8px}
+.thanks{display:none;color:var(--green);font-weight:600}
+
+footer{color:var(--dim);font-family:'Share Tech Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;border-top:1px solid var(--line)}
+footer .wrap{display:flex;justify-content:space-between;gap:12px;padding-top:22px;padding-bottom:30px;flex-wrap:wrap}
+
+.reveal{opacity:0;transform:translateY(20px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}.orb{animation:none}html{scroll-behavior:auto}}
+
+@media (max-width:900px){
+  .outs{grid-template-columns:1fr 1fr}
+  .g-cards,.two{grid-template-columns:1fr}
+  .spec{grid-template-columns:1fr 1fr}
+  .spec>div,.spec>div+div{padding:14px 14px 14px 0;border-left:0;border-bottom:1px solid var(--line)}
+  .spec>div:nth-child(even){padding-left:14px;border-left:1px solid var(--line)}
+  .spec>div:last-child{grid-column:1/-1;border-bottom:0;padding-left:0;border-left:0}
+  section{padding:56px 0}
+  .guar{padding:32px 22px 26px}
+  .bar .r{margin-left:0}
+}
+@media (max-width:480px){
+  .wrap{padding:0 16px}
+  .hero{padding-top:40px}
+  h1{font-size:30px}
+  .head h2{font-size:25px}
+  .lead{font-size:15.5px}
+  .out{padding:18px 16px}
+  .out .v{font-size:34px}
+  .mini{grid-template-columns:1fr 1fr}
+  .bar .sep,.bar .r{display:none}
+  .lockup{margin-bottom:22px}
+  .kicker{font-size:11.5px;letter-spacing:.12em}
+}
 """
 
 
 def render_html(report: dict) -> str:
     data, a, kind = report["data"], report["analysis"], report["kind"]
     clinic = data["client"]["name"]
+    logo = (data["client"].get("logo_url") or "").strip()
     camp = data["campaign"]
     final = kind == "final"
     scope = data["to_date"] if final else (data.get("week") or data["to_date"])
@@ -168,63 +305,99 @@ def render_html(report: dict) -> str:
 
     title = "Final campaign report" if final else f"Week {report['week_number']} report"
     dates = f"{_date(report['period_start'])} – {_date(report['period_end'])}"
+    issued = _date(datetime.now(ET).isoformat())
 
-    # Status pill
+    # Numbered section heads, like the blueprint ("01 ── The numbers")
+    counter = [0]
+
+    def head(label: str, icon: str, h2: str = "", sub: str = "") -> str:
+        counter[0] += 1
+        return (f'<div class="head reveal"><div class="idx"><span class="n">{counter[0]:02d}</span><span class="ln"></span>'
+                f'{_icon(icon)}{_e(label)}</div>'
+                + (f'<h2>{h2}</h2>' if h2 else "") + (f'<p>{_e(sub)}</p>' if sub else "") + '</div>')
+
+    alt = [False]
+
+    def section(inner: str, sid: str = "") -> str:
+        alt[0] = not alt[0]
+        return (f'<section{f" id={sid!r}" if sid else ""}{" class=alt" if alt[0] else ""}>'
+                f'<div class="wrap">{inner}</div></section>')
+
+    # Status (spec strip)
     if pace:
-        if final:
-            pill = ('<span class="pill good">Goal reached</span>' if pace["booked"] >= pace["goal"]
-                    else '<span class="pill warn">Goal not reached</span>')
+        if pace["booked"] >= pace["goal"]:
+            status = ("good", "Goal reached")
+        elif final:
+            status = ("warn", "Goal not reached")
         else:
-            pill = ('<span class="pill good">Goal reached</span>' if pace["booked"] >= pace["goal"]
-                    else '<span class="pill good">On pace</span>' if pace["on_pace"] else '<span class="pill warn">Behind pace</span>')
+            status = ("good", "On pace") if pace["on_pace"] else ("warn", "Behind pace")
+        goal_v = f'{pace["booked"]} / {pace["goal"]} {_e(camp.get("goal_label") or "booked")}'
     else:
-        pill = ""
+        status = None
+        goal_v = f'Day {_e(camp.get("days_elapsed"))} of {_e(camp.get("length_days"))}' if camp.get("days_elapsed") else "Campaign"
+    status_html = (f'<span class="st-{status[0]}"><span class="sdot"></span>{status[1]}</span>' if status else "–")
 
-    # Four numbers
+    lock_left = (f'<img src="{_e(logo)}" alt="{_e(clinic)} logo">' if logo else "") + f'<span class="cn">{_e(clinic)}</span>'
+
+    # 01: the four numbers
     if pace:
         pct = min(100, pace["pct_of_goal"])
         bud = camp.get("budget")
         progress_line = (f'{_money(bud["spent"])} of {_money(bud["cap"])} ad budget spent' if bud
                          else f'Day {camp.get("days_elapsed")} of {camp.get("length_days")}')
-        goal_tile = (f'<div class="kpi"><span class="lbl">Campaign goal</span>'
-                     f'<span class="num">{pace["booked"]}<small> / {pace["goal"]} {_e(camp.get("goal_label") or "booked")}</small></span>'
+        goal_tile = (f'<div class="out card hl"><div class="k">Campaign goal</div>'
+                     f'<div class="v">{pace["booked"]}<small> / {pace["goal"]}</small></div>'
                      f'<div class="prog"><i style="width:{pct}%"></i></div>'
                      f'<span class="chg flat">{_e(progress_line)}</span></div>')
     else:
-        goal_tile = (f'<div class="kpi"><span class="lbl">Showed up</span><span class="num">{_num(k.get("shows"))}</span>'
+        goal_tile = (f'<div class="out card"><div class="k">Showed up</div><div class="v">{_num(k.get("shows"))}</div>'
                      f'{_delta(k.get("shows"), lk.get("shows"))}</div>')
     period_word = "total" if final else "this week"
-    kpis = (
-        f'<div class="kpi"><span class="lbl">Booked {period_word}</span><span class="num">{_num(k.get("booked"))}</span>'
+    outs = (
+        f'<div class="out card{"" if pace else " hl"}"><div class="k">Booked {period_word}</div><div class="v">{_num(k.get("booked"))}</div>'
         f'{"" if final else _delta(k.get("booked"), lk.get("booked"))}</div>'
-        f'<div class="kpi"><span class="lbl">Cost per booking</span><span class="num">{_money(k.get("cost_per_booking"))}</span>'
+        f'<div class="out card"><div class="k">Cost per booking</div><div class="v">{_money(k.get("cost_per_booking"))}</div>'
         f'{"" if final else _delta(k.get("cost_per_booking"), lk.get("cost_per_booking"), True)}</div>'
-        f'<div class="kpi"><span class="lbl">New leads</span><span class="num">{_num(k.get("leads"))}</span>'
+        f'<div class="out card"><div class="k">New leads</div><div class="v">{_num(k.get("leads"))}</div>'
         f'{"" if final else _delta(k.get("leads"), lk.get("leads"))}</div>'
         + goal_tile)
+    sections = [section(
+        head("The numbers", "chart", "The four numbers that matter" + ("" if final else " this week"),
+             "The whole campaign, start to finish." if final else "Each one compared with last week.")
+        + f'<div class="outs reveal">{outs}</div>', "numbers")]
 
+    # 02: the quick read
     quick = (
-        f'<div class="col ok"><h2><span class="ico">✓</span>What\'s working</h2><ul>{_items(a.get("on_target"))}</ul></div>'
-        f'<div class="col fix"><h2><span class="ico">!</span>What we\'re fixing</h2><ul>{_items(a.get("off_target"))}</ul></div>'
-        f'<div class="col next"><h2><span class="ico">→</span>{"What we recommend" if final else "Next week"}</h2>'
-        f'<ul>{_items(a.get("next_steps"))}</ul></div>')
-
+        f'<div class="card"><div class="top"><span class="ib grn">{_icon("check")}</span><span class="no">01</span></div>'
+        f'<h4>What\'s working</h4><ul class="ticks">{_items(a.get("on_target"))}</ul></div>'
+        f'<div class="card"><div class="top"><span class="ib amb">{_icon("alert")}</span><span class="no">02</span></div>'
+        f'<h4>What we\'re fixing</h4><ul class="ticks">{_items(a.get("off_target"))}</ul></div>'
+        f'<div class="card"><div class="top"><span class="ib">{_icon("arrow")}</span><span class="no">03</span></div>'
+        f'<h4>{"What we recommend" if final else "Next week"}</h4><ul class="ticks">{_items(a.get("next_steps"))}</ul></div>')
     help_html = ""
     if a.get("client_asks"):
-        help_html = ('<div class="help"><span class="ico" style="background:var(--card);color:var(--acc)">★</span><div>'
-                     '<b>How your team can help</b><ul>' + _items(a["client_asks"]) + '</ul></div></div>')
+        help_html = (f'<div class="card help reveal"><span class="ib">{_icon("star")}</span><div>'
+                     f'<b>How your team can help</b><ul class="ticks">{_items(a["client_asks"])}</ul></div></div>')
+    sections.append(section(head("The quick read", "layers", "What happened, and what we're doing about it")
+                            + f'<div class="g-cards reveal">{quick}</div>{help_html}', "read"))
 
-    next_html = weeks_html = ""
+    # Final: next campaign + week by week
     if final:
         nc = a.get("next_campaign") or {}
         if nc.get("plan") or nc.get("intro"):
-            next_html = (f'<section class="card feature"><h2 class="sec">Your next campaign</h2>'
-                         f'<p style="margin:0 0 10px">{_e(nc.get("intro"))}</p><ul>{_items(nc.get("plan"))}</ul>'
-                         f'<p style="margin:12px 0 0;font-weight:600">{_e(nc.get("ask"))}</p>'
-                         f'<p class="muted" style="margin:4px 0 0">Tick "I\'d like to talk about the next campaign" at the bottom and I\'ll reach out.</p></section>')
+            counter[0] += 1
+            sections.append(section(
+                f'<div class="guar reveal"><div class="idx"><span class="n">{counter[0]:02d}</span><span class="ln"></span>'
+                f'{_icon("rocket")}Your next campaign</div>'
+                f'<h2>Here\'s how we\'d <span class="grad">build on these results</span>.</h2>'
+                f'<p class="lead">{_e(nc.get("intro"))}</p><ul class="ticks">{_items(nc.get("plan"))}</ul>'
+                f'<p class="ask">{_e(nc.get("ask"))}<span>Tick "I\'d like to talk about the next campaign" at the bottom and I\'ll reach out.</span></p>'
+                f'</div>', "next"))
         if data.get("weeks"):
-            weeks_html = (f'<section class="card"><h2 class="sec">Bookings week by week</h2>{_bars(data["weeks"])}</section>')
+            sections.append(section(head("Week by week", "chart", "Bookings, week by week")
+                                    + f'<div class="card reveal">{_bars(data["weeks"])}</div>', "weeks"))
 
+    # Patient quality + Q&A (side by side when both exist)
     lq = data.get("lead_quality")
     lq_html = ""
     if lq and (lq["good"] + lq["not_fit"] or lq.get("unrated")):
@@ -232,17 +405,21 @@ def render_html(report: dict) -> str:
         ask = ('A few patients you marked as showed and closed still need a "good fit?" answer in your portal (Appointments). '
                'It is the fastest way for us to find you more of the right people.' if lq.get("unrated")
                else "Thanks for rating your patients. We use it to tune who sees your ads.")
-        lq_html = (f'<section class="card"><h2 class="sec">Patient quality (your ratings)</h2>'
-                   f'<div class="lq"><span><span class="num" style="color:var(--good)">{lq["good"]}</span> good fit</span>'
-                   f'<span><span class="num" style="color:var(--bad)">{lq["not_fit"]}</span> not a fit</span></div>'
-                   f'{f"<ul style=margin-top:8px>{notes}</ul>" if notes else ""}<p class="muted" style="margin:8px 0 0">{ask}</p></section>')
-
+        lq_html = (f'<div class="card lq reveal"><div class="row">'
+                   f'<div><div class="num" style="color:var(--green)">{lq["good"]}</div><span>Good fit</span></div>'
+                   f'<div><div class="num" style="color:var(--red)">{lq["not_fit"]}</div><span>Not a fit</span></div></div>'
+                   f'{f"<ul class=ticks style=margin-bottom:12px>{notes}</ul>" if notes else ""}<p class="muted" style="margin:0">{ask}</p></div>')
     answered = [f for f in data.get("client_feedback", []) if f.get("answer")][-4:]
-    qa_html = ""
-    if answered:
-        qa_html = ('<section class="card"><h2 class="sec">You asked, we answered</h2>' + "".join(
-            f'<div class="qa"><div class="q">You asked: {_e(f["message"])}</div><div class="a">{_e(f["answer"])}</div></div>'
-            for f in answered) + "</section>")
+    qa_html = "".join(
+        f'<div class="card qa reveal"><div class="q">You asked: {_e(f["message"])}</div><div class="a">{_e(f["answer"])}</div></div>'
+        for f in answered)
+    if lq_html and qa_html:
+        sections.append(section(head("Patients + your questions", "users", "Patient quality, and your answers")
+                                + f'<div class="two">{lq_html}<div>{qa_html}</div></div>', "quality"))
+    elif lq_html:
+        sections.append(section(head("Patient quality", "users", "Patient quality (your ratings)") + lq_html, "quality"))
+    elif qa_html:
+        sections.append(section(head("You asked", "chat", "You asked, we answered") + qa_html, "answers"))
 
     # Folded details
     rows = ""
@@ -253,7 +430,7 @@ def render_html(report: dict) -> str:
                  f"<td>{_pct(s.get('target'))}</td><td><span class='st {st}'>{lab}</span></td></tr>")
     det = []
     if rows:
-        det.append('<div><h3>Step by step, from ad to booking</h3><p class="muted" style="margin:0 0 6px">Each rate is the share who made it '
+        det.append('<div><h3>Step by step, from ad to booking</h3><p class="muted" style="margin:0 0 8px">Each rate is the share who made it '
                    'from the step before.</p><div class="tw"><table><thead><tr><th>Step</th><th>Count</th><th>Rate</th><th>Target</th>'
                    f'<th></th></tr></thead><tbody>{rows}</tbody></table></div></div>')
     t = data["to_date"]["kpis"] or {}
@@ -276,11 +453,12 @@ def render_html(report: dict) -> str:
                    f'<div><div class="lbl">Leads texted</div><div class="num">{_num(ai.get("leads"))}</div></div>'
                    f'<div><div class="lbl">Replied</div><div class="num">{_num(ai.get("replied"))}</div></div>'
                    f'<div><div class="lbl">Booked</div><div class="num">{_num(ai.get("booked"))}</div></div></div></div>')
-    details_html = (f'<details><summary>See the full numbers</summary><div class="det">{"".join(det)}</div></details>'
-                    if det else "")
+    if det:
+        sections.append(section(head("Full numbers", "grid", "", "Everything behind the numbers above, step by step.")
+                                + f'<details class="reveal"><summary>See the full numbers</summary><div class="det">{"".join(det)}</div></details>',
+                                "details"))
 
     # Testimonial ask (final)
-    testi_html = ""
     if final:
         review = os.environ.get("DIGIGROWTH_REVIEW_URL", "").strip()
         tt = (report.get("testimonial_text") or "").replace("{clinic}", clinic).replace(
@@ -289,8 +467,10 @@ def render_html(report: dict) -> str:
             f'A quick Google review would mean a lot too: <a href="{_e(review)}" target="_blank" rel="noopener">leave a review</a>.'
             if review else ""))
         if tt_html.strip():
-            testi_html = f'<section class="card"><h2 class="sec">Share your experience</h2><p style="margin:0">{tt_html}</p></section>'
+            sections.append(section(head("Share your experience", "heart", "Share your experience")
+                                    + f'<div class="card reveal" style="padding:22px"><p style="margin:0">{tt_html}</p></div>', "share"))
 
+    # Feedback (the blueprint's close block)
     qs = "".join(f"<li>{_e(q)}</li>" for q in (a.get("questions_for_client") or []))
     rmin, rmax = (0, 10) if final else (1, 5)
     rating_q = ("How likely are you to recommend DigiGrowth to another clinic owner?" if final
@@ -298,35 +478,14 @@ def render_html(report: dict) -> str:
     rates = "".join(f'<button type="button" class="rate" data-v="{i}" aria-label="{i}">{i}</button>' for i in range(rmin, rmax + 1))
     extra = ('<label class="chk"><input type="checkbox" id="testimonial"> You can share my feedback as a testimonial (first name only)</label>'
              '<label class="chk"><input type="checkbox" id="next"> I\'d like to talk about the next campaign</label>') if final else ""
-
-    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="robots" content="noindex">
-<title>{_e(clinic)}: {_e(title)}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<style>{CSS}</style></head><body><div class="wrap">
-
-<div class="top"><div><div class="eyebrow">{_e(clinic)}</div><h1>{_e(title)}</h1><div class="dates">{_e(dates)}</div></div>{pill}</div>
-
-<section class="card hero"><p class="big">{_e(a.get("headline"))}</p><p>{_e(a.get("summary"))}</p></section>
-
-<div class="kpis">{kpis}</div>
-
-<div class="quick">{quick}</div>
-{help_html}
-{next_html}
-{weeks_html}
-{lq_html}
-{qa_html}
-{details_html}
-{testi_html}
-
-<section class="card" id="feedback"><h2 class="sec">Questions or ideas?</h2>
-  <p class="muted" style="margin:0">You know your patients best. Anything you send here comes straight to Dylan, and you'll get an answer before the next report.</p>
-  {f'<p style="margin:12px 0 4px;font-weight:600">I would love your take on:</p><ul>{qs}</ul>' if qs else ''}
+    counter[0] += 1
+    sections.append(section(f"""<div class="guar reveal" id="feedback">
+  <div class="idx"><span class="n">{counter[0]:02d}</span><span class="ln"></span>{_icon("chat")}Questions or ideas</div>
+  <h2>You know your patients best. <span class="grad">Tell us what you see.</span></h2>
+  <p class="lead">Anything you send here comes straight to Dylan, and you'll get an answer before the next report.</p>
+  {f'<div class="card qs"><b>I would love your take on:</b><ul class="ticks">{qs}</ul></div>' if qs else ''}
   <form id="fb">
-    <div class="muted">{_e(rating_q)} ({rmin} to {rmax})</div>
+    <div class="fl">{_e(rating_q)} ({rmin} to {rmax})</div>
     <div class="rates">{rates}</div>
     <select id="kind" aria-label="Type"><option value="question">I have a question</option><option value="suggestion">I have a suggestion</option><option value="feedback">General feedback</option></select>
     <textarea id="msg" aria-label="Your message" placeholder="Type here..."></textarea>
@@ -334,11 +493,45 @@ def render_html(report: dict) -> str:
     <button class="btn" type="submit">Send to Dylan</button>
     <div class="thanks" id="ok">Got it, thank you. Dylan will get back to you.</div>
   </form>
-</section>
-<footer>Prepared by DigiGrowth for {_e(clinic)}</footer>
-</div>
+</div>"""))
+
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#070c1f">
+<title>{_e(clinic)} · {_e(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>{CSS}</style></head><body>
+
+<div class="bar"><div class="wrap"><span class="dot"></span><b>{"Final Campaign Report" if final else "Weekly Campaign Report"}</b><span class="sep">/</span><span>Prepared for {_e(clinic)}</span><span class="r">{_e(dates)}</span></div></div>
+
+<header class="hero">
+  <div class="orb"></div>
+  <div class="wrap">
+    <div class="lockup reveal">{lock_left}<span class="x">×</span><span class="dg">DigiGrowth</span></div>
+    <div class="kicker reveal">Digital Growth Engine // {_e(title)}</div>
+    <h1 class="reveal">{_e(a.get("headline"))}</h1>
+    <p class="lead reveal">{_e(a.get("summary"))}</p>
+    <div class="spec reveal">
+      <div><div class="k">Prepared for</div><div class="v">{_e(clinic)}</div></div>
+      <div><div class="k">Period</div><div class="v">{_e(dates)}</div></div>
+      <div><div class="k">Status</div><div class="v">{status_html}</div></div>
+      <div><div class="k">{"Campaign goal" if pace else "Campaign"}</div><div class="v hl">{goal_v}</div></div>
+      <div><div class="k">Issued</div><div class="v">{_e(issued)}</div></div>
+    </div>
+  </div>
+</header>
+
+{"".join(sections)}
+
+<footer><div class="wrap"><span>Prepared for {_e(clinic)} by DigiGrowth</span><span>digigrowthllc.com</span></div></footer>
+
 <script>
-(function(){{var r=null;document.querySelectorAll('.rate').forEach(function(b){{b.onclick=function(){{document.querySelectorAll('.rate').forEach(function(x){{x.classList.remove('on')}});b.classList.add('on');r=+b.dataset.v}}}});
+(function(){{
+if('IntersectionObserver' in window){{var io=new IntersectionObserver(function(es){{es.forEach(function(e){{if(e.isIntersecting){{e.target.classList.add('in');io.unobserve(e.target)}}}})}},{{threshold:0.08}});
+document.querySelectorAll('.reveal').forEach(function(el){{io.observe(el)}})}}else{{document.querySelectorAll('.reveal').forEach(function(el){{el.classList.add('in')}})}}
+var r=null;document.querySelectorAll('.rate').forEach(function(b){{b.onclick=function(){{document.querySelectorAll('.rate').forEach(function(x){{x.classList.remove('on')}});b.classList.add('on');r=+b.dataset.v}}}});
 var f=document.getElementById('fb');f.onsubmit=function(e){{e.preventDefault();var m=document.getElementById('msg').value.trim();
 var t=document.getElementById('testimonial'),n=document.getElementById('next');
 if(!m&&r===null&&!(n&&n.checked)&&!(t&&t.checked))return;var btn=f.querySelector('.btn');btn.disabled=true;

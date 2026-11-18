@@ -233,6 +233,11 @@ async def gather(client_id: int, kind: str) -> dict:
         client = dict(await conn.fetchrow(
             "SELECT id, name, contact_name, email, phone, booking_notification_name FROM clients WHERE id = $1",
             client_id))
+        # Clinic logo for the report's "clinic x DigiGrowth" lockup (same one the booking page uses).
+        try:
+            logo_url = await conn.fetchval("SELECT logo_url FROM booking_settings WHERE client_id = $1", client_id)
+        except Exception:
+            logo_url = None
         win = await campaign_window(conn, client_id)
         prev = await conn.fetch(
             """SELECT kind, week_number, period_start, period_end, data FROM client_reports
@@ -246,7 +251,7 @@ async def gather(client_id: int, kind: str) -> dict:
 
     total = _slim_funnel(await build_funnel(client_id, "all"))
     data = {
-        "client": {"id": client["id"], "name": client["name"],
+        "client": {"id": client["id"], "name": client["name"], "logo_url": logo_url,
                    "first_name": (client.get("booking_notification_name") or "").split()[0]
                    if (client.get("booking_notification_name") or "").strip()
                    else first_name_from_owner(client.get("contact_name"))},
