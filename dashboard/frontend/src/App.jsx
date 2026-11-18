@@ -70,7 +70,6 @@ const OS_NAV_CSS = `
     font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #4f6a92; padding: 0 12px; margin-bottom: 6px; }
   .os-group::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--os-accent, #6ab0ff);
     box-shadow: 0 0 6px var(--os-accent, #6ab0ff); }
-  @keyframes osPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 `;
 
 const NAV_ICONS = {
@@ -316,19 +315,10 @@ export default function App() {
         }}>
         <style>{OS_NAV_CSS}</style>
 
-        {/* Brand — logo + name card, same treatment as the portal's PortalBrand */}
-        <div style={{ padding: "22px 14px 4px", display: "grid", gap: 14 }}>
+        {/* Brand */}
+        <div style={{ padding: "22px 14px 4px" }}>
           <div style={{ display: "flex", alignItems: "center", padding: "0 12px" }}>
             <LogoMark />
-          </div>
-          <div style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(58,123,213,0.25)",
-            background: "linear-gradient(135deg, rgba(40,87,160,0.35), rgba(20,200,130,0.08))" }}>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14.5, fontWeight: 700, color: "#f0f4ff", lineHeight: 1.25 }}>DigiGrowth OS</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: "#8fd9bd" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#14c882",
-                boxShadow: "0 0 8px rgba(20,200,130,0.9)", animation: "osPulse 2s ease-in-out infinite" }} />
-              Internal workspace
-            </div>
           </div>
         </div>
 

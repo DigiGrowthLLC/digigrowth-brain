@@ -3631,22 +3631,9 @@ const PORTAL_CSS = `
 // One accent per sidebar section: dots, active bar and active icon.
 const GROUP_ACCENTS = { "Overview": "#6ab0ff", "Patients": "#14c882", "Your marketing": "#8b6cf0", "Getting started": "#f0a028" };
 
-function PortalBrand({ client }) {
+function PortalBrand() {
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <img src={logoWordmark} alt="DigiGrowth" style={{ height: 22, display: "block", margin: "2px 12px 0" }} />
-      {client && (
-        <div style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(58,123,213,0.25)",
-          background: "linear-gradient(135deg, rgba(40,87,160,0.35), rgba(20,200,130,0.08))" }}>
-          <div style={{ fontSize: 14.5, fontWeight: 700, color: "#f0f4ff", lineHeight: 1.25 }}>{client.name}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: "#8fd9bd" }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#14c882",
-              boxShadow: "0 0 8px rgba(20,200,130,0.9)", animation: "ptPulse 2s ease-in-out infinite" }} />
-            Your portal is live
-          </div>
-        </div>
-      )}
-    </div>
+    <img src={logoWordmark} alt="DigiGrowth" style={{ height: 22, display: "block", margin: "2px 12px 0" }} />
   );
 }
 
@@ -3854,7 +3841,7 @@ export default function ClientPortal() {
       <div className="pt-shell">
         {menuOpen && <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 45, background: "rgba(4,8,22,0.6)" }} />}
         <aside className={`pt-side${menuOpen ? " open" : ""}`}>
-          <PortalBrand client={client} />
+          <PortalBrand />
           <nav style={{ display: "grid", gap: 16 }}>
             {NAV_GROUPS.map((g) => (
               <div key={g.label} style={{ "--pt-accent": GROUP_ACCENTS[g.label] }}>
