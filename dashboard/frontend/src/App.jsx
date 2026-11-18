@@ -22,7 +22,7 @@ import logoWordmark from "./assets/logo-wordmark.png";
 // Grouped sidebar (2026-11-17 refresh): same panels and ids, organized by
 // what Dylan is doing — finding clients, serving them, running the business.
 const NAV_GROUPS = [
-  { label: null, items: [
+  { label: "Overview", items: [
     { id: "home",      label: "Dashboard" },
     { id: "todos",     label: "To-Do" },
   ] },
@@ -45,6 +45,33 @@ const NAV_GROUPS = [
   ] },
 ];
 const NAV = NAV_GROUPS.flatMap((g) => g.items);
+
+// Sidebar look mirrors the client portal's (pages/ClientPortal.jsx PORTAL_CSS):
+// gradient column, glowing multi-color edge, one accent per section (dot,
+// active bar, active icon) and a gradient active pill. Classes are os-* so
+// they never collide with the portal's pt-* ones.
+const GROUP_ACCENTS = { Overview: "#6ab0ff", Sales: "#14c882", Clients: "#8b6cf0", Business: "#f0a028" };
+
+const OS_NAV_CSS = `
+  .os-side { background: linear-gradient(180deg, rgba(10,18,48,0.94) 0%, rgba(7,12,32,0.97) 100%); }
+  .os-side::after { content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 1px; pointer-events: none;
+    background: linear-gradient(180deg, rgba(106,176,255,0), rgba(106,176,255,0.55) 25%, rgba(20,200,130,0.45) 60%, rgba(139,108,240,0.35) 85%, rgba(139,108,240,0)); }
+  .os-nav-btn { position: relative; display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 12px;
+    box-sizing: border-box; border-radius: 10px; border: 1px solid transparent; text-decoration: none; color: #7f9cc4;
+    font-family: 'Space Grotesk', sans-serif; font-size: 13.5px; font-weight: 500; transition: background 0.15s, color 0.15s; }
+  .os-nav-btn:hover { background: rgba(58,123,213,0.08); color: #d0e8ff; }
+  .os-nav-btn.on { color: #f0f4ff; border-color: rgba(58,123,213,0.3);
+    background: linear-gradient(135deg, rgba(40,87,160,0.45), rgba(58,123,213,0.18));
+    box-shadow: 0 6px 18px -8px rgba(58,123,213,0.7); }
+  .os-nav-btn.on::before { content: ""; position: absolute; left: -14px; top: 8px; bottom: 8px; width: 3px;
+    border-radius: 0 3px 3px 0; background: var(--os-accent, #6ab0ff); box-shadow: 0 0 10px var(--os-accent, #6ab0ff); }
+  .os-nav-btn.on .os-nav-icon { color: var(--os-accent, #6ab0ff); }
+  .os-group { display: flex; align-items: center; gap: 7px; font-family: 'Space Grotesk', sans-serif; font-size: 10.5px;
+    font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #4f6a92; padding: 0 12px; margin-bottom: 6px; }
+  .os-group::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--os-accent, #6ab0ff);
+    box-shadow: 0 0 6px var(--os-accent, #6ab0ff); }
+  @keyframes osPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+`;
 
 const NAV_ICONS = {
   home: (
@@ -279,32 +306,38 @@ export default function App() {
         className={
           "fixed md:relative top-0 left-0 bottom-0 md:top-auto md:left-auto md:bottom-auto " +
           "z-50 md:z-auto transition-transform duration-200 md:translate-x-0 " +
-          (mobileNavOpen ? "translate-x-0" : "-translate-x-full")
+          (mobileNavOpen ? "translate-x-0" : "-translate-x-full") +
+          " os-side"
         }
         style={{
-          width: 228,
-          background: "rgba(7,12,30,0.92)",
-          borderRight: "1px solid rgba(120,150,210,0.1)",
+          width: 244,
           display: "flex", flexDirection: "column", flexShrink: 0,
           backdropFilter: "blur(20px)",
         }}>
+        <style>{OS_NAV_CSS}</style>
 
-        {/* Brand */}
-        <div style={{ padding: "20px 20px 14px" }}>
-          <div style={{ display: "flex", alignItems: "center" }}>
+        {/* Brand — logo + name card, same treatment as the portal's PortalBrand */}
+        <div style={{ padding: "22px 14px 4px", display: "grid", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", padding: "0 12px" }}>
             <LogoMark />
+          </div>
+          <div style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(58,123,213,0.25)",
+            background: "linear-gradient(135deg, rgba(40,87,160,0.35), rgba(20,200,130,0.08))" }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14.5, fontWeight: 700, color: "#f0f4ff", lineHeight: 1.25 }}>DigiGrowth OS</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: "#8fd9bd" }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#14c882",
+                boxShadow: "0 0 8px rgba(20,200,130,0.9)", animation: "osPulse 2s ease-in-out infinite" }} />
+              Internal workspace
+            </div>
           </div>
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 2, overflowY: "auto" }}>
+        <nav style={{ flex: 1, padding: "16px 14px", display: "flex", flexDirection: "column", gap: 16, overflowY: "auto" }}>
           {NAV_GROUPS.map((group, gi) => (
-            <div key={gi} style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: gi ? 14 : 0 }}>
-              {group.label && (
-                <div style={{ padding: "0 12px 6px", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4f6189" }}>
-                  {group.label}
-                </div>
-              )}
+            <div key={gi} style={{ "--os-accent": GROUP_ACCENTS[group.label] }}>
+              {group.label && <div className="os-group">{group.label}</div>}
+              <div style={{ display: "grid", gap: 2 }}>
               {group.items.map(({ id, label }) => {
                 const isActive = active === id;
                 return (
@@ -318,30 +351,21 @@ export default function App() {
                       navigateTo(id);
                     }}
                     aria-current={isActive ? "page" : undefined}
-                    style={{
-                      position: "relative", width: "100%", display: "flex", alignItems: "center", gap: 11,
-                      padding: "8px 12px", borderRadius: 9, textDecoration: "none",
-                      background: isActive ? "rgba(77,142,240,0.14)" : "transparent",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(120,150,210,0.07)"; }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                    className={`os-nav-btn${isActive ? " on" : ""}`}
                   >
-                    {isActive && <span style={{ position: "absolute", left: -12, top: 8, bottom: 8, width: 3, borderRadius: 3, background: "#4d8ef0" }} />}
-                    <span style={{ color: isActive ? "#8fb8ff" : "#5d7099", display: "flex", flexShrink: 0 }}>
+                    <span className="os-nav-icon" style={{ display: "flex", flexShrink: 0 }}>
                       {NAV_ICONS[id]}
                     </span>
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: isActive ? 600 : 500, color: isActive ? "#eaf1ff" : "#9aabcb" }}>
-                      {label}
-                    </span>
+                    {label}
                   </a>
                 );
               })}
+              </div>
             </div>
           ))}
         </nav>
 
-        <div style={{ padding: "12px 24px 18px", borderTop: "1px solid rgba(120,150,210,0.1)", fontSize: 12, color: "#4f6189" }}>
+        <div style={{ padding: "12px 26px 18px", borderTop: "1px solid rgba(58,123,213,0.14)", fontSize: 12, color: "#4f6a92", fontFamily: "'Space Grotesk', sans-serif" }}>
           DigiGrowth LLC
         </div>
       </aside>
