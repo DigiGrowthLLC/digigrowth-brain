@@ -126,7 +126,11 @@ for ($cityCount = 1; ; $cityCount++) {
         # backgrounding watchdog above never actually fired.
         # --strict-mcp-config: load only Playwright, not Meta Ads / Notion / Gmail
         # etc., whose tool listings would otherwise ride along in every turn's context.
-        $out = & claude -p $prompt --dangerously-skip-permissions --strict-mcp-config --mcp-config $mcpConfig 2>&1 | Out-String
+        # --model sonnet: this job was ~25% of all Claude subscription usage on Opus
+        # (2026-11-19 audit). The work is rule-following (prompt.txt/memory.txt) over
+        # code-built digests, which Sonnet handles fine. Override with SCRAPE_LEADS_MODEL.
+        $scrapeModel = if ($env:SCRAPE_LEADS_MODEL) { $env:SCRAPE_LEADS_MODEL } else { "sonnet" }
+        $out = & claude -p $prompt --model $scrapeModel --dangerously-skip-permissions --strict-mcp-config --mcp-config $mcpConfig 2>&1 | Out-String
         Add-Content -Path $logFile -Encoding UTF8 -Value $out
 
         # Subscription session limit: every later city would fail instantly too
