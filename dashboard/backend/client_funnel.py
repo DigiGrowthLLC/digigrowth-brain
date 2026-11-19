@@ -169,16 +169,17 @@ async def build_funnel(client_id: int, period: str = "month", window: tuple | No
         # clinic back or picked up an AI voice call (Dylan, 2026-11-19).
         reach = await conn.fetchrow(
             f"""WITH l AS (
-                  SELECT right(regexp_replace(c.phone, '\\D', '', 'g'), 10) AS d FROM contacts c
+                  SELECT DISTINCT right(regexp_replace(c.phone, '\\D', '', 'g'), 10) AS d FROM contacts c
                   WHERE c.client_id = $1 AND NOT c.is_client_anchor AND c.lead_source = 'meta_form'
                     AND {_not_test('c.phone')} {since('c.created_at')}),
+                -- one row per person: a lead reached by text AND call (or a duplicate contact) counts once
                 t AS (SELECT l.d, EXISTS (SELECT 1 FROM client_sms_messages m
                                WHERE m.client_id = $1 AND m.direction = 'inbound'
                                  AND right(regexp_replace(m.from_number, '\\D', '', 'g'), 10) = l.d) AS texted,
                              EXISTS (SELECT 1 FROM client_voice_calls v
                                WHERE v.client_id = $1 AND v.outcome IN ('answered', 'booked', 'not_interested')
                                  AND right(regexp_replace(v.phone, '\\D', '', 'g'), 10) = l.d) AS called
-                      FROM l)
+                      FROM l WHERE length(l.d) = 10)
                 SELECT count(*) FILTER (WHERE texted OR called) AS reached,
                        count(*) FILTER (WHERE texted) AS by_text,
                        count(*) FILTER (WHERE called) AS by_call

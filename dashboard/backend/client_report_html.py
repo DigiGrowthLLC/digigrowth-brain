@@ -148,7 +148,7 @@ a{color:var(--cyan)}
 h1{font-size:clamp(30px,4.6vw,52px);line-height:1.06;margin:16px 0 0;max-width:920px;letter-spacing:-.03em;font-weight:700;text-wrap:balance}
 .grad{background:linear-gradient(90deg,var(--cyan),var(--blue) 55%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
 .lead{color:var(--muted);font-size:17px;max-width:760px;margin:18px 0 0}
-.spec{display:grid;grid-template-columns:1.2fr 1fr 1fr 1.2fr .8fr;margin-top:44px;border-top:1px solid var(--line2);border-bottom:1px solid var(--line)}
+.spec{display:grid;grid-template-columns:1fr 1.2fr 1fr;margin-top:44px;border-top:1px solid var(--line2);border-bottom:1px solid var(--line)}
 .spec>div{padding:16px 18px 18px 0;min-width:0}
 .spec>div+div{padding-left:18px;border-left:1px solid var(--line)}
 .spec .k{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:5px}
@@ -498,7 +498,6 @@ def render_html(report: dict) -> str:
 
     title = "Final campaign report" if final else f"Week {report['week_number']} report"
     dates = f"{_date(report['period_start'])} – {_date(report['period_end'])}"
-    issued = _date(datetime.now(ET).isoformat())
     period_word = "whole campaign" if final else "this week"
 
     # Numbered section heads, like the blueprint ("01 ── Results")
@@ -766,21 +765,17 @@ def render_html(report: dict) -> str:
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <style>{CSS}</style></head><body>
 
-<div class="bar"><div class="wrap"><span class="dot"></span><b>{"Final Campaign Report" if final else "Weekly Campaign Report"}</b><span class="sep">/</span><span>Prepared for {_e(clinic)}</span><span class="r">{_e(dates)}</span></div></div>
+<div class="bar"><div class="wrap"><span class="dot"></span><b>{"Final Campaign Report" if final else "Weekly Campaign Report"}</b><span class="r">{_e(dates)}</span></div></div>
 
 <header class="hero">
   <div class="orb"></div>
   <div class="wrap">
     <div class="lockup reveal">{lock_left}<span class="x">×</span><span class="dg">DigiGrowth</span></div>
-    <div class="kicker reveal">Digital Growth Engine // {_e(title)}</div>
     <h1 class="reveal">{_e(a.get("headline"))}</h1>
-    <p class="lead reveal">{_e(a.get("summary"))}</p>
     <div class="spec reveal">
-      <div><div class="k">Prepared for</div><div class="v">{_e(clinic)}</div></div>
       <div><div class="k">Period</div><div class="v">{_e(dates)}</div></div>
       <div><div class="k">Status</div><div class="v">{status_html}</div></div>
       <div><div class="k">{"Campaign goal" if pace else "Campaign"}</div><div class="v hl">{goal_v}</div></div>
-      <div><div class="k">Issued</div><div class="v">{_e(issued)}</div></div>
     </div>
   </div>
 </header>
