@@ -1897,7 +1897,7 @@ async def portal_inbox_thread(token: str, contact_id: str):
         if contact["phone"]:
             calls = await conn.fetch(
                 r"""
-                SELECT dialed_at, outcome, status, duration_ms, summary, recording_url, agent_kind, source
+                SELECT dialed_at, outcome, status, duration_ms, summary, recording_url, transcript, agent_kind, source
                 FROM client_voice_calls
                 WHERE client_id = $1 AND dialed_at IS NOT NULL
                   AND right(regexp_replace(phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
@@ -1914,6 +1914,7 @@ async def portal_inbox_thread(token: str, contact_id: str):
                 "outcome": c["outcome"] or ("in_progress" if c["status"] in ("dialing", "ringing", "in_progress") else "unknown"),
                 "duration_s": round(c["duration_ms"] / 1000) if c["duration_ms"] else None,
                 "recording_url": c["recording_url"],
+                "transcript": c["transcript"],
                 "agent": "Reactivation call" if c["agent_kind"] == "react" else "AI call",
                 "test": c["source"] == "test",
             },

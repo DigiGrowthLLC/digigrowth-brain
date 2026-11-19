@@ -729,17 +729,25 @@ async def answer_twiml(row) -> str:
                                          "visit_info": _visit_text(await _visit_info(row["client_id"]))},
         # Boost the lead's own first name too: "this is Dylan" was heard as
         # "this is done" and the agent hung up (2026-11-16).
-        "agent_override": {"agent": {"voicemail_option": vm, "boosted_keywords": _keywords(cfg, row["lead_name"])}},
+        "agent_override": {"agent": {**_voice_fields(cfg), "voicemail_option": vm,
+                                     "boosted_keywords": _keywords(cfg, row["lead_name"])}},
+        # The synced agent itself (sync_agent edits its latest version).
+        "agent_version": "latest",
     }
     vr = VoiceResponse()
     try:
         try:
             reg = await _retell("POST", "/v2/register-phone-call", body)
         except RuntimeError as e:
-            if "agent_override" not in str(e) and "400" not in str(e):
+            if "agent_override" not in str(e) and "agent_version" not in str(e) and "400" not in str(e):
                 raise
-            body.pop("agent_override")  # older API: fall back to the agent's own voicemail setting
-            reg = await _retell("POST", "/v2/register-phone-call", body)
+            print(f"[voice_agent] register rejected for row {row['id']}, retrying simpler: {e}", flush=True)
+            body.pop("agent_version", None)
+            try:
+                reg = await _retell("POST", "/v2/register-phone-call", body)
+            except RuntimeError:
+                body.pop("agent_override")  # last resort: the agent's own saved settings
+                reg = await _retell("POST", "/v2/register-phone-call", body)
     except Exception as e:
         print(f"[voice_agent] Retell register failed for row {row['id']}: {e}", flush=True)
         async with pool.acquire() as conn:
@@ -1349,15 +1357,25 @@ def _style(cfg) -> dict:
     return VOICE_STYLES.get(cfg["voice_style"] or "stock", VOICE_STYLES["stock"])
 
 
+def _voice_fields(cfg) -> dict:
+    """The client's voice exactly as set in the admin view (voice, speed,
+    style). Used for the agent sync AND sent with every call's override, so a
+    live call can never sound different from the synced agent (Dylan,
+    2026-11-19: real calls didn't sound like the admin view's voice)."""
+    vid = cfg["voice_id"] or DEFAULT_VOICE_ID
+    return {
+        "voice_id": vid,
+        "voice_speed": float(cfg["voice_speed"]) if cfg["voice_speed"] else DEFAULT_VOICE_SPEED,
+        **({"voice_model": _style(cfg)["voice_model"]} if vid.startswith("11labs-") else {}),
+        **_style(cfg)["settings"],
+    }
+
+
 def _agent_body(cfg, llm_id: str, kind: str = "ads") -> dict:
     return {
         "agent_name": f"{cfg['client_name']} - DigiGrowth " + ("reactivation voice agent" if kind == "react" else "voice agent"),
         "response_engine": {"type": "retell-llm", "llm_id": llm_id},
-        "voice_id": cfg["voice_id"] or DEFAULT_VOICE_ID,
-        # Slightly slower than normal sounds more natural on the phone (Dylan, 2026-11-15).
-        "voice_speed": float(cfg["voice_speed"]) if cfg["voice_speed"] else DEFAULT_VOICE_SPEED,
-        **({"voice_model": _style(cfg)["voice_model"]} if (cfg["voice_id"] or DEFAULT_VOICE_ID).startswith("11labs-") else {}),
-        **_style(cfg)["settings"],
+        **_voice_fields(cfg),
         "boosted_keywords": _keywords(cfg),
         "language": "en-US",
         "webhook_url": f"{_base_url()}/webhooks/retell",

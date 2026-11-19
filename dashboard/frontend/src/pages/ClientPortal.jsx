@@ -3210,29 +3210,55 @@ const CALL_OUTCOME = {
   unknown:        { label: "Call ended", color: "#8fb3e8" },
 };
 
+// Compact by default ("Call · 1m 12s · date/time") so calls don't crowd the
+// texts; tap to open the details (Dylan, 2026-11-19).
 function CallBubble({ m }) {
+  const [open, setOpen] = useState(false);
   const c = m.call;
   const o = CALL_OUTCOME[c.outcome] || CALL_OUTCOME.unknown;
-  const len = c.duration_s ? (c.duration_s >= 60 ? `${Math.floor(c.duration_s / 60)}m ${c.duration_s % 60}s` : `${c.duration_s}s`) : null;
+  const len = c.duration_s ? (c.duration_s >= 60 ? `${Math.floor(c.duration_s / 60)}m ${c.duration_s % 60}s` : `${c.duration_s}s`) : "0s";
+  const label = { fontSize: 10.5, color: "#5a7aa0", marginBottom: 3 };
   return (
     <div style={{ display: "flex", justifyContent: "flex-end" }}>
       <div style={{
-        maxWidth: "72%", minWidth: 220, padding: "10px 13px", borderRadius: 12,
+        maxWidth: open ? "78%" : "72%", minWidth: open ? 280 : 0, borderRadius: 12,
         background: "rgba(20,200,130,0.08)", border: "1px solid rgba(20,200,130,0.28)",
       }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
+          style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px", background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit", textAlign: "left" }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#14c882" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />
           </svg>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#d0e8ff" }}>{c.agent}{c.test ? " (test)" : ""}</span>
-          <span style={{ fontSize: 9, color: "#5a7aa0" }}>{fmtMsgTime(m.sent_at)}</span>
-        </div>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: o.color }}>
-          {o.label}{len ? ` · ${len}` : ""}
-        </div>
-        {m.body && <div style={{ fontSize: 12.5, color: "#c8d6ee", lineHeight: 1.5, marginTop: 5, whiteSpace: "pre-wrap" }}>{m.body}</div>}
-        {c.recording_url && (
-          <audio controls preload="none" src={c.recording_url} style={{ width: "100%", height: 32, marginTop: 8 }} />
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: "#d0e8ff" }}>Call</span>
+          <span style={{ fontSize: 12, color: "#a8c0e0" }}>{len}</span>
+          <span style={{ fontSize: 10.5, color: "#5a7aa0" }}>{fmtMsgTime(m.sent_at)}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7a92b8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+            style={{ marginLeft: "auto", transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}>
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+        {open && (
+          <div style={{ padding: "2px 12px 12px", borderTop: "1px solid rgba(20,200,130,0.18)", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", paddingTop: 8 }}>
+              <div><div style={label}>Result</div><div style={{ fontSize: 12.5, fontWeight: 600, color: o.color }}>{o.label}</div></div>
+              <div><div style={label}>Called by</div><div style={{ fontSize: 12.5, color: "#d0e8ff" }}>{c.agent}{c.test ? " (test)" : ""}</div></div>
+            </div>
+            {m.body && <div><div style={label}>Summary</div><div style={{ fontSize: 12.5, color: "#c8d6ee", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{m.body}</div></div>}
+            {c.recording_url && (
+              <div><div style={label}>Recording</div><audio controls preload="none" src={c.recording_url} style={{ width: "100%", height: 32 }} /></div>
+            )}
+            {c.transcript && (
+              <div>
+                <div style={label}>Transcript</div>
+                <div style={{ maxHeight: 220, overflowY: "auto", fontSize: 12, color: "#c8d6ee", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "rgba(0,0,0,0.18)", borderRadius: 8, padding: "8px 10px" }}>
+                  {c.transcript}
+                </div>
+              </div>
+            )}
+            {!m.body && !c.recording_url && !c.transcript && (
+              <div style={{ fontSize: 12, color: "#7a92b8" }}>No recording for this call (it wasn't answered).</div>
+            )}
+          </div>
         )}
       </div>
     </div>
