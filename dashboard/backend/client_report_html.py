@@ -226,6 +226,8 @@ section.alt{background:linear-gradient(180deg,rgba(11,18,48,.85),rgba(7,12,31,.6
 .mini .g>div{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.02);min-width:0}
 .mini .lbl{font-size:12.5px;color:var(--muted)}
 .mini .num{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+.brk{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.brk b{color:var(--ink)}
 .mini .h{font-size:11.5px;color:var(--dim)}
 
 /* appointments waiting on an outcome */
@@ -566,10 +568,10 @@ def render_html(report: dict) -> str:
                f'{leak_html}<div style="margin-top:8px">{_journey(scope)}</div><div class="legend">{legend}</div>'
                f'<div style="margin-top:10px">{REPORTED_NOTE}</div></div>')
 
-    def mini(title_, cells):
+    def mini(title_, cells, extra=""):
         return (f'<div class="card mini reveal"><h3>{title_}</h3><div class="g">' + "".join(
             f'<div><div class="lbl">{l}</div><div class="num">{v}</div>{f"<div class=h>{h}</div>" if h else ""}</div>'
-            for l, v, h in cells) + '</div></div>')
+            for l, v, h in cells) + f'</div>{extra}</div>')
 
     costs = mini("What each result costs", [
         ("Per lead", _money(k.get("cost_per_lead")), None), ("Per booked visit", _money(k.get("cost_per_booking")), None),
@@ -580,17 +582,46 @@ def render_html(report: dict) -> str:
         ("Times shown", _num(k.get("impressions")), f'{_money(k.get("cpm"))} per 1,000' if k.get("cpm") is not None else None),
         ("Click rate", _pct(k.get("ctr")), f'{_num(k.get("link_clicks"))} clicks' if k.get("link_clicks") is not None else None),
         ("Cost per click", _money(k.get("cpc")), None), last_cell])
-    ai = data.get("ai_agent_to_date") if final else data.get("ai_agent_week")
-    ai_html = ""
-    if ai and ai.get("leads"):
-        ai_html = mini("Your AI text assistant", [
-            ("Leads texted", _num(ai.get("leads")), None), ("Replied", _num(ai.get("replied")), None),
-            ("Booked", _num(ai.get("booked")), None),
-            ("Reply rate", _pct(round(ai["replied"] / ai["leads"] * 100)) if ai.get("replied") is not None else "–", None)])
     add((
         head("Patient journey", "users", "From ad to new patient",
              "Every step a patient takes, " + ("across the whole campaign." if final else "this week."))
-        + f'<div class="stack">{journey}<div class="trio">{costs}{adperf}{ai_html}</div></div>', "journey"))
+        + f'<div class="stack">{journey}<div class="trio">{costs}{adperf}</div></div>', "journey"))
+
+    # ---- Texts and calls (Dylan, 2026-11-19): what the AI text assistant, the team
+    # and the AI voice agents did in the period, from client_success._comms_stats.
+    comms = data.get("comms_to_date") if final else data.get("comms_week")
+    ai = data.get("ai_agent_to_date") if final else data.get("ai_agent_week")
+    if comms:
+        tx, cl = comms["texts"], comms["calls"]
+        def brk(items):
+            items = [(l, v) for l, v in items if v]
+            return ('<div class="brk">' + "".join(f'<span><b>{_num(v)}</b> {l}</span>' for l, v in items) + '</div>') if items else ""
+        texts_card = mini("Text messages", [
+            ("Texts sent", _num(tx["sent"]), f'to {_num(tx["people_texted"])} people'),
+            ("Replies received", _num(tx["received"]),
+             f'{_num(tx["people_replied"])} people replied' + (f' ({tx["reply_rate"]}%)' if tx.get("reply_rate") is not None else "")),
+            ("Booked by text", _num((ai or {}).get("booked")),
+             f'{_num((ai or {}).get("ai_booked"))} booked by the AI in the chat' if ai and ai.get("ai_booked") is not None else None),
+            ("Offered a time", _num((ai or {}).get("offered_times")), "leads the AI offered times to" if ai else None),
+        ], brk([("by the AI assistant", tx["by_ai"]), ("by your team", tx["by_team"]), ("follow-ups", tx["followups"]),
+                ("reactivation", tx["reactivation"]), ("appointment texts", tx["appointment"])]))
+        t = cl["total"]
+        if t["placed"]:
+            split = [f"{lab}: {_num(r['placed'])} calls, {_num(r['reached'])} reached, {_num(r['booked'])} booked"
+                     for lab, r in (("New ad leads", cl.get("ad_leads")), ("Reactivation", cl.get("reactivation")))
+                     if r and r.get("placed")]
+            calls_card = mini("AI phone calls", [
+                ("Calls placed", _num(t["placed"]), f'to {_num(t["people"])} people'),
+                ("People reached", _num(t["reached"]), f'{t["reach_rate"]}% picked up' if t.get("reach_rate") is not None else None),
+                ("Voicemails left", _num(t["voicemails"]), f'{_num(t["no_answer"])} no answer'),
+                ("Booked on a call", _num(t["booked"]), f'{_num(t["talk_minutes"])} min of talk time'),
+            ], ('<div class="brk">' + "".join(f"<span>{_e(x)}</span>" for x in split) + "</div>") if split else "")
+        else:
+            calls_card = ('<div class="card mini reveal"><h3>AI phone calls</h3>'
+                          '<p class="muted" style="margin:0">No AI calls ' + ("during the campaign." if final else "this week.") + '</p></div>')
+        add((head("Texts and calls", "chat", "Every text and call to your leads",
+                  "What your AI assistant, your team and the AI voice agent did " + ("during the campaign." if final else "this week."))
+             + f'<div class="two">{texts_card}{calls_card}</div>', "comms"))
 
     # ---- Appointments waiting on an outcome (loaded live, saved from the page)
     add((
@@ -700,7 +731,7 @@ def render_html(report: dict) -> str:
 
     # Order (Dylan, 2026-11-17): results, then what the clinic needs to do, then the read and the detail;
     # the forms near the end and the next-campaign pitch last.
-    order = ["results", "outcomes", "read", "journey", "weeks", "quality", "answers", "share", "questions", "next"]
+    order = ["results", "outcomes", "read", "journey", "comms", "weeks", "quality", "answers", "share", "questions", "next"]
     parts = []
     for i, sid in enumerate([o for o in order if o in blocks]):
         inner = blocks[sid].replace("{NUM}", "%02d" % (i + 1))

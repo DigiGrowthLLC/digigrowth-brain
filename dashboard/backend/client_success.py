@@ -210,6 +210,62 @@ async def _ai_agent_stats(client_id: int, days: int | None) -> dict | None:
         return None
 
 
+_ANSWERED = "('answered', 'booked', 'not_interested')"
+
+
+async def _comms_stats(client_id: int, since: datetime) -> dict | None:
+    """Texts and AI calls for the report's "Texts and calls" section (Dylan,
+    2026-11-19), from `since` on. Test numbers and test calls are left out.
+    Texts are grouped by their stage (who/what sent them)."""
+    from client_funnel import _not_test
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            lead = "(CASE WHEN direction = 'outbound' THEN to_number ELSE from_number END)"
+            t = await conn.fetchrow(
+                rf"""SELECT
+                       count(*) FILTER (WHERE direction = 'outbound') AS sent,
+                       count(*) FILTER (WHERE direction = 'inbound') AS received,
+                       count(DISTINCT right(regexp_replace({lead}, '\D', '', 'g'), 10)) FILTER (WHERE direction = 'outbound') AS people_texted,
+                       count(DISTINCT right(regexp_replace({lead}, '\D', '', 'g'), 10)) FILTER (WHERE direction = 'inbound') AS people_replied,
+                       count(*) FILTER (WHERE direction = 'outbound' AND (stage IN ('ai_reply', 'dm_handoff') OR stage LIKE '%opener%')) AS by_ai,
+                       count(*) FILTER (WHERE direction = 'outbound' AND (stage = 'manual_reply' OR stage IS NULL)) AS by_team,
+                       count(*) FILTER (WHERE direction = 'outbound' AND (stage LIKE 'prospect_followup%' OR stage LIKE '%abandon%')) AS followups,
+                       count(*) FILTER (WHERE direction = 'outbound' AND stage LIKE 'reactivation%') AS reactivation,
+                       count(*) FILTER (WHERE direction = 'outbound' AND (stage LIKE 'appointment_reminder%' OR stage LIKE '%no_show%'
+                                        OR stage LIKE '%cancel%' OR stage LIKE 'booking%' OR stage LIKE 'reschedule%')) AS appointment
+                     FROM client_sms_messages
+                     WHERE client_id = $1 AND created_at >= $2 AND {_not_test(lead)}""",
+                client_id, since)
+            calls = await conn.fetch(
+                f"""SELECT coalesce(agent_kind, 'ads') AS kind,
+                       count(*) FILTER (WHERE dialed_at IS NOT NULL) AS placed,
+                       count(DISTINCT phone) FILTER (WHERE dialed_at IS NOT NULL) AS people,
+                       count(DISTINCT phone) FILTER (WHERE outcome IN {_ANSWERED}) AS reached,
+                       count(*) FILTER (WHERE outcome = 'voicemail') AS voicemails,
+                       count(*) FILTER (WHERE outcome = 'no_answer') AS no_answer,
+                       count(DISTINCT phone) FILTER (WHERE outcome = 'booked') AS booked,
+                       coalesce(sum(duration_ms) FILTER (WHERE outcome IN {_ANSWERED}), 0) AS talk_ms
+                    FROM client_voice_calls
+                    WHERE client_id = $1 AND source != 'test' AND coalesce(dialed_at, run_at) >= $2 AND {_not_test('phone')}
+                    GROUP BY 1""",
+                client_id, since)
+        texts = dict(t)
+        texts["reply_rate"] = round(texts["people_replied"] / texts["people_texted"] * 100) if texts["people_texted"] else None
+        by_kind = {r["kind"]: dict(r) for r in calls}
+        total = {k: sum((r[k] or 0) for r in by_kind.values())
+                 for k in ("placed", "people", "reached", "voicemails", "no_answer", "booked", "talk_ms")}
+        total["talk_minutes"] = round(total.pop("talk_ms") / 60000)
+        for r in by_kind.values():
+            r["talk_minutes"] = round(r.pop("talk_ms") / 60000)
+        total["reach_rate"] = round(total["reached"] / total["people"] * 100) if total["people"] else None
+        return {"since": since.isoformat(), "texts": texts,
+                "calls": {"total": total, "ad_leads": by_kind.get("ads"), "reactivation": by_kind.get("react")}}
+    except Exception as e:
+        print(f"[client_success] comms stats failed for {client_id}: {e}")
+        return None
+
+
 def _for_prompt(data: dict) -> dict:
     """The report data minus the per-path journey (the page's layout data;
     the flat `stages` list already gives Claude the same numbers)."""
@@ -290,9 +346,12 @@ async def gather(client_id: int, kind: str) -> dict:
             data["lead_quality"] = await csm_extras.lead_quality_summary(conn, client_id)
     except Exception as e:
         print(f"[client_success] lead quality summary failed for {client_id}: {e}")
+    launched = win["launched_at"] or (datetime.now(timezone.utc) - timedelta(days=90))
+    data["comms_to_date"] = await _comms_stats(client_id, launched)
     if kind == "weekly":
         data["week"] = _slim_funnel(await build_funnel(client_id, "week"))
         data["ai_agent_week"] = await _ai_agent_stats(client_id, 7)
+        data["comms_week"] = await _comms_stats(client_id, max(launched, datetime.now(timezone.utc) - timedelta(days=7)))
         data["last_week"] = data["weeks"][-1] if data["weeks"] else None
 
     goal = win["goal"]
@@ -358,6 +417,9 @@ def _system_prompt(brief: str, kind: str) -> str:
         + ("- The campaign is OVER: write the headline, summary, on_target and off_target in the past tense "
            "('the ads brought in 31 leads', 'fewer people showed up than we wanted'). next_steps are recommendations "
            "for the next campaign.\n" if kind == "final" else "")
+        + "- 'comms_to_date' / 'comms_week' are the texts and AI phone calls (texts by who sent them; calls split into "
+        "new ad leads and reactivation, with people reached, voicemails and bookings). When calls were made, give them "
+        "a line in the quick read (e.g. how many people the AI reached and booked by phone).\n"
         + "- The standard flow is ad -> funnel page -> booking page (path 'page'). An 'Instant Form ads' path means the "
         "campaign used Meta's Instant Forms instead; describe only the paths in the data and never invent a funnel "
         "page step that isn't there.\n\n"
