@@ -3136,6 +3136,48 @@ function LeadsTab({ token, onMessage, calendlyUrl }) {
   );
 }
 
+// AI voice call in a lead's thread (GET /portal-api/{token}/inbox/{id} merges
+// client_voice_calls in as channel "call"): who called, the result, length,
+// the call summary and the recording.
+const CALL_OUTCOME = {
+  answered:       { label: "Answered", color: "#14c882" },
+  booked:         { label: "Answered · booked a visit", color: "#14c882" },
+  not_interested: { label: "Answered · not interested", color: "#f0b429" },
+  voicemail:      { label: "Left a voicemail", color: "#8fb3e8" },
+  no_answer:      { label: "No answer", color: "#8fb3e8" },
+  in_progress:    { label: "Calling now…", color: "#6ab0ff" },
+  unknown:        { label: "Call ended", color: "#8fb3e8" },
+};
+
+function CallBubble({ m }) {
+  const c = m.call;
+  const o = CALL_OUTCOME[c.outcome] || CALL_OUTCOME.unknown;
+  const len = c.duration_s ? (c.duration_s >= 60 ? `${Math.floor(c.duration_s / 60)}m ${c.duration_s % 60}s` : `${c.duration_s}s`) : null;
+  return (
+    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div style={{
+        maxWidth: "72%", minWidth: 220, padding: "10px 13px", borderRadius: 12,
+        background: "rgba(20,200,130,0.08)", border: "1px solid rgba(20,200,130,0.28)",
+      }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#14c882" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />
+          </svg>
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "#d0e8ff" }}>{c.agent}{c.test ? " (test)" : ""}</span>
+          <span style={{ fontSize: 9, color: "#5a7aa0" }}>{fmtMsgTime(m.sent_at)}</span>
+        </div>
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: o.color }}>
+          {o.label}{len ? ` · ${len}` : ""}
+        </div>
+        {m.body && <div style={{ fontSize: 12.5, color: "#c8d6ee", lineHeight: 1.5, marginTop: 5, whiteSpace: "pre-wrap" }}>{m.body}</div>}
+        {c.recording_url && (
+          <audio controls preload="none" src={c.recording_url} style={{ width: "100%", height: 32, marginTop: 8 }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function fmtMsgTime(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -3263,6 +3305,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
         )}
         {messages.map((m, i) => {
           const outbound = m.direction === "outbound";
+          if (m.channel === "call" && m.call) return <CallBubble key={i} m={m} />;
           return (
             <div key={i} style={{ display: "flex", justifyContent: outbound ? "flex-end" : "flex-start" }}>
               <div style={{

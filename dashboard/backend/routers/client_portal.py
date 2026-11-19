@@ -1821,7 +1821,35 @@ async def portal_inbox_thread(token: str, contact_id: str):
                 client["id"], contact["phone"],
             )
 
+        # AI voice calls placed to this lead (ads + database reactivation agents),
+        # shown as call bubbles in the thread (Dylan, 2026-11-19). Only calls
+        # that were actually dialed; queued/skipped/errored ones never happened.
+        calls = []
+        if contact["phone"]:
+            calls = await conn.fetch(
+                r"""
+                SELECT dialed_at, outcome, status, duration_ms, summary, recording_url, agent_kind, source
+                FROM client_voice_calls
+                WHERE client_id = $1 AND dialed_at IS NOT NULL
+                  AND right(regexp_replace(phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                ORDER BY dialed_at
+                """,
+                client["id"], contact["phone"],
+            )
+
     messages = [{"channel": "sms", "direction": m["direction"], "body": m["body"], "subject": None, "sent_at": m["sent_at"]} for m in sms_msgs]
+    for c in calls:
+        messages.append({
+            "channel": "call", "direction": "outbound", "body": c["summary"], "subject": None, "sent_at": c["dialed_at"],
+            "call": {
+                "outcome": c["outcome"] or ("in_progress" if c["status"] in ("dialing", "ringing", "in_progress") else "unknown"),
+                "duration_s": round(c["duration_ms"] / 1000) if c["duration_ms"] else None,
+                "recording_url": c["recording_url"],
+                "agent": "Reactivation call" if c["agent_kind"] == "react" else "AI call",
+                "test": c["source"] == "test",
+            },
+        })
+    messages.sort(key=lambda m: m["sent_at"])
 
     return {"contact": dict(contact), "messages": messages, "ai": dict(ai) if ai else None}
 
