@@ -5,8 +5,8 @@ drop-off and cost KPIs. Backs the client portal's Analytics tab
 
 Two acquisition paths, chosen from the client's own data:
   - "form": Meta Instant Form ads. Impressions → link clicks (form opens) →
-    leads (contacts.lead_source = 'meta_form') → replied to the clinic's
-    texts → booked → showed → became a patient.
+    leads (contacts.lead_source = 'meta_form') → reached (texted the clinic
+    back or picked up an AI call) → booked → showed → became a patient.
   - "page": ads to the client's funnel page. Impressions → link clicks →
     funnel page visits → booking page visits → started booking (name +
     mobile typed) → [went to payment, paid offers] → booked → showed →
@@ -42,7 +42,7 @@ PERIODS = {"today": ("1 day", 0), "week": ("7 days", 6), "month": ("30 days", 29
 TARGETS = {
     "link_clicks":     (1.0, 0.6),    # link CTR
     "leads_form":      (10.0, 5.0),   # form opens → submitted
-    "replied":         (40.0, 20.0),  # leads → replied to a text
+    "replied":         (40.0, 20.0),  # leads → reached (texted back or picked up a call)
     "booked_form":     (30.0, 15.0),  # replied → booked
     "funnel_visits":   (70.0, 50.0),  # link clicks → page actually loaded
     "booking_views":   (25.0, 12.0),  # funnel page → booking page
@@ -84,7 +84,9 @@ def _not_test(phone_col: str) -> str:
     return f"right(regexp_replace(coalesce({phone_col}, ''), '\\D', '', 'g'), 10) NOT IN ({digits})"
 
 
-async def build_funnel(client_id: int, period: str = "month") -> dict:
+async def build_funnel(client_id: int, period: str = "month", window: tuple | None = None) -> dict:
+    """window=(start, end) pins the period to fixed dates (a weekly report's
+    own week, for its live numbers); period is then ignored."""
     if period not in PERIODS:
         raise ValueError("period must be 'all', 'today', 'week' or 'month'")
     iv, day_offset = PERIODS[period]
@@ -107,16 +109,21 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
         start = now + timedelta(days=36500)          # matches nothing
     else:
         start = launched_at
-        if iv:
+        if window:
+            start = max(start, window[0])
+        elif iv:
             start = max(start, now - timedelta(days=int(iv.split()[0])))
+    until = window[1] if window else None
     start_iso = start.isoformat()
     start_day = start.astimezone(tz).date().isoformat() if launched_at else "9999-12-31"
     prelaunch = launched_at is None
 
     def since(col: str) -> str:
-        return f"AND {col} >= '{start_iso}'::timestamptz"
+        upto = f" AND {col} < '{until.isoformat()}'::timestamptz" if until else ""
+        return f"AND {col} >= '{start_iso}'::timestamptz{upto}"
 
-    stat_since = f"AND stat_date >= '{start_day}'::date"
+    stat_since = f"AND stat_date >= '{start_day}'::date" + (
+        f" AND stat_date <= '{until.astimezone(tz).date().isoformat()}'::date" if until else "")
 
     async with pool.acquire() as conn:
         ad_rows = await conn.fetch(
@@ -158,15 +165,25 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
                 FROM contacts WHERE client_id = $1 AND NOT is_client_anchor AND {_not_test('phone')}
                   AND {_NOT_ACQUISITION.format(col='lead_source', tags='tags')}
                 {since('created_at')}""", client_id)
-        # Form leads (from this period) who texted the clinic back, ever.
-        replied = await conn.fetchval(
-            f"""SELECT count(*) FROM contacts c
-                WHERE c.client_id = $1 AND NOT c.is_client_anchor AND c.lead_source = 'meta_form'
-                  AND {_not_test('c.phone')} {since('c.created_at')}
-                  AND EXISTS (SELECT 1 FROM client_sms_messages m
-                              WHERE m.client_id = $1 AND m.direction = 'inbound'
-                                AND right(regexp_replace(m.from_number, '\\D', '', 'g'), 10)
-                                  = right(regexp_replace(c.phone, '\\D', '', 'g'), 10))""", client_id)
+        # Form leads (from this period) we reached, ever: they texted the
+        # clinic back or picked up an AI voice call (Dylan, 2026-11-19).
+        reach = await conn.fetchrow(
+            f"""WITH l AS (
+                  SELECT right(regexp_replace(c.phone, '\\D', '', 'g'), 10) AS d FROM contacts c
+                  WHERE c.client_id = $1 AND NOT c.is_client_anchor AND c.lead_source = 'meta_form'
+                    AND {_not_test('c.phone')} {since('c.created_at')}),
+                t AS (SELECT l.d, EXISTS (SELECT 1 FROM client_sms_messages m
+                               WHERE m.client_id = $1 AND m.direction = 'inbound'
+                                 AND right(regexp_replace(m.from_number, '\\D', '', 'g'), 10) = l.d) AS texted,
+                             EXISTS (SELECT 1 FROM client_voice_calls v
+                               WHERE v.client_id = $1 AND v.outcome IN ('answered', 'booked', 'not_interested')
+                                 AND right(regexp_replace(v.phone, '\\D', '', 'g'), 10) = l.d) AS called
+                      FROM l)
+                SELECT count(*) FILTER (WHERE texted OR called) AS reached,
+                       count(*) FILTER (WHERE texted) AS by_text,
+                       count(*) FILTER (WHERE called) AS by_call
+                FROM t""", client_id)
+        replied = reach["reached"]
 
         appt_rows = await conn.fetch(
             f"""SELECT (coalesce(c.lead_source, '') = 'meta_form') AS is_form,
@@ -272,8 +289,12 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
                    "rate": lead_rate, "status": _status(lead_rate, "leads_form", link_clicks),
                    "note": f"Meta reports {meta_form_leads}" if meta_connected and meta_form_leads != leads["form"] else None})
         rr = _pct(replied, leads["form"])
-        st.append({"key": "replied", "label": "Replied to a text", "source": "funnel", "value": replied,
-                   "rate": rr, "status": _status(rr, "replied", leads["form"])})
+        st.append({"key": "replied", "label": "Reached", "source": "funnel", "value": replied,
+                   "rate": rr, "status": _status(rr, "replied", leads["form"]),
+                   "note": " · ".join(x for x in [
+                       f"{reach['by_text']} texted back" if reach["by_text"] else "",
+                       f"{reach['by_call']} picked up a call" if reach["by_call"] else "",
+                   ] if x) or None})
         st += outcome_stages(a_form, "booked_form", replied, "Booked a visit")
         paths.append({"key": "form", "label": "Instant Form ads", "stages": chain(st), "leads": leads["form"],
                       "booked": a_form["booked"], "shows": a_form["shows"], "patients": a_form["closed"]})

@@ -92,6 +92,32 @@ async def report_open_appointments(slug: str):
     return {"appointments": out}
 
 
+@router.get("/report/{slug}/live", include_in_schema=False)
+async def report_live_numbers(slug: str):
+    """Current show-up / new-patient numbers for a report's period (Dylan,
+    2026-11-19). The page is stored once, so its script calls this on load and
+    after every outcome saved, keeping "New patients" and the journey's last
+    two steps in step with what the clinic marks (here or in the portal).
+    Same scope as the report was built with: a final covers the whole
+    campaign ("all"), a weekly its own week."""
+    from client_funnel import build_funnel
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        r = await conn.fetchrow(
+            "SELECT client_id, kind, period_start, period_end FROM client_reports WHERE slug = $1", slug)
+    if not r:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if r["kind"] == "final":
+        f = await build_funnel(r["client_id"], "all")
+    else:
+        f = await build_funnel(r["client_id"], "week", window=(r["period_start"], r["period_end"]))
+    k = f.get("kpis") or {}
+    steps = [{"path": p.get("key"), "key": s.get("key"), "value": s.get("value"), "rate": s.get("rate"),
+              "status": s.get("status"), "note": s.get("note")}
+             for p in f.get("paths", []) for s in p.get("stages", []) if s.get("key") in ("showed", "patient")]
+    return {"patients": k.get("patients"), "shows": k.get("shows"), "steps": steps}
+
+
 @router.patch("/report/{slug}/appointments/{appointment_id}", include_in_schema=False)
 async def report_set_outcome(slug: str, appointment_id: int, body: dict):
     from routers.client_portal import portal_update_appointment_outcome

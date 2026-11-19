@@ -1787,7 +1787,7 @@ const STEP_HELP = {
   impressions:     "Times your ad was shown",
   link_clicks:     "Clicked the ad",
   leads:           "Filled out the ad's form",
-  replied:         "Texted back",
+  replied:         "Texted back or picked up a call",
   funnel_visits:   "Landed on your page",
   booking_views:   "Opened the booking page",
   booking_started: "Entered their name and number",
@@ -1892,6 +1892,27 @@ function AnalyticsTab({ token }) {
       })
       .then((d) => { setData(d); setLoading(false); })
       .catch((e) => { setErr(e.message); setLoading(false); });
+  }, [token, period]);
+
+  // Outcomes marked elsewhere (a campaign report's "Appointments waiting on
+  // an outcome", or the Appointments tab) show up here without a reload:
+  // quiet refetch when the tab regains focus and every 60s while visible.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch(`/portal-api/${token}/funnel?period=${period}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d) setData(d); })
+        .catch(() => {});
+    };
+    const iv = setInterval(refresh, 60000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(iv);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [token, period]);
 
   if (loading && !data) return <div style={{ color: "#5a7aa0", fontFamily: "'Share Tech Mono', monospace", fontSize: 11, padding: 40 }}>LOADING...</div>;

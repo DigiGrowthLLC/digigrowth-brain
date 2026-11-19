@@ -369,7 +369,7 @@ STEP_HELP = {
     "impressions": "Times your ad was shown",
     "link_clicks": "Clicked the ad",
     "leads": "Filled out the ad's form",
-    "replied": "Texted back",
+    "replied": "Texted back or picked up a call",
     "funnel_visits": "Landed on your page",
     "booking_views": "Opened the booking page",
     "booking_started": "Entered their name and number",
@@ -413,11 +413,26 @@ if(!st.show){bad.textContent='Pick "Showed up" or "No-show" first.';bad.hidden=f
 save.disabled=true;
 fetch(base+'/'+a.id,{method:'PATCH',headers:{'Content-Type':'application/json'},
 body:JSON.stringify({outcome_show:st.show,outcome_close:st.show==='show'?st.close:null,outcome_notes:el.querySelector('textarea').value})})
-.then(function(r){if(!r.ok)throw 0;var done=st.show==='no_show'||(st.show==='show'&&st.close);
+.then(function(r){if(!r.ok)throw 0;live();var done=st.show==='no_show'||(st.show==='show'&&st.close);
 if(done){ok.textContent='Saved';ok.hidden=false;setTimeout(function(){el.remove();left()},900)}
 else{save.disabled=false;ok.textContent='Saved. Come back and mark whether they became a patient.';ok.hidden=false}})
 .catch(function(){save.disabled=false;bad.textContent="That didn't save. Please try again.";bad.hidden=false})};
 paint();return el}
+// Live numbers (GET /report/<slug>/live): "New patients" and the journey's
+// show-up / became-a-patient rows, refreshed on load and after every save.
+function live(){fetch(location.pathname.replace(/\/$/,'')+'/live').then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){
+function n(v){return v==null?'–':Number(v).toLocaleString()}
+document.querySelectorAll('[data-live="patients"]').forEach(function(e){e.textContent=n(d.patients)});
+document.querySelectorAll('[data-live="shows"]').forEach(function(e){e.textContent=n(d.shows)});
+(d.steps||[]).forEach(function(s){var row=document.querySelector('.jrow[data-step="'+s.path+':'+s.key+'"]');if(!row)return;
+row.querySelector('.ct').textContent=n(s.value);
+var top=+row.dataset.top||0,trk=row.querySelector('.trk');
+trk.innerHTML=(s.value>0&&top)?'<i style="width:'+Math.max(6,Math.min(100,Math.log10(s.value+1)/Math.log10(top+1)*100)).toFixed(0)+'%"></i>':'';
+var tone={good:1,ok:1,poor:1}[s.status]?s.status:null,rt=row.querySelector('.rt');
+if(rt)rt.innerHTML=s.rate==null?'':'<b class="'+(tone?'tone-'+tone:'')+'">'+(tone?'<i class=tdot></i>':'')+s.rate+'%</b><span>of previous step</span>';
+var nt=row.querySelector('.nt');if(s.note){if(!nt){nt=document.createElement('div');nt.className='nt';row.appendChild(nt)}nt.textContent=s.note}else if(nt)nt.remove()})
+}).catch(function(){})}
+live();
 fetch(base).then(function(r){if(!r.ok)throw 0;return r.json()})
 .then(function(d){(d.appointments||[]).forEach(function(a){box.appendChild(row(a))});left()})
 .catch(function(){msg.textContent="Couldn't load your appointments here. You can mark them in your portal under Appointments."})
@@ -454,8 +469,11 @@ def _journey(scope: dict) -> str:
             note = f'<div class="nt">{_e(s["note"])}</div>' if s.get("note") and not off else ""
             bar = (f'<i style="width:{_step_width(s.get("value"), top):.0f}%"></i>'
                    if not off and (s.get("value") or 0) > 0 else "")
+            # Show-up / new-patient rows refresh live (LIVE_JS) as the clinic marks outcomes.
+            live = (f' data-step="{_e(p.get("key"))}:{_e(s.get("key"))}" data-top="{top}"'
+                    if s.get("key") in CLIENT_REPORTED and p.get("key") else "")
             out.append(
-                f'<div class="jrow{" first" if i == 0 and len(paths) == 1 else ""}{" off" if off else ""}">'
+                f'<div class="jrow{" first" if i == 0 and len(paths) == 1 else ""}{" off" if off else ""}"{live}>'
                 f'<div class="nm"><span class="no">{i + 1}</span><div><div class="t">{_e(s.get("label"))}'
                 f'{REP_TAG if s.get("key") in CLIENT_REPORTED else ""}</div>'
                 f'<div class="hp">{"Waiting on ad account access" if off else _e(STEP_HELP.get(s.get("key"), ""))}</div></div></div>'
@@ -524,16 +542,17 @@ def render_html(report: dict) -> str:
                      f'<div class="big">{pace["booked"]}<small> of {pace["goal"]} {_e(camp.get("goal_label") or "booked")}</small></div></div>'
                      f'<div class="side">{side}</div><div class="prog"><i style="width:{pct}%"></i></div></div>')
 
-    def kpi(label, value, hint, cur=None, prev=None, lower=False, reported=False):
+    def kpi(label, value, hint, cur=None, prev=None, lower=False, reported=False, live=""):
         chg = "" if final or cur is None else _delta(cur, prev, lower)
         tag = REP_TAG.replace('class="rep"', 'class="rep kr"') if reported else ""
-        return (f'<div class="card kpi"><div class="lbl">{label}{"*" if reported else ""}</div><div class="v">{value}</div>'
+        lv = f' data-live="{live}"' if live else ""
+        return (f'<div class="card kpi"><div class="lbl">{label}{"*" if reported else ""}</div><div class="v"{lv}>{value}</div>'
                 f'<div class="h">{hint}</div>{chg}{tag}</div>')
 
     spend_hint = (f"of the {_money(bud['cap'])} budget" if final and bud else period_word)
     kpis = (
-        kpi("New patients", _num(k.get("patients")), f'{_num(k.get("shows"))} came to their visit', k.get("patients"), lk.get("patients"),
-              reported=True)
+        kpi("New patients", _num(k.get("patients")), f'<span data-live="shows">{_num(k.get("shows"))}</span> came to their visit',
+              k.get("patients"), lk.get("patients"), reported=True, live="patients")
         + kpi("Visits booked", _num(k.get("booked")), f'from {_num(k.get("leads"))} leads', k.get("booked"), lk.get("booked"))
         + kpi("Cost per booking", _money(k.get("cost_per_booking")), "ad spend ÷ visits booked",
               k.get("cost_per_booking"), lk.get("cost_per_booking"), True)
