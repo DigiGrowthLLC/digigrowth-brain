@@ -1,0 +1,1 @@
+{"reports": [{"domain": "digigrowthllc.com", "reporter": "Postmark", "period_start": "2026-11-09", "period_end": "2026-11-16", "total_messages": 337, "dmarc_pass": 337, "dmarc_fail": 0, "spf_pass": 333, "dkim_pass": 337, "sources": [], "email_subject": "DMARC weekly digest for digigrowthllc.com", "received_at": "2026-11-16T14:54:29Z"}]}
