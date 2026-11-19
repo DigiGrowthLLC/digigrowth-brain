@@ -5,11 +5,12 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { API } from "../api.js";
+import ContactLink from "../ContactLink.jsx";
 import { SECTIONS } from "../onboardingSections.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
 import ClientSetup from "./ClientSetup.jsx";
 import ClientSuccessAgent from "./ClientSuccessAgent.jsx";
-import { T, Card, PageHeader, SectionTitle, Tabs, Pill, Stat, Progress, Empty, Loading, HealthBadge, fmtDate, inputStyle } from "../ui.jsx";
+import { T, Card, PageHeader, SectionTitle, Tabs, Pill, Toggle, Stat, Progress, Empty, Loading, HealthBadge, fmtDate, inputStyle } from "../ui.jsx";
 
 function OnboardingAnswers({ clientId }) {
   const [detail, setDetail] = useState(null);
@@ -163,8 +164,8 @@ function ClientCard({ client, cs, setup, onOpen }) {
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
             <span style={{ fontFamily: T.display, fontWeight: 600, fontSize: 15.5, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{client.name}</span>
-            <span title={client.status} style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
-              background: client.status === "active" ? T.good : client.status === "paused" ? T.warn : "#5a6f8f" }} />
+            <span title={client.status === "active" ? "Live" : "Offline"} style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+              background: client.status === "active" ? T.good : "#5a6f8f" }} />
           </div>
           <div style={{ fontSize: 12.5, color: T.textMute, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {client.linked_contact?.owner || client.contact_name || "No contact set"} · {client.service_package === "foundations" ? "Foundations" : "Growth"}
@@ -239,8 +240,9 @@ function ClientOverview({ client, cs, setup, onGoTab }) {
   );
 }
 
-function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact, reloadCs }) {
+function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact, reloadCs, onSetLive }) {
   const [tab, setTab] = useState("overview");
+  const [togglingLive, setTogglingLive] = useState(false);
   const [setup, setSetup] = useState(null);
   const [menu, setMenu] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -270,7 +272,10 @@ function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDele
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <h1 style={{ fontFamily: T.display, fontSize: 26, fontWeight: 700, color: T.text, margin: 0, letterSpacing: "-0.02em" }}>{client.name}</h1>
-            <Pill tone={client.status === "active" ? "good" : client.status === "paused" ? "warn" : "neutral"} dot>{client.status}</Pill>
+            <span title="Offline = you're not actively running their campaigns right now. Their portal still works; weekly reports and live-client automations skip them.">
+              <Toggle on={client.status === "active"} busy={togglingLive} label={client.status === "active" ? "Live" : "Offline"}
+                onChange={async (on) => { setTogglingLive(true); await onSetLive?.(client.id, on); setTogglingLive(false); }} />
+            </span>
             {client.is_test && <Pill tone="info">Test client</Pill>}
           </div>
           <div style={{ fontSize: 13.5, color: T.textMute, marginTop: 4 }}>
@@ -2857,7 +2862,7 @@ function ReactivationPeople({ clientId, campaignId }) {
         <tbody>
           {rows.map((r) => (
             <tr key={r.id} style={{ borderTop: "1px solid rgba(58,123,213,0.08)" }}>
-              <td style={{ padding: "6px 8px", color: "#d0e8ff" }}>{r.owner || "—"}</td>
+              <td style={{ padding: "6px 8px", color: "#d0e8ff" }}><ContactLink id={r.contact_id} phone={r.phone}>{r.owner || "—"}</ContactLink></td>
               <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{r.phone}</td>
               <td style={{ padding: "6px 8px", color: REACTIVATION_STATUS_COLOR[r.status] || "#8aaad0", fontFamily: "'Share Tech Mono', monospace", fontSize: 9.5 }}>{r.status.replace("_", " ").toUpperCase()}</td>
               <td style={{ padding: "6px 8px", color: "#8aaad0" }}>{r.touches_sent}</td>
@@ -3200,7 +3205,7 @@ function DmThreads({ clientId }) {
           <div onClick={() => open(t.id)} style={{ cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 8 }}>
             <div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 12.5, color: "#d0e8ff" }}>
-                {t.sender_name || "Unknown"} <span style={{ fontSize: 10.5, color: "#5a7aa0", fontWeight: 400 }}>· {t.platform === "instagram" ? "Instagram" : "Facebook"}{t.phone ? ` · ${t.phone}` : ""}</span>
+                <ContactLink id={t.contact_id} phone={t.phone} clientId={t.client_id}>{t.sender_name || "Unknown"}</ContactLink> <span style={{ fontSize: 10.5, color: "#5a7aa0", fontWeight: 400 }}>· {t.platform === "instagram" ? "Instagram" : "Facebook"}{t.phone ? ` · ${t.phone}` : ""}</span>
               </div>
               <div style={{ fontSize: 11, color: "#8aaad0", marginTop: 2 }}>{(t.last_body || "").slice(0, 90)}</div>
             </div>
@@ -3463,7 +3468,7 @@ function VoiceAgent({ clientId, config, onSaveFields, kind = "ads" }) {
             <div key={c.id} style={{ padding: "7px 10px", borderRadius: 6, background: "rgba(255,255,255,0.02)", marginBottom: 4, cursor: c.transcript || c.summary ? "pointer" : "default" }} onClick={() => setOpenCall(openCall === c.id ? null : c.id)}>
               <div style={{ display: "flex", gap: 10, fontSize: 11.5, color: "#d0e8ff", flexWrap: "wrap" }}>
                 <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#5a7aa0" }}>{new Date(c.dialed_at || c.run_at).toLocaleString()}</span>
-                <span>{c.lead_name || c.phone}</span>
+                <span><ContactLink phone={c.phone} clientId={c.client_id}>{c.lead_name || c.phone}</ContactLink></span>
                 <span style={{ color: "#5a7aa0" }}>{c.source} · call {c.attempt}{c.double_dial ? " (redial)" : ""}</span>
                 <span style={{ color: VOICE_OUTCOME_COLOR[c.outcome] || "#8aaad0" }}>{c.outcome || c.status}</span>
                 {c.duration_ms ? <span style={{ color: "#5a7aa0" }}>{Math.round(c.duration_ms / 1000)}s</span> : null}
@@ -3967,7 +3972,14 @@ export default function ClientsPanel() {
           {editForm}
           <ClientPage client={open} cs={csMap[open.id]} onBack={() => setOpenId(null)}
             onEdit={(c) => { setEditing(c); setShowForm(false); }} onRegenerate={regenerate} onRevoke={revoke}
-            onDelete={remove} onLinkContact={linkContact} reloadCs={() => loadOneCs(open.id)} />
+            onDelete={remove} onLinkContact={linkContact} reloadCs={() => loadOneCs(open.id)}
+            onSetLive={async (id, live) => {
+              const r = await fetch(API(`/clients/${id}`), {
+                method: "PATCH", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: live ? "active" : "paused" }),
+              });
+              if (r.ok) { const row = await r.json(); setClients((cs) => cs.map((c) => (c.id === id ? { ...c, status: row.status } : c))); }
+            }} />
         </div>
       </div>
     );
@@ -3979,7 +3991,7 @@ export default function ClientsPanel() {
   const waiting = clients.reduce((n, c) => n + (csMap[c.id]?.open_questions || 0), 0);
   const q = query.trim().toLowerCase();
   const shown = clients
-    .filter((c) => (filter === "active" ? c.status === "active" && !c.is_test : true))
+    .filter((c) => (filter === "active" ? c.status === "active" && !c.is_test : filter === "offline" ? c.status !== "active" : true))
     .filter((c) => !q || [c.name, c.contact_name, c.linked_contact?.owner].some((v) => (v || "").toLowerCase().includes(q)));
 
   return (
@@ -4013,7 +4025,7 @@ export default function ClientsPanel() {
         {pageTab === "clients" && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 20 }}>
-              <Card pad={16}><Stat label="Active clients" value={active.filter((c) => !c.is_test).length} /></Card>
+              <Card pad={16}><Stat label="Live clients" value={active.filter((c) => !c.is_test).length} /></Card>
               <Card pad={16}><Stat label="Campaigns live" value={live} /></Card>
               <Card pad={16}><Stat label="At risk" value={atRisk} tone={atRisk ? "bad" : undefined} /></Card>
               <Card pad={16}><Stat label="Client questions waiting" value={waiting} tone={waiting ? "warn" : undefined} /></Card>
@@ -4034,7 +4046,7 @@ export default function ClientsPanel() {
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search clients…" aria-label="Search clients"
                 style={{ ...inputStyle, maxWidth: 320 }} />
               <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 10, background: "rgba(120,150,210,0.08)" }}>
-                {[["active", "Active"], ["all", "All"]].map(([id, label]) => (
+                {[["active", "Live"], ["offline", "Offline"], ["all", "All"]].map(([id, label]) => (
                   <button key={id} onClick={() => setFilter(id)} style={{ border: "none", cursor: "pointer", padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600,
                     background: filter === id ? "rgba(77,142,240,0.2)" : "transparent", color: filter === id ? T.text : T.textMute }}>{label}</button>
                 ))}

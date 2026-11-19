@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { API } from "../api.js";
+import ContactLink from "../ContactLink.jsx";
 
 // Clients → Details → Booking: DigiGrowth Booking (our own Calendly
 // replacement — backend/booking_engine.py + routers/booking.py).
@@ -777,7 +778,7 @@ function BookingsSection({ clientId }) {
         <div key={b.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "7px 0", borderTop: "1px solid rgba(58,123,213,0.08)", fontSize: 12 }}>
           <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: STATUS_COLORS[b.status] || "#8aaad0", width: 110 }}>{b.status.replace("_", " ").toUpperCase()}</span>
           <div style={{ flex: 1 }}>
-            <div style={{ color: "#d0e8ff" }}>{b.name} · {b.event_name}</div>
+            <div style={{ color: "#d0e8ff" }}><ContactLink phone={b.phone} email={b.email} clientId={b.client_id}>{b.name}</ContactLink> · {b.event_name}</div>
             <div style={note}>
               {new Date(b.start_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })} (your time) · {b.phone} · {b.email}
               {b.paid_at && ` · paid $${dollars(b.price_cents)}`}{b.refunded_at && " · refunded"}

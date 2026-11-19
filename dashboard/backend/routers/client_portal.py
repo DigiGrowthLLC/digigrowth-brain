@@ -18,6 +18,7 @@ purpose-built for the portal's basic infrastructure pass.
 import asyncio
 import json
 import os
+import re
 import uuid
 from datetime import datetime as _dt, timezone as _tz
 from typing import Optional
@@ -41,6 +42,7 @@ import client_dialer
 import client_sms
 import lead_flags
 import meta_ads
+import patient_intake
 import r2_storage
 from routers import appointments as appointments_router
 from routers import sms as sms_router
@@ -625,7 +627,7 @@ async def portal_reactivation_queue(token: str):
 
     client = await get_client_from_token(token)
     items = await cr.queue(client["id"])
-    keep = ("kind", "playbook", "name", "phone", "what", "campaign", "due", "when_label", "estimated", "paused")
+    keep = ("kind", "playbook", "contact_id", "name", "phone", "what", "campaign", "due", "when_label", "estimated", "paused")
     return {"paused": cr.REACTIVATION_PAUSED, "items": [{k: i.get(k) for k in keep} for i in items]}
 
 
@@ -1373,6 +1375,73 @@ async def portal_list_leads(token: str, tag: Optional[str] = None):
             *params,
         )
     return [dict(r) for r in rows]
+
+
+# Contact card from anywhere a lead's name shows up in the portal
+# (appointments, inbox, reports...): resolve by phone/email when there's no
+# contact id, then load the one lead. Same scoping as every lead route: this
+# client's own leads only, never the anchor. resolve is registered before
+# /leads/{contact_id} so it isn't read as an id.
+
+@router.get("/{token}/leads/resolve")
+async def portal_resolve_lead(token: str, phone: Optional[str] = None, email: Optional[str] = None):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = None
+        if phone and len(re.sub(r"\D", "", phone)) >= 10:
+            row = await conn.fetchrow(
+                r"""SELECT id FROM contacts WHERE client_id = $1 AND NOT is_client_anchor
+                    AND right(regexp_replace(phone, '\D', '', 'g'), 10) = right(regexp_replace($2, '\D', '', 'g'), 10)
+                    ORDER BY created_at DESC LIMIT 1""", client["id"], phone)
+        if not row and email:
+            row = await conn.fetchrow(
+                "SELECT id FROM contacts WHERE client_id = $1 AND NOT is_client_anchor AND lower(email) = lower($2) "
+                "ORDER BY created_at DESC LIMIT 1", client["id"], email.strip())
+    if not row:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return {"id": row["id"]}
+
+
+@router.get("/{token}/leads/{contact_id}")
+async def portal_get_lead(token: str, contact_id: str):
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor", contact_id, client["id"])
+    if not row:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return dict(row)
+
+
+async def _own_lead(token: str, contact_id: str) -> int:
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        ok = await conn.fetchval(
+            "SELECT 1 FROM contacts WHERE id = $1 AND client_id = $2 AND NOT is_client_anchor", contact_id, client["id"])
+    if not ok:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return client["id"]
+
+
+@router.get("/{token}/leads/{contact_id}/intake")
+async def portal_get_intake(token: str, contact_id: str):
+    await _own_lead(token, contact_id)
+    return await patient_intake.get(contact_id)
+
+
+@router.put("/{token}/leads/{contact_id}/intake")
+async def portal_save_intake(token: str, contact_id: str, body: dict):
+    client_id = await _own_lead(token, contact_id)
+    return await patient_intake.save_manual(contact_id, client_id, body or {})
+
+
+@router.post("/{token}/leads/{contact_id}/intake/refresh")
+async def portal_refresh_intake(token: str, contact_id: str):
+    await _own_lead(token, contact_id)
+    return await patient_intake.refresh(contact_id)
 
 
 # Tags that exist in the shared catalog purely for DigiGrowth's own

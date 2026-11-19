@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { T, Card, SectionTitle, Pill, Toggle, Stat, Progress, Empty, Loading, HealthBadge, fmtDate, inputStyle } from "../ui.jsx";
+import ContactLink from "../ContactLink.jsx";
 
 // One client's AI Client Success Manager (Clients -> client -> Agents).
 // Everything about how this client is being looked after in one place:
@@ -232,7 +233,7 @@ export default function ClientSuccessAgent({ clientId }) {
             <Row key={q.id} style={{ alignItems: "flex-start" }}>
               <Pill tone={q.rating === "good" ? "good" : "bad"}>{q.rating === "good" ? "Good fit" : "Not a fit"}</Pill>
               <div style={{ flex: 1, minWidth: 0, fontSize: 13 }}>
-                <div style={{ color: T.text }}>{q.prospect_name || "Patient"}</div>
+                <div style={{ color: T.text }}><ContactLink id={q.contact_id}>{q.prospect_name || "Patient"}</ContactLink></div>
                 {q.note && <div style={{ color: T.textDim }}>"{q.note}"</div>}
               </div>
               <span style={{ fontSize: 12, color: T.textMute }}>{fmtDate(q.created_at)}</span>

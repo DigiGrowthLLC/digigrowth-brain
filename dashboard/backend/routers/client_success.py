@@ -299,7 +299,7 @@ async def lead_quality(limit: int = 100, client_id: int | None = None):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """SELECT q.id, q.client_id, c.name AS client_name, q.rating, q.note, q.created_at,
-                      a.prospect_name, a.appointment_at
+                      a.prospect_name, a.appointment_at, a.contact_id
                FROM lead_quality_ratings q JOIN clients c ON c.id = q.client_id
                LEFT JOIN appointment_reminders a ON a.id = q.appointment_id
                WHERE ($2::int IS NULL OR q.client_id = $2)

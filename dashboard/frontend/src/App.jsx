@@ -13,6 +13,7 @@ import WebsitePanel  from "./panels/WebsitePanel.jsx";
 import ClientsPanel  from "./panels/ClientsPanel.jsx";
 import BookingPanel  from "./panels/BookingPanel.jsx";
 import IncomingCallWidget from "./IncomingCallWidget.jsx";
+import { ContactCardHost } from "./ContactLink.jsx";
 import CallScreen     from "./CallScreen.jsx";
 import useIncomingCall from "./useIncomingCall.js";
 import useSmsNotifications from "./useSmsNotifications.js";
@@ -393,6 +394,7 @@ export default function App() {
       />
 
       <SmsToasts toasts={smsToasts} onOpen={openSmsToast} onDismiss={dismissToast} />
+      <ContactCardHost />
     </div>
   );
 }

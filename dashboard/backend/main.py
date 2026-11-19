@@ -22,7 +22,7 @@ import client_resources_autofill
 import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
-from routers import reactivation, dm_agent, owner_mms, voice_agent
+from routers import reactivation, dm_agent, owner_mms, voice_agent, contact_cards
 from routers import crm, sms, sms_sequences, sms_setter, email_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin, ghl_webhooks, booking
 import booking_conversion
 import booking_engine
@@ -47,6 +47,7 @@ import send_info_queue
 import identity_warmup
 import meta_ads
 import ad_spend_caps
+import patient_intake
 import client_success
 import csm_extras
 from routers import client_success as client_success_router
@@ -642,6 +643,17 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
     )
+    # Patient intake on each client prospect's contact card: Claude re-reads
+    # forms, texts, DMs and call transcripts of anyone active in the last 2h
+    # (only when something changed). patient_intake.py.
+    scheduler.add_job(
+        patient_intake.run,
+        IntervalTrigger(minutes=10),
+        id="patient-intake",
+        replace_existing=True,
+        max_instances=1,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=120),
+    )
     # Pauses a client's Meta campaigns once they hit their ad spend cap
     # (signed marketing budget - $100). Paused, not Meta-spend-limited, so
     # Dylan can switch them back on if the client keeps going.
@@ -738,6 +750,7 @@ app.add_middleware(
 )
 
 app.include_router(crm.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(contact_cards.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(sms.webhook_router)         # public — Twilio SMS webhooks
 app.include_router(owner_mms.router, prefix="/api", dependencies=[Depends(require_auth)])

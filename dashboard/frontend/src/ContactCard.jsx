@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { API } from "./api.js";
 import BookingModal from "./BookingModal.jsx";
 import AppointmentsSection from "./AppointmentsSection.jsx";
+import PatientIntake from "./PatientIntake.jsx";
 
 const GRADES   = ["A", "B", "C", "D"];
 const STATUSES = ["new", "dialer-lead", "sms-handoff", "email-handoff", "appointment-booked", "not-interested", "send-info", "gatekeeper-deferral", "voicemail", "manual-followup"];
@@ -48,6 +49,13 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
   }, [contactId]);
 
   const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  // A client's own prospect (a patient lead), not one of Dylan's B2B
+  // prospects: no grade/opener/status/campaigns, shows patient intake.
+  const isPatient = !!(contact?.client_id && !contact?.is_client_anchor);
+  const formAnswers = (() => {
+    const raw = contact?.form_answers;
+    try { const v = typeof raw === "string" ? JSON.parse(raw) : raw; return Array.isArray(v) ? v : []; } catch { return []; }
+  })();
 
   const handleSave = async () => {
     if (!form || !contactId) return;
@@ -135,7 +143,7 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
                 {contact?.owner || contact?.business || phone}
               </div>
               <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.1em", marginTop: 3 }}>
-                {phone}{contact?.grade ? ` · GRADE ${contact.grade}` : ""}
+                {contact?.phone || phone}{contact?.grade && !isPatient ? ` · GRADE ${contact.grade}` : ""}{isPatient && contact?.client_name ? ` · ${contact.client_name.toUpperCase()} PROSPECT` : ""}
               </div>
             </div>
             {variant === "modal" && (
@@ -159,6 +167,43 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
               <span style={{ color: "#2a4070" }}>Create a contact from the CRM tab to link it.</span>
             </div>
           )
+        ) : isPatient ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "0 16px" }}>
+              <Field label="NAME" k="owner" />
+              <Field label="PHONE" k="phone" />
+              <Field label="EMAIL" k="email" />
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 4 }}>SOURCE</div>
+                <div style={{ fontSize: 12, color: "#d0e8ff", padding: "7px 0" }}>{(contact?.lead_source || "—").replace(/_/g, " ")}{contact?.lead_platform ? ` · ${contact.lead_platform}` : ""}</div>
+              </div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <PatientIntake base={API(`/contact-cards/${contactId}/intake`)} />
+            </div>
+            {formAnswers.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 6 }}>LEAD FORM ANSWERS</div>
+                <div className="glass-card-sm" style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {formAnswers.map((a, i) => (
+                    <div key={i}>
+                      <div style={{ fontSize: 11, color: "#6a8ab0" }}>{a.question}</div>
+                      <div style={{ fontSize: 12.5, color: "#f0f4ff", whiteSpace: "pre-wrap" }}>{a.answer}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <AppointmentsSection contactId={contactId} refreshSignal={apptRefresh} />
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 4 }}>NOTES</div>
+              <textarea className="dg-input"
+                style={{ width: "100%", fontSize: 12, resize: "vertical", minHeight: 72, boxSizing: "border-box" }}
+                value={form?.notes ?? ""}
+                onChange={e => set("notes", e.target.value)}
+              />
+            </div>
+          </>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "0 16px" }}>
@@ -228,11 +273,11 @@ export default function ContactCard({ contactId, phone, onClose, onSaved, varian
           {variant === "modal" && (
             <button onClick={onClose} className="btn btn-secondary" style={{ flex: 1, fontSize: 11 }}>Cancel</button>
           )}
-          <button onClick={() => setBookingOpen(true)} className="btn btn-ghost" style={{
+          {!isPatient && <button onClick={() => setBookingOpen(true)} className="btn btn-ghost" style={{
             flex: 1, fontSize: 11, borderColor: "rgba(20,200,130,0.35)", color: "#14c882",
           }}>
             📅 Book Appointment
-          </button>
+          </button>}
           <button onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ flex: 1, fontSize: 11 }}>
             {saving ? "Saving…" : "Save Changes"}
           </button>

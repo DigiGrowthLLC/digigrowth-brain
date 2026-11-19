@@ -2819,3 +2819,23 @@ async def _create_schema(pool: asyncpg.Pool):
             await conn.execute(f"ALTER TABLE {_table} ADD COLUMN IF NOT EXISTS services TEXT[]")
             for _title, _svcs in _titles.items():
                 await conn.execute(f"UPDATE {_table} SET services = $2 WHERE title = $1", _title, _svcs)
+
+        # Patient intake per client prospect (patient_intake.py, 2026-11-19):
+        # injury, how long, what they've tried... filled by Claude from the
+        # lead form, booking form, texts, DMs and AI call transcripts, editable
+        # by the clinic and Dylan on the contact card. fields = {key: {value,
+        # source, by: 'ai'|'manual', updated_at}}; manual fields are never
+        # overwritten. fingerprint = sha1 of the sources last read.
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS patient_intake (
+                contact_id   TEXT PRIMARY KEY REFERENCES contacts(id) ON DELETE CASCADE,
+                client_id    INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+                fields       JSONB NOT NULL DEFAULT '{}',
+                summary      TEXT,
+                fingerprint  TEXT,
+                extracted_at TIMESTAMPTZ,
+                error        TEXT,
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_patient_intake_client ON patient_intake(client_id);
+        """)

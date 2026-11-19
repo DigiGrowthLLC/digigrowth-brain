@@ -48,6 +48,11 @@ class CapError(Exception):
     """Shown to Dylan as-is (no token, no ad account, Meta's own error)."""
 
 
+class CantPauseError(CapError):
+    """Spend was read fine; only pausing isn't allowed. Has its own To-Do,
+    so it doesn't also raise the "can't be checked" one."""
+
+
 def _token() -> str:
     token = os.environ.get("META_SYSTEM_USER_TOKEN")
     if not token:
@@ -135,13 +140,34 @@ async def _text_dylan_once(conn, row, cap: float, body: str) -> None:
         await conn.execute("UPDATE ad_spend_caps SET texted_cap = NULL WHERE client_id = $1", row["client_id"])
 
 
-async def _todo_once(conn, text: str, description: str) -> None:
-    if await conn.fetchval("SELECT 1 FROM todos WHERE NOT done AND text = $1", text):
+def _cant_check_text(name: str) -> str:
+    return f"{name}: ad spend cap can't be checked"
+
+
+def _cant_pause_text(name: str) -> str:
+    return f"{name}: ad spend cap can't pause the ads"
+
+
+async def _todo_once(conn, text: str, description: str, *, while_unresolved: bool = False) -> None:
+    """One To-Do per text. With while_unresolved, a To-Do Dylan already
+    checked off also counts, so an ongoing problem doesn't re-add itself
+    every 30 minutes (it did, Dylan 2026-11-19). _rearm() clears those
+    checked-off copies once the problem is fixed, so a later recurrence
+    alerts again."""
+    sql = ("SELECT 1 FROM todos WHERE text = $1" if while_unresolved
+           else "SELECT 1 FROM todos WHERE NOT done AND text = $1")
+    if await conn.fetchval(sql, text):
         return
     await conn.execute(
         "INSERT INTO todos (text, description, due_date) VALUES ($1, $2, $3)",
         text, description, datetime.now(ZoneInfo("America/New_York")).date(),
     )
+
+
+async def _rearm(conn, *texts: str) -> None:
+    """The problem behind these To-Dos is fixed: forget the checked-off
+    copies so the next time it happens Dylan hears about it again."""
+    await conn.execute("DELETE FROM todos WHERE done AND text = ANY($1::text[])", list(texts))
 
 
 def _money(v: float, currency: str | None) -> str:
@@ -172,12 +198,13 @@ async def check_client(client_id: int) -> dict:
                 "UPDATE ad_spend_caps SET last_error = $2 WHERE client_id = $1", client_id, msg[:500],
             )
             last_ok = row["last_checked_at"]
-            if row["enabled"] and (last_ok is None or datetime.now(timezone.utc) - last_ok > _ERROR_TODO_AFTER):
+            if row["enabled"] and not isinstance(e, CantPauseError) and (last_ok is None or datetime.now(timezone.utc) - last_ok > _ERROR_TODO_AFTER):
                 await _todo_once(
                     conn,
-                    f"{row['client_name']}: ad spend cap can't be checked",
+                    _cant_check_text(row["client_name"]),
                     f"The automatic ad budget check for {row['client_name']} has been failing, so their "
                     f"campaigns will NOT be paused at the cap until it's fixed. Error: {msg[:300]}",
+                    while_unresolved=True,
                 )
         raise CapError(msg) from e
 
@@ -265,17 +292,24 @@ async def _check_row(row) -> dict:
     if newly_reached:
         import client_success
         await client_success.on_budget_spent(row["client_id"], spend, cap)
+    async with pool.acquire() as conn:
+        if can_pause:
+            await _rearm(conn, _cant_check_text(row["client_name"]), _cant_pause_text(row["client_name"]))
+        else:
+            # Spend was read, so the check itself works; only pausing doesn't.
+            await _rearm(conn, _cant_check_text(row["client_name"]))
     if row["enabled"] and not can_pause:
         async with pool.acquire() as conn:
             await _todo_once(
                 conn,
-                f"{row['client_name']}: ad spend cap can't pause the ads",
+                _cant_pause_text(row["client_name"]),
                 f"DigiGrowth's system user can read {row['client_name']}'s ad spend but has no role on their ad account, "
                 f"so the campaigns will NOT pause at {_money(cap, currency)}. Fix: DigiGrowth Business Settings → Users → "
                 f"System users → DigiGrowth OS Integration → Assign assets → Ad accounts → act_{account} → Manage "
                 f"campaigns. Spent so far: {_money(spend, currency)}.",
+                while_unresolved=True,
             )
-        raise CapError("Can read spend but can't pause: assign the ad account to DigiGrowth's system user with "
+        raise CantPauseError("Can read spend but can't pause: assign the ad account to DigiGrowth's system user with "
                        "Manage campaigns (Business Settings → System users → Assign assets).")
     return {"spend": spend, "cap": cap, "currency": currency, "paused": paused_now}
 

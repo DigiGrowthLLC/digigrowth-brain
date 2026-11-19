@@ -188,7 +188,10 @@ async def list_contacts(
 async def get_contact(contact_id: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM contacts WHERE id = $1", contact_id)
+        # client_name: shown on a client prospect's contact card (ContactCard.jsx).
+        row = await conn.fetchrow(
+            "SELECT c.*, cl.name AS client_name FROM contacts c LEFT JOIN clients cl ON cl.id = c.client_id WHERE c.id = $1",
+            contact_id)
     if not row:
         raise HTTPException(status_code=404, detail="Contact not found")
     return dict(row)

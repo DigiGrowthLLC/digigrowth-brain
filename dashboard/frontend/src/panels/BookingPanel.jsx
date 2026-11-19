@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { API } from "../api.js";
+import ContactLink from "../ContactLink.jsx";
 import ClientBookingSetup from "./ClientBookingSetup.jsx";
 
 // OS nav → Booking Links: DigiGrowth Booking (our own Calendly replacement,
@@ -116,23 +117,7 @@ export default function BookingPanel() {
                       <button onClick={() => copy(c.public_url)} style={{ background: "none", border: "none", color: "#5a7aa0", cursor: "pointer", fontSize: 11, marginLeft: 6 }}>{copied === c.public_url ? "copied" : "copy"}</button>
                     </>
                   ) : "No booking link yet"}
-                  {c.missing.length > 0 && (
-                    <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap", marginLeft: 8, verticalAlign: "middle" }}>
-                      {c.missing.map((m) => (
-                        <span key={m} style={{ fontSize: 10.5, padding: "1px 8px", borderRadius: 999, color: "#f0c078",
-                          border: "1px solid rgba(240,160,40,0.35)", background: "rgba(240,160,40,0.08)" }}>needs {m}</span>
-                      ))}
-                    </span>
-                  )}
                 </div>
-              </div>
-              <div style={{ ...note, width: 170 }}>
-                {c.upcoming} upcoming · {c.booked_30d} in 30d
-                {c.funnel && c.funnel.view > 0 && (
-                  <div title="Booking page visits in the last 30 days, and the share that booked">
-                    {c.funnel.view} visits · <b style={{ color: "#14c882" }}>{Math.round(((c.funnel.booked || 0) / c.funnel.view) * 100)}% booked</b>
-                  </div>
-                )}
               </div>
               <Pill color={color}>{label}</Pill>
               <button className={c.booking_slug ? "btn btn-secondary" : "btn btn-primary"} onClick={() => setSelected(c)}>
@@ -150,7 +135,7 @@ export default function BookingPanel() {
         {(data?.upcoming || []).map((b) => (
           <div key={b.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "7px 0", borderTop: "1px solid rgba(58,123,213,0.08)", fontSize: 12, flexWrap: "wrap" }}>
             <div style={{ ...mono, color: "#9cc4f5", width: 170 }}>{new Date(b.start_at).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
-            <div style={{ flex: 1, color: "#d0e8ff", minWidth: 180 }}>{b.name} <span style={note}>· {b.event_name} · {b.client_name}{b.paid_at ? ` · paid $${(b.price_cents / 100).toFixed(0)}` : ""}</span></div>
+            <div style={{ flex: 1, color: "#d0e8ff", minWidth: 180 }}><ContactLink phone={b.phone} clientId={b.client_id}>{b.name}</ContactLink> <span style={note}>· {b.event_name} · {b.client_name}{b.paid_at ? ` · paid $${(b.price_cents / 100).toFixed(0)}` : ""}</span></div>
             <a href={b.manage_url} target="_blank" rel="noreferrer" style={{ color: "#6ab0ff", fontSize: 11 }}>Patient page</a>
           </div>
         ))}

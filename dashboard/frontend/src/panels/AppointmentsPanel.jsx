@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API } from "../api.js";
+import ContactLink from "../ContactLink.jsx";
 import AppointmentOutcomeCard from "../AppointmentOutcomeCard.jsx";
 
 function fmtLocal(iso, tz) {
@@ -104,7 +105,7 @@ function ClientCallTable({ rows, loading, onCancel }) {
           )}
           {rows.map(row => (
             <tr key={row.id} style={{ borderBottom: "1px solid #131f38" }}>
-              <td style={{ ...tdStyle, color: "#f0f4ff" }}>{row.prospect_name || row.owner || "—"}</td>
+              <td style={{ ...tdStyle, color: "#f0f4ff" }}><ContactLink id={row.contact_id} phone={row.prospect_phone}>{row.prospect_name || row.owner || "—"}</ContactLink></td>
               <td style={tdStyle}>{row.business || "—"}</td>
               <td style={tdStyle}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</td>
               <td style={{ padding: "10px 14px" }}><CancelCell row={row} onCancel={onCancel} /></td>
@@ -220,7 +221,7 @@ export default function AppointmentsPanel() {
             )}
             {displayRows.map(row => (
               <tr key={row.id} style={{ borderBottom: "1px solid #131f38" }}>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{row.prospect_name || row.owner || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}><ContactLink id={row.contact_id} phone={row.prospect_phone}>{row.prospect_name || row.owner || "—"}</ContactLink></td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.business || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{fmtLocal(row.appointment_at, row.prospect_timezone)}</td>
                 <td style={{ padding: "10px 14px" }}><Check sentAt={row.reminder_24h_sent_at} /></td>

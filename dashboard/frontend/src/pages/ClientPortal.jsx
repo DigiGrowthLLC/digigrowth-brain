@@ -10,6 +10,7 @@ import {
 import { SECTIONS as ALL_SECTIONS } from "../onboardingSections.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
 import AppointmentOutcomeCard from "../AppointmentOutcomeCard.jsx";
+import PatientIntake from "../PatientIntake.jsx";
 
 // Shared "All Time / Month / Week / Today" bucket vocabulary — matches
 // dashboard/backend/routers/client_portal.py's _PERIOD_INTERVAL exactly
@@ -885,7 +886,7 @@ function AddToClientSequenceModal({ token, sequence, activeIds, onClose, onAdded
             <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
                                       background: "#060a14", border: "0.5px solid #121e36", borderRadius: 6 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, color: "#f0f4ff", fontWeight: 600 }}>{a.prospect_name || a.owner || a.business || a.phone || "—"}</div>
+                <div style={{ fontSize: 12, color: "#f0f4ff", fontWeight: 600 }}><LeadName id={a.contact_id} phone={a.prospect_phone || a.phone}>{a.prospect_name || a.owner || a.business || a.phone || "—"}</LeadName></div>
                 <div style={{ fontSize: 11, color: "#7a94b8" }}>{sequence === "followup" ? a.phone : fmtSeqDate(a.appointment_at)}</div>
               </div>
               <button
@@ -988,7 +989,7 @@ function ClientSequenceQueueModal({ token, sequence, onClose }) {
               <tbody>
                 {rows.map(r => (
                   <tr key={r.id} style={{ borderBottom: "0.5px solid #121e36" }}>
-                    <td style={{ padding: "8px 10px", fontSize: 12, color: "#f0f4ff" }}>{r.prospect_name || r.owner || "—"}</td>
+                    <td style={{ padding: "8px 10px", fontSize: 12, color: "#f0f4ff" }}><LeadName id={r.contact_id} phone={r.prospect_phone || r.phone}>{r.prospect_name || r.owner || "—"}</LeadName></td>
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{r.step_label}</td>
                     <td style={{ padding: "8px 10px", fontSize: 11, color: "#7a94b8" }}>{fmtSeqDate(r.next_touch_due_at)}</td>
                     <td style={{ padding: "8px 10px", textAlign: "right" }}>
@@ -1134,7 +1135,7 @@ function ReactivationQueueModal({ token, playbook, title, onClose }) {
                 {items.map((it, i) => (
                   <tr key={i} style={{ borderTop: "1px solid rgba(58,123,213,0.08)" }}>
                     <td style={{ padding: "7px 8px", color: "#e8f0ff", whiteSpace: "nowrap" }}>{it.due ? fmt(it.due, it.estimated) : it.when_label}</td>
-                    <td style={{ padding: "7px 8px", color: "#e8f0ff" }}>{it.name || "—"}</td>
+                    <td style={{ padding: "7px 8px", color: "#e8f0ff" }}><LeadName id={it.contact_id} phone={it.phone}>{it.name || "—"}</LeadName></td>
                     <td style={{ padding: "7px 8px", color: "#8aaad0", whiteSpace: "nowrap" }}>{it.phone}</td>
                     <td style={{ padding: "7px 8px", color: "#8aaad0" }}>{it.what}</td>
                   </tr>
@@ -1524,7 +1525,7 @@ function UpcomingAppointmentsWidget({ token }) {
             <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.08em", marginBottom: 2 }}>
               {fmtLocal(r.appointment_at, r.prospect_timezone)}
             </div>
-            <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}>{r.prospect_name || r.owner || "—"}</div>
+            <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.4 }}><LeadName id={r.contact_id} phone={r.prospect_phone}>{r.prospect_name || r.owner || "—"}</LeadName></div>
           </div>
         ))}
       </div>
@@ -1559,7 +1560,7 @@ function RecentLeadsWidget({ token }) {
             padding: "8px 12px", borderRadius: 10, background: "rgba(255,255,255,0.02)",
           }}>
             <div>
-              <div style={{ fontSize: 13, color: "#c4d0e8", fontWeight: 600 }}>{leadName(l) || "—"}</div>
+              <div style={{ fontSize: 13, color: "#c4d0e8", fontWeight: 600 }}><LeadName id={l.id}>{leadName(l) || "—"}</LeadName></div>
               <div style={{ fontSize: 10, color: "#5a7096", marginTop: 2 }}>{l.phone}</div>
             </div>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#14c882", flexShrink: 0 }} />
@@ -2126,7 +2127,7 @@ function AppointmentsTab({ token }) {
             )}
             {displayRows.map((row) => (
               <tr key={row.id} style={{ borderBottom: "1px solid rgba(58,123,213,0.08)" }}>
-                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}>{row.prospect_name || row.owner || "—"}</td>
+                <td style={{ padding: "10px 14px", fontSize: 12, color: "#f0f4ff" }}><LeadName id={row.contact_id} phone={row.prospect_phone}>{row.prospect_name || row.owner || "—"}</LeadName></td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.prospect_phone || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.prospect_email || "—"}</td>
                 <td style={{ padding: "10px 14px", fontSize: 12, color: "#8a9cc0" }}>{row.notes || "—"}</td>
@@ -2272,6 +2273,64 @@ function parseFormAnswers(raw) {
   } catch {
     return [];
   }
+}
+
+// Any lead's name anywhere in the portal opens their contact card (Dylan,
+// 2026-11-19). <LeadName id|phone|email> renders the clickable name; the
+// card itself is mounted once at the portal root (GlobalLeadCard).
+const LeadCardContext = React.createContext(null);
+
+function LeadName({ id, phone, email, children, style }) {
+  const open = React.useContext(LeadCardContext);
+  if (!open || (!id && !phone && !email)) return <>{children}</>;
+  return (
+    <span role="button" tabIndex={0} className="pt-lead-link" title="Open contact card"
+      onClick={(e) => { e.stopPropagation(); open({ id, phone, email }); }}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); open({ id, phone, email }); } }}
+      style={{ cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(106,176,255,0.35)", textUnderlineOffset: 3, ...style }}>
+      {children}
+    </span>
+  );
+}
+
+function GlobalLeadCard({ token, target, calendlyUrl, onClose, onMessage }) {
+  const [lead, setLead] = useState(null);
+  const [tags, setTags] = useState([]);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        let id = target.id;
+        if (!id) {
+          const q = new URLSearchParams();
+          if (target.phone) q.set("phone", target.phone);
+          if (target.email) q.set("email", target.email);
+          const r = await fetch(`/portal-api/${token}/leads/resolve?${q}`);
+          if (!r.ok) throw new Error("This person isn't in your leads yet.");
+          id = (await r.json()).id;
+        }
+        const [lr, tr] = await Promise.all([fetch(`/portal-api/${token}/leads/${id}`), fetch(`/portal-api/${token}/tags`)]);
+        if (!lr.ok) throw new Error("This person isn't in your leads yet.");
+        const l = await lr.json();
+        if (!cancelled) { setLead(l); setTags(tr.ok ? await tr.json() : []); }
+      } catch (e) { if (!cancelled) setErr(e.message); }
+    })();
+    return () => { cancelled = true; };
+  }, [token, target]);
+
+  if (err || !lead) {
+    return (
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,12,20,0.6)", display: "grid", placeItems: "center" }}>
+        <div className="glass-card" style={{ padding: "16px 20px", fontSize: 13, color: err ? "#f0c078" : "#8aaad0" }}>{err || "Opening contact card…"}</div>
+      </div>
+    );
+  }
+  return (
+    <LeadDrawer token={token} lead={lead} allTags={tags} calendlyUrl={calendlyUrl}
+      onClose={onClose} onUpdated={setLead} onDeleted={onClose}
+      onMessage={() => { onMessage(lead.id); onClose(); }} />
+  );
 }
 
 function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onDeleted, onMessage }) {
@@ -2473,6 +2532,8 @@ function LeadDrawer({ token, lead, allTags, calendlyUrl, onClose, onUpdated, onD
               </div>
             ))}
           </div>
+
+          <PatientIntake base={`/portal-api/${token}/leads/${lead.id}/intake`} />
 
           {/* What they told us on the Meta lead form — read-only. */}
           {formAnswers.length > 0 && (
@@ -3262,7 +3323,7 @@ function InboxThread({ token, contactId, onSent, onBack }) {
           <button onClick={onBack} className="btn btn-secondary" style={{ fontSize: 10, marginBottom: 8 }}>← ALL CONVERSATIONS</button>
         )}
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14, color: "#d0e8ff" }}>
-          {contact.owner || contact.business || "—"}
+          <LeadName id={contact.id}>{contact.owner || contact.business || "—"}</LeadName>
         </div>
         <div style={{ fontSize: 11, color: "#5a7096", marginTop: 2 }}>
           {contact.phone || "No phone number on file"}
@@ -3840,6 +3901,8 @@ export default function ClientPortal() {
   // jump to the Inbox tab with that lead's thread already open. Lives here
   // since Leads and Inbox are sibling tabs.
   const [inboxTargetContactId, setInboxTargetContactId] = useState(null);
+  // Contact card opened from a lead's name anywhere in the portal (LeadName).
+  const [leadTarget, setLeadTarget] = useState(null);
 
   const setTab = (id) => {
     setTabRaw(id);
@@ -3888,6 +3951,7 @@ export default function ClientPortal() {
   }
 
   return (
+    <LeadCardContext.Provider value={setLeadTarget}>
     <div className="dg-portal" style={{
       minHeight: "100vh",
       background: "#090f26",
@@ -3945,6 +4009,15 @@ export default function ClientPortal() {
                 <div className="pt-title-bar" />
               </header>
             )}
+            {tab === "dashboard" && client && client.status !== "active" && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10, marginBottom: 18, padding: "12px 18px", borderRadius: 14, fontSize: 14,
+                border: "1px solid rgba(138,170,208,0.3)", background: "rgba(138,170,208,0.07)", color: "#a9bad8",
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#5a6f8f", flexShrink: 0 }} />
+                <span><b style={{ color: "#d0e8ff" }}>Campaigns offline.</b> Your campaigns aren't running right now. Your leads, appointments and results are all still here.</span>
+              </div>
+            )}
             {tab === "dashboard" && openAsks > 0 && (
               <button onClick={() => setTab("onboarding")} style={{
                 width: "100%", display: "flex", alignItems: "center", gap: 12, marginBottom: 18, padding: "14px 18px",
@@ -3988,6 +4061,12 @@ export default function ClientPortal() {
           </main>
         </div>
       </div>
+      {leadTarget && (
+        <GlobalLeadCard token={token} target={leadTarget} calendlyUrl={client?.calendly_url}
+          onClose={() => setLeadTarget(null)}
+          onMessage={(contactId) => { setInboxTargetContactId(contactId); setTab("inbox"); }} />
+      )}
     </div>
+    </LeadCardContext.Provider>
   );
 }
