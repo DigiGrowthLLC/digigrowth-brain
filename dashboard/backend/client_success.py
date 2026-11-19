@@ -370,7 +370,7 @@ async def gather(client_id: int, kind: str) -> dict:
 
 _SCHEMA_HINT = """Return ONLY a JSON object, no prose around it:
 {
-  "headline": "one sentence, the single most important takeaway",
+  "headline": "the single most important takeaway in 10 words or fewer, one short clause, no client name (e.g. '11 consultations booked, beating the goal of 10.')",
   "summary": "2-4 sentences, plain English",
   "on_target": ["short bullet", ...],          // 1-4 things going well, with the number
   "off_target": ["short bullet", ...],         // 0-4 things behind target, with the number and why it matters
