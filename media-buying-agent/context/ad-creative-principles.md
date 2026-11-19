@@ -228,6 +228,19 @@ objection** (cost, for a cash-pay practice), and **economics** (avg. patient val
 These are load-bearing for ad copy, not optional color — always pull the full client record's
 `onboarding` section before writing copy, not just the deployed page and uploads list.
 
+## Lesson: for failed-care PT patients, "it keeps coming back" beats "pain" (2026-10-23)
+
+From the Advantage Therapy deep research (203 quotes across YouTube, Mayo Clinic Connect and the
+client's own reviews): people who have already tried chiro, PT, shots and pills rarely complain
+about the pain first. They complain that relief **fades and the pain comes back** ("it's helped but
+still comes back", "walk good for awhile then start giving back the gains"), that **nobody found the
+cause** ("they never pinpointed the cause"), and about **sleep**. Hooks built on the relapse cycle and
+the unconnected symptoms are more specific than "chronic pain lasting months or years?", which every
+clinic runs. Also: neck-origin headaches are an **unaware** segment (people call them migraines), so
+they need a mechanism-reveal hook, not a callout. Research access note: Reddit (login wall, PullPush
+refuses agents), Yelp and Amazon block automated reads; Mayo Clinic Connect works in the playwright
+browser and skews 55+, which matches cash-pay PT's best responders.
+
 ---
 
 ## Source: Alex Hormozi Landing Page Value Equation Breakdown (2026-09-13)
@@ -1187,13 +1200,164 @@ underperform"), and flags that AI statics often have "too much going on."
   7. Text-only: a founder letter from the PT ("Why I left the big clinic to open my own").
 - **Lo-fi:** a phone-photo look of a real session or the clinic. Pairs with the in-house pillar.
 - **Tactics in PT terms:**
-  - Numbers describe the *service* ("60 minutes, one-on-one", "in-home"), never outcome promises.
+  - Numbers describe the *service* ("one-on-one", "in-home"), never outcome promises. Never state the paid assessment's length ("30 min", "60-minute") in marketing: it's "a $49 assessment", not "a 30-minute $49 assessment" (Dylan, 2026-11-16). Answer it only if a patient directly asks.
   - Primal desires: independence, keeping up with the kids, safety, not being "the injured one."
   - Negative marketing names the fear (surgery, being told to stop running) without asserting the
     viewer's condition.
   - **Golden nuggets:** run the client's Google reviews through the LLM, first names only.
 
 ---
+
+## Source: Meta Ad Library Field Scan — PT / Chiro / Pain, failed-care + neck + sciatica (2026-10-23)
+
+Vertical-specific (US PT, chiropractic, spine, plus pain DTC), not universal. Run for Advantage
+Therapy (Las Vegas, cash-pay manual PT). 10 keyword searches in the browser Ad Library, active, US,
+sorted by impressions; 205 ads active and 6+ months old; 27 logged as P1-P27 in
+`context/proven-ads/pt-chiro-pain.md`.
+
+- **Dominant template (still):** city callout + condition checklist + low-price exam voucher
+  ("Hey <City>! We're having FANTASTIC results helping people with... ✔️ Back Pain ✔️ Sciatica ...
+  $47"). Run near-verbatim by 5+ unrelated chiros; "giving away 30 vouchers" by another 8+. It lasts
+  (one ran 7 years) but it's price-led, so it's structure-only for a free-consult client.
+- **Rising sub-pattern that fits failed-care patients: the relapse hook.** Several unrelated PT/spine
+  ads open on the "it keeps coming back" cycle and the list of things already tried: "Massage. PT.
+  Stretching. A better pillow. Maybe even another chiropractor." (P1), "You stretch, ice, and do your
+  'PT homework' — still, the pain keeps coming back. It's like a yo-yo" (P2), "If your BACK PAIN keeps
+  Coming Back no matter what you try... you're probably TREATING THE WRONG PROBLEM" (P3). This matches
+  the deep-research language for failed-care patients almost word for word.
+- **Founder-origin stories run long** (P10 4+ years, P11, P12): open on one vivid scene ("At 16 years
+  old, I sat alone in a locker room..."), then the run-around, then why I do this.
+- **Testimonial-as-hook** scales in DTC (P9: 10 variants of one customer quote) and in clinics (P19:
+  the ad opens on a named patient quote about the doctor).
+- **Free consult offers exist but are rarer** than price vouchers: owner-signed, one condition, capped
+  per month ("opening-up 10 appointments this month for a FREE ... Consultation", P26); "First visit
+  is FREE" (P2); "Private 1-on-1 Consultation with the Doctor" checklist (P18).
+- **Applicability note:** most proven clinic ads show a price and attack "most PT clinics" or
+  chiropractors. For a client whose voice rules forbid knocking other providers or showing prices,
+  borrow the relapse structure and the tried-before list, phrase the contrast as the patient's own
+  experience (a quote), and never put the price in the ad.
+- Published benchmarks (vendor blogs, directional only): healthcare specialty CPL ~$45-75; creative mix
+  skewing to video; 2-3 weeks before CPL stabilizes. No PT-specific hook data found.
+
+---
+
+## Source: Meta Ad Library Field Scan — PT / sports / runners + "treat where it hurts" mechanism ads (2026-11-09)
+
+Vertical-specific (PT for active adults and chronic pain), run for Boulder Body Solutions. Proven ads P38-P46 in `context/proven-ads/pt-chiro-pain.md`; the 10/23 set was re-verified (34 of 37 still active).
+
+- **Dominant sport-clinic template (P39, P40, P41, P42; 4 unrelated clinics, 7-13 months):** geo + sport callout ("Nashville Area Runners!") → identity-loss question ("Not able to run like you used to?") → doctor intro by name and credential → low-priced first assessment ($67-97) with its contents itemized and an anchor price ($199-279) → symptom checklist → 2-3 reviews → voucher/Instant Form. The same "Hey <town>!" offer template as the general PT/chiro scan, specialized by sport.
+- **Hyper-specific sport moments beat body-part labels** (P42 "sharp pain in the front of your knee when running down hills / after your first couple of miles"). The callout is a moment the reader recognizes, not a diagnosis.
+- **"You treat where it hurts, the problem started somewhere else" runs for months in DTC** (P43, P44 Xstance, 8-12.5 months; P46 ReliveX "a deep muscle that stays offline... nothing changes for long"). Arrow-chain text (A → B → C → D) plus a testimonial listing PT + chiro + doctor + dollars spent. This is the strongest proven vehicle for any "compensation" mechanism (MAT, kinetic-chain PT). Clinics barely use it yet, so it's a gap.
+- **Long single-patient story ads last for years** (P38 RunLab, 52 months): tried X-ray, MRI, injection, another PT → "the difference here was the test" → "planning races again".
+- **First-session guarantee appears in sport PT** (P42: "If you don't feel an improvement ... in your first session ... your eval is free"). Worth testing in build-offer where the clinician's reviews already show first-visit change.
+- **Gaps:** no proven (6+ month) ads for MAT, climbing or ski-specific PT in the US Ad Library. The ski/climb angle is untested in paid, so treat it as a test, not a copy.
+- **Tone note:** the sport template leans on emoji, "only N left" counters and "root cause / back to 100%". Keep the structure, drop those (our no-emoji rule; scarcity only when real).
+- Cross-check (WebSearch, vendor blogs only, unverified): UGC-style/founder video is the 2026 default; test hooks first; question hooks naming a specific situation are standard. No PT- or runner-specific 2026 benchmarks were found.
+
+---
+
+## Source: "You Found a Winning Ad, Now What? How to Escape the Creative Rat Race" — Mark (Brand Builders Academy) (2026-11-17)
+
+A DTC brand owner/mentor (his own creatives have spent seven figures) on **what to do after an ad
+wins**. Transcript: `content-agent/outputs/transcript-YTDown.com_YouTube_Media_BMtXze0kUaI_...-2026-11-17.txt`.
+Lands in `generate-ad` (the "double down on the winner" step, iteration mode, After Generating) and
+in each client's `client-context.md`. Skipped: the "DM me 'extract'" skill giveaway and the
+mentorship pitch.
+
+### The creative rat race (what not to do)
+
+- The usual move after a winner: pile on **micro variations** (new hooks, new scroll stoppers,
+  near-copies of the winner). None of them out-scale the original, they burn the profit the winner
+  was making, the winner fatigues, and you're back at zero hunting for the next one. Repeat.
+- **The worse damage is the wrong diagnosis.** When it stalls, people blame the product, the market,
+  the niche, or the landing page ("my lander conversion rate dropped, it must be the lander"). His
+  view: that's Meta "gaslighting" you. Most of the time it was the creative the whole time. Rule
+  out the creative before blaming the offer, the funnel or the booking page.
+- Corroborates the ratio flip and "quantum leaps" (Post-Andromeda Q&A) and the AdsMastery 2027
+  "unique formats per angle, not variants of one winner" rule. This source adds the *how*: extract
+  what made the winner win, then build new concepts on it.
+
+### The creative tier list: "winner" is not one thing
+
+- Every tested creative lands somewhere on a spectrum from F (never profitable) up to S tier (can
+  spend huge sums and stay profitable). "Profitable" is the business's own bar (profit, break-even
+  for LTV, a target cost per result).
+- **Each creative has a spend cap.** A creative that's profitable to $5k won't become a $20k
+  creative by forcing budget into it. Lots of money is lost pushing a capped ad past its ceiling.
+  When an ad plateaus, find a higher-tier creative instead of forcing more spend through it.
+- For us: judge a client ad's tier by cost per booked consult/assessment as its budget share grows,
+  not by whether it "won" once at $5/day.
+
+### Winning variable extraction (the core method)
+
+- **A "variable" is any single element of a creative that can be tested on its own.** The named
+  ones: awareness level, stage of sophistication, mechanism, authority figure, format, style. He goes
+  much deeper: the scroll-stopper clip type, the video's production quality, how shocking the visual
+  is, the hook's wording, the on-screen text, the hook's structure, the speaker's age / gender /
+  ethnicity, wardrobe, the foreground and background (desk, shirt color), the camera angle, short
+  punchy sentences vs. long emotional ones.
+- **Your job once an ad wins is to list its variables, not to spin micro variations.** His live
+  breakdown of a pet-calming ad, all in the first ~4 seconds:
+  1. **Clip type**: shocking home-security-camera footage as the scroll stopper (known to work in
+     the pet and home-security markets).
+  2. **Production quality**: low-res, native-looking footage. He *deliberately lowers the resolution*
+     of some ads so they read as native, and suspects Meta quietly penalizes very polished ads.
+  3. **Shock level** of the visual (the dog destroying its crate).
+  4. **Hook copy**: "I came home and his crate was destroyed."
+  5. **On-screen text** as its own variable.
+  6. **Hook structure**: an astonishing statement, then an open loop ("Then I checked the camera
+     and saw this").
+  7. **The cut to an authority figure**: from raw camera footage to a well-lit podcast-style expert
+     ("...something most vets will never explain"), with every attribute of that person (age,
+     gender, ethnicity, shirt, desk, background) a variable too.
+- **Then stack them.** S-tier creatives are "not found, they're created": built by accumulating
+  confirmed winning variables from many tests and stacking them into one new concept. Swipes
+  (one-to-one copies of other brands' ads) rarely beat his controls. At best they're another data
+  point.
+
+### Creative testing = the scientific method
+
+1. **Observe** your account's existing results (or, with no data yet, start from a swipe or your
+   research).
+2. **Hypothesize, one variable at a time.** Example: a concept had a very high hook rate but poor
+   conversion → the hook's variable stops the scroll but doesn't convert → keep that hook, test it
+   with a new body. Change one variable, keep the rest, so the result means something.
+3. **Make the creative and run it**, let it spend.
+4. **Read the result** and log the conclusion, win or lose.
+- "You're not spending money on ads, you're **buying data**." A test you learn nothing from is
+  burned money. Every new concept test should carry a written hypothesis.
+- Hook rate = the first **3 seconds** (3-second views / impressions). His DTC target is **over
+  50%**.
+- Most testing should be deliberate and hypothesis-led. An occasional wild card that works for
+  unknown reasons is fine.
+- Keep a **library of winning (and losing) variables** and carry the winners into every new concept.
+
+### How this fits our rules
+
+- **Where the library lives:** per client, in `clients/<slug>/client-context.md` under
+  "## Winning variables" (client-specific results go in the client folder, never the shared
+  skills). Each row: the variable, the ad it came from, the evidence (spend, hook rate, CTR, cost
+  per lead, cost per booking), and status (confirmed / promising / lost). A variable that wins for
+  two or more clients can be promoted to a general note in this file.
+- **Proven-ads modeling stays the starting point, not the end point.** "Model on proven ads"
+  (`generate-ad` step 2) is how a client with no data starts, which is exactly his "start with a
+  swipe or your research." Once the client's own account has results, **their own winning
+  variables outrank competitor swipes** when building new concepts.
+- **Budget reality:** his numbers come from DTC accounts spending far more than our ~$25/day
+  clients, so single-variable tests take longer to read. Don't run clean one-variable A/B tests per
+  client. Instead, **every new concept carries a hypothesis line** ("keeps the winning hook
+  structure from X, tests a new speaker age"), so each round of ~10 ads still teaches something.
+  Judge after the minimum-spend threshold, never off one day.
+- **Hook-rate benchmark:** his >50% is a DTC target. Keep our existing read for local PT (25-40%
+  strong, under 20% = hook problem) and treat 50%+ as exceptional.
+- **Lo-fi corroborated:** his deliberate low-resolution uploads match the "lo-fi production level"
+  from the static masterclass. A lo-fi/native look is a variable worth testing, not a flaw to fix.
+- **Authority figure, PT version:** the "cut from raw footage to an expert" pattern = a real
+  situation clip (AI POV scene or relatable AI actor) cutting to the client's own practitioner
+  explaining the mechanism. The practitioner is the authority figure. An AI actor is never
+  presented as a clinician (the existing "who can say what" rule).
+- **Varying the actor's age, gender and ethnicity** is a legitimate variable to test in the AI UGC
+  pillar (it also reaches different avatars, per the AdsMastery section).
 
 ## Working Checklist (apply to every generated ad)
 
@@ -1258,3 +1422,8 @@ underperform"), and flags that AI statics often have "too much going on."
 - [ ] Static: is its format named (infographic, headliner, callouts, comparison, transformation,
       grid, text-only) and its production level (graphic, hi-fi, lo-fi), and do the statics in a
       batch use different formats?
+- [ ] Does the concept carry a one-line hypothesis (which variable it tests, which winning
+      variables it keeps)? If the client has a "## Winning variables" list, does the concept build
+      on its confirmed winners instead of starting from scratch?
+- [ ] After a winner: is the next batch built by extracting and stacking its winning variables
+      into new concepts, not micro variations (new hook, new thumbnail) of the same ad?

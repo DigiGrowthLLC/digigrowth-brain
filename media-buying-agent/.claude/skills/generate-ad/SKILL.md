@@ -46,9 +46,14 @@ Ask if not already given:
    - **Default / most requests**: Dylan wants fresh creative to test → produce **new concepts**
      (each one a different format and/or different archetype/angle, not just a copy tweak). If asked
      for "a batch" or "some ads," default to 3-5 distinct new concepts rather than variations of one.
-   - **Only when Dylan says a specific concept already won/is working**: produce **iterations** of
-     that one concept (hook/copy/proof variants) instead — this mode is the minority case now, not
-     the default (the old 80% iteration / 20% new-concept ratio flipped post-Andromeda).
+   - **Only when Dylan says a specific concept already won/is working**: run **winning variable
+     extraction** first (see "After a Winner" below), then build new concepts that stack its
+     winning variables. Plain hook/copy/proof variants of the winner are the smaller part of this
+     (the old 80% iteration / 20% new-concept ratio flipped post-Andromeda, and micro variations
+     alone are the "creative rat race", 2026-11-17).
+   - **Read the client's "## Winning variables"** in `clients/<slug>/client-context.md` if it
+     exists. Confirmed winners from the client's own account outrank competitor swipes: carry them
+     into new concepts.
 4. **Format** — static image ad (default) vs. logo. When producing multiple new concepts, vary
    format across them where sensible (e.g. one native/advertorial-style still, one more
    testimonial/UGC-style still) rather than making every concept visually the same template with a
@@ -131,7 +136,11 @@ conversation.
    - **Brief first, then psychology (Creative Don, 2026-10-08, full notes in `context/ad-creative-
      principles.md`).** Before writing each concept, fill its brief: concept, creative type
      (curiosity static, us vs. them, USP callout, social proof, meme/humor...), angle, headline,
-     CTA, visual direction. No two concepts in a batch share a creative type. Name the lead
+     CTA, visual direction, plus a **hypothesis line** (which variable this concept tests and which
+     known winning variables it keeps, e.g. "keeps the relapse-hook structure from <ad>, tests an
+     older actor"; with no account data yet, which proven ad or research quote it bets on). Every
+     ad is a purchase of data, so every ad must be able to teach something. No two concepts in a
+     batch share a creative type. Name the lead
      element (Attention / Curiosity / Emotion / Connection) and the core emotion, chosen for the
      avatar. Curiosity-led ads that barely sell only go to a landing page that sells, never a bare
      Instant Form. Use the avatar's insider words, lifted from `clients/<slug>/customer-language.md`
@@ -175,7 +184,8 @@ conversation.
    **Static format and checks** (static masterclass section of the principles file): name each
    static's format (infographic, headliner, benefit callouts, comparison, transformation, grid,
    text-only) and production level (graphic, hi-fi, or lo-fi phone-photo look, which is often
-   forgotten and working now). Start with **about 3 visual variations per concept**. Before the
+   forgotten and working now; deliberately lower-res, native-looking uploads are a variable worth
+   testing too, 2026-11-17). Start with **about 3 visual variations per concept**. Before the
    visual gate, check each one: the headline is the focal point, it passes the one-second
    comprehension test, there's no clutter (AI statics drift into too many callouts), and no AI text
    errors or em dashes (fix with a Nano Banana `--ref` edit rather than regenerating). For each concept,
@@ -217,6 +227,28 @@ conversation.
    `outputs/ad-<slug>-<YYYY-MM-DD>/` folder (and any sibling folders for rejected/superseded attempts
    on the same concept) so drafts don't pile up in the repo. Don't finalize a concept Dylan hasn't
    actually approved — a still-in-review concept stays in `outputs/` until it's a yes.
+
+7. **Present the final cuts as a client-facing Claude Artifact (Dylan, 2026-10-26: this is the
+   document he shows the client before anything goes live).** Write it for the client, not for
+   Dylan: plain language, no internal codes (P#, file paths, skill names), never reveal who runs the
+   client's calls or how the back office works. One page per batch, in this order: the offer and
+   why it was chosen; the awareness funnel (unaware → most aware) as a visual with every ad placed on
+   it and each stage's job; what the research found (real quotes, proven-ad count, the account's
+   history); each ad (media with a 9:16 / 4:5 toggle, stage, who it's for, why it works, what we
+   changed in their footage, the 3 ad texts and 5 headlines); and how the campaign runs and is
+   judged. Five sections, nothing else. **Do NOT include** a psychology-rules section, a separate
+   "edits to your content" section, or a "what we need from you / before launch" section (Dylan,
+   2026-11-06: cut all three; per-ad "what we changed" notes stay). **Default layout: build it with
+   the shared kit `media-buying-agent/tools/ad_presentation/`** (`template.html` + `build_presentation.py`;
+   its README has the per-client steps). Copy the template into the client's `creatives/_build/`, rewrite
+   every client-specific line and the brand colors, write `presentation.json`, run the builder.
+   Section 5 shows the setup as four KPI cards and the lead path as numbered steps (ad, form,
+   booking page, pays, visit) with a "Didn't book?" branch (call, then text if no answer). Artifact limits: 15MB per file, 64MB per
+   publish, so publish 720p previews (`crf ~27`) and keep the full-quality files in
+   `clients/<slug>/creatives/`. Put the artifact link in `clients/<slug>/creatives/README.md`, and
+   republish to the same URL when a batch changes. Worked example: Advantage Therapy batch 1,
+   https://claude.ai/artifact/9dc4SvyxXNgVizXWBMX5oy (builder kept with the batch notes).
+   Quick image checks during the visual gate still go inline in chat (Read).
 
 ---
 
@@ -355,13 +387,49 @@ and `copy.md` with the reusable voice/lighting lines).
    `CLAUDE.md`).
 7. **Read results (after 5-7 days of spend):** `ads_get_ad_entities` at `level: "ad"` for the ad set:
    spend, CTR, CPC, 3-second view rate (hook rate: 25-40% is strong, under 20% means a hook problem),
-   leads, cost per lead. Report the winner in plain English.
+   leads, cost per lead. Report the winner in plain English, then run "After a Winner" below
+   (variable extraction + log) before writing anything new.
 8. **Double down on the winner:** "same actor, different scripts." Reuse the winning actor still and
    voice description, write 5 new scripts on the winning angle, and repeat steps 2 → 5. Changing the
-   actor or format makes it a new concept, not an iteration.
+   actor or format makes it a new concept, not an iteration. Each new script changes one
+   extracted variable on purpose (hook structure, mechanism line, CTA objection) and says which.
    **Also run the angle flywheel:** propose rebuilding the winning *angle* in the other pillars (a
    static and an in-house/founder take), so the angle doesn't depend on one format that will
    fatigue. Bring the proposals to Dylan at the brief gate.
+
+---
+
+## After a Winner: winning variable extraction
+
+Source: "You Found a Winning Ad, Now What?" (2026-11-17, full notes in `context/ad-creative-
+principles.md`). Use when Dylan says an ad is working, or step 7 above finds a winner. Goal: build
+new concepts that beat the winner, not micro variations that burn its profit until it fatigues.
+
+1. **Pull the numbers** (`ads_get_ad_entities`, `level: "ad"`): spend, hook rate (3-second views /
+   impressions), CTR, CPC, leads, cost per lead, and bookings from the client's funnel. Place the
+   ad on the tier list: how much has it spent while staying under the client's target cost per
+   booking? A winner at $5/day is not proven at $25/day. Don't force budget past an ad's cap; find
+   a higher-tier creative instead.
+2. **Rule out the creative before blaming anything else.** If results drop, check fatigue
+   (frequency, falling hook rate/CTR) before suggesting the offer, landing page or booking page is
+   the problem.
+3. **List every variable in the winner**, frame by frame for video: awareness stage, angle /
+   archetype, mechanism, format, production level (lo-fi vs. polished), scroll-stopper visual,
+   hook words, hook structure (statement + open loop, question, callout), on-screen text, speaker
+   (practitioner or AI actor: age, gender, ethnicity, wardrobe, setting, camera angle), sentence
+   style (short vs. long emotional), proof type, CTA / objection handled. Read the metrics against
+   each: a high hook rate with poor conversion says the hook works and the body or CTA doesn't.
+4. **Log it** in `clients/<slug>/client-context.md` under "## Winning variables" (create the
+   section if missing): variable · source ad · evidence (numbers + dates) · status (confirmed /
+   promising / lost). Log losers too, so they aren't re-tested. Show Dylan the list at the brief
+   gate.
+5. **Write hypotheses, then concepts.** Each new concept keeps the confirmed winners and changes
+   one deliberate variable, or stacks two winners from different ads into one new concept (e.g.
+   the winning hook structure from a static + the winning speaker from a video). Propose these at
+   the brief gate alongside the angle flywheel (the winning angle rebuilt in the other pillars).
+   Mostly deliberate, with room for one wild card per batch.
+6. **Next read:** update the log with what each hypothesis actually showed. Clients run ~$25/day,
+   so wait for the minimum-spend threshold before calling any variable won or lost.
 
 ---
 
@@ -370,4 +438,5 @@ and `copy.md` with the reusable voice/lighting lines).
 Per the ratio-flip principle: don't default to offering another iteration on the same concept. Instead
 ask whether Dylan wants to (a) generate more distinct new concepts (the default next step, while
 nothing has proven itself yet), or (b) — only once he's told you a specific concept is actually
-performing — start iterating variations on that one winner.
+performing — run "After a Winner" on it (extract and log its variables, then stack them into new
+concepts), rather than plain variations of that one ad.
