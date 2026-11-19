@@ -361,8 +361,8 @@ async def send_nudge_touches():
             LEFT JOIN contacts c ON c.id = ar.contact_id AND c.is_client_anchor
             LEFT JOIN clients cl ON cl.id = c.client_id
             WHERE ar.outcome_close = 'closed'
-              AND ar.onboarding_followup_sent_at < $1 - interval '2 days'
-              AND ar.onboarding_followup_sent_at >= $1 - interval '7 days'
+              AND ar.onboarding_followup_sent_at < $1::timestamptz - interval '2 days'
+              AND ar.onboarding_followup_sent_at >= $1::timestamptz - interval '7 days'
               AND ar.onboarding_nudge_sent_at IS NULL
             """,
             today_start_et,

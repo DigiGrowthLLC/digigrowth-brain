@@ -448,6 +448,34 @@ async def queue_last_call(client_id: int, phone: str, lead_name: str | None, is_
         return False
 
 
+async def retry_failed(client_id: int, kind: str, days: int = 3, dry_run: bool = True) -> dict:
+    """Re-queue real calls that errored before dialing (e.g. the 2026-11-18
+    SQL bug that failed all 14 of Advantage's last-call calls). Each goes back
+    to 'pending' at the next calling-hours slot in the lead's time zone; the
+    usual stop rules (booked, texted back, opted out ...) still run right
+    before dialing. Skips anyone who already has a newer call row.
+    dry_run=True only lists who would be retried."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT f.id, f.phone, f.lead_name, f.source FROM client_voice_calls f
+               WHERE f.client_id = $1 AND coalesce(f.agent_kind, 'ads') = $2 AND f.source != 'test'
+                 AND f.status = 'failed' AND f.outcome = 'error' AND f.dialed_at IS NULL
+                 AND f.run_at > now() - make_interval(days => $3)
+                 AND NOT EXISTS (SELECT 1 FROM client_voice_calls n WHERE n.client_id = f.client_id
+                                 AND n.phone = f.phone AND n.id > f.id)
+               ORDER BY f.id""", client_id, kind, days)
+        out = []
+        for r in rows:
+            when = _next_window(datetime.now(await _tz(client_id, r["phone"]))).astimezone(timezone.utc)
+            out.append({"id": r["id"], "lead_name": r["lead_name"], "source": r["source"], "run_at": when.isoformat()})
+            if not dry_run:
+                await conn.execute(
+                    "UPDATE client_voice_calls SET status = 'pending', outcome = NULL, error = NULL, run_at = $2, "
+                    "updated_at = now() WHERE id = $1 AND status = 'failed'", r["id"], when)
+    return {"dry_run": dry_run, "count": len(out), "calls": out}
+
+
 async def _form_info(conn, client_id: int, phone: str) -> str | None:
     """The lead's answers to the Meta form's own questions (contacts.form_answers),
     as "Question: answer; ..." for the reactivation call's opener."""
@@ -501,7 +529,9 @@ async def _stop_reason(conn, row) -> str | None:
     if await response_ai._upcoming_booking(conn, phone, row["lead_email"]):
         return "booked"
     if await conn.fetchval(
-        """SELECT 1 FROM bookings WHERE client_id = $1 AND created_at > $2 - interval '1 hour'
+        # $2 must be cast: with a bare "$2 - interval" Postgres types $2 as an
+        # interval and the query fails (every real call errored on 2026-11-18).
+        """SELECT 1 FROM bookings WHERE client_id = $1 AND created_at > $2::timestamptz - interval '1 hour'
              AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = $3 AND status IN ('confirmed', 'pending_payment')""",
         client_id, seq_start, d10,
     ):

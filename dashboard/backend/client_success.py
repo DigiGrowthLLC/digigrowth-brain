@@ -358,8 +358,9 @@ def _system_prompt(brief: str, kind: str) -> str:
         + ("- The campaign is OVER: write the headline, summary, on_target and off_target in the past tense "
            "('the ads brought in 31 leads', 'fewer people showed up than we wanted'). next_steps are recommendations "
            "for the next campaign.\n" if kind == "final" else "")
-        + "- If a path's first stage after the ads has no rate and no target (e.g. 'Funnel page' when the ads were "
-        "Instant Forms only), those visits came from texts and links, not ads: never call it a leak or compare it to ad clicks.\n\n"
+        + "- The standard flow is ad -> funnel page -> booking page (path 'page'). An 'Instant Form ads' path means the "
+        "campaign used Meta's Instant Forms instead; describe only the paths in the data and never invent a funnel "
+        "page step that isn't there.\n\n"
         + _SCHEMA_HINT
     )
 

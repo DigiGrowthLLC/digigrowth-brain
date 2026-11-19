@@ -278,22 +278,21 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
         paths.append({"key": "form", "label": "Instant Form ads", "stages": chain(st), "leads": leads["form"],
                       "booked": a_form["booked"], "shows": a_form["shows"], "patients": a_form["closed"]})
 
-    # ---- Funnel page path
+    # ---- Ad -> funnel -> booking page path (the standard flow going forward,
+    # Dylan 2026-11-17). Funnel page visits only form a path when ads send
+    # people there. When every ad is an Instant Form (Meta reports zero
+    # landing page views but form leads come in), the page's visits come from
+    # texts and links: measuring them against ad clicks (form opens) showed
+    # Advantage a fake 2% "leak" (9 of 438), so that path is left out. Its
+    # bookings still count in the totals below.
     a_page = appts[False] or empty
-    # When every ad is an Instant Form (Meta reports zero landing page views
-    # but form leads come in), no ad sends anyone to the page: its visits come
-    # from texts and links. Measuring them against ad clicks (form opens)
-    # showed Advantage a fake 2% "leak" (9 of 438). Then the path starts at the
-    # page, with no ad stages and no target. (Dylan, 2026-11-17)
     page_from_ads = not (meta_connected and not meta_lpv and paths)
-    if funnel_views or steps or a_page["booked"] or (has_page and not paths):
-        st = ad_stages("page") if page_from_ads else []
-        fv_rate = _pct(funnel_views, link_clicks) if meta_connected and page_from_ads else None
+    if page_from_ads and (funnel_views or steps or a_page["booked"] or (has_page and not paths)):
+        st = ad_stages("page")
+        fv_rate = _pct(funnel_views, link_clicks) if meta_connected else None
         st.append({"key": "funnel_visits", "label": "Funnel page visits", "source": "funnel", "value": funnel_views,
                    "available": bool(site_ids or lp_slugs) or prelaunch, "rate": fv_rate,
-                   "status": _status(fv_rate, "funnel_visits", link_clicks) if page_from_ads else None,
-                   "note": None if page_from_ads else "From texts and links (your ads are Instant Forms)",
-                   **({} if page_from_ads else {"tkey": "_no_target"})})
+                   "status": _status(fv_rate, "funnel_visits", link_clicks)})
         prev_key_val = funnel_views
         if booking_on:
             bv, bs, sub = steps.get("view", 0), steps.get("details", 0), steps.get("submit", 0)
@@ -310,12 +309,13 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
                            "rate": r3, "status": _status(r3, "checkout", bs)})
                 prev_key_val = sub
         # Without DigiGrowth Booking (e.g. Calendly) there's no booking-page
-        # step to measure against, so funnel page → booked gets no target.
+        # step to measure against, so funnel page -> booked gets no target.
         st += outcome_stages(a_page, "booked_page" if booking_on else "booked_ext", prev_key_val,
                              "Booked & paid" if paid_offer else "Booked a visit")
-        paths.append({"key": "page", "label": "Funnel page" if page_from_ads else "Funnel page (from texts and links)",
-                      "stages": chain(st), "leads": leads["total"] - leads["form"],
-                      "booked": a_page["booked"], "shows": a_page["shows"], "patients": a_page["closed"]})
+        # First in the list: it's the main flow; Instant Forms are the older setup.
+        paths.insert(0, {"key": "page", "label": "Ad → funnel → booking page" if booking_on else "Ad → funnel page",
+                         "stages": chain(st), "leads": leads["total"] - leads["form"],
+                         "booked": a_page["booked"], "shows": a_page["shows"], "patients": a_page["closed"]})
 
     # Meta reports delivery per ad account, so with both ad types running the
     # top two stages are the same combined numbers on each path.
@@ -323,12 +323,14 @@ async def build_funnel(client_id: int, period: str = "month") -> dict:
         for p in paths:
             for s in p["stages"]:
                 if s["source"] == "meta" and s["available"]:
-                    s["note"] = "All ads combined (form + funnel page)"
+                    s["note"] = "All ads combined (Instant Form + funnel ads)"
 
     # ---- Totals + cost KPIs (all paths together)
-    booked = sum(p["booked"] for p in paths)
-    shows = sum(p["shows"] for p in paths)
-    patients = sum(p["patients"] for p in paths)
+    # Counted from every appointment, not from the paths shown: bookings from
+    # funnel visits that came from texts/links count even without their own path.
+    booked = a_form["booked"] + a_page["booked"]
+    shows = a_form["shows"] + a_page["shows"]
+    patients = a_form["closed"] + a_page["closed"]
     all_leads = leads["total"]
 
     def cost(n):

@@ -151,6 +151,19 @@ async def react_test_call(client_id: int, body: TestCallBody):
     return {"ok": True, "row_id": row_id}
 
 
+class RetryBody(BaseModel):
+    dry_run: bool = True
+    days: int = 3
+
+
+# Re-queue calls that errored before dialing (kind = "ads" or "react").
+@admin_router.post("/clients/{client_id}/voice-calls/{kind}/retry-failed")
+async def retry_failed_calls(client_id: int, kind: str, body: RetryBody):
+    if kind not in ("ads", "react"):
+        raise HTTPException(400, "kind must be ads or react")
+    return await va.retry_failed(client_id, kind, max(1, min(body.days, 14)), body.dry_run)
+
+
 # Editable call scripts (kind = "ads" for the Facebook Ads Voice Agent,
 # "react" for the Database Reactivation Voice Agent).
 class ScriptBody(BaseModel):

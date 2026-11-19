@@ -246,7 +246,7 @@ async def send_due_abandon_followups() -> int:
             continue
         async with pool.acquire() as conn:
             booked = await conn.fetchval(
-                """SELECT 1 FROM bookings WHERE client_id = $1 AND created_at > $2 - interval '1 hour'
+                """SELECT 1 FROM bookings WHERE client_id = $1 AND created_at > $2::timestamptz - interval '1 hour'
                      AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = $3
                      AND (status = 'confirmed' OR (status = 'pending_payment' AND hold_expires_at > now()))""",
                 p["client_id"], p["created_at"], _digits(p["phone"]),
