@@ -148,15 +148,9 @@ def _cant_pause_text(name: str) -> str:
     return f"{name}: ad spend cap can't pause the ads"
 
 
-async def _todo_once(conn, text: str, description: str, *, while_unresolved: bool = False) -> None:
-    """One To-Do per text. With while_unresolved, a To-Do Dylan already
-    checked off also counts, so an ongoing problem doesn't re-add itself
-    every 30 minutes (it did, Dylan 2026-11-19). _rearm() clears those
-    checked-off copies once the problem is fixed, so a later recurrence
-    alerts again."""
-    sql = ("SELECT 1 FROM todos WHERE text = $1" if while_unresolved
-           else "SELECT 1 FROM todos WHERE NOT done AND text = $1")
-    if await conn.fetchval(sql, text):
+async def _todo_once(conn, text: str, description: str) -> None:
+    """One open To-Do per text."""
+    if await conn.fetchval("SELECT 1 FROM todos WHERE NOT done AND text = $1", text):
         return
     await conn.execute(
         "INSERT INTO todos (text, description, due_date) VALUES ($1, $2, $3)",
@@ -164,10 +158,28 @@ async def _todo_once(conn, text: str, description: str, *, while_unresolved: boo
     )
 
 
-async def _rearm(conn, *texts: str) -> None:
-    """The problem behind these To-Dos is fixed: forget the checked-off
-    copies so the next time it happens Dylan hears about it again."""
-    await conn.execute("DELETE FROM todos WHERE done AND text = ANY($1::text[])", list(texts))
+_ALERT_COLS = {"cant_check": "cant_check_alerted", "cant_pause": "cant_pause_alerted"}
+
+
+async def _alert_once(conn, client_id: int, kind: str, text: str, description: str) -> None:
+    """One To-Do per ongoing problem. Checking a To-Do off DELETES the row,
+    so the todos table can't tell "never alerted" from "alerted and checked
+    off" (an earlier fix relied on it and the To-Dos kept coming back every
+    30 minutes, Dylan 2026-11-19). The flag lives on the cap row instead and
+    _rearm() clears it once the problem is fixed."""
+    col = _ALERT_COLS[kind]
+    claimed = await conn.fetchval(
+        f"UPDATE ad_spend_caps SET {col} = true WHERE client_id = $1 AND NOT {col} RETURNING client_id",
+        client_id)
+    if claimed:
+        await _todo_once(conn, text, description)
+
+
+async def _rearm(conn, client_id: int, *kinds: str) -> None:
+    """The problem behind these alerts is fixed: the next time it happens
+    Dylan hears about it again."""
+    sets = ", ".join(f"{_ALERT_COLS[k]} = false" for k in kinds)
+    await conn.execute(f"UPDATE ad_spend_caps SET {sets} WHERE client_id = $1", client_id)
 
 
 def _money(v: float, currency: str | None) -> str:
@@ -181,7 +193,7 @@ async def check_client(client_id: int) -> dict:
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """SELECT c.*, cl.name AS client_name, cmc.meta_ad_account_id
+            """SELECT c.*, cl.name AS client_name, cmc.meta_ad_account_id, cmc.campaign_launched_at
                FROM ad_spend_caps c JOIN clients cl ON cl.id = c.client_id
                LEFT JOIN client_marketing_config cmc ON cmc.client_id = c.client_id
                WHERE c.client_id = $1""",
@@ -198,13 +210,16 @@ async def check_client(client_id: int) -> dict:
                 "UPDATE ad_spend_caps SET last_error = $2 WHERE client_id = $1", client_id, msg[:500],
             )
             last_ok = row["last_checked_at"]
-            if row["enabled"] and not isinstance(e, CantPauseError) and (last_ok is None or datetime.now(timezone.utc) - last_ok > _ERROR_TODO_AFTER):
-                await _todo_once(
-                    conn,
+            # Only once the client's ads have actually launched: a cap set up
+            # ahead of time for a client whose ad account isn't connected yet
+            # isn't a problem (Pinnacle, Boulder, Dylan 2026-11-19).
+            if (row["enabled"] and row["campaign_launched_at"] and not isinstance(e, CantPauseError)
+                    and (last_ok is None or datetime.now(timezone.utc) - last_ok > _ERROR_TODO_AFTER)):
+                await _alert_once(
+                    conn, client_id, "cant_check",
                     _cant_check_text(row["client_name"]),
                     f"The automatic ad budget check for {row['client_name']} has been failing, so their "
                     f"campaigns will NOT be paused at the cap until it's fixed. Error: {msg[:300]}",
-                    while_unresolved=True,
                 )
         raise CapError(msg) from e
 
@@ -226,6 +241,15 @@ async def _check_row(row) -> dict:
         can_pause = bool({"ADVERTISE", "MANAGE"} & set(info.get("user_tasks") or []))
         spend = await _spend(http, token, account, campaign_ids, row["start_date"], info.get("timezone_name"))
         over = row["enabled"] and spend >= cap
+        # Without pause rights, only nag while something in scope is still
+        # running: Dylan pausing it by hand settles it (Advantage, 2026-11-19).
+        running = True
+        if not can_pause:
+            try:
+                running = any(c.get("status") == "ACTIVE" and (not campaign_ids or c["id"] in campaign_ids)
+                              for c in await list_campaigns(account, http))
+            except CapError:
+                pass
         if over and can_pause:
             for c in await list_campaigns(account, http):
                 if campaign_ids and c["id"] not in campaign_ids:
@@ -264,7 +288,7 @@ async def _check_row(row) -> dict:
                 conn, row, cap,
                 f"Hey, {name}'s ads have been turned off. They reached their {_money(cap, currency)} ad budget "
                 f"({_money(spend, currency)} spent{since}).")
-        elif over:
+        elif over and running:
             await _text_dylan_once(
                 conn, row, cap,
                 f"Hey, {name} has reached their {_money(cap, currency)} ad budget ({_money(spend, currency)} "
@@ -294,20 +318,19 @@ async def _check_row(row) -> dict:
         await client_success.on_budget_spent(row["client_id"], spend, cap)
     async with pool.acquire() as conn:
         if can_pause:
-            await _rearm(conn, _cant_check_text(row["client_name"]), _cant_pause_text(row["client_name"]))
+            await _rearm(conn, row["client_id"], "cant_check", "cant_pause")
         else:
             # Spend was read, so the check itself works; only pausing doesn't.
-            await _rearm(conn, _cant_check_text(row["client_name"]))
-    if row["enabled"] and not can_pause:
+            await _rearm(conn, row["client_id"], "cant_check", *(() if running else ("cant_pause",)))
+    if row["enabled"] and not can_pause and running:
         async with pool.acquire() as conn:
-            await _todo_once(
-                conn,
+            await _alert_once(
+                conn, row["client_id"], "cant_pause",
                 _cant_pause_text(row["client_name"]),
                 f"DigiGrowth's system user can read {row['client_name']}'s ad spend but has no role on their ad account, "
                 f"so the campaigns will NOT pause at {_money(cap, currency)}. Fix: DigiGrowth Business Settings → Users → "
                 f"System users → DigiGrowth OS Integration → Assign assets → Ad accounts → act_{account} → Manage "
                 f"campaigns. Spent so far: {_money(spend, currency)}.",
-                while_unresolved=True,
             )
         raise CantPauseError("Can read spend but can't pause: assign the ad account to DigiGrowth's system user with "
                        "Manage campaigns (Business Settings → System users → Assign assets).")

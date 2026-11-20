@@ -2676,6 +2676,16 @@ async def _create_schema(pool: asyncpg.Pool):
             -- Cap value Dylan was last texted about reaching (ad_spend_caps.
             -- _text_dylan_once): one text per cap, re-armed by raising it.
             ALTER TABLE ad_spend_caps ADD COLUMN IF NOT EXISTS texted_cap NUMERIC(10,2);
+            -- "can't be checked" / "can't pause" To-Dos already raised for the
+            -- current problem (ad_spend_caps._alert_once). Checking a To-Do off
+            -- deletes it, so the todos table can't remember this; cleared once
+            -- the problem is fixed so a recurrence alerts again.
+            -- Existing rows start as already alerted (Dylan has had these
+            -- To-Dos many times); new rows default to false.
+            ALTER TABLE ad_spend_caps ADD COLUMN IF NOT EXISTS cant_check_alerted BOOLEAN NOT NULL DEFAULT true;
+            ALTER TABLE ad_spend_caps ADD COLUMN IF NOT EXISTS cant_pause_alerted BOOLEAN NOT NULL DEFAULT true;
+            ALTER TABLE ad_spend_caps ALTER COLUMN cant_check_alerted SET DEFAULT false;
+            ALTER TABLE ad_spend_caps ALTER COLUMN cant_pause_alerted SET DEFAULT false;
         """)
 
         # Voice agent hold on the unfinished-booking text (client_voice_agent.py).
