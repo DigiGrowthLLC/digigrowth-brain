@@ -56,18 +56,17 @@ import onboarding_sequence
 import reminder_engine
 import response_ai
 
-security = HTTPBasic()
+# auto_error=False + no WWW-Authenticate header on the 401: that header makes
+# Chrome pop its own username/password box over the app's login screen
+# (AuthGate.jsx). curl -u / scripts send the header up front, unaffected.
+security = HTTPBasic(auto_error=False)
 DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "changeme")
 
 
-async def require_auth(request: Request, credentials: HTTPBasicCredentials = Depends(security)):
-    ok = secrets.compare_digest(credentials.password.encode(), DASHBOARD_PASSWORD.encode())
+async def require_auth(request: Request, credentials: HTTPBasicCredentials | None = Depends(security)):
+    ok = credentials is not None and secrets.compare_digest(credentials.password.encode(), DASHBOARD_PASSWORD.encode())
     if not ok:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password")
     # Whoever passes the OS password is Dylan: keep that network's visits
     # out of every client's funnel analytics (tracking_exclusion.py).
     import tracking_exclusion
