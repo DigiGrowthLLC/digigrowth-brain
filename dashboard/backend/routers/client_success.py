@@ -284,7 +284,41 @@ async def update_report(report_id: int, body: dict):
             await conn.execute(
                 "UPDATE todos SET done = TRUE WHERE NOT done AND text = ANY($1::text[])",
                 [f"Approve {r['name']}'s final campaign report", f"Send {r['name']}'s {label} report by hand"])
+            if r["kind"] == "final":
+                import client_retention
+                await client_retention.open_for_report(conn, report_id)
     return {"ok": True}
+
+
+# ---- Retention: did the client stay after the campaign? (client_retention.py)
+
+@admin_router.get("/client-success/retention")
+async def retention_summary(days: int = 0, date: str | None = None):
+    """Same period rules as the Analytics page: days=0 all time, 1 = today
+    (Eastern), N = last N days, or a picked day. Filters by final report date."""
+    import client_retention
+    from routers.analytics import _since, _day_window
+    window = _day_window(date)
+    start, end = window or ((None, None) if days == 0 else (_since(days), None))
+    return await client_retention.summary(start, end)
+
+
+@admin_router.get("/client-success/clients/{client_id}/renewals")
+async def client_renewals(client_id: int):
+    import client_retention
+    return {"renewals": await client_retention.for_client(client_id), "reasons": client_retention.REASONS}
+
+
+@admin_router.patch("/client-success/renewals/{renewal_id}")
+async def update_renewal(renewal_id: int, body: dict):
+    import client_retention
+    try:
+        row = await client_retention.set_outcome(renewal_id, body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not row:
+        raise HTTPException(status_code=404)
+    return row
 
 
 @admin_router.delete("/client-success/reports/{report_id}")

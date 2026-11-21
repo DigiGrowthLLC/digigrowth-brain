@@ -594,6 +594,13 @@ async def send_report(report_id: int) -> dict:
         await conn.execute("UPDATE client_reports SET sent_at = CASE WHEN $2 THEN now() ELSE sent_at END, "
                            "sent_channels = $3, send_error = $4 WHERE id = $1",
                            report_id, bool(channels), channels, "; ".join(problems) or None)
+        if channels and r["kind"] == "final":
+            # The campaign's over and the client has the results: start the "did they stay?" decision.
+            try:
+                import client_retention
+                await client_retention.open_for_report(conn, report_id)
+            except Exception as e:
+                print(f"[client_success] renewal decision not opened for report {report_id}: {e}")
         if problems:
             label = "weekly" if r["kind"] == "weekly" else "final"
             await _todo_once(conn, f"Send {r['name']}'s {label} report by hand",

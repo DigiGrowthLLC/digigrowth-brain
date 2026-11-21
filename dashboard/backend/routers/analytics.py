@@ -124,6 +124,22 @@ def _sheet_stat(stats: dict, base_key: str, days: int, day: str | None = None) -
         if not last_changed or _stat_is_stale(last_changed, days):
             return 0
     suffix = f"_{days}d"
+    if f"{base_key}{suffix}" not in stats and days not in (7, 30):
+        # Periods without a stored bucket (1Y, 2026-11-21): add up the per-day
+        # numbers inside the window; numbers with no daily history fall back
+        # to all-time (the sheet only has buckets for 7d / 30d).
+        if base_key in _DAILY_FIELD_MAP and stats.get("daily"):
+            start = _et_today() - timedelta(days=days)
+            total = 0
+            for key, fields in (stats.get("daily") or {}).items():
+                try:
+                    d = date_cls.fromisoformat(key)
+                except ValueError:
+                    continue
+                if d > start and isinstance(fields, dict):
+                    total += fields.get(_DAILY_FIELD_MAP[base_key], 0) or 0
+            return total
+        return stats.get(base_key, 0) or 0
     return stats.get(f"{base_key}{suffix}", 0) or 0
 
 

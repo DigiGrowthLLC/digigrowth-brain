@@ -3,6 +3,7 @@ import { API } from "../api.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
 import DatePickerButton, { formatPickedDate } from "../components/DatePickerButton.jsx";
 import CampaignModal from "../CampaignModal.jsx";
+import RetentionView from "./RetentionView.jsx";
 
 function pct(v) { return v != null ? `${v}%` : "—"; }
 function num(v) { return v != null ? v : "—"; }
@@ -23,7 +24,7 @@ function MiniStat({ label, value, color }) {
   );
 }
 
-const ANALYTICS_PERIOD_OPTIONS = [[1,"Today"],[7,"7D"],[30,"30D"],[0,"All Time"]];
+const ANALYTICS_PERIOD_OPTIONS = [[1,"Today"],[7,"7D"],[30,"30D"],[365,"1Y"],[0,"All Time"]];
 
 function LoadingRow() {
   return (
@@ -436,6 +437,7 @@ function ContentCampaignsView() {
 const ANALYTICS_VIEW_TABS = [
   { value: "overview",  label: "OVERVIEW" },
   { value: "campaigns", label: "CAMPAIGNS" },
+  { value: "retention", label: "CLIENT RETENTION" },
 ];
 
 export default function AnalyticsPanel() {
@@ -512,7 +514,9 @@ export default function AnalyticsPanel() {
         ))}
       </div>
 
-      {view === "campaigns" ? (
+      {view === "retention" ? (
+        <RetentionView days={days} date={date} />
+      ) : view === "campaigns" ? (
         <CampaignsView days={days} date={date} />
       ) : (
       <>

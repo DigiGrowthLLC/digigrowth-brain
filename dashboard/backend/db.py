@@ -2849,3 +2849,9 @@ async def _create_schema(pool: asyncpg.Pool):
             );
             CREATE INDEX IF NOT EXISTS idx_patient_intake_client ON patient_intake(client_id);
         """)
+
+        # Client retention (client_retention.py, 2026-11-21): one row per
+        # finished campaign, opened when its final report is sent; Dylan records
+        # renewed / churned / paused + monthly value. Feeds Analytics -> Retention.
+        import client_retention
+        await conn.execute(client_retention.SCHEMA)

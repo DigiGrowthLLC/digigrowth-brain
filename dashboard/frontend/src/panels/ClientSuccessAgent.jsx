@@ -92,6 +92,68 @@ function Question({ f, onChanged }) {
   );
 }
 
+const OUTCOMES = [
+  { id: "renewed", label: "Renewed", tone: "good" },
+  { id: "churned", label: "Churned", tone: "bad" },
+  { id: "paused", label: "Paused", tone: "warn" },
+];
+
+// One finished campaign's "did they stay?" decision (client_retention.py).
+// Opens when the final report goes out; feeds Analytics -> Client retention.
+function Renewal({ n, reasons, onChanged }) {
+  const [status, setStatus] = useState(n.status === "pending" ? "" : n.status);
+  const [reason, setReason] = useState(n.reason || "");
+  const [plan, setPlan] = useState(n.plan || "");
+  const [value, setValue] = useState(n.monthly_value ?? "");
+  const [notes, setNotes] = useState(n.notes || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const s = n.signals || {};
+  const save = async (next = status) => {
+    if (!next) { setErr("Pick Renewed, Churned or Paused."); return; }
+    setBusy(true); setErr("");
+    const r = await api(`/renewals/${n.id}`, json({ status: next, reason: next === "renewed" ? null : reason || null, plan, monthly_value: value, notes }, "PATCH"));
+    if (!r.ok) setErr((await r.json().catch(() => ({}))).detail || "Couldn't save.");
+    setBusy(false); onChanged();
+  };
+  const pending = n.status === "pending";
+  return (
+    <div style={{ padding: 14, borderRadius: 12, border: `1px solid ${pending ? "rgba(242,173,61,0.35)" : T.line}`, marginTop: 10 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+        <span style={{ fontWeight: 600, color: T.text, fontSize: 13.5 }}>Campaign from {fmtDate(n.campaign_launched_at)}</span>
+        {pending ? <Pill tone="warn">Waiting on your answer</Pill> : <Pill tone={OUTCOMES.find((o) => o.id === n.status)?.tone}>{OUTCOMES.find((o) => o.id === n.status)?.label}{n.decided_by === "auto" ? " (auto)" : ""}</Pill>}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: T.textMute }}>
+          {s.goal ? `${s.booked ?? 0} of ${s.goal} goal` : `${s.booked ?? 0} booked`} · final report {fmtDate(n.opened_at)}
+        </span>
+      </div>
+      {n.suggestion && pending && <div style={{ fontSize: 12.5, color: T.good, marginBottom: 10 }}>Hint: {n.suggestion}</div>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        {OUTCOMES.map((o) => (
+          <button key={o.id} type="button" className={status === o.id ? "btn btn-primary" : "btn btn-secondary"} onClick={() => setStatus(o.id)}>{o.label}</button>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 8 }}>
+        {(status === "churned" || status === "paused") && (
+          <select style={inputStyle} value={reason} onChange={(e) => setReason(e.target.value)} aria-label="Reason">
+            <option value="">Reason…</option>
+            {Object.entries(reasons).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+        )}
+        <input style={inputStyle} value={plan} onChange={(e) => setPlan(e.target.value)} placeholder="Plan (e.g. standard, foundations)" aria-label="Plan" />
+        <input style={inputStyle} type="number" min="0" value={value} onChange={(e) => setValue(e.target.value)}
+          placeholder={status === "churned" ? "$/month lost" : "$/month"} aria-label="Monthly value" />
+      </div>
+      <textarea rows={2} style={{ ...inputStyle, resize: "vertical", marginTop: 8 }} value={notes} onChange={(e) => setNotes(e.target.value)}
+        placeholder="Notes (what they said, what would bring them back)…" aria-label="Notes" />
+      <div style={{ display: "flex", gap: 16, justifyContent: "flex-end", alignItems: "center", marginTop: 8 }}>
+        {err && <span style={{ color: T.bad, fontSize: 12.5, marginRight: "auto" }}>{err}</span>}
+        {!pending && <LinkBtn tone="mute" disabled={busy} onClick={() => { setStatus(""); save("pending"); }}>Reset to pending</LinkBtn>}
+        <button className="btn btn-primary" disabled={busy} onClick={() => save()}>{busy ? "Saving…" : "Save"}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function ClientSuccessAgent({ clientId }) {
   const [sum, setSum] = useState(null);
   const [reports, setReports] = useState([]);
@@ -99,11 +161,13 @@ export default function ClientSuccessAgent({ clientId }) {
   const [checkins, setCheckins] = useState([]);
   const [lq, setLq] = useState({ ratings: [], summary: [] });
   const [ms, setMs] = useState([]);
+  const [ren, setRen] = useState({ renewals: [], reasons: {} });
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState("");
 
   const load = async () => {
     const q = `client_id=${clientId}`;
+    api(`/clients/${clientId}/renewals`).then((x) => (x.ok ? x.json() : null)).then((d) => d && setRen(d));
     const [s, r, f, k, l, m] = await Promise.all([
       api(`/clients/${clientId}`).then((x) => (x.ok ? x.json() : null)),
       api(`/reports?${q}&limit=30`).then((x) => (x.ok ? x.json() : [])),
@@ -197,6 +261,14 @@ export default function ClientSuccessAgent({ clientId }) {
           ))}
           {drafts.map((k) => <CheckinDraft key={`${k.key}-${k.status}`} k={k} onChanged={load} />)}
           {open.map((f) => <Question key={f.id} f={f} onChanged={load} />)}
+        </Card>
+      )}
+
+      {/* Did they stay? (one per finished campaign, opens when the final report goes out) */}
+      {ren.renewals.length > 0 && (
+        <Card style={ren.renewals.some((n) => n.status === "pending") ? { borderColor: "rgba(242,173,61,0.35)" } : undefined}>
+          <SectionTitle title="Did they stay?" hint="Record whether they continued after the campaign. Feeds Analytics → Client retention." />
+          {ren.renewals.map((n) => <Renewal key={`${n.id}-${n.status}`} n={n} reasons={ren.reasons} onChanged={load} />)}
         </Card>
       )}
 

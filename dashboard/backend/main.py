@@ -684,6 +684,17 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
         max_instances=1,
     )
+    # Client retention: auto-renew on a new launch, "wants next" hints and a
+    # To-Do when a renewal decision has been pending 14 days.
+    import client_retention
+    scheduler.add_job(
+        client_retention.run_daily,
+        CronTrigger(hour=10, minute=10, timezone=eastern),
+        id="client-retention-daily",
+        replace_existing=True,
+        max_instances=1,
+        next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2),
+    )
     scheduler.add_job(
         csm_extras.run_milestones,
         IntervalTrigger(minutes=30),
