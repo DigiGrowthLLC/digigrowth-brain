@@ -39,6 +39,7 @@ REASONS = {
 }
 REMIND_AFTER_DAYS = 14
 SHOW_TARGET = 75   # same show-rate target as the client funnel / reports
+PATIENTS_GOOD = 3  # "Got 3+ new patients" on the Analytics comparison
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS client_renewals (
@@ -278,7 +279,39 @@ async def summary(start: datetime | None = None, end: datetime | None = None) ->
                                                else d["signals"]["cost_per_booking"] <= cpb_mid,
                                                {True: f"${cpb_mid:,.0f} or less", False: f"Over ${cpb_mid:,.0f}"})})
 
+    # Plain-English comparison for the Analytics page: for each yes/no
+    # question, how many of the clients who stayed vs. left it was true for.
+    def yes_no(pred):
+        def cell(group):
+            known = [d for d in group if pred(d) is not None]
+            yes = sum(1 for d in known if pred(d))
+            return {"yes": yes, "total": len(known)}
+        return {"stayed": cell(renewed), "left": cell(churned)}
+
+    def avg(group, f):
+        vals = [f(d) for d in group if f(d) is not None]
+        return round(sum(vals) / len(vals), 1) if vals else None
+
+    compare = [
+        {"key": "goal_hit", "question": "Hit their booking goal", **yes_no(lambda d: d["signals"].get("goal_hit"))},
+        {"key": "patients", "question": f"Got {PATIENTS_GOOD}+ new patients", **yes_no(lambda d: None if d["patients"] is None else d["patients"] >= PATIENTS_GOOD)},
+        {"key": "show_rate", "question": f"{SHOW_TARGET}%+ of patients showed up", **yes_no(lambda d: None if d["show_rate"] is None else d["show_rate"] >= SHOW_TARGET)},
+        {"key": "health", "question": "Account health was green at the end", **yes_no(lambda d: None if not d["signals"].get("health_band") else d["signals"]["health_band"] == "green")},
+        {"key": "opened", "question": "Opened their final report", **yes_no(lambda d: d["opened_report"])},
+        {"key": "wants_next", "question": "Asked about a next campaign", **yes_no(lambda d: d["wants_next"])},
+        {"key": "testimonial", "question": "Left a testimonial", **yes_no(lambda d: d["testimonial"])},
+        {"key": "outcomes", "question": "Their team marked appointment outcomes", **yes_no(lambda d: (d["outcomes_marked"] or 0) > 0)},
+    ]
+    averages = [
+        {"key": "booked", "label": "Appointments booked", "stayed": avg(renewed, lambda d: d["signals"].get("booked")), "left": avg(churned, lambda d: d["signals"].get("booked"))},
+        {"key": "cpb", "label": "Cost per booking", "money": True, "stayed": avg(renewed, lambda d: d["signals"].get("cost_per_booking")), "left": avg(churned, lambda d: d["signals"].get("cost_per_booking"))},
+        {"key": "show_rate", "label": "Show rate", "pct": True, "stayed": avg(renewed, lambda d: d["show_rate"]), "left": avg(churned, lambda d: d["show_rate"])},
+        {"key": "patients", "label": "New patients", "stayed": avg(renewed, lambda d: d["patients"]), "left": avg(churned, lambda d: d["patients"])},
+    ]
+
     return {
+        "compare": compare,
+        "averages": averages,
         "totals": {
             "campaigns_ended": len(items), "decided": len(decided),
             "renewed": len(renewed), "churned": len(churned),

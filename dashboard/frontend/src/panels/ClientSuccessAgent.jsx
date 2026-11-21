@@ -93,8 +93,8 @@ function Question({ f, onChanged }) {
 }
 
 const OUTCOMES = [
-  { id: "renewed", label: "Renewed", tone: "good" },
-  { id: "churned", label: "Churned", tone: "bad" },
+  { id: "renewed", label: "Stayed", tone: "good" },
+  { id: "churned", label: "Left", tone: "bad" },
   { id: "paused", label: "Paused", tone: "warn" },
 ];
 
