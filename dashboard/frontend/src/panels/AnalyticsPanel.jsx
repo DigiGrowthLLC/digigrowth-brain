@@ -52,7 +52,7 @@ function Segmented({ value, onChange, options }) {
 }
 
 const ICON = {
-  calendar: <><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>,
+  trend: <><path d="M22 7 13.5 15.5 8.5 10.5 2 17" /><path d="M16 7h6v6" /></>,
   check: <><path d="M20 6 9 17l-5-5" /></>,
   target: <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></>,
   money: <><path d="M12 2v20" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></>,
@@ -208,6 +208,92 @@ function EmailCard({ m, loading, note }) {
         { label: "Unsubscribed", value: pct(m.unsubscribe_rate), tone: m.unsubscribe_rate > 2 ? "bad" : undefined },
         { label: "Not interested", value: pct(m.not_interested_rate), tone: m.not_interested_rate > 0 ? "bad" : undefined },
       ]} />
+  );
+}
+
+// Overview: every channel in one table (a column per channel, a row per
+// metric) so they compare by reading straight across. "Best" in a row gets
+// a soft highlight; a dash = that channel doesn't track it.
+function useNarrow(px = 600) {
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.innerWidth < px);
+  useEffect(() => {
+    const on = () => setNarrow(window.innerWidth < px);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, [px]);
+  return narrow;
+}
+
+const SHORT_NAME = { calling: "Calls", sms: "SMS", email: "Email" };
+
+function ChannelTable({ calling: c, sms: s, email: e, loading }) {
+  const narrow = useNarrow();
+  const rows = [
+    { label: "Reached out to", vals: [c.total, s.total_outreach, e.total_sent], fmt: num, hint: "Calls made · prospects texted · prospects emailed" },
+    { label: "Answered / replied", vals: [c.answer_rate, s.reply_rate, e.reply_rate], fmt: pct, best: true },
+    { label: "Reached the owner", vals: [c.pitch_rate, s.dm_reached_rate, e.video_play_rate], fmt: pct, best: true, hint: "Email: watched the video" },
+    { label: "Interested", vals: [c.resonation_rate, s.interested_rate, e.positive_reply_rate], fmt: pct, best: true, hint: "Calling: pitch resonated · Email: positive reply" },
+    { label: "Booked", vals: [c.booked, s.booked, e.booked], fmt: num, tone: "good", strong: true, best: true },
+    { label: "ABR", vals: [c.abr, s.abr, e.abr], fmt: pct, tone: "good", strong: true, best: true, hint: "Booked ÷ reached out to" },
+    { label: "Not interested", vals: [null, s.not_interested_rate, e.not_interested_rate], fmt: pct, tone: "bad" },
+    { label: "Unsubscribed", vals: [null, null, e.unsubscribe_rate], fmt: pct, tone: "bad" },
+  ];
+  const chans = ["calling", "sms", "email"];
+  const cell = { padding: narrow ? "11px 6px" : "12px 14px", textAlign: "right", borderTop: `1px solid ${T.line}`, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+
+  return (
+    <Card pad={0} style={{ overflow: "hidden" }}>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ padding: narrow ? "14px 6px 10px 14px" : "16px 14px 12px 20px", textAlign: "left", fontSize: 12.5, fontWeight: 500, color: T.textMute }}>Metric</th>
+              {chans.map(ch => (
+                <th key={ch} style={{ width: narrow ? "21%" : "19%", padding: narrow ? "14px 6px 10px" : "16px 14px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: narrow ? 5 : 8, fontFamily: T.display, fontSize: narrow ? 13 : 14.5, fontWeight: 600, color: T.text }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: CH[ch].color }} />{narrow ? SHORT_NAME[ch] : CH[ch].name}
+                  </span>
+                  <div style={{ height: 3, borderRadius: 99, background: CH[ch].color, marginTop: 8, opacity: 0.7 }} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => {
+              const present = r.vals.filter(v => v != null);
+              const top = r.best && present.length > 1 ? Math.max(...present) : null;
+              const bg = r.strong ? "rgba(47,208,143,0.045)" : "transparent";
+              return (
+                <tr key={r.label} style={{ background: bg }}>
+                  <td style={{ ...cell, textAlign: "left", paddingLeft: narrow ? 14 : 20, whiteSpace: "normal" }}>
+                    <div style={{ fontSize: narrow ? 13 : 14, fontWeight: r.strong ? 600 : 500, color: r.strong ? T.text : T.textDim }}>{r.label}</div>
+                    {r.hint && !narrow && <div style={{ fontSize: 11.5, color: T.textMute, marginTop: 2 }}>{r.hint}</div>}
+                  </td>
+                  {r.vals.map((v, i) => {
+                    const isTop = top != null && v === top && top > 0;
+                    const color = v == null ? T.textMute
+                      : r.tone === "bad" ? (v > 0 ? T.bad : T.textDim)
+                      : r.tone === "good" ? T.good : T.text;
+                    return (
+                      <td key={i} style={cell}>
+                        <span style={{
+                          fontFamily: T.display, fontSize: narrow ? (r.strong ? 15.5 : 13.5) : (r.strong ? 18 : 15.5), fontWeight: r.strong ? 700 : 600, color,
+                          padding: narrow ? "2px 5px" : "3px 9px", borderRadius: 8,
+                          background: isTop ? `${CH[chans[i]].color}24` : "transparent",
+                          boxShadow: isTop ? `inset 0 0 0 1px ${CH[chans[i]].color}55` : "none",
+                        }}>
+                          {loading ? "…" : v == null ? "–" : r.fmt(v)}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
@@ -581,6 +667,9 @@ export default function AnalyticsPanel() {
 
   const tabData = (ch) => outreach?.[ch]?.[outreachTab] ?? {};
   const showRate = (sales?.shows ?? 0) + (sales?.no_shows ?? 0) > 0 ? Math.round(sales.show_rate) : null;
+  // Overall ABR: calls booked ÷ total outreach (every channel), one decimal
+  // because it's usually well under 1%.
+  const overallAbr = funnel.dialed ? Math.round((funnel.booked / funnel.dialed) * 1000) / 10 : null;
 
   return (
     <div className="px-4 py-4 sm:px-6 sm:py-6" style={{ flex: 1, overflowY: "auto" }}>
@@ -605,8 +694,8 @@ export default function AnalyticsPanel() {
           <>
             {/* Headline numbers */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 45%), 1fr))", gap: 12 }}>
-              <Kpi label="Calls booked" value={num(sales?.discovery_calls)} color={T.accent} icon={ICON.calendar}
-                sub={sales ? `${num(sales.shows)} showed up` : null} />
+              <Kpi label="Overall ABR" value={overallAbr != null ? `${overallAbr}%` : "–"} color={T.accent} icon={ICON.trend}
+                sub={pipeline ? `${num(funnel.booked)} booked from ${num(funnel.dialed)} reached out to` : null} />
               <Kpi label="Show rate" value={showRate != null ? `${showRate}%` : "–"} color={T.warn} icon={ICON.check}
                 sub={sales ? `${num(sales.no_shows)} no-shows` : null} />
               <Kpi label="Close rate" value={pct(sales?.close_rate)} color={T.good} icon={ICON.target}
@@ -625,12 +714,8 @@ export default function AnalyticsPanel() {
 
             {/* Channels */}
             <div>
-              <SectionTitle title="Outreach by channel" hint="Each booking counts once, under the channel that won it. Email gets it when they watched the emailed video first." />
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 14, alignItems: "start" }}>
-                <CallingCard m={tabData("calling")} loading={!outreach} />
-                <SmsCard m={tabData("sms")} loading={!outreach} />
-                <EmailCard m={tabData("email")} loading={!outreach} />
-              </div>
+              <SectionTitle title="Outreach by channel" hint="Read across to compare. The highlighted value is the best channel on that row. Each booking counts once, under the channel that won it." />
+              <ChannelTable calling={tabData("calling")} sms={tabData("sms")} email={tabData("email")} loading={!outreach} />
             </div>
 
             {/* Content */}
