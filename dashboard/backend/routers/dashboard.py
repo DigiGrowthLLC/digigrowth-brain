@@ -365,7 +365,10 @@ async def update_todo(todo_id: int, payload: dict):
                     )
             if "due_date" in payload:
                 due_date_raw = payload["due_date"]
-                due_date = date.fromisoformat(due_date_raw) if due_date_raw else None
+                try:
+                    due_date = date.fromisoformat(due_date_raw) if due_date_raw else None
+                except (TypeError, ValueError):
+                    raise HTTPException(status_code=400, detail="invalid due_date")
                 await conn.execute(
                     "UPDATE todos SET due_date = $1 WHERE id = $2", due_date, todo_id
                 )

@@ -30,9 +30,11 @@ function fmtTime(hhmm) {
   return new Date(2000, 0, 1, h, m).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-function TodoItem({ todo, overdue, onComplete, onDelete, onSaveDescription }) {
+function TodoItem({ todo, overdue, onComplete, onDelete, onSaveDescription, onSaveDue }) {
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState(todo.description || "");
+  const dueDate = todo.due_date ? todo.due_date.slice(0, 10) : "";
+  const dueTime = todo.due_time ? todo.due_time.slice(0, 5) : "";
   const commit = () => {
     const trimmed = draft.trim();
     if (trimmed !== (todo.description || "")) onSaveDescription(todo.id, trimmed);
@@ -53,15 +55,25 @@ function TodoItem({ todo, overdue, onComplete, onDelete, onSaveDescription }) {
         <InboxLinkButton href={inboxLinkFrom(todo.description)} />
         {todo.recurrence && <Pill tone="info">↻ {RECURRENCE_LABELS[todo.recurrence]}</Pill>}
         {todo.due_date && (
-          <span style={{ fontSize: 12.5, color: overdue ? T.bad : T.textMute, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-            {fmtDate(todo.due_date.slice(0, 10))}{todo.due_time ? ` · ${fmtTime(todo.due_time)}` : ""}
-          </span>
+          <button onClick={() => { setDraft(todo.description || ""); setExpanded((e) => !e); }} title="Change due date"
+            style={{ fontSize: 12.5, color: overdue ? T.bad : T.textMute, flexShrink: 0, fontVariantNumeric: "tabular-nums", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+            {fmtDate(dueDate)}{dueTime ? ` · ${fmtTime(dueTime)}` : ""}
+          </button>
         )}
         <button onClick={() => onDelete(todo.id)} aria-label="Delete" title="Delete" style={{ fontSize: 13, color: T.textMute, cursor: "pointer", background: "none", border: "none", flexShrink: 0 }}>✕</button>
       </div>
       {expanded && (
         <div style={{ padding: "10px 0 0 32px", display: "grid", gap: 6 }}>
-          <textarea autoFocus className="dg-input" rows={3} placeholder="Notes, instructions, or a link…" value={draft}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <input type="date" style={{ ...inputStyle, colorScheme: "dark", width: "auto" }} value={dueDate} aria-label="Due date"
+              onChange={(e) => onSaveDue(todo.id, { due_date: e.target.value || null, ...(e.target.value ? {} : { due_time: null }) })} />
+            <input type="time" style={{ ...inputStyle, colorScheme: "dark", width: "auto" }} value={dueTime} aria-label="Due time" disabled={!dueDate}
+              onChange={(e) => onSaveDue(todo.id, { due_time: e.target.value || null })} />
+            {dueDate && (
+              <button className="btn btn-secondary" onClick={() => onSaveDue(todo.id, { due_date: null, due_time: null })}>Clear date</button>
+            )}
+          </div>
+          <textarea className="dg-input" rows={3} placeholder="Notes, instructions, or a link…" value={draft}
             onChange={(e) => setDraft(e.target.value)} onBlur={commit}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.target.blur(); }} style={{ resize: "vertical" }} />
           {draft.trim() && <div style={{ fontSize: 12.5, lineHeight: 1.5, color: T.textDim }}>{linkify(draft)}</div>}
@@ -94,6 +106,11 @@ export default function TodoPanel() {
   };
   const remove = async (id) => { setTodos((p) => p.filter((t) => t.id !== id)); await fetch(API(`/dashboard/todos/${id}`), { method: "DELETE" }); };
   const saveDescription = async (id, description) => { setTodos((p) => p.map((t) => (t.id === id ? { ...t, description } : t))); await patch(id, { description }); };
+  const saveDue = async (id, body) => {
+    setTodos((p) => p.map((t) => (t.id === id ? { ...t, ...body } : t)));
+    const r = await patch(id, body);
+    if (!r.ok) load();
+  };
 
   const save = async () => {
     if (!form.text.trim()) return;
@@ -163,7 +180,7 @@ export default function TodoPanel() {
           <Card key={g.key} style={g.key === "overdue" ? { borderColor: "rgba(240,106,106,0.3)" } : undefined}>
             <SectionTitle title={g.title} right={<Pill tone={g.tone}>{g.items.length}</Pill>} style={{ marginBottom: 4 }} />
             {g.items.map((t) => (
-              <TodoItem key={t.id} todo={t} overdue={g.key === "overdue"} onComplete={complete} onDelete={remove} onSaveDescription={saveDescription} />
+              <TodoItem key={t.id} todo={t} overdue={g.key === "overdue"} onComplete={complete} onDelete={remove} onSaveDescription={saveDescription} onSaveDue={saveDue} />
             ))}
           </Card>
         ))}
