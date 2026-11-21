@@ -444,8 +444,11 @@ async def portal_stripe_return(token: str):
         await be.stripe_refresh_status(client["id"])
     except Exception as e:
         print(f"[portal] stripe status refresh failed for client {client['id']}: {e}")
-    dash = os.environ.get("DASHBOARD_URL", be.public_base()).rstrip("/")
-    return RedirectResponse(f"{dash}/portal/{token}", status_code=302)
+    import portal_links
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        link = await portal_links.link_for_client(conn, client["id"])
+    return RedirectResponse(link, status_code=302)
 
 
 @router.put("/{token}/action-items/{item_id}")

@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from stream_zip import ZIP_64, stream_zip
 
 import client_resources_autofill
+import portal_links
 import r2_storage
 from routers import client_finance
 from db import get_pool
@@ -92,8 +93,7 @@ async def _seed_default_sequences(conn, client_id: int) -> None:
 _DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-production.up.railway.app").rstrip("/")
 
 
-def _portal_url(token: str) -> str:
-    return f"{_DASHBOARD_URL}/portal/{token}"
+# Portal links now live on portal.digigrowthllc.com/<slug> (portal_links.py).
 
 
 async def _linked_contact_summary(conn, client_id: int) -> dict | None:
@@ -109,7 +109,7 @@ async def _linked_contact_summary(conn, client_id: int) -> dict | None:
     why mixing the two showed a client's own sales-pipeline history back at
     them as if it were their own patient activity."""
     row = await conn.fetchrow(
-        "SELECT id, business, owner FROM contacts WHERE client_id = $1 AND is_client_anchor LIMIT 1",
+        "SELECT id, business, owner, email FROM contacts WHERE client_id = $1 AND is_client_anchor LIMIT 1",
         client_id,
     )
     return dict(row) if row else None
@@ -132,7 +132,7 @@ async def list_clients():
         for r in rows:
             d = dict(r)
             d["onboarding_progress"] = f"{d.pop('sections_completed')}/{len(ONBOARDING_SECTIONS)}"
-            d["portal_url"] = _portal_url(d["portal_token"])
+            portal_links.decorate(d)
             d["linked_contact"] = await _linked_contact_summary(conn, d["id"])
             out.append(d)
     return out
@@ -152,6 +152,8 @@ async def create_client_record(conn, body: ClientCreate) -> dict:
         body.name.strip(), body.contact_name, body.email, body.phone, body.notes, secrets.token_urlsafe(24),
         body.is_test, body.calendly_url, body.booking_notification_enabled,
     )
+    await portal_links.ensure_slug(conn, row["id"])
+    row = await conn.fetchrow("SELECT * FROM clients WHERE id = $1", row["id"])
     # Links the specific prospect/contact whose deal this client came
     # from — this is what onboarding_sequence.py's next-morning
     # follow-up resolves (contact -> contacts.client_id -> this row's
@@ -168,7 +170,7 @@ async def create_client_record(conn, body: ClientCreate) -> dict:
         await client_finance.post_default_expenses(conn, row["id"])
     d = dict(row)
     d["linked_contact"] = await _linked_contact_summary(conn, d["id"])
-    d["portal_url"] = _portal_url(d["portal_token"])
+    portal_links.decorate(d)
     return d
 
 
@@ -197,7 +199,7 @@ async def get_client(client_id: int):
         )
         linked_contact = await _linked_contact_summary(conn, client_id)
     d = dict(client)
-    d["portal_url"] = _portal_url(d["portal_token"])
+    portal_links.decorate(d)
     def _decode(r):
         row = dict(r)
         row["answers"] = json.loads(row["answers"]) if isinstance(row["answers"], str) else row["answers"]
@@ -302,8 +304,17 @@ async def update_client(client_id: int, body: ClientUpdate):
     fields = body.model_dump(exclude_unset=True)
     if not fields:
         raise HTTPException(status_code=400, detail="no fields to update")
+    if "portal_slug" in fields:
+        fields["portal_slug"] = (fields["portal_slug"] or "").strip().lower()
+        if not portal_links.valid_slug(fields["portal_slug"]):
+            raise HTTPException(status_code=400, detail="Portal address: lowercase letters, numbers and dashes only")
+    if "portal_emails" in fields:
+        fields["portal_emails"] = sorted({e.strip().lower() for e in (fields["portal_emails"] or []) if "@" in (e or "")})
     pool = await get_pool()
     async with pool.acquire() as conn:
+        if fields.get("portal_slug") and await conn.fetchval(
+                "SELECT 1 FROM clients WHERE portal_slug = $1 AND id <> $2", fields["portal_slug"], client_id):
+            raise HTTPException(status_code=409, detail="Another client already uses that portal address")
         set_clauses = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(fields))
         row = await conn.fetchrow(
             f"UPDATE clients SET {set_clauses}, updated_at = now() WHERE id = $1 RETURNING *",
@@ -312,7 +323,7 @@ async def update_client(client_id: int, body: ClientUpdate):
     if not row:
         raise HTTPException(status_code=404, detail="Client not found")
     d = dict(row)
-    d["portal_url"] = _portal_url(d["portal_token"])
+    portal_links.decorate(d)
     return d
 
 
@@ -561,7 +572,7 @@ async def regenerate_token(client_id: int):
     if not row:
         raise HTTPException(status_code=404, detail="Client not found")
     d = dict(row)
-    d["portal_url"] = _portal_url(d["portal_token"])
+    portal_links.decorate(d)
     return d
 
 

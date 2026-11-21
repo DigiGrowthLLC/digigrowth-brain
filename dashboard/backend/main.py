@@ -23,7 +23,7 @@ import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
 from routers import reactivation, dm_agent, owner_mms, voice_agent, contact_cards
-from routers import crm, sms, sms_sequences, sms_setter, email_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin, ghl_webhooks, booking
+from routers import crm, sms, sms_sequences, sms_setter, email_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin, ghl_webhooks, booking, portal_auth
 import booking_conversion
 import booking_engine
 import call_reminders
@@ -796,6 +796,7 @@ app.include_router(public_sops.router)  # no auth — readable by team
 app.include_router(legal.router)        # no auth — Twilio campaign registration
 app.include_router(newsletter.router, prefix="/api")  # no auth — clicked from an email link
 app.include_router(email_tracking.router, prefix="/api")  # no auth — pixel + unsubscribe links, clicked from outreach emails
+app.include_router(portal_auth.router)  # no auth: portal email-code login (portal_links.py)
 app.include_router(client_portal.router)  # no auth — client-facing, scoped by unguessable token
 app.include_router(client_marketing.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(reactivation.router, prefix="/api", dependencies=[Depends(require_auth)])

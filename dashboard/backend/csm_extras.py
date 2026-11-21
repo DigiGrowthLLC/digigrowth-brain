@@ -36,6 +36,7 @@ from db import get_pool
 from merge_fields import first_name_from_owner
 
 import client_success as cs
+import portal_links
 
 CHECKIN_START = datetime(2026, 11, 17, tzinfo=timezone.utc)
 CHECKIN_DAYS = (1, 3, 7)
@@ -55,8 +56,7 @@ async def _client_contact(conn, client_id: int) -> dict:
     d["first_name"] = name.split()[0] if name else (first_name_from_owner(d.get("contact_name")) or "there")
     d["to_email"] = (d.get("email") or d.get("anchor_email") or "").strip()
     d["to_phone"] = (d.get("phone") or d.get("anchor_phone") or "").strip()
-    base = (os.environ.get("DASHBOARD_URL") or "").rstrip("/")
-    d["portal_link"] = f"{base}/portal/{d['portal_token']}" if d.get("portal_token") else ""
+    d["portal_link"] = await portal_links.link_for_client(conn, client_id)
     return d
 
 

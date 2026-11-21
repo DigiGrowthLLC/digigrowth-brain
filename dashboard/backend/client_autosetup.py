@@ -60,6 +60,7 @@ from pathlib import Path
 import anthropic
 
 import client_sms
+import portal_links
 import context_gen
 import guide_autocheck
 from db import get_pool
@@ -304,7 +305,10 @@ async def _scrape(url: str) -> dict | None:
 # ---------------------------------------------------------------- steps
 
 async def _step_portal(client_id: int, ctx: dict) -> tuple[str, str]:
-    return "done", f"Portal live: {_DASHBOARD_URL}/portal/{ctx['client']['portal_token']}"
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        link = await portal_links.link_for_client(conn, client_id)
+    return "done", f"Portal live: {link}"
 
 
 def _area_code(phone: str) -> str | None:

@@ -3936,8 +3936,11 @@ function IntakeGate({ token, onDone }) {
   );
 }
 
-export default function ClientPortal() {
-  const { token } = useParams();
+export default function ClientPortal({ token: tokenProp }) {
+  const params = useParams();
+  // portal.digigrowthllc.com/<slug> passes the token in (PortalEntry.jsx);
+  // old /portal/<token> routes read it from the URL.
+  const token = tokenProp || params.token;
   const [client, setClient] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [tab, setTabRaw] = useState("dashboard");

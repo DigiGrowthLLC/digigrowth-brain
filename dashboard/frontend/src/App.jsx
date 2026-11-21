@@ -174,16 +174,34 @@ const LogoMark = () => (
 
 const VALID_PANELS = new Set(NAV.map(n => n.id));
 
+// Each tab has its own address, os.digigrowthllc.com/<path> (2026-11-21).
+// Old ?panel=<id> links (to-do notes, backend-generated links) still work:
+// they're rewritten to the path form on load.
+const PANEL_PATHS = { home: "dashboard", todos: "todo", booking: "booking-links", sops: "resources" };
+export const panelPath = (id) => "/" + (PANEL_PATHS[id] || id);
+const PATH_PANELS = Object.fromEntries(NAV.map(n => [(PANEL_PATHS[n.id] || n.id), n.id]));
+
 function panelFromLocation() {
   const p = new URLSearchParams(window.location.search).get("panel");
-  return VALID_PANELS.has(p) ? p : "home";
+  if (VALID_PANELS.has(p)) return p;
+  const seg = window.location.pathname.split("/").filter(Boolean)[0] || "";
+  return PATH_PANELS[seg] || "home";
+}
+
+// Rewrite a legacy ?panel= URL (or the bare "/") to the tab's path, in place.
+function normalizeLocation() {
+  const url = new URL(window.location.href);
+  const panel = panelFromLocation();
+  url.searchParams.delete("panel");
+  url.pathname = panelPath(panel);
+  if (url.href !== window.location.href) window.history.replaceState({ panel }, "", url);
 }
 
 // Deep link into a specific Inbox thread, e.g. the "Open in Inbox" links the
 // SMS setter puts on prospect to-dos: ?panel=inbox&contact=<id> (or &phone=).
 function navContextFromLocation() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get("panel") !== "inbox") return null;
+  if (panelFromLocation() !== "inbox") return null;
   const contactId = params.get("contact");
   const phone = params.get("phone");
   if (contactId) return { contactId };
@@ -202,7 +220,8 @@ export default function App() {
     setActive(panel);
     if (VALID_PANELS.has(panel)) {
       const url = new URL(window.location.href);
-      url.searchParams.set("panel", panel);
+      url.pathname = panelPath(panel);
+      url.searchParams.delete("panel");
       url.searchParams.delete("contact");
       url.searchParams.delete("phone");
       // Clients deep link: ?client=<id> opens that client's page.
@@ -211,6 +230,8 @@ export default function App() {
       window.history.pushState({ panel }, "", url);
     }
   };
+
+  useEffect(() => { normalizeLocation(); }, []);
 
   // Back/forward browser navigation between panels
   useEffect(() => {
@@ -333,7 +354,7 @@ export default function App() {
                 const isActive = active === id;
                 return (
                   <a key={id}
-                    href={`?panel=${id}`}
+                    href={panelPath(id)}
                     onClick={e => {
                       // Plain left-click stays in this SPA tab; ctrl/cmd/middle
                       // click and "Open link in new tab" fall through to the real href.

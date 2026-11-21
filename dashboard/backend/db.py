@@ -2855,3 +2855,26 @@ async def _create_schema(pool: asyncpg.Pool):
         # renewed / churned / paused + monthly value. Feeds Analytics -> Retention.
         import client_retention
         await conn.execute(client_retention.SCHEMA)
+
+        # Portal on our own domain (portal_links.py, 2026-11-21):
+        # portal.digigrowthllc.com/<portal_slug>, behind an email login code.
+        # portal_emails = extra addresses (beyond clients.email + the anchor
+        # contact's) allowed to log in.
+        await conn.execute("""
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS portal_slug TEXT;
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS portal_emails TEXT[];
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_portal_slug ON clients(portal_slug);
+            CREATE TABLE IF NOT EXISTS client_portal_login_codes (
+                id         SERIAL PRIMARY KEY,
+                client_id  INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                email      TEXT NOT NULL,
+                code_hash  TEXT NOT NULL,
+                attempts   INTEGER NOT NULL DEFAULT 0,
+                expires_at TIMESTAMPTZ NOT NULL,
+                used_at    TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS idx_portal_login_codes_lookup ON client_portal_login_codes(client_id, email, created_at);
+        """)
+        import portal_links
+        await portal_links.backfill_slugs(conn)

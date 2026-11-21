@@ -294,7 +294,7 @@ function StepActions({ step, clientId, client, config, setup, reload, onGoTab })
     case "agents":
       return <button className="btn btn-secondary" style={{ fontSize: 10 }} onClick={() => onGoTab("agents")}>OPEN AGENTS</button>;
     case "portal":
-      return client?.portal_url ? <a className="btn btn-secondary" style={{ fontSize: 10, textDecoration: "none" }} href={client.portal_url} target="_blank" rel="noreferrer">OPEN THEIR PORTAL ↗</a> : null;
+      return client?.portal_url ? <a className="btn btn-secondary" style={{ fontSize: 10, textDecoration: "none" }} href={client.portal_admin_url || client.portal_url} target="_blank" rel="noreferrer">OPEN THEIR PORTAL ↗</a> : null;
     case "meta_sync":
       return (
         <div>
@@ -549,7 +549,7 @@ export default function ClientSetup({ clientId, onGoTab }) {
         </button>
       </div>
 
-      <ServicesCard clientId={clientId} setup={setup} onChange={setSetup} portalUrl={client?.portal_url} />
+      <ServicesCard clientId={clientId} setup={setup} onChange={setSetup} portalUrl={client?.portal_admin_url || client?.portal_url} />
 
       {setup.phases.map((ph) => {
         const steps = setup.steps.filter((s) => s.phase === ph.id);

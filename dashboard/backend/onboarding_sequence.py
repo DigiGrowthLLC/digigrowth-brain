@@ -50,6 +50,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import integrations
+import portal_links
 from db import get_pool
 from merge_fields import first_name_from_owner
 
@@ -128,19 +129,18 @@ _DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://digigrowth-brain-produ
 async def _portal_link_for_appointment(conn, row: dict) -> str:
     """Resolve this appointment's client portal link via
     contact_id -> contacts.client_id -> clients.portal_token (same
-    {DASHBOARD_URL}/portal/{token} shape as routers/clients.py's
-    _portal_url()). Returns "" if no client record is linked yet —
+    portal.digigrowthllc.com/<slug> shape, see portal_links.py). Returns "" if no client record is linked yet —
     callers treat that as "not ready to send"."""
     contact_id = row.get("contact_id")
     if not contact_id:
         return ""
     client_row = await conn.fetchrow(
-        "SELECT cl.portal_token FROM contacts c JOIN clients cl ON cl.id = c.client_id WHERE c.id = $1",
+        "SELECT cl.id FROM contacts c JOIN clients cl ON cl.id = c.client_id WHERE c.id = $1",
         contact_id,
     )
     if not client_row:
         return ""
-    return f"{_DASHBOARD_URL}/portal/{client_row['portal_token']}"
+    return await portal_links.link_for_client(conn, client_row["id"])
 
 
 async def ensure_client_portal(row: dict) -> str:
@@ -383,7 +383,8 @@ async def send_nudge_touches():
         elif not email:
             print(f"[onboarding_sequence] no prospect_email on appointment {row['id']} — skipping onboarding reminder")
         else:
-            portal_link = f"{_DASHBOARD_URL}/portal/{row['nudge_portal_token']}"
+            async with pool.acquire() as _c:
+                portal_link = await portal_links.link_for_client(_c, row["nudge_client_id"])
             subject_template = templates["onboarding_nudge_email_subject"]
             body_template = templates["onboarding_nudge_email_body"]
             if subject_template.strip() and body_template.strip():

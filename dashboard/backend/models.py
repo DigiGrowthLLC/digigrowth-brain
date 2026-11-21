@@ -163,6 +163,8 @@ class ClientUpdate(BaseModel):
     hosting_resource: Optional[str] = None
     funnel_resource: Optional[str] = None
     scheduling_resource: Optional[str] = None
+    portal_slug: Optional[str] = None
+    portal_emails: Optional[list[str]] = None
 
 
 class ClientResourceCreate(BaseModel):

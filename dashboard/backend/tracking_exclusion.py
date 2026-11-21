@@ -44,7 +44,13 @@ _last_written: dict[str, float] = {}
 def client_ip(request: Request) -> str:
     """Real visitor IP behind Cloudflare / the Vercel funnel proxy / Railway:
     cf-connecting-ip when Cloudflare is in front, else the first
-    X-Forwarded-For hop."""
+    X-Forwarded-For hop. os./portal.digigrowthllc.com reach us through a
+    Cloudflare Worker (cloudflare/os-portal-proxy.js), whose own subrequest
+    carries the Worker's IP as cf-connecting-ip, so it passes the visitor's
+    real IP in x-dg-client-ip."""
+    dg = (request.headers.get("x-dg-client-ip") or "").strip()
+    if dg:
+        return dg
     cf = (request.headers.get("cf-connecting-ip") or "").strip()
     if cf:
         return cf

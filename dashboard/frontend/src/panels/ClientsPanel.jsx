@@ -240,7 +240,55 @@ function ClientOverview({ client, cs, setup, onGoTab }) {
   );
 }
 
-function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact, reloadCs, onSetLive }) {
+// Where the client's portal lives (portal.digigrowthllc.com/<slug>) and who
+// can log in with an email code. Their own email + the linked contact's
+// email always work; extra addresses go here (portal_links.py).
+function PortalAccessCard({ client, onClose, onSaved }) {
+  const [slug, setSlug] = useState(client.portal_slug || "");
+  const [emails, setEmails] = useState((client.portal_emails || []).join(", "));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const base = (client.portal_url || "").replace(/\/[^/]*$/, "");
+  const always = [client.email, client.linked_contact?.email].filter(Boolean);
+  const save = async () => {
+    setSaving(true); setErr("");
+    const r = await fetch(API(`/clients/${client.id}`), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ portal_slug: slug.trim().toLowerCase(), portal_emails: emails.split(/[\s,;]+/).filter(Boolean) }),
+    });
+    setSaving(false);
+    if (r.ok) onSaved(); else setErr((await r.json().catch(() => ({}))).detail || "Couldn't save");
+  };
+  return (
+    <Card>
+      <SectionTitle title="Portal address & logins" hint="Clients log in with a 6-digit code sent to their email." />
+      <div style={{ display: "grid", gap: 12 }}>
+        <label style={{ display: "grid", gap: 6, fontSize: 13, color: T.textMute }}>
+          Address
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ color: T.textMute, fontSize: 13.5 }}>{base}/</span>
+            <input value={slug} onChange={(e) => setSlug(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 180 }} />
+          </div>
+        </label>
+        <div style={{ fontSize: 13, color: T.textMute }}>
+          Always allowed: {always.length ? always.join(", ") : "none yet (add the client's email on Edit client)"}
+        </div>
+        <label style={{ display: "grid", gap: 6, fontSize: 13, color: T.textMute }}>
+          Other people who can log in (comma separated)
+          <input value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="frontdesk@clinic.com, manager@clinic.com" style={inputStyle} />
+        </label>
+        {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save"}</button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDelete, onLinkContact, reloadCs, onSetLive, onPortalSaved }) {
+  const [portalEdit, setPortalEdit] = useState(false);
   const [tab, setTab] = useState("overview");
   const [togglingLive, setTogglingLive] = useState(false);
   const [setup, setSetup] = useState(null);
@@ -283,7 +331,7 @@ function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDele
           </div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", position: "relative" }}>
-          <a href={client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ textDecoration: "none" }}>Open portal ↗</a>
+          <a href={client.portal_admin_url || client.portal_url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ textDecoration: "none" }} title="Opens their portal already logged in (just for you)">Open portal ↗</a>
           <button className="btn btn-secondary" onClick={copyLink}>{copied ? "Copied" : "Copy portal link"}</button>
           <button className="btn btn-secondary" aria-label="More actions" onClick={() => setMenu((m) => !m)}>⋯</button>
           {menu && (
@@ -292,6 +340,7 @@ function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDele
               <div style={{ position: "absolute", top: 42, right: 0, zIndex: 41, minWidth: 190, borderRadius: 12, overflow: "hidden", background: "#0f1a3c", border: `1px solid ${T.lineStrong}`, boxShadow: "0 12px 32px rgba(0,0,0,.5)" }}>
                 <button style={menuItem} onClick={() => { onEdit(client); setMenu(false); }}>Edit client</button>
                 <button style={menuItem} onClick={() => { setPendingContact(client.linked_contact || null); setLinking(true); setMenu(false); }}>Link contact</button>
+                <button style={menuItem} onClick={() => { setPortalEdit(true); setMenu(false); }}>Portal address & logins</button>
                 {revoked
                   ? <button style={menuItem} onClick={() => { onRegenerate(client.id); setMenu(false); }}>Regenerate portal link</button>
                   : <button style={menuItem} onClick={() => { onRevoke(client.id); setMenu(false); }}>Revoke portal link</button>}
@@ -314,6 +363,8 @@ function ClientPage({ client, cs, onBack, onEdit, onRegenerate, onRevoke, onDele
           </div>
         </Card>
       )}
+
+      {portalEdit && <PortalAccessCard client={client} onClose={() => setPortalEdit(false)} onSaved={() => { setPortalEdit(false); onPortalSaved?.(); }} />}
 
       <Tabs tabs={tabs} value={tab} onChange={setTab} />
 
@@ -3972,7 +4023,7 @@ export default function ClientsPanel() {
           {editForm}
           <ClientPage client={open} cs={csMap[open.id]} onBack={() => setOpenId(null)}
             onEdit={(c) => { setEditing(c); setShowForm(false); }} onRegenerate={regenerate} onRevoke={revoke}
-            onDelete={remove} onLinkContact={linkContact} reloadCs={() => loadOneCs(open.id)}
+            onDelete={remove} onLinkContact={linkContact} reloadCs={() => loadOneCs(open.id)} onPortalSaved={load}
             onSetLive={async (id, live) => {
               const r = await fetch(API(`/clients/${id}`), {
                 method: "PATCH", headers: { "Content-Type": "application/json" },
