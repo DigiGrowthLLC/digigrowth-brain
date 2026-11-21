@@ -174,6 +174,24 @@ async def activate_campaign(campaign_id: int):
     return dict(row)
 
 
+@router.post("/campaigns/{campaign_id}/stop")
+async def stop_campaign(campaign_id: int):
+    """Ends this campaign's open period without starting another (Analytics
+    → Campaigns' Stop button). Its history and stats stay; Reactivate starts
+    a new period. Until a campaign is active again for the channel, new
+    sends carry no campaign (resolve_send_campaign returns None)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM campaigns WHERE id = $1", campaign_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Campaign not found")
+        await conn.execute(
+            "UPDATE campaign_periods SET ended_at = now() WHERE campaign_id = $1 AND ended_at IS NULL",
+            campaign_id,
+        )
+    return dict(row)
+
+
 @router.post("/campaigns/{campaign_id}/collapse-periods")
 async def collapse_campaign_periods(campaign_id: int, gap_seconds: int = 30):
     """Merges this campaign's own consecutive periods wherever the gap

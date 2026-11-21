@@ -314,6 +314,12 @@ function CampaignsView({ days, date }) {
     setReload(n => n + 1);
   }
 
+  async function stop(c) {
+    if (!window.confirm(`Stop "${c.name}"? Its stats stay. New ${CH[channel].name.toLowerCase()} outreach won't count toward any campaign until you reactivate one or start a new one.`)) return;
+    await fetch(API(`/campaigns/${c.id}/stop`), { method: "POST" });
+    setReload(n => n + 1);
+  }
+
   function onCampaignCreated(campaign) {
     if (campaign.channel === channel) setReload(n => n + 1);
     else setChannel(campaign.channel);
@@ -330,7 +336,9 @@ function CampaignsView({ days, date }) {
         <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
           <Pill tone={c.is_active ? "good" : "neutral"} dot style={{ fontSize: 11, padding: "2px 8px" }}>{c.is_active ? "Running" : "Ended"}</Pill>
           {d?.periods?.length > 0 && <span>{d.periods.map((p, j) => `${j ? ", " : ""}${fmtCampaignDate(p.started_at)} – ${fmtCampaignDate(p.ended_at)}`).join("")}</span>}
-          {!c.is_active && (
+          {c.is_active ? (
+            <button onClick={() => stop(c)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.bad, fontSize: 11.5, fontWeight: 600 }}>Stop</button>
+          ) : (
             <button onClick={() => reactivate(c.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.accent, fontSize: 11.5, fontWeight: 600 }}>Reactivate</button>
           )}
         </span>
