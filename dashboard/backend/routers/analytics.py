@@ -550,10 +550,10 @@ async def _sms_metrics(conn, since=None, campaign_id=None, until=None) -> dict:
     where every touch in the window is a legitimate opportunity to reply,
     not just the first one.
 
-    Booked is windowed by sms_conversations.booked_at — stamped once when a
-    booking happens and never cleared, so a later disposition change (e.g.
-    closing the thread as not_interested after a no-show ghosts) can't
-    erase the booked credit. Not Interested still windows on updated_at
+    Booked = bookings credited to SMS by _booking_channel_ctes (real,
+    non-canceled first calls, one channel each — a prospect who watched
+    their emailed video before booking goes to Email), windowed on when
+    the call was booked. Not Interested still windows on updated_at
     (bumped when disposition is set) — an approximation, since updated_at
     bumps on other edits too, but a disposition set is rare enough after
     the fact that this is close enough.
@@ -638,7 +638,6 @@ async def _sms_metrics(conn, since=None, campaign_id=None, until=None) -> dict:
                 COUNT(*) FILTER (WHERE stage_interested   AND ($2::timestamptz IS NULL
                                                                 OR {_in_window("stage_interested_at", "$2", "$3")}
                                                                 OR EXISTS (SELECT 1 FROM sms_messages sm WHERE sm.phone = sc.phone AND {_in_window("sm.sent_at", "$2", "$3")}))) AS interested,
-                COUNT(*) FILTER (WHERE booked_at IS NOT NULL          AND ($2::timestamptz IS NULL OR {_in_window("booked_at", "$2", "$3")})) AS booked,
                 COUNT(*) FILTER (WHERE disposition = 'not_interested' AND ($2::timestamptz IS NULL OR {_in_window("updated_at", "$2", "$3")})) AS not_interested
             FROM sms_conversations sc
             WHERE campaign_id = $1
@@ -648,7 +647,8 @@ async def _sms_metrics(conn, since=None, campaign_id=None, until=None) -> dict:
         contacted = contacted_row["contacted"]
         replied, primed, engaged, interested = stage_row["replied"], stage_row["primed"], stage_row["engaged"], stage_row["interested"]
         dm_reached = stage_row["dm_reached"]
-        booked, not_interested = stage_row["booked"], stage_row["not_interested"]
+        not_interested = stage_row["not_interested"]
+        booked = await _sms_booked(conn, since, until, campaign_id)
         return {
             "total_outreach":     total_outreach or 0,
             "contacted":          contacted or 0,
@@ -684,7 +684,6 @@ async def _sms_metrics(conn, since=None, campaign_id=None, until=None) -> dict:
     # never counted, no matter how recent the change itself was. Booked
     # uses its own booked_at column instead (see _sms_metrics' docstring)
     # so it isn't affected by a later disposition change at all.
-    booked_filter = f"AND {_in_window('booked_at', '$1', '$2')}" if since else ""
     not_interested_filter = f"AND {_in_window('updated_at', '$1', '$2')}" if since else ""
 
     # Total Outreach — each phone's first-ever non-automated outbound
@@ -779,10 +778,7 @@ async def _sms_metrics(conn, since=None, campaign_id=None, until=None) -> dict:
     engaged     = await _stage_count_with_activity_fallback("stage_engaged")
     interested  = await _stage_count_with_activity_fallback("stage_interested")
 
-    booked = await conn.fetchval(
-        f"SELECT COUNT(*) FROM sms_conversations WHERE booked_at IS NOT NULL {booked_filter}",
-        *params,
-    )
+    booked = await _sms_booked(conn, since, until)
 
     not_interested = await conn.fetchval(
         f"SELECT COUNT(*) FROM sms_conversations WHERE disposition='not_interested' {not_interested_filter}",
@@ -807,6 +803,87 @@ async def _sms_metrics(conn, since=None, campaign_id=None, until=None) -> dict:
         "not_interested":     not_interested or 0,
         "not_interested_rate": _pct(not_interested, contacted),
     }
+
+
+_VIDEO_PLAY_EVENTS = "('play', 'progress_25', 'progress_50', 'progress_75', 'complete')"
+
+
+def _booking_channel_ctes() -> str:
+    """CTEs (no leading WITH) ending in booking_channel(contact_id,
+    booked_at, channel): one row per prospect who really booked, credited
+    to exactly one channel, so the SMS and Email "Booked" cards add up to
+    the funnel's own count instead of overlapping it (Dylan, 2026-11-21).
+
+    A booking = the prospect's first discovery call that wasn't canceled
+    and isn't a follow-up call (same rule as the funnel / _os_sales_stats),
+    for Dylan's own prospects only. The old per-channel booked_at flags
+    were stamped at booking and never cleared, so canceled calls, a second
+    SMS thread for the same person, and a booking stamped on every
+    campaign-tagged thread all inflated the cards.
+
+    Channel: email when they played a video emailed to them (Email Handoff
+    / Send Info / Gatekeeper Deferral) before booking — the video was the
+    persuasion (Dylan). Otherwise SMS if they were cold-texted before
+    booking, else email if they were only emailed. Bookings with neither
+    (cold calls, inbound) get no channel here.
+    """
+    return f"""
+    real_booking AS (
+        SELECT DISTINCT ON (ar.contact_id) ar.contact_id, ar.created_at AS booked_at
+        FROM appointment_reminders ar
+        JOIN contacts bc_c ON bc_c.id = ar.contact_id
+        WHERE ar.status != 'canceled' AND ar.call_type = 'discovery'
+          AND (bc_c.client_id IS NULL OR bc_c.is_client_anchor)
+          AND bc_c.status IS DISTINCT FROM 'test'
+          AND NOT {follow_up_appointment_sql('ar')}
+        ORDER BY ar.contact_id, ar.created_at
+    ),
+    video_email_sends AS (
+        SELECT contact_id, touch1_sent_at AS sent_at, loom_url AS url FROM email_handoff_state
+        WHERE touch1_sent_at IS NOT NULL AND NOT exclude_from_analytics
+        UNION ALL
+        SELECT contact_id, email_sent_at, watch_url FROM send_info_loom_queue WHERE email_sent_at IS NOT NULL
+    ),
+    booking_channel AS (
+        SELECT rb.contact_id, rb.booked_at,
+            CASE
+                WHEN EXISTS (
+                    SELECT 1 FROM video_email_sends ves
+                    JOIN content_view_events v ON v.content_key = regexp_replace(ves.url, '^.*/', '')
+                    WHERE ves.contact_id = rb.contact_id AND ves.url IS NOT NULL
+                      AND v.source = 'outreach_video' AND v.event_type IN {_VIDEO_PLAY_EVENTS}
+                      AND v.occurred_at >= ves.sent_at AND v.occurred_at < rb.booked_at) THEN 'email'
+                WHEN EXISTS (
+                    SELECT 1 FROM sms_conversations bsc
+                    JOIN sms_messages bsm ON bsm.phone = bsc.phone
+                    WHERE bsc.contact_id = rb.contact_id AND bsm.direction = 'outbound'
+                      AND NOT bsm.is_automated AND bsm.sent_at < rb.booked_at) THEN 'sms'
+                WHEN EXISTS (
+                    SELECT 1 FROM video_email_sends ves
+                    WHERE ves.contact_id = rb.contact_id AND ves.sent_at < rb.booked_at) THEN 'email'
+            END AS channel
+        FROM real_booking rb
+    )"""
+
+
+async def _sms_booked(conn, since=None, until=None, campaign_id=None) -> int:
+    """SMS-credited bookings (see _booking_channel_ctes), windowed on when
+    the call was booked; a campaign view = the prospect's SMS thread
+    carries that campaign."""
+    campaign_sql = "" if campaign_id is None else (
+        " AND EXISTS (SELECT 1 FROM sms_conversations sc WHERE sc.contact_id = bc.contact_id AND sc.campaign_id = $3)"
+    )
+    args = [since, until] + ([] if campaign_id is None else [campaign_id])
+    return await conn.fetchval(
+        f"""
+        WITH {_booking_channel_ctes()}
+        SELECT COUNT(*) FROM booking_channel bc
+        WHERE bc.channel = 'sms'
+          AND ($1::timestamptz IS NULL OR bc.booked_at >= $1)
+          AND ($2::timestamptz IS NULL OR bc.booked_at < $2){campaign_sql}
+        """,
+        *args,
+    ) or 0
 
 
 async def _email_metrics(conn, since=None, campaign_id=None, until=None) -> dict:
@@ -845,8 +922,9 @@ async def _email_metrics(conn, since=None, campaign_id=None, until=None) -> dict
         card's email cohort, Dylan), never the SMS/Loom video totals. Send
         Info texts the same link, so a play
         there can come from the SMS.
-      - booked: an appointment (not canceled, not a follow-up call) created
-        after Touch 1, or the email conversation marked booked
+      - booked: a booking credited to Email by _booking_channel_ctes (real,
+        non-canceled first call; they watched an emailed video before
+        booking, or were only ever emailed), made after their first send
 
     `until` (exclusive, a picked day's end) caps the first-send window.
     """
@@ -872,7 +950,8 @@ async def _email_metrics(conn, since=None, campaign_id=None, until=None) -> dict
 
     row = await conn.fetchrow(
         f"""
-        WITH sends AS (
+        WITH {_booking_channel_ctes()},
+        sends AS (
             SELECT ehs.contact_id, ehs.touch1_sent_at AS sent_at, ehs.loom_url
             FROM email_handoff_state ehs
             WHERE {" AND ".join(handoff_clauses)}{send_info_sql}
@@ -885,13 +964,9 @@ async def _email_metrics(conn, since=None, campaign_id=None, until=None) -> dict
             SELECT f.contact_id, f.touch1_sent_at, f.loom_url, c.email_opted_out, c.status,
                    s.stage_replied AS replied_tick,
                    coalesce(s.stage_engaged OR s.stage_interested, false) AS positive_tick,
-                   EXISTS (SELECT 1 FROM appointment_reminders ar
-                           WHERE ar.contact_id = f.contact_id AND ar.status != 'canceled'
-                             AND ar.call_type = 'discovery'
-                             AND ar.created_at >= f.touch1_sent_at
-                             AND NOT {follow_up_appointment_sql('ar')})
-                   OR EXISTS (SELECT 1 FROM email_conversations ec
-                              WHERE ec.contact_id = f.contact_id AND ec.booked_at IS NOT NULL) AS is_booked
+                   EXISTS (SELECT 1 FROM booking_channel bc
+                           WHERE bc.contact_id = f.contact_id AND bc.channel = 'email'
+                             AND bc.booked_at >= f.touch1_sent_at) AS is_booked
             FROM first_send f
             JOIN contacts c ON c.id = f.contact_id
             LEFT JOIN email_contact_stages s ON s.contact_id = f.contact_id
