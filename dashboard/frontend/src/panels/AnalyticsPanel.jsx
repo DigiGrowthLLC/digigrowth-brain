@@ -125,95 +125,8 @@ function Funnel({ stages, loading }) {
   );
 }
 
-// ── Channel cards ────────────────────────────────────────────────────────
+// ── Comparison table (channels on Overview, campaigns on Campaigns) ──────
 
-function MetricRow({ label, value, tone, hint }) {
-  const color = tone === "bad" ? T.bad : tone === "good" ? T.good : T.text;
-  return (
-    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, padding: "9px 0", borderTop: `1px solid ${T.line}` }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 13.5, color: T.textDim }}>{label}</div>
-        {hint && <div style={{ fontSize: 11.5, color: T.textMute, marginTop: 1 }}>{hint}</div>}
-      </div>
-      <div style={{ fontFamily: T.display, fontSize: 15.5, fontWeight: 600, color, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{value}</div>
-    </div>
-  );
-}
-
-function ChannelCard({ ch, volumeLabel, volume, booked, abr, rows, loading, note }) {
-  const c = CH[ch];
-  return (
-    <Card pad={20} style={{ borderTop: `3px solid ${c.color}`, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-        <span style={{ width: 9, height: 9, borderRadius: "50%", background: c.color }} />
-        <span style={{ fontFamily: T.display, fontSize: 16, fontWeight: 600, color: T.text }}>{c.name}</span>
-      </div>
-      {note && <div style={{ fontSize: 12, color: T.textMute, marginTop: 4, lineHeight: 1.45 }}>{note}</div>}
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, margin: "16px 0 14px" }}>
-        <div>
-          <div style={{ fontSize: 12.5, color: T.textMute }}>{volumeLabel}</div>
-          <div style={{ fontFamily: T.display, fontSize: 28, fontWeight: 700, color: T.text, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
-            {loading ? "…" : num(volume)}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 12.5, color: T.textMute }}>Booked</div>
-          <div style={{ fontFamily: T.display, fontSize: 28, fontWeight: 700, color: T.good, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
-            {loading ? "…" : num(booked)}
-          </div>
-          {!loading && <div style={{ fontSize: 12, color: T.textMute }}>{pct(abr)} booking rate</div>}
-        </div>
-      </div>
-
-      <div>
-        {rows.map((r) => <MetricRow key={r.label} {...r} value={loading ? "…" : r.value} />)}
-      </div>
-    </Card>
-  );
-}
-
-function CallingCard({ m, loading }) {
-  return (
-    <ChannelCard ch="calling" loading={loading} volumeLabel="Calls made" volume={m.total} booked={m.booked} abr={m.abr}
-      rows={[
-        { label: "Answer rate", value: pct(m.answer_rate) },
-        { label: "Pitch rate", value: pct(m.pitch_rate), hint: "Reached the decision maker" },
-        { label: "Resonation rate", value: pct(m.resonation_rate), hint: "Of pitches that landed" },
-      ]} />
-  );
-}
-
-function SmsCard({ m, loading, note }) {
-  return (
-    <ChannelCard ch="sms" loading={loading} note={note} volumeLabel="Prospects texted" volume={m.total_outreach} booked={m.booked} abr={m.abr}
-      rows={[
-        { label: "Reply rate", value: pct(m.reply_rate) },
-        { label: "Reached the owner", value: m.dm_reached != null ? `${num(m.dm_reached)} · ${pct(m.dm_reached_rate)}` : "–" },
-        { label: "Primed", value: pct(m.primed_rate) },
-        { label: "Engaged", value: pct(m.engaged_rate) },
-        { label: "Interested", value: pct(m.interested_rate), tone: m.interested_rate > 0 ? "good" : undefined },
-        { label: "Not interested", value: pct(m.not_interested_rate), tone: m.not_interested_rate > 0 ? "bad" : undefined },
-      ]} />
-  );
-}
-
-function EmailCard({ m, loading, note }) {
-  return (
-    <ChannelCard ch="email" loading={loading} note={note} volumeLabel="Prospects emailed" volume={m.total_sent} booked={m.booked} abr={m.abr}
-      rows={[
-        { label: "Reply rate", value: pct(m.reply_rate), hint: m.replied != null ? `${num(m.replied)} replied` : null },
-        { label: "Watched the video", value: pct(m.video_play_rate), hint: m.video_plays != null ? `${num(m.video_plays)} pressed play` : null },
-        { label: "Positive replies", value: pct(m.positive_reply_rate), tone: m.positive_reply_rate > 0 ? "good" : undefined },
-        { label: "Unsubscribed", value: pct(m.unsubscribe_rate), tone: m.unsubscribe_rate > 2 ? "bad" : undefined },
-        { label: "Not interested", value: pct(m.not_interested_rate), tone: m.not_interested_rate > 0 ? "bad" : undefined },
-      ]} />
-  );
-}
-
-// Overview: every channel in one table (a column per channel, a row per
-// metric) so they compare by reading straight across. "Best" in a row gets
-// a soft highlight; a dash = that channel doesn't track it.
 function useNarrow(px = 600) {
   const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.innerWidth < px);
   useEffect(() => {
@@ -224,36 +137,40 @@ function useNarrow(px = 600) {
   return narrow;
 }
 
-const SHORT_NAME = { calling: "Calls", sms: "SMS", email: "Email" };
-
-function ChannelTable({ calling: c, sms: s, email: e, loading }) {
+// One column per thing being compared, one row per metric, read straight
+// across. `best` rows highlight the top value in that column's color; a
+// dash = that column doesn't track the metric. columns: [{ key, color,
+// title, short, sub }]; rows: [{ label, hint, vals[], fmt, tone, strong, best }].
+// Many columns (campaigns) scroll sideways with the metric column pinned.
+function ComparisonTable({ columns, rows, loading }) {
   const narrow = useNarrow();
-  const rows = [
-    { label: "Reached out to", vals: [c.total, s.total_outreach, e.total_sent], fmt: num, hint: "Calls made · prospects texted · prospects emailed" },
-    { label: "Answered / replied", vals: [c.answer_rate, s.reply_rate, e.reply_rate], fmt: pct, best: true },
-    { label: "Reached the owner", vals: [c.pitch_rate, s.dm_reached_rate, e.video_play_rate], fmt: pct, best: true, hint: "Email: watched the video" },
-    { label: "Interested", vals: [c.resonation_rate, s.interested_rate, e.positive_reply_rate], fmt: pct, best: true, hint: "Calling: pitch resonated · Email: positive reply" },
-    { label: "Booked", vals: [c.booked, s.booked, e.booked], fmt: num, tone: "good", strong: true, best: true },
-    { label: "ABR", vals: [c.abr, s.abr, e.abr], fmt: pct, tone: "good", strong: true, best: true, hint: "Booked ÷ reached out to" },
-    { label: "Not interested", vals: [null, s.not_interested_rate, e.not_interested_rate], fmt: pct, tone: "bad" },
-    { label: "Unsubscribed", vals: [null, null, e.unsubscribe_rate], fmt: pct, tone: "bad" },
-  ];
-  const chans = ["calling", "sms", "email"];
+  const scrolls = columns.length > 3;
+  const colW = narrow ? 92 : 150;
+  const metricW = narrow ? 118 : 210;
+  const minWidth = scrolls ? metricW + columns.length * colW : undefined;
   const cell = { padding: narrow ? "11px 6px" : "12px 14px", textAlign: "right", borderTop: `1px solid ${T.line}`, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+  // Pinned metric column needs a solid background to cover cells sliding under it.
+  const pin = scrolls ? { position: "sticky", left: 0, zIndex: 1, background: "#0c1536" } : {};
+
+  // One or two columns: shrink the card so values sit near their labels
+  // instead of across a wide empty table.
+  const fewMax = columns.length < 3 && !narrow ? 300 + columns.length * 240 : undefined;
 
   return (
-    <Card pad={0} style={{ overflow: "hidden" }}>
+    <Card pad={0} style={{ overflow: "hidden", maxWidth: fewMax }}>
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table style={{ width: "100%", minWidth, borderCollapse: "collapse", tableLayout: scrolls ? "fixed" : "auto" }}>
           <thead>
             <tr>
-              <th style={{ padding: narrow ? "14px 6px 10px 14px" : "16px 14px 12px 20px", textAlign: "left", fontSize: 12.5, fontWeight: 500, color: T.textMute }}>Metric</th>
-              {chans.map(ch => (
-                <th key={ch} style={{ width: narrow ? "21%" : "19%", padding: narrow ? "14px 6px 10px" : "16px 14px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: narrow ? 5 : 8, fontFamily: T.display, fontSize: narrow ? 13 : 14.5, fontWeight: 600, color: T.text }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: CH[ch].color }} />{narrow ? SHORT_NAME[ch] : CH[ch].name}
-                  </span>
-                  <div style={{ height: 3, borderRadius: 99, background: CH[ch].color, marginTop: 8, opacity: 0.7 }} />
+              <th style={{ ...pin, width: scrolls ? metricW : undefined, padding: narrow ? "14px 6px 10px 14px" : "16px 14px 12px 20px", textAlign: "left", verticalAlign: "bottom", fontSize: 12.5, fontWeight: 500, color: T.textMute }}>Metric</th>
+              {columns.map(col => (
+                <th key={col.key} style={{ width: scrolls ? colW : (narrow ? "21%" : "19%"), padding: narrow ? "14px 6px 10px" : "16px 14px 12px", textAlign: "right", verticalAlign: "bottom" }}>
+                  <div style={{ fontFamily: T.display, fontSize: narrow ? 13 : 14.5, fontWeight: 600, color: T.text, whiteSpace: scrolls ? "normal" : "nowrap", textAlign: "right", lineHeight: 1.3 }}>
+                    <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: col.color, marginRight: narrow ? 5 : 7, verticalAlign: "middle", position: "relative", top: -1 }} />
+                    {narrow && col.short ? col.short : col.title}
+                  </div>
+                  {col.sub && <div style={{ marginTop: 5, fontSize: 11.5, fontWeight: 400, color: T.textMute, whiteSpace: "normal" }}>{col.sub}</div>}
+                  <div style={{ height: 3, borderRadius: 99, background: col.color, marginTop: 8, opacity: 0.7 }} />
                 </th>
               ))}
             </tr>
@@ -262,25 +179,26 @@ function ChannelTable({ calling: c, sms: s, email: e, loading }) {
             {rows.map(r => {
               const present = r.vals.filter(v => v != null);
               const top = r.best && present.length > 1 ? Math.max(...present) : null;
-              const bg = r.strong ? "rgba(47,208,143,0.045)" : "transparent";
+              const tint = r.strong ? "rgba(47,208,143,0.045)" : "transparent";
               return (
-                <tr key={r.label} style={{ background: bg }}>
-                  <td style={{ ...cell, textAlign: "left", paddingLeft: narrow ? 14 : 20, whiteSpace: "normal" }}>
+                <tr key={r.label} style={{ background: tint }}>
+                  <td style={{ ...cell, ...pin, ...(scrolls && r.strong ? { background: "#0d1c38" } : {}), textAlign: "left", paddingLeft: narrow ? 14 : 20, whiteSpace: "normal" }}>
                     <div style={{ fontSize: narrow ? 13 : 14, fontWeight: r.strong ? 600 : 500, color: r.strong ? T.text : T.textDim }}>{r.label}</div>
                     {r.hint && !narrow && <div style={{ fontSize: 11.5, color: T.textMute, marginTop: 2 }}>{r.hint}</div>}
                   </td>
                   {r.vals.map((v, i) => {
+                    const col = columns[i];
                     const isTop = top != null && v === top && top > 0;
                     const color = v == null ? T.textMute
                       : r.tone === "bad" ? (v > 0 ? T.bad : T.textDim)
                       : r.tone === "good" ? T.good : T.text;
                     return (
-                      <td key={i} style={cell}>
+                      <td key={col.key} style={cell}>
                         <span style={{
                           fontFamily: T.display, fontSize: narrow ? (r.strong ? 15.5 : 13.5) : (r.strong ? 18 : 15.5), fontWeight: r.strong ? 700 : 600, color,
                           padding: narrow ? "2px 5px" : "3px 9px", borderRadius: 8,
-                          background: isTop ? `${CH[chans[i]].color}24` : "transparent",
-                          boxShadow: isTop ? `inset 0 0 0 1px ${CH[chans[i]].color}55` : "none",
+                          background: isTop ? `${col.color}24` : "transparent",
+                          boxShadow: isTop ? `inset 0 0 0 1px ${col.color}55` : "none",
                         }}>
                           {loading ? "…" : v == null ? "–" : r.fmt(v)}
                         </span>
@@ -297,9 +215,64 @@ function ChannelTable({ calling: c, sms: s, email: e, loading }) {
   );
 }
 
+const CHANNEL_COLUMNS = [
+  { key: "calling", color: CH.calling.color, title: CH.calling.name, short: "Calls" },
+  { key: "sms", color: CH.sms.color, title: CH.sms.name },
+  { key: "email", color: CH.email.color, title: CH.email.name },
+];
+
+function ChannelTable({ calling: c, sms: s, email: e, loading }) {
+  const rows = [
+    { label: "Reached out to", vals: [c.total, s.total_outreach, e.total_sent], fmt: num, hint: "Calls made · prospects texted · prospects emailed" },
+    { label: "Answered / replied", vals: [c.answer_rate, s.reply_rate, e.reply_rate], fmt: pct, best: true },
+    { label: "Reached the owner", vals: [c.pitch_rate, s.dm_reached_rate, e.video_play_rate], fmt: pct, best: true, hint: "Email: watched the video" },
+    { label: "Interested", vals: [c.resonation_rate, s.interested_rate, e.positive_reply_rate], fmt: pct, best: true, hint: "Calling: pitch resonated · Email: positive reply" },
+    { label: "Booked", vals: [c.booked, s.booked, e.booked], fmt: num, tone: "good", strong: true, best: true },
+    { label: "ABR", vals: [c.abr, s.abr, e.abr], fmt: pct, tone: "good", strong: true, best: true, hint: "Booked ÷ reached out to" },
+    { label: "Not interested", vals: [null, s.not_interested_rate, e.not_interested_rate], fmt: pct, tone: "bad" },
+    { label: "Unsubscribed", vals: [null, null, e.unsubscribe_rate], fmt: pct, tone: "bad" },
+  ];
+  return <ComparisonTable columns={CHANNEL_COLUMNS} rows={rows} loading={loading} />;
+}
+
+// Metric rows per campaign channel; `ms` = each campaign's metrics, in column order.
+function campaignRows(channel, ms) {
+  const col = (k) => ms.map(m => (m ? m[k] ?? null : null));
+  if (channel === "calling") return [
+    { label: "Calls made", vals: col("total"), fmt: num },
+    { label: "Answer rate", vals: col("answer_rate"), fmt: pct, best: true },
+    { label: "Pitch rate", vals: col("pitch_rate"), fmt: pct, best: true, hint: "Reached the decision maker" },
+    { label: "Resonation rate", vals: col("resonation_rate"), fmt: pct, best: true, hint: "Of pitches that landed" },
+    { label: "Booked", vals: col("booked"), fmt: num, tone: "good", strong: true, best: true },
+    { label: "ABR", vals: col("abr"), fmt: pct, tone: "good", strong: true, best: true, hint: "Booked ÷ calls made" },
+  ];
+  if (channel === "email") return [
+    { label: "Prospects emailed", vals: col("total_sent"), fmt: num },
+    { label: "Reply rate", vals: col("reply_rate"), fmt: pct, best: true },
+    { label: "Watched the video", vals: col("video_play_rate"), fmt: pct, best: true },
+    { label: "Positive replies", vals: col("positive_reply_rate"), fmt: pct, best: true },
+    { label: "Booked", vals: col("booked"), fmt: num, tone: "good", strong: true, best: true },
+    { label: "ABR", vals: col("abr"), fmt: pct, tone: "good", strong: true, best: true, hint: "Booked ÷ prospects emailed" },
+    { label: "Not interested", vals: col("not_interested_rate"), fmt: pct, tone: "bad" },
+    { label: "Unsubscribed", vals: col("unsubscribe_rate"), fmt: pct, tone: "bad" },
+  ];
+  return [
+    { label: "Prospects texted", vals: col("total_outreach"), fmt: num },
+    { label: "Reply rate", vals: col("reply_rate"), fmt: pct, best: true },
+    { label: "Reached the owner", vals: col("dm_reached_rate"), fmt: pct, best: true },
+    { label: "Primed", vals: col("primed_rate"), fmt: pct, best: true },
+    { label: "Engaged", vals: col("engaged_rate"), fmt: pct, best: true },
+    { label: "Interested", vals: col("interested_rate"), fmt: pct, best: true },
+    { label: "Booked", vals: col("booked"), fmt: num, tone: "good", strong: true, best: true },
+    { label: "ABR", vals: col("abr"), fmt: pct, tone: "good", strong: true, best: true, hint: "Booked ÷ prospects texted" },
+    { label: "Not interested", vals: col("not_interested_rate"), fmt: pct, tone: "bad" },
+  ];
+}
+
 // ── Campaigns tab ────────────────────────────────────────────────────────
 
 const CAMPAIGN_CHANNEL_OPTIONS = [["sms", "SMS"], ["email", "Email"], ["calling", "Cold calling"]];
+const CAMPAIGN_COLORS = ["#4d8ef0", "#2dd4bf", "#a78bfa", "#f2ad3d", "#f472b6", "#38bdf8", "#a3e635", "#fb923c"];
 
 function fmtCampaignDate(iso) {
   if (!iso) return "now";
@@ -308,74 +281,64 @@ function fmtCampaignDate(iso) {
 
 const selectStyle = { ...inputStyle, width: "auto", minWidth: 200, padding: "8px 12px", cursor: "pointer" };
 
-function CampaignHeader({ detail, onReactivate }) {
-  return (
-    <Card pad={18} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: T.display, fontSize: 17, fontWeight: 700, color: T.text }}>{detail.campaign.name}</span>
-          <Pill tone={detail.campaign.is_active ? "good" : "neutral"} dot>{detail.campaign.is_active ? "Running" : "Ended"}</Pill>
-        </div>
-        <div style={{ fontSize: 12.5, color: T.textMute, marginTop: 5 }}>
-          {detail.periods.map((p, i) => (
-            <span key={i}>{i > 0 ? ", " : ""}{fmtCampaignDate(p.started_at)} – {fmtCampaignDate(p.ended_at)}</span>
-          ))}
-        </div>
-      </div>
-      {!detail.campaign.is_active && (
-        <button className="btn btn-secondary" onClick={() => onReactivate(detail.campaign.id)}>Reactivate</button>
-      )}
-    </Card>
-  );
-}
-
+// Every campaign in the chosen channel side by side (running one first),
+// each column with its own dates + Running/Ended, so they compare at a glance.
 function CampaignsView({ days, date }) {
-  const [channel, setChannel]         = useState("sms");
-  const [campaigns, setCampaigns]     = useState([]);
-  const [selectedId, setSelectedId]   = useState(null);
-  const [detail, setDetail]           = useState(null);
-  const [modalOpen, setModalOpen]     = useState(false);
-  const pendingSelectId = React.useRef(null);
-
-  const loadCampaigns = (ch, selectId) => {
-    fetch(API(`/campaigns?channel=${ch}`)).then(r => r.ok ? r.json() : []).then(list => {
-      setCampaigns(list);
-      if (selectId) setSelectedId(selectId);
-      else if (list.length) setSelectedId(list[0].id);
-      else setSelectedId(null);
-    });
-  };
+  const [channel, setChannel]     = useState("sms");
+  const [campaigns, setCampaigns] = useState(null);
+  const [details, setDetails]     = useState({}); // campaign id -> /analytics/campaign response
+  const [modalOpen, setModalOpen] = useState(false);
+  const [reload, setReload]       = useState(0);
 
   useEffect(() => {
-    setDetail(null);
-    loadCampaigns(channel, pendingSelectId.current);
-    pendingSelectId.current = null;
-  }, [channel]);
-
-  useEffect(() => {
-    if (!selectedId) return;
     let stale = false;
-    fetch(API(`/analytics/campaign/${selectedId}?days=${days}${date ? `&date=${date}` : ""}`)).then(r => r.ok ? r.json() : null).then(d => { if (!stale) setDetail(d); });
+    setCampaigns(null);
+    fetch(API(`/campaigns?channel=${channel}`)).then(r => r.ok ? r.json() : []).then(list => {
+      if (!stale) setCampaigns([...list].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0)));
+    });
     return () => { stale = true; };
-  }, [selectedId, days, date]);
+  }, [channel, reload]);
+
+  useEffect(() => {
+    if (!campaigns?.length) { setDetails({}); return; }
+    let stale = false;
+    setDetails({});
+    Promise.all(campaigns.map(c =>
+      fetch(API(`/analytics/campaign/${c.id}?days=${days}${date ? `&date=${date}` : ""}`)).then(r => r.ok ? r.json() : null).then(d => [c.id, d])
+    )).then(pairs => { if (!stale) setDetails(Object.fromEntries(pairs)); });
+    return () => { stale = true; };
+  }, [campaigns, days, date]);
 
   async function reactivate(id) {
     await fetch(API(`/campaigns/${id}/activate`), { method: "POST" });
-    loadCampaigns(channel, selectedId);
-    fetch(API(`/analytics/campaign/${selectedId}?days=${days}${date ? `&date=${date}` : ""}`)).then(r => r.ok ? r.json() : null).then(setDetail);
+    setReload(n => n + 1);
   }
 
   function onCampaignCreated(campaign) {
-    if (campaign.channel === channel) {
-      loadCampaigns(channel, campaign.id);
-    } else {
-      pendingSelectId.current = campaign.id;
-      setChannel(campaign.channel);
-    }
+    if (campaign.channel === channel) setReload(n => n + 1);
+    else setChannel(campaign.channel);
   }
 
-  const m = detail?.metrics || {};
-  const smsNote = (days !== 0 || date)
+  const loading = campaigns != null && campaigns.length > 0 && Object.keys(details).length === 0;
+  const columns = (campaigns || []).map((c, i) => {
+    const d = details[c.id];
+    return {
+      key: c.id,
+      color: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length],
+      title: c.name,
+      sub: (
+        <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
+          <Pill tone={c.is_active ? "good" : "neutral"} dot style={{ fontSize: 11, padding: "2px 8px" }}>{c.is_active ? "Running" : "Ended"}</Pill>
+          {d?.periods?.length > 0 && <span>{d.periods.map((p, j) => `${j ? ", " : ""}${fmtCampaignDate(p.started_at)} – ${fmtCampaignDate(p.ended_at)}`).join("")}</span>}
+          {!c.is_active && (
+            <button onClick={() => reactivate(c.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.accent, fontSize: 11.5, fontWeight: 600 }}>Reactivate</button>
+          )}
+        </span>
+      ),
+    };
+  });
+  const rows = campaignRows(channel, (campaigns || []).map(c => details[c.id]?.metrics));
+  const smsNote = channel === "sms" && (days !== 0 || date)
     ? `Owner reached / primed / engaged / interested count from when each box was ticked (${date ? formatPickedDate(date) : PERIOD_TEXT[days] || "this period"}). Boxes ticked before that tracking existed only show under All time.`
     : null;
 
@@ -383,31 +346,22 @@ function CampaignsView({ days, date }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <Segmented value={channel} onChange={setChannel} options={CAMPAIGN_CHANNEL_OPTIONS} />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {campaigns.length > 0 && (
-            <select value={selectedId || ""} onChange={e => setSelectedId(Number(e.target.value))} style={selectStyle}>
-              {campaigns.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.is_active ? " (running)" : ""}</option>
-              ))}
-            </select>
-          )}
-          <button className="btn btn-primary" onClick={() => setModalOpen(true)}>New campaign</button>
-        </div>
+        <button className="btn btn-primary" onClick={() => setModalOpen(true)}>New campaign</button>
       </div>
 
       <CampaignModal open={modalOpen} defaultChannel={channel} onClose={() => setModalOpen(false)} onCreated={onCampaignCreated} />
 
-      {!campaigns.length && <Card><Empty>No {CH[channel].name.toLowerCase()} campaigns yet.</Empty></Card>}
-
-      {detail && (
-        <>
-          <CampaignHeader detail={detail} onReactivate={reactivate} />
-          <div style={{ maxWidth: 560 }}>
-            {channel === "sms" && <SmsCard m={m} note={smsNote} />}
-            {channel === "email" && <EmailCard m={m} />}
-            {channel === "calling" && <CallingCard m={m} />}
-          </div>
-        </>
+      {campaigns == null ? (
+        <Card><Empty>Loading…</Empty></Card>
+      ) : !campaigns.length ? (
+        <Card><Empty>No {CH[channel].name.toLowerCase()} campaigns yet.</Empty></Card>
+      ) : (
+        <div>
+          <SectionTitle title={`${CH[channel].name} campaigns`}
+            hint={`Read across to compare. The highlighted value is the best campaign on that row.${columns.length > 3 ? " Scroll sideways for older campaigns." : ""}`} />
+          {smsNote && <div style={{ fontSize: 12, color: T.textMute, margin: "-4px 0 10px", lineHeight: 1.45 }}>{smsNote}</div>}
+          <ComparisonTable columns={columns} rows={rows} loading={loading} />
+        </div>
       )}
     </div>
   );
