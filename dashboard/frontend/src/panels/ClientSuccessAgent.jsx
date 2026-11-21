@@ -131,6 +131,10 @@ export default function ClientSuccessAgent({ clientId }) {
     if (!window.confirm(rep.kind === "final" ? "Approve and send this final report to the client?" : "Send this report to the client?")) return;
     setBusy(`send-${rep.id}`); await api(`/reports/${rep.id}/send`, { method: "POST" }); setBusy(null); load();
   };
+  const markSent = async (rep) => {
+    if (!window.confirm("Mark this report as sent? Nothing goes to the client; use this when you've already sent the link yourself.")) return;
+    setBusy(`mark-${rep.id}`); await api(`/reports/${rep.id}`, json({ mark_sent: true }, "PATCH")); setBusy(null); load();
+  };
   const deleteReport = async (rep) => {
     if (!window.confirm("Delete this report? Its link stops working.")) return;
     await api(`/reports/${rep.id}`, { method: "DELETE" }); load();
@@ -187,6 +191,7 @@ export default function ClientSuccessAgent({ clientId }) {
               <span style={{ flex: 1, minWidth: 200, fontSize: 13.5, color: T.text }}>{r.analysis?.headline || "Final campaign report"}</span>
               <LinkBtn href={r.url}>Review</LinkBtn>
               {r.artifact_url && <LinkBtn href={r.artifact_url}>Artifact</LinkBtn>}
+              <LinkBtn tone="mute" disabled={!!busy} onClick={() => markSent(r)}>{busy === `mark-${r.id}` ? "Saving…" : "Mark as sent"}</LinkBtn>
               <button className="btn btn-primary" disabled={!!busy} onClick={() => sendReport(r)}>{busy === `send-${r.id}` ? "Sending…" : "Approve & send"}</button>
             </Row>
           ))}
@@ -214,6 +219,7 @@ export default function ClientSuccessAgent({ clientId }) {
               <span style={{ flex: 1, minWidth: 180, fontSize: 13, color: T.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.analysis?.headline}</span>
               <LinkBtn href={r.url}>Open</LinkBtn>
               {!r.sent_at && r.kind !== "final" && <LinkBtn disabled={!!busy} onClick={() => sendReport(r)}>Send</LinkBtn>}
+              {!r.sent_at && <LinkBtn tone="mute" disabled={!!busy} onClick={() => markSent(r)}>Mark as sent</LinkBtn>}
               <LinkBtn tone="bad" onClick={() => deleteReport(r)}>Delete</LinkBtn>
             </Row>
           ))}

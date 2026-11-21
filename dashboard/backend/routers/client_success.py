@@ -269,6 +269,21 @@ async def update_report(report_id: int, body: dict):
             if await conn.fetchval("SELECT sent_at FROM client_reports WHERE id = $1", report_id):
                 raise HTTPException(status_code=400, detail="Already sent to the client; build a new one instead.")
             await conn.execute("UPDATE client_reports SET html = $2 WHERE id = $1", report_id, body["html"])
+        if body.get("mark_sent"):
+            # Dylan sent the link himself (text/email by hand): record it as sent
+            # without contacting the client, and close its approval/send To-Dos.
+            r = await conn.fetchrow(
+                "SELECT r.kind, c.name FROM client_reports r JOIN clients c ON c.id = r.client_id WHERE r.id = $1",
+                report_id)
+            if not r:
+                raise HTTPException(status_code=404)
+            await conn.execute(
+                "UPDATE client_reports SET sent_at = COALESCE(sent_at, now()), sent_channels = $2, send_error = NULL "
+                "WHERE id = $1", report_id, ["manual"])
+            label = "weekly" if r["kind"] == "weekly" else "final"
+            await conn.execute(
+                "UPDATE todos SET done = TRUE WHERE NOT done AND text = ANY($1::text[])",
+                [f"Approve {r['name']}'s final campaign report", f"Send {r['name']}'s {label} report by hand"])
     return {"ok": True}
 
 
