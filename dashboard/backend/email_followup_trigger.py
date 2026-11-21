@@ -24,6 +24,13 @@ Eligibility ("3 days after the SMS handoff, if they never replied at all"):
     same two guard columns dm_followup_sequence.py uses).
   - Not already in (or past) email-handoff / closed — status NOT IN
     ('email-handoff', 'closed') avoids re-enrolling every poll.
+  - Never emailed before: no email_handoff_state row and no Send Info /
+    Gatekeeper Deferral email. This is a one-time channel switch. Without
+    it, any later status change (a booking -> appointment-booked, the email
+    setter -> not-interested) put the prospect straight back into
+    email-handoff, and enroll() wiped their Touch 1 send — which dropped
+    every cold-email replier out of Email analytics (all 3 repliers,
+    2026-11) and overwrote their real status.
 """
 from db import get_pool
 
@@ -36,6 +43,11 @@ _ELIGIBLE_QUERY = """
       AND c.email_opted_out = false
       AND sc.disposition IS NULL
       AND sc.status != 'closed'
+      AND NOT EXISTS (SELECT 1 FROM email_handoff_state ehs WHERE ehs.contact_id = c.id)
+      AND NOT EXISTS (
+          SELECT 1 FROM send_info_loom_queue q
+          WHERE q.contact_id = c.id AND q.email_sent_at IS NOT NULL
+      )
       AND NOT EXISTS (
           SELECT 1 FROM sms_messages sm
           WHERE sm.contact_id = c.id AND sm.direction = 'inbound'
