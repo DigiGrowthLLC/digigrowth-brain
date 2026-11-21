@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { T, Card, SectionTitle, Pill, Stat, Progress, Empty, Loading, fmtDate } from "../ui.jsx";
+import { T, Card, Pill, Empty, Loading, fmtDate } from "../ui.jsx";
 
 // Analytics -> Client retention: did clients stay after their campaign?
 // One row per finished campaign (client_retention.py), opened when its final
@@ -10,24 +10,48 @@ const STATUS = {
   renewed: { tone: "good", label: "Stayed" },
   churned: { tone: "bad", label: "Left" },
   paused: { tone: "warn", label: "Paused" },
-  pending: { tone: "neutral", label: "No answer yet" },
+  pending: { tone: "info", label: "Pending" },
 };
 const PERIOD = { 1: "today", 7: "in the last 7 days", 30: "in the last 30 days", 365: "in the last year" };
-const MIN_RELIABLE = 3;
 
 const money = (v) => `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const rate = (r) => (r == null ? "–" : `${r}%`);
-const th = { fontSize: 12, fontWeight: 600, color: T.textMute, textAlign: "left", padding: "8px 10px", borderBottom: `1px solid ${T.line}`, whiteSpace: "nowrap" };
-const td = { fontSize: 13.5, color: T.text, padding: "10px 10px", borderBottom: `1px solid ${T.line}`, verticalAlign: "top" };
 
-function Cell({ c }) {
-  if (!c || !c.total) return <span style={{ color: T.textMute }}>–</span>;
-  return <span><b style={{ fontWeight: 600 }}>{c.yes} of {c.total}</b> <span style={{ color: T.textMute }}>({Math.round((c.yes / c.total) * 100)}%)</span></span>;
+// Big metric tile: each one gets its own color so they read apart at a glance.
+function Metric({ label, value, color, icon }) {
+  return (
+    <div style={{
+      position: "relative", overflow: "hidden", borderRadius: 16, padding: "18px 20px 20px",
+      background: `linear-gradient(160deg, ${color}26 0%, ${color}08 55%, rgba(255,255,255,0.015) 100%)`,
+      border: `1px solid ${color}40`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ width: 30, height: 30, borderRadius: 9, display: "grid", placeItems: "center", background: `${color}22`, color }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{icon}</svg>
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: T.textDim }}>{label}</span>
+      </div>
+      <div style={{ fontFamily: T.display, fontSize: 40, fontWeight: 700, color: T.text, letterSpacing: "-0.03em", lineHeight: 1, marginTop: 16, fontVariantNumeric: "tabular-nums" }}>
+        {value}
+      </div>
+    </div>
+  );
 }
 
-function fmtAvg(v, row) {
-  if (v == null) return <span style={{ color: T.textMute }}>–</span>;
-  return row.money ? money(v) : row.pct ? `${Math.round(v)}%` : v;
+const ICONS = {
+  churn: <><path d="M22 17 13.5 8.5 8.5 13.5 2 7" /><path d="M16 17h6v-6" /></>,
+  stay: <><path d="M22 7 13.5 15.5 8.5 10.5 2 17" /><path d="M16 7h6v6" /></>,
+  money: <><path d="M12 2v20" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></>,
+  wait: <><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>,
+};
+
+function Section({ title, children }) {
+  return (
+    <Card pad={22}>
+      <div style={{ fontFamily: T.display, fontSize: 16, fontWeight: 600, color: T.text, marginBottom: 14 }}>{title}</div>
+      {children}
+    </Card>
+  );
 }
 
 export default function RetentionView({ days = 0, date = null }) {
@@ -42,94 +66,76 @@ export default function RetentionView({ days = 0, date = null }) {
       .catch(() => { if (!stale) setErr(true); });
     return () => { stale = true; };
   }, [days, date]);
-  const periodText = date ? `on ${new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : PERIOD[days] || (days ? `in the last ${days} days` : "");
+  const periodText = date ? `on ${new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : PERIOD[days] || "";
 
   if (err) return <Card><Empty>Couldn't load retention data.</Empty></Card>;
   if (!d) return <Loading />;
   const t = d.totals;
+  const maxReason = Math.max(1, ...d.reasons.map((x) => x.count));
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 16 }}>
-      <Card>
-        <SectionTitle title="Do clients stay after their campaign?"
-          hint={`Each finished campaign counts once its final report goes out${periodText ? ` (here: ${periodText})` : ""}. You record whether the client stayed on their Client Success Manager card.`} />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 18, marginTop: 8 }}>
-          <Stat label="Clients who left" value={rate(t.churn_rate)} sub={t.decided ? `${t.churned} of ${t.decided} campaigns with an answer` : "No answers yet"} tone={t.churn_rate != null && t.churn_rate > 50 ? "bad" : undefined} />
-          <Stat label="Clients who stayed" value={rate(t.renewal_rate)} sub={t.decided ? `${t.renewed} of ${t.decided} campaigns with an answer` : "No answers yet"} tone={t.renewal_rate != null && t.renewal_rate >= 50 ? "good" : undefined} />
-          <Stat label="Monthly revenue lost" value={money(t.mrr_lost)} sub={`${money(t.mrr_kept)}/mo kept from clients who stayed`} tone={t.mrr_lost ? "bad" : undefined} />
-          <Stat label="Waiting on your answer" value={t.pending} sub={t.paused ? `${t.paused} paused (not counted either way)` : "Final report sent, no answer yet"} />
-        </div>
-      </Card>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14 }}>
+        <Metric label="Churn rate" value={rate(t.churn_rate)} color={T.bad} icon={ICONS.churn} />
+        <Metric label="Clients who stayed" value={rate(t.renewal_rate)} color={T.good} icon={ICONS.stay} />
+        <Metric label="Monthly revenue lost" value={money(t.mrr_lost)} color={T.warn} icon={ICONS.money} />
+        <Metric label="Pending decision" value={t.pending} color={T.accent} icon={ICONS.wait} />
+      </div>
 
       {t.campaigns_ended === 0 ? (
-        <Card><Empty>{periodText ? `No final reports went out ${periodText}. Try a longer period.` : "No finished campaigns yet. The first one shows up here when its final report goes out."}</Empty></Card>
+        <Card><Empty>{periodText ? `No finished campaigns ${periodText}.` : "No finished campaigns yet."}</Empty></Card>
       ) : (
         <>
-          <Card>
-            <SectionTitle title="Clients who stayed vs. clients who left"
-              hint="What was true for each group when their campaign ended. Look for rows where the two columns are far apart." />
-            {t.decided < MIN_RELIABLE && (
-              <div style={{ fontSize: 12.5, color: T.warn, background: "rgba(242,173,61,0.08)", border: "1px solid rgba(242,173,61,0.25)", borderRadius: 8, padding: "8px 12px", margin: "4px 0 12px" }}>
-                Only {t.decided} campaign{t.decided === 1 ? "" : "s"} with an answer so far. Patterns start to mean something after about {MIN_RELIABLE}.
-              </div>
-            )}
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 420 }}>
-                <thead><tr><th style={th}>At the end of the campaign…</th><th style={th}>Stayed ({t.renewed})</th><th style={th}>Left ({t.churned})</th></tr></thead>
-                <tbody>
-                  {d.compare.map((row) => (
-                    <tr key={row.key}><td style={{ ...td, color: T.textDim }}>{row.question}</td><td style={td}><Cell c={row.stayed} /></td><td style={td}><Cell c={row.left} /></td></tr>
-                  ))}
-                  <tr><td colSpan={3} style={{ ...th, paddingTop: 18 }}>On average</td></tr>
-                  {d.averages.map((row) => (
-                    <tr key={row.key}><td style={{ ...td, color: T.textDim }}>{row.label}</td><td style={td}>{fmtAvg(row.stayed, row)}</td><td style={td}>{fmtAvg(row.left, row)}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ fontSize: 12, color: T.textMute, marginTop: 10 }}>
-              A dash means no data: show rate and new patients only count visits the clinic marked in their portal.
-            </div>
-          </Card>
-
           {d.reasons.length > 0 && (
-            <Card>
-              <SectionTitle title="Why clients left" />
-              {d.reasons.map((r) => (
-                <div key={r.key} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 2fr 30px", gap: 12, alignItems: "center", padding: "7px 0" }}>
-                  <span style={{ fontSize: 13.5, color: T.textDim }}>{r.label}</span>
-                  <Progress value={r.count} max={Math.max(...d.reasons.map((x) => x.count))} />
-                  <span style={{ fontSize: 13.5, color: T.text, textAlign: "right" }}>{r.count}</span>
-                </div>
-              ))}
-            </Card>
+            <Section title="Why clients left">
+              <div style={{ display: "grid", gap: 12 }}>
+                {d.reasons.map((r) => (
+                  <div key={r.key} style={{ display: "grid", gridTemplateColumns: "minmax(110px, 180px) minmax(0, 1fr) 28px", gap: 14, alignItems: "center" }}>
+                    <span style={{ fontSize: 14, color: T.textDim }}>{r.label}</span>
+                    <div style={{ height: 10, borderRadius: 99, background: "rgba(169,186,216,0.08)", overflow: "hidden" }}>
+                      <div style={{ width: `${(r.count / maxReason) * 100}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, ${T.bad}, #ff9a8a)` }} />
+                    </div>
+                    <span style={{ fontFamily: T.display, fontSize: 15, fontWeight: 700, color: T.text, textAlign: "right" }}>{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            </Section>
           )}
 
-          <Card>
-            <SectionTitle title="Every finished campaign" />
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
-                <thead><tr>{["Client", "Outcome", "Booked", "New patients", "$/month", "Final report"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {d.campaigns.map((c) => {
-                    const s = c.signals || {};
-                    return (
-                      <tr key={c.id}>
-                        <td style={td}><div style={{ fontWeight: 600 }}>{c.client_name}</div>{c.notes && <div style={{ fontSize: 12.5, color: T.textMute, marginTop: 4, maxWidth: 360 }}>{c.notes}</div>}</td>
-                        <td style={td}><Pill tone={STATUS[c.status]?.tone}>{STATUS[c.status]?.label || c.status}</Pill>{c.reason_label && <div style={{ fontSize: 12.5, color: T.textMute, marginTop: 4 }}>{c.reason_label}</div>}</td>
-                        <td style={td}>{s.goal ? `${s.booked ?? 0} of ${s.goal}` : s.booked ?? "–"}{s.cost_per_booking != null && <div style={{ fontSize: 12.5, color: T.textMute }}>{money(s.cost_per_booking)} each</div>}</td>
-                        <td style={td}>{c.patients ?? <span style={{ color: T.textMute }}>Not marked</span>}{c.show_rate != null && <div style={{ fontSize: 12.5, color: T.textMute }}>{c.show_rate}% showed</div>}</td>
-                        <td style={td}>{c.monthly_value != null ? money(c.monthly_value) : "–"}</td>
-                        <td style={td}>{fmtDate(c.opened_at)}{c.decided_by === "auto" && <div style={{ fontSize: 12.5, color: T.textMute }}>Auto: new campaign</div>}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+          <Section title="Every finished campaign">
+            <div style={{ display: "grid", gap: 8 }}>
+              {d.campaigns.map((c) => {
+                const s = c.signals || {};
+                const st = STATUS[c.status] || STATUS.pending;
+                return (
+                  <div key={c.id} style={{
+                    display: "flex", flexWrap: "wrap", gap: "12px 16px", alignItems: "center",
+                    padding: "14px 16px", borderRadius: 12, background: T.surface2, border: `1px solid ${T.line}`,
+                  }}>
+                    <div style={{ minWidth: 0, flex: "2 1 180px" }}>
+                      <div style={{ fontWeight: 600, color: T.text, fontSize: 14.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.client_name}</div>
+                      <div style={{ fontSize: 12, color: T.textMute, marginTop: 2 }}>{fmtDate(c.opened_at)}</div>
+                    </div>
+                    <div style={{ flex: "1 1 90px" }}><Pill tone={st.tone} dot>{st.label}</Pill>{c.reason_label && <div style={{ fontSize: 12, color: T.textMute, marginTop: 5 }}>{c.reason_label}</div>}</div>
+                    <Fact label="Booked" value={s.goal ? `${s.booked ?? 0}/${s.goal}` : s.booked ?? "–"} />
+                    <Fact label="New patients" value={c.patients ?? "–"} />
+                    <Fact label="Per month" value={c.monthly_value != null ? money(c.monthly_value) : "–"} />
+                  </div>
+                );
+              })}
             </div>
-          </Card>
+          </Section>
         </>
       )}
+    </div>
+  );
+}
+
+function Fact({ label, value }) {
+  return (
+    <div style={{ flex: "1 1 80px" }}>
+      <div style={{ fontSize: 11.5, color: T.textMute }}>{label}</div>
+      <div style={{ fontFamily: T.display, fontSize: 16, fontWeight: 600, color: T.text, marginTop: 2, fontVariantNumeric: "tabular-nums" }}>{value}</div>
     </div>
   );
 }
