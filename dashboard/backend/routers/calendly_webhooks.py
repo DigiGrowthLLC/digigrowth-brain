@@ -39,6 +39,9 @@ from routers.appointments import cancel_appointment, create_appointment_row
 router = APIRouter()  # public — mounted with no auth, see main.py
 
 
+_NAME_TITLES = {"dr", "mr", "mrs", "ms", "miss", "prof", "pt", "dpt", "md", "dc", "phd", "ocs", "jr", "sr"}
+
+
 def _name_tokens(name: str | None) -> tuple[str, str] | None:
     """(first, last) lowercased tokens from a free-text full name, or None if
     it doesn't look like at least a first + last name. Only the first and
@@ -46,7 +49,9 @@ def _name_tokens(name: str | None) -> tuple[str, str] | None:
     either side doesn't break the comparison."""
     if not name:
         return None
-    parts = name.strip().split()
+    # "Dr. Jane Doe" / "Jane Doe, PT, DPT": drop the title and the
+    # credentials, or the CRM owner and the Calendly name never line up.
+    parts = [p for p in name.split(",")[0].strip().split() if p.lower().rstrip(".") not in _NAME_TITLES]
     if len(parts) < 2:
         return None
     return parts[0].lower(), parts[-1].lower()
@@ -92,12 +97,12 @@ async def _find_by_name(conn, name: str | None, client_id: int | None) -> dict |
         candidates = await conn.fetch(
             "SELECT id, client_id, owner FROM contacts "
             "WHERE (client_id IS NULL OR client_id = $2) AND owner ILIKE $1",
-            f"% {last}", client_id,
+            f"% {last}%", client_id,
         )
     else:
         candidates = await conn.fetch(
             "SELECT id, client_id, is_client_anchor, owner FROM contacts WHERE owner ILIKE $1",
-            f"% {last}",
+            f"% {last}%",
         )
     matches = [c for c in candidates if _same_person(name, c["owner"])]
     return matches[0] if len(matches) == 1 else None
@@ -427,8 +432,16 @@ async def record_booking(*, name: str | None, email: str | None, phone: str | No
             # row with nothing to click through to.
             existing = None
             if phone:
+                # Format-blind (last 10 digits): Calendly sends "+1 555-555-0100"
+                # while a cold-SMS contact is stored "(555) 555-0100". An exact
+                # compare missed a prospect (2026-11-18) and created a
+                # duplicate contact, which also left their SMS thread unbooked.
+                from routers.sms import _phone_match
                 existing = await conn.fetchrow(
-                    "SELECT id, client_id, is_client_anchor FROM contacts WHERE phone = $1", phone,
+                    "SELECT id, client_id, is_client_anchor FROM contacts "
+                    f"WHERE {_phone_match('phone', '$1')} "
+                    "ORDER BY (client_id IS NULL OR is_client_anchor) DESC LIMIT 1",
+                    phone,
                 )
             if not existing and email:
                 # Case-insensitive: a prospect typing "StokesB@TV-PT.com" on

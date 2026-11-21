@@ -126,6 +126,12 @@ MAX_SENDS_PER_POLL = 12
 # least once and our text is the last word gets the sequence, as long as
 # that last text was actually waiting on an answer.
 _PITCH_STAGES = {"gatekeeper", "curiosity_opener", "relevance", "guarantee", "ask", "cta"}
+# Texts from a booked call's own sequences (reminders, reschedule notice,
+# no-show / cancel touches, onboarding). Those sequences do their own
+# chasing, so one of them being the last text never means "waiting on an
+# answer": a prospect's 1h reminder (2026-11-20) got "just following up
+# checking you got that last message" the day after their call.
+_APPOINTMENT_STAGE_PREFIXES = ("reminder_", "reschedule_", "no_show_", "cancel_", "onboarding_")
 _BOILERPLATE = re.compile(r"(reply|text)\s+stop\s+to\s+\w+(\s+\w+)?", re.I)
 _OPTED_OUT = re.compile(
     r"\b(stop|unsubscribe|remove (me|us|this)|take (me|us) off|not interested|no thanks?|no thank you|"
@@ -311,7 +317,9 @@ async def _awaiting_answer(conn, phone: str) -> bool:
     if not row:
         return False
     stage = row["last_stage"] or ""
-    judged = not stage or stage in _PITCH_STAGES or stage == "ai_setter" or stage.startswith("dm_followup")
+    if stage.startswith(_APPOINTMENT_STAGE_PREFIXES):
+        return False
+    judged =not stage or stage in _PITCH_STAGES or stage == "ai_setter" or stage.startswith("dm_followup")
     return enroll_eligible(dict(row)) if judged else not _OPTED_OUT.search(_BOILERPLATE.sub(" ", row["inbound_text"] or ""))
 
 
