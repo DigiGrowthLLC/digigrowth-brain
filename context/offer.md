@@ -151,6 +151,7 @@ The practice commits to:
 ## Pilot terms (3 clinics)
 - Setup fee and per-assessment fees waived for the first 30 days.
 - Weekly show and conversion data shared with DigiGrowth.
+- Pilot program only: ads run on Dylan's card in the practice's ad account, and a pilot clinic is never asked for a card on file (Dylan, 2026-11-06). This does not apply to standard-pricing clients.
 - A case study and testimonial if the guarantee is hit.
 - At 30 days, continue on standard pricing (setup waived with a 90-day commitment) or end the program.
 
