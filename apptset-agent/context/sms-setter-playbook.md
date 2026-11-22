@@ -205,7 +205,7 @@ own timezone, then ask for their email to send the Google Meet invite as a quick
 - The moment they want to talk ("sure", "we can chat", "what's a good time", "interested"), send the
   Call To Action step with two times from Dylan's open slots filled in: the earliest day with
   openings, one earlier and one later in the day. (A softer "might be interested" gets the Engaged
-  step first.) Don't ask "when works for you?" and don't send the Calendly link as the main ask.
+  step first.) Don't ask "when works for you?" and don't send the booking link as the main ask.
   Links got ignored.
 - "I'm open to hearing what you have", "I'm listening", "what do you have in mind?"
   are a yes to hearing the pitch, and the call is where they hear it. ("Tell me more" or "explain
@@ -268,7 +268,7 @@ for you"
 - Fill in the two times exactly as in "Booking the call" (real open slots, one earlier, one later).
 - No email on file: ask for it in "second_text" ("and whats a good email to send the invite to?").
 - Someone who tried calling wants to talk, so mark them **interested**.
-- Never promise to call them back, and don't send the Calendly link instead.
+- Never promise to call them back, and don't send the booking link instead.
 
 ## Funnel stages (return every stage reached so far in "stages")
 

@@ -243,7 +243,9 @@ def _weekdays_ahead(today: date, n: int) -> date:
 
 
 async def get_slots(type_id: int, start_day: date | None = None, days: int = 31,
-                    exclude_booking_id: int | None = None) -> list[str]:
+                    exclude_booking_id: int | None = None, prospect: bool = True) -> list[str]:
+    """Open start times (UTC ISO). prospect=False lifts the 5-weekday cap
+    (the AI setters book further out than the public page offers)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         s = await get_settings(conn)
@@ -258,8 +260,9 @@ async def get_slots(type_id: int, start_day: date | None = None, days: int = 31,
     earliest = now + timedelta(minutes=s["min_notice_min"])
     today = now.astimezone(tz).date()
     first = max(start_day or today, today)
-    last = min(first + timedelta(days=max(1, min(days, 62)) - 1), today + timedelta(days=s["max_days_ahead"]),
-               _weekdays_ahead(today, PROSPECT_MAX_WEEKDAYS))
+    last = min(first + timedelta(days=max(1, min(days, 62)) - 1), today + timedelta(days=s["max_days_ahead"]))
+    if prospect:
+        last = min(last, _weekdays_ahead(today, PROSPECT_MAX_WEEKDAYS))
     if last < first:
         return []
     range_start = datetime.combine(first, datetime.min.time(), tz)
@@ -302,11 +305,12 @@ def _parse_start(start_iso: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-async def _assert_open(type_id: int, start: datetime, exclude_booking_id: int | None = None) -> None:
+async def _assert_open(type_id: int, start: datetime, exclude_booking_id: int | None = None,
+                       prospect: bool = True) -> None:
     iso = start.isoformat().replace("+00:00", "Z")
     _busy_cache["at"] = 0.0  # re-read the calendars right before committing
     slots = await get_slots(type_id, start.astimezone(ZoneInfo("America/New_York")).date() - timedelta(days=1), 3,
-                            exclude_booking_id)
+                            exclude_booking_id, prospect)
     if iso not in slots:
         raise BookingError("Sorry, that time was just taken. Please pick another.")
 
@@ -323,13 +327,13 @@ def _valid_tz(name: str | None, fallback: str) -> str:
 
 async def reserve(type_id: int, start_iso: str, name: str, email: str, phone: str, business: str | None,
                   note: str | None, tz_name: str | None, sms_consent: bool, utm_source: str | None,
-                  utm_content: str | None, excluded: bool) -> dict:
+                  utm_content: str | None, excluded: bool, prospect: bool = True) -> dict:
     name, email, phone = (name or "").strip(), (email or "").strip().lower(), (phone or "").strip()
     if not name or len(name) > 120:
         raise BookingError("Please enter your name.")
     if "@" not in email or "." not in email.split("@")[-1] or len(email) > 200:
         raise BookingError("Please enter a valid email. Your video link goes there.")
-    if len("".join(c for c in phone if c.isdigit())) < 10:
+    if prospect and len("".join(c for c in phone if c.isdigit())) < 10:
         raise BookingError("Please enter a valid mobile number.")
     start = _parse_start(start_iso)
     pool = await get_pool()
@@ -340,7 +344,7 @@ async def reserve(type_id: int, start_iso: str, name: str, email: str, phone: st
         raise BookingError("This call type isn't available.")
     ev = dict(ev)
     tz_name = _valid_tz(tz_name, s["timezone"])
-    await _assert_open(type_id, start)
+    await _assert_open(type_id, start, prospect=prospect)
     end = start + timedelta(minutes=ev["duration_min"])
     token = secrets.token_urlsafe(18)
     async with pool.acquire() as conn:
@@ -354,11 +358,50 @@ async def reserve(type_id: int, start_iso: str, name: str, email: str, phone: st
                 """INSERT INTO personal_bookings (type_id, start_at, end_at, name, email, phone, business, note,
                        timezone, sms_consent, utm_source, utm_content, excluded, manage_token)
                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id""",
-                type_id, start, end, name, email, phone, (business or "").strip()[:160] or None,
+                type_id, start, end, name, email, phone or None, (business or "").strip()[:160] or None,
                 (note or "").strip()[:1000] or None, tz_name, sms_consent, utm_source, utm_content, excluded, token)
     _busy_cache["at"] = 0.0
     await _finalize(bid)
     return {"status": "confirmed", "manage_url": manage_url(token)}
+
+
+# ── AI setters (SMS + email) ─────────────────────────────────────────────────
+# Since 2026-11-22 the setters read openings from and book into this page
+# instead of Dylan's Calendly, so every discovery call lands in one place.
+
+async def discovery_type_id() -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        tid = await conn.fetchval("SELECT id FROM personal_booking_types WHERE slug = $1 AND active", SLUG)
+    if not tid:
+        raise BookingError("The Discovery Call type is turned off.")
+    return tid
+
+
+async def ai_open_slots(days: int) -> list[datetime]:
+    """Discovery Call openings for the next `days` days (no 5-weekday cap)."""
+    tid = await discovery_type_id()
+    slots = await get_slots(tid, None, days, prospect=False)
+    return [_parse_start(x) for x in slots]
+
+
+async def ai_slot_open(start: datetime) -> bool:
+    try:
+        await _assert_open(await discovery_type_id(), start.astimezone(timezone.utc), prospect=False)
+        return True
+    except BookingError:
+        return False
+
+
+async def ai_book(start: datetime, name: str, email: str, phone: str | None, business: str | None,
+                  note: str, tz_name: str) -> dict:
+    """Books a Discovery Call for a setter-booked prospect: same Meet invite,
+    appointment row (adopts the one the setter made first) and reminders as
+    the public page. Raises BookingError if the slot is gone."""
+    return await reserve(
+        await discovery_type_id(), start.astimezone(timezone.utc).isoformat(), name, email, phone or "", business,
+        note, tz_name, bool(phone), "ai_setter", None, False, prospect=False,
+    )
 
 
 async def _finalize(booking_id: int) -> None:
@@ -373,7 +416,7 @@ async def _finalize(booking_id: int) -> None:
         ev = dict(await conn.fetchrow("SELECT * FROM personal_booking_types WHERE id = $1", b["type_id"]))
     who = f"{b['name']} ({b['business']})" if b["business"] else b["name"]
     desc = "\n".join(x for x in [
-        f"Phone: {b['phone']}", f"Email: {b['email']}",
+        f"Phone: {b['phone']}" if b["phone"] else None, f"Email: {b['email']}",
         f"Practice: {b['business']}" if b["business"] else None,
         f"Wants to cover: {b['note']}" if b["note"] else None,
         "", f"Need to reschedule or cancel? {manage_url(b['manage_token'])}",

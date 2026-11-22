@@ -35,6 +35,5 @@ export const DISPO_BUTTONS = [
   { label: "Follow Up (Manual)", emoji: "📌", style: { background: "rgba(240,160,40,0.12)", border: "1px solid rgba(240,160,40,0.3)",  color: "#f0a028" } },
 ];
 
-// ?month= pins Calendly to the current month so it always opens on today's
-// month instead of drifting to a hardcoded one.
-export const CALENDLY_URL = `https://calendly.com/dylanrg-digigrowthllc/30min?month=${new Date().toISOString().slice(0, 7)}`;
+// Dylan's own booking page (personal_booking.py) since 2026-11-22, was his Calendly. Name kept for its importers.
+export const CALENDLY_URL = "https://booking.digigrowthllc.com/discovery-call";

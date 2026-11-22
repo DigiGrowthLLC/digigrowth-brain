@@ -445,7 +445,7 @@ _slot_cache: dict = {"at": 0.0, "slots": None}
 # call may start or end within SHIFT_BUFFER of one, so he's never rushing to
 # or from a shift. His rule (2026-11-04, was 30 min since 2026-10-16): for a
 # 1:00-6:30 shift the latest call before is 11:30-12:00 and the earliest
-# after starts 7:30, i.e. a full hour clear on both sides. Calendly only
+# after starts 7:30, i.e. a full hour clear on both sides. The booking page only
 # knows the shift itself is busy, not the buffer, so it's enforced here.
 SHIFT_BUFFER = timedelta(minutes=60)
 _SHIFT_TITLE = re.compile(r"discount\s*tire|^\s*work(\s+shift)?\s*$", re.I)
@@ -474,37 +474,34 @@ def near_shift(start: datetime, shifts: list[tuple[datetime, datetime]]) -> bool
 
 
 async def open_slots_utc(conn) -> list[datetime] | None:
-    """Dylan's real Calendly openings for the next _SLOT_DAYS, minus any
-    within SHIFT_BUFFER of a work shift, cached for 5 minutes so a queue of
-    several threads costs one Calendly lookup."""
-    import calendly_integration
-    import integrations
+    """Dylan's real Discovery Call openings on his own booking page
+    (personal_booking.py, booking.digigrowthllc.com/discovery-call; was
+    Calendly until 2026-11-22) for the next _SLOT_DAYS, minus any within
+    SHIFT_BUFFER of a work shift, cached for 5 minutes so a queue of
+    several threads costs one calendar lookup."""
+    import personal_booking
 
     if _slot_cache["slots"] is not None and time.time() - _slot_cache["at"] < 300:
         return _slot_cache["slots"]
-    token = await _setting(conn, "dylan_calendly_api_token") or os.environ.get("DYLAN_CALENDLY_API_TOKEN")
-    if not token:
-        return None
     try:
-        raw = await calendly_integration.list_available_times(
-            token, integrations.CALENDLY_URL, datetime.now(timezone.utc) + timedelta(minutes=15), _SLOT_DAYS,
-        )
+        raw = await personal_booking.ai_open_slots(_SLOT_DAYS)
     except Exception as e:
-        print(f"[sms_setter_ai] Calendly lookup failed: {e}", flush=True)
+        print(f"[sms_setter_ai] booking-page slot lookup failed: {e}", flush=True)
         return None
     try:
         shifts = await work_shifts(_SLOT_DAYS)
     except Exception as e:
         print(f"[sms_setter_ai] work-shift lookup failed, offering no slots: {e}", flush=True)
         return None
-    slots = [s for s in (_as_dt(s["start_time"]) for s in raw) if not near_shift(s, shifts)]
+    soonest = datetime.now(timezone.utc) + timedelta(minutes=15)
+    slots = [s for s in raw if s >= soonest and not near_shift(s, shifts)]
     _slot_cache.update(at=time.time(), slots=slots)
     return slots
 
 
 # ── Slot holds ───────────────────────────────────────────────────────────────
 # Times the setter offers a prospect are held for HOLD_MINUTES: a busy block
-# on Dylan's Google Calendar (so Calendly stops offering them to anyone
+# on Dylan's Google Calendar (so his booking page stops offering them to anyone
 # else) plus, belt and braces, dropping them from every OTHER thread's slot
 # list. V.1.4/setter: Shelby picked an offered 5:30 and it had been booked
 # by someone else in the meantime. Holds live on the draft that offered
@@ -513,7 +510,7 @@ async def open_slots_utc(conn) -> list[datetime] | None:
 # gets new times offered.
 
 HOLD_MINUTES = 120
-_HOLD_LENGTH = timedelta(minutes=30)   # Dylan's Calendly event is 30 min
+_HOLD_LENGTH = timedelta(minutes=30)   # Dylan's Discovery Call is 30 min
 NO_DM_FOLLOWUP_ACTIONS = {"gatekeeper_relay", "capture_email", "close_not_interested", "opt_out", "follow_up"}
 
 
@@ -537,9 +534,9 @@ async def active_holds(conn) -> list[dict]:
 
 
 def slots_for_thread(slots_utc: list[datetime] | None, holds: list[dict], phone: str) -> list[datetime] | None:
-    """The open-slot list one prospect should see: Calendly's openings minus
-    times held for OTHER prospects, plus this prospect's own held times
-    (which Calendly no longer lists, since the hold made them busy)."""
+    """The open-slot list one prospect should see: the booking page's openings
+    minus times held for OTHER prospects, plus this prospect's own held times
+    (which the page no longer lists, since the hold made them busy)."""
     if slots_utc is None:
         return None
     mine = {h["start"] for h in holds if _digits(h["phone"]) == _digits(phone)}
@@ -886,7 +883,7 @@ async def _resolve_template(conn, draft: dict, contact: dict) -> None:
 def slot_is_open(draft: dict, slots_utc: list[datetime] | None, tz_name: str, now: datetime) -> bool:
     """Whether a "book" draft's date/time is one of Dylan's real open
     slots (and far enough out). None slots = calendar unavailable, which
-    can't be checked here; _auto_book re-verifies with Calendly anyway."""
+    can't be checked here; _auto_book re-verifies against the calendar anyway."""
     if slots_utc is None:
         return True
     try:
@@ -1406,13 +1403,15 @@ async def notify_dylan_booking(conn, phone: str, contact: dict, details: dict) -
 
 async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str:
     """Re-checks the slot is still open, creates the appointment row that
-    drives the 24h/6h/1h reminders, then books the slot on Dylan's Calendly
-    (Calendly emails the Google Meet invite and notifies Dylan). Falls back
-    to a direct Google Calendar Meet invite if Calendly can't take it."""
+    drives the 24h/6h/1h reminders, then books the slot on Dylan's own
+    booking page (personal_booking.ai_book: Google Meet invite to the
+    prospect, appointment adopted, shows under Booking Links). Was Calendly
+    until 2026-11-22. Falls back to a direct Google Calendar Meet invite if
+    the booking page can't take it."""
     import asyncio
 
-    import calendly_integration
     import integrations
+    import personal_booking
     from routers.appointments import create_appointment_row
 
     email = (details.get("email") or contact.get("email") or "").strip()
@@ -1432,27 +1431,18 @@ async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str
     except Exception as e:
         return f"book: couldn't check work shifts ({e})"
 
-    # This prospect's own hold blocks the slot on Calendly too — free it
-    # first. Calendly can take a few seconds to see the calendar change,
-    # so a held slot gets a few re-checks before it counts as taken.
-    had_hold = await release_holds(conn, d["phone"]) > 0
-    token = await _setting(conn, "dylan_calendly_api_token") or os.environ.get("DYLAN_CALENDLY_API_TOKEN")
-    if token:
-        try:
-            for attempt in range(4 if had_hold else 1):
-                if attempt:
-                    await asyncio.sleep(5)
-                if await calendly_integration.find_slot_scheduling_url(token, integrations.CALENDLY_URL, date_str, time_str, tz):
-                    break
-            else:
-                return "book: slot no longer open on Calendly"
-        except Exception as e:
-            return f"book: couldn't verify slot ({e})"
+    # This prospect's own hold blocks the slot on the calendar too: free it
+    # first, then re-check against fresh calendar reads.
+    await release_holds(conn, d["phone"])
+    try:
+        if not await personal_booking.ai_slot_open(start):
+            return "book: slot no longer open"
+    except Exception as e:
+        return f"book: couldn't verify slot ({e})"
 
-    # The appointment row goes in FIRST: Calendly's invitee.created webhook
-    # (routers/calendly_webhooks.py) adopts an existing row at the same time
-    # for the same contact/phone instead of inserting a duplicate, and this
-    # way the reminders exist even if that webhook is slow or missing.
+    # The appointment row goes in FIRST with channel "sms" (Analytics credit):
+    # the booking's record_booking() adopts an existing row at the same time
+    # for the same contact/phone instead of inserting a duplicate.
     try:
         await create_appointment_row({
             "contact_id": contact.get("contact_id"),
@@ -1468,28 +1458,24 @@ async def _auto_book(conn, d, details: dict, contact: dict, tz_name: str) -> str
         # Still book the call — flag it so Dylan adds the reminder row by hand.
         print(f"[sms_setter_ai] appointment row failed for {d['phone']}: {e}", flush=True)
 
-    # A real Calendly booking, so it shows in Calendly's Scheduled Events,
-    # Dylan gets Calendly's booking notification, and Calendly emails the
-    # prospect the Google Meet invite itself.
     business = contact.get("business") or "discovery call"
     digits = _digits(d["phone"])
-    if token:
-        try:
-            await calendly_integration.create_booking(
-                token, integrations.CALENDLY_URL, date_str, time_str, tz,
-                contact.get("owner") or business, email, f"+1{digits}" if len(digits) == 10 else d["phone"],
-                f"{business}. Booked by the SMS setter from a text conversation.",
-            )
-            return "booked"
-        except Exception as e:
-            print(f"[sms_setter_ai] Calendly booking failed for {d['phone']}, falling back to a direct invite: {e}", flush=True)
+    try:
+        await personal_booking.ai_book(
+            start, contact.get("owner") or business, email, f"+1{digits}" if len(digits) == 10 else d["phone"],
+            contact.get("business"), "Booked by the SMS setter from a text conversation.", tz_name,
+        )
+        _slot_cache["at"] = 0.0
+        return "booked"
+    except Exception as e:
+        print(f"[sms_setter_ai] booking page failed for {d['phone']}, falling back to a direct invite: {e}", flush=True)
 
-    # Fallback (no Calendly token, or Calendly rejected it): the direct
-    # Google Calendar invite, so the prospect who said yes is still booked.
+    # Fallback: the direct Google Calendar invite, so the prospect who said
+    # yes is still booked.
     try:
         await asyncio.to_thread(
             integrations.calendar_create_meet_event,
-            f"DigiGrowth x {business}", start, start + timedelta(minutes=20), email,
+            f"DigiGrowth x {business}", start, start + timedelta(minutes=30), email,
             f"Discovery call with {contact.get('owner') or business} ({d['phone']}). Booked by the SMS setter.",
         )
     except Exception as e:

@@ -21,8 +21,8 @@ that machine is on. This module is the server half:
                     thread, never handoff/none, never while a "Reply to" To-Do
                     for the thread is open
   book_draft()    — books the call: appointment row first (channel "email", so
-                    Analytics credits the email channel), then a real Calendly
-                    booking (Calendly emails the Meet invite), falling back to a
+                    Analytics credits the email channel), then a booking on
+                    Dylan's own booking page (Meet invite), falling back to a
                     direct Google Calendar invite
 
 Replies go out exactly like the Inbox reply box (routers/email_inbox.py's
@@ -597,10 +597,12 @@ async def book_draft(conn, draft_id: int) -> str:
 
 
 async def _book(conn, details: dict, conv: dict, tz_name: str) -> str:
+    """Books the call on Dylan's own booking page (personal_booking.ai_book,
+    was Calendly until 2026-11-22); direct Meet invite as the fallback."""
     import asyncio
 
-    import calendly_integration
     import integrations
+    import personal_booking
     from routers.appointments import create_appointment_row
 
     email = (details.get("email") or conv.get("thread_email") or "").strip()
@@ -620,17 +622,15 @@ async def _book(conn, details: dict, conv: dict, tz_name: str) -> str:
     except Exception as e:
         return f"book: couldn't check work shifts ({e})"
 
-    token = await sms_setter_ai._setting(conn, "dylan_calendly_api_token") or os.environ.get("DYLAN_CALENDLY_API_TOKEN")
-    if token:
-        try:
-            if not await calendly_integration.find_slot_scheduling_url(token, integrations.CALENDLY_URL, date_str, time_str, tz):
-                return "book: slot no longer open on Calendly"
-        except Exception as e:
-            return f"book: couldn't verify slot ({e})"
+    try:
+        if not await personal_booking.ai_slot_open(start):
+            return "book: slot no longer open"
+    except Exception as e:
+        return f"book: couldn't verify slot ({e})"
 
-    # Appointment row FIRST (same as the SMS setter): the Calendly webhook
-    # adopts it instead of duplicating, and channel "email" credits the
-    # email thread as booked in Analytics.
+    # Appointment row FIRST (same as the SMS setter): the booking adopts it
+    # instead of duplicating, and channel "email" credits the email thread
+    # as booked in Analytics.
     try:
         await create_appointment_row({
             "contact_id": conv.get("contact_id"),
@@ -646,20 +646,19 @@ async def _book(conn, details: dict, conv: dict, tz_name: str) -> str:
     business = conv.get("business") or "discovery call"
     digits = sms_setter_ai._digits(conv.get("phone") or "")
     phone = f"+1{digits}" if len(digits) == 10 else None
-    if token:
-        try:
-            await calendly_integration.create_booking(
-                token, integrations.CALENDLY_URL, date_str, time_str, tz,
-                conv.get("owner") or business, email, phone,
-                f"{business}. Booked by the email setter from an email conversation.",
-            )
-            return "booked"
-        except Exception as e:
-            print(f"[email_setter_ai] Calendly booking failed for {email}, falling back to a direct invite: {e}", flush=True)
+    try:
+        await personal_booking.ai_book(
+            start, conv.get("owner") or business, email, phone, conv.get("business"),
+            "Booked by the email setter from an email conversation.", tz_name,
+        )
+        sms_setter_ai._slot_cache["at"] = 0.0
+        return "booked"
+    except Exception as e:
+        print(f"[email_setter_ai] booking page failed for {email}, falling back to a direct invite: {e}", flush=True)
     try:
         await asyncio.to_thread(
             integrations.calendar_create_meet_event,
-            f"DigiGrowth x {business}", start, start + timedelta(minutes=20), email,
+            f"DigiGrowth x {business}", start, start + timedelta(minutes=30), email,
             f"Discovery call with {conv.get('owner') or business} ({email}). Booked by the email setter.",
         )
     except Exception as e:

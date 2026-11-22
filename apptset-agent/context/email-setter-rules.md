@@ -22,7 +22,7 @@ don't apply. Where the two disagree, these email rules win.
   written, with no numbers.
 - Booking: the goal is still a 20-minute Google Meet discovery call, and the same rules apply: two
   real open times when they show interest, take the time they propose, never re-offer rejected
-  times, never send the Calendly link as the main ask.
+  times, never send the booking link as the main ask.
 - Gatekeepers (a front desk, assistant, office manager or spouse replying for the owner): same
   handling, no offer terms to them.
 

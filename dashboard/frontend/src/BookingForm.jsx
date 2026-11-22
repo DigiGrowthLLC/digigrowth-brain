@@ -65,7 +65,7 @@ export default function BookingForm({ contactId, onBooked }) {
     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 14px", borderTop: "1px solid #1a2540" }}>
       {!contactId ? (
         <div style={{ fontSize: 11.5, color: "#5a6f8f", fontFamily: "'Space Grotesk', sans-serif" }}>
-          Book using the Calendly widget above — reminders are scheduled automatically once it's booked. (No linked contact here, so there's no automatic way to stop them from this window — use the Appointments tab afterward if needed.)
+          Book using the booking page above — reminders are scheduled automatically once it's booked. (No linked contact here, so there's no automatic way to stop them from this window — use the Appointments tab afterward if needed.)
         </div>
       ) : stopped ? (
         <div style={{ fontSize: 12, color: "#f0a028", fontFamily: "'Space Grotesk', sans-serif" }}>
@@ -82,7 +82,7 @@ export default function BookingForm({ contactId, onBooked }) {
         </>
       ) : (
         <div style={{ fontSize: 11.5, color: "#5a6f8f", fontFamily: "'Space Grotesk', sans-serif" }}>
-          {checked ? "Book using the Calendly widget above — reminders will be scheduled automatically once it's booked (usually within a few seconds)." : "Checking…"}
+          {checked ? "Book using the booking page above — reminders will be scheduled automatically once it's booked (usually within a few seconds)." : "Checking…"}
         </div>
       )}
       {error && <div style={{ fontSize: 11, color: "#dc3c3c", width: "100%" }}>{error}</div>}

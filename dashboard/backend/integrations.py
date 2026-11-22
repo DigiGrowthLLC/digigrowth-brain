@@ -1109,7 +1109,7 @@ def calendar_events_structured(days_ahead: int = 7, calendar_id: str = "primary"
 # iframe UX nicety — see dashboard/frontend/src/dispositions.js's
 # CALENDLY_URL, which this intentionally does not import/share, since that
 # constant is frontend-only today).
-CALENDLY_URL = "https://calendly.com/dylanrg-digigrowthllc/30min"
+CALENDLY_URL = "https://booking.digigrowthllc.com/discovery-call"  # Dylan's own booking page since 2026-11-22 (was his Calendly); name kept for its callers
 
 # The marketing site's VSL, on /contact (digigrowth-website, `master`
 # branch). Every outbound template that wants to send a prospect there

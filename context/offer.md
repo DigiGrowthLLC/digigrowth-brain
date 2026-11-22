@@ -155,7 +155,7 @@ The practice commits to:
 - At 30 days, continue on standard pricing (setup waived with a 90-day commitment) or end the program.
 
 ## Next steps (for prospects)
-1. Book a 30-minute call: calendly.com/dylanrg-digigrowthllc/30min
+1. Book a 30-minute call: booking.digigrowthllc.com/discovery-call
 2. Confirm qualification and capacity.
 3. Launch within 7 days of onboarding.
 
