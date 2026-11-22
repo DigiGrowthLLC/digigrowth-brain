@@ -1,4 +1,4 @@
-"""Dylan's own booking page (2026-11-21): booking.digigrowthllc.com/strategy-call,
+"""Dylan's own booking page (2026-11-21): booking.digigrowthllc.com/discovery-call (was /strategy-call, redirected),
 DigiGrowth's replacement for his Calendly links.
 
 Separate from booking_engine.py (which is built around a clinic: client_id,
@@ -7,7 +7,7 @@ the clinic's Twilio number, Stripe, client reminders) but the same idea:
     minus busy time on BOTH of Dylan's Google accounts: the business calendar
     (dylanrg@digigrowthllc.com) and every calendar he owns on his personal
     account (dylangroenendijk@gmail.com: school, Discount Tire shifts...).
-  - Call types: personal_booking_types (Discovery Call, slug strategy-call; Onboarding
+  - Call types: personal_booking_types (Discovery Call, slug discovery-call; Onboarding
     Call, Launch Call). Only `listed` types show on the bare link; the others
     are reached with ?type=<slug> (sent to clients only).
   - A booking puts a Google Meet event on his personal primary calendar with
@@ -17,7 +17,7 @@ the clinic's Twilio number, Stripe, client reminders) but the same idea:
     calendly_webhooks.record_booking(client_id=None) runs the same CRM
     contact match/create, appointment row, reminders and Analytics credit a
     Calendly booking gets. calendly_event_uri = "dgme:<booking id>".
-  - Prospects reschedule/cancel at .../strategy-call/manage/<token>; an OS
+  - Prospects reschedule/cancel at .../discovery-call/manage/<token>; an OS
     cancel mirrors back via on_appointment_cancelled().
 Routes: routers/personal_booking.py. Page: personal_booking_page.py.
 """
@@ -32,13 +32,14 @@ from zoneinfo import ZoneInfo
 
 from db import get_pool
 
-SLUG = "strategy-call"
+SLUG = "discovery-call"
+OLD_SLUGS = ("strategy-call",)  # renamed 2026-11-22; routers/personal_booking.py redirects these
 LOCK_KEY = 7_301_118_201  # pg_advisory_xact_lock key for personal bookings
 
 DEFAULT_HOURS = {str(d): [["08:00", "22:00"]] for d in range(7)}  # Mon=0 .. Sun=6
 DEFAULT_TYPES = [
     # slug, name, minutes, call_type, listed, description
-    ("strategy-call", "Discovery Call", 30, "discovery", True,
+    ("discovery-call", "Discovery Call", 30, "discovery", True,
      "A quick call to see where your clinic is at and whether we can help you fill your schedule with new patients."),
     ("onboarding-call", "Onboarding Call", 45, "onboarding", False,
      "We walk through your setup together so your campaign can go live."),
@@ -108,6 +109,10 @@ async def ensure_seeded(conn) -> None:
     await conn.execute(
         "INSERT INTO personal_booking_settings (id, hours) VALUES (1, $1::jsonb) ON CONFLICT (id) DO NOTHING",
         json.dumps(DEFAULT_HOURS))
+    # 2026-11-22: the discovery type's slug moved strategy-call -> discovery-call (same row, same bookings).
+    await conn.execute(
+        """UPDATE personal_booking_types SET slug = 'discovery-call' WHERE slug = 'strategy-call'
+           AND NOT EXISTS (SELECT 1 FROM personal_booking_types WHERE slug = 'discovery-call')""")
     for i, (slug, name, mins, call_type, listed, desc) in enumerate(DEFAULT_TYPES):
         await conn.execute(
             """INSERT INTO personal_booking_types (slug, name, description, duration_min, call_type, listed, sort_order)

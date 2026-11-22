@@ -1,6 +1,6 @@
 """Routes for Dylan's own booking page (personal_booking.py).
 
-Public (no auth), at /book/strategy-call (booking.digigrowthllc.com/strategy-call
+Public (no auth), at /book/discovery-call (booking.digigrowthllc.com/discovery-call
 through the Cloudflare Worker). Mounted BEFORE routers/booking.py in main.py
 so these fixed paths win over its /book/{key} clinic routes.
 Admin (/api/personal-booking...): the OS Booking Links tab's "Personal booking
@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pathlib import Path
 
 import personal_booking as pb
@@ -42,6 +42,27 @@ def _day(value: str | None) -> date | None:
         return date.fromisoformat(value) if value else None
     except ValueError:
         return None
+
+
+def _moved(request: Request, rest: str = "") -> RedirectResponse:
+    """Old /strategy-call links (sent before 2026-11-22) -> the same page on /discovery-call.
+    307 keeps the method, so an old manage page's cancel/reschedule POST still works."""
+    import booking_engine
+    q = request.url.query
+    return RedirectResponse(f"{booking_engine.BOOKING_BASE}/{pb.SLUG}{rest}" + (f"?{q}" if q else ""), status_code=307)
+
+
+async def _moved_root(request: Request):
+    return _moved(request)
+
+
+async def _moved_path(request: Request, rest: str):
+    return _moved(request, "/" + rest)
+
+
+for _old in pb.OLD_SLUGS:
+    router.add_api_route(f"/book/{_old}", _moved_root, methods=["GET", "POST"], include_in_schema=False)
+    router.add_api_route(f"/book/{_old}/{{rest:path}}", _moved_path, methods=["GET", "POST"], include_in_schema=False)
 
 
 @router.get(P, include_in_schema=False)

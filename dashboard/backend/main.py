@@ -810,7 +810,7 @@ app.include_router(calendly_webhooks.router)  # no auth — Calendly's own webho
 app.include_router(calendly_admin.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(booking.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(personal_booking.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
-app.include_router(personal_booking.router)  # no auth: Dylan's own booking page /book/strategy-call (before booking.router so it wins over /book/{key})
+app.include_router(personal_booking.router)  # no auth: Dylan's own booking page /book/discovery-call (before booking.router so it wins over /book/{key})
 app.include_router(booking.router)  # no auth: patient booking/manage pages + Stripe webhook (HMAC-verified)
 app.include_router(ghl_webhooks.router)  # no auth — GoHighLevel workflow webhook, verified via a per-client key in the URL instead
 app.include_router(ghl_webhooks.admin_router, prefix="/api", dependencies=[Depends(require_auth)])

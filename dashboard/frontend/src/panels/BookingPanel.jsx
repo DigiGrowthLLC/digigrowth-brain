@@ -25,7 +25,7 @@ function statusOf(c) {
 }
 
 // Dylan's own booking page (backend/personal_booking.py), his Calendly
-// replacement: booking.digigrowthllc.com/strategy-call.
+// replacement: booking.digigrowthllc.com/discovery-call.
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function PersonalBooking({ copy, copied }) {

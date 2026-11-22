@@ -2,7 +2,7 @@
 two modes: "book" (pick a call type, time, details) and "manage" (the
 booking's own page: join link, reschedule, cancel). Every API call is
 relative to the page's own path, so it works at
-booking.digigrowthllc.com/strategy-call and at /book/strategy-call alike."""
+booking.digigrowthllc.com/discovery-call and at /book/discovery-call alike."""
 
 _TEMPLATE = r"""<!doctype html>
 <html lang="en">
@@ -260,7 +260,7 @@ function picker(root, load, onPick, note) {
 
 async function bookMode() {
   const info = await api("info");
-  const want = qs.get("type");
+  const want = qs.get("type") === "strategy-call" ? "discovery-call" : qs.get("type");
   const shown = info.types.filter((t) => t.listed || t.slug === want);
   let ev = info.types.find((t) => t.slug === want) || (shown.length === 1 ? shown[0] : null);
   const UTM = { utm_source: qs.get("utm_source"), utm_content: qs.get("utm_content") };
