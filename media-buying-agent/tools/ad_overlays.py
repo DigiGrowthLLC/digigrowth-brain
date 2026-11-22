@@ -51,17 +51,19 @@ def text_block(draw, lines, f, cx, y, fill, lh):
     return y
 
 
-def hook_card(W, H, text, y_center, size=64):
-    """Big hook quote on a dark rounded card, centered at y_center. Transparent PNG."""
+def hook_card(W, H, text, y_center, size=64, margin=60, min_h=0, alpha=235):
+    """Big hook quote on a dark rounded card, centered at y_center. Transparent PNG.
+    margin/min_h/alpha let the card double as a cover over burned-in source text."""
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     f = font(BOLD, size)
     lines = wrap(d, text, f, W - 200)
     lh = int(size * 1.22)
-    h = lh * len(lines) + 70
+    h = max(lh * len(lines) + 70, min_h)
     top = y_center - h // 2
-    d.rounded_rectangle((60, top, W - 60, top + h), 28, fill=CARD + (235,))
-    d.rounded_rectangle((60, top, W - 60, top + 8), 4, fill=GOLD + (255,))
+    d.rounded_rectangle((margin, top, W - margin, top + h), 28, fill=CARD + (alpha,))
+    d.rounded_rectangle((margin, top, W - margin, top + 8), 4, fill=GOLD + (255,))
+    top += (h - (lh * len(lines) + 70)) // 2
     text_block(d, lines, f, W / 2, top + 38, WHITE, lh)
     return im
 
@@ -115,6 +117,213 @@ def end_card(bg, W, H, eyebrow, headline, lines, button="BOOK NOW", footnote="")
     d.text((W / 2 - d.textlength(button, font=f_btn) / 2, y + 28), button, font=f_btn, fill=CARD)
     if footnote:
         text_block(d, [footnote], f_sm, W / 2, y + bh + 50, (200, 210, 205), 44)
+    return base.convert("RGB")
+
+
+def price_end_card(bg, W, H, eyebrow, name, was, now, anchor_note, badge, lines, urgency,
+                   button="BOOK NOW", footnote="", logo=None):
+    """Offer end card with a visible price anchor + scarcity (paid offers, e.g. $49 vs $150, 10 a month).
+
+    Struck-through `was` price next to a big `now` price, an accent-filled scarcity badge, an urgency
+    line over the button. Real limits only: never invent countdowns. `logo` = optional path (RGBA PNG).
+    """
+    base = bg.convert("RGB").resize((W, H)).filter(ImageFilter.GaussianBlur(28))
+    base = Image.blend(base, Image.new("RGB", (W, H), GREEN), 0.78).convert("RGBA")
+    d = ImageDraw.Draw(base)
+    tall = H > 1500
+    s = 1.0 if tall else 0.86
+    f_eye, f_name = font(BOLD, int(36 * s)), font(BOLD, int(76 * s))
+    f_was, f_now = font(BOLD, int(96 * s)), font(BOLD, int(210 * s))
+    f_note, f_badge = font(SEMI, int(36 * s)), font(BOLD, int(44 * s))
+    f_ln, f_urg, f_btn, f_sm = font(SEMI, int(40 * s)), font(BOLD, int(46 * s)), font(BOLD, int(52 * s)), font(REG, int(32 * s))
+
+    items = []  # (height, draw_fn)
+    lg = None
+    if logo:
+        lg = Image.open(logo).convert("RGBA")
+        lg.thumbnail((int(300 * s), int(170 * s)))
+        items.append((lg.height + 30, lambda y: base.alpha_composite(lg, (int(W / 2 - lg.width / 2), int(y)))))
+    items.append((int(56 * s), lambda y: text_block(d, [eyebrow], f_eye, W / 2, y, GOLD, 50)))
+    name_lines = wrap(d, name, f_name, W - 140)
+    items.append((int(92 * s) * len(name_lines) + 10, lambda y: text_block(d, name_lines, f_name, W / 2, y, WHITE, int(92 * s))))
+
+    def price(y):
+        ww, nw, gap = d.textlength(was, font=f_was), d.textlength(now, font=f_now), 40
+        x0 = W / 2 - (ww + gap + nw) / 2
+        yb = y + int(205 * s)  # shared baseline
+        d.text((x0, yb), was, font=f_was, fill=(185, 200, 204), anchor="ls")
+        sy = yb - int(36 * s)
+        d.line([(x0 - 8, sy + 14), (x0 + ww + 8, sy - 14)], fill=GOLD, width=max(8, int(10 * s)))
+        d.text((x0 + ww + gap, yb), now, font=f_now, fill=GOLD, anchor="ls")
+    items.append((int(225 * s), price))
+    items.append((int(58 * s), lambda y: text_block(d, [anchor_note], f_note, W / 2, y, (215, 228, 230), 46)))
+
+    def badge_fn(y):
+        bw = d.textlength(badge, font=f_badge) + 80
+        bh = int(84 * s)
+        d.rounded_rectangle((W / 2 - bw / 2, y, W / 2 + bw / 2, y + bh), bh / 2, fill=GOLD)
+        d.text((W / 2, y + bh / 2 + 2), badge, font=f_badge, fill=CARD, anchor="mm")
+    items.append((int(84 * s) + 34, badge_fn))
+    for ln in lines:
+        items.append((int(56 * s), lambda y, ln=ln: text_block(d, [ln], f_ln, W / 2, y, (225, 232, 228), 50)))
+    items.append((int(70 * s) + 10, lambda y: text_block(d, [urgency], f_urg, W / 2, y + 16, WHITE, 60)))
+
+    def btn(y):
+        bw, bh = int(620 * s), int(116 * s)
+        d.rounded_rectangle((W / 2 - bw / 2, y, W / 2 + bw / 2, y + bh), bh / 2, fill=WHITE)
+        d.text((W / 2, y + bh / 2 + 2), button, font=f_btn, fill=CARD, anchor="mm")
+    items.append((int(116 * s) + 30, btn))
+    if footnote:
+        items.append((int(44 * s), lambda y: text_block(d, [footnote], f_sm, W / 2, y, (200, 210, 205), 44)))
+
+    total = sum(h for h, _ in items)
+    y = (H - total) / 2
+    for h, fn in items:
+        fn(y)
+        y += h
+    return base.convert("RGB")
+
+
+def simple_offer_card(bg, W, H, name, was, now, scarcity, button="SIGN UP", logo=None, proof=None):
+    """Minimal CTA end card (Dylan 2026-11-09, Boulder: "too much going on").
+
+    Five things only: logo, offer name, struck `was` + big `now`, one plain scarcity line, one button.
+    `proof` (optional, real numbers only, e.g. "5.0 on Google · Ranked #1, BusinessRate 2026") adds one
+    row of 5 stars + that text under the logo.
+    """
+    base = bg.convert("RGB").resize((W, H)).filter(ImageFilter.GaussianBlur(30))
+    base = Image.blend(base, Image.new("RGB", (W, H), CARD), 0.86).convert("RGBA")
+    d = ImageDraw.Draw(base)
+    s = 1.0 if H > 1500 else 0.86
+    f_name, f_was, f_now = font(BOLD, int(68 * s)), font(BOLD, int(90 * s)), font(BOLD, int(200 * s))
+    f_sc, f_btn = font(SEMI, int(40 * s)), font(BOLD, int(54 * s))
+    items = []
+    if logo:
+        lg = Image.open(logo).convert("RGBA")
+        lg.thumbnail((int(260 * s), int(140 * s)))
+        items.append((lg.height + int(56 * s), lambda y: base.alpha_composite(lg, (int(W / 2 - lg.width / 2), int(y)))))
+    if proof:
+        f_pr = font(SEMI, int(36 * s))
+
+        def proof_row(y):
+            r, gap = int(20 * s), int(46 * s)
+            tw = d.textlength(proof, font=f_pr)
+            row_w = 5 * gap - (gap - 2 * r) + int(20 * s) + tw
+            sx = W / 2 - row_w / 2 + r
+            cy = y + int(22 * s)
+            for i in range(5):
+                _star(d, sx + i * gap, cy, r, GOLD)
+            d.text((sx + 4 * gap + r + int(20 * s), cy + 2), proof, font=f_pr, fill=WHITE, anchor="lm")
+        items.append((int(44 * s) + int(44 * s), proof_row))
+    name_lines = wrap(d, name, f_name, W - 160)
+    lh = int(82 * s)
+    items.append((lh * len(name_lines) + int(10 * s), lambda y: text_block(d, name_lines, f_name, W / 2, y, WHITE, lh)))
+
+    def price(y):
+        ww, nw, gap = d.textlength(was, font=f_was), d.textlength(now, font=f_now), 44
+        x0 = W / 2 - (ww + gap + nw) / 2
+        yb = y + int(196 * s)
+        d.text((x0, yb), was, font=f_was, fill=(160, 180, 176), anchor="ls")
+        d.line([(x0 - 8, yb - int(20 * s)), (x0 + ww + 8, yb - int(60 * s))], fill=GOLD, width=max(8, int(10 * s)))
+        d.text((x0 + ww + gap, yb), now, font=f_now, fill=GOLD, anchor="ls")
+    items.append((int(240 * s), price))
+    items.append((int(76 * s), lambda y: d.text((W / 2, y), scarcity, font=f_sc, fill=(225, 232, 228), anchor="ma")))
+
+    def btn(y):
+        bw, bh = int(560 * s), int(116 * s)
+        d.rounded_rectangle((W / 2 - bw / 2, y, W / 2 + bw / 2, y + bh), bh / 2, fill=GOLD)
+        d.text((W / 2, y + bh / 2 + 2), button, font=f_btn, fill=CARD, anchor="mm")
+    items.append((int(116 * s), btn))
+    total = sum(h for h, _ in items)
+    y = (H - total) / 2
+    for h, fn in items:
+        fn(y)
+        y += h
+    return base.convert("RGB")
+
+
+def _star(d, cx, cy, r, fill):
+    import math
+    pts = []
+    for i in range(10):
+        a = -math.pi / 2 + i * math.pi / 5
+        rr = r if i % 2 == 0 else r * 0.45
+        pts.append((cx + rr * math.cos(a), cy + rr * math.sin(a)))
+    d.polygon(pts, fill=fill)
+
+
+def offer_end_card(bg, W, H, name, was, now, rating, proof_line, scarcity, button="BOOK NOW",
+                   footnote="", logo=None, scarce_color=(120, 214, 232)):
+    """Clean offer end card (Dylan 2026-11-06: social proof up front, less going on).
+
+    Stack: logo, offer name, struck `was` + big `now`, social proof (5 stars + `rating`, e.g. "4.9 on Google",
+    then `proof_line`, e.g. a credential), scarcity as a plain label (clock icon, no pill), one accent-filled
+    button (the only filled accent element), optional small footnote. Real numbers only.
+    """
+    base = bg.convert("RGB").resize((W, H)).filter(ImageFilter.GaussianBlur(30))
+    base = Image.blend(base, Image.new("RGB", (W, H), CARD), 0.84).convert("RGBA")
+    d = ImageDraw.Draw(base)
+    s = 1.0 if H > 1500 else 0.86
+    f_name, f_was, f_now = font(BOLD, int(70 * s)), font(BOLD, int(92 * s)), font(BOLD, int(200 * s))
+    f_rate, f_line = font(BOLD, int(46 * s)), font(SEMI, int(34 * s))
+    f_sc, f_btn, f_sm = font(BOLD, int(38 * s)), font(BOLD, int(54 * s)), font(REG, int(30 * s))
+    items = []
+    if logo:
+        lg = Image.open(logo).convert("RGBA")
+        lg.thumbnail((int(280 * s), int(160 * s)))
+        items.append((lg.height + int(44 * s), lambda y: base.alpha_composite(lg, (int(W / 2 - lg.width / 2), int(y)))))
+    items.append((int(84 * s), lambda y: d.text((W / 2, y), name, font=f_name, fill=WHITE, anchor="ma")))
+
+    def price(y):
+        ww, nw, gap = d.textlength(was, font=f_was), d.textlength(now, font=f_now), 44
+        x0 = W / 2 - (ww + gap + nw) / 2
+        yb = y + int(196 * s)
+        d.text((x0, yb), was, font=f_was, fill=(160, 180, 186), anchor="ls")
+        d.line([(x0 - 8, yb - int(20 * s)), (x0 + ww + 8, yb - int(60 * s))], fill=GOLD, width=max(8, int(10 * s)))
+        d.text((x0 + ww + gap, yb), now, font=f_now, fill=GOLD, anchor="ls")
+    items.append((int(250 * s), price))
+
+    def proof(y):  # a framed proof panel so it reads as its own block
+        pw, ph = int(W * 0.78), int(150 * s)
+        x0 = W / 2 - pw / 2
+        panel = Image.new("RGBA", (W, H), (0, 0, 0, 0))  # translucent: composite, ImageDraw on RGBA would overwrite
+        ImageDraw.Draw(panel).rounded_rectangle((x0, y, x0 + pw, y + ph), int(22 * s), fill=(255, 255, 255, 26),
+                                                outline=(255, 255, 255, 70), width=2)
+        base.alpha_composite(panel)
+        r, gap = int(22 * s), int(52 * s)
+        tw = d.textlength(rating, font=f_rate)
+        row_w = 5 * gap - (gap - 2 * r) + int(22 * s) + tw
+        sx = W / 2 - row_w / 2 + r
+        cy = y + int(48 * s)
+        for i in range(5):
+            _star(d, sx + i * gap, cy, r, GOLD)
+        d.text((sx + 4 * gap + r + int(22 * s), cy + 2), rating, font=f_rate, fill=WHITE, anchor="lm")
+        d.text((W / 2, y + int(104 * s)), proof_line, font=f_line, fill=(215, 228, 230), anchor="mm")
+    items.append((int(150 * s) + int(40 * s), proof))
+
+    def scarce(y):
+        tw = d.textlength(scarcity, font=f_sc)
+        cy = y + int(24 * s)
+        cx = W / 2 + int(22 * s)
+        d.text((cx, cy), scarcity, font=f_sc, fill=scarce_color, anchor="mm")
+        ix = cx - tw / 2 - int(30 * s)
+        rr = int(16 * s)
+        d.ellipse((ix - rr, cy - rr, ix + rr, cy + rr), outline=scarce_color, width=4)
+        d.line([(ix, cy - rr * 0.6), (ix, cy), (ix + rr * 0.5, cy + rr * 0.3)], fill=scarce_color, width=3)
+    items.append((int(48 * s) + int(34 * s), scarce))
+
+    def btn(y):
+        bw, bh = int(620 * s), int(118 * s)
+        d.rounded_rectangle((W / 2 - bw / 2, y, W / 2 + bw / 2, y + bh), bh / 2, fill=GOLD)
+        d.text((W / 2, y + bh / 2 + 2), button, font=f_btn, fill=CARD, anchor="mm")
+    items.append((int(118 * s) + int(30 * s), btn))
+    if footnote:
+        items.append((int(40 * s), lambda y: d.text((W / 2, y), footnote, font=f_sm, fill=(170, 190, 195), anchor="ma")))
+    total = sum(h for h, _ in items)
+    y = (H - total) / 2
+    for h, fn in items:
+        fn(y)
+        y += h
     return base.convert("RGB")
 
 

@@ -1,0 +1,112 @@
+{
+  "slug": "rise-reframe",
+  "logo": "logo.png",
+  "palette": {
+    "card": [
+      46,
+      28,
+      15
+    ],
+    "accent": [
+      198,
+      156,
+      85
+    ],
+    "panel": [
+      59,
+      36,
+      19
+    ],
+    "button_text": [
+      46,
+      28,
+      15
+    ]
+  },
+  "ugc": {
+    "line": "At Rise & Reframe, every session is one-on-one with Dr. BettyLou. Never an aide.",
+    "quote": "After her evaluation, she had identified a number of issues (including some I couldn't have self-diagnosed in a million years). In just an hour I saw significant improvement in my movement.",
+    "attr": "RICK · REAL GOOGLE REVIEW"
+  },
+  "end_card": {
+    "eyebrow": "RISE & REFRAME PT · TEMECULA & MURRIETA",
+    "headline": "$49 New Patient Assessment",
+    "lines": [
+      "One-on-one with Dr. BettyLou DeYoung, DPT",
+      "Normally $150. Only 10 spots each month."
+    ],
+    "button": "BOOK NOW",
+    "footnote": "No referral needed"
+  },
+  "own_videos": [
+    [
+      "own-matt",
+      "Fbqz5pDNA0w.mp4",
+      [
+        [
+          17.0,
+          38.9
+        ],
+        [
+          56.8,
+          63.6
+        ],
+        [
+          105.0,
+          123.9
+        ]
+      ],
+      "photo1.png"
+    ],
+    [
+      "own-eval",
+      "lrqlYgXohhE.mp4",
+      [
+        [
+          0.0,
+          6.9
+        ],
+        [
+          26.0,
+          55.4
+        ]
+      ],
+      "photo1.png"
+    ],
+    [
+      "own-matt-week4",
+      "yetN8A8_yh0.mp4",
+      [
+        [
+          8.6,
+          16.2
+        ],
+        [
+          128.0,
+          137.9
+        ],
+        [
+          174.6,
+          177.8
+        ]
+      ],
+      "photo1.png"
+    ]
+  ],
+  "statics": [
+    {
+      "name": "static_shanti",
+      "src": "corporate-shanti",
+      "quote": "I had done traditional PT, massage, rest, and just about everything else I could think of to fix my shoulder and nothing worked. After 2 sessions my pain was drastically reduced.",
+      "attr": "PAMELA · REAL GOOGLE REVIEW",
+      "button": "BOOK THE $49 ASSESSMENT"
+    },
+    {
+      "name": "static_dawn",
+      "src": "corporate-dawn",
+      "quote": "She spent so much time with me explaining what she was going to treat and how she was treating me. She did not push any other appointments on me or products but truly wanted to help!",
+      "attr": "TAMARA · REAL GOOGLE REVIEW",
+      "button": "BOOK THE $49 ASSESSMENT"
+    }
+  ]
+}
