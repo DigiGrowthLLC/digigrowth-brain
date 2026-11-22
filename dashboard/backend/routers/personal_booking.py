@@ -13,7 +13,8 @@ from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from pathlib import Path
 
 import personal_booking as pb
 import tracking_exclusion
@@ -23,6 +24,9 @@ from personal_booking_page import render
 router = APIRouter()
 admin_router = APIRouter()
 P = f"/book/{pb.SLUG}"
+# "View client results" images on the booking page (assets/client-results/).
+RESULTS_DIR = Path(__file__).resolve().parent.parent / "assets" / "client-results"
+RESULT_IMAGES = {"real-pt-clinic-results.jpg", "sample-dashboard-1.jpg", "sample-dashboard-2.jpg"}
 
 
 def _err(e: pb.BookingError):
@@ -43,6 +47,13 @@ def _day(value: str | None) -> date | None:
 @router.get(P, include_in_schema=False)
 async def book_page():
     return HTMLResponse(render("book"), headers={"Cache-Control": "no-cache"})
+
+
+@router.get(P + "/results/{name}", include_in_schema=False)
+async def result_image(name: str):
+    if name not in RESULT_IMAGES:
+        raise HTTPException(status_code=404)
+    return FileResponse(RESULTS_DIR / name, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.get(P + "/api/info", include_in_schema=False)

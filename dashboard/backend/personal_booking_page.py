@@ -107,6 +107,19 @@ _TEMPLATE = r"""<!doctype html>
   .types button{ display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:10px; padding:15px 16px; border-radius:12px; text-align:left;
                  border:1.5px solid var(--line); background:#fff; color:var(--ink); font-weight:700; cursor:pointer; }
   .types button:hover{ border-color:var(--accent); background:var(--accent-soft); }
+  .results-btn{ display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; text-align:left; cursor:pointer; color:var(--ink); }
+  .results-btn:hover{ border-color:var(--accent); }
+  .results-btn b{ font-size:14px; } .results-btn .go{ color:var(--accent); font-weight:700; font-size:13.5px; white-space:nowrap; }
+  .modal{ position:fixed; inset:0; z-index:50; background:rgba(15,20,32,.72); display:flex; justify-content:center; align-items:flex-start; overflow-y:auto; padding:28px 16px; }
+  .sheet{ background:#fff; border-radius:18px; max-width:980px; width:100%; padding:22px; position:relative; }
+  .sheet h2{ font-size:20px; margin:0 34px 4px 0; } .sheet .sub{ color:var(--soft); font-size:14px; margin:0 0 16px; }
+  .close{ position:absolute; top:14px; right:14px; width:36px; height:36px; border-radius:50%; border:1px solid var(--line); background:#fff; font-size:20px; cursor:pointer; color:var(--ink); }
+  .shot{ margin:0 0 22px; } .shot:last-child{ margin-bottom:0; }
+  .shot img{ width:100%; display:block; border-radius:12px; border:1px solid var(--line); }
+  .shot figcaption{ margin-top:8px; font-size:13.5px; color:var(--soft); }
+  .shot figcaption b{ color:var(--ink); }
+  .badge{ display:inline-block; font-size:11.5px; font-weight:800; letter-spacing:.03em; border-radius:999px; padding:2px 9px; margin-right:6px; vertical-align:1px; }
+  .badge.real{ background:#e5f5ee; color:var(--ok); } .badge.sample{ background:var(--warn-bg); color:var(--warn); }
   footer a{ color:inherit; }
 </style>
 </head>
@@ -148,8 +161,31 @@ function infoPanel(ev, extra) {
   return `<div class="who"><div class="avatar mark">DG</div><div><div class="clinic">Dylan Groenendijk</div><div class="provider">Founder, DigiGrowth</div></div></div>
     <h1>${esc(ev ? ev.name : "Book a call")}</h1>
     ${ev ? `<div class="meta"><div>${ICON.clock}<span>${ev.duration_min} min</span></div><div>${ICON.video}<span>Google Meet (link in your invite)</span></div>${extra || ""}</div>
-    ${ev.description ? `<p class="desc">${esc(ev.description)}</p>` : ""}` : ""}`;
+    ${ev.description ? `<p class="desc">${esc(ev.description)}</p>` : ""}` : ""}
+    ${MODE === "book" ? `<button class="proof results-btn" id="resultsbtn"><span><span class="stars"><b>Real client results</b></span><span class="quote">A PT clinic's recent campaign: 11 new-patient visits booked against a goal of 10, at $46 per booking.</span></span><span class="go">View client results →</span></button>` : ""}`;
 }
+
+// Client results gallery. Image 1 is a real client's portal (names blurred); 2 and 3 are sample dashboards and say so.
+const RESULTS = [
+  { src: "real-pt-clinic-results.jpg", real: true, cap: "<b>PT clinic, recent campaign.</b> 31 leads, 11 new-patient visits booked against a goal of 10, $46.06 per booking. Their real client portal; clinic and patient names blurred." },
+  { src: "sample-dashboard-1.jpg", real: false, cap: "<b>Example dashboard.</b> What your client portal looks like with a campaign running. Sample numbers, not a real clinic." },
+  { src: "sample-dashboard-2.jpg", real: false, cap: "<b>Example dashboard.</b> Another view of the portal with sample numbers, not a real clinic." },
+];
+function openResults() {
+  const m = document.createElement("div");
+  m.className = "modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true"); m.setAttribute("aria-label", "Client results");
+  m.innerHTML = `<div class="sheet"><button class="close" aria-label="Close">×</button><h2>Client results</h2>
+    <p class="sub">Every client gets a live portal like this, showing leads, booked visits and cost per booking.</p>
+    ${RESULTS.map((r) => `<figure class="shot"><img src="${BASE}/results/${r.src}" alt="${r.real ? "A PT clinic's real campaign results" : "Sample client dashboard"}" loading="lazy">
+      <figcaption><span class="badge ${r.real ? "real" : "sample"}">${r.real ? "REAL CLIENT" : "SAMPLE DATA"}</span>${r.cap}</figcaption></figure>`).join("")}</div>`;
+  const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  m.onclick = (e) => { if (e.target === m) close(); };
+  m.querySelector(".close").onclick = close;
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(m); m.querySelector(".close").focus();
+}
+document.addEventListener("click", (e) => { if (e.target.closest && e.target.closest("#resultsbtn")) openResults(); });
 
 function progress(n) {
   return `<div class="progress">${["Pick a time", "Your details", "Confirmed"].map((l, i) => `<div class="${i < n ? "done" : ""}"><i></i><span>${l}</span></div>`).join("")}</div>`;
