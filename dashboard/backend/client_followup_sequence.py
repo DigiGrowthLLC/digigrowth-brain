@@ -283,6 +283,8 @@ async def send_due_touches():
             f"""
             SELECT c.*, cl.name AS client_name,
                    coalesce(nullif(cmc.calendly_event_type_url, ''), cl.calendly_url) AS booking_link,
+                   (SELECT bs.booking_slug FROM booking_settings bs
+                     WHERE bs.client_id = c.client_id AND bs.enabled) AS dg_booking_slug,
                    (SELECT MAX(m.created_at) {_THREAD_SQL.format(direction='outbound')}) AS last_outbound_at,
                    (SELECT MAX(m.created_at) {_THREAD_SQL.format(direction='inbound')}) AS last_inbound_at
             FROM contacts c
@@ -306,6 +308,10 @@ async def send_due_touches():
 
         for record in rows:
             row = dict(record)
+            # DigiGrowth Booking wins over a leftover Calendly link when it's on.
+            if row.get("dg_booking_slug"):
+                import booking_engine
+                row["booking_link"] = booking_engine.booking_page_url(row["dg_booking_slug"])
             last_outbound_at = row["last_outbound_at"]
             last_inbound_at = row["last_inbound_at"]
             if last_outbound_at is None:

@@ -943,11 +943,11 @@ async def _create_schema(pool: asyncpg.Pool):
         # Same "stub what needs real per-client credentials" pattern as
         # Twilio/Gmail: no real client has connected their own Calendly yet,
         # so calendly_url stays NULL for everyone except the self-test
-        # client, which reuses DigiGrowth's own internal Calendly (the
+        # client, which reuses Dylan's own booking page (the
         # same CALENDLY_URL the OS's BookingModal.jsx uses) since it's
         # Dylan's own account either way. Idempotent, safe every startup.
         await conn.execute(
-            "UPDATE clients SET calendly_url = 'https://calendly.com/dylanrg-digigrowthllc/30min' "
+            "UPDATE clients SET calendly_url = 'https://booking.digigrowthllc.com/discovery-call' "
             "WHERE name = 'DigiGrowth Test' AND calendly_url IS NULL"
         )
         await conn.execute("""
