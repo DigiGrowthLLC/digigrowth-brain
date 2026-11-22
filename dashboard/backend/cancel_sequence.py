@@ -129,11 +129,11 @@ async def _get_templates() -> dict:
     return {key: values.get(key, default) for key, default in TEMPLATE_DEFAULTS.items()}
 
 
-def _fill(template: str, row: dict) -> str:
+def _fill(template: str, row: dict, channel: str = "sms") -> str:
     first_name = first_name_from_owner(row.get("prospect_name"))
     return (
         template.replace("{first_name}", first_name)
-        .replace("{link}", integrations.CALENDLY_URL)
+        .replace("{link}", integrations.booking_link(channel))
         .replace("{vsl_link}", integrations.vsl_link(row.get("contact_id")))
     )
 
@@ -159,8 +159,8 @@ async def _send_touch(row: dict, instance: str, templates: dict, stage: str):
     email = (row.get("prospect_email") or "").strip()
     if email and subject_template.strip() and body_template.strip():
         try:
-            subject = _fill(subject_template, row)
-            body = _fill(body_template, row)
+            subject = _fill(subject_template, row, "email")
+            body = _fill(body_template, row, "email")
             result = await asyncio.to_thread(integrations.gmail_send, email, subject, body, is_automated=True)
             if not result.startswith("Sent email"):
                 print(f"[cancel_sequence] email to {email} did not send: {result}")

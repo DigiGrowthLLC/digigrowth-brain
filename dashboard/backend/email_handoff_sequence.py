@@ -227,8 +227,8 @@ def _fill(template: str, contact: dict) -> str:
         # Every current prospect has one; the fallback just keeps the
         # sentence readable if one ever doesn't.
         "opener": (contact.get("opener") or "").strip() or "what you've built there",
-        "loom": contact.get("loom_url") or integrations.CALENDLY_URL,
-        "link": integrations.CALENDLY_URL,
+        "loom": contact.get("loom_url") or integrations.booking_link("email"),
+        "link": integrations.booking_link("email"),
     }
 
     def sub(m):

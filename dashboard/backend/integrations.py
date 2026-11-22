@@ -1111,6 +1111,14 @@ def calendar_events_structured(days_ahead: int = 7, calendar_id: str = "primary"
 # constant is frontend-only today).
 CALENDLY_URL = "https://booking.digigrowthllc.com/discovery-call"  # Dylan's own booking page since 2026-11-22 (was his Calendly); name kept for its callers
 
+
+def booking_link(channel: str) -> str:
+    """Dylan's booking page tagged with the channel it's sent on ("sms",
+    "email"), so Analytics -> Booking link can split conversion by channel
+    (personal_booking.channel_for). ?via= rather than ?utm_source= because
+    it's 10 characters shorter in a text."""
+    return f"{CALENDLY_URL}?via={channel}"
+
 # The marketing site's VSL, on /contact (digigrowth-website, `master`
 # branch). Every outbound template that wants to send a prospect there
 # should use vsl_link(contact_id) below, not this bare constant directly —

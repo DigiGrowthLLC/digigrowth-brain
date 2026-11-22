@@ -524,6 +524,61 @@ function ContentCampaignsView() {
 
 // ── Leads: grades + states ───────────────────────────────────────────────
 
+// ── Booking link (Dylan's own booking page, booking.digigrowthllc.com/discovery-call) ──
+// Visitors -> picked a time -> booked, overall and per channel. Channel comes
+// from the link's tag (?utm_source= on the website, ?via= on texts/emails the
+// OS sends) or the referring site; Dylan's own visits are left out server-side.
+
+const BOOKING_CH_COLOR = {
+  email: CH.email.color, sms: CH.sms.color, website: "#4d8ef0", social: "#f472b6",
+  video: "#f2ad3d", pages: "#38bdf8", other: "#a3e635", direct: "#8b93b5",
+};
+const BOOKING_CH_SHORT = { sms: "SMS", social: "Social", direct: "Direct", video: "Video", pages: "Pages" };
+
+function BookingLinkView({ days, date }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let stale = false;
+    setData(null);
+    fetch(API(`/personal-booking/analytics?days=${days}${date ? `&date=${date}` : ""}`))
+      .then(r => r.ok ? r.json() : null).then(d => { if (!stale) setData(d || { error: true }); })
+      .catch(() => { if (!stale) setData({ error: true }); });
+    return () => { stale = true; };
+  }, [days, date]);
+
+  if (data?.error) return <Card pad={20}><Empty>Couldn't load booking link analytics.</Empty></Card>;
+  const t = data?.total ?? {};
+  const loading = !data;
+  const chs = data?.channels ?? [];
+  const columns = chs.map(c => ({ key: c.key, color: BOOKING_CH_COLOR[c.key] || T.accent, title: c.label, short: BOOKING_CH_SHORT[c.key] }));
+  const rows = [
+    { label: "Visitors", hint: "People who opened the link", vals: chs.map(c => c.visitors), fmt: num },
+    { label: "Picked a time", vals: chs.map(c => c.pick_rate), fmt: pct, best: true, hint: "Of visitors" },
+    { label: "Booked", vals: chs.map(c => c.booked), fmt: num, tone: "good" },
+    { label: "Conversion rate", vals: chs.map(c => c.conversion_rate), fmt: pct, best: true, strong: true, hint: "Booked ÷ visitors" },
+  ];
+  const since = data?.tracking_since ? new Date(data.tracking_since).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 45%), 1fr))", gap: 12 }}>
+        <Kpi label="Link visitors" value={loading ? "…" : num(t.visitors)} color="#4d8ef0" icon={ICON.trend} sub="Prospects, not you" />
+        <Kpi label="Picked a time" value={loading ? "…" : pct(t.pick_rate)} color={T.warn} icon={ICON.target}
+          sub={data ? `${num(t.picked)} of ${num(t.visitors)} visitors` : null} />
+        <Kpi label="Booked" value={loading ? "…" : num(t.booked)} color={T.good} icon={ICON.check}
+          sub={data ? (data.ai_booked ? `+${num(data.ai_booked)} booked by your AI setters` : "Through the link") : null} />
+        <Kpi label="Conversion rate" value={loading ? "…" : pct(t.conversion_rate)} color={T.accent} icon={ICON.trend}
+          sub="Booked ÷ visitors" />
+      </div>
+      <ComparisonTable columns={columns} rows={rows} loading={loading} />
+      <div style={{ fontSize: 12, color: T.textMute, lineHeight: 1.5 }}>
+        Each visitor counts once, under the channel of their first visit. Your own visits (OS-logged devices) and test bookings are left out.
+        AI-setter bookings skip the link, so they're not in the rates.{since ? ` Tracking since ${since}.` : ""}
+      </div>
+    </div>
+  );
+}
+
 const GRADE_COLOR = { A: T.good, B: T.accent, C: T.warn };
 
 function GradeTable({ rows }) {
@@ -684,6 +739,12 @@ export default function AnalyticsPanel() {
             <div>
               <SectionTitle title="Video engagement" hint="How far people get through your videos, and how many book after." />
               <ContentCampaignsView />
+            </div>
+
+            {/* Booking link */}
+            <div>
+              <SectionTitle title="Booking link" hint="Your discovery call page: how many visitors book, overall and by the channel the link came from." />
+              <BookingLinkView days={days} date={date} />
             </div>
 
             {/* Leads */}

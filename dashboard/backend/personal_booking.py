@@ -97,6 +97,25 @@ CREATE TABLE IF NOT EXISTS personal_bookings (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_personal_bookings_start ON personal_bookings(start_at) WHERE status = 'confirmed';
+-- Booking-link analytics (2026-11-22): one row per page view ('view') and per
+-- picked time ('time'), keyed by a browser visitor id; bookings carry the same
+-- id so Analytics -> Booking link can work out conversion per channel.
+CREATE TABLE IF NOT EXISTS personal_booking_events (
+    id          BIGSERIAL PRIMARY KEY,
+    visitor_id  TEXT NOT NULL,
+    step        TEXT NOT NULL,
+    type_slug   TEXT,
+    channel     TEXT NOT NULL,
+    utm_source  TEXT,
+    utm_content TEXT,
+    referrer    TEXT,
+    excluded    BOOLEAN NOT NULL DEFAULT false,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pb_events_created ON personal_booking_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_pb_events_visitor ON personal_booking_events(visitor_id);
+ALTER TABLE personal_bookings ADD COLUMN IF NOT EXISTS visitor_id TEXT;
+ALTER TABLE personal_bookings ADD COLUMN IF NOT EXISTS channel TEXT;
 """
 
 
@@ -327,7 +346,8 @@ def _valid_tz(name: str | None, fallback: str) -> str:
 
 async def reserve(type_id: int, start_iso: str, name: str, email: str, phone: str, business: str | None,
                   note: str | None, tz_name: str | None, sms_consent: bool, utm_source: str | None,
-                  utm_content: str | None, excluded: bool, prospect: bool = True) -> dict:
+                  utm_content: str | None, excluded: bool, prospect: bool = True, visitor_id: str | None = None,
+                  referrer: str | None = None) -> dict:
     name, email, phone = (name or "").strip(), (email or "").strip().lower(), (phone or "").strip()
     if not name or len(name) > 120:
         raise BookingError("Please enter your name.")
@@ -356,13 +376,143 @@ async def reserve(type_id: int, start_iso: str, name: str, email: str, phone: st
                 raise BookingError("Sorry, that time was just taken. Please pick another.")
             bid = await conn.fetchval(
                 """INSERT INTO personal_bookings (type_id, start_at, end_at, name, email, phone, business, note,
-                       timezone, sms_consent, utm_source, utm_content, excluded, manage_token)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id""",
+                       timezone, sms_consent, utm_source, utm_content, excluded, manage_token, visitor_id, channel)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id""",
                 type_id, start, end, name, email, phone or None, (business or "").strip()[:160] or None,
-                (note or "").strip()[:1000] or None, tz_name, sms_consent, utm_source, utm_content, excluded, token)
+                (note or "").strip()[:1000] or None, tz_name, sms_consent, utm_source, utm_content, excluded, token,
+                (visitor_id or "")[:64] or None,
+                "ai_setter" if utm_source == "ai_setter" else channel_for(utm_source, referrer))
     _busy_cache["at"] = 0.0
     await _finalize(bid)
     return {"status": "confirmed", "manage_url": manage_url(token)}
+
+
+# ── Booking-link analytics ───────────────────────────────────────────────────
+# Which channel a visit came from: the link's own tag first (?utm_source= on
+# the website, ?via= on links the OS sends: see integrations.booking_link),
+# then the referring site. Website links are rel="noreferrer", so they rely on
+# their tag.
+
+CHANNELS = {  # key -> label, in display order
+    "email": "Email", "sms": "Text (SMS)", "website": "Website", "social": "Social media",
+    "video": "Video pages", "pages": "Landing pages", "other": "Other links", "direct": "Direct / untagged",
+}
+ALWAYS_SHOWN = ("email", "sms", "website", "social")
+_SOCIAL_TAGS = {"social", "instagram", "ig", "facebook", "fb", "meta", "linkedin", "li", "tiktok", "youtube", "yt",
+                "twitter", "x", "threads", "dm", "bio"}
+_SOCIAL_HOSTS = ("instagram.com", "facebook.com", "fb.com", "fb.me", "messenger.com", "linkedin.com", "lnkd.in",
+                 "tiktok.com", "youtube.com", "youtu.be", "t.co", "twitter.com", "x.com", "threads.net")
+_MAIL_HOSTS = ("mail.google.com", "outlook.live.com", "outlook.office.com", "outlook.office365.com", "mail.yahoo.com",
+               "mail.aol.com", "icloud.com")
+
+
+def channel_for(utm_source: str | None, referrer: str | None) -> str:
+    from urllib.parse import urlparse
+    tag = (utm_source or "").strip().lower()
+    if tag:
+        if tag.startswith("email") or tag in ("cold-email", "newsletter", "gmail"):
+            return "email"
+        if tag in ("sms", "text", "txt"):
+            return "sms"
+        if tag in ("website", "site", "web", "contact-vsl"):
+            return "website"
+        if tag in _SOCIAL_TAGS:
+            return "social"
+        if tag in ("video", "loom", "vsl", "watch"):
+            return "video"
+        return "other"
+    try:
+        host = (urlparse(referrer or "").hostname or "").lower()
+    except ValueError:
+        host = ""
+    host = host[4:] if host.startswith("www.") else host
+    if not host or host == "booking.digigrowthllc.com":
+        return "direct"
+
+    def match(hosts):
+        return any(host == h or host.endswith("." + h) for h in hosts)
+
+    if host.startswith("loom.") and host.endswith("digigrowthllc.com"):
+        return "video"
+    if host == "pages.digigrowthllc.com":
+        return "pages"
+    if host == "digigrowthllc.com":
+        return "website"
+    if match(_MAIL_HOSTS):
+        return "email"
+    if match(_SOCIAL_HOSTS):
+        return "social"
+    return "other"
+
+
+async def log_event(visitor_id: str, step: str, type_slug: str | None, utm_source: str | None,
+                    utm_content: str | None, referrer: str | None, excluded: bool) -> None:
+    if step not in ("view", "time") or not visitor_id:
+        return
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO personal_booking_events (visitor_id, step, type_slug, channel, utm_source, utm_content,
+                       referrer, excluded) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)""",
+                visitor_id[:64], step, (type_slug or "")[:60] or None, channel_for(utm_source, referrer),
+                (utm_source or "")[:80] or None, (utm_content or "")[:80] or None, (referrer or "")[:500] or None,
+                excluded)
+    except Exception as e:
+        print(f"[personal-booking] event log failed: {e}")
+
+
+async def link_analytics(since: datetime | None, until: datetime | None) -> dict:
+    """Discovery Call link only (the Onboarding/Launch links go to clients, not
+    prospects). Each visitor counts once, under the channel of their first
+    visit in the window. Dylan's visits are dropped: any view from an excluded
+    IP, every visit from a browser that ever had one (his phone on a carrier
+    IP), and bookings on the test number."""
+    import tracking_exclusion
+    since = since or datetime(2000, 1, 1, tzinfo=timezone.utc)
+    until = until or datetime.now(timezone.utc) + timedelta(minutes=1)
+    test = [f"%{d}" for d in tracking_exclusion.TEST_PHONE_DIGITS]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """WITH dylan AS (SELECT DISTINCT visitor_id FROM personal_booking_events WHERE excluded),
+               ev AS (SELECT * FROM personal_booking_events
+                      WHERE created_at >= $1 AND created_at < $2 AND NOT excluded
+                        AND COALESCE(type_slug, 'discovery-call') = 'discovery-call'
+                        AND visitor_id NOT IN (SELECT visitor_id FROM dylan)),
+               v AS (SELECT DISTINCT ON (visitor_id) visitor_id, channel FROM ev WHERE step = 'view'
+                     ORDER BY visitor_id, created_at),
+               t AS (SELECT DISTINCT visitor_id FROM ev WHERE step = 'time'),
+               b AS (SELECT DISTINCT b.visitor_id FROM personal_bookings b
+                     JOIN personal_booking_types ty ON ty.id = b.type_id
+                     WHERE b.visitor_id IS NOT NULL AND NOT b.excluded AND ty.call_type = 'discovery'
+                       AND b.created_at >= $1 AND b.created_at < $2
+                       AND NOT (regexp_replace(COALESCE(b.phone, ''), '[^0-9]', '', 'g') LIKE ANY($3::text[])))
+               SELECT v.channel, count(*) AS visitors, count(t.visitor_id) AS picked, count(b.visitor_id) AS booked
+               FROM v LEFT JOIN t USING (visitor_id) LEFT JOIN b USING (visitor_id)
+               GROUP BY v.channel""", since, until, test)
+        ai_booked = await conn.fetchval(
+            """SELECT count(*) FROM personal_bookings
+               WHERE utm_source = 'ai_setter' AND created_at >= $1 AND created_at < $2""", since, until)
+        first = await conn.fetchval("SELECT min(created_at) FROM personal_booking_events")
+    by = {r["channel"]: dict(r) for r in rows}
+
+    def rate(n, d):
+        return round(n * 100 / d, 1) if d else None
+
+    channels = []
+    for key, label in CHANNELS.items():
+        r = by.get(key) or {"visitors": 0, "picked": 0, "booked": 0}
+        if not r["visitors"] and key not in ALWAYS_SHOWN:
+            continue
+        channels.append({"key": key, "label": label, "visitors": r["visitors"], "picked": r["picked"],
+                         "booked": r["booked"], "pick_rate": rate(r["picked"], r["visitors"]),
+                         "conversion_rate": rate(r["booked"], r["visitors"])})
+    tot = {k: sum(r[k] for r in by.values()) for k in ("visitors", "picked", "booked")}
+    return {"total": {**tot, "pick_rate": rate(tot["picked"], tot["visitors"]),
+                      "conversion_rate": rate(tot["booked"], tot["visitors"])},
+            "channels": channels, "ai_booked": ai_booked or 0,
+            "tracking_since": first.isoformat() if first else None}
 
 
 # ── AI setters (SMS + email) ─────────────────────────────────────────────────

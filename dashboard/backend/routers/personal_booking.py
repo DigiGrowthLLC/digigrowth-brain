@@ -97,9 +97,25 @@ async def book_reserve(request: Request, payload: dict):
             int(payload.get("type_id") or 0), payload.get("start") or "", payload.get("name"), payload.get("email"),
             payload.get("phone"), payload.get("business"), payload.get("note"), payload.get("timezone"),
             payload.get("sms_consent") is True, payload.get("utm_source"), payload.get("utm_content"),
-            await tracking_exclusion.is_excluded(request))
+            await tracking_exclusion.is_excluded(request),
+            visitor_id=payload.get("visitor_id"), referrer=payload.get("referrer"))
     except pb.BookingError as e:
         raise _err(e)
+
+
+@router.post(P + "/api/track", include_in_schema=False)
+async def book_track(request: Request):
+    """Page view / picked-a-time beacon for Analytics -> Booking link."""
+    try:
+        payload = json.loads(await request.body() or b"{}")
+    except ValueError:
+        return {"ok": False}
+    if not isinstance(payload, dict):
+        return {"ok": False}
+    await pb.log_event(str(payload.get("visitor_id") or ""), str(payload.get("step") or ""), payload.get("type"),
+                       payload.get("utm_source"), payload.get("utm_content"), payload.get("referrer"),
+                       await tracking_exclusion.is_excluded(request))
+    return {"ok": True}
 
 
 async def _booking(token: str) -> dict:
@@ -186,6 +202,19 @@ async def overview():
                      for r in upcoming],
         "booked_30d": booked_30d,
     }
+
+
+@admin_router.get("/personal-booking/analytics")
+async def link_analytics(days: int = 0, date: str | None = None):
+    """Analytics -> Overview -> Booking link. Same period rules as the rest of
+    Analytics: a picked Eastern day wins, days=1 is today, 0 is all time."""
+    from routers.analytics import _day_window, _since
+    window = _day_window(date)
+    if window:
+        since, until = window
+    else:
+        since, until = (_since(days) if days else None), None
+    return await pb.link_analytics(since, until)
 
 
 @admin_router.put("/personal-booking/settings")

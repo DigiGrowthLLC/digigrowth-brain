@@ -265,7 +265,24 @@ async function bookMode() {
   const want = qs.get("type") === "strategy-call" ? "discovery-call" : qs.get("type");
   const shown = info.types.filter((t) => t.listed || t.slug === want);
   let ev = info.types.find((t) => t.slug === want) || (shown.length === 1 ? shown[0] : null);
-  const UTM = { utm_source: qs.get("utm_source"), utm_content: qs.get("utm_content") };
+  // Booking-link analytics: ?utm_source= (website) or the short ?via= (links the OS sends).
+  const UTM = { utm_source: qs.get("utm_source") || qs.get("via"), utm_content: qs.get("utm_content") };
+  const VID = (() => {
+    const fresh = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+    try { let v = localStorage.getItem("dg_bk_vid"); if (!v) { v = fresh(); localStorage.setItem("dg_bk_vid", v); } return v; }
+    catch { return fresh(); }
+  })();
+  const REF = document.referrer || null;
+  const sent = {};
+  const track = (step, type) => {
+    if (sent[step]) return; sent[step] = 1;
+    try {
+      const body = JSON.stringify({ visitor_id: VID, step, type, referrer: REF, ...UTM });
+      if (!(navigator.sendBeacon && navigator.sendBeacon(BASE + "/api/track", new Blob([body], { type: "text/plain" }))))
+        fetch(BASE + "/api/track", { method: "POST", body, keepalive: true }).catch(() => {});
+    } catch {}
+  };
+  track("view", want || (ev && ev.slug) || null);
   if (!info.types.length) { $("#info").innerHTML = infoPanel(null); $("#main").innerHTML = `<p class="muted">Booking isn't open right now.</p>`; return; }
   if (!ev) {
     $("#info").innerHTML = infoPanel(null);
@@ -283,6 +300,7 @@ async function bookMode() {
   }
 
   function details(slot) {
+    track("time", ev.slug);
     $("#info").innerHTML = infoPanel(ev, `<div>${ICON.cal}<span>${esc(fmtDay(slot))}, ${esc(fmtTime(slot))}</span></div>`);
     $("#main").innerHTML = `${progress(2)}<h2>Your details</h2>
       <div class="chosen"><div><b>${esc(fmtDay(slot))}</b><small>${esc(fmtTime(slot))} · ${ev.duration_min} min · ${esc(tzLabel())}</small></div><button class="link" id="chg">Change</button></div>
@@ -305,7 +323,7 @@ async function bookMode() {
       const btn = $("#go"); btn.disabled = true; btn.textContent = "Booking...";
       try {
         const r = await post("reserve", { type_id: ev.id, start: slot, name, email, phone, business: $("#b").value, note: $("#q").value,
-          timezone: TZ, sms_consent: $("#c").checked, ...UTM });
+          timezone: TZ, sms_consent: $("#c").checked, visitor_id: VID, referrer: REF, ...UTM });
         location.href = r.manage_url + "?new=1";
       } catch (e) {
         btn.disabled = false; btn.textContent = "Confirm my call";
