@@ -26,7 +26,7 @@ admin_router = APIRouter()
 P = f"/book/{pb.SLUG}"
 # "View client results" images on the booking page (assets/client-results/).
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "assets" / "client-results"
-RESULT_IMAGES = {"real-pt-clinic-results.jpg", "sample-dashboard-1.jpg", "sample-dashboard-2.jpg"}
+RESULT_IMAGES = {"sample-dashboard-1.jpg", "sample-dashboard-2.jpg"}
 
 
 def _err(e: pb.BookingError):

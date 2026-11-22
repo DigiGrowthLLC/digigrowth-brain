@@ -116,6 +116,7 @@ _TEMPLATE = r"""<!doctype html>
   .close{ position:absolute; top:14px; right:14px; width:36px; height:36px; border-radius:50%; border:1px solid var(--line); background:#fff; font-size:20px; cursor:pointer; color:var(--ink); }
   .shot{ margin:0 0 22px; } .shot:last-child{ margin-bottom:0; }
   .shot img{ width:100%; display:block; border-radius:12px; border:1px solid var(--line); }
+  .disclaimer{ margin:-4px 0 10px; font-size:12.5px; color:var(--soft); font-style:italic; }
   .shot figcaption{ margin-top:8px; font-size:13.5px; color:var(--soft); }
   .shot figcaption b{ color:var(--ink); }
   .badge{ display:inline-block; font-size:11.5px; font-weight:800; letter-spacing:.03em; border-radius:999px; padding:2px 9px; margin-right:6px; vertical-align:1px; }
@@ -162,22 +163,22 @@ function infoPanel(ev, extra) {
     <h1>${esc(ev ? ev.name : "Book a call")}</h1>
     ${ev ? `<div class="meta"><div>${ICON.clock}<span>${ev.duration_min} min</span></div><div>${ICON.video}<span>Google Meet (link in your invite)</span></div>${extra || ""}</div>
     ${ev.description ? `<p class="desc">${esc(ev.description)}</p>` : ""}` : ""}
-    ${MODE === "book" ? `<button class="proof results-btn" id="resultsbtn"><span><span class="stars"><b>Real client results</b></span><span class="quote">A PT clinic's recent campaign: 11 new-patient visits booked against a goal of 10, at $46 per booking.</span></span><span class="go">View client results →</span></button>` : ""}`;
+    ${MODE === "book" ? `<button class="proof results-btn" id="resultsbtn"><span><span class="stars"><span class="s" aria-hidden="true">★★★★★</span><b>Real client results</b></span><span class="quote">A PT clinic's recent campaign: 11 new-patient visits booked against a goal of 10, at $46 per booking.</span></span><span class="go">View client results →</span></button>` : ""}`;
 }
 
-// Client results gallery. Image 1 is a real client's portal (names blurred); 2 and 3 are sample dashboards and say so.
+// Client results gallery: the two portal dashboards (each image carries its own "SAMPLE DATA" tag, keep it).
+// The real Advantage screenshot (real-pt-clinic-results.jpg) was dropped from the gallery 2026-11-22 (Dylan).
 const RESULTS = [
-  { src: "real-pt-clinic-results.jpg", real: true, cap: "<b>PT clinic, recent campaign.</b> 31 leads, 11 new-patient visits booked against a goal of 10, $46.06 per booking. Their real client portal; clinic and patient names blurred." },
-  { src: "sample-dashboard-1.jpg", real: false, cap: "<b>Example dashboard.</b> What your client portal looks like with a campaign running. Sample numbers, not a real clinic." },
-  { src: "sample-dashboard-2.jpg", real: false, cap: "<b>Example dashboard.</b> Another view of the portal with sample numbers, not a real clinic." },
+  { src: "sample-dashboard-1.jpg" },
+  { src: "sample-dashboard-2.jpg" },
 ];
 function openResults() {
   const m = document.createElement("div");
   m.className = "modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true"); m.setAttribute("aria-label", "Client results");
   m.innerHTML = `<div class="sheet"><button class="close" aria-label="Close">×</button><h2>Client results</h2>
+    <p class="disclaimer">Names are blurred for privacy reasons.</p>
     <p class="sub">Every client gets a live portal like this, showing leads, booked visits and cost per booking.</p>
-    ${RESULTS.map((r) => `<figure class="shot"><img src="${BASE}/results/${r.src}" alt="${r.real ? "A PT clinic's real campaign results" : "Sample client dashboard"}" loading="lazy">
-      <figcaption><span class="badge ${r.real ? "real" : "sample"}">${r.real ? "REAL CLIENT" : "SAMPLE DATA"}</span>${r.cap}</figcaption></figure>`).join("")}</div>`;
+    ${RESULTS.map((r) => `<figure class="shot"><img src="${BASE}/results/${r.src}" alt="Client portal dashboard" loading="lazy"></figure>`).join("")}</div>`;
   const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
   const onKey = (e) => { if (e.key === "Escape") close(); };
   m.onclick = (e) => { if (e.target === m) close(); };
