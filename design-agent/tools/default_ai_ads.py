@@ -17,8 +17,10 @@ folder: ads/ugc-thursday-web.mp4, ads/ugc-square-one-web.mp4, their _poster.jpg,
 Work files go to <folder>/ai_ads_work/.
 
 --generate creates whatever is missing with fal.ai (needs credit; run with doppler run --project digigrowth
---config prd --): 4 Veo 3.1 Fast takes (~$1.20 each) and 1 nano-banana-pro photo (~$0.15). Without it, the
-takes/photo must already be in ai_ads_work/takes/ (th-t2.mp4, th-t3.mp4, sq-t2.mp4, sq-t3.mp4, photo.png).
+--config prd --). For the standard offer ($150 -> $49, 10 spots) that's just the 2 city/doctor lines (Veo 3.1
+Fast, ~$1.20 each = ~$2.40 per prospect): the offer lines come from default-ads/takes/ and the static's photo
+from default-ads/photos/ when that therapist/body-part combo exists (new combos ~$0.15, then cached). Without
+--generate, missing takes must already be in ai_ads_work/takes/ (th-t2.mp4, sq-t2.mp4, ...).
 Takes are trimmed automatically (to the last spoken word; an immediately repeated word like
 "Temecula, Temecula" is cut), checked against the script (a warning prints if the words don't match:
 listen before using it), and captioned in the source ads' style. "segs" in a take's config overrides the
@@ -52,7 +54,8 @@ ACTORS = {
         takes=[("th-t2", "Turns out there's a PT in {city} who works one-on-one the whole visit.",
                 "turns out there's a PT in {city} who works one-on-one the whole visit."),
                ("th-t3", "Normally {spoken_was}, right now it's {spoken_now}. And there's only {spoken_spots} spots a month.",
-                "normally {was}, right now it's {now}. and there's only {spots} spots a month.")]),
+                "normally {was}, right now it's {now}. and there's only {spots} spots a month.",
+                ("th-offer.mp4", "Normally a hundred fifty, right now it's forty-nine.", "normally $150, right now it's $49."))]),
     "ugc-square-one": dict(
         head=CROSA / "video-back-to-square-one/video-9x16.mp4", head_cut=5.55,
         still=CROSA / "video-back-to-square-one/actor.png", polish=True, review="square_one",
@@ -61,8 +64,15 @@ ACTORS = {
         takes=[("sq-t2", "So there's a PT in {city}, {doctor_spoken}, one-on-one start to finish.",
                 "so there's a PT in {city}, {doctor_short}, one-on-one, start to finish."),
                ("sq-t3", "First visit's {spoken_now} bucks right now. Only {spoken_spots} spots a month.",
-                "first visit's {now_num} bucks right now. only {spots} spots a month.")]),
+                "first visit's {now_num} bucks right now. only {spots} spots a month.",
+                ("sq-offer.mp4", "First visit's forty-nine bucks right now. Only ten spots a month.",
+                 "first visit's 49 bucks right now. only 10 spots a month."))]),
 }
+# Cost savers (Dylan, 2026-11-22: "anyway to make it a bit less?"): the offer lines name no practice, so for the
+# standard offer ($150 -> $49, 10 spots) every prospect reuses the cached takes in default-ads/takes/ (4th
+# element above) and only the city/doctor line is filmed per prospect. The static's AI photo has no faces or
+# branding, so photos are kept in default-ads/photos/<therapist>-<body part>.jpg and reused.
+DEFAULTS = REPO / "design-agent/references/default-ads"
 
 AI_ADS_EXAMPLE = {
     "city": "Temecula", "areas": "Temecula & Murrieta",
@@ -226,8 +236,18 @@ class Builder:
         run(["ffmpeg", "-v", "error", "-y", "-t", c, "-i", actor["head"], "-vf", f"scale={W}:{H},setsar=1,fps={FPS}",
              "-af", f"afade=t=out:st={c - 0.15:.2f}:d=0.15,aresample=48000", "-ac", "2",
              "-c:v", "libx264", "-crf", "18", "-c:a", "aac", "-b:a", "160k", head0])
-        parts = [head0] + [self.build_take(actor, n, sp.format(**self.vars), cp.format(**self.vars))
-                           for n, sp, cp in actor["takes"]]
+        o = self.c["offer"]
+        standard = (o["was"], o["now"], int(o["spots"])) == ("$150", "$49", 10)
+        parts = [head0]
+        for n, sp, cp, *cache in actor["takes"]:
+            sp, cp = sp.format(**self.vars), cp.format(**self.vars)
+            if cache and standard and (DEFAULTS / "takes" / cache[0][0]).exists():
+                cached = self.takes / f"{n}.mp4"
+                if not cached.exists():
+                    cached.write_bytes((DEFAULTS / "takes" / cache[0][0]).read_bytes())
+                _, sp, cp = cache[0]
+                print(f"  {n}: reusing the cached offer line ({cache[0][0]}, $0)", flush=True)
+            parts.append(self.build_take(actor, n, sp, cp))
         frame = self.work / f"{name}-frame.jpg"
         run(["ffmpeg", "-v", "error", "-y", "-ss", "2.0", "-i", actor["head"], "-frames:v", "1", "-vf", f"scale={W}:{H}", frame])
         bg = Image.open(frame).convert("RGB").filter(ImageFilter.GaussianBlur(26))
@@ -268,10 +288,14 @@ class Builder:
     def static(self):
         print("static_review", flush=True)
         ph_path = self.takes / "photo.png"
+        p = self.c.get("photo") or {}
+        who = "female" if (p.get("therapist") or "female").lower().startswith("f") else "male"
+        part = p.get("body_part") or "shoulder"
+        lib = DEFAULTS / "photos" / f"{who}-{norm(part)}.jpg"
+        if not ph_path.exists() and lib.exists():
+            Image.open(lib).save(ph_path)
+            print(f"  reusing the library photo {lib.name} ($0)", flush=True)
         if not ph_path.exists():
-            p = self.c.get("photo") or {}
-            who = "female" if (p.get("therapist") or "female").lower().startswith("f") else "male"
-            part = p.get("body_part") or "shoulder"
             prompt = (f"Close-up of a {who} physical therapist's bare hands (no gloves, short natural nails) doing hands-on work on a "
                       f"patient's {part}, while the patient sits or lies on a padded treatment table in plain athletic clothes. "
                       "Therapist in a plain dusty-navy scrub top, only torso and arms visible. Warm late-afternoon window light, "
@@ -279,6 +303,9 @@ class Builder:
                       "faces fully out of frame. Realistic candid photo, natural light, real skin texture, ordinary people, slightly "
                       "imperfect framing, no color grading, NOT a stock photo, NOT glossy. No text, no logos, no brand names, no watermark.")
             self.gen(["image", prompt, "--model", "nano-banana-pro", "--aspect", "16:9", "--out", ph_path])
+            im0 = Image.open(ph_path).convert("RGB")
+            im0.resize((1600, round(im0.height * 1600 / im0.width))).save(lib, quality=88)
+            print(f"  saved {lib.name} to the photo library: look at it, delete it there if it's not usable", flush=True)
         SW, SH = 1080, 1350
         CREAM, INK = (247, 242, 233), (40, 28, 18)
         im = Image.new("RGB", (SW, SH), self.CARD)
