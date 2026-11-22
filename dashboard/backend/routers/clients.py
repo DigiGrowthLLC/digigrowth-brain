@@ -166,8 +166,6 @@ async def create_client_record(conn, body: ClientCreate) -> dict:
             row["id"], body.contact_id,
         )
     await _seed_default_sequences(conn, row["id"])
-    if not row["is_test"]:
-        await client_finance.post_default_expenses(conn, row["id"])
     d = dict(row)
     d["linked_contact"] = await _linked_contact_summary(conn, d["id"])
     portal_links.decorate(d)

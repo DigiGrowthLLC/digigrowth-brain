@@ -30,54 +30,9 @@ EXPENSE_CATEGORIES = [AD_SPEND_CATEGORY, "Software & Tools", "Labor & Fulfillmen
 INCOME_CATEGORY = "Client Revenue"
 
 
-# Default per-client monthly cost allocations, auto-posted as expense entries
-# when a client is created and then once per calendar month for every active,
-# non-test client (post_default_expenses_all, run daily from main.py).
-# (description, amount, category)
-# No flat allocations any more (2026-11-22): Meta, Twilio, Retell, Claude API
-# (ai_usage.py) and fal.ai (per generation, billing-events) are all real
-# numbers posted by finance_auto.post_client_costs. Google Workspace is no
-# longer bought per client. Anything not tied to a client stays a general
-# business expense from the bank feed.
-DEFAULT_MONTHLY_EXPENSES: list[tuple[str, float, str]] = []
-DEFAULT_EXPENSE_NOTE = "Default monthly allocation (auto-added)"
-
-
-async def post_default_expenses(conn, client_id: int) -> bool:
-    """Post this month's default expense allocations for one client, once.
-    Returns True if it posted, False if this month was already posted."""
-    today = datetime.now(timezone.utc).date()
-    claimed = await conn.fetchval(
-        """
-        INSERT INTO client_default_expense_postings (client_id, month)
-        VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING client_id
-        """,
-        client_id, _month_start(today),
-    )
-    if claimed is None:
-        return False
-    await conn.executemany(
-        """
-        INSERT INTO client_transactions (client_id, date, description, amount, is_income, category, notes)
-        VALUES ($1, $2, $3, $4, false, $5, $6)
-        """,
-        [(client_id, today, desc, -amount, cat, DEFAULT_EXPENSE_NOTE) for desc, amount, cat in DEFAULT_MONTHLY_EXPENSES],
-    )
-    return True
-
-
-async def post_default_expenses_all() -> None:
-    """Daily job: post the current month's defaults for every active,
-    non-test client that doesn't have them yet."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        ids = await conn.fetch("SELECT id FROM clients WHERE status = 'active' AND NOT is_test")
-        posted = 0
-        for r in ids:
-            async with conn.transaction():
-                posted += await post_default_expenses(conn, r["id"])
-    if posted:
-        print(f"[cron] client default expenses: posted for {posted} client(s)", flush=True)
+# No flat per-client cost allocations (Dylan, 2026-11-22): every client cost
+# is a real number posted by finance_auto.post_client_costs (Meta, Twilio,
+# Retell, Claude API, fal.ai per generation). Don't add estimates back.
 
 
 def _since_date(days: int) -> date:

@@ -632,16 +632,8 @@ async def lifespan(app: FastAPI):
         id="onboarding-nudge",
         replace_existing=True,
     )
-    # Posts each active client's default monthly expense allocations
-    # (fal.ai/Twilio/Workspace/Meta ad spend) to their Finance ledger once per
-    # month. Also runs at startup so existing clients get the current month.
-    scheduler.add_job(
-        client_finance.post_default_expenses_all,
-        CronTrigger(hour=6, minute=15, timezone=eastern),
-        id="client-default-expenses",
-        replace_existing=True,
-        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
-    )
+    # (No flat per-client expense allocations since 2026-11-22: every
+    # client cost is a real number from finance_auto.post_client_costs.)
     # Automatic bookkeeping (finance_auto.py): Zapier's Novo sheet + Stripe
     # hourly, real per-client Meta/Twilio/Retell costs daily, and a monthly
     # summary To-Do on the 1st.
