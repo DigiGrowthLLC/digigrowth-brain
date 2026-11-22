@@ -715,6 +715,13 @@ async def cancel_appointment(appointment_id: int, notify: bool = False, cancel_c
             await booking_engine.on_appointment_cancelled(appointment_id)
         except Exception as e:
             print(f"[appointments] booking cancel mirror failed for {appointment_id}: {e}")
+    elif (row["calendly_event_uri"] or "").startswith("dgme:"):
+        # Dylan's own booking page (personal_booking.py): same mirror.
+        try:
+            import personal_booking
+            await personal_booking.on_appointment_cancelled(appointment_id)
+        except Exception as e:
+            print(f"[appointments] personal booking cancel mirror failed for {appointment_id}: {e}")
 
     # A client's own lead is tagged "Cancelled Appointment" whether or not a
     # recovery text goes out (no-op for Dylan's own contacts).

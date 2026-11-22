@@ -91,7 +91,12 @@ def booking_page_url(booking_slug: str) -> str:
     host = _LIVE_DOMAINS.get(booking_slug)
     if host:
         return f"https://{host}"
-    return f"{public_base()}/book/{booking_slug}"
+    # Our own booking host (2026-11-21): booking.digigrowthllc.com/<slug>,
+    # mapped to /book/<slug> by the Cloudflare Worker (cloudflare/).
+    return f"{BOOKING_BASE}/{booking_slug}"
+
+
+BOOKING_BASE = (os.environ.get("BOOKING_URL") or "https://booking.digigrowthllc.com").rstrip("/")
 
 
 def manage_url(token: str) -> str:

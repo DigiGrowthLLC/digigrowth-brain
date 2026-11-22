@@ -1,4 +1,4 @@
-"""Deploy cloudflare/os-portal-proxy.js and point os. + portal.digigrowthllc.com at it.
+"""Deploy cloudflare/os-portal-proxy.js and point os. / portal. / booking.digigrowthllc.com at it.
 
     doppler run --project digigrowth --config prd -- python cloudflare/deploy_worker.py
 
@@ -14,7 +14,7 @@ import urllib.request
 API = "https://api.cloudflare.com/client/v4"
 ZONE_NAME = "digigrowthllc.com"
 SCRIPT = "os-portal-proxy"
-HOSTS = ["os.digigrowthllc.com", "portal.digigrowthllc.com"]
+HOSTS = ["os.digigrowthllc.com", "portal.digigrowthllc.com", "booking.digigrowthllc.com"]
 TOKEN = os.environ["CLOUDFLARE_API_TOKEN"]
 
 

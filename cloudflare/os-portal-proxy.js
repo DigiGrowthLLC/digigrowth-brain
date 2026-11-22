@@ -1,7 +1,7 @@
 // Cloudflare Worker "os-portal-proxy" (2026-11-21).
 //
-// os.digigrowthllc.com (the OS) and portal.digigrowthllc.com (client portals)
-// both forward to the same Railway service through pages.digigrowthllc.com,
+// os.digigrowthllc.com (the OS), portal.digigrowthllc.com (client portals) and
+// booking.digigrowthllc.com (booking pages) all forward to the same Railway service through pages.digigrowthllc.com,
 // because Railway's plan caps the service at 2 custom domains (pages. + loom.).
 // The frontend picks OS vs portal from the browser's hostname
 // (dashboard/frontend/src/main.jsx), so nothing here needs to know the
@@ -9,10 +9,25 @@
 
 const ORIGIN = "https://pages.digigrowthllc.com";
 
+// booking.digigrowthllc.com/<booking_slug> is a booking page (served by the
+// backend at /book/<slug>); the page's own calls (/<slug>/api/...) map the
+// same way. These first path segments are the backend's own and pass through.
+const BOOKING_PASSTHROUGH = new Set(["book", "book-asset", "booking", "booking-stripe-done", "lp", "track", "webhooks", "favicon.ico", "robots.txt"]);
+
+function originPath(host, pathname) {
+  if (!host.startsWith("booking.")) return pathname;
+  const first = pathname.split("/")[1] || "";
+  if (!first || BOOKING_PASSTHROUGH.has(first)) return pathname;
+  return "/book" + pathname;
+}
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
-    const target = ORIGIN + url.pathname + url.search;
+    if (url.host.startsWith("booking.") && (url.pathname === "/" || url.pathname === "")) {
+      return Response.redirect("https://digigrowthllc.com", 302);
+    }
+    const target = ORIGIN + originPath(url.host, url.pathname) + url.search;
     const headers = new Headers(request.headers);
     headers.set("X-Forwarded-Host", url.host);
     headers.set("X-Forwarded-Proto", "https");

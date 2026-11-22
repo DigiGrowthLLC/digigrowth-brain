@@ -24,6 +24,128 @@ function statusOf(c) {
   return ["NOT STARTED", "#5a7aa0"];
 }
 
+// Dylan's own booking page (backend/personal_booking.py), his Calendly
+// replacement: booking.digigrowthllc.com/strategy-call.
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function PersonalBooking({ copy, copied }) {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState("");
+  const [editHours, setEditHours] = useState(false);
+  const [hours, setHours] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const load = () => fetch(API("/personal-booking"))
+    .then(async (r) => { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "Couldn't load your booking link"); return r.json(); })
+    .then((x) => { setD(x); setHours(x.settings.hours); }).catch((e) => setErr(e.message));
+  useEffect(() => { load(); }, []);
+
+  const send = async (path, method, body) => {
+    setSaving(true); setErr("");
+    const r = await fetch(API(path), { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    const x = await r.json().catch(() => ({}));
+    setSaving(false);
+    if (!r.ok) { setErr(x.detail || "Couldn't save"); return false; }
+    setD(x); setHours(x.settings.hours); return true;
+  };
+  const setDay = (i, on, a, b) => setHours((h) => ({ ...h, [i]: on ? [[a || "08:00", b || "22:00"]] : [] }));
+
+  const linkRow = (url) => (
+    <>
+      <a href={url} target="_blank" rel="noreferrer" style={{ color: "#6ab0ff" }}>{url.replace(/^https?:\/\//, "")}</a>
+      <button onClick={() => copy(url)} style={{ background: "none", border: "none", color: "#5a7aa0", cursor: "pointer", fontSize: 11, marginLeft: 6 }}>{copied === url ? "copied" : "copy"}</button>
+    </>
+  );
+  const firstRange = d ? Object.values(d.settings.hours).find((x) => x.length) : null;
+
+  return (
+    <div className="glass-card" style={{ padding: 16, marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, color: "#d0e8ff" }}>Personal booking link</div>
+          <div style={{ ...note, marginTop: 4, maxWidth: 620 }}>
+            Your own Calendly replacement. Prospects book a Google Meet call, it lands on your personal calendar with an invite, and the CRM, reminders and Analytics update like a Calendly booking.
+          </div>
+        </div>
+        {d && <Pill color="#14c882">{d.booked_30d} BOOKED (30 DAYS)</Pill>}
+      </div>
+      {err && <div style={{ color: "#ff8a8a", fontSize: 12, margin: "8px 0" }}>{err}</div>}
+      {!d && !err && <div style={note}>Loading…</div>}
+      {d && (
+        <>
+          <div style={{ fontSize: 15, fontWeight: 600, margin: "10px 0 12px" }}>{linkRow(d.url)}</div>
+          {d.types.map((t) => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", borderTop: "1px solid rgba(58,123,213,0.1)", flexWrap: "wrap", opacity: t.active ? 1 : 0.5 }}>
+              <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: "#e8f0ff" }}>{t.name} <span style={note}>· {t.duration_min} min{t.listed ? " · shown on the main link" : " · link only (for clients)"}</span></div>
+                <div style={{ ...note, marginTop: 2 }}>{linkRow(t.url)}</div>
+              </div>
+              <label style={{ ...note, display: "flex", alignItems: "center", gap: 6 }}>
+                Length
+                <select className="dg-input" value={t.duration_min} disabled={saving} style={{ width: 90 }}
+                  onChange={(e) => send(`/personal-booking/types/${t.id}`, "PATCH", { duration_min: Number(e.target.value) })}>
+                  {[15, 20, 30, 45, 60, 90].map((m) => <option key={m} value={m}>{m} min</option>)}
+                </select>
+              </label>
+              <button className="btn btn-secondary" disabled={saving} onClick={() => send(`/personal-booking/types/${t.id}`, "PATCH", { active: !t.active })}>{t.active ? "Turn off" : "Turn on"}</button>
+            </div>
+          ))}
+
+          <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 10, marginTop: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={note}>
+                Bookable {DAYS.filter((_, i) => (d.settings.hours[i] || []).length).join(", ") || "never"}{firstRange ? ` · ${firstRange[0][0]}–${firstRange[0][1]}` : ""} Eastern · minus anything on your business or personal calendars · at least {Math.round(d.settings.min_notice_min / 60)}h notice
+              </div>
+              <button className="btn btn-secondary" onClick={() => setEditHours((v) => !v)}>{editHours ? "Close" : "Edit hours"}</button>
+            </div>
+            {editHours && (
+              <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+                {DAYS.map((name, i) => {
+                  const r = (hours[i] || [])[0];
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#c8d8f0" }}>
+                      <label style={{ width: 70, display: "flex", gap: 6, alignItems: "center" }}>
+                        <input type="checkbox" checked={!!r} onChange={(e) => setDay(i, e.target.checked)} />{name}
+                      </label>
+                      {r ? (
+                        <>
+                          <input type="time" className="dg-input" value={r[0]} onChange={(e) => setDay(i, true, e.target.value, r[1])} style={{ width: 130 }} />
+                          <span style={note}>to</span>
+                          <input type="time" className="dg-input" value={r[1]} onChange={(e) => setDay(i, true, r[0], e.target.value)} style={{ width: 130 }} />
+                        </>
+                      ) : <span style={note}>Off</span>}
+                    </div>
+                  );
+                })}
+                <div>
+                  <button className="btn btn-primary" disabled={saving} onClick={async () => { if (await send("/personal-booking/settings", "PUT", { hours })) setEditHours(false); }}>
+                    {saving ? "Saving…" : "Save hours"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 10, marginTop: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#d0e8ff", marginBottom: 6 }}>Your upcoming calls</div>
+            {d.upcoming.length === 0 && <div style={note}>Nothing booked on this link yet.</div>}
+            {d.upcoming.map((b) => (
+              <div key={b.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "6px 0", fontSize: 12, flexWrap: "wrap" }}>
+                <div style={{ ...mono, color: "#9cc4f5", width: 170 }}>{new Date(b.start_at).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                <div style={{ flex: 1, color: "#d0e8ff", minWidth: 180 }}><ContactLink phone={b.phone}>{b.name}</ContactLink> <span style={note}>· {b.type_name}{b.business ? ` · ${b.business}` : ""}{b.calendar_error ? " · calendar error" : ""}</span></div>
+                {b.meet_link && <a href={b.meet_link} target="_blank" rel="noreferrer" style={{ color: "#6ab0ff", fontSize: 11 }}>Meet</a>}
+                <a href={b.manage_url} target="_blank" rel="noreferrer" style={{ color: "#6ab0ff", fontSize: 11 }}>Their page</a>
+                <button className="btn btn-secondary" style={{ fontSize: 11 }} disabled={saving}
+                  onClick={() => window.confirm(`Cancel ${b.name}'s call? Their calendar invite is removed.`) && send(`/personal-booking/bookings/${b.id}/cancel`, "POST")}>Cancel</button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function BookingPanel() {
   const [data, setData] = useState(null);
   const [google, setGoogle] = useState(null);
@@ -73,7 +195,7 @@ export default function BookingPanel() {
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>Booking Links</div>
           <div style={{ ...note, marginTop: 4, maxWidth: 620 }}>
-            Each clinic's own booking page. Patients book on the link, it lands on the clinic's Google Calendar, and reminders and follow-ups run as usual.
+            Your own booking link, plus each clinic's booking page. Patients book on the link, it lands on the clinic's Google Calendar, and reminders and follow-ups run as usual.
           </div>
         </div>
         <div title="Clinics share their Google Calendar with this account (Make changes to events)"
@@ -94,6 +216,8 @@ export default function BookingPanel() {
           </div>
         ))}
       </div>
+
+      <PersonalBooking copy={copy} copied={copied} />
 
       <div className="glass-card" style={{ padding: 16, marginBottom: 18 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 10 }}>

@@ -2878,3 +2878,7 @@ async def _create_schema(pool: asyncpg.Pool):
         """)
         import portal_links
         await portal_links.backfill_slugs(conn)
+
+        # Dylan's own booking page (personal_booking.py, 2026-11-21).
+        import personal_booking
+        await personal_booking.ensure_seeded(conn)

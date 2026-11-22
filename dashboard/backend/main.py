@@ -23,7 +23,7 @@ import scheduler_registry
 from db import get_pool
 from pending_approvals_relay import process_pending_approvals, process_pending_cleanup_approval
 from routers import reactivation, dm_agent, owner_mms, voice_agent, contact_cards
-from routers import crm, sms, sms_sequences, sms_setter, email_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin, ghl_webhooks, booking, portal_auth
+from routers import crm, sms, sms_sequences, sms_setter, email_setter, cold_call_scripts, dialer, dialer_webhooks, dashboard, agents, analytics, finances, sops, public_sops, legal, email_inbox, email_tracking, email_identities, approvals, tags, newsletter, newsletter_queue, appointments, campaigns, clients, client_portal, watch, landing_pages, content_tracking, client_marketing, client_finance, client_sms_webhooks, client_voice_webhooks, meta_lead_webhooks, calendly_webhooks, calendly_admin, ghl_webhooks, booking, portal_auth, personal_booking
 import booking_conversion
 import booking_engine
 import call_reminders
@@ -809,6 +809,8 @@ app.include_router(meta_lead_webhooks.router)  # no auth — Meta's own webhook 
 app.include_router(calendly_webhooks.router)  # no auth — Calendly's own webhook protocol, verified via HMAC signature instead
 app.include_router(calendly_admin.router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(booking.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(personal_booking.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(personal_booking.router)  # no auth: Dylan's own booking page /book/strategy-call (before booking.router so it wins over /book/{key})
 app.include_router(booking.router)  # no auth: patient booking/manage pages + Stripe webhook (HMAC-verified)
 app.include_router(ghl_webhooks.router)  # no auth — GoHighLevel workflow webhook, verified via a per-client key in the URL instead
 app.include_router(ghl_webhooks.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
