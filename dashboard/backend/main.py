@@ -642,6 +642,30 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
         next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
     )
+    # Automatic bookkeeping (finance_auto.py): Zapier's Novo sheet + Stripe
+    # hourly, real per-client Meta/Twilio/Retell costs daily, and a monthly
+    # summary To-Do on the 1st.
+    import finance_auto
+    scheduler.add_job(
+        finance_auto.run_sync,
+        IntervalTrigger(hours=1),
+        id="finance-sync",
+        replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(minutes=2),
+    )
+    scheduler.add_job(
+        finance_auto.post_client_costs,
+        CronTrigger(hour=6, minute=25, timezone=eastern),
+        id="finance-client-costs",
+        replace_existing=True,
+        next_run_time=datetime.now(timezone.utc) + timedelta(minutes=4),
+    )
+    scheduler.add_job(
+        finance_auto.monthly_summary_todo,
+        CronTrigger(day=1, hour=8, minute=0, timezone=eastern),
+        id="finance-monthly-summary",
+        replace_existing=True,
+    )
     # Patient intake on each client prospect's contact card: Claude re-reads
     # forms, texts, DMs and call transcripts of anyone active in the last 2h
     # (only when something changed). patient_intake.py.

@@ -5,19 +5,19 @@ import {
 } from "recharts";
 import { API } from "../api.js";
 import PeriodToggle from "../components/PeriodToggle.jsx";
+import { BankFeedCard, ReviewCard, ClientProfitCard, useFinanceStatus } from "../components/FinanceAuto.jsx";
 
+// Same names as finance_auto.py (AI sorting + rules). "Transfer" rows
+// (Stripe payouts into Novo) are listed but never counted in the totals.
 const CATEGORIES = [
-  "Revenue",
-  "Advertising & Marketing",
-  "Technology",
-  "Team & Labor",
-  "Operations",
-  "Transfers",
-  "Miscellaneous",
-  "Uncategorized",
+  "Client Revenue", "Other Income",
+  "Ad Spend", "Software & Tools", "AI & APIs", "Phone & SMS", "Contractors",
+  "Payment & Bank Fees", "Refunds", "Office & Equipment", "Education",
+  "Travel & Meals", "Taxes & Legal", "Other",
+  "Transfer", "Uncategorized",
 ];
 
-const EXPENSE_CATEGORIES = CATEGORIES.filter(c => c !== "Revenue");
+const EXPENSE_CATEGORIES = CATEGORIES.filter(c => !["Client Revenue", "Other Income"].includes(c));
 
 function money(v) {
   if (v == null) return "—";
@@ -90,7 +90,7 @@ function AddTransactionModal({ onClose, onSaved, onRecurringSaved }) {
             amount:      amt,
             start_date:  form.date,
             frequency:   form.frequency,
-            category:    form.is_income ? "Revenue" : form.category,
+            category:    form.is_income ? "Client Revenue" : form.category,
             notes:       form.notes.trim() || null,
           }),
         });
@@ -105,7 +105,7 @@ function AddTransactionModal({ onClose, onSaved, onRecurringSaved }) {
             description: form.description.trim(),
             amount:      amt,
             date:        form.date,
-            category:    form.is_income ? "Revenue" : form.category,
+            category:    form.is_income ? "Client Revenue" : form.category,
             notes:       form.notes.trim() || null,
           }),
         });
@@ -284,6 +284,7 @@ export default function FinancesPanel() {
   const [deletingId, setDeletingId]     = useState(null);
   const [deletingRuleId, setDeletingRuleId] = useState(null);
   const [hoveredTxn, setHoveredTxn]    = useState(null);
+  const [autoStatus, reloadStatus]     = useFinanceStatus();
 
   const loadAll = useCallback(async (d = days) => {
     // Apply any pending recurring instances first, then load data
@@ -298,7 +299,8 @@ export default function FinancesPanel() {
     setCategories(c);
     setTxns(t);
     setRecurring(r ?? []);
-  }, [days]);
+    reloadStatus();
+  }, [days, reloadStatus]);
 
   useEffect(() => { loadAll(days); }, [days]);
 
@@ -388,7 +390,7 @@ export default function FinancesPanel() {
             Finances
           </div>
           <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.18em", marginTop: 3 }}>
-            MANUAL LEDGER · BUSINESS ACCOUNT
+            Novo + Stripe, sorted automatically
           </div>
         </div>
         <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -419,6 +421,10 @@ export default function FinancesPanel() {
           sub={summary?.margin != null ? (summary.margin > 30 ? "HEALTHY" : summary.margin > 0 ? "SLIM" : "LOSS") : null}
         />
       </div>
+
+      <ReviewCard status={autoStatus} onChanged={() => loadAll()} />
+      <BankFeedCard status={autoStatus} onChanged={() => loadAll()} />
+      <ClientProfitCard />
 
       {/* Recurring rules */}
       {recurring.length > 0 && (
@@ -697,6 +703,15 @@ export default function FinancesPanel() {
                       }}>
                         {t.category}
                       </span>
+                      {t.client_name && (
+                        <span style={{ fontSize: 11, color: "#8aaad0" }}>{t.client_name}</span>
+                      )}
+                      {t.needs_review && (
+                        <span style={{ fontSize: 11, color: "#f0a028" }}>needs a look</span>
+                      )}
+                      {t.category === "Transfer" && (
+                        <span style={{ fontSize: 11, color: "#3a5a80" }}>not counted</span>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -739,6 +754,7 @@ export default function FinancesPanel() {
                       className="dg-input"
                       style={{ fontSize: 11, padding: "5px 8px", flex: "0 0 auto" }}
                     >
+                      {!CATEGORIES.includes(t.category) && <option value={t.category}>{t.category}</option>}
                       {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                     <input

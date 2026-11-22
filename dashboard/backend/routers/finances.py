@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone, date
 
 from fastapi import APIRouter, HTTPException
 from db import get_pool
+import finance_auto
 
 router = APIRouter()
 
@@ -41,6 +42,7 @@ async def summary(days: int = 30):
                 COALESCE(SUM(amount) FILTER (WHERE is_income AND date >= $1), 0) AS income,
                 COALESCE(ABS(SUM(amount) FILTER (WHERE NOT is_income AND date >= $1)), 0) AS expenses
             FROM transactions
+            WHERE category NOT IN ('Transfer', 'Transfers')
             """,
             since,
         )
@@ -115,7 +117,7 @@ async def categories(days: int = 30):
             SELECT category,
                    ABS(SUM(amount)) AS total
             FROM transactions
-            WHERE NOT is_income AND date >= $1
+            WHERE NOT is_income AND date >= $1 AND category NOT IN ('Transfer', 'Transfers')
             GROUP BY category
             ORDER BY total DESC
             """,
@@ -127,7 +129,7 @@ async def categories(days: int = 30):
                    COALESCE(SUM(amount) FILTER (WHERE is_income), 0)          AS income,
                    COALESCE(ABS(SUM(amount) FILTER (WHERE NOT is_income)), 0) AS expenses
             FROM transactions
-            WHERE date >= $1
+            WHERE date >= $1 AND category NOT IN ('Transfer', 'Transfers')
             GROUP BY period
             ORDER BY period
             """,
@@ -173,23 +175,24 @@ async def transactions(
     since = _since_date(days)
     pool  = await get_pool()
 
-    filters = ["date >= $1"]
+    filters = ["t.date >= $1"]
     params  = [since]
 
     if type == "income":
-        filters.append("is_income = true")
+        filters.append("t.is_income = true")
     elif type == "expense":
-        filters.append("is_income = false")
+        filters.append("t.is_income = false")
 
     where = "WHERE " + " AND ".join(filters)
 
     async with pool.acquire() as conn:
-        total = await conn.fetchval(f"SELECT COUNT(*) FROM transactions {where}", *params)
+        total = await conn.fetchval(f"SELECT COUNT(*) FROM transactions t {where}", *params)
         rows  = await conn.fetch(
             f"""
-            SELECT id, date, description, amount, is_income, category, notes
-            FROM transactions {where}
-            ORDER BY date DESC, id DESC
+            SELECT t.id, t.date, t.description, t.amount, t.is_income, t.category, t.notes,
+                   t.source, t.client_id, c.name AS client_name, t.needs_review, t.ai_note
+            FROM transactions t LEFT JOIN clients c ON c.id = t.client_id {where}
+            ORDER BY t.date DESC, t.id DESC
             LIMIT ${len(params)+1} OFFSET ${len(params)+2}
             """,
             *params, limit, offset,
@@ -206,6 +209,11 @@ async def transactions(
                 "is_income":   r["is_income"],
                 "category":    r["category"],
                 "notes":       r["notes"],
+                "source":      r["source"],
+                "client_id":   r["client_id"],
+                "client_name": r["client_name"],
+                "needs_review": r["needs_review"],
+                "ai_note":     r["ai_note"],
             }
             for r in rows
         ],
@@ -216,10 +224,17 @@ async def transactions(
 async def update_transaction(txn_id: int, body: dict):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        if "category" in body:
-            await conn.execute(
-                "UPDATE transactions SET category=$1 WHERE id=$2",
-                (body["category"] or "Miscellaneous").strip(), txn_id,
+        # A category / client Dylan picks also teaches the auto-sorter
+        # (finance_auto.apply_correction); "confirm" accepts the AI's pick.
+        if body.get("confirm"):
+            await finance_auto.confirm(conn, txn_id)
+        if "category" in body or "client_id" in body:
+            cid = body.get("client_id")
+            await finance_auto.apply_correction(
+                conn, txn_id,
+                (body.get("category") or "").strip() or None,
+                int(cid) if cid not in (None, "") else None,
+                "client_id" in body,
             )
         if "notes" in body:
             await conn.execute(
@@ -276,6 +291,9 @@ async def add_transaction(body: dict):
 async def delete_transaction(txn_id: int):
     pool = await get_pool()
     async with pool.acquire() as conn:
+        ext = await conn.fetchval("SELECT external_id FROM transactions WHERE id=$1", txn_id)
+        if ext:
+            await conn.execute("INSERT INTO finance_deleted_ids (external_id) VALUES ($1) ON CONFLICT DO NOTHING", ext)
         result = await conn.execute("DELETE FROM transactions WHERE id=$1", txn_id)
     if result == "DELETE 0":
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -436,4 +454,124 @@ async def delete_recurring(rule_id: int):
         await conn.execute(
             "UPDATE recurring_transactions SET active=false WHERE id=$1", rule_id
         )
+    return {"ok": True}
+
+
+# ── Automatic bookkeeping (finance_auto.py) ──────────────────────────────────
+
+@router.get("/finances/auto/status")
+async def auto_status():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        st = await conn.fetchrow("SELECT * FROM finance_settings WHERE id = 1")
+        review = await conn.fetchval(
+            "SELECT COUNT(*) FROM transactions WHERE needs_review OR (category = 'Uncategorized' AND source <> 'manual')")
+        counts = {r["source"]: r["n"] for r in await conn.fetch("SELECT source, COUNT(*) AS n FROM transactions GROUP BY source")}
+        rules = await conn.fetchval("SELECT COUNT(*) FROM finance_rules")
+        clients = [dict(r) for r in await conn.fetch(
+            "SELECT id, name FROM clients WHERE NOT is_test ORDER BY status = 'active' DESC, name")]
+
+    def ts(v):
+        return v.isoformat() if v else None
+    return {
+        "sheet_url": f"https://docs.google.com/spreadsheets/d/{st['sheet_id']}" if st["sheet_id"] else None,
+        "sheet_synced_at": ts(st["sheet_synced_at"]), "sheet_error": st["sheet_error"],
+        "stripe_synced_at": ts(st["stripe_synced_at"]), "stripe_error": st["stripe_error"],
+        "costs_synced_at": ts(st["costs_synced_at"]), "costs_error": st["costs_error"],
+        "needs_review": review, "counts": counts, "rules": rules, "clients": clients,
+        "categories": {"income": finance_auto.INCOME_CATEGORIES, "expense": finance_auto.EXPENSE_CATEGORIES,
+                       "transfer": finance_auto.TRANSFER},
+    }
+
+
+@router.post("/finances/auto/sheet")
+async def set_sheet(body: dict):
+    raw = (body.get("url") or "").strip()
+    sheet_id = finance_auto.sheet_id_from(raw) if raw else None
+    if raw and not sheet_id:
+        raise HTTPException(400, "That doesn't look like a Google Sheets link.")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE finance_settings SET sheet_id = $1, sheet_error = NULL WHERE id = 1", sheet_id)
+    if not sheet_id:
+        return {"ok": True}
+    try:
+        result = await finance_auto.sync_sheet()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"Saved, but the sheet couldn't be read: {e}. Make sure it lives in (or is shared with) "
+                                 "the Google account the OS uses for your calendar.")
+    return {"ok": True, "result": result}
+
+
+@router.post("/finances/auto/import-csv")
+async def import_csv(body: dict):
+    text = body.get("csv") or ""
+    if not text.strip():
+        raise HTTPException(400, "Empty file.")
+    try:
+        rows = finance_auto.parse_bank_csv(text)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not rows:
+        raise HTTPException(400, "No transactions found in that file.")
+    return await finance_auto.ingest_bank_rows(rows, "csv")
+
+
+@router.post("/finances/auto/sync")
+async def sync_now():
+    out = await finance_auto.run_sync()
+    try:
+        await finance_auto.post_client_costs()
+    except Exception as e:  # noqa: BLE001
+        out["costs"] = {"error": str(e)[:300]}
+    return out
+
+
+@router.get("/finances/auto/review")
+async def review_list():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT t.id, t.date, t.description, t.amount, t.is_income, t.category, t.source,
+                      t.client_id, c.name AS client_name, t.ai_note
+                 FROM transactions t LEFT JOIN clients c ON c.id = t.client_id
+                WHERE t.needs_review OR (t.category = 'Uncategorized' AND t.source <> 'manual')
+                ORDER BY t.date DESC LIMIT 200""")
+    return [{**dict(r), "date": str(r["date"]), "amount": float(r["amount"])} for r in rows]
+
+
+@router.get("/finances/auto/by-client")
+async def by_client(month: str | None = None):
+    try:
+        start = date.fromisoformat(f"{month}-01") if month else datetime.now(finance_auto.ET).date().replace(day=1)
+    except ValueError:
+        raise HTTPException(400, "month must be YYYY-MM")
+    start, end = finance_auto._month_bounds(start)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await finance_auto.profit_by_client(conn, start, end)
+    return {"month": start.strftime("%Y-%m"), "label": start.strftime("%B %Y"), "clients": rows}
+
+
+@router.post("/finances/auto/clients/{client_id}/ads-on-card")
+async def set_ads_on_card(client_id: int, body: dict):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE clients SET ads_on_our_card = $1 WHERE id = $2", bool(body.get("on")), client_id)
+    return {"ok": True}
+
+
+@router.get("/finances/auto/rules")
+async def list_rules():
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT id, merchant_key, category, example FROM finance_rules ORDER BY merchant_key")
+    return [dict(r) for r in rows]
+
+
+@router.delete("/finances/auto/rules/{rule_id}")
+async def delete_rule(rule_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM finance_rules WHERE id = $1", rule_id)
     return {"ok": True}

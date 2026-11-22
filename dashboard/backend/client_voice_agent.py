@@ -825,9 +825,11 @@ async def retell_event(event: str, call: dict) -> None:
         await conn.execute(
             """UPDATE client_voice_calls SET transcript = coalesce($2, transcript), recording_url = coalesce($3, recording_url),
                    disconnection_reason = coalesce($4, disconnection_reason), duration_ms = coalesce($5, duration_ms),
-                   summary = coalesce($6, summary), updated_at = now() WHERE id = $1""",
+                   summary = coalesce($6, summary), cost_cents = coalesce($7, cost_cents),
+                   updated_at = now() WHERE id = $1""",
             row["id"], call.get("transcript"), call.get("recording_url"), call.get("disconnection_reason"),
             call.get("duration_ms"), analysis.get("call_summary"),
+            (call.get("call_cost") or {}).get("combined_cost"),
         )
         if event != "call_ended" or row["status"] in ("done", "failed", "skipped"):
             return

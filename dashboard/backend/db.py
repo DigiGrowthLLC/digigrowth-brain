@@ -2901,3 +2901,7 @@ async def _create_schema(pool: asyncpg.Pool):
         # Dylan's own booking page (personal_booking.py, 2026-11-21).
         import personal_booking
         await personal_booking.ensure_seeded(conn)
+
+        # Automatic bookkeeping (finance_auto.py, 2026-11-22).
+        import finance_auto
+        await finance_auto.ensure_schema(conn)
