@@ -179,7 +179,7 @@ function openResults() {
   m.className = "modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true"); m.setAttribute("aria-label", "Your client portal");
   m.innerHTML = `<div class="sheet"><button class="close" aria-label="Close">×</button><h2>Your client portal <span class="h-stars" aria-hidden="true">★★★★★</span></h2>
     <p class="sub">Every client gets a live portal like this, showing leads, booked visits and cost per booking.</p>
-    ${RESULTS.map((r) => `<figure class="shot"><img src="${BASE}/results/${r.src}" alt="Client portal dashboard" loading="lazy"></figure>`).join("")}</div>`;
+    ${RESULTS.map((r) => `<figure class="shot"><img src="${BASE}/results/${r.src}?v=2" alt="Client portal dashboard" loading="lazy"></figure>`).join("")}</div>`;
   const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
   const onKey = (e) => { if (e.key === "Escape") close(); };
   m.onclick = (e) => { if (e.target === m) close(); };
