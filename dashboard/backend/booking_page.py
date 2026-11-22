@@ -171,7 +171,7 @@ function infoPanel(clinic, ev, prof, headline) {
     ? `<div>${ICON.tag}<span class="price">${money(ev.price_cents)}${ev.anchor_price_cents > ev.price_cents ? `<span class="was">normally <s>${money(ev.anchor_price_cents)}</s></span>` : ""}</span></div>`
     : `<div>${ICON.tag}<span class="price">Free${ev.anchor_price_cents ? `<span class="was">normally <s>${money(ev.anchor_price_cents)}</s></span>` : ""}</span></div>`;
   const rv = prof.reviews;
-  const proof = rv ? `<div class="proof">${rv.rating ? `<div class="stars"><span class="s">${"★".repeat(Math.round(rv.rating))}</span><b>${rv.rating.toFixed(1)}</b><span class="muted">${rv.count ? `(${rv.count} Google reviews)` : "on Google"}</span></div>` : ""}
+  const proof = rv ? `<div class="proof">${rv.rating ? `<div class="stars"><span class="s">${"★".repeat(Math.round(rv.rating))}</span><b>${rv.rating.toFixed(1)}</b><span class="muted">${(rv.items || []).length > 1 ? `(${rv.items.length} five-star reviews)` : rv.count ? `(${rv.count} Google reviews)` : "on Google"}</span></div>` : ""}
       ${(() => { const its = rv.items || [], q = (it) => `“${esc(it.text)}” ${it.author ? `<small>${esc(it.author)}</small>` : ""}`;
         if (!its.length) return "";
         const more = its.length - 1;
