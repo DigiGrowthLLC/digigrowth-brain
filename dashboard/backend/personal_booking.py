@@ -227,6 +227,21 @@ def _overlaps(a0, a1, b0, b1) -> bool:
     return a0 < b1 and b0 < a1
 
 
+# Prospects can only book (or reschedule into) the next 5 weekdays; anything later is kept for
+# Dylan and the AI setters, which book through their own paths, not this page (Dylan, 2026-11-22).
+PROSPECT_MAX_WEEKDAYS = 5
+
+
+def _weekdays_ahead(today: date, n: int) -> date:
+    """The n-th weekday after today (Sunday + 5 -> Friday, Monday + 5 -> next Monday)."""
+    day = today
+    while n > 0:
+        day += timedelta(days=1)
+        if day.weekday() < 5:
+            n -= 1
+    return day
+
+
 async def get_slots(type_id: int, start_day: date | None = None, days: int = 31,
                     exclude_booking_id: int | None = None) -> list[str]:
     pool = await get_pool()
@@ -243,7 +258,8 @@ async def get_slots(type_id: int, start_day: date | None = None, days: int = 31,
     earliest = now + timedelta(minutes=s["min_notice_min"])
     today = now.astimezone(tz).date()
     first = max(start_day or today, today)
-    last = min(first + timedelta(days=max(1, min(days, 62)) - 1), today + timedelta(days=s["max_days_ahead"]))
+    last = min(first + timedelta(days=max(1, min(days, 62)) - 1), today + timedelta(days=s["max_days_ahead"]),
+               _weekdays_ahead(today, PROSPECT_MAX_WEEKDAYS))
     if last < first:
         return []
     range_start = datetime.combine(first, datetime.min.time(), tz)
