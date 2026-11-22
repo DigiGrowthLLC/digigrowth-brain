@@ -198,6 +198,12 @@ def parse_bank_csv(text: str) -> list[dict]:
     if c_desc is None or (c_amt is None and c_debit is None and c_credit is None):
         raise ValueError("Need Description and Amount (or Debit/Credit) columns. Found: " + ", ".join(h))
 
+    # Novo (and Zapier's Novo trigger) already sign amounts: -13.97 = money
+    # out. Only use the type column to flip when nothing in the file is
+    # negative, so a positive "POS Withdrawal Reversal" refund stays positive.
+    signed = c_amt is not None and any(
+        (_parse_amount(r[c_amt]) or 0) < 0 for r in rows[hi + 1:] if c_amt < len(r))
+
     out = []
     for r in rows[hi + 1:]:
         get = lambda i: r[i] if i is not None and i < len(r) else ""
@@ -207,7 +213,7 @@ def parse_bank_csv(text: str) -> list[dict]:
         if c_amt is not None and _parse_amount(get(c_amt)) is not None:
             amt = _parse_amount(get(c_amt))
             kind = get(c_type).lower()
-            if amt > 0 and any(k in kind for k in ("debit", "withdraw", "out", "purchase", "sent")):
+            if amt > 0 and not signed and any(k in kind for k in ("debit", "withdraw", "out", "purchase", "sent")):
                 amt = -amt
         else:
             debit, credit = _parse_amount(get(c_debit)), _parse_amount(get(c_credit))
