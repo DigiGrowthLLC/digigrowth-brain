@@ -561,6 +561,15 @@ async def set_ads_on_card(client_id: int, body: dict):
     return {"ok": True}
 
 
+@router.post("/finances/auto/fal-generation")
+async def fal_generation(body: dict):
+    """content-agent/tools/generate_creative.py reports each fal.ai request."""
+    try:
+        return await finance_auto.record_fal_generation(body)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @router.get("/finances/auto/rules")
 async def list_rules():
     pool = await get_pool()

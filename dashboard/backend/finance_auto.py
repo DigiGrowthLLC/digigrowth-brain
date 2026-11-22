@@ -99,6 +99,20 @@ async def ensure_schema(conn) -> None:
         );
         INSERT INTO finance_settings (id) VALUES (1) ON CONFLICT DO NOTHING;
 
+        -- fal.ai generations reported by content-agent/tools/generate_creative.py
+        -- (request id + the client folder it was made for); cost_usd = what fal
+        -- actually billed for that request (billing-events API, FAL_BILLING_KEY).
+        CREATE TABLE IF NOT EXISTS client_fal_usage (
+            request_id      TEXT PRIMARY KEY,
+            client_slug     TEXT,
+            client_id       INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+            endpoint        TEXT,
+            generated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+            cost_usd        NUMERIC(12,6),
+            cost_checked_at TIMESTAMPTZ,
+            created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+
         -- Who pays a client's Meta ads: true = Dylan's card (pilots), so the
         -- spend is a DigiGrowth cost in profit-per-client.
         ALTER TABLE clients ADD COLUMN IF NOT EXISTS ads_on_our_card BOOLEAN NOT NULL DEFAULT true;
@@ -115,6 +129,10 @@ async def ensure_schema(conn) -> None:
         DELETE FROM client_transactions
          WHERE notes = 'Default monthly allocation (auto-added)'
            AND description = 'Google Workspace subscription' AND date >= DATE '2026-11-01';
+        -- fal.ai is measured per generation from Nov 2026 (was a flat $30).
+        DELETE FROM client_transactions
+         WHERE notes = 'Default monthly allocation (auto-added)'
+           AND description LIKE 'fal.ai%' AND date >= DATE '2026-11-01';
     """)
 
 
@@ -640,6 +658,10 @@ async def post_client_costs() -> None:
     months = [_month_bounds(today), _month_bounds(today.replace(day=1) - timedelta(days=1))]
     pool = await get_pool()
     errors = []
+    try:
+        await sync_fal_costs()
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"fal.ai: {e}")
     async with httpx.AsyncClient(timeout=30) as http, pool.acquire() as conn:
         await _backfill_retell_costs(conn, http)
         clients = await conn.fetch(
@@ -659,6 +681,9 @@ async def post_client_costs() -> None:
                 claude = await conn.fetchval(
                     "SELECT COALESCE(SUM(cost_usd), 0) FROM client_ai_usage WHERE client_id = $1 AND created_at >= $2 AND created_at < $3",
                     c["id"], datetime.combine(start, datetime.min.time(), ET), datetime.combine(end, datetime.min.time(), ET))
+                fal = await conn.fetchval(
+                    "SELECT COALESCE(SUM(cost_usd), 0) FROM client_fal_usage WHERE client_id = $1 AND generated_at >= $2 AND generated_at < $3",
+                    c["id"], datetime.combine(start, datetime.min.time(), ET), datetime.combine(end, datetime.min.time(), ET))
                 twilio = None
                 if c["twilio_subaccount_sid"]:
                     try:
@@ -670,6 +695,7 @@ async def post_client_costs() -> None:
                     ("twilio", twilio, f"Twilio texts + calls ({label}, actual)", "Software & Tools"),
                     ("retell", retell, f"AI voice agent calls ({label}, actual)", "Software & Tools"),
                     ("claude", claude, f"Claude AI for agents + reports ({label}, actual)", "Software & Tools"),
+                    ("fal", fal, f"fal.ai ad images + videos ({label}, actual)", "Software & Tools"),
                 ):
                     if amount is None:
                         continue
@@ -685,6 +711,96 @@ async def post_client_costs() -> None:
                         c["id"], last_day, desc, -amount, cat, key)
         await conn.execute("UPDATE finance_settings SET costs_synced_at = now(), costs_error = $1 WHERE id = 1",
                            "; ".join(errors)[:500] or None)
+
+
+# ── fal.ai per generation ────────────────────────────────────────────────────
+
+def _slug(s: str | None) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
+
+
+async def resolve_client_slug(conn, slug: str | None) -> int | None:
+    """media-buying-agent/clients/<slug>/ folder name -> clients.id."""
+    s = _slug(slug)
+    if not s:
+        return None
+    rows = await conn.fetch("SELECT id, name, portal_slug FROM clients WHERE NOT is_test")
+    for r in rows:
+        if s in (_slug(r["name"]), _slug(r["portal_slug"])):
+            return r["id"]
+    hits = [r["id"] for r in rows if _slug(r["name"]) and (_slug(r["name"]) in s or s in _slug(r["name"]))]
+    return hits[0] if len(hits) == 1 else None
+
+
+async def record_fal_generation(body: dict) -> dict:
+    rid = str(body.get("request_id") or "").strip()
+    if not rid:
+        raise ValueError("request_id required")
+    at = body.get("generated_at")
+    try:
+        at = datetime.fromisoformat(str(at).replace("Z", "+00:00")) if at else datetime.now(timezone.utc)
+    except ValueError:
+        at = datetime.now(timezone.utc)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        cid = await resolve_client_slug(conn, body.get("client"))
+        await conn.execute(
+            """INSERT INTO client_fal_usage (request_id, client_slug, client_id, endpoint, generated_at)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (request_id) DO UPDATE SET client_slug = EXCLUDED.client_slug,
+                   client_id = COALESCE(EXCLUDED.client_id, client_fal_usage.client_id),
+                   endpoint = COALESCE(EXCLUDED.endpoint, client_fal_usage.endpoint)""",
+            rid, body.get("client") or None, cid, body.get("endpoint") or None, at)
+    return {"ok": True, "client_id": cid}
+
+
+async def sync_fal_costs() -> int:
+    """Fill cost_usd from fal's billing-events API (exact charge per request)."""
+    key = (os.environ.get("FAL_BILLING_KEY") or "").strip()
+    if not key:
+        return 0
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        unresolved = await conn.fetch("SELECT request_id, client_slug FROM client_fal_usage WHERE client_id IS NULL AND client_slug IS NOT NULL")
+        for r in unresolved:
+            cid = await resolve_client_slug(conn, r["client_slug"])
+            if cid:
+                await conn.execute("UPDATE client_fal_usage SET client_id = $1 WHERE request_id = $2", cid, r["request_id"])
+        rows = await conn.fetch(
+            """SELECT request_id, generated_at FROM client_fal_usage
+               WHERE cost_usd IS NULL AND generated_at > now() - interval '85 days'
+                 AND (cost_checked_at IS NULL OR cost_checked_at < now() - interval '20 hours')
+               ORDER BY generated_at LIMIT 500""")
+    filled = 0
+    async with httpx.AsyncClient(timeout=30) as http:
+        for i in range(0, len(rows), 50):
+            chunk = rows[i:i + 50]
+            start = (min(r["generated_at"] for r in chunk) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            end = (datetime.now(timezone.utc) + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            totals: dict[str, float] = {}
+            cursor = None
+            while True:
+                params = [("start", start), ("end", end), ("limit", "1000")] + [("request_id", r["request_id"]) for r in chunk]
+                if cursor:
+                    params.append(("cursor", cursor))
+                resp = await http.get("https://api.fal.ai/v1/models/billing-events", params=params,
+                                      headers={"Authorization": f"Key {key}"})
+                if resp.status_code >= 400:
+                    raise RuntimeError(f"fal billing {resp.status_code}: {resp.text[:200]}")
+                data = resp.json()
+                for ev in data.get("billing_events") or []:
+                    totals[ev["request_id"]] = totals.get(ev["request_id"], 0.0) + float(ev.get("cost_total") or 0)
+                cursor = data.get("next_cursor")
+                if not data.get("has_more") or not cursor:
+                    break
+            async with pool.acquire() as conn:
+                for r in chunk:
+                    cost = totals.get(r["request_id"])
+                    await conn.execute(
+                        "UPDATE client_fal_usage SET cost_usd = $1, cost_checked_at = now() WHERE request_id = $2",
+                        cost, r["request_id"])
+                    filled += cost is not None
+    return filled
 
 
 # ── Reports ──────────────────────────────────────────────────────────────────

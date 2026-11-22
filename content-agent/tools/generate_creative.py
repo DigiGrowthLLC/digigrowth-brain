@@ -37,7 +37,12 @@ pass through `doppler run -- python tools/generate_creative.py ...`, or export
 it into the shell first).
 
 Writes the requested output file plus a sibling `<out>.meta.json` provenance
-sidecar (model, prompt, request id, generated_at, ...).
+sidecar (model, prompt, request id, generated_at, client, ...), and reports the
+fal request to the OS (Finances -> real fal.ai cost per client): the client is
+--client <slug>, else the folder name after `clients/` in --out, else none
+(= a general business expense). Needs DASHBOARD_URL + DASHBOARD_PASSWORD,
+which `doppler run` provides; a failed report only warns (re-send later with
+tools/report_fal_usage.py).
 """
 import argparse
 import base64
@@ -112,6 +117,35 @@ def _download(url: str) -> bytes:
         return r.read()
 
 
+def client_from_path(path) -> str | None:
+    """media-buying-agent/clients/<slug>/... -> <slug>."""
+    parts = Path(str(path)).resolve().parts
+    for i, p in enumerate(parts[:-1]):
+        if p == "clients" and i + 1 < len(parts) - 1:
+            return parts[i + 1]
+    return None
+
+
+def report_generation(meta: dict) -> bool:
+    """Tell the OS which client this fal request was for (cost is looked up there)."""
+    url, pw = os.environ.get("DASHBOARD_URL"), os.environ.get("DASHBOARD_PASSWORD")
+    if not (url and pw and meta.get("request_id")):
+        print("warning: fal usage not reported to the OS (DASHBOARD_URL/PASSWORD missing)", file=sys.stderr)
+        return False
+    body = {"request_id": meta["request_id"], "endpoint": meta.get("model"),
+            "client": meta.get("client"), "generated_at": meta.get("generated_at")}
+    auth = base64.b64encode(f"x:{pw}".encode()).decode()
+    req = urllib.request.Request(url.rstrip("/") + "/api/finances/auto/fal-generation",
+                                 data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "Authorization": f"Basic {auth}"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status == 200
+    except Exception as e:  # noqa: BLE001 - never fail a paid generation over bookkeeping
+        print(f"warning: fal usage not reported to the OS ({e})", file=sys.stderr)
+        return False
+
+
 def generate_image(prompt: str, aspect: str, model: str = "flux", refs: list[Path] | None = None) -> dict:
     if model == "flux":
         endpoint = IMAGE_MODELS["flux"]
@@ -164,6 +198,7 @@ def main():
                         help="video mode: seconds (kling: 5 or 10; seedance2: 4-15; veo31/veo31-fast: 4, 6, 8)")
     parser.add_argument("--resolution", default="1080p", help="video mode, seedance2: 720p | 1080p")
     parser.add_argument("--out", required=True)
+    parser.add_argument("--client", help="client folder slug this is for (default: taken from clients/<slug>/ in --out)")
     args = parser.parse_args()
 
     out_path = Path(args.out)
@@ -201,8 +236,10 @@ def main():
                 "request_id": result["request_id"], "generated_at": now,
                 "aspect": result["aspect"], "ref": args.ref or None}
 
+    meta["client"] = args.client or client_from_path(out_path)
     meta_path = Path(str(out_path) + ".meta.json")
     meta_path.write_text(json.dumps(meta, indent=2))
+    report_generation(meta)
     print(f"Wrote {out_path}")
     print(f"Wrote {meta_path}")
 
