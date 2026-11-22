@@ -331,7 +331,8 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
     setForm({
       provider_name: s.provider_name || "", provider_title: s.provider_title || "", photo_url: s.photo_url || "", logo_url: s.logo_url || "",
       what_to_expect: s.what_to_expect || "", review_rating: s.review_rating ?? "", review_count: s.review_count ?? "",
-      reviews: [0, 1, 2].map((i) => rv[i] || { text: "", author: "" }),
+      // Up to 10 on file (the booking page shows the first, the rest under "View more reviews"); always one empty row to add another.
+      reviews: Array.from({ length: Math.min(10, Math.max(3, rv.length + 1)) }, (_, i) => rv[i] || { text: "", author: "" }),
       contact_phone: s.contact_phone || "", contact_email: s.contact_email || "",
     });
     // eslint-disable-next-line
@@ -411,10 +412,13 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
         </div>
         {form.reviews.map((r, i) => (
           <div key={i} style={{ ...row, marginTop: 8 }}>
-            <Field name={`Review ${i + 1} (real, copied word for word)`}><input className="dg-input" value={r.text} onChange={setReview(i, "text")} /></Field>
+            <Field name={`Review ${i + 1}${i === 0 ? " (shown first)" : ""} (real, copied word for word)`}><input className="dg-input" value={r.text} onChange={setReview(i, "text")} /></Field>
             <Field name="First name" width={130}><input className="dg-input" value={r.author} onChange={setReview(i, "author")} /></Field>
           </div>
         ))}
+        {form.reviews.length < 10 && (
+          <button className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => setForm({ ...form, reviews: [...form.reviews, { text: "", author: "" }] })}>+ Add review</button>
+        )}
       </div>
 
       <label style={{ ...note, display: "flex", gap: 8, alignItems: "center", marginTop: 14 }}>

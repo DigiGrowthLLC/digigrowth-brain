@@ -310,8 +310,8 @@ async def save_booking_settings(client_id: int, payload: dict):
                 raise HTTPException(400, "Review count must be a whole number")
         if "reviews" in payload:
             items = []
-            for r in (payload["reviews"] or [])[:3]:
-                text = (r.get("text") or "").strip()[:400]
+            for r in (payload["reviews"] or [])[:bc.MAX_REVIEWS]:
+                text = (r.get("text") or "").strip()[:600]
                 if text:
                     items.append({"text": text, "author": (r.get("author") or "").strip()[:40]})
             updates["reviews"] = json.dumps(items)

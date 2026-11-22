@@ -38,6 +38,10 @@ STEPS = ("view", "time", "details", "submit", "booked")
 ABANDON_DELAY_MINUTES = 10
 ABANDON_MAX_AGE_HOURS = 20       # don't text about a visit older than this
 MIN_REVIEW_RATING = 4.0
+# Reviews kept on file per clinic. The page shows the first one and lists the rest
+# under "View more reviews" (Dylan, 2026-11-22). Google's API returns at most 5 per fetch,
+# so fetches merge into what's already on file instead of replacing it.
+MAX_REVIEWS = 10
 MIN_REVIEW_COUNT = 5
 
 
@@ -299,7 +303,7 @@ async def fetch_google_reviews(client_id: int, query: str | None = None) -> dict
         raise ValueError("PLACES_API_KEY isn't set on the server.")
     pool = await get_pool()
     async with pool.acquire() as conn:
-        s = await conn.fetchrow("SELECT google_place_id FROM booking_settings WHERE client_id = $1", client_id)
+        s = await conn.fetchrow("SELECT google_place_id, reviews FROM booking_settings WHERE client_id = $1", client_id)
         clinic = await conn.fetchval("SELECT name FROM clients WHERE id = $1", client_id)
         addr = await conn.fetchval(
             "SELECT location_text FROM booking_event_types WHERE client_id = $1 AND location_text IS NOT NULL "
@@ -328,14 +332,20 @@ async def fetch_google_reviews(client_id: int, query: str | None = None) -> dict
         d = r.json()
         if r.status_code >= 400:
             raise ValueError(f"Google: {(d.get('error') or {}).get('message') or r.text[:200]}")
-    reviews = []
+    found = []
     for rv in sorted(d.get("reviews") or [], key=lambda x: (-(x.get("rating") or 0), -len((x.get("text") or {}).get("text", "")))):
         text = ((rv.get("text") or {}).get("text") or "").strip()
         author = ((rv.get("authorAttribution") or {}).get("displayName") or "").strip()
-        if (rv.get("rating") or 0) >= 5 and 20 <= len(text) <= 400:
-            reviews.append({"text": text, "author": author.split()[0] if author else ""})
-        if len(reviews) == 3:
-            break
+        if (rv.get("rating") or 0) >= 5 and 20 <= len(text) <= 600:
+            found.append({"text": text, "author": author.split()[0] if author else ""})
+    # Keep what's already on file (hand-entered, website, earlier fetches) and add new ones.
+    on_file = (s["reviews"] if s else None) or []
+    if isinstance(on_file, str):
+        on_file = json.loads(on_file)
+    key = lambda r: " ".join((r.get("text") or "").lower().split())
+    seen = {key(r) for r in on_file}
+    reviews = list(on_file) + [r for r in found if key(r) not in seen]
+    reviews = reviews[:MAX_REVIEWS]
     async with pool.acquire() as conn:
         await conn.execute(
             "UPDATE booking_settings SET google_place_id = $2, review_rating = $3, review_count = $4, reviews = $5::jsonb, "
@@ -384,7 +394,7 @@ async def page_profile(client_id: int, settings: dict, landing_slug: str | None 
         "photo_url": photo,
         "logo_url": settings.get("logo_url"),
         "what_to_expect": [x.strip(" -•\t") for x in (settings.get("what_to_expect") or "").splitlines() if x.strip(" -•\t")][:4],
-        "reviews": {"rating": rating, "count": count, "items": reviews[:3]} if show_reviews else None,
+        "reviews": {"rating": rating, "count": count, "items": reviews[:MAX_REVIEWS]} if show_reviews else None,
         "refund_policy": refund,
     }
 

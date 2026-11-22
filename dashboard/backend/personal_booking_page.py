@@ -116,6 +116,7 @@ _TEMPLATE = r"""<!doctype html>
   .close{ position:absolute; top:14px; right:14px; width:36px; height:36px; border-radius:50%; border:1px solid var(--line); background:#fff; font-size:20px; cursor:pointer; color:var(--ink); }
   .shot{ margin:0 0 22px; } .shot:last-child{ margin-bottom:0; }
   .shot img{ width:100%; display:block; border-radius:12px; border:1px solid var(--line); }
+  .h-stars{ color:var(--star); letter-spacing:2px; font-size:.8em; vertical-align:2px; margin-left:6px; white-space:nowrap; }
   .disclaimer{ margin:-4px 0 10px; font-size:12.5px; color:var(--soft); font-style:italic; }
   .shot figcaption{ margin-top:8px; font-size:13.5px; color:var(--soft); }
   .shot figcaption b{ color:var(--ink); }
@@ -175,7 +176,7 @@ const RESULTS = [
 function openResults() {
   const m = document.createElement("div");
   m.className = "modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true"); m.setAttribute("aria-label", "Client results");
-  m.innerHTML = `<div class="sheet"><button class="close" aria-label="Close">×</button><h2>Client results</h2>
+  m.innerHTML = `<div class="sheet"><button class="close" aria-label="Close">×</button><h2>Client results <span class="h-stars" aria-hidden="true">★★★★★</span></h2>
     <p class="disclaimer">Names are blurred for privacy reasons.</p>
     <p class="sub">Every client gets a live portal like this, showing leads, booked visits and cost per booking.</p>
     ${RESULTS.map((r) => `<figure class="shot"><img src="${BASE}/results/${r.src}" alt="Client portal dashboard" loading="lazy"></figure>`).join("")}</div>`;
