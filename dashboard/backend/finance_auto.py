@@ -301,8 +301,16 @@ async def sync_sheet() -> dict | None:
 
 # ── Stripe revenue ───────────────────────────────────────────────────────────
 
+def _revenue_key() -> str:
+    """Clients pay into Dylan's main Stripe account, not the "DigiGrowth
+    Booking" Connect account behind STRIPE_SECRET_KEY (which has no payments
+    of its own). STRIPE_REVENUE_KEY = a read-only restricted key on the main
+    account (Balance, Charges, Customers: Read)."""
+    return (os.environ.get("STRIPE_REVENUE_KEY") or os.environ.get("STRIPE_SECRET_KEY") or "").strip()
+
+
 async def _stripe_get(http: httpx.AsyncClient, path: str, params: list) -> dict:
-    key = (os.environ.get("STRIPE_SECRET_KEY") or "").strip()
+    key = _revenue_key()
     r = await http.get(f"https://api.stripe.com/v1{path}", params=params, auth=(key, ""))
     if r.status_code >= 400:
         raise RuntimeError(f"Stripe {r.status_code}: {r.text[:300]}")
@@ -335,8 +343,8 @@ def _match_client(clients: list[dict], emails: set[str], names: list[str]) -> in
 
 
 async def sync_stripe() -> dict | None:
-    key = (os.environ.get("STRIPE_SECRET_KEY") or "").strip()
-    if not key or key.startswith("sk_test_"):
+    key = _revenue_key()
+    if not key or "_test_" in key:
         return None
     pool = await get_pool()
     async with pool.acquire() as conn:

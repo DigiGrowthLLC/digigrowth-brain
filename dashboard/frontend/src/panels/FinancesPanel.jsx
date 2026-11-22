@@ -314,6 +314,8 @@ export default function FinancesPanel() {
   };
 
   const deleteTxn = async (id) => {
+    const t = txns?.transactions?.find(x => x.id === id);
+    if (!window.confirm(`Delete "${t?.description || "this transaction"}" (${money(t?.amount)})? This can't be undone.`)) return;
     setDeletingId(id);
     try {
       await fetch(API(`/finances/transactions/${id}`), { method: "DELETE" });
@@ -330,6 +332,7 @@ export default function FinancesPanel() {
   };
 
   const deleteRule = async (id) => {
+    if (!window.confirm("Stop this recurring entry? Past entries stay.")) return;
     setDeletingRuleId(id);
     try {
       await fetch(API(`/finances/recurring/${id}`), { method: "DELETE" });
