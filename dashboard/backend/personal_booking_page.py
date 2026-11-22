@@ -136,7 +136,13 @@ const BASE = location.pathname.replace(/\/+$/, "");
 const qs = new URLSearchParams(location.search);
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+// ?tz=<IANA zone> shows times in the prospect's zone when Dylan books for them from the OS
+// (BookingModal.jsx); otherwise the visitor's own browser zone.
+const TZ = (() => {
+  const want = qs.get("tz");
+  if (want) { try { new Intl.DateTimeFormat("en-US", { timeZone: want }); return want; } catch {} }
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+})();
 const fmt = (iso, o) => new Intl.DateTimeFormat("en-US", { timeZone: TZ, ...o }).format(new Date(iso));
 const fmtDay = (iso) => fmt(iso, { weekday: "long", month: "long", day: "numeric" });
 const fmtTime = (iso) => fmt(iso, { hour: "numeric", minute: "2-digit" });

@@ -62,22 +62,30 @@ const CALENDLY_TZ_NAMES = {
 // `contact` carries whatever extra fields the calling surface has on hand
 // (business/city/state/grade/website) — every caller already has
 // name/phone/email as separate props, so those are read directly.
-function ProspectInfoPanel({ name, phone, email, contact }) {
-  const [timezone, setTimezone] = useState(null);
-
+// The prospect's IANA timezone: the contact's city/state wins over the area
+// code; without them the backend looks the contact up by phone.
+function useProspectTimezone(open, phone, contact) {
+  // undefined = still looking it up, "" = unknown (page falls back to the browser's zone)
+  const [tz, setTz] = useState(undefined);
   useEffect(() => {
-    if (!phone) return;
-    // The contact card's city/state wins over the area code; without them
-    // the backend looks the contact up by phone.
+    setTz(undefined);
+    if (!open) return;
+    if (!phone) { setTz(""); return; }
     const params = new URLSearchParams({ phone });
     if (contact?.city) params.set('city', contact.city);
     if (contact?.state) params.set('state', contact.state);
+    let cancelled = false;
     fetch(API(`/appointment-reminders/guess-timezone?${params}`))
       .then(r => r.json())
-      .then(d => setTimezone(d.timezone ? (CALENDLY_TZ_NAMES[d.timezone] || d.timezone) : null))
-      .catch(() => {});
-  }, [phone, contact?.city, contact?.state]);
+      .then(d => { if (!cancelled) setTz(d.timezone || ""); })
+      .catch(() => { if (!cancelled) setTz(""); });
+    return () => { cancelled = true; };
+  }, [open, phone, contact?.city, contact?.state]);
+  return tz;
+}
 
+function ProspectInfoPanel({ name, phone, email, contact, tz }) {
+  const timezone = tz ? (CALENDLY_TZ_NAMES[tz] || tz) : null;
   const c = contact || {};
 
   return (
@@ -111,7 +119,18 @@ function ProspectInfoPanel({ name, phone, email, contact }) {
 // Used from the Dialer, the inbound CallScreen, the SMS Inbox, and the
 // Contact Card — anywhere a rep can book an appointment for a prospect.
 export default function BookingModal({ open, onClose, contactId, phone, name, email, channel, contact, onBooked }) {
+  const tz = useProspectTimezone(open, phone, contact);
   if (!open) return null;
+  // The booking page shows times in the browser's zone (Dylan's) unless told
+  // otherwise, so hand it the prospect's zone + prefill their details. Wait
+  // for the lookup so the page doesn't load twice.
+  const waitingForTz = tz === undefined;
+  const params = new URLSearchParams();
+  if (tz) params.set("tz", tz);
+  if (name) params.set("name", name);
+  if (email) params.set("email", email);
+  if (phone) params.set("phone", phone);
+  const src = `${CALENDLY_URL}${params.toString() ? "?" + params : ""}`;
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose?.()} style={{
       position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
@@ -134,11 +153,13 @@ export default function BookingModal({ open, onClose, contactId, phone, name, em
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ flex: 1, overflow: "hidden" }}>
-              <iframe src={CALENDLY_URL} style={{ width: "100%", height: "100%", border: "none" }} allow="camera; microphone" />
+              {waitingForTz
+                ? <div style={{ padding: 24, fontSize: 13, color: "#5a6f8f" }}>Loading booking page in the prospect's timezone...</div>
+                : <iframe key={src} src={src} style={{ width: "100%", height: "100%", border: "none" }} allow="camera; microphone" />}
             </div>
             <BookingForm contactId={contactId} onBooked={onBooked} />
           </div>
-          <ProspectInfoPanel name={name} phone={phone} email={email} contact={contact} />
+          <ProspectInfoPanel name={name} phone={phone} email={email} contact={contact} tz={tz} />
         </div>
       </div>
     </div>
