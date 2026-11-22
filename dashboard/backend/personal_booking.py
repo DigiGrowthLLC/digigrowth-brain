@@ -7,7 +7,7 @@ the clinic's Twilio number, Stripe, client reminders) but the same idea:
     minus busy time on BOTH of Dylan's Google accounts: the business calendar
     (dylanrg@digigrowthllc.com) and every calendar he owns on his personal
     account (dylangroenendijk@gmail.com: school, Discount Tire shifts...).
-  - Call types: personal_booking_types (Strategy Call = discovery, Onboarding
+  - Call types: personal_booking_types (Discovery Call, slug strategy-call; Onboarding
     Call, Launch Call). Only `listed` types show on the bare link; the others
     are reached with ?type=<slug> (sent to clients only).
   - A booking puts a Google Meet event on his personal primary calendar with
@@ -38,7 +38,7 @@ LOCK_KEY = 7_301_118_201  # pg_advisory_xact_lock key for personal bookings
 DEFAULT_HOURS = {str(d): [["08:00", "22:00"]] for d in range(7)}  # Mon=0 .. Sun=6
 DEFAULT_TYPES = [
     # slug, name, minutes, call_type, listed, description
-    ("strategy-call", "Strategy Call", 30, "discovery", True,
+    ("strategy-call", "Discovery Call", 30, "discovery", True,
      "A quick call to see where your clinic is at and whether we can help you fill your schedule with new patients."),
     ("onboarding-call", "Onboarding Call", 45, "onboarding", False,
      "We walk through your setup together so your campaign can go live."),
