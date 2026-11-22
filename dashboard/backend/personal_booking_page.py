@@ -164,11 +164,11 @@ function infoPanel(ev, extra) {
     <h1>${esc(ev ? ev.name : "Book a call")}</h1>
     ${ev ? `<div class="meta"><div>${ICON.clock}<span>${ev.duration_min} min</span></div><div>${ICON.video}<span>Google Meet (link in your invite)</span></div>${extra || ""}</div>
     ${ev.description ? `<p class="desc">${esc(ev.description)}</p>` : ""}` : ""}
-    ${MODE === "book" ? `<button class="proof results-btn" id="resultsbtn"><span><span class="stars"><span class="s" aria-hidden="true">★★★★★</span><b>Real client results</b></span><span class="quote">A PT clinic's recent campaign: 11 new-patient visits booked against a goal of 10, at $46 per booking.</span></span><span class="go">See the client portal →</span></button>` : ""}`;
+    ${MODE === "book" ? `<button class="proof results-btn" id="resultsbtn"><span><span class="stars"><span class="s" aria-hidden="true">★★★★★</span><b>Real client results</b></span><span class="quote">A PT clinic's recent campaign: 11 new-patient visits booked against a goal of 10, at $46 per booking.</span></span><span class="go">See client results →</span></button>` : ""}`;
 }
 
-// "Your client portal" gallery: two demo dashboards (sample numbers). The popup is framed as a look at the
-// portal, never as client results, which is why the images carry no "sample" tag (Dylan, 2026-11-22).
+// "Example client results" gallery: two demo dashboards (sample numbers). Button reads "See client results",
+// popup heading "Example client results" (Dylan, 2026-11-22); images carry no "sample" tag.
 // The real Advantage screenshot (real-pt-clinic-results.jpg) was dropped from the gallery 2026-11-22 (Dylan).
 const RESULTS = [
   { src: "sample-dashboard-1.jpg" },
@@ -176,8 +176,8 @@ const RESULTS = [
 ];
 function openResults() {
   const m = document.createElement("div");
-  m.className = "modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true"); m.setAttribute("aria-label", "Your client portal");
-  m.innerHTML = `<div class="sheet"><button class="close" aria-label="Close">×</button><h2>Your client portal <span class="h-stars" aria-hidden="true">★★★★★</span></h2>
+  m.className = "modal"; m.setAttribute("role", "dialog"); m.setAttribute("aria-modal", "true"); m.setAttribute("aria-label", "Example client results");
+  m.innerHTML = `<div class="sheet"><button class="close" aria-label="Close">×</button><h2>Example client results <span class="h-stars" aria-hidden="true">★★★★★</span></h2>
     <p class="sub">Every client gets a live portal like this, showing leads, booked visits and cost per booking.</p>
     ${RESULTS.map((r) => `<figure class="shot"><img src="${BASE}/results/${r.src}?v=2" alt="Client portal dashboard" loading="lazy"></figure>`).join("")}</div>`;
   const close = () => { m.remove(); document.removeEventListener("keydown", onKey); };
