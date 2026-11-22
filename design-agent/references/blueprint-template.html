@@ -184,6 +184,19 @@ section.alt { background: linear-gradient(180deg, rgba(11,18,48,.85), rgba(7,12,
 .live-note { display: block; margin-top: 10px; font-size: 14px; color: var(--muted); }
 
 /* recovery + reactivation cards */
+.hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(106,176,255,.75) 20%, rgba(106,176,255,.75) 80%, transparent); box-shadow: 0 0 18px rgba(106,176,255,.45); }
+.hero { padding-bottom: 72px; }
+#booking { margin-top: 170px; }
+@media (max-width: 900px) { #booking { margin-top: 64px; } }
+.bk-grid { display: grid; gap: 22px; }
+.bk-bens { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.bk-b { display: flex; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.bk-b h4 { margin: 0 0 3px; font-size: 15px; }
+.bk-b p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+.bk-br { margin: 0; }
+.bk-frame { display: block; width: 100%; height: 880px; border: 0; background: #f6f7fb; }
+@media (max-width: 1000px) { .bk-bens { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .bk-bens { grid-template-columns: 1fr; } .bk-frame { height: 900px; } }
 .subh { display: flex; align-items: center; gap: 16px; margin: 64px 0 24px; scroll-margin-top: 90px; }
 .subh h3 { margin: 0; font-size: clamp(22px, 2.4vw, 28px); }
 .subh p { margin: 4px 0 0; color: var(--muted); }
@@ -611,6 +624,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 12px; padding
     </div>
     <ul class="pts pts-row reveal">{{FUNNEL_POINTS}}</ul>
     {{FUNNEL_PAGES_HTML}}
+    {{BOOKING_HTML}}
   </div>
 </section><!--/BLOCK:funnel-->
 

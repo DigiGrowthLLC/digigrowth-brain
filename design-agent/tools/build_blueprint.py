@@ -108,6 +108,8 @@ GSM7_BAD = re.compile(r"[–—‘’“”…]|[\U0001F000-\U0001FFFF]")
 # The template references them as {{ICON_<NAME>}}; blueprint.json "icon"
 # fields may name one of these keys, anything else falls back to the default.
 ICONS = {
+    "calendar": '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>',
+    "star": '<path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
     "megaphone": '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
     "funnel": '<path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>',
     "bot": '<rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8 16h.01"/><path d="M16 16h.01"/>',
@@ -469,6 +471,43 @@ def main():
                                 f'<span class="kw">target: {esc(pg["keyword"])}</span></button>' for pg in pages)
                       + '</div>')
 
+    # Booking page we build for them (DigiGrowth Booking, dashboard/backend/booking_page.py), rendered live
+    # in the funnel section with the practice's details and simulated open times. Nothing is booked.
+    booking_html = ""
+    bk = d.get("booking")
+    if bk:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "dashboard" / "backend"))
+        import booking_page  # noqa: E402
+        def asset(v, w=480):
+            if not v or str(v).startswith(("data:", "http")):
+                return v
+            return image_data_uri(base / v, width=w, quality=86)
+        prof = dict(bk.get("profile") or {})
+        for k in ("photo_url", "logo_url"):
+            prof[k] = asset(prof.get(k))
+        info = {"clinic": d["business"], "timezone": bk.get("timezone") or "America/Los_Angeles", "profile": prof,
+                "event_types": [{"id": 1, "slug": "assessment", "max_days_ahead": 14, "location_type": "in_person", **bk["event"]}]}
+        stub = ("<script>(function(){var INFO=" + json.dumps(info).replace("</", "<\/") + ";"
+                "Element.prototype.scrollIntoView=function(){};"
+                "function days(start,n){var out=[],d=new Date(start+'T12:00:00Z');for(var i=0;i<n;i++){var wd=d.getUTCDay(),ds=d.toISOString().slice(0,10),sl=[];"
+                "if(wd>0&&wd<6){for(var h=8;h<18;h++){var k=(d.getUTCDate()*7+h*3)%5;if(k<2)continue;sl.push(ds+'T'+(h<10?'0':'')+h+':00:00-08:00');}}"
+                "out.push({date:ds,slots:sl});d.setUTCDate(d.getUTCDate()+1);}return out;}"
+                "function res(b,st){return Promise.resolve(new Response(JSON.stringify(b),{status:st||200,headers:{'Content-Type':'application/json'}}));}"
+                "window.fetch=function(u){u=String(u);var p=u.split('/api/')[1]||'';"
+                "if(p.indexOf('info')===0)return res(INFO);"
+                "if(p.indexOf('slots')===0){var q=new URLSearchParams(p.split('?')[1]||'');return res({days:days(q.get('start')||new Date().toISOString().slice(0,10),+q.get('days')||14)});}"
+                "if(p.indexOf('reserve')===0)return res({detail:" + json.dumps(bk.get("demo_note") or "Demo only. On the live page this goes to secure payment, then a confirmation text.") + "},400);"
+                "return res({ok:true});};})();</script>")
+        page = booking_page.render_page("book", d["business"], bk.get("accent") or d["brand"]["primary"])
+        page = page.replace("<script>", stub + "<script>", 1)
+        bens = "".join(f'<div class="bk-b"><span class="ib">{pick_icon(b.get("icon"), "check")}</span><div><h4>{esc(b["title"])}</h4><p>{esc(b["text"])}</p></div></div>'
+                       for b in bk.get("benefits") or [])
+        booking_html = (f'<div class="subh reveal" id="booking"><span class="ib">{icon("calendar")}</span>'
+                        f'<div><h3>{esc(bk.get("headline") or "Then a booking page we build for you")}</h3><p>{esc(bk.get("intro") or "")}</p></div></div>'
+                        f'<div class="bk-grid reveal"><div class="bk-bens">{bens}</div>'
+                        f'<div class="browser bk-br"><div class="bar3"><i></i><i></i><i></i><span class="url">{esc(bk.get("url") or "booking.digigrowthllc.com")}</span></div>'
+                        f'<iframe class="bk-frame" title="Booking page preview for {esc(d["business"])}" loading="lazy" srcdoc="{html.escape(page, quote=True)}"></iframe></div></div>')
+
     price_html = ""
     if inc.get("price"):
         price_html = (f'<div class="price reveal"><div class="amt">{esc(inc["price"])}<span>{esc(inc.get("price_unit") or "/month")}</span></div>'
@@ -538,6 +577,7 @@ def main():
         "FUNNEL_POINTS": li(funnel_d.get("points") or []),
         "FUNNEL_LABEL": esc(funnel_d.get("label") or "Funnel"),
         "FUNNEL_PAGES_HTML": pages_html,
+        "BOOKING_HTML": booking_html,
         "FUNNEL_SRCDOC": html.escape(funnel_doc, quote=True),
         "AGENT_HEADLINE": esc(d["agent"]["headline"]), "AGENT_INTRO": esc(d["agent"]["intro"]),
         "AGENT_POINTS": li(d["agent"].get("points") or []),
@@ -587,6 +627,7 @@ def main():
         page = re.sub(rf'<section id="{sid}"( class="alt")?>', f'<section id="{sid}"{alt}>', page)
     page = re.sub(r"\{\{([A-Z0-9_]+)\}\}", lambda m: fills.get(m.group(1), m.group(0)), page)
     page = re.sub(r'<ul class="pts[^"]*"></ul>', "", page)  # no points given: no empty chip row
+    page = page.replace('<p class="soc-note reveal"></p>', "")  # no social note given
     left = sorted(set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", page)))
     if left:
         warnings.append(f"unfilled placeholders: {', '.join(left)}")
