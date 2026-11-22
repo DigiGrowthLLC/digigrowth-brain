@@ -185,21 +185,23 @@ section.alt { background: linear-gradient(180deg, rgba(11,18,48,.85), rgba(7,12,
 
 /* recovery + reactivation cards */
 .hero { padding-bottom: 80px; }
-.hstrip { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); margin-top: 44px; max-width: 980px; border: 1px solid rgba(95,212,255,.22); border-radius: 18px; overflow: hidden; background: linear-gradient(135deg, rgba(58,123,213,.16), rgba(143,123,255,.08) 60%, rgba(255,255,255,.02)); box-shadow: 0 30px 80px rgba(0,0,0,.35); }
-.hs-who { display: flex; align-items: center; gap: 16px; padding: 24px 26px; border-right: 1px solid rgba(95,212,255,.18); }
-.hs-who img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,.85); flex: none; }
-.hs-who h4 { margin: 0 0 4px; font-size: 18px; }
-.hs-stars { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
-.hs-stars b { color: #f5b942; letter-spacing: 2px; font-size: 15px; }
-.hs-offer { padding: 22px 28px; }
-.hs-k { font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: #9fd8ff; font-weight: 600; }
-.hs-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
-.hs-row h4 { margin: 0; font-size: 20px; }
-.hs-was { color: var(--dim); text-decoration: line-through; font: 600 20px 'Space Grotesk', system-ui, sans-serif; }
-.hs-now { font: 700 34px/1 'Space Grotesk', system-ui, sans-serif; background: linear-gradient(100deg, #5fd4ff, #8f7bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.hs-sub { margin-top: 8px; font-size: 14px; color: var(--muted); }
-.hs-sub .sp { color: #f5b942; font-weight: 600; }
-@media (max-width: 760px) { .hstrip { grid-template-columns: 1fr; } .hs-who { border-right: 0; border-bottom: 1px solid rgba(95,212,255,.18); } }
+.secbar { position: relative; z-index: 5; background: linear-gradient(180deg, rgba(10,18,46,.95), rgba(6,10,28,.95)); }
+.secbar::before, .secbar::after { content: ""; position: absolute; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(106,176,255,.7) 15%, rgba(143,123,255,.7) 85%, transparent); box-shadow: 0 0 16px rgba(106,176,255,.35); }
+.secbar::before { top: 0; } .secbar::after { bottom: 0; }
+.sb-row { display: flex; justify-content: space-between; overflow-x: auto; scrollbar-width: none; padding: 0 max(16px, 2vw); }
+.sb-row::-webkit-scrollbar { display: none; }
+.sb-it { flex: 1 1 0; min-width: max-content; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 22px 10px; color: var(--muted); text-decoration: none; position: relative; transition: color .2s, background .2s; white-space: nowrap; }
+.sb-it + .sb-it::before { content: ""; position: absolute; left: 0; top: 28%; bottom: 28%; width: 1px; background: rgba(95,212,255,.18); }
+.sb-it::after { content: ""; position: absolute; left: 18%; right: 18%; bottom: 0; height: 2px; border-radius: 2px; background: linear-gradient(90deg, #5fd4ff, #8f7bff); transform: scaleX(0); transition: transform .25s; }
+.sb-it:hover { color: var(--ink); background: rgba(95,212,255,.05); }
+.sb-it:hover::after { transform: scaleX(1); }
+.sb-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: #9fd8ff; background: rgba(95,212,255,.1); border: 1px solid rgba(95,212,255,.22); flex: none; }
+.sb-ic .i { width: 16px; height: 16px; }
+.sb-tx { display: flex; flex-direction: column; line-height: 1.15; }
+.sb-n { font-size: 10.5px; letter-spacing: .14em; color: #5fd4ff; font-weight: 700; }
+.sb-l { font: 600 14.5px 'Space Grotesk', system-ui, sans-serif; }
+@media (max-width: 1200px) and (min-width: 901px) { .sb-ic { display: none; } }
+@media (max-width: 900px) { .sb-it { flex: 0 0 auto; padding: 16px 14px; } }
 
 #booking { margin-top: 170px; }
 @media (max-width: 900px) { #booking { margin-top: 64px; } }
@@ -550,9 +552,9 @@ footer .wrap { display: flex; justify-content: space-between; gap: 12px; padding
   <div class="wrap">
     <div class="kicker reveal">Digital Growth Engine // Patient Acquisition Blueprint</div>
     <h1 class="reveal">{{HERO_HEADLINE}}</h1>
-    {{HERO_STRIP}}
   </div>
 </header>
+{{SECBAR}}
 
 <section id="engine">
   <div class="wrap">
@@ -762,7 +764,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 12px; padding
       <h2><span class="grad">7-10 paid assessments</span> within your first 30 days, guaranteed.</h2>
       <p class="lead">{{CLOSE_INTRO}}</p>
       <div class="gnums">
-        <div class="gnum"><b>7-10</b><h4>Paid assessments in 30 days</h4><p>Prepaid patients on your calendar in your first month.</p></div>
+        <div class="gnum"><b>24/7</b><h4>Live results</h4><p>Every lead, booking and show-up in your portal, as it happens.</p></div>
         <div class="gnum"><b>7</b><h4>Guaranteed</h4><p>Fewer than 7? We keep running and you pay no booking fees until you have them.</p></div>
         <div class="gnum"><b>$0</b><h4>Retainer</h4><p>Pay per booking only. You keep the $49 every patient pays.</p></div>
       </div></div>

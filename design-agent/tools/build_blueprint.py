@@ -511,21 +511,6 @@ def main():
                         f'<div class="browser bk-br"><div class="bar3"><i></i><i></i><i></i><span class="url">{esc(bk.get("url") or "booking.digigrowthllc.com")}</span></div>'
                         f'<iframe class="bk-frame" title="Booking page preview for {esc(d["business"])}" loading="lazy" srcdoc="{html.escape(page, quote=True)}"></iframe></div></div>')
 
-    # Offer + proof strip under the hero headline (Dylan 2026-11-22), built from the booking data.
-    hero_strip = ""
-    if bk:
-        ev, rv = bk["event"], (prof.get("reviews") or {})
-        money = lambda c: "$" + (f"{c / 100:.0f}" if c % 100 == 0 else f"{c / 100:.2f}")
-        who = esc((prof.get("provider_name") or "") + (", " + prof["provider_title"].split(",")[-1].strip() if prof.get("provider_title") else ""))
-        stars = (f'<div class="hs-stars"><b>★★★★★</b>{rv["rating"]:.1f} on Google' + (f' · {rv["count"]} reviews' if rv.get("count") else "") + '</div>') if rv.get("rating") else ""
-        hero_strip = (f'<div class="hstrip reveal"><div class="hs-who">' + (f'<img src="{prof["photo_url"]}" alt="">' if prof.get("photo_url") else "")
-                      + f'<div><h4>{who}</h4>{stars}</div></div>'
-                      f'<div class="hs-offer"><div class="hs-k">The offer we\'d run</div><div class="hs-row"><h4>{esc(ev["name"])}</h4>'
-                      + (f'<span class="hs-was">{money(ev["anchor_price_cents"])}</span>' if ev.get("anchor_price_cents", 0) > ev.get("price_cents", 0) else "")
-                      + f'<span class="hs-now">{money(ev["price_cents"]) if ev.get("price_cents") else "Free"}</span></div>'
-                      f'<div class="hs-sub">' + (f'<span class="sp">Only {ev["spots_per_month"]} spots a month</span> · ' if ev.get("spots_per_month") else "")
-                      + f'{esc(ev.get("location_text") or "")}</div></div></div>')
-
     price_html = ""
     if inc.get("price"):
         price_html = (f'<div class="price reveal"><div class="amt">{esc(inc["price"])}<span>{esc(inc.get("price_unit") or "/month")}</span></div>'
@@ -540,6 +525,17 @@ def main():
     nav_names = {"ads": "Ads", "funnel": funnel_d.get("label") or "Funnel", "agent": "Text agent", "voice": "Voice agent",
                  "reactivation": "Reactivation + follow-up", "social": "Social", "results": "Results",
                  "math": (math_d or {}).get("label") or "The math", "guarantee": "Guarantee", "included": "Package"}
+    # Section selector band between the hero and section 00 (Dylan 2026-11-22): full-width, every section with
+    # its page number, each a link. Replaced the plan-at-a-glance row and the offer strip.
+    bar_icons = {"engine": "grid", "ads": "megaphone", "funnel": "funnel", "agent": "message", "voice": "call",
+                 "reactivation": "refresh", "social": "instagram", "results": "chart", "math": "chart",
+                 "guarantee": "shield", "included": "card"}
+    bar_names = {**nav_names, "reactivation": "Reactivation"}
+    secbar = ('<nav class="secbar" aria-label="Sections"><div class="sb-row">'
+              + "".join(f'<a class="sb-it" href="#{sid}"><span class="sb-ic">{icon(bar_icons.get(sid, "check"))}</span>'
+                        f'<span class="sb-tx"><span class="sb-n">{n:02d}</span><span class="sb-l">{esc(nm)}</span></span></a>'
+                        for n, (sid, nm) in enumerate([("engine", "Overview")] + [(x, bar_names.get(x, x)) for x in present]))
+              + '</div></nav>')
     nav_html = '<a href="#engine"><span>00</span>Overview</a>' + "".join(
         f'<a href="#{sid}"><span>{i + 1:02d}</span>{esc(nav_names.get(sid, sid))}</a>' for i, sid in enumerate(present))
 
@@ -596,7 +592,7 @@ def main():
         "FUNNEL_LABEL": esc(funnel_d.get("label") or "Funnel"),
         "FUNNEL_PAGES_HTML": pages_html,
         "BOOKING_HTML": booking_html,
-        "HERO_STRIP": hero_strip,
+        "SECBAR": secbar,
         "FUNNEL_SRCDOC": html.escape(funnel_doc, quote=True),
         "AGENT_HEADLINE": esc(d["agent"]["headline"]), "AGENT_INTRO": esc(d["agent"]["intro"]),
         "AGENT_POINTS": li(d["agent"].get("points") or []),
