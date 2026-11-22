@@ -38,7 +38,9 @@ blueprint.json shape (paths are relative to the json file's folder):
   "engine_intro": "...",      # ONE sentence. The page is presented on a call, not read: every intro is a
                               # single line, the detail lives in "keys" and the visuals.
   "engine_keys": [{"big": "< 1 min", "small": "every lead answered"}],   # 3-4 key points, big type
-  # ads / funnel / agent / voice / reactivation / recovery / social each take the same optional "keys" list.
+  # ads / funnel / agent / voice / reactivation / social each take the same optional "keys" list
+  # (recovery renders inside the reactivation section, under its own sub-heading, no keys).
+  # Keys and "points" are optional: Dylan (2026-11-22) cut them from overview/ads/funnel/agent/voice.
   # voice.demo (default true): the live in-browser call with the demo voice agent (dashboard/backend/blueprint_voice.py).
   "step_blurbs": ["ads", "funnel", "agent", "database reactivation", "nothing leaks"],
   "ads": {"headline": "...", "intro": "...", "items": [
@@ -383,12 +385,15 @@ def main():
         steps = ([("ads", "megaphone", "", "Ads bring in new patients"), ("funnel", "funnel", "", "A funnel built to book"),
                   ("agent", "bot", "", "The AI agent books the visit")]
                  + ([("voice", "call", "", "The voice agent calls new leads")] if voice_d else [])
-                 + [("reactivation", "database", "amb", "Database reactivation"), ("recovery", "refresh", "amb", "Nothing leaks")]
+                 + [("reactivation", "database", "amb", "Reactivation + follow-up")]
                  + ([("social", "instagram", "", "Social media backs up the ads")] if social_d else []))
     else:
         steps = ([("funnel", "funnel", "", (d.get("funnel") or {}).get("step_title") or "A booking page built to convert")] if has_funnel else []) + [
-                 ("agent", "bot", "", "The AI text agent replies to every inquiry"), ("reactivation", "database", "amb", "Database reactivation"),
-                 ("recovery", "refresh", "amb", "Nothing leaks")]
+                 ("agent", "bot", "", "The AI text agent replies to every inquiry"), ("reactivation", "database", "amb", "Reactivation + follow-up")]
+    # Reactivation and recovery were two steps before 2026-11-22; an older json's two blurbs are joined.
+    ri = [sid for sid, *_ in steps].index("reactivation")
+    if len(blurbs) == len(steps) + 1:
+        blurbs = blurbs[:ri] + [blurbs[ri].rstrip(". ") + ". " + blurbs[ri + 1]] + blurbs[ri + 2:]
     if len(blurbs) != len(steps):
         warnings.append(f"step_blurbs has {len(blurbs)} entries, the {package} package needs {len(steps)}")
     map_steps = "".join(
@@ -399,7 +404,7 @@ def main():
     # Sections present, in page order; numbered 01.. after the 00 overview.
     math_d = d.get("math")
     present = ((["ads"] if growth else []) + (["funnel"] if has_funnel else []) + ["agent"]
-               + (["voice"] if voice_d else []) + ["reactivation", "recovery"]
+               + (["voice"] if voice_d else []) + ["reactivation"]  # recovery lives inside it (Dylan 2026-11-22)
                + (["social"] if social_d else []) + (["results"] if results_d else [])
                + (["math"] if math_d else []) + (["guarantee"] if growth else ["included"]))
     idx = {f"IDX_{sid.upper()}": f"{i + 1:02d}" for i, sid in enumerate(present)}
@@ -475,7 +480,7 @@ def main():
             f'<div class="key{" amb" if amb else ""}"><b>{esc(k["big"])}</b><span>{esc(k["small"])}</span></div>' for k in lst) + "</div>"
 
     nav_names = {"ads": "Ads", "funnel": funnel_d.get("label") or "Funnel", "agent": "Text agent", "voice": "Voice agent",
-                 "reactivation": "Reactivation", "recovery": "Follow-up", "social": "Social", "results": "Results",
+                 "reactivation": "Reactivation + follow-up", "social": "Social", "results": "Results",
                  "math": (math_d or {}).get("label") or "The math", "guarantee": "Guarantee", "included": "Package"}
     nav_html = '<a href="#engine"><span>00</span>Overview</a>' + "".join(
         f'<a href="#{sid}"><span>{i + 1:02d}</span>{esc(nav_names.get(sid, sid))}</a>' for i, sid in enumerate(present))
@@ -490,7 +495,6 @@ def main():
         "KEYS_AGENT": keys_html(d["agent"].get("keys")),
         "KEYS_VOICE": keys_html((voice_d or {}).get("keys")),
         "KEYS_REACT": keys_html(react.get("keys"), amb=True),
-        "KEYS_RECOVERY": keys_html(d["recovery"].get("keys"), amb=True),
         "KEYS_SOCIAL": keys_html((social_d or {}).get("keys")),
         "VOICE_DEMO_HTML": voice_demo,
         "MATH_LABEL": esc((math_d or {}).get("label") or "The math"),
@@ -533,7 +537,7 @@ def main():
         "FUNNEL_PAGES_HTML": pages_html,
         "FUNNEL_SRCDOC": html.escape(funnel_doc, quote=True),
         "AGENT_HEADLINE": esc(d["agent"]["headline"]), "AGENT_INTRO": esc(d["agent"]["intro"]),
-        "AGENT_POINTS": li(d["agent"]["points"]),
+        "AGENT_POINTS": li(d["agent"].get("points") or []),
         "CHAT_AVATAR": ad_avatar,
         "CHAT_CHIPS": "".join(f'<button type="button" class="chip">{esc(c)}</button>' for c in d["agent"]["chips"]),
         "RECOVERY_HEADLINE": esc(d["recovery"]["headline"]), "RECOVERY_INTRO": esc(d["recovery"]["intro"]),
@@ -579,6 +583,7 @@ def main():
         alt = ' class="alt"' if i % 2 == 0 else ""
         page = re.sub(rf'<section id="{sid}"( class="alt")?>', f'<section id="{sid}"{alt}>', page)
     page = re.sub(r"\{\{([A-Z0-9_]+)\}\}", lambda m: fills.get(m.group(1), m.group(0)), page)
+    page = re.sub(r'<ul class="pts[^"]*"></ul>', "", page)  # no points given: no empty chip row
     left = sorted(set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", page)))
     if left:
         warnings.append(f"unfilled placeholders: {', '.join(left)}")

@@ -176,6 +176,9 @@ section.alt { background: linear-gradient(180deg, rgba(11,18,48,.85), rgba(7,12,
 .live-note { display: block; margin-top: 10px; font-size: 14px; color: var(--muted); }
 
 /* recovery + reactivation cards */
+.subh { display: flex; align-items: center; gap: 16px; margin: 64px 0 24px; scroll-margin-top: 90px; }
+.subh h3 { margin: 0; font-size: clamp(22px, 2.4vw, 28px); }
+.subh p { margin: 4px 0 0; color: var(--muted); }
 .rec-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 .rc { padding: 22px; transition: border-color .25s, transform .25s; }
 .rc:hover { transform: translateY(-4px); border-color: rgba(245,165,36,.4); }
@@ -655,23 +658,13 @@ footer .wrap { display: flex; justify-content: space-between; gap: 12px; padding
 <section id="reactivation">
   <div class="wrap">
     <div class="head reveal">
-      <div class="idx"><span class="n">{{IDX_REACTIVATION}}</span><span class="ln"></span>Database reactivation</div>
+      <div class="idx"><span class="n">{{IDX_REACTIVATION}}</span><span class="ln"></span>Reactivation + follow-up</div>
       <h2>{{REACT_HEADLINE}}</h2>
       <p>{{REACT_INTRO}}</p>
     </div>
     {{KEYS_REACT}}
     <div class="react">{{REACT_CARDS_HTML}}</div>
-  </div>
-</section>
-
-<section id="recovery" class="alt">
-  <div class="wrap">
-    <div class="head reveal">
-      <div class="idx"><span class="n">{{IDX_RECOVERY}}</span><span class="ln"></span>Nothing leaks</div>
-      <h2>{{RECOVERY_HEADLINE}}</h2>
-      <p>{{RECOVERY_INTRO}}</p>
-    </div>
-    {{KEYS_RECOVERY}}
+    <div class="subh reveal" id="recovery"><span class="ib amb">{{ICON_REFRESH}}</span><div><h3>{{RECOVERY_HEADLINE}}</h3><p>{{RECOVERY_INTRO}}</p></div></div>
     <div class="rec-grid">{{RECOVERY_HTML}}</div>
   </div>
 </section>
