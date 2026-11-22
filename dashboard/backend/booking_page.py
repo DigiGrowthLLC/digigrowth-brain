@@ -51,7 +51,10 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .stars .s{ color:var(--star); letter-spacing:1px; font-size:15px; }
   .quote{ font-size:13.5px; color:var(--ink); }
   .quote small{ color:var(--soft); }
-  .quote.more-rv{ padding-top:8px; border-top:1px solid var(--line); }
+  .rv-list{ max-height:340px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-right:4px; }
+  .rv-list[hidden]{ display:none; }
+  .rv-list .quote{ padding-top:10px; border-top:1px solid var(--line); }
+  .rv-list .quote .st{ color:var(--star); letter-spacing:1px; font-size:12px; margin-right:4px; }
   .rv-more{ align-self:flex-start; background:none; border:0; padding:2px 0; font:inherit; font-size:13px; font-weight:700; color:var(--accent); cursor:pointer; }
   .rv-more:hover{ text-decoration:underline; }
   .checks{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; font-size:13.5px; }
@@ -169,8 +172,11 @@ function infoPanel(clinic, ev, prof, headline) {
     : `<div>${ICON.tag}<span class="price">Free${ev.anchor_price_cents ? `<span class="was">normally <s>${money(ev.anchor_price_cents)}</s></span>` : ""}</span></div>`;
   const rv = prof.reviews;
   const proof = rv ? `<div class="proof">${rv.rating ? `<div class="stars"><span class="s">${"★".repeat(Math.round(rv.rating))}</span><b>${rv.rating.toFixed(1)}</b><span class="muted">${rv.count ? `(${rv.count} Google reviews)` : "on Google"}</span></div>` : ""}
-      ${(rv.items || []).map((it, i) => `<div class="quote${i ? " more-rv" : ""}"${i ? " hidden" : ""}>“${esc(it.text)}” ${it.author ? `<small>${esc(it.author)}</small>` : ""}</div>`).join("")}
-      ${(rv.items || []).length > 1 ? `<button type="button" class="rv-more" aria-expanded="false" onclick="const open=this.getAttribute('aria-expanded')!=='true';this.parentNode.querySelectorAll('.more-rv').forEach(e=>e.hidden=!open);this.setAttribute('aria-expanded',open);this.textContent=open?'Show fewer reviews':'View more reviews (${rv.items.length - 1})'">View more reviews (${rv.items.length - 1})</button>` : ""}</div>` : "";
+      ${(() => { const its = rv.items || [], q = (it) => `“${esc(it.text)}” ${it.author ? `<small>${esc(it.author)}</small>` : ""}`;
+        if (!its.length) return "";
+        const more = its.length - 1;
+        return `<div class="quote">${q(its[0])}</div>` + (more ? `<div class="rv-list" hidden>${its.slice(1).map(it => `<div class="quote"><span class="st" aria-hidden="true">★★★★★</span>${q(it)}</div>`).join("")}</div>
+      <button type="button" class="rv-more" aria-expanded="false" onclick="const open=this.getAttribute('aria-expanded')!=='true';this.previousElementSibling.hidden=!open;this.setAttribute('aria-expanded',open);this.textContent=open?'Show fewer reviews':'View more reviews (${more})'">View more reviews (${more})</button>` : ""); })()}</div>` : "";
   const expect = (prof.what_to_expect || []).length ? `<ul class="checks">${prof.what_to_expect.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`
     : (ev.description ? `<p class="desc">${esc(ev.description)}</p>` : "");
   return `${prof.logo_url ? `<img class="logo" src="${esc(prof.logo_url)}" alt="${esc(clinic)}">` : ""}<div class="who">${avatar}<div><div class="clinic">${esc(clinic)}</div>${prof.provider_name ? `<div class="provider">${esc(prof.provider_name)}${prof.provider_title ? ", " + esc(prof.provider_title) : ""}</div>` : ""}</div></div>

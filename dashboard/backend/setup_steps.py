@@ -111,6 +111,14 @@ STEPS = [
             "Private Integration token under the agent's Calendar (GoHighLevel) and add the booking-sync workflow "
             "(webhook URL in the Agents tab).",
      "action": "booking_autofill", "legacy": [("response_ai", 5)]},
+    {"id": "reviews", "services": BOOKING, "phase": "connect", "package": "all",
+     "title": "Reviews loaded (every 5-star Google review)",
+     "how": "Overload the booking page's social proof: every 5-star Google review the clinic has goes on it (the page "
+            "shows one, the rest under \"View more reviews\"). Google's API only gives 5, so the onboarding agent copies "
+            "the full list from Google Maps in Dylan's signed-in Chrome and runs import_google_reviews.py (service "
+            "delivery skill). Website testimonials count too. Ticks itself at 20 reviews on file, or every review "
+            "when the clinic has fewer than 20.",
+     "action": "booking"},
     {"id": "lead_form", "services": ["paid_ads"], "phase": "connect", "package": "growth", "title": "Instant Form + lead relay",
      "how": "CREATE FORM builds the Instant Form on their Page (full name, phone, email; the text + AI-call consent "
             "line; thank-you button to their booking link). The lead relay builds itself when the Page ID is saved; "
@@ -248,6 +256,13 @@ async def signals(conn, client_id: int) -> dict[str, str]:
         out["booking"] = "GoHighLevel bookings are syncing"
     elif cfg.get("calendly_api_token") and cfg.get("calendly_event_type_url"):
         out["booking"] = "Calendly connected"
+    if bs:
+        rv = bs["reviews"] or []
+        if isinstance(rv, str):
+            rv = _decode(rv, [])
+        need = min(20, bs["review_count"]) if bs["review_count"] else 20
+        if len(rv) >= max(1, need):
+            out["reviews"] = f"{len(rv)} reviews on the booking page"
 
     if cfg.get("make_scenario_id") and not cfg.get("lead_ads_error") and cfg.get("meta_form_id"):
         out["lead_form"] = "Form built and relay connected"

@@ -311,7 +311,7 @@ async def save_booking_settings(client_id: int, payload: dict):
         if "reviews" in payload:
             items = []
             for r in (payload["reviews"] or [])[:bc.MAX_REVIEWS]:
-                text = (r.get("text") or "").strip()[:600]
+                text = (r.get("text") or "").strip()[:bc.MAX_REVIEW_CHARS]
                 if text:
                     items.append({"text": text, "author": (r.get("author") or "").strip()[:40]})
             updates["reviews"] = json.dumps(items)

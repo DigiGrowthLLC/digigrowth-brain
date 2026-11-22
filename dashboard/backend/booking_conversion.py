@@ -38,10 +38,12 @@ STEPS = ("view", "time", "details", "submit", "booked")
 ABANDON_DELAY_MINUTES = 10
 ABANDON_MAX_AGE_HOURS = 20       # don't text about a visit older than this
 MIN_REVIEW_RATING = 4.0
-# Reviews kept on file per clinic. The page shows the first one and lists the rest
-# under "View more reviews" (Dylan, 2026-11-22). Google's API returns at most 5 per fetch,
-# so fetches merge into what's already on file instead of replacing it.
-MAX_REVIEWS = 10
+# Reviews kept on file per clinic: as many 5-star reviews as we can find (Dylan, 2026-11-22:
+# "overload" the social proof). The page shows the first one and lists the rest under
+# "View more reviews". Google's API returns at most 5 per fetch, so fetches merge into what's
+# already on file; the full list comes from onboarding-agent/scripts/import_google_reviews.py.
+MAX_REVIEWS = 300
+MAX_REVIEW_CHARS = 4000
 MIN_REVIEW_COUNT = 5
 
 
@@ -336,7 +338,7 @@ async def fetch_google_reviews(client_id: int, query: str | None = None) -> dict
     for rv in sorted(d.get("reviews") or [], key=lambda x: (-(x.get("rating") or 0), -len((x.get("text") or {}).get("text", "")))):
         text = ((rv.get("text") or {}).get("text") or "").strip()
         author = ((rv.get("authorAttribution") or {}).get("displayName") or "").strip()
-        if (rv.get("rating") or 0) >= 5 and 20 <= len(text) <= 600:
+        if (rv.get("rating") or 0) >= 5 and 20 <= len(text) <= MAX_REVIEW_CHARS:
             found.append({"text": text, "author": author.split()[0] if author else ""})
     # Keep what's already on file (hand-entered, website, earlier fetches) and add new ones.
     on_file = (s["reviews"] if s else None) or []

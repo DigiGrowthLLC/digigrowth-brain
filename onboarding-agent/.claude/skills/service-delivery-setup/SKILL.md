@@ -13,7 +13,7 @@ Gated").
 The source of truth for what needs doing is the dashboard's **Setup** checklist (client →
 Details → Setup; ~18 steps in 5 phases, defined in `dashboard/backend/setup_steps.py`,
 served at `GET /api/clients/{id}/setup`). Steps have stable ids (`autobuild`, `review`,
-`meta_access`, `calendar`, `dns`, `booking_domain`, `a2p`, `lists`, `booking`, `lead_form`, `pixel`, `voice`,
+`meta_access`, `calendar`, `dns`, `booking_domain`, `a2p`, `lists`, `booking`, `reviews`, `lead_form`, `pixel`, `voice`,
 `social`, `ad_cap`, `campaign`, `organic`, `test`, `reactivation`, `golive`). Growth-only
 steps are hidden for a Foundations client (`PUT /api/clients/{id}/setup/package`). This
 skill never keeps its own list: it reads that one, so adding a step there adds it here.
@@ -74,6 +74,30 @@ from the portal, website and funnel), then turns it on. Paid visits: the client 
 which calendars the booking account sees with `GET /api/booking/google`. Response AI step 6
 tick themselves once it's live (`calendar`, `booking`). Calendly/GoHighLevel only for a
 client already running on them (GHL only when the client explicitly said so).
+
+**Reviews loaded (`reviews` step, 2026-11-22): overload the booking page with every 5-star
+Google review.** Dylan wants the booking page's social proof stacked as high as it goes (the
+page shows one review; the rest open under "View more reviews"). Do this as soon as the booking
+page exists. Google's API returns only 5 and logged-out Google Maps shows only 5, so:
+1. Find the clinic's listing (Places text search, or the Booking step's Fetch from Google, which
+   also saves the rating and pulls the API's 5). Note rating + total review count.
+2. In Dylan's signed-in Chrome (Claude in Chrome, new tab):
+   `https://www.google.com/maps/place/?q=place_id:<PLACE_ID>&hl=en` → Reviews tab. With
+   `javascript_tool`: scroll the reviews pane (the scrollable ancestor of `div.jftiEf`) to the
+   bottom until the count of `div.jftiEf` stops growing; click every `div.jftiEf` button whose
+   text is "More" (skip ones inside owner responses, `.CDe7pd`) so full text shows; collect
+   `{name: .d4r55, stars: span[role=img][aria-label*=star], text: .wiI7pd}` and keep only
+   "5 stars" with text. Tool output caps around 1,000 characters and clipboard/localhost/
+   download writes from page JS hang, so: replace the page body with one `<article>` holding
+   `@@<n>|<name>|<text with newlines as " ¶ ">` per line plus a final `@@END`, click the page,
+   press ctrl+a, ctrl+c (real key presses), then save the clipboard to a scratch file with
+   PowerShell `Get-Clipboard -Raw` (UTF-8). Close the tab.
+3. `doppler run --project digigrowth --config prd -- python onboarding-agent/scripts/import_google_reviews.py <id> <file> --count <total> --rating <rating> --dry-run`,
+   check, then run without `--dry-run`. It keeps what's on file first (the first review is the
+   one the page shows), adds the rest deduplicated, first names only, drops full-name
+   sign-offs. Words are never edited beyond that: real reviews only, word for word.
+The step ticks itself at 20 reviews on file (or all of them when the clinic has fewer).
+Website testimonials the page autofill finds count too.
 
 **Clinic not on Google Calendar** (Outlook/Microsoft 365, Apple iCloud, practice software,
 Yahoo etc.; the portal guide has a tab for each): the booking engine only reads/writes Google,

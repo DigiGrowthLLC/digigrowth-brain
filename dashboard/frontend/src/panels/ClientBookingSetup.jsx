@@ -331,13 +331,14 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
     setForm({
       provider_name: s.provider_name || "", provider_title: s.provider_title || "", photo_url: s.photo_url || "", logo_url: s.logo_url || "",
       what_to_expect: s.what_to_expect || "", review_rating: s.review_rating ?? "", review_count: s.review_count ?? "",
-      // Up to 10 on file (the booking page shows the first, the rest under "View more reviews"); always one empty row to add another.
-      reviews: Array.from({ length: Math.min(10, Math.max(3, rv.length + 1)) }, (_, i) => rv[i] || { text: "", author: "" }),
+      // Every review on file (the booking page shows the first, the rest under "View more reviews"); at least 3 rows.
+      reviews: Array.from({ length: Math.max(3, rv.length) }, (_, i) => rv[i] || { text: "", author: "" }),
       contact_phone: s.contact_phone || "", contact_email: s.contact_email || "",
     });
     // eslint-disable-next-line
   }, [s.provider_name, s.provider_title, s.photo_url, s.logo_url, s.what_to_expect, s.review_rating, s.review_count, s.reviews, s.contact_phone, s.contact_email]);
   const [query, setQuery] = useState("");
+  const [showAllReviews, setShowAllReviews] = useState(false);
   if (!form) return null;
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const setReview = (i, k) => (e) => setForm({ ...form, reviews: form.reviews.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r)) });
@@ -410,15 +411,24 @@ function PageDetailsSection({ data, clientId, save, run, busy }) {
           {ratingShows ? "Rating and reviews show on the booking page." : willShow ? "Reviews show on the booking page; the rating stays hidden (needs 4.0+, and 5+ reviews when the count is known)." : "Nothing to show yet. Ratings under 4.0 or with fewer than 5 reviews stay hidden, since they hurt more than help."}
           {!data.places_configured && " The Google key on the server is missing or invalid, so type these in for now."}
         </div>
-        {form.reviews.map((r, i) => (
+        <div style={{ ...note, marginTop: 8 }}>
+          {form.reviews.filter((r) => r.text.trim()).length} reviews on file. The booking page shows the first one and lists the rest under "View more reviews".
+          Load every 5-star Google review with onboarding-agent/scripts/import_google_reviews.py (service delivery skill, "Reviews loaded" step).
+        </div>
+        {(showAllReviews ? form.reviews : form.reviews.slice(0, 5)).map((r, i) => (
           <div key={i} style={{ ...row, marginTop: 8 }}>
             <Field name={`Review ${i + 1}${i === 0 ? " (shown first)" : ""} (real, copied word for word)`}><input className="dg-input" value={r.text} onChange={setReview(i, "text")} /></Field>
             <Field name="First name" width={130}><input className="dg-input" value={r.author} onChange={setReview(i, "author")} /></Field>
+            <button className="btn btn-secondary" style={{ alignSelf: "flex-end" }} title="Remove (click Save to keep the change)"
+              onClick={() => setForm({ ...form, reviews: form.reviews.filter((_, j) => j !== i) })}>×</button>
           </div>
         ))}
-        {form.reviews.length < 10 && (
-          <button className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => setForm({ ...form, reviews: [...form.reviews, { text: "", author: "" }] })}>+ Add review</button>
-        )}
+        <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+          {form.reviews.length > 5 && (
+            <button className="btn btn-secondary" onClick={() => setShowAllReviews(!showAllReviews)}>{showAllReviews ? "Show fewer" : `Show all ${form.reviews.length}`}</button>
+          )}
+          <button className="btn btn-secondary" onClick={() => { setShowAllReviews(true); setForm({ ...form, reviews: [...form.reviews, { text: "", author: "" }] }); }}>+ Add review</button>
+        </div>
       </div>
 
       <label style={{ ...note, display: "flex", gap: 8, alignItems: "center", marginTop: 14 }}>
