@@ -13,6 +13,33 @@ links, ?h= headline pass-through, step tracking. No fake urgency."""
 import html
 import json
 
+# Shared by this page and personal_booking_page.py (2026-11-22): the "Times
+# shown in X · Change" line under the calendar. Change opens a zone dropdown;
+# picking one sets TZ and calls the page's re-render. Needs TZ (let), esc,
+# tzLabel and the .link class already defined. Placeholder: /*__TZ_PICKER__*/
+TZ_PICKER_CSS = """
+  .tz .link{ font-size:12px; margin-left:6px; }
+  .tzsel{ margin-left:6px; font:inherit; font-size:12px; padding:3px 6px; border:1px solid #d5dbe6; border-radius:8px; background:#fff; color:var(--ink); }
+"""
+TZ_PICKER_JS = r"""
+const TZ_CHOICES = [["America/New_York", "Eastern Time"], ["America/Chicago", "Central Time"], ["America/Denver", "Mountain Time"],
+  ["America/Phoenix", "Arizona Time"], ["America/Los_Angeles", "Pacific Time"], ["America/Anchorage", "Alaska Time"], ["Pacific/Honolulu", "Hawaii Time"]];
+const validTz = (z) => { try { new Intl.DateTimeFormat("en-US", { timeZone: z }); return true; } catch { return false; } };
+function tzLine() {
+  const opts = TZ_CHOICES.slice();
+  const mine = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  [TZ, mine].forEach((z) => { if (z && !opts.some((o) => o[0] === z)) opts.push([z, z.replace(/_/g, " ")]); });
+  return `<div class="tz" id="tzline">Times shown in ${esc(tzLabel())}<button type="button" class="link" id="tzchg">Change</button>`
+    + `<select class="tzsel" id="tzsel" aria-label="Time zone" hidden>${opts.map(([z, l]) => `<option value="${esc(z)}" ${z === TZ ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div>`;
+}
+function wireTz(onChange) {
+  const b = document.getElementById("tzchg"), s = document.getElementById("tzsel");
+  if (!b || !s) return;
+  b.onclick = () => { b.hidden = true; s.hidden = false; s.focus(); };
+  s.onchange = () => { if (validTz(s.value) && s.value !== TZ) { TZ = s.value; onChange(); } };
+}
+"""
+
 _TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -90,6 +117,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .t:hover{ background:var(--accent-soft); }
   .more{ margin-top:10px; background:none; border:0; color:var(--accent); font-weight:600; cursor:pointer; padding:4px 0; }
   .tz{ font-size:12px; color:var(--soft); margin-top:12px; }
+/*__TZ_PICKER_CSS__*/
   .chosen{ display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--accent-soft); border-radius:12px; padding:12px 14px; margin-bottom:6px; }
   .chosen b{ display:block; } .chosen small{ color:var(--soft); }
   .link{ background:none; border:0; color:var(--accent); font-weight:600; cursor:pointer; padding:0; text-decoration:underline; }
@@ -139,6 +167,7 @@ const fmtTime = (iso) => fmt(iso, { hour: "numeric", minute: "2-digit" });
 const localDate = (iso) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
 const todayLocal = () => localDate(new Date().toISOString());
 const tzLabel = () => { try { return new Intl.DateTimeFormat("en-US", { timeZone: TZ, timeZoneName: "long" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value; } catch { return TZ; } };
+/*__TZ_PICKER__*/
 const money = (c) => "$" + (c / 100).toFixed(c % 100 ? 2 : 0);
 const digits = (s) => String(s || "").replace(/\D/g, "");
 const SESSION = (() => { try { const k = "dgb_s_" + BASE; let v = sessionStorage.getItem(k); if (!v) { v = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()); sessionStorage.setItem(k, v); } return v; } catch { return String(Math.random()).slice(2) + Date.now(); } })();
@@ -200,7 +229,8 @@ function curate(slots) {
 // ── Booking mode ─────────────────────────────────────────────────────────────
 async function bookMode() {
   const info = await api("info");
-  TZ = info.timezone;
+  // Clinic time by default; ?tz= or the page's Change link shows another zone.
+  TZ = validTz(qs.get("tz") || "") ? qs.get("tz") : info.timezone;
   const prof = info.profile || {};
   if (!info.event_types.length) { $("#main").innerHTML = `<p class="muted">Online booking isn't available right now. Please call the clinic.</p>`; return; }
   let resume = {};
@@ -232,9 +262,10 @@ async function bookMode() {
     const first = ym + "-01";
     const startDay = first < today ? today : first;
     const [y, m] = ym.split("-").map(Number);
-    const days = new Date(Date.UTC(y, m, 0)).getUTCDate() - Number(startDay.slice(8)) + 1;
+    const days = new Date(Date.UTC(y, m, 0)).getUTCDate() - Number(startDay.slice(8)) + 2;
     const data = await api(`slots?event_type_id=${ev.id}&start=${startDay}&days=${Math.max(1, days)}`);
-    const map = {}; data.days.forEach(d => { map[d.date] = d.slots; });
+    // Server groups by clinic date; regroup by the shown zone's date (same thing unless the visitor changed zone).
+    const map = {}; data.days.forEach(d => d.slots.forEach(s => { const k = localDate(s); if (ymOf(k) === ym) (map[k] = map[k] || []).push(s); }));
     months[ym] = map; return map;
   }
   const ymOf = (d) => d.slice(0, 7);
@@ -257,7 +288,8 @@ async function bookMode() {
 
   async function pickStep(note) {
     const main = $("#main");
-    main.innerHTML = `${progress(1)}${note ? `<div class="note">${esc(note)}</div>` : ""}<div id="nextwrap"><div class="skeleton" style="height:56px"></div></div><div id="calwrap"></div><div id="timeswrap"></div><div class="tz">Times shown in ${esc(tzLabel())}</div>`;
+    main.innerHTML = `${progress(1)}${note ? `<div class="note">${esc(note)}</div>` : ""}<div id="nextwrap"><div class="skeleton" style="height:56px"></div></div><div id="calwrap"></div><div id="timeswrap"></div>${tzLine()}`;
+    wireTz(() => { for (const k in months) delete months[k]; state.day = null; state.ym = ymOf(todayLocal()); pickStep(note); });
     let next;
     try { next = await findNext(); } catch (e) { main.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
     if (!next) { $("#nextwrap").innerHTML = `<p class="muted">No openings in the next ${ev.max_days_ahead || 14} days. Please call the clinic and they'll fit you in.</p>`; return; }
@@ -492,4 +524,6 @@ def render_page(mode: str, clinic: str, accent: str, pixel_id: str | None = None
             .replace("__TITLE__", html.escape(title))
             .replace("__CLINIC__", html.escape(clinic or ""))
             .replace("__ACCENT__", accent if accent and accent.startswith("#") and len(accent) == 7 else "#2f6fd6")
+            .replace("/*__TZ_PICKER_CSS__*/", TZ_PICKER_CSS)
+            .replace("/*__TZ_PICKER__*/", TZ_PICKER_JS)
             .replace("__MODE__", json.dumps(mode)))

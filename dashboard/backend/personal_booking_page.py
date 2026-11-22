@@ -75,6 +75,7 @@ _TEMPLATE = r"""<!doctype html>
   .t:hover{ background:var(--accent-soft); }
   .more{ margin-top:10px; background:none; border:0; color:var(--accent); font-weight:600; cursor:pointer; padding:4px 0; }
   .tz{ font-size:12px; color:var(--soft); margin-top:12px; }
+/*__TZ_PICKER_CSS__*/
   .chosen{ display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--accent-soft); border-radius:12px; padding:12px 14px; margin-bottom:6px; }
   .chosen b{ display:block; } .chosen small{ color:var(--soft); }
   .link{ background:none; border:0; color:var(--accent); font-weight:600; cursor:pointer; padding:0; text-decoration:underline; }
@@ -137,8 +138,8 @@ const qs = new URLSearchParams(location.search);
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 // ?tz=<IANA zone> shows times in the prospect's zone when Dylan books for them from the OS
-// (BookingModal.jsx); otherwise the visitor's own browser zone.
-const TZ = (() => {
+// (BookingModal.jsx); otherwise the visitor's own browser zone. The Change link under the calendar switches it.
+let TZ = (() => {
   const want = qs.get("tz");
   if (want) { try { new Intl.DateTimeFormat("en-US", { timeZone: want }); return want; } catch {} }
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
@@ -149,6 +150,7 @@ const fmtTime = (iso) => fmt(iso, { hour: "numeric", minute: "2-digit" });
 const localDate = (iso) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
 const today = () => localDate(new Date().toISOString());
 const tzLabel = () => { try { return new Intl.DateTimeFormat("en-US", { timeZone: TZ, timeZoneName: "long" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value; } catch { return TZ; } };
+/*__TZ_PICKER__*/
 const digits = (s) => String(s || "").replace(/\D/g, "");
 const addMonth = (ym, n) => { const [y, m] = ym.split("-").map(Number); return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7); };
 const ICON = {
@@ -208,7 +210,7 @@ function curate(slots) {
 // Month slot cache: "YYYY-MM" -> { "YYYY-MM-DD": [iso...] } in the visitor's timezone.
 function slotLoader(fetchSlots) {
   const months = {};
-  return async (ym) => {
+  const load = async (ym) => {
     if (months[ym]) return months[ym];
     const first = ym + "-01", t = today();
     const start = first < t ? t : first;
@@ -219,11 +221,14 @@ function slotLoader(fetchSlots) {
     slots.forEach((s) => { const d = localDate(s); if (d.slice(0, 7) === ym) (map[d] = map[d] || []).push(s); });
     return (months[ym] = map);
   };
+  load.reset = () => { for (const k in months) delete months[k]; };  // zone changed: days regroup
+  return load;
 }
 
 function picker(root, load, onPick, note) {
   let ym = today().slice(0, 7), day = null, showAll = false;
-  root.innerHTML = `${note ? `<div class="note">${esc(note)}</div>` : ""}<div id="nextwrap"><div class="skeleton" style="height:56px"></div></div><div id="calwrap"></div><div id="timeswrap"></div><div class="tz">Times shown in ${esc(tzLabel())}</div>`;
+  root.innerHTML = `${note ? `<div class="note">${esc(note)}</div>` : ""}<div id="nextwrap"><div class="skeleton" style="height:56px"></div></div><div id="calwrap"></div><div id="timeswrap"></div>${tzLine()}`;
+  wireTz(() => { load.reset(); picker(root, load, onPick, note); });
   async function findNext() {
     let m = ym;
     for (let i = 0; i < 3; i++, m = addMonth(m, 1)) {
@@ -389,4 +394,5 @@ async function manageMode() {
 
 def render(mode: str) -> str:
     title = "Book a call with DigiGrowth" if mode == "book" else "Your call with DigiGrowth"
-    return _TEMPLATE.replace("__TITLE__", title).replace("__MODE__", '"book"' if mode == "book" else '"manage"')
+    from booking_page import TZ_PICKER_CSS, TZ_PICKER_JS
+    return _TEMPLATE.replace("/*__TZ_PICKER_CSS__*/", TZ_PICKER_CSS).replace("/*__TZ_PICKER__*/", TZ_PICKER_JS).replace("__TITLE__", title).replace("__MODE__", '"book"' if mode == "book" else '"manage"')
