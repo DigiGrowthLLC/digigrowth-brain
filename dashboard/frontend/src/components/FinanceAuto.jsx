@@ -228,7 +228,7 @@ function shiftMonth(ym, n) {
 export function ClientProfitCard() {
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const [month, setMonth] = useState(thisMonth);
+  const [month, setMonth] = useState("all");
   const [data, setData] = useState(null);
 
   const load = useCallback(async () => {
@@ -252,16 +252,17 @@ export function ClientProfitCard() {
     <Card>
       <SectionTitle
         title="Profit per client"
-        hint="What each client paid you through Stripe, minus what they actually cost: Meta ad spend (when it runs on your card), their Twilio texts + calls, voice agent calls, tools and Stripe fees."
+        hint="What each client paid you through Stripe, minus what they cost: Meta ad spend (when it's on your card), Twilio texts + calls, voice agent calls, AI, ad creative and Stripe fees. Clients pay per campaign, so a single month often shows $0 paid."
         right={
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} onClick={() => setMonth(shiftMonth(month, -1))}>‹</button>
-            <span style={{ fontSize: 13, color: T.text, minWidth: 110, textAlign: "center" }}>{data?.label || "…"}</span>
-            <button className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} disabled={month >= thisMonth} onClick={() => setMonth(shiftMonth(month, 1))}>›</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 12px", ...(month === "all" ? { background: T.accentSoft, color: T.text } : {}) }} onClick={() => setMonth("all")}>All time</button>
+            <button className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} onClick={() => setMonth(month === "all" ? thisMonth : shiftMonth(month, -1))}>‹</button>
+            <span style={{ fontSize: 13, color: T.text, minWidth: 110, textAlign: "center" }}>{month === "all" ? "By month" : data?.label || "…"}</span>
+            <button className="btn btn-secondary" style={{ fontSize: 12, padding: "4px 10px" }} disabled={month === "all" || month >= thisMonth} onClick={() => setMonth(shiftMonth(month, 1))}>›</button>
           </div>
         }
       />
-      {rows.length === 0 ? <Empty>No client activity this month.</Empty> : (
+      {rows.length === 0 ? <Empty>No client activity {month === "all" ? "yet" : "this month"}.</Empty> : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: T.font }}>
             <thead>
@@ -269,7 +270,7 @@ export function ClientProfitCard() {
                 <th style={{ ...th, textAlign: "left" }}>Client</th>
                 <th style={th}>Paid you</th>
                 <th style={th}>Ad spend</th>
-                <th style={th}>Ads on my card</th>
+                <th style={th}>On my card</th>
                 <th style={th}>Tools + calls</th>
                 <th style={th}>Fees</th>
                 <th style={th}>Profit</th>

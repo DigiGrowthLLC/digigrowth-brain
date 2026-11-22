@@ -542,6 +542,12 @@ async def review_list():
 
 @router.get("/finances/auto/by-client")
 async def by_client(month: str | None = None):
+    if month == "all":
+        end = datetime.now(finance_auto.ET).date() + timedelta(days=1)
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            rows = await finance_auto.profit_by_client(conn, date(2000, 1, 1), end)
+        return {"month": "all", "label": "All time", "clients": rows}
     try:
         start = date.fromisoformat(f"{month}-01") if month else datetime.now(finance_auto.ET).date().replace(day=1)
     except ValueError:

@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { API } from "../api.js";
-import PeriodToggle from "../components/PeriodToggle.jsx";
+import { T, Card, PageHeader, SectionTitle, Tabs, Pill, Stat, Progress, Empty, Loading, inputStyle } from "../ui.jsx";
 import { BankFeedCard, ReviewCard, ClientProfitCard, useFinanceStatus } from "../components/FinanceAuto.jsx";
 
-// Same names as finance_auto.py (AI sorting + rules). "Transfer" rows
-// (Stripe payouts into Novo) are listed but never counted in the totals.
+// Finances tab (redesigned 2026-11-22): summary strip, then Overview /
+// Clients / Transactions / Connections. Data comes from finance_auto.py
+// (Novo via Zapier, Stripe, real per-client costs). "Transfer" rows (Stripe
+// payouts into Novo) are listed but never counted in the totals.
 const CATEGORIES = [
   "Client Revenue", "Other Income",
   "Ad Spend", "Software & Tools", "AI & APIs", "Phone & SMS", "Contractors",
@@ -16,102 +17,58 @@ const CATEGORIES = [
   "Travel & Meals", "Taxes & Legal", "Other",
   "Transfer", "Uncategorized",
 ];
+const EXPENSE_CATEGORIES = CATEGORIES.filter((c) => !["Client Revenue", "Other Income"].includes(c));
+const PERIODS = [[30, "30 days"], [90, "90 days"], [365, "12 months"]];
+const FREQ_LABELS = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const EXPENSE_CATEGORIES = CATEGORIES.filter(c => !["Client Revenue", "Other Income"].includes(c));
+const money = (v) => (v == null ? "–" : `$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+const money0 = (v) => (v == null ? "–" : `${v < 0 ? "-" : ""}$${Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 0 })}`);
+const shortDate = (s) => (s ? `${MONTHS[parseInt(s.slice(5, 7), 10) - 1]} ${parseInt(s.slice(8, 10), 10)}` : "–");
+const label = { fontSize: 12.5, color: T.textMute, marginBottom: 6, display: "block" };
 
-function money(v) {
-  if (v == null) return "—";
-  return `$${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
+function Segmented({ value, options, onChange }) {
   return (
-    <div style={{
-      background: "rgba(10,18,48,0.95)", border: "1px solid rgba(58,123,213,0.2)",
-      borderRadius: 10, padding: "8px 14px", fontSize: 12,
-      fontFamily: "'Space Grotesk', sans-serif",
-    }}>
-      <div style={{ color: "#8aaad0", marginBottom: 4 }}>{label}</div>
-      {payload.map(p => (
-        <div key={p.dataKey} style={{ color: p.color, fontWeight: 600 }}>
-          {p.name}: ${p.value?.toLocaleString()}
-        </div>
+    <div style={{ display: "inline-flex", padding: 3, gap: 2, borderRadius: 10, background: T.surface2, border: `1px solid ${T.line}` }}>
+      {options.map(([v, l]) => (
+        <button key={v} onClick={() => onChange(v)} style={{
+          border: "none", cursor: "pointer", borderRadius: 8, padding: "6px 12px", fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+          background: value === v ? T.accentSoft : "transparent", color: value === v ? T.text : T.textMute,
+        }}>{l}</button>
       ))}
     </div>
   );
 }
 
-const FINANCES_PERIOD_OPTIONS = [[7,"7D"],[30,"30D"],[90,"90D"],[365,"1Y"]];
-
-function SummaryCard({ label, value, color, sub }) {
+function ChartTooltip({ active, payload, label: l }) {
+  if (!active || !payload?.length) return null;
   return (
-    <div className="stat-card">
-      <div className="stat-card-label">{label}</div>
-      <div className="stat-card-value" style={{ color: color || "#f0f4ff" }}>{value ?? "—"}</div>
-      {sub && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", marginTop: 2 }}>{sub}</div>}
+    <div style={{ background: "rgba(10,18,48,0.95)", border: `1px solid ${T.lineStrong}`, borderRadius: 10, padding: "8px 12px", fontSize: 12.5, fontFamily: T.font }}>
+      <div style={{ color: T.textMute, marginBottom: 4 }}>{l}</div>
+      {payload.map((p) => <div key={p.dataKey} style={{ color: p.color, fontWeight: 600 }}>{p.name}: {money(p.value)}</div>)}
     </div>
   );
 }
 
-const FREQ_LABELS = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
-
-function AddTransactionModal({ onClose, onSaved, onRecurringSaved }) {
+function AddTransactionModal({ onClose, onSaved }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({
-    is_income:  false,
-    recurring:  false,
-    frequency:  "monthly",
-    description: "",
-    amount:      "",
-    date:        today,
-    category:    "Uncategorized",
-    notes:       "",
-  });
+  const [form, setForm] = useState({ is_income: false, recurring: false, frequency: "monthly", description: "", amount: "", date: today, category: "Software & Tools", notes: "" });
   const [saving, setSaving] = useState(false);
-  const [error, setError]   = useState(null);
+  const [error, setError] = useState(null);
+  const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
-  const set = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
-
-  const handleSave = async () => {
-    if (!form.description.trim()) { setError("Description is required."); return; }
+  const save = async () => {
+    if (!form.description.trim()) return setError("Add a description.");
     const amt = parseFloat(form.amount);
-    if (!form.amount || isNaN(amt) || amt <= 0) { setError("Enter a valid amount greater than 0."); return; }
-    setSaving(true);
-    setError(null);
+    if (!amt || amt <= 0) return setError("Enter an amount above 0.");
+    setSaving(true); setError(null);
     try {
-      if (form.recurring) {
-        const resp = await fetch(API("/finances/recurring"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            is_income:   form.is_income,
-            description: form.description.trim(),
-            amount:      amt,
-            start_date:  form.date,
-            frequency:   form.frequency,
-            category:    form.is_income ? "Client Revenue" : form.category,
-            notes:       form.notes.trim() || null,
-          }),
-        });
-        if (!resp.ok) { setError(await resp.text()); return; }
-        onRecurringSaved();
-      } else {
-        const resp = await fetch(API("/finances/transactions"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            is_income:   form.is_income,
-            description: form.description.trim(),
-            amount:      amt,
-            date:        form.date,
-            category:    form.is_income ? "Client Revenue" : form.category,
-            notes:       form.notes.trim() || null,
-          }),
-        });
-        if (!resp.ok) { setError(await resp.text()); return; }
-        onSaved(await resp.json());
-      }
+      const common = { is_income: form.is_income, description: form.description.trim(), amount: amt, category: form.is_income ? "Client Revenue" : form.category, notes: form.notes.trim() || null };
+      const resp = form.recurring
+        ? await fetch(API("/finances/recurring"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...common, start_date: form.date, frequency: form.frequency }) })
+        : await fetch(API("/finances/transactions"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...common, date: form.date }) });
+      if (!resp.ok) return setError(await resp.text());
+      onSaved();
       onClose();
     } catch (e) {
       setError(e.message);
@@ -120,659 +77,266 @@ function AddTransactionModal({ onClose, onSaved, onRecurringSaved }) {
     }
   };
 
+  const field = { ...inputStyle, width: "100%", boxSizing: "border-box" };
   return (
-    <div
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
-        backdropFilter: "blur(6px)", zIndex: 1000,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 16,
-      }}
-      onClick={onClose}
-    >
-      <div className="glass-card w-full sm:w-[440px]" style={{ padding: "28px 32px" }} onClick={e => e.stopPropagation()}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: "#f0f4ff", marginBottom: 22 }}>
-          Add Transaction
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div className="ui-card" style={{ padding: 24, width: "100%", maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontFamily: T.display, fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 16 }}>Add a transaction</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+          <Segmented value={form.is_income} options={[[false, "Expense"], [true, "Revenue"]]} onChange={(v) => set("is_income", v)} />
+          <Segmented value={form.recurring} options={[[false, "One time"], [true, "Repeats"]]} onChange={(v) => set("recurring", v)} />
         </div>
-
-        {/* Revenue / Expense toggle */}
-        <div style={{ display: "flex", marginBottom: 12, background: "rgba(10,18,48,0.7)", borderRadius: 10, padding: 4, gap: 4 }}>
-          {[[false, "Expense"], [true, "Revenue"]].map(([val, label]) => (
-            <button key={label} onClick={() => set("is_income", val)} style={{
-              flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600,
-              padding: "9px 0", borderRadius: 8, border: "none", cursor: "pointer",
-              background: form.is_income === val
-                ? val ? "linear-gradient(135deg, #0d7a4e, #14c882)" : "linear-gradient(135deg, #7a3a00, #f0a028)"
-                : "transparent",
-              color: form.is_income === val ? "#fff" : "#4a6080",
-              transition: "all 0.15s",
-            }}>{label}</button>
-          ))}
-        </div>
-
-        {/* One-time / Recurring toggle */}
-        <div style={{ display: "flex", marginBottom: 20, background: "rgba(10,18,48,0.5)", borderRadius: 10, padding: 4, gap: 4 }}>
-          {[[false, "One-time"], [true, "Recurring"]].map(([val, label]) => (
-            <button key={label} onClick={() => set("recurring", val)} style={{
-              flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
-              padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer",
-              background: form.recurring === val ? "rgba(58,123,213,0.35)" : "transparent",
-              color: form.recurring === val ? "#6ab0ff" : "#4a6080",
-              transition: "all 0.15s",
-            }}>{label}</button>
-          ))}
-        </div>
-
-        {/* Description */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>DESCRIPTION</div>
-          <input
-            className="dg-input" type="text"
-            style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
-            placeholder={form.is_income ? "e.g. Client retainer, invoice…" : "e.g. AWS, Anthropic API…"}
-            value={form.description}
-            onChange={e => set("description", e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSave()}
-          />
-        </div>
-
-        {/* Amount + Date/Start date */}
-        <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: 12, marginBottom: 14 }}>
-          <div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>AMOUNT ($)</div>
-            <input
-              className="dg-input" type="number" min="0" step="0.01"
-              style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
-              placeholder="0.00"
-              value={form.amount}
-              onChange={e => set("amount", e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleSave()}
-            />
+        <div style={{ display: "grid", gap: 12 }}>
+          <div><span style={label}>Description</span>
+            <input style={field} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder={form.is_income ? "e.g. Client retainer" : "e.g. Railway"} /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div><span style={label}>Amount ($)</span>
+              <input style={field} type="number" min="0" step="0.01" value={form.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0.00" /></div>
+            <div><span style={label}>{form.recurring ? "First date" : "Date"}</span>
+              <input style={field} type="date" value={form.date} onChange={(e) => set("date", e.target.value)} /></div>
           </div>
-          <div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>
-              {form.recurring ? "FIRST OCCURRENCE" : "DATE"}
-            </div>
-            <input
-              className="dg-input" type="date"
-              style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
-              value={form.date}
-              onChange={e => set("date", e.target.value)}
-            />
-          </div>
+          {form.recurring && (
+            <div><span style={label}>How often</span>
+              <Segmented value={form.frequency} options={Object.entries(FREQ_LABELS)} onChange={(v) => set("frequency", v)} /></div>
+          )}
+          {!form.is_income && (
+            <div><span style={label}>Category</span>
+              <select style={field} value={form.category} onChange={(e) => set("category", e.target.value)}>
+                {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              </select></div>
+          )}
+          <div><span style={label}>Note (optional)</span>
+            <input style={field} value={form.notes} onChange={(e) => set("notes", e.target.value)} onKeyDown={(e) => e.key === "Enter" && save()} /></div>
         </div>
-
-        {/* Frequency — only for recurring */}
-        {form.recurring && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>FREQUENCY</div>
-            <div style={{ display: "flex", background: "rgba(10,18,48,0.7)", borderRadius: 10, padding: 4, gap: 4 }}>
-              {["weekly", "monthly", "yearly"].map(f => (
-                <button key={f} onClick={() => set("frequency", f)} style={{
-                  flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
-                  padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer",
-                  background: form.frequency === f ? "rgba(58,123,213,0.35)" : "transparent",
-                  color: form.frequency === f ? "#6ab0ff" : "#4a6080",
-                  transition: "all 0.15s",
-                }}>{FREQ_LABELS[f]}</button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Category — only for expenses */}
-        {!form.is_income && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>CATEGORY</div>
-            <select
-              className="dg-input"
-              style={{ width: "100%", fontSize: 13 }}
-              value={form.category}
-              onChange={e => set("category", e.target.value)}
-            >
-              {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-        )}
-
-        {/* Notes */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.12em", marginBottom: 5 }}>NOTES (OPTIONAL)</div>
-          <input
-            className="dg-input" type="text"
-            style={{ width: "100%", fontSize: 13, boxSizing: "border-box" }}
-            placeholder="Optional note…"
-            value={form.notes}
-            onChange={e => set("notes", e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSave()}
-          />
-        </div>
-
-        {error && (
-          <div style={{
-            marginBottom: 14, padding: "8px 12px", borderRadius: 8,
-            background: "rgba(220,60,60,0.08)", border: "1px solid rgba(220,60,60,0.2)",
-            fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#dc3c3c", letterSpacing: "0.04em",
-          }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onClose} className="btn btn-secondary" style={{ flex: 1, fontSize: 12 }}>Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary" style={{ flex: 1, fontSize: 12 }}>
-            {saving ? "Saving…" : form.recurring
-              ? `Add Recurring ${form.is_income ? "Revenue" : "Expense"}`
-              : `Add ${form.is_income ? "Revenue" : "Expense"}`}
-          </button>
+        {error && <div style={{ marginTop: 12, fontSize: 13, color: T.bad }}>{error}</div>}
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+          <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} disabled={saving} onClick={save}>{saving ? "Saving…" : "Add"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-export default function FinancesPanel() {
-  const [days, setDays]             = useState(30);
-  const [summary, setSummary]       = useState(null);
-  const [categories, setCategories] = useState(null);
-  const [txns, setTxns]             = useState(null);
-  const [recurring, setRecurring]   = useState([]);
-  const [txnType, setTxnType]       = useState("all");
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [expandedTxn, setExpandedTxn]   = useState(null);
-  const [showAddForm, setShowAddForm]   = useState(false);
-  const [deletingId, setDeletingId]     = useState(null);
-  const [deletingRuleId, setDeletingRuleId] = useState(null);
-  const [hoveredTxn, setHoveredTxn]    = useState(null);
-  const [autoStatus, reloadStatus]     = useFinanceStatus();
-
-  const loadAll = useCallback(async (d = days) => {
-    // Apply any pending recurring instances first, then load data
-    await fetch(API("/finances/recurring/apply"), { method: "POST" });
-    const [s, c, t, r] = await Promise.all([
-      fetch(API(`/finances/summary?days=${d}`)).then(x => x.ok ? x.json() : null),
-      fetch(API(`/finances/categories?days=${d}`)).then(x => x.ok ? x.json() : null),
-      fetch(API(`/finances/transactions?days=${d}&type=all&limit=1000`)).then(x => x.ok ? x.json() : null),
-      fetch(API("/finances/recurring")).then(x => x.ok ? x.json() : []),
-    ]);
-    setSummary(s);
-    setCategories(c);
-    setTxns(t);
-    setRecurring(r ?? []);
-    reloadStatus();
-  }, [days, reloadStatus]);
-
-  useEffect(() => { loadAll(days); }, [days]);
-
-  const handleTxnSaved = (newTxn) => {
-    setTxns(prev => prev ? {
-      ...prev,
-      total: prev.total + 1,
-      transactions: [newTxn, ...prev.transactions],
-    } : { total: 1, transactions: [newTxn] });
-    loadAll();
-  };
-
-  const deleteTxn = async (id) => {
-    const t = txns?.transactions?.find(x => x.id === id);
-    if (!window.confirm(`Delete "${t?.description || "this transaction"}" (${money(t?.amount)})? This can't be undone.`)) return;
-    setDeletingId(id);
-    try {
-      await fetch(API(`/finances/transactions/${id}`), { method: "DELETE" });
-      setTxns(prev => prev ? {
-        ...prev,
-        total: prev.total - 1,
-        transactions: prev.transactions.filter(t => t.id !== id),
-      } : prev);
-      setExpandedTxn(null);
-      loadAll();
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const deleteRule = async (id) => {
-    if (!window.confirm("Stop this recurring entry? Past entries stay.")) return;
-    setDeletingRuleId(id);
-    try {
-      await fetch(API(`/finances/recurring/${id}`), { method: "DELETE" });
-      setRecurring(prev => prev.filter(r => r.id !== id));
-    } finally {
-      setDeletingRuleId(null);
-    }
-  };
-
-  const updateTxn = async (id, patch) => {
-    await fetch(API(`/finances/transactions/${id}`), {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    setTxns(prev => prev ? {
-      ...prev,
-      transactions: prev.transactions.map(t => t.id === id ? { ...t, ...patch } : t),
-    } : prev);
-  };
-
-  const filteredTxns = (txns?.transactions ?? []).filter(t => {
-    if (txnType === "income")  return t.is_income;
-    if (txnType === "expense") return !t.is_income;
-    return true;
-  }).filter(t => !selectedCategory || t.category === selectedCategory);
-
-  const marginColor = summary?.margin == null ? "#3a5a80"
-    : summary.margin > 30 ? "#14c882"
-    : summary.margin > 0  ? "#f0a028"
-    : "#dc3c3c";
-
-  if (!summary) {
-    return (
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.15em" }}>
-          LOADING...
-        </div>
-      </div>
-    );
-  }
-
+function Overview({ summary, categories, days, onPickCategory }) {
+  const cats = categories?.expense_breakdown || [];
   return (
-    <div className="px-4 py-4 sm:px-6 sm:py-6" style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 24 }}>
-
-      {showAddForm && (
-        <AddTransactionModal
-          onClose={() => setShowAddForm(false)}
-          onSaved={handleTxnSaved}
-          onRecurringSaved={() => loadAll()}
-        />
-      )}
-
-      {/* Header */}
-      <div className="flex-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: "#f0f4ff", letterSpacing: "-0.02em" }}>
-            Finances
-          </div>
-          <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.18em", marginTop: 3 }}>
-            Novo + Stripe, sorted automatically
-          </div>
-        </div>
-        <div className="flex-wrap" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="btn btn-primary"
-            style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 6, padding: "7px 16px" }}
-          >
-            + Add Transaction
-          </button>
-          <PeriodToggle days={days} setDays={setDays} options={FINANCES_PERIOD_OPTIONS} />
-        </div>
-      </div>
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 12 }}>
-        <SummaryCard label="Revenue"  value={money(summary?.income)}   color="#14c882" />
-        <SummaryCard label="Expenses" value={money(summary?.expenses)}  color="#f0a028" />
-        <SummaryCard
-          label="Net Profit"
-          value={money(summary?.net)}
-          color={(summary?.net ?? 0) >= 0 ? "#14c882" : "#dc3c3c"}
-        />
-        <SummaryCard
-          label="Profit Margin"
-          value={summary?.margin != null ? `${summary.margin}%` : "—"}
-          color={marginColor}
-          sub={summary?.margin != null ? (summary.margin > 30 ? "HEALTHY" : summary.margin > 0 ? "SLIM" : "LOSS") : null}
-        />
-      </div>
-
-      <ReviewCard status={autoStatus} onChanged={() => loadAll()} />
-      <BankFeedCard status={autoStatus} onChanged={() => loadAll()} />
-      <ClientProfitCard />
-
-      {/* Recurring rules */}
-      {recurring.length > 0 && (
-        <div className="glass-card" style={{ padding: "18px 20px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0" }}>
-              Recurring
-            </div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em" }}>
-              {recurring.length} ACTIVE
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            {recurring.map((rule, i) => (
-              <div key={rule.id} style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "9px 0",
-                borderBottom: i < recurring.length - 1 ? "0.5px solid #1a2540" : "none",
-              }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: 1, marginRight: 12 }}>
-                  <span style={{ fontSize: 12, color: "#8aaad0", fontWeight: 500 }}>
-                    {rule.description || "—"}
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
-                      padding: "2px 6px", borderRadius: 4,
-                      background: "rgba(58,123,213,0.12)", color: "#3a7bd5", letterSpacing: "0.06em",
-                    }}>
-                      {rule.frequency.toUpperCase()}
-                    </span>
-                    <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
-                      next {rule.next_occurrence}
-                    </span>
-                    {rule.category && rule.category !== "Revenue" && (
-                      <span style={{
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
-                        padding: "2px 6px", borderRadius: 4,
-                        background: "rgba(240,160,40,0.08)", color: "#a07020", letterSpacing: "0.06em",
-                      }}>
-                        {rule.category}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{
-                    fontFamily: "'Share Tech Mono', monospace", fontSize: 13, fontWeight: 700,
-                    color: rule.is_income ? "#14c882" : "#f0a028",
-                  }}>
-                    {rule.is_income ? "+" : "-"}{money(rule.amount)}
-                  </span>
-                  <button
-                    onClick={() => deleteRule(rule.id)}
-                    disabled={deletingRuleId === rule.id}
-                    style={{
-                      padding: "4px 10px", borderRadius: 6,
-                      border: "1px solid rgba(220,60,60,0.25)",
-                      background: "rgba(220,60,60,0.06)", color: "#dc3c3c",
-                      fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
-                      cursor: "pointer", letterSpacing: "0.06em",
-                      opacity: deletingRuleId === rule.id ? 0.5 : 1,
-                    }}
-                  >
-                    {deletingRuleId === rule.id ? "…" : "STOP"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Income vs Expenses trend */}
-      <div className="glass-card" style={{ padding: "20px 22px" }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 4 }}>
-          Income vs Expenses
-        </div>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a7bd5", letterSpacing: "0.1em", marginBottom: 16 }}>
-          LAST {days === 365 ? "12 MONTHS" : `${days} DAYS`} · CUMULATIVE · {(categories?.granularity ?? "daily").toUpperCase()}
-        </div>
-        <ResponsiveContainer width="100%" height={160}>
-          <AreaChart data={categories?.daily ?? []} margin={{ top: 5, right: 5, bottom: 0, left: -10 }}>
+    <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr]" style={{ gap: 16 }}>
+      <Card>
+        <SectionTitle title="Money in vs money out" hint={`Running total over the last ${days === 365 ? "12 months" : `${days} days`}`} />
+        <ResponsiveContainer width="100%" height={220}>
+          <AreaChart data={categories?.daily ?? []} margin={{ top: 8, right: 4, bottom: 0, left: -8 }}>
             <defs>
-              <linearGradient id="fIncome" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#14c882" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#14c882" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="fExpense" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#f0a028" stopOpacity={0.25} />
-                <stop offset="95%" stopColor="#f0a028" stopOpacity={0} />
-              </linearGradient>
+              <linearGradient id="fIn" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.good} stopOpacity={0.28} /><stop offset="95%" stopColor={T.good} stopOpacity={0} /></linearGradient>
+              <linearGradient id="fOut" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.warn} stopOpacity={0.22} /><stop offset="95%" stopColor={T.warn} stopOpacity={0} /></linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(58,123,213,0.06)" />
-            <XAxis
-              dataKey="date"
-              tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-              axisLine={false} tickLine={false}
-              tickFormatter={v => {
-                if (!v) return "";
-                if (days > 90) {
-                  // monthly: show "Jan", "Feb", etc. Parse the "YYYY-MM-DD" string
-                  // manually — new Date(v) parses as UTC midnight, which
-                  // shifts back a day (and a month label) in timezones behind UTC.
-                  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                  return MONTHS[parseInt(v.slice(5, 7), 10) - 1];
-                }
-                // daily/weekly: show "MM-DD"
-                return v.slice(5);
-              }}
-            />
-            <YAxis tick={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, fill: "#2a4a7a" }}
-              axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,150,210,0.08)" vertical={false} />
+            <XAxis dataKey="date" tick={{ fontFamily: T.font, fontSize: 11, fill: T.textMute }} axisLine={false} tickLine={false}
+              tickFormatter={(v) => (!v ? "" : days > 90 ? MONTHS[parseInt(v.slice(5, 7), 10) - 1] : shortDate(v))} minTickGap={24} />
+            <YAxis tick={{ fontFamily: T.font, fontSize: 11, fill: T.textMute }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
             <Tooltip content={<ChartTooltip />} />
-            <Area type="monotone" dataKey="income"   name="Income"   stroke="#14c882" strokeWidth={2} fill="url(#fIncome)" />
-            <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#f0a028" strokeWidth={2} fill="url(#fExpense)" />
+            <Area type="monotone" dataKey="income" name="In" stroke={T.good} strokeWidth={2} fill="url(#fIn)" />
+            <Area type="monotone" dataKey="expenses" name="Out" stroke={T.warn} strokeWidth={2} fill="url(#fOut)" />
           </AreaChart>
         </ResponsiveContainer>
-      </div>
-
-      {/* Spending by category */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr]" style={{ gap: 16 }}>
-
-        <div className="glass-card" style={{ padding: "18px 20px" }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 14 }}>
-            Spending by Category
-          </div>
-          {!categories?.expense_breakdown?.length ? (
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>NO EXPENSES YET</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {categories.expense_breakdown.map(c => {
-                const isSelected = selectedCategory === c.category;
-                return (
-                  <div
-                    key={c.category}
-                    onClick={() => setSelectedCategory(isSelected ? null : c.category)}
-                    style={{
-                      cursor: "pointer", borderRadius: 8, padding: "6px 8px", margin: "-6px -8px",
-                      background: isSelected ? "rgba(58,123,213,0.12)" : "transparent",
-                      border: isSelected ? "1px solid rgba(58,123,213,0.25)" : "1px solid transparent",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 12, color: isSelected ? "#6ab0ff" : "#8aaad0", fontWeight: isSelected ? 600 : 400 }}>
-                        {c.category}
-                      </span>
-                      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: isSelected ? "#6ab0ff" : "#3a5a80" }}>
-                        {money(c.total)} ({c.pct}%)
-                      </span>
-                    </div>
-                    <div style={{ height: 2, background: "#111e36", borderRadius: 1 }}>
-                      <div style={{ height: 2, borderRadius: 1, width: `${c.pct}%`, background: isSelected ? "#3a7bd5" : "#f0a028", opacity: isSelected ? 1 : 0.7 }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="glass-card" style={{ padding: "18px 20px" }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0", marginBottom: 14 }}>
-            Top Expenses
-          </div>
-          {(categories?.expense_breakdown?.slice(0, 3) ?? []).map((c, i) => {
-            const isSelected = selectedCategory === c.category;
-            return (
-              <div
-                key={c.category}
-                onClick={() => setSelectedCategory(isSelected ? null : c.category)}
-                style={{
-                  padding: "10px 8px", margin: "0 -8px",
-                  borderBottom: i < 2 ? "0.5px solid #1a2540" : "none",
-                  cursor: "pointer", borderRadius: 8,
-                  background: isSelected ? "rgba(58,123,213,0.12)" : "transparent",
-                  transition: "background 0.15s",
-                }}
-              >
-                <div style={{ fontSize: 11, color: isSelected ? "#6ab0ff" : "#6080a8", marginBottom: 3 }}>{c.category}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: isSelected ? "#3a7bd5" : "#f0a028", letterSpacing: "-0.02em" }}>
-                  {money(c.total)}
+      </Card>
+      <Card>
+        <SectionTitle title="Where the money went" hint="Click a category to see its transactions" />
+        {!cats.length ? <Empty>No spending in this period.</Empty> : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {cats.map((c) => (
+              <button key={c.category} onClick={() => onPickCategory(c.category)} style={{ background: "none", border: "none", textAlign: "left", cursor: "pointer", padding: "8px 6px", borderRadius: 8, fontFamily: T.font }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13.5 }}>
+                  <span style={{ color: T.text }}>{c.category}</span>
+                  <span style={{ color: T.textDim, fontVariantNumeric: "tabular-nums" }}>{money(c.total)} <span style={{ color: T.textMute }}>· {c.pct}%</span></span>
                 </div>
-              </div>
-            );
-          })}
-          {!categories?.expense_breakdown?.length && (
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em" }}>NO DATA</div>
-          )}
-        </div>
-      </div>
-
-      {/* Transaction list */}
-      <div className="glass-card" style={{ padding: "18px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: "#d0dcf0" }}>
-              Transactions
-            </div>
-            {selectedCategory && (
-              <button
-                onClick={() => setSelectedCategory(null)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  fontFamily: "'Share Tech Mono', monospace", fontSize: 9,
-                  padding: "3px 8px 3px 10px", borderRadius: 20,
-                  background: "rgba(58,123,213,0.18)", border: "1px solid rgba(58,123,213,0.35)",
-                  color: "#6ab0ff", cursor: "pointer", letterSpacing: "0.06em",
-                }}
-              >
-                {selectedCategory}
-                <span style={{ fontSize: 11, lineHeight: 1, color: "#3a7bd5" }}>×</span>
+                <Progress value={c.pct} max={100} />
               </button>
-            )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ display: "flex", background: "rgba(10,18,48,0.5)", border: "1px solid rgba(58,123,213,0.1)", borderRadius: 8, padding: 3, gap: 2 }}>
-              {[["all","ALL"],["income","INCOME"],["expense","EXPENSES"]].map(([v, label]) => (
-                <button key={v} onClick={() => setTxnType(v)} style={{
-                  fontFamily: "'Share Tech Mono', monospace",
-                  fontSize: 9, padding: "4px 12px", letterSpacing: "0.08em",
-                  borderRadius: 6, border: "none", cursor: "pointer",
-                  background: txnType === v ? "rgba(58,123,213,0.3)" : "transparent",
-                  color: txnType === v ? "#6ab0ff" : "#2a4a7a",
-                }}>{label}</button>
-              ))}
-            </div>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn btn-primary"
-              style={{ fontSize: 10, padding: "5px 12px" }}
-            >
-              + Add
-            </button>
-          </div>
-        </div>
-
-        {filteredTxns.length === 0 ? (
-          <div style={{ padding: "32px 0", textAlign: "center" }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1a2f52", letterSpacing: "0.1em", marginBottom: 12 }}>
-              NO TRANSACTIONS
-            </div>
-            <button onClick={() => setShowAddForm(true)} className="btn btn-secondary" style={{ fontSize: 11 }}>
-              Add your first transaction
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {filteredTxns.map(t => (
-              <div key={t.id}
-                onMouseEnter={() => setHoveredTxn(t.id)}
-                onMouseLeave={() => setHoveredTxn(null)}
-              >
-                <div
-                  onClick={() => setExpandedTxn(expandedTxn === t.id ? null : t.id)}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "9px 0", borderBottom: expandedTxn === t.id ? "none" : "0.5px solid #1a2540",
-                    cursor: "pointer",
-                  }}
-                >
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, marginRight: 12 }}>
-                    <span style={{ fontSize: 12, color: "#8aaad0", fontWeight: 500 }}>
-                      {t.description || "—"}
-                    </span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#2a4a7a" }}>
-                        {t.date}
-                      </span>
-                      <span style={{
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
-                        padding: "2px 6px", borderRadius: 4,
-                        background: "rgba(58,123,213,0.08)", color: "#3a7bd5",
-                        letterSpacing: "0.06em",
-                      }}>
-                        {t.category}
-                      </span>
-                      {t.client_name && (
-                        <span style={{ fontSize: 11, color: "#8aaad0" }}>{t.client_name}</span>
-                      )}
-                      {t.needs_review && (
-                        <span style={{ fontSize: 11, color: "#f0a028" }}>needs a look</span>
-                      )}
-                      {t.category === "Transfer" && (
-                        <span style={{ fontSize: 11, color: "#3a5a80" }}>not counted</span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{
-                      fontFamily: "'Share Tech Mono', monospace", fontSize: 13, fontWeight: 700,
-                      color: t.is_income ? "#14c882" : "#f0a028",
-                      letterSpacing: "-0.01em",
-                    }}>
-                      {t.is_income ? "+" : "-"}{money(t.amount)}
-                    </span>
-                    <button
-                      onClick={e => { e.stopPropagation(); deleteTxn(t.id); }}
-                      disabled={deletingId === t.id}
-                      style={{
-                        padding: "3px 9px", borderRadius: 5,
-                        border: "1px solid rgba(220,60,60,0.25)",
-                        background: "rgba(220,60,60,0.06)", color: "#dc3c3c",
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8,
-                        cursor: "pointer", letterSpacing: "0.06em",
-                        opacity: deletingId === t.id ? 0.5 : hoveredTxn === t.id ? 1 : 0,
-                        transition: "opacity 0.15s",
-                        pointerEvents: hoveredTxn === t.id ? "auto" : "none",
-                      }}
-                    >
-                      {deletingId === t.id ? "…" : "✕"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Inline edit row (category + notes) */}
-                {expandedTxn === t.id && (
-                  <div style={{
-                    padding: "10px 12px", background: "rgba(10,18,48,0.4)",
-                    borderBottom: "0.5px solid #1a2540",
-                    display: "flex", gap: 10, alignItems: "center",
-                  }}>
-                    <select
-                      value={t.category}
-                      onChange={e => updateTxn(t.id, { category: e.target.value })}
-                      className="dg-input"
-                      style={{ fontSize: 11, padding: "5px 8px", flex: "0 0 auto" }}
-                    >
-                      {!CATEGORIES.includes(t.category) && <option value={t.category}>{t.category}</option>}
-                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <input
-                      className="dg-input"
-                      style={{ flex: 1, fontSize: 11 }}
-                      placeholder="Add note…"
-                      defaultValue={t.notes || ""}
-                      onBlur={e => updateTxn(t.id, { notes: e.target.value })}
-                    />
-                  </div>
-                )}
-              </div>
             ))}
           </div>
         )}
+        {summary?.expenses > 0 && <div style={{ marginTop: 10, fontSize: 12.5, color: T.textMute }}>Total spent: {money(summary.expenses)}</div>}
+      </Card>
+    </div>
+  );
+}
+
+function TxnRow({ t, open, onToggle, onUpdate, onDelete }) {
+  return (
+    <div style={{ borderBottom: `1px solid ${T.line}` }}>
+      <div onClick={onToggle} style={{ display: "grid", gridTemplateColumns: "64px 1fr auto", alignItems: "center", gap: 12, padding: "11px 4px", cursor: "pointer" }}>
+        <span style={{ fontSize: 12.5, color: T.textMute }}>{shortDate(t.date)}</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13.5, color: T.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.description || "–"}</div>
+          <div style={{ display: "flex", gap: 6, marginTop: 4, flexWrap: "wrap" }}>
+            <Pill tone={t.category === "Transfer" ? "neutral" : t.is_income ? "good" : "info"} style={{ fontSize: 11, padding: "1px 8px" }}>{t.category === "Transfer" ? "Transfer · not counted" : t.category}</Pill>
+            {t.client_name && <Pill style={{ fontSize: 11, padding: "1px 8px" }}>{t.client_name}</Pill>}
+            {t.needs_review && <Pill tone="warn" style={{ fontSize: 11, padding: "1px 8px" }}>Needs a look</Pill>}
+          </div>
+        </div>
+        <span style={{ fontFamily: T.display, fontWeight: 600, fontSize: 14.5, fontVariantNumeric: "tabular-nums", color: t.category === "Transfer" ? T.textMute : t.is_income ? T.good : T.text }}>
+          {t.is_income ? "+" : "-"}{money(t.amount)}
+        </span>
+      </div>
+      {open && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "0 4px 12px 80px" }}>
+          <select style={{ ...inputStyle, width: "auto", padding: "6px 10px", fontSize: 12.5 }} value={t.category} onChange={(e) => onUpdate({ category: e.target.value })}>
+            {!CATEGORIES.includes(t.category) && <option>{t.category}</option>}
+            {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+          </select>
+          <input style={{ ...inputStyle, flex: "1 1 200px", padding: "6px 10px", fontSize: 12.5 }} placeholder="Add a note" defaultValue={t.notes || ""} onBlur={(e) => e.target.value !== (t.notes || "") && onUpdate({ notes: e.target.value })} />
+          <span style={{ fontSize: 12, color: T.textMute }}>{t.source === "stripe" ? "From Stripe" : t.source === "manual" ? "Added by hand" : "From Novo"}</span>
+          <button className="btn btn-secondary" style={{ fontSize: 12, padding: "5px 12px", color: T.bad }} onClick={onDelete}>Delete</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Transactions({ txns, category, setCategory, onUpdate, onDelete, onAdd }) {
+  const [type, setType] = useState("all");
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(null);
+  const [showAll, setShowAll] = useState(false);
+  const list = (txns || []).filter((t) =>
+    (type === "all" || (type === "income" ? t.is_income : !t.is_income)) &&
+    (!category || t.category === category) &&
+    (!q || `${t.description} ${t.client_name || ""} ${t.category}`.toLowerCase().includes(q.toLowerCase())));
+  const shown = showAll ? list : list.slice(0, 60);
+  return (
+    <Card>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+        <Segmented value={type} options={[["all", "All"], ["income", "Money in"], ["expense", "Money out"]]} onChange={setType} />
+        <select style={{ ...inputStyle, width: "auto", padding: "6px 10px", fontSize: 12.5 }} value={category || ""} onChange={(e) => setCategory(e.target.value || null)}>
+          <option value="">All categories</option>
+          {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+        </select>
+        <input style={{ ...inputStyle, flex: "1 1 180px", padding: "6px 10px", fontSize: 12.5 }} placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+        <button className="btn btn-primary" style={{ fontSize: 12.5 }} onClick={onAdd}>Add</button>
+      </div>
+      {!list.length ? <Empty>No transactions match.</Empty> : (
+        <>
+          {shown.map((t) => (
+            <TxnRow key={t.id} t={t} open={open === t.id} onToggle={() => setOpen(open === t.id ? null : t.id)}
+              onUpdate={(p) => onUpdate(t.id, p)} onDelete={() => onDelete(t)} />
+          ))}
+          {list.length > shown.length && (
+            <button className="btn btn-secondary" style={{ marginTop: 12, fontSize: 12.5 }} onClick={() => setShowAll(true)}>Show all {list.length}</button>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function Recurring({ rules, onStop }) {
+  if (!rules.length) return null;
+  return (
+    <Card>
+      <SectionTitle title="Repeating entries" hint="Added automatically on their date" />
+      {rules.map((r) => (
+        <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.line}`, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, color: T.text, fontWeight: 500 }}>{r.description || "–"}</div>
+            <div style={{ fontSize: 12, color: T.textMute }}>{FREQ_LABELS[r.frequency] || r.frequency} · next {shortDate(r.next_occurrence)}{r.category ? ` · ${r.category}` : ""}</div>
+          </div>
+          <span style={{ fontFamily: T.display, fontWeight: 600, color: r.is_income ? T.good : T.text }}>{r.is_income ? "+" : "-"}{money(r.amount)}</span>
+          <button className="btn btn-secondary" style={{ fontSize: 12, padding: "5px 12px" }} onClick={() => onStop(r)}>Stop</button>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+export default function FinancesPanel() {
+  const [days, setDays] = useState(90);
+  const [tab, setTab] = useState("overview");
+  const [summary, setSummary] = useState(null);
+  const [categories, setCategories] = useState(null);
+  const [txns, setTxns] = useState(null);
+  const [recurring, setRecurring] = useState([]);
+  const [category, setCategory] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [status, reloadStatus] = useFinanceStatus();
+
+  const loadAll = useCallback(async () => {
+    await fetch(API("/finances/recurring/apply"), { method: "POST" });
+    const get = (p, d) => fetch(API(p)).then((x) => (x.ok ? x.json() : d));
+    const [s, c, t, r] = await Promise.all([
+      get(`/finances/summary?days=${days}`, null),
+      get(`/finances/categories?days=${days}`, null),
+      get(`/finances/transactions?days=${days}&type=all&limit=2000`, null),
+      get("/finances/recurring", []),
+    ]);
+    setSummary(s); setCategories(c); setTxns(t?.transactions || []); setRecurring(r || []);
+    reloadStatus();
+  }, [days, reloadStatus]);
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const updateTxn = async (id, patch) => {
+    setTxns((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    await fetch(API(`/finances/transactions/${id}`), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    if (patch.category) loadAll();
+  };
+  const deleteTxn = async (t) => {
+    if (!window.confirm(`Delete "${t.description || "this transaction"}" (${money(t.amount)})? This can't be undone.`)) return;
+    await fetch(API(`/finances/transactions/${t.id}`), { method: "DELETE" });
+    loadAll();
+  };
+  const stopRule = async (r) => {
+    if (!window.confirm(`Stop "${r.description}"? Past entries stay.`)) return;
+    await fetch(API(`/finances/recurring/${r.id}`), { method: "DELETE" });
+    setRecurring((prev) => prev.filter((x) => x.id !== r.id));
+  };
+
+  const connProblem = useMemo(() => status && (status.sheet_error || status.stripe_error || status.costs_error || !status.sheet_url), [status]);
+  if (!summary) return <Loading />;
+
+  const net = summary.net ?? 0;
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "clients", label: "Clients" },
+    { id: "transactions", label: "Transactions", count: txns?.length },
+    { id: "connections", label: "Connections", count: connProblem ? "!" : null, alert: !!connProblem },
+  ];
+
+  return (
+    <div className="px-4 py-4 sm:px-6 sm:py-6" style={{ flex: 1, overflowY: "auto" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+        {adding && <AddTransactionModal onClose={() => setAdding(false)} onSaved={loadAll} />}
+
+        <PageHeader
+          title="Finances"
+          subtitle="Novo + Stripe, sorted automatically"
+          actions={<>
+            <Segmented value={days} options={PERIODS} onChange={setDays} />
+            <button className="btn btn-primary" style={{ fontSize: 13 }} onClick={() => setAdding(true)}>Add transaction</button>
+          </>}
+        />
+
+        <Card>
+          <div className="grid grid-cols-2 sm:grid-cols-4" style={{ gap: 16 }}>
+            <Stat label="Money in" value={money0(summary.income)} tone="good" />
+            <Stat label="Money out" value={money0(summary.expenses)} />
+            <Stat label="Profit" value={money0(net)} tone={net >= 0 ? "good" : "bad"} />
+            <Stat label="Margin" value={summary.margin != null ? `${summary.margin}%` : "–"}
+              sub={summary.margin == null ? null : summary.margin > 30 ? "Healthy" : summary.margin > 0 ? "Slim" : "Losing money"} />
+          </div>
+        </Card>
+
+        <ReviewCard status={status} onChanged={loadAll} />
+
+        <Tabs tabs={tabs} value={tab} onChange={setTab} />
+
+        {tab === "overview" && <Overview summary={summary} categories={categories} days={days} onPickCategory={(c) => { setCategory(c); setTab("transactions"); }} />}
+        {tab === "clients" && <ClientProfitCard />}
+        {tab === "transactions" && (
+          <Transactions txns={txns} category={category} setCategory={setCategory} onUpdate={updateTxn} onDelete={deleteTxn} onAdd={() => setAdding(true)} />
+        )}
+        {tab === "connections" && <>
+          <BankFeedCard status={status} onChanged={loadAll} />
+          <Recurring rules={recurring} onStop={stopRule} />
+        </>}
       </div>
     </div>
   );

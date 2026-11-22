@@ -651,9 +651,53 @@ async def _backfill_retell_costs(conn, http: httpx.AsyncClient, limit: int = 60)
             continue
 
 
+META_SINCE = date(2026, 1, 1)
+
+
+async def _meta_monthly_spend(http: httpx.AsyncClient, ad_account_id: str | None, today: date) -> dict[date, float] | None:
+    """Spend per month straight from Meta (account level, every month since
+    META_SINCE). ad_campaign_stats only holds the days the daily sync has
+    seen, so older months (e.g. CrosaCore's Sept 2026) were missing there.
+    None = no token / no account / no access (caller falls back)."""
+    token = os.environ.get("META_SYSTEM_USER_TOKEN")
+    acct = (ad_account_id or "").strip().removeprefix("act_")
+    if not (token and acct):
+        return None
+    r = await http.get(
+        f"https://graph.facebook.com/v21.0/act_{acct}/insights",
+        params={"access_token": token, "level": "account", "fields": "spend", "time_increment": "monthly",
+                "time_range": json.dumps({"since": META_SINCE.isoformat(), "until": today.isoformat()})})
+    if r.status_code >= 400:
+        if "#200" in r.text or "permission" in r.text.lower():
+            print(f"[finance] no Meta access to ad account {acct}; using synced daily stats")
+            return None
+        raise RuntimeError(f"Meta {r.status_code}: {r.text[:200]}")
+    out: dict[date, float] = {}
+    for d in r.json().get("data") or []:
+        m = date.fromisoformat(d["date_start"]).replace(day=1)
+        out[m] = out.get(m, 0.0) + float(d.get("spend") or 0)
+    return out
+
+
+async def _post_auto(conn, client_id: int, kind: str, start: date, day: date, amount, desc: str, cat: str) -> None:
+    if amount is None:
+        return
+    amount = round(float(amount), 2)
+    key = f"{kind}:{client_id}:{start}"
+    if amount <= 0:
+        await conn.execute("DELETE FROM client_transactions WHERE auto_key = $1", key)
+        return
+    await conn.execute(
+        """INSERT INTO client_transactions (client_id, date, description, amount, is_income, category, notes, auto_key)
+           VALUES ($1, $2, $3, $4, false, $5, 'Real monthly cost (auto-updated daily)', $6)
+           ON CONFLICT (auto_key) DO UPDATE SET amount = EXCLUDED.amount, date = EXCLUDED.date, description = EXCLUDED.description""",
+        client_id, day, desc, -amount, cat, key)
+
+
 async def post_client_costs() -> None:
-    """This month's and last month's real Meta / Twilio / Retell cost per
-    client, as one auto row each in that client's Finance ledger."""
+    """Real cost per client, one auto row per month and kind in that
+    client's Finance ledger: Meta for every month (from Meta itself),
+    Twilio / Retell / Claude / fal for this month and last month."""
     today = datetime.now(ET).date()
     months = [_month_bounds(today), _month_bounds(today.replace(day=1) - timedelta(days=1))]
     pool = await get_pool()
@@ -665,16 +709,31 @@ async def post_client_costs() -> None:
     async with httpx.AsyncClient(timeout=30) as http, pool.acquire() as conn:
         await _backfill_retell_costs(conn, http)
         clients = await conn.fetch(
-            """SELECT c.id, m.twilio_subaccount_sid FROM clients c
+            """SELECT c.id, m.twilio_subaccount_sid, m.meta_ad_account_id FROM clients c
                LEFT JOIN client_marketing_config m ON m.client_id = c.id
                WHERE NOT c.is_test""")
         for c in clients:
+            meta_months = None
+            try:
+                meta_months = await _meta_monthly_spend(http, c["meta_ad_account_id"], today)
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"client {c['id']} Meta: {e}")
+            recent = {s for s, _ in months}
+            for m_start, spend in (meta_months or {}).items():
+                if m_start in recent:
+                    continue
+                m_end = _month_bounds(m_start)[1]
+                await _post_auto(conn, c["id"], "meta", m_start, m_end - timedelta(days=1), spend,
+                                 f"Meta ad spend ({m_start.strftime('%b %Y')}, actual)", "Ad Spend")
             for start, end in months:
                 label = start.strftime("%b %Y")
                 last_day = min(end - timedelta(days=1), today)
-                meta = await conn.fetchval(
-                    "SELECT COALESCE(SUM(spend), 0) FROM ad_campaign_stats WHERE client_id = $1 AND stat_date >= $2 AND stat_date < $3",
-                    c["id"], start, end)
+                if meta_months is not None:
+                    meta = meta_months.get(start, 0.0)
+                else:
+                    meta = await conn.fetchval(
+                        "SELECT COALESCE(SUM(spend), 0) FROM ad_campaign_stats WHERE client_id = $1 AND stat_date >= $2 AND stat_date < $3",
+                        c["id"], start, end)
                 retell = await conn.fetchval(
                     "SELECT COALESCE(SUM(cost_cents), 0) / 100.0 FROM client_voice_calls WHERE client_id = $1 AND created_at >= $2 AND created_at < $3",
                     c["id"], datetime.combine(start, datetime.min.time(), ET), datetime.combine(end, datetime.min.time(), ET))
@@ -697,18 +756,7 @@ async def post_client_costs() -> None:
                     ("claude", claude, f"Claude AI for agents + reports ({label}, actual)", "Software & Tools"),
                     ("fal", fal, f"fal.ai ad images + videos ({label}, actual)", "Software & Tools"),
                 ):
-                    if amount is None:
-                        continue
-                    amount = round(float(amount), 2)
-                    key = f"{kind}:{c['id']}:{start}"
-                    if amount <= 0:
-                        await conn.execute("DELETE FROM client_transactions WHERE auto_key = $1", key)
-                        continue
-                    await conn.execute(
-                        """INSERT INTO client_transactions (client_id, date, description, amount, is_income, category, notes, auto_key)
-                           VALUES ($1, $2, $3, $4, false, $5, 'Real monthly cost (auto-updated daily)', $6)
-                           ON CONFLICT (auto_key) DO UPDATE SET amount = EXCLUDED.amount, date = EXCLUDED.date, description = EXCLUDED.description""",
-                        c["id"], last_day, desc, -amount, cat, key)
+                    await _post_auto(conn, c["id"], kind, start, last_day, amount, desc, cat)
         await conn.execute("UPDATE finance_settings SET costs_synced_at = now(), costs_error = $1 WHERE id = 1",
                            "; ".join(errors)[:500] or None)
 
