@@ -90,6 +90,8 @@ function Login({ slug, name, onToken }) {
           <form onSubmit={verify} style={{ display: "grid", gap: 12, marginTop: 18 }}>
             <div style={{ fontSize: 14, color: "#8aaad0", lineHeight: 1.5 }}>
               If {email} is on file, a 6-digit code is on its way. It can take a minute.
+              If it's a new email for this portal, we've asked your DigiGrowth contact to approve it
+              and you'll get an email as soon as they do.
             </div>
             <input style={{ ...input, fontSize: 22, letterSpacing: "0.3em", textAlign: "center" }} inputMode="numeric"
               autoComplete="one-time-code" autoFocus maxLength={6} placeholder="000000"
@@ -103,7 +105,7 @@ function Login({ slug, name, onToken }) {
         )}
         {err && <div style={{ marginTop: 12, fontSize: 13.5, color: "#ff8a8a" }}>{err}</div>}
         <div style={{ marginTop: 22, fontSize: 12.5, color: "#5f7aa6", lineHeight: 1.5 }}>
-          Not getting a code? Ask your DigiGrowth contact to add your email to this portal.
+          Not getting a code? Someone already on your team can add you under Team access in the portal.
         </div>
       </div>
     </div>

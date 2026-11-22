@@ -299,7 +299,8 @@ async def get_todos():
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, text, done, due_date, due_time, recurrence, description, created_at
+            SELECT id, text, done, due_date, due_time, recurrence, description, created_at,
+                   portal_access_request_id
             FROM todos
             WHERE NOT done
             ORDER BY due_date ASC NULLS LAST, due_time ASC NULLS LAST, created_at DESC

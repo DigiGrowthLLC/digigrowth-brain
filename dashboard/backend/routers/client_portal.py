@@ -173,6 +173,55 @@ async def portal_intake_submit(token: str, body: dict):
     return {"ok": True, "services": services}
 
 
+# Team access (portal_links.py): the clinic sees who can log in and adds or
+# removes teammates itself. The client + main contact emails can't be removed
+# here. Removing someone stops new logins; a browser that is already logged
+# in keeps the portal token until Dylan resets the portal link.
+@router.get("/{token}/team")
+async def portal_team(token: str):
+    import portal_links
+    client = await get_client_from_token(token)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        s = await portal_links.login_summary(conn, client["id"])
+    return {"logins": s["logins"], "domains": s["domains"]}
+
+
+@router.post("/{token}/team")
+async def portal_team_add(token: str, body: dict):
+    import portal_links
+    client = await get_client_from_token(token)
+    email = portal_links.norm_email(body.get("email"))
+    if not email:
+        raise HTTPException(status_code=400, detail="Enter a valid email address")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await portal_links.add_login(conn, client["id"], email)
+        # Their own pending ask (if they tried before being added) is settled.
+        req_ids = await conn.fetch(
+            "UPDATE client_portal_access_requests SET status = 'allowed', decided_at = now() "
+            "WHERE client_id = $1 AND email = $2 AND status = 'pending' RETURNING id", client["id"], email)
+        for r in req_ids:
+            await conn.execute("DELETE FROM todos WHERE portal_access_request_id = $1", r["id"])
+        s = await portal_links.login_summary(conn, client["id"])
+    return {"logins": s["logins"], "domains": s["domains"]}
+
+
+@router.delete("/{token}/team/{email}")
+async def portal_team_remove(token: str, email: str):
+    import portal_links
+    client = await get_client_from_token(token)
+    email = portal_links.norm_email(email)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        s = await portal_links.login_summary(conn, client["id"])
+        if any(l["email"] == email and l["fixed"] for l in s["logins"]):
+            raise HTTPException(status_code=400, detail="This is your main login. Ask DigiGrowth to change it.")
+        await portal_links.remove_login(conn, client["id"], email)
+        s = await portal_links.login_summary(conn, client["id"])
+    return {"logins": s["logins"], "domains": s["domains"]}
+
+
 async def _booking_or_calendly_url(client: dict) -> str | None:
     import booking_engine
     pool = await get_pool()

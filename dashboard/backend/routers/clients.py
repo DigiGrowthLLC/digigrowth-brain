@@ -320,11 +320,48 @@ async def update_client(client_id: int, body: ClientUpdate):
             f"UPDATE clients SET {set_clauses}, updated_at = now() WHERE id = $1 RETURNING *",
             client_id, *fields.values(),
         )
+        if row and fields.get("portal_emails"):
+            # Typing an address in counts as allowing it, even if it was blocked.
+            row = await conn.fetchrow(
+                "UPDATE clients SET portal_blocked_emails = ARRAY(SELECT x FROM unnest(coalesce(portal_blocked_emails, '{}')) x "
+                "WHERE NOT x = ANY($2::text[])) WHERE id = $1 RETURNING *",
+                client_id, fields["portal_emails"],
+            )
     if not row:
         raise HTTPException(status_code=404, detail="Client not found")
     d = dict(row)
     portal_links.decorate(d)
     return d
+
+
+# ---------------- Portal logins (portal_links.py: who can log in, access requests) ----------------
+
+@router.get("/clients/{client_id}/portal-logins")
+async def portal_logins(client_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if not await conn.fetchval("SELECT 1 FROM clients WHERE id = $1", client_id):
+            raise HTTPException(status_code=404, detail="Client not found")
+        return await portal_links.login_summary(conn, client_id)
+
+
+@router.post("/clients/{client_id}/portal-logins/unblock")
+async def portal_login_unblock(client_id: int, body: dict):
+    email = portal_links.norm_email(body.get("email"))
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE clients SET portal_blocked_emails = array_remove(coalesce(portal_blocked_emails, '{}'), $2) WHERE id = $1",
+            client_id, email)
+        return await portal_links.login_summary(conn, client_id)
+
+
+@router.post("/portal-access-requests/{request_id}/{decision}")
+async def portal_access_decide(request_id: int, decision: str):
+    if decision not in ("allow", "deny"):
+        raise HTTPException(status_code=400, detail="allow or deny")
+    from routers import portal_auth
+    return await portal_auth.decide_request(request_id, decision == "allow")
 
 
 # ---------------- Per-client resources (admin-only reference, not shown in the client portal) ----------------

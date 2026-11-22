@@ -2875,6 +2875,21 @@ async def _create_schema(pool: asyncpg.Pool):
                 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             CREATE INDEX IF NOT EXISTS idx_portal_login_codes_lookup ON client_portal_login_codes(client_id, email, created_at);
+
+            -- Logins v2 (portal_links.py): addresses denied by Dylan or removed
+            -- by the client, and unknown addresses waiting on Dylan's Allow.
+            ALTER TABLE clients ADD COLUMN IF NOT EXISTS portal_blocked_emails TEXT[];
+            CREATE TABLE IF NOT EXISTS client_portal_access_requests (
+                id         SERIAL PRIMARY KEY,
+                client_id  INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                email      TEXT NOT NULL,
+                status     TEXT NOT NULL DEFAULT 'pending',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                decided_at TIMESTAMPTZ
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_portal_access_req_pending
+                ON client_portal_access_requests(client_id, email) WHERE status = 'pending';
+            ALTER TABLE todos ADD COLUMN IF NOT EXISTS portal_access_request_id INTEGER;
         """)
         import portal_links
         await portal_links.backfill_slugs(conn)

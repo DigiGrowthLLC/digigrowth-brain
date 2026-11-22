@@ -30,8 +30,10 @@ function fmtTime(hhmm) {
   return new Date(2000, 0, 1, h, m).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-function TodoItem({ todo, overdue, onComplete, onDelete, onSaveDescription, onSaveDue }) {
+function TodoItem({ todo, overdue, onComplete, onDelete, onSaveDescription, onSaveDue, onDecideAccess }) {
   const [expanded, setExpanded] = useState(false);
+  const [deciding, setDeciding] = useState(false);
+  const decide = async (d) => { setDeciding(true); await onDecideAccess(todo, d); setDeciding(false); };
   const [draft, setDraft] = useState(todo.description || "");
   const dueDate = todo.due_date ? todo.due_date.slice(0, 10) : "";
   const dueTime = todo.due_time ? todo.due_time.slice(0, 5) : "";
@@ -53,6 +55,12 @@ function TodoItem({ todo, overdue, onComplete, onDelete, onSaveDescription, onSa
           )}
         </div>
         <InboxLinkButton href={inboxLinkFrom(todo.description)} />
+        {todo.portal_access_request_id && (
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            <button className="btn btn-primary" style={{ padding: "4px 12px" }} disabled={deciding} onClick={() => decide("allow")}>Allow</button>
+            <button className="btn btn-secondary" style={{ padding: "4px 12px" }} disabled={deciding} onClick={() => decide("deny")}>Deny</button>
+          </div>
+        )}
         {todo.recurrence && <Pill tone="info">↻ {RECURRENCE_LABELS[todo.recurrence]}</Pill>}
         {todo.due_date && (
           <button onClick={() => { setDraft(todo.description || ""); setExpanded((e) => !e); }} title="Change due date"
@@ -105,6 +113,11 @@ export default function TodoPanel() {
     load(); // a recurring task comes back with its next date
   };
   const remove = async (id) => { setTodos((p) => p.filter((t) => t.id !== id)); await fetch(API(`/dashboard/todos/${id}`), { method: "DELETE" }); };
+  // Portal access request (routers/portal_auth.py): Allow adds the login and emails them, Deny blocks it.
+  const decideAccess = async (todo, decision) => {
+    const r = await fetch(API(`/portal-access-requests/${todo.portal_access_request_id}/${decision}`), { method: "POST" });
+    if (r.ok) setTodos((p) => p.filter((t) => t.id !== todo.id));
+  };
   const saveDescription = async (id, description) => { setTodos((p) => p.map((t) => (t.id === id ? { ...t, description } : t))); await patch(id, { description }); };
   const saveDue = async (id, body) => {
     setTodos((p) => p.map((t) => (t.id === id ? { ...t, ...body } : t)));
@@ -180,7 +193,7 @@ export default function TodoPanel() {
           <Card key={g.key} style={g.key === "overdue" ? { borderColor: "rgba(240,106,106,0.3)" } : undefined}>
             <SectionTitle title={g.title} right={<Pill tone={g.tone}>{g.items.length}</Pill>} style={{ marginBottom: 4 }} />
             {g.items.map((t) => (
-              <TodoItem key={t.id} todo={t} overdue={g.key === "overdue"} onComplete={complete} onDelete={remove} onSaveDescription={saveDescription} onSaveDue={saveDue} />
+              <TodoItem key={t.id} todo={t} overdue={g.key === "overdue"} onComplete={complete} onDelete={remove} onSaveDescription={saveDescription} onSaveDue={saveDue} onDecideAccess={decideAccess} />
             ))}
           </Card>
         ))}

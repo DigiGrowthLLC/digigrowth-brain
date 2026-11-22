@@ -9,12 +9,15 @@ Codes are stored hashed, expire after 15 minutes, allow 5 wrong tries, and a
 portal can request at most 5 codes per 15 minutes (per email) so the business
 mailbox can't be used to spam anyone. The request answer is the same whether
 or not the email is on file, so the endpoint can't be used to find out who a
-clinic's contacts are.
+clinic's contacts are. An email that isn't on file becomes an access request
++ To-Do for Dylan (Allow / Deny), at most 5 pending per portal.
 """
 import asyncio
 import hashlib
 import hmac
 import secrets
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -86,7 +89,7 @@ async def request_code(slug: str, body: CodeRequest):
             "AND created_at > now() - make_interval(mins => $3)", c["id"], email, CODE_TTL_MIN)
         if recent >= MAX_REQUESTS_PER_WINDOW:
             raise HTTPException(status_code=429, detail="Too many codes requested. Try again in 15 minutes.")
-        allowed = email in await portal_links.allowed_emails(conn, c["id"])
+        allowed = bool(await portal_links.login_check(conn, c["id"], email))
         if allowed:
             code = f"{secrets.randbelow(1_000_000):06d}"
             await conn.execute(
@@ -94,7 +97,7 @@ async def request_code(slug: str, body: CodeRequest):
                 "VALUES ($1, $2, $3, now() + make_interval(mins => $4))",
                 c["id"], email, _hash(code), CODE_TTL_MIN)
         else:
-            print(f"[portal-auth] login code asked for {c['name']} by an email not on file")
+            await _ask_dylan(conn, c, email)
     if allowed:
         subject = f"{code} is your {c['name']} portal code"
         text = (
@@ -109,6 +112,73 @@ async def request_code(slug: str, body: CodeRequest):
             print(f"[portal-auth] code email failed for client {c['id']}: {result}")
             raise HTTPException(status_code=502, detail="Couldn't send the code right now. Please try again.")
     return {"ok": True}
+
+
+MAX_PENDING_REQUESTS = 5  # per portal, so a bot typing emails can't flood the To-Do list
+
+
+async def _ask_dylan(conn, c, email: str) -> None:
+    """An email that isn't on file: one access request + To-Do (Allow / Deny
+    buttons on the To-Do, routers/clients.py). Blocked addresses (denied
+    before, or removed by the clinic) are dropped silently."""
+    blocked = await conn.fetchval("SELECT portal_blocked_emails FROM clients WHERE id = $1", c["id"]) or []
+    if email in blocked:
+        print(f"[portal-auth] blocked email tried {c['name']}'s portal")
+        return
+    if await conn.fetchval(
+        "SELECT 1 FROM client_portal_access_requests WHERE client_id = $1 AND email = $2 AND status = 'pending'",
+        c["id"], email):
+        return
+    if await conn.fetchval(
+        "SELECT count(*) FROM client_portal_access_requests WHERE client_id = $1 AND status = 'pending'",
+        c["id"]) >= MAX_PENDING_REQUESTS:
+        print(f"[portal-auth] {c['name']}: too many pending access requests, not adding another")
+        return
+    req_id = await conn.fetchval(
+        "INSERT INTO client_portal_access_requests (client_id, email) VALUES ($1, $2) "
+        "ON CONFLICT DO NOTHING RETURNING id", c["id"], email)
+    if not req_id:
+        return
+    known = ", ".join(sorted(await portal_links.allowed_emails(conn, c["id"]))) or "none yet"
+    await conn.execute(
+        "INSERT INTO todos (text, description, due_date, portal_access_request_id) VALUES ($1, $2, $3, $4)",
+        f"{email} wants into {c['name']}'s portal",
+        f"{email} asked for a login code, but it isn't on {c['name']}'s login list.\n\n"
+        f"Allow: they get an email saying they're in, and can log in from then on.\n"
+        f"Deny: nothing is sent and they won't ask again.\n\n"
+        f"Current logins: {known}",
+        datetime.now(ZoneInfo("America/New_York")).date(), req_id)
+
+
+async def decide_request(request_id: int, allow: bool) -> dict:
+    """Dylan's Allow / Deny on an access request (To-Do buttons + OS card)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        req = await conn.fetchrow(
+            "SELECT r.id, r.client_id, r.email, r.status, c.name, c.portal_slug FROM client_portal_access_requests r "
+            "JOIN clients c ON c.id = r.client_id WHERE r.id = $1", request_id)
+        if not req:
+            raise HTTPException(status_code=404, detail="Request not found")
+        if req["status"] == "pending":
+            if allow:
+                await portal_links.add_login(conn, req["client_id"], req["email"])
+            else:
+                await portal_links.remove_login(conn, req["client_id"], req["email"])
+            await conn.execute(
+                "UPDATE client_portal_access_requests SET status = $2, decided_at = now() WHERE id = $1",
+                request_id, "allowed" if allow else "denied")
+        await conn.execute("DELETE FROM todos WHERE portal_access_request_id = $1", request_id)
+    if allow and req["status"] == "pending":
+        url = portal_links.portal_url(req["portal_slug"] or "")
+        text = (
+            f"Hi,\n\nYou now have access to the {req['name']} client portal.\n\n"
+            f"Open {url} and enter {req['email']} to get your login code.\n\nDigiGrowth"
+        )
+        result = await asyncio.to_thread(
+            integrations._gmail_send_now, req["email"], f"You're in: {req['name']} client portal", text, False, True)
+        if not str(result).startswith("Sent email"):
+            print(f"[portal-auth] access-approved email failed for request {request_id}: {result}")
+    return {"ok": True, "email": req["email"], "status": "allowed" if allow else "denied"}
 
 
 @router.post("/{slug}/verify")

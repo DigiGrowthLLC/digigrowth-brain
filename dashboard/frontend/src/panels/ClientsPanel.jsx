@@ -249,7 +249,21 @@ function PortalAccessCard({ client, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const base = (client.portal_url || "").replace(/\/[^/]*$/, "");
-  const always = [client.email, client.linked_contact?.email].filter(Boolean);
+  const [logins, setLogins] = useState(null);
+  const loadLogins = () => fetch(API(`/clients/${client.id}/portal-logins`)).then((r) => (r.ok ? r.json() : null)).then(setLogins).catch(() => {});
+  useEffect(() => { loadLogins(); }, [client.id]);
+  // After an Allow the extra-logins box must pick the new address up, or a later Save would drop it.
+  const decide = async (id, d) => {
+    await fetch(API(`/portal-access-requests/${id}/${d}`), { method: "POST" });
+    const s = await fetch(API(`/clients/${client.id}/portal-logins`)).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (s) { setLogins(s); setEmails(s.logins.filter((l) => l.source === "Added login").map((l) => l.email).join(", ")); }
+  };
+  const unblock = async (email) => {
+    const r = await fetch(API(`/clients/${client.id}/portal-logins/unblock`), {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }),
+    });
+    if (r.ok) setLogins(await r.json());
+  };
   const save = async () => {
     setSaving(true); setErr("");
     const r = await fetch(API(`/clients/${client.id}`), {
@@ -270,11 +284,36 @@ function PortalAccessCard({ client, onClose, onSaved }) {
             <input value={slug} onChange={(e) => setSlug(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 180 }} />
           </div>
         </label>
-        <div style={{ fontSize: 13, color: T.textMute }}>
-          Always allowed: {always.length ? always.join(", ") : "none yet (add the client's email on Edit client)"}
-        </div>
+        {logins && (
+          <div style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            <div style={{ color: T.textMute }}>Can log in now</div>
+            {logins.logins.length === 0 && <div style={{ color: T.textMute }}>Nobody yet (add the client's email on Edit client).</div>}
+            {logins.logins.map((l) => (
+              <div key={l.email} style={{ display: "flex", gap: 8, color: T.text }}>
+                <span>{l.email}</span><span style={{ color: T.textMute }}>· {l.source}</span>
+              </div>
+            ))}
+            {logins.domains.length > 0 && (
+              <div style={{ color: T.textMute }}>Plus anyone @{logins.domains.join(", @")}</div>
+            )}
+            {logins.pending.map((p) => (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <span style={{ color: T.warn || T.text }}>{p.email} is waiting for access</span>
+                <button className="btn btn-primary" style={{ padding: "3px 10px" }} onClick={() => decide(p.id, "allow")}>Allow</button>
+                <button className="btn btn-secondary" style={{ padding: "3px 10px" }} onClick={() => decide(p.id, "deny")}>Deny</button>
+              </div>
+            ))}
+            {logins.blocked.length > 0 && (
+              <div style={{ color: T.textMute, marginTop: 4 }}>
+                Blocked: {logins.blocked.map((e, i) => (
+                  <span key={e}>{i ? ", " : ""}{e} <button onClick={() => unblock(e)} style={{ background: "none", border: "none", color: T.accent || "#6ab0ff", cursor: "pointer", padding: 0 }}>unblock</button></span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <label style={{ display: "grid", gap: 6, fontSize: 13, color: T.textMute }}>
-          Other people who can log in (comma separated)
+          Extra logins (comma separated; the clinic can also add teammates from their portal)
           <input value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="frontdesk@clinic.com, manager@clinic.com" style={inputStyle} />
         </label>
         {err && <div style={{ color: T.bad, fontSize: 13 }}>{err}</div>}

@@ -52,6 +52,7 @@ const NAV_GROUPS = [
     { id: "todo", label: "Launch Progress", icon: "check", desc: "What we're setting up for you and where each piece stands. Nothing to do here, it updates by itself." },
     { id: "upload", label: "Upload Files", icon: "upload", desc: "Send us photos, your logo, patient lists or anything else we ask for." },
     { id: "videos", label: "How-To Videos", icon: "play", desc: "Short walkthroughs of everything in your portal." },
+    { id: "team", label: "Team Access", icon: "users", desc: "Who on your team can log in to this portal. Add anyone who needs access." },
   ] },
 ];
 const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
@@ -381,6 +382,76 @@ function fmtBytes(n) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Team access (backend: client_portal.py /team + portal_links.py). Everyone
+// listed logs in with their own email and a 6-digit code.
+function TeamTab({ token }) {
+  const [data, setData] = useState(null);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    fetch(`/portal-api/${token}/team`).then((r) => (r.ok ? r.json() : null)).then(setData).catch(() => setData(null));
+  }, [token]);
+
+  const call = async (method, path, body) => {
+    setBusy(true); setErr("");
+    const r = await fetch(`/portal-api/${token}/team${path}`, {
+      method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) setData(d); else setErr(d.detail || "Something went wrong. Please try again.");
+    setBusy(false);
+    return r.ok;
+  };
+  const add = async (e) => { e.preventDefault(); if (await call("POST", "", { email })) setEmail(""); };
+
+  if (!data) return <div style={{ color: "#5a7aa0", fontSize: 13, padding: 40 }}>Loading…</div>;
+
+  return (
+    <div style={{ display: "grid", gap: 16, maxWidth: 640 }}>
+      <div className="glass-card" style={{ padding: "20px 24px" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 6 }}>Add a teammate</div>
+        <div style={{ fontSize: 13, color: "#8aaad0", lineHeight: 1.6, marginBottom: 14 }}>
+          They'll log in at this same address with their own email and a 6-digit code. Nothing is sent until they try to log in.
+        </div>
+        <form onSubmit={add} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input type="email" required className="dg-input" placeholder="name@yourclinic.com" value={email}
+            onChange={(e) => setEmail(e.target.value)} style={{ flex: 1, minWidth: 200 }} />
+          <button className="btn btn-primary" disabled={busy}>{busy ? "Adding…" : "Add"}</button>
+        </form>
+        {err && <div style={{ marginTop: 10, fontSize: 13, color: "#ff8a8a" }}>{err}</div>}
+      </div>
+
+      <div className="glass-card" style={{ padding: "20px 24px" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: "#f0f4ff", marginBottom: 12 }}>Who can log in</div>
+        <div style={{ display: "grid" }}>
+          {data.logins.map((l) => (
+            <div key={l.email} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderTop: "1px solid rgba(106,176,255,0.12)" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: "#e8eefc", overflow: "hidden", textOverflow: "ellipsis" }}>{l.email}</div>
+                <div style={{ fontSize: 12, color: "#5f7aa6" }}>{l.fixed ? "Main login" : l.source === "Added login" ? "Added" : l.source}</div>
+              </div>
+              {!l.fixed && (
+                <button className="btn btn-secondary" style={{ padding: "4px 12px" }} disabled={busy}
+                  onClick={() => call("DELETE", `/${encodeURIComponent(l.email)}`)}>Remove</button>
+              )}
+            </div>
+          ))}
+        </div>
+        {data.domains.length > 0 && (
+          <div style={{ marginTop: 12, fontSize: 13, color: "#8aaad0", lineHeight: 1.6 }}>
+            Anyone with an {data.domains.map((d) => `@${d}`).join(" or ")} email can also log in.
+          </div>
+        )}
+        <div style={{ marginTop: 12, fontSize: 12.5, color: "#5f7aa6", lineHeight: 1.6 }}>
+          Removing someone stops them from logging in again. If they're already logged in on a device, ask us to reset your portal link.
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function UploadTab({ token }) {
@@ -4107,6 +4178,7 @@ export default function ClientPortal({ token: tokenProp }) {
               {tab === "videos" && <VideosTab token={token} />}
               {tab === "todo" && <LaunchChecklistTab token={token} />}
               {tab === "upload" && <UploadTab token={token} />}
+              {tab === "team" && <TeamTab token={token} />}
             </div>
           </main>
         </div>
