@@ -34,7 +34,12 @@ blueprint.json shape (paths are relative to the json file's folder):
   "brand": {"primary": "#0f766e", "primary_text": "#ffffff", "avatar_bg": "#ffffff"},
   "logo": "data:image/png;base64,..." | "logo.png" | null,
   "hero": {"headline": "... *gradient words* ...", "subhead": "..."},
-  "engine_intro": "...",
+  "engine_headline": "...",   # optional; short (default: "Every lead runs into one agent. Nothing leaks.")
+  "engine_intro": "...",      # ONE sentence. The page is presented on a call, not read: every intro is a
+                              # single line, the detail lives in "keys" and the visuals.
+  "engine_keys": [{"big": "< 1 min", "small": "every lead answered"}],   # 3-4 key points, big type
+  # ads / funnel / agent / voice / reactivation / recovery / social each take the same optional "keys" list.
+  # voice.demo (default true): the live in-browser call with the demo voice agent (dashboard/backend/blueprint_voice.py).
   "step_blurbs": ["ads", "funnel", "agent", "database reactivation", "nothing leaks"],
   "ads": {"headline": "...", "intro": "...", "items": [
      {"image": "ads/ad1.png", "hook": "...", "primary_text": "...",
@@ -49,9 +54,19 @@ blueprint.json shape (paths are relative to the json file's folder):
   "recovery": {"headline": "...", "intro": "...", "items": [
      {"icon": "phone", "label": "Missed call text-back", "when": "...",
       "messages": [{"from": "practice", "text": "..."}, {"from": "lead", "text": "..."}]}]},
-  "reactivation": {"headline": "...", "intro": "...", "sms_when": "...",
+  "reactivation": {"headline": "...", "intro": "...", "sms_when": "...",   # SMS only since 2026-10-28
       "sms": [{"from": "practice", "text": "..."}, {"from": "lead", "text": "..."}],
-      "email_when": "...", "email": {"subject": "...", "body": "..."}},
+      "sms2_label": "...", "sms2_when": "...", "sms2": [...]},           # optional later touch
+      # (a legacy "email_when" + "email" pair in an older blueprint is ignored)
+  # agent may also carry "scenarios": [{"key": "website"|"meta_lead"|"reactivation"|"missed_call",
+  #   "label", "icon", "status", "note", "opener", "chips": [...]}] -> tabs above the live chat
+  "voice": {"headline", "intro", "points": [...], "flow_title", "flow_sub",        # optional section
+            "steps": [{"t": "0:00", "title", "text", "sms": true?}]},
+  "social": {"headline", "intro", "handle", "bio", "button", "note" (**bold**),     # optional section
+             "cards": [{"icon", "title", "text"}], "grid": [{"image", "reel"?} | {"quote", "attr"}],
+             "dm_label", "dm_when", "dm": [{"from", "text"}]},
+  "results": {"headline", "intro", "items": [{"client", "period", "kpis": [{"k", "v", "hl"?}], "note"}
+             | {"client", "period", "image", "note"}]},                          # optional, VERIFIED numbers only
   "close_intro": "...",
   "chat_context": "facts the demo agent may use, from the scrape"
 }
@@ -111,6 +126,10 @@ ICONS = {
     "shield": '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
     "card": '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
     "usercheck": '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/>',
+    "call": '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
+    "instagram": '<rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>',
+    "grid": '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+    "chart": '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
 }
 
 
@@ -122,6 +141,10 @@ def icon(name: str) -> str:
 def pick_icon(name, default: str) -> str:
     return icon(name if name in ICONS else default)
 
+
+# The live voice demo's "what hurts" choices; keys must match blueprint_voice.ISSUES.
+VOICE_ISSUES = [("back", "Lower back pain"), ("knee", "Knee pain"), ("shoulder", "Shoulder pain"),
+                ("neck", "Neck pain"), ("hip", "Hip pain"), ("sciatica", "Sciatica")]
 
 SND_MUTED = icon("volumex") + "Tap for sound"
 SND_ON = icon("volume") + "Sound on"
@@ -186,12 +209,15 @@ def main():
     logo = logo_src(d.get("logo"), base)
     logo_img = f'<img src="{logo}" alt="{esc(business)}">' if logo else ""
 
-    ad_avatar = logo_img or esc(initials(business))
+    # A wide wordmark is unreadable in the round avatars; "logo_mark" (just the symbol) goes there instead.
+    mark = logo_src(d.get("logo_mark"), base)
+    avatar_img = f'<img src="{mark}" alt="{esc(business)}">' if mark else logo_img
+    ad_avatar = avatar_img or esc(initials(business))
 
     def ad_card(ad, media_html):
         return f"""<div class="reveal"><div class="ad">
   <div class="ad-top"><div class="ad-av">{ad_avatar}</div><div><div class="ad-name">{esc(business)}</div><div class="ad-sp">Sponsored · {icon("globe")}</div></div></div>
-  <div class="ad-copy">{esc(ad["primary_text"])}</div>
+  <div class="ad-copy{" clamp" if len(ad["primary_text"]) > 150 else ""}">{esc(ad["primary_text"])}</div>{'<div class="ad-more">See more</div>' if len(ad["primary_text"]) > 150 else ""}
   {media_html}
   <div class="ad-foot"><div><div class="u">{esc(d.get("domain") or short)}</div><div class="h">{esc(ad["headline"])}</div></div><div class="ad-btn">{esc(ad.get("cta") or "Book Now")}</div></div>
 </div><div class="ad-angle"><span class="tag">{esc(ad.get("angle_label") or "Angle")}</span><span class="txt">{esc(ad.get("angle"))}</span></div></div>"""
@@ -251,13 +277,87 @@ def main():
         f'<span class="no">{i + 1:02d}</span></div><h4>{esc(w["title"])}</h4><p>{esc(w["text"])}</p></div>'
         for i, w in enumerate((d.get("funnel") or {}).get("why") or []) if has_funnel)
 
+    def sms_bubbles(msgs, where):
+        out = []
+        for m in msgs:
+            if GSM7_BAD.search(m["text"]):
+                warnings.append(f'non-GSM-7 character in {where}: {m["text"][:50]}...')
+            cls = "sms in" if m.get("from") == "lead" else "sms"
+            out.append(f'<div class="{cls}">{esc(m["text"])}</div>')
+        return "".join(out)
+
+    # Reactivation is SMS only (Dylan, 2026-10-28: no more email campaigns).
+    # A second thread ("sms2") shows a later touch; an "email" key left in an
+    # older blueprint's JSON is ignored.
     react = d["reactivation"]
-    react_sms = []
-    for m in react["sms"]:
-        if GSM7_BAD.search(m["text"]):
-            warnings.append(f'non-GSM-7 character in reactivation SMS: {m["text"][:50]}...')
-        cls = "sms in" if m.get("from") == "lead" else "sms"
-        react_sms.append(f'<div class="{cls}">{esc(m["text"])}</div>')
+    react_cards = [f'<div class="rc card reveal"><div class="lab"><span class="ib amb">{icon("message")}</span>'
+                   f'{esc(react.get("sms_label") or "SMS campaign")}</div><div class="trig"><span class="k">SEND</span>'
+                   f'{esc(react.get("sms_when"))}</div>{sms_bubbles(react["sms"], "reactivation SMS")}</div>']
+    if react.get("sms2"):
+        react_cards.append(f'<div class="rc card reveal"><div class="lab"><span class="ib amb">{icon("refresh")}</span>'
+                           f'{esc(react.get("sms2_label") or "Follow-up text")}</div><div class="trig"><span class="k">SEND</span>'
+                           f'{esc(react.get("sms2_when"))}</div>{sms_bubbles(react["sms2"], "reactivation SMS 2")}</div>')
+
+    # Optional sections (growth package): voice agent, social media, client results.
+    voice_d, social_d, results_d = d.get("voice"), d.get("social"), d.get("results")
+    voice_steps = "".join(
+        f'<div class="vs{" hand" if st.get("sms") else ""}"><div class="dot2">{i + 1}</div><div><div class="t">{esc(st.get("t"))}</div>'
+        f'<h4>{esc(st["title"])}</h4><p>{esc(st["text"])}</p></div></div>'
+        for i, st in enumerate((voice_d or {}).get("steps") or []))
+    # Live voice demo: talk to the voice agent in the browser (blueprint_voice.py).
+    voice_demo = ""
+    if voice_d and voice_d.get("demo", True):
+        opts = "".join(f'<option value="{k}">{v}</option>' for k, v in VOICE_ISSUES)
+        voice_demo = (f'<div class="vdemo card" id="vdemo" data-slug="{esc(d["slug"])}">'
+                      f'<div class="vd-top"><span class="live"><i></i>LIVE DEMO · TALK TO IT</span></div>'
+                      f'<div class="vd-orb">{icon("call")}</div>'
+                      f'<div class="vd-st" id="vdSt">You just filled out the ad form.</div>'
+                      f'<div class="vd-sub" id="vdSub">The agent calls you, right here in the browser.</div>'
+                      f'<div class="vd-form"><label>Your first name<input id="vdName" value="Jordan" maxlength="20" autocomplete="off"></label>'
+                      f'<label>What hurts<select id="vdIssue">{opts}</select></label></div>'
+                      f'<button type="button" class="vd-btn" id="vdBtn">{icon("call")}Call me now</button>'
+                      f'<div class="vd-note">Uses your microphone. Booking is simulated: nothing hits a calendar.</div></div>')
+
+    soc_defaults = ["grid", "message", "usercheck"]
+    social_cards = "".join(
+        f'<div class="card reveal"><div class="top"><span class="ib">{pick_icon(c.get("icon"), soc_defaults[i % 3])}</span>'
+        f'<span class="no">{i + 1:02d}</span></div><h4>{esc(c["title"])}</h4><p>{esc(c["text"])}</p></div>'
+        for i, c in enumerate((social_d or {}).get("cards") or []))
+    grid = []
+    for g in (social_d or {}).get("grid") or []:
+        if g.get("quote"):
+            grid.append(f'<div class="q">{esc(g["quote"])}<small>{esc(g.get("attr"))}</small></div>')
+        else:
+            grid.append(f'<div class="{"rl" if g.get("reel") else ""}"><img src="{image_data_uri(base / g["image"], width=260, quality=72)}" alt=""></div>')
+    social_dm = sms_bubbles((social_d or {}).get("dm") or [], "social DM")
+
+    results_html = ""
+    for r in (results_d or {}).get("items") or []:
+        if r.get("image"):
+            results_html += (f'<div class="card reveal"><div class="rh"><b>{esc(r.get("client"))}</b><span>{esc(r.get("period"))}</span></div>'
+                             f'<img class="res-img" src="{image_data_uri(base / r["image"], width=1100, quality=80)}" alt="{esc(r.get("client"))} results">'
+                             + (f'<p class="rn">{esc(r["note"])}</p>' if r.get("note") else "") + '</div>')
+            continue
+        kpis = "".join(f'<div class="kpi{" hl" if k.get("hl") else ""}"><div class="k">{esc(k["k"])}</div><div class="v">{esc(k["v"])}</div></div>'
+                       for k in r.get("kpis") or [])
+        results_html += (f'<div class="card reveal"><div class="rh"><b>{esc(r["client"])}</b><span>{esc(r.get("period"))}</span></div>'
+                         f'<div class="kpis">{kpis}</div>' + (f'<p class="rn">{esc(r["note"])}</p>' if r.get("note") else "") + '</div>')
+
+    # Live chat scenarios (optional): agent.scenarios = [{key, label, icon, status, note, opener, chips}].
+    # Keys must be ones blueprint_chat._SCENARIOS knows (website, meta_lead, reactivation, missed_call).
+    scen = (d.get("agent") or {}).get("scenarios") or []
+    for s in scen:
+        if s.get("key") not in ("website", "meta_lead", "reactivation", "missed_call"):
+            warnings.append(f'agent scenario key {s.get("key")!r} is unknown to blueprint_chat.py (falls back to website)')
+        if s.get("key") == "website":
+            warnings.append("agent scenario 'website': DigiGrowth doesn't offer a website chat (Dylan, 2026-11-22); drop this tab")
+        if s.get("key") != "website" and GSM7_BAD.search(s.get("opener", "")):
+            warnings.append(f'non-GSM-7 character in SMS scenario opener "{s.get("label")}"')
+    scen_html = ""
+    if scen:
+        scen_html = ('<div class="scen" role="tablist">' + "".join(
+            f'<button type="button" class="{"on" if i == 0 else ""}">{pick_icon(s.get("icon"), "message")}{esc(s["label"])}</button>'
+            for i, s in enumerate(scen)) + '</div><div class="scen-note" id="scenNote"></div>')
 
     funnel_d = (d.get("funnel") or {}) if has_funnel else {}
     funnel_doc = (base / funnel_d["html_file"]).read_text(encoding="utf-8") if has_funnel else ""
@@ -280,9 +380,11 @@ def main():
 
     # Engine step cards, one per module, linking to its section.
     if growth:
-        steps = [("ads", "megaphone", "", "Ads bring in new patients"), ("funnel", "funnel", "", "A funnel built to book"),
-                 ("agent", "bot", "", "The AI agent books the visit"), ("reactivation", "database", "amb", "Database reactivation"),
-                 ("recovery", "refresh", "amb", "Nothing leaks")]
+        steps = ([("ads", "megaphone", "", "Ads bring in new patients"), ("funnel", "funnel", "", "A funnel built to book"),
+                  ("agent", "bot", "", "The AI agent books the visit")]
+                 + ([("voice", "call", "", "The voice agent calls new leads")] if voice_d else [])
+                 + [("reactivation", "database", "amb", "Database reactivation"), ("recovery", "refresh", "amb", "Nothing leaks")]
+                 + ([("social", "instagram", "", "Social media backs up the ads")] if social_d else []))
     else:
         steps = ([("funnel", "funnel", "", (d.get("funnel") or {}).get("step_title") or "A booking page built to convert")] if has_funnel else []) + [
                  ("agent", "bot", "", "The AI text agent replies to every inquiry"), ("reactivation", "database", "amb", "Database reactivation"),
@@ -296,7 +398,9 @@ def main():
 
     # Sections present, in page order; numbered 01.. after the 00 overview.
     math_d = d.get("math")
-    present = ((["ads"] if growth else []) + (["funnel"] if has_funnel else []) + ["agent", "reactivation", "recovery"]
+    present = ((["ads"] if growth else []) + (["funnel"] if has_funnel else []) + ["agent"]
+               + (["voice"] if voice_d else []) + ["reactivation", "recovery"]
+               + (["social"] if social_d else []) + (["results"] if results_d else [])
                + (["math"] if math_d else []) + (["guarantee"] if growth else ["included"]))
     idx = {f"IDX_{sid.upper()}": f"{i + 1:02d}" for i, sid in enumerate(present)}
 
@@ -364,8 +468,31 @@ def main():
         price_html = (f'<div class="price reveal"><div class="amt">{esc(inc["price"])}<span>{esc(inc.get("price_unit") or "/month")}</span></div>'
                       f'<div class="anchor">{rich_b(inc.get("price_note"))}</div></div>')
 
+    def keys_html(lst, amb=False):
+        if not lst:
+            return ""
+        return '<div class="keys reveal">' + "".join(
+            f'<div class="key{" amb" if amb else ""}"><b>{esc(k["big"])}</b><span>{esc(k["small"])}</span></div>' for k in lst) + "</div>"
+
+    nav_names = {"ads": "Ads", "funnel": funnel_d.get("label") or "Funnel", "agent": "Text agent", "voice": "Voice agent",
+                 "reactivation": "Reactivation", "recovery": "Follow-up", "social": "Social", "results": "Results",
+                 "math": (math_d or {}).get("label") or "The math", "guarantee": "Guarantee", "included": "Package"}
+    nav_html = '<a href="#engine"><span>00</span>Overview</a>' + "".join(
+        f'<a href="#{sid}"><span>{i + 1:02d}</span>{esc(nav_names.get(sid, sid))}</a>' for i, sid in enumerate(present))
+
     fills = {
         "MAP_STEPS": map_steps, **idx,
+        "NAV_HTML": nav_html,
+        "ENGINE_HEADLINE": esc(d.get("engine_headline") or "Every lead runs into one agent. Nothing leaks."),
+        "KEYS_ENGINE": keys_html(d.get("engine_keys")),
+        "KEYS_ADS": keys_html((ads_d or {}).get("keys")),
+        "KEYS_FUNNEL": keys_html(funnel_d.get("keys")),
+        "KEYS_AGENT": keys_html(d["agent"].get("keys")),
+        "KEYS_VOICE": keys_html((voice_d or {}).get("keys")),
+        "KEYS_REACT": keys_html(react.get("keys"), amb=True),
+        "KEYS_RECOVERY": keys_html(d["recovery"].get("keys"), amb=True),
+        "KEYS_SOCIAL": keys_html((social_d or {}).get("keys")),
+        "VOICE_DEMO_HTML": voice_demo,
         "MATH_LABEL": esc((math_d or {}).get("label") or "The math"),
         "MATH_HEADLINE": rich((math_d or {}).get("headline")), "MATH_INTRO": esc((math_d or {}).get("intro")),
         "MATH_BODY": math_body, "MATH_NOTE": esc((math_d or {}).get("note")),
@@ -373,7 +500,8 @@ def main():
         "INCLUDED_PRICE_HTML": price_html,
         "SPEC_TARGET_K": "Target" if growth else "Package",
         "SPEC_TARGET_V": "7-10 paid assessments in 30 days" if growth else esc(inc.get("package_name") or "Foundations"),
-        "SPEC_MODULES": "Ads · Funnel · Agent · Reactivation · Recovery" if growth else (
+        "SPEC_MODULES": ("Ads · Funnel · Agent" + (" · Voice" if voice_d else "") + " · Reactivation · Recovery"
+                         + (" · Social" if social_d else "")) if growth else (
             ("Funnel · " if has_funnel else "") + "AI Agent · Reactivation · Recovery"),
         "SRC2_T1": "New Leads" if growth else "New",
         "SRC2_T2": "from Ads" if growth else "Inquiries",
@@ -406,14 +534,30 @@ def main():
         "FUNNEL_SRCDOC": html.escape(funnel_doc, quote=True),
         "AGENT_HEADLINE": esc(d["agent"]["headline"]), "AGENT_INTRO": esc(d["agent"]["intro"]),
         "AGENT_POINTS": li(d["agent"]["points"]),
-        "CHAT_AVATAR": logo_img or esc(initials(business)),
+        "CHAT_AVATAR": ad_avatar,
         "CHAT_CHIPS": "".join(f'<button type="button" class="chip">{esc(c)}</button>' for c in d["agent"]["chips"]),
         "RECOVERY_HEADLINE": esc(d["recovery"]["headline"]), "RECOVERY_INTRO": esc(d["recovery"]["intro"]),
         "RECOVERY_HTML": "".join(rec_html),
         "REACT_HEADLINE": esc(react["headline"]), "REACT_INTRO": esc(react["intro"]),
-        "REACT_SMS_WHEN": esc(react.get("sms_when")), "REACT_SMS_HTML": "".join(react_sms),
-        "REACT_EMAIL_WHEN": esc(react.get("email_when")),
-        "REACT_EMAIL_SUBJECT": esc(react["email"]["subject"]), "REACT_EMAIL_BODY": esc(react["email"]["body"]),
+        "REACT_CARDS_HTML": "".join(react_cards),
+        "NODE_AGENT_CHANNELS": esc(d.get("agent_channels") or (
+            "SMS + voice + DMs → books it" if voice_d and social_d else "SMS + voice → books it" if voice_d
+            else "SMS → books it")),
+        "CHAT_SCENARIOS_HTML": scen_html, "CHAT_SCENARIOS_JSON": js(scen),
+        "VOICE_HEADLINE": esc((voice_d or {}).get("headline")), "VOICE_INTRO": esc((voice_d or {}).get("intro")),
+        "VOICE_POINTS": li((voice_d or {}).get("points") or []),
+        "VOICE_FLOW_TITLE": esc((voice_d or {}).get("flow_title") or "New Meta lead"),
+        "VOICE_FLOW_SUB": esc((voice_d or {}).get("flow_sub") or "voice + SMS, one handoff"),
+        "VOICE_STEPS_HTML": voice_steps,
+        "SOCIAL_HEADLINE": rich((social_d or {}).get("headline")), "SOCIAL_INTRO": esc((social_d or {}).get("intro")),
+        "SOCIAL_CARDS_HTML": social_cards, "SOCIAL_GRID_HTML": "".join(grid),
+        "SOCIAL_HANDLE": esc((social_d or {}).get("handle") or short),
+        "SOCIAL_BIO": esc((social_d or {}).get("bio")), "SOCIAL_BTN": esc((social_d or {}).get("button") or "Book now"),
+        "SOCIAL_DM_LABEL": esc((social_d or {}).get("dm_label") or "AI agent in the DMs"),
+        "SOCIAL_DM_WHEN": esc((social_d or {}).get("dm_when")), "SOCIAL_DM_HTML": social_dm,
+        "SOCIAL_NOTE": rich_b((social_d or {}).get("note")),
+        "RESULTS_HEADLINE": rich((results_d or {}).get("headline")), "RESULTS_INTRO": esc((results_d or {}).get("intro")),
+        "RESULTS_HTML": results_html,
         "CLOSE_INTRO": esc(d.get("close_intro")),
         "DOMAIN": esc(d.get("domain") or short),
         "BUILD_DATE": date.today().strftime("%b %d, %Y"),
@@ -426,10 +570,14 @@ def main():
 
     page = TEMPLATE.read_text(encoding="utf-8")
     # Drop the sections this package doesn't include, keep the rest unwrapped.
-    for sid in ("ads", "funnel", "math", "guarantee", "included"):
+    for sid in ("ads", "funnel", "voice", "social", "results", "math", "guarantee", "included"):
         keep = sid in present
         page = re.sub(rf"<!--BLOCK:{sid}-->(.*?)<!--/BLOCK:{sid}-->", (lambda m: m.group(1)) if keep else "",
                       page, flags=re.S)
+    # Alternate section backgrounds in page order (optional sections shift it).
+    for i, sid in enumerate(present):
+        alt = ' class="alt"' if i % 2 == 0 else ""
+        page = re.sub(rf'<section id="{sid}"( class="alt")?>', f'<section id="{sid}"{alt}>', page)
     page = re.sub(r"\{\{([A-Z0-9_]+)\}\}", lambda m: fills.get(m.group(1), m.group(0)), page)
     left = sorted(set(re.findall(r"\{\{([A-Z0-9_]+)\}\}", page)))
     if left:

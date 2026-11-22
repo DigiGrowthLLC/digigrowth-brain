@@ -25,14 +25,18 @@ import html
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
+import json
+
 import blueprint_chat
+import blueprint_voice
+import client_voice_agent
 import r2_storage
 from db import get_pool
 
-router = APIRouter()          # public: /lp/{slug}, /lp/{slug}/hero-image, /lp/{slug}/chat, /lp/{slug}/a/{name}, /lp/{slug}/book
+router = APIRouter()          # public: /lp/{slug}, /lp/{slug}/hero-image, /lp/{slug}/chat, /lp/{slug}/voice-call, /lp/{slug}/voice-fn, /lp/{slug}/a/{name}, /lp/{slug}/book
 admin_router = APIRouter()    # authenticated: /landing-pages (create/list/approve)
 
 
@@ -329,6 +333,40 @@ async def landing_page_chat(slug: str, body: ChatRequest, request: Request):
     # joined text for the transcript the browser sends back next turn.
     # "events" = simulated actions (booked, escalated ...) shown as notes.
     return {"reply": text, "replies": blueprint_chat.split_texts(text), "events": events}
+
+
+@router.post("/lp/{slug}/voice-call", include_in_schema=False)
+async def landing_page_voice_call(slug: str, request: Request):
+    """Live voice agent demo on a blueprint page. The page's Retell SDK sends
+    its create-web-call request here; we create the call for this page's demo
+    agent with our own key and return Retell's answer. See blueprint_voice.py."""
+    ip = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip() or (
+        request.client.host if request.client else "unknown"
+    )
+    try:
+        requested = json.loads(await request.body() or b"{}")
+    except ValueError:
+        requested = {}
+    if blueprint_voice.rate_limited(ip, slug):
+        return JSONResponse({"status": "error", "message": "Too many demo calls, try again in a bit"}, status_code=429)
+    try:
+        return await blueprint_voice.create_web_call(slug, requested if isinstance(requested, dict) else {})
+    except LookupError:
+        raise HTTPException(status_code=404, detail="No voice demo on this page")
+    except Exception as e:
+        print(f"[landing_pages] voice demo failed for {slug}: {e}", flush=True)
+        return JSONResponse({"status": "error", "message": "The voice demo is unavailable right now"}, status_code=502)
+
+
+@router.post("/lp/{slug}/voice-fn", include_in_schema=False)
+async def landing_page_voice_fn(slug: str, request: Request):
+    """Tool calls from the demo voice agent (Retell, signature checked). Simulated."""
+    raw = await request.body()
+    if not client_voice_agent.verify_retell_signature(raw, request.headers.get("x-retell-signature")):
+        raise HTTPException(status_code=401, detail="bad signature")
+    payload = json.loads(raw or b"{}")
+    result = blueprint_voice.run_function(payload.get("name") or "", payload.get("args") or {}, payload.get("call") or {})
+    return JSONResponse({"result": result})
 
 
 @router.get("/lp/{slug}/book", include_in_schema=False)

@@ -510,6 +510,10 @@ async def _create_schema(pool: asyncpg.Pool):
             -- Patient Acquisition Blueprint pages: practice context for the
             -- page's live demo chat agent (see blueprint_chat.py).
             ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS chat_context TEXT;
+            -- Blueprint pages: the live voice agent demo's Retell LLM + agent (blueprint_voice.py).
+            ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS voice_llm_id TEXT;
+            ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS voice_agent_id TEXT;
+            ALTER TABLE landing_pages ADD COLUMN IF NOT EXISTS voice_ctx_hash TEXT;
             ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recurring_id INTEGER REFERENCES recurring_transactions(id) ON DELETE SET NULL;
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS due_date DATE;
             ALTER TABLE todos ADD COLUMN IF NOT EXISTS due_time TEXT;
