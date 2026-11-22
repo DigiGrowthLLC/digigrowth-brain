@@ -34,11 +34,14 @@ INCOME_CATEGORY = "Client Revenue"
 # when a client is created and then once per calendar month for every active,
 # non-test client (post_default_expenses_all, run daily from main.py).
 # (description, amount, category)
-# Meta ad spend, Twilio and Retell used to be flat guesses here ($500 / $30);
-# finance_auto.post_client_costs now posts the real monthly numbers instead.
+# Flat per-client allocations (Dylan, 2026-11-22): fal.ai $30 and Claude AI
+# $5 per active client per month; whatever the real bill is above that stays
+# a general business expense (the bank feed carries the full charge). Meta,
+# Twilio and Retell are real numbers from finance_auto.post_client_costs.
+# Google Workspace is no longer bought per client.
 DEFAULT_MONTHLY_EXPENSES = [
     ("fal.ai — AI image generation", 30.00, "Software & Tools"),
-    ("Google Workspace subscription", 15.00, "Software & Tools"),
+    ("Claude AI — client agents", 5.00, "Software & Tools"),
 ]
 DEFAULT_EXPENSE_NOTE = "Default monthly allocation (auto-added)"
 

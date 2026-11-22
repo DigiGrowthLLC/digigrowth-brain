@@ -111,6 +111,10 @@ async def ensure_schema(conn) -> None:
         DELETE FROM client_transactions
          WHERE notes = 'Default monthly allocation (auto-added)'
            AND description IN ('Meta ad spend', 'Twilio');
+        -- No per-client Workspace from Nov 2026 (earlier months left as they were).
+        DELETE FROM client_transactions
+         WHERE notes = 'Default monthly allocation (auto-added)'
+           AND description = 'Google Workspace subscription' AND date >= DATE '2026-11-01';
     """)
 
 
