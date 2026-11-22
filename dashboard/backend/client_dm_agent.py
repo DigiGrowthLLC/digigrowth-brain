@@ -490,6 +490,8 @@ async def run_agent(client_id: int, thread: dict, messages: list[dict], clinic_p
         )
         from response_ai import _log_cache_usage
         _log_cache_usage("dm_agent", response)
+        import ai_usage
+        await ai_usage.record(response, "dm_agent", client_id)
         messages.append({"role": "assistant", "content": response.content})
         text_parts = [b.text for b in response.content if b.type == "text"]
         tool_uses = [b for b in response.content if b.type == "tool_use"]

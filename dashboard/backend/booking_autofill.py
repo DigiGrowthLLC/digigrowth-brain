@@ -185,6 +185,8 @@ async def propose(client_id: int) -> dict:
         messages=[{"role": "user", "content": "Sources:\n\n" + body
                    + "\n\nPropose the booking setup by calling propose_booking_setup. Reply with only that tool call."}],
     )
+    import ai_usage
+    await ai_usage.record(resp, "booking_setup", client_id)
     result = next((b.input for b in resp.content if b.type == "tool_use"), None)
     if not result:
         raise RuntimeError("Claude didn't return a proposal")
@@ -405,6 +407,8 @@ async def propose_page_details(client_id: int) -> dict:
                    f"BRAND COLORS (from their funnel, most used first): {', '.join(brand_colors) or '(none)'}\n\n"
                    "Fill in the booking page's trust section by calling propose_page_details. Reply with only that tool call."}],
     )
+    import ai_usage
+    await ai_usage.record(resp, "booking_page", client_id)
     r = next((b.input for b in resp.content if b.type == "tool_use"), None)
     if not r:
         raise RuntimeError("Claude didn't return page details")

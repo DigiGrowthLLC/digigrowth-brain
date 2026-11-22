@@ -1241,7 +1241,7 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
                 + ". Write that check-in: pick up where the thread left off, in one short text, and ask "
                 "the next natural thing (usually whether they'd like you to find them a time for the call).]"
             )})
-            return await _complete_followup(system_prompt, messages, max_words)
+            return await _complete_followup(system_prompt, messages, max_words, client_id)
         goal = (
             "This is the LAST follow-up: say you'll stop texting so you're not a pest, and end by asking "
             "if you should close this out for now."
@@ -1254,7 +1254,7 @@ async def write_followup_text(client_id: int, phone: str, intent: str, final: bo
             f"[System note: the lead hasn't replied. Write the follow-up text now. {goal} "
             f"The business's template for this follow-up, as a guide to its purpose: \"{intent}\"]"
         )})
-        return await _complete_followup(system_prompt, messages, max_words)
+        return await _complete_followup(system_prompt, messages, max_words, client_id)
     except Exception as e:
         print(f"[response_ai] write_followup_text failed for client={client_id} phone={phone}: {e}")
         return None
@@ -1297,7 +1297,7 @@ async def write_outreach_text(client_id: int, phone: str, brief: str, preamble: 
             _today_str(await _clinic_tz(client_id, phone)), lessons=lessons, lead_phone=phone, origin=origin,
         ) + preamble
         messages = [{"role": "user", "content": f"[System note: write the text now. {brief}]"}]
-        return await _complete_followup(system_prompt, messages, row["response_ai_max_words"])
+        return await _complete_followup(system_prompt, messages, row["response_ai_max_words"], client_id)
     except Exception as e:
         print(f"[response_ai] write_outreach_text failed for client={client_id} phone={phone}: {e}")
         return None
@@ -1387,13 +1387,14 @@ async def write_reactivation_text(client_id: int, phone: str, template: str, tou
             f"[System note: write the outreach text now. {goal} The business's template for this text, "
             f"as a guide to its purpose and offer: \"{template}\"]"
         )})
-        return await _complete_followup(system_prompt, messages, max_words)
+        return await _complete_followup(system_prompt, messages, max_words, client_id)
     except Exception as e:
         print(f"[response_ai] write_reactivation_text failed for client={client_id} phone={phone}: {e}")
         return None
 
 
-async def _complete_followup(system_prompt: str, messages: list[dict], max_words: int | None) -> str | None:
+async def _complete_followup(system_prompt: str, messages: list[dict], max_words: int | None,
+                             client_id: int | None = None) -> str | None:
     """The model call behind write_followup_text. None on any failure, so
     the caller falls back to the template."""
     try:
@@ -1403,6 +1404,8 @@ async def _complete_followup(system_prompt: str, messages: list[dict], max_words
             api_client.messages.create,
             model=model, max_tokens=300, system=system_prompt, messages=messages,
         )
+        import ai_usage
+        await ai_usage.record(response, "follow_up_text", client_id)
         text = gsm7_safe("".join(b.text for b in response.content if b.type == "text").strip())
         # One nudge is one text: a reply far past the word cap means the
         # model went off-script, so fall back to the template.
@@ -1444,6 +1447,8 @@ async def _run_agent_turn(client_id: int, from_phone: str, system_prompt: str, m
             model=model, max_tokens=1024, system=cached_system, tools=_TOOLS, messages=messages,
         )
         _log_cache_usage("response_ai", response)
+        import ai_usage
+        await ai_usage.record(response, "text_agent", client_id)
         messages.append({"role": "assistant", "content": response.content})
         text_parts = [b.text for b in response.content if b.type == "text"]
         tool_uses = [b for b in response.content if b.type == "tool_use"]

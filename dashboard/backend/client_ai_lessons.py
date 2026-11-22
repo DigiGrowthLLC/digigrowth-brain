@@ -165,6 +165,8 @@ async def _analyze(row: dict) -> None:
             tool_choice={"type": "tool", "name": "submit_lesson"},
             messages=[{"role": "user", "content": message}],
         )
+        import ai_usage
+        await ai_usage.record(resp, "agent_lessons", row["client_id"])
         result = next(b.input for b in resp.content if b.type == "tool_use")
     except Exception as e:
         print(f"[client_ai_lessons] analyze failed for lesson {row['id']}: {e}")

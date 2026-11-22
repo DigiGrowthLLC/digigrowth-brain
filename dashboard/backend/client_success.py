@@ -446,6 +446,8 @@ async def write_analysis(data: dict, brief: str) -> tuple[dict, str]:
             system=_system_prompt(brief, data["kind"]),
             messages=[{"role": "user", "content": "Report data:\n" + json.dumps(_for_prompt(data), default=str, indent=1)}],
         )
+        import ai_usage
+        await ai_usage.record(resp, "campaign_report")
         text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text")
         out = _extract_json(text)
         for k in ("on_target", "off_target", "next_steps", "client_asks", "questions_for_client"):
@@ -505,7 +507,9 @@ async def create_report(client_id: int, kind: str, send: bool = True) -> dict:
         raise ValueError("kind must be weekly or final")
     settings = await get_settings()
     data = await gather(client_id, kind)
-    analysis, source = await write_analysis(data, settings["csm_ai_brief"])
+    import ai_usage
+    with ai_usage.client(client_id):
+        analysis, source = await write_analysis(data, settings["csm_ai_brief"])
 
     camp = data["campaign"]
     now = datetime.now(timezone.utc)

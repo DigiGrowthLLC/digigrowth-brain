@@ -110,7 +110,7 @@ async def ensure_schema(conn) -> None:
         -- monthly numbers (post_client_costs).
         DELETE FROM client_transactions
          WHERE notes = 'Default monthly allocation (auto-added)'
-           AND description IN ('Meta ad spend', 'Twilio');
+           AND description IN ('Meta ad spend', 'Twilio', 'Claude AI — client agents');
         -- No per-client Workspace from Nov 2026 (earlier months left as they were).
         DELETE FROM client_transactions
          WHERE notes = 'Default monthly allocation (auto-added)'
@@ -656,6 +656,9 @@ async def post_client_costs() -> None:
                 retell = await conn.fetchval(
                     "SELECT COALESCE(SUM(cost_cents), 0) / 100.0 FROM client_voice_calls WHERE client_id = $1 AND created_at >= $2 AND created_at < $3",
                     c["id"], datetime.combine(start, datetime.min.time(), ET), datetime.combine(end, datetime.min.time(), ET))
+                claude = await conn.fetchval(
+                    "SELECT COALESCE(SUM(cost_usd), 0) FROM client_ai_usage WHERE client_id = $1 AND created_at >= $2 AND created_at < $3",
+                    c["id"], datetime.combine(start, datetime.min.time(), ET), datetime.combine(end, datetime.min.time(), ET))
                 twilio = None
                 if c["twilio_subaccount_sid"]:
                     try:
@@ -666,6 +669,7 @@ async def post_client_costs() -> None:
                     ("meta", meta, f"Meta ad spend ({label}, actual)", "Ad Spend"),
                     ("twilio", twilio, f"Twilio texts + calls ({label}, actual)", "Software & Tools"),
                     ("retell", retell, f"AI voice agent calls ({label}, actual)", "Software & Tools"),
+                    ("claude", claude, f"Claude AI for agents + reports ({label}, actual)", "Software & Tools"),
                 ):
                     if amount is None:
                         continue

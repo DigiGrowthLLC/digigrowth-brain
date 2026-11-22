@@ -179,6 +179,12 @@ async def _set_config(client_id: int, **fields) -> None:
 # ---------------------------------------------------------------- the run
 
 async def run(client_id: int, force: bool = False) -> None:
+    import ai_usage
+    with ai_usage.client(client_id):
+        await _run(client_id, force)
+
+
+async def _run(client_id: int, force: bool = False) -> None:
     try:
         if not await _claim(client_id, force):
             print(f"[autosetup] client {client_id}: already ran or running, skipped")
@@ -558,6 +564,8 @@ Build the landing page now."""
         messages=[{"role": "user", "content": content}],
     ) as stream:
         message = await stream.get_final_message()
+    import ai_usage
+    await ai_usage.record(message, "autosetup_funnel")
     if message.stop_reason == "refusal":
         raise RuntimeError("Claude declined to write the page")
     text = "".join(b.text for b in message.content if b.type == "text")
@@ -670,6 +678,8 @@ async def _offer_copy(client_id: int, ctx: dict) -> dict:
         messages=[{"role": "user", "content": brief}],
     ) as stream:
         message = await stream.get_final_message()
+    import ai_usage
+    await ai_usage.record(message, "autosetup_offer_copy", client_id)
     text = "".join(b.text for b in message.content if b.type == "text")
     data = json.loads(text[text.find("{"):text.rfind("}") + 1])
 

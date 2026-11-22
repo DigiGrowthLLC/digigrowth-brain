@@ -408,7 +408,9 @@ async def current_offer(conn, client_id: int) -> dict:
         return {"name": row["reactivation_offer_name"].strip(), "detail": (row["reactivation_offer_detail"] or "").strip(),
                 "auto": bool(row["reactivation_offer_auto"])}
     if row and (row["response_ai_context"] or "").strip():
-        got = await _extract_offer(row["response_ai_context"])
+        import ai_usage
+        with ai_usage.client(client_id):
+            got = await _extract_offer(row["response_ai_context"])
         if got and got.get("name"):
             await conn.execute(
                 "UPDATE client_marketing_config SET reactivation_offer_name = $2, reactivation_offer_detail = $3, "
@@ -442,6 +444,8 @@ async def _extract_offer(context: str) -> dict | None:
             ),
             messages=[{"role": "user", "content": context[:12000]}],
         )
+        import ai_usage
+        await ai_usage.record(r, "reactivation_offer")
         text = "".join(b.text for b in r.content if b.type == "text").strip()
         text = text[text.find("{"):text.rfind("}") + 1]
         got = json.loads(text)

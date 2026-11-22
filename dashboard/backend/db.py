@@ -2903,5 +2903,7 @@ async def _create_schema(pool: asyncpg.Pool):
         await personal_booking.ensure_seeded(conn)
 
         # Automatic bookkeeping (finance_auto.py, 2026-11-22).
+        import ai_usage
+        await ai_usage.ensure_schema(conn)
         import finance_auto
         await finance_auto.ensure_schema(conn)

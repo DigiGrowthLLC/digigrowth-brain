@@ -174,7 +174,7 @@ Rules:
 - Fields listed under "Already filled by hand" are confirmed by staff: leave them empty in your output."""
 
 
-async def _call_claude(source_text: str, manual: dict) -> dict:
+async def _call_claude(source_text: str, manual: dict, client_id: int | None = None) -> dict:
     client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     known = "\n".join(f"- {k}: {v}" for k, v in manual.items()) or "(none)"
     resp = await client.messages.create(
@@ -184,6 +184,8 @@ async def _call_claude(source_text: str, manual: dict) -> dict:
         output_config={"effort": "low", "format": {"type": "json_schema", "schema": _SCHEMA}},
         messages=[{"role": "user", "content": f"Already filled by hand:\n{known}\n\n# What we have on this prospect\n\n{source_text}"}],
     )
+    import ai_usage
+    await ai_usage.record(resp, "patient_intake", client_id)
     if resp.stop_reason == "refusal":
         raise RuntimeError("The model declined to read this conversation.")
     text = next((b.text for b in resp.content if b.type == "text"), "")
@@ -217,7 +219,7 @@ async def extract(contact_id: str, force: bool = False) -> dict | None:
 
     manual = {k: v["value"] for k, v in fields.items() if v.get("by") == "manual" and v.get("value")}
     try:
-        out = await _call_claude(source_text, manual)
+        out = await _call_claude(source_text, manual, contact["client_id"])
     except Exception as e:
         async with pool.acquire() as conn:
             await conn.execute(
