@@ -100,6 +100,7 @@ CALC_HTML = """    <div class="stats">{stats}</div>
 """
 
 TEMPLATE = pathlib.Path(__file__).resolve().parent.parent / "references" / "blueprint-template.html"
+DG_WORDMARK = pathlib.Path(__file__).resolve().parents[2] / "dashboard" / "frontend" / "src" / "assets" / "logo-wordmark.png"
 GSM7_BAD = re.compile(r"[–—‘’“”…]|[\U0001F000-\U0001FFFF]")
 
 # Line icons (Lucide-style, 24px grid, stroke = currentColor). The page uses
@@ -523,6 +524,8 @@ def main():
         # background (a logo cut from a dark header needs a dark circle).
         "BRAND_AVATAR_BG": esc(d["brand"].get("avatar_bg") or "#ffffff"),
         "LOGO_LOCKUP": logo_img or f'<span class="dg">{esc(business)}</span>',
+        # Top header = the client portal lockup: clinic logo × DigiGrowth wordmark (Dylan 2026-11-22).
+        "DG_WORDMARK": "data:image/png;base64," + base64.b64encode(DG_WORDMARK.read_bytes()).decode(),
         "HERO_HEADLINE": rich(d["hero"]["headline"]),
         "HERO_SUBHEAD": esc(d["hero"].get("subhead")),
         "ENGINE_INTRO": esc(d["engine_intro"]),

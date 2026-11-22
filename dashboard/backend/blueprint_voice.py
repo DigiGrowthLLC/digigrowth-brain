@@ -35,16 +35,17 @@ import blueprint_chat
 import client_voice_agent as va
 from db import get_pool
 
-DEMO_VERSION = "2026-11-22.1"  # bump to force every demo agent to re-sync
+DEMO_VERSION = "2026-11-22.2"  # bump to force every demo agent to re-sync
 MAX_CALL_MS = 6 * 60 * 1000
 
 _IP_LIMIT = (4, 3600)     # 4 demo calls per IP per hour
 _PAGE_LIMIT = (40, 86400)  # 40 per page per day
 _hits: dict[str, deque] = defaultdict(deque)
 
-# The client's own voice settings come from client_marketing_config; a demo
-# has no client yet, so it uses the OS defaults (Kate, normal speed, stock).
-_DEMO_CFG = {"voice_id": None, "voice_speed": None, "voice_style": None, "voice_agent_name": None}
+# A demo has no client yet, so it copies Advantage Therapy's live voice agent
+# (Dylan, 2026-11-22: the demo "doesn't sound anything like the original";
+# Advantage = client 4's client_marketing_config: 11labs-Kate, speed 1.2, tuned style, "Jamie").
+_DEMO_CFG = {"voice_id": "11labs-Kate", "voice_speed": 1.2, "voice_style": "tuned", "voice_agent_name": "Jamie"}
 
 ISSUES = {
     "back": "lower back pain", "knee": "knee pain", "shoulder": "shoulder pain",

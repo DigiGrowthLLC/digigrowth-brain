@@ -46,6 +46,14 @@ a { color: inherit; }
 .lockup img { height: 34px; width: auto; background: var(--av-bg); padding: 4px 8px; border-radius: 7px; box-sizing: content-box; }
 .lockup .x { color: var(--dim); font-family: Inter, system-ui, sans-serif; font-size: 13px; }
 .lockup .dg { font-weight: 700; letter-spacing: .01em; }
+.brandbar { position: relative; z-index: 20; background: rgba(6,10,28,.6); }
+.brandbar::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(106,176,255,.75) 20%, rgba(106,176,255,.75) 80%, transparent); box-shadow: 0 0 18px rgba(106,176,255,.45); }
+.brandbar .wrap { display: flex; align-items: center; gap: 18px; padding-top: 18px; padding-bottom: 18px; }
+.bb-logo img { height: 46px; width: auto; display: block; background: var(--av-bg); padding: 6px 12px; border-radius: 10px; box-sizing: content-box; }
+.bb-logo .dg { font-weight: 700; font-size: 18px; }
+.bb-x { font-size: 34px; line-height: 1; color: #6ab0ff; text-shadow: 0 0 10px rgba(106,176,255,.6); }
+.bb-dg { height: 44px; width: auto; display: block; }
+@media (max-width: 560px) { .brandbar .wrap { gap: 12px; } .bb-logo img { height: 34px; padding: 5px 9px; } .bb-x { font-size: 26px; } .bb-dg { height: 32px; } }
 .kicker { font-family: Inter, system-ui, sans-serif; color: var(--cyan); font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase; }
 h1, h2, h3, h4, .node text, .key b, .out .v, .stat .num, .price .amt, .gnum b { font-family: 'Space Grotesk', system-ui, sans-serif; }
 h1 { font-size: clamp(38px, 6vw, 72px); line-height: 1.02; margin: 18px 0 0; max-width: 1000px; letter-spacing: -.035em; font-weight: 700; }
@@ -398,7 +406,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 12px; padding
 .vdemo .vd-top { display: flex; justify-content: center; margin-bottom: 18px; }
 .vd-orb { width: 132px; height: 132px; margin: 6px auto 18px; border-radius: 50%; display: grid; place-items: center; color: #04120c; background: radial-gradient(circle at 35% 30%, #8ff5cf, var(--green) 55%, #0e8f63); box-shadow: 0 0 0 0 rgba(52,211,153,.45), 0 20px 50px rgba(52,211,153,.25); }
 .vd-orb .i { width: 46px; height: 46px; stroke-width: 1.6; }
-.vdemo.live .vd-orb { animation: vring 1.6s ease-out infinite; }
+.vdemo.on .vd-orb { animation: vring 1.6s ease-out infinite; }
 .vdemo.connecting .vd-orb { animation: vring 1s ease-out infinite; opacity: .8; }
 @keyframes vring { 0% { box-shadow: 0 0 0 0 rgba(52,211,153,.5), 0 20px 50px rgba(52,211,153,.25); } 100% { box-shadow: 0 0 0 34px rgba(52,211,153,0), 0 20px 50px rgba(52,211,153,.25); } }
 .vd-st { font-size: 18px; font-weight: 600; min-height: 26px; }
@@ -407,10 +415,10 @@ footer .wrap { display: flex; justify-content: space-between; gap: 12px; padding
 .vd-form label { display: grid; gap: 5px; text-align: left; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
 .vd-form input, .vd-form select { font: 500 15px Inter, system-ui, sans-serif; color: var(--ink); background: rgba(5,9,25,.7); border: 1px solid var(--line2); border-radius: 10px; padding: 10px 12px; outline: none; width: 100%; }
 .vd-form input:focus, .vd-form select:focus { border-color: var(--green); }
-.vdemo.live .vd-form, .vdemo.connecting .vd-form { opacity: .45; pointer-events: none; }
+.vdemo.on .vd-form, .vdemo.connecting .vd-form { opacity: .45; pointer-events: none; }
 .vd-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; max-width: 360px; border: 0; border-radius: 12px; padding: 15px 20px; font: 700 16px Inter, system-ui, sans-serif; cursor: pointer; color: #04120c; background: var(--green); box-shadow: 0 12px 30px rgba(52,211,153,.3); }
 .vd-btn .i { width: 18px; height: 18px; }
-.vdemo.live .vd-btn, .vdemo.connecting .vd-btn { background: #ef4444; color: #fff; box-shadow: 0 12px 30px rgba(239,68,68,.3); }
+.vdemo.on .vd-btn, .vdemo.connecting .vd-btn { background: #ef4444; color: #fff; box-shadow: 0 12px 30px rgba(239,68,68,.3); }
 .vd-note { margin-top: 12px; font-size: 12.5px; color: var(--dim); }
 .vtl { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 64px; position: relative; }
 .vtl::before { content: ""; position: absolute; left: 10%; right: 10%; top: 15px; height: 2px; background: linear-gradient(90deg, var(--cyan), var(--cyan) 55%, var(--amber)); opacity: .5; }
@@ -495,22 +503,13 @@ footer .wrap { display: flex; justify-content: space-between; gap: 12px; padding
 </style>
 </head>
 <body>
-<div class="bar" id="top"><div class="wrap"><span class="dot"></span><b>Patient Acquisition Blueprint</b><span class="sep">/</span><span class="pf">Prepared for {{BUSINESS}}</span><span class="r">Preview · examples, not live campaigns</span></div></div>
-<nav class="snav" aria-label="Sections"><div class="wrap">{{NAV_HTML}}</div></nav>
+<div class="brandbar" id="top"><div class="wrap"><span class="bb-logo">{{LOGO_LOCKUP}}</span><span class="bb-x">×</span><img class="bb-dg" src="{{DG_WORDMARK}}" alt="DigiGrowth"></div></div>
 
 <header class="hero">
   <div class="orb"></div>
   <div class="wrap">
-    <div class="lockup reveal">{{LOGO_LOCKUP}}<span class="x">×</span><span class="dg">DigiGrowth</span></div>
     <div class="kicker reveal">Digital Growth Engine // Patient Acquisition Blueprint</div>
     <h1 class="reveal">{{HERO_HEADLINE}}</h1>
-    <div class="spec reveal">
-      <div><div class="k">Prepared for</div><div class="v">{{BUSINESS}}</div></div>
-      <div><div class="k">Domain</div><div class="v">{{DOMAIN}}</div></div>
-      <div><div class="k">{{SPEC_TARGET_K}}</div><div class="v hl">{{SPEC_TARGET_V}}</div></div>
-      <div><div class="k">Modules</div><div class="v">{{SPEC_MODULES}}</div></div>
-      <div><div class="k">Issued</div><div class="v">{{BUILD_DATE}}</div></div>
-    </div>
   </div>
 </header>
 
@@ -855,7 +854,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 12px; padding
     var vSlug = vd.getAttribute('data-slug'), vCall = null, vTimer = null, vT0 = 0, vClient = null;
     var IDLE_ST = vSt.textContent, IDLE_SUB = vSub.textContent, BTN_IDLE = vBtn.innerHTML;
     function vState(s, st, sub) {
-      vd.classList.remove('live', 'connecting'); if (s) vd.classList.add(s);
+      vd.classList.remove('on', 'connecting'); if (s) vd.classList.add(s);
       vSt.textContent = st; vSub.textContent = sub || '';
       vBtn.innerHTML = s ? 'End call' : BTN_IDLE;
     }
@@ -886,7 +885,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 12px; padding
           retell_llm_dynamic_variables: { lead_first_name: (vName.value || 'Jordan').trim(), issue: vIssue.value, timezone: tz },
           hooks: {
             onStatus: function (s) {
-              if (s === 'live') { vT0 = Date.now(); vState('live', 'The agent is on the line', ''); vClock(); vTimer = setInterval(vClock, 1000); }
+              if (s === 'live') { vT0 = Date.now(); vState('on', 'The agent is on the line', ''); vClock(); vTimer = setInterval(vClock, 1000); }
               else if (s === 'ended') { vReset('Call ended.'); }
             },
             onEnd: function () { vReset('Call ended.'); },
