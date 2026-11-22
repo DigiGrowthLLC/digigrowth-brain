@@ -354,14 +354,26 @@ async def sync_stripe() -> dict | None:
     since = (cursor - 3 * 86400) if cursor else int(datetime.combine(_STRIPE_START, datetime.min.time(), timezone.utc).timestamp())
     added, newest, err = 0, cursor or 0, None
     customers: dict[str, dict] = {}
+    expand = True
     try:
         async with httpx.AsyncClient(timeout=30) as http:
             after = None
             while True:
-                params = [("limit", "100"), ("created[gte]", str(since)), ("expand[]", "data.source")]
+                params = [("limit", "100"), ("created[gte]", str(since))]
+                if expand:
+                    params.append(("expand[]", "data.source"))
                 if after:
                     params.append(("starting_after", after))
-                page = await _stripe_get(http, "/balance_transactions", params)
+                try:
+                    page = await _stripe_get(http, "/balance_transactions", params)
+                except RuntimeError as e:
+                    # A restricted key without "Balance Transaction Sources:
+                    # Read" can't expand the payer; still import the amounts
+                    # and let Dylan pick the client.
+                    if expand and "balance_transaction_source_read" in str(e):
+                        expand = False
+                        continue
+                    raise
                 async with pool.acquire() as conn:
                     for bt in page.get("data", []):
                         newest = max(newest, bt["created"])
@@ -393,7 +405,7 @@ async def sync_stripe() -> dict | None:
 
 async def _store_stripe_txn(conn, bt: dict, clients: list[dict], links: dict) -> int:
     kind = bt.get("type")
-    if kind not in ("charge", "payment", "refund", "payment_refund", "stripe_fee", "adjustment"):
+    if kind not in ("charge", "payment", "refund", "payment_refund", "stripe_fee", "adjustment", "contribution"):
         return 0  # payouts show up in the bank feed as Transfer
     src = bt.get("source") if isinstance(bt.get("source"), dict) else {}
     cust = src.get("customer") if isinstance(src.get("customer"), dict) else {}
@@ -433,7 +445,7 @@ async def _store_stripe_txn(conn, bt: dict, clients: list[dict], links: dict) ->
     else:
         await put(f"stripe:{bt['id']}", bt.get("description") or f"Stripe {kind}", round(gross, 2), gross > 0,
                   "Other Income" if gross > 0 else "Payment & Bank Fees", False, None, None)
-    if fee and kind not in ("stripe_fee", "adjustment"):
+    if fee and kind not in ("stripe_fee", "adjustment", "contribution"):
         await put(f"stripe-fee:{bt['id']}", f"Stripe fee: {who or 'payment'}", round(-abs(fee), 2), False,
                   "Payment & Bank Fees", False, None, client_id)
     return added
