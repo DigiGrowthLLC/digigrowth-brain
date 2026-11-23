@@ -2,10 +2,10 @@
   "period_7d": {
     "total_outreach": 148,
     "contacted": 154,
-    "replied": 43,
-    "reply_rate": 27.9,
-    "dm_reached": 31,
-    "dm_reached_rate": 20.1,
+    "replied": 42,
+    "reply_rate": 27.3,
+    "dm_reached": 30,
+    "dm_reached_rate": 19.5,
     "primed": 15,
     "primed_rate": 9.7,
     "engaged": 10,
@@ -18,22 +18,22 @@
     "not_interested_rate": 6.5
   },
   "period_30d": {
-    "total_outreach": 1159,
-    "contacted": 1177,
-    "replied": 356,
-    "reply_rate": 30.2,
-    "dm_reached": 237,
-    "dm_reached_rate": 20.1,
-    "primed": 66,
-    "primed_rate": 5.6,
-    "engaged": 35,
-    "engaged_rate": 3.0,
-    "interested": 26,
-    "interested_rate": 2.2,
+    "total_outreach": 1047,
+    "contacted": 1066,
+    "replied": 326,
+    "reply_rate": 30.6,
+    "dm_reached": 222,
+    "dm_reached_rate": 20.8,
+    "primed": 61,
+    "primed_rate": 5.7,
+    "engaged": 33,
+    "engaged_rate": 3.1,
+    "interested": 24,
+    "interested_rate": 2.3,
     "booked": 3,
     "abr": 0.3,
-    "not_interested": 82,
-    "not_interested_rate": 7.0
+    "not_interested": 76,
+    "not_interested_rate": 7.1
   },
   "all_time": {
     "total_outreach": 3773,
@@ -53,5 +53,5 @@
     "not_interested": 339,
     "not_interested_rate": 9.0
   },
-  "exported_at": "2026-11-22"
+  "exported_at": "2026-11-23"
 }
