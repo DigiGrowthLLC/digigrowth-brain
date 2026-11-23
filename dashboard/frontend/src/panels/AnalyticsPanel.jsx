@@ -39,7 +39,7 @@ function Segmented({ value, onChange, options }) {
         const on = value === v;
         return (
           <button key={v} onClick={() => onChange(v)} style={{
-            border: "none", cursor: "pointer", borderRadius: 8, padding: "6px 12px",
+            border: "none", cursor: "pointer", borderRadius: 8, padding: "6px 10px",
             fontFamily: T.font, fontSize: 12.5, fontWeight: on ? 600 : 500,
             background: on ? T.accent : "transparent", color: on ? "#fff" : T.textMute,
             transition: "background .15s, color .15s",

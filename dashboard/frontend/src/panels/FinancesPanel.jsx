@@ -31,7 +31,7 @@ function Segmented({ value, options, onChange }) {
     <div style={{ display: "inline-flex", padding: 3, gap: 2, borderRadius: 10, background: T.surface2, border: `1px solid ${T.line}` }}>
       {options.map(([v, l]) => (
         <button key={v} onClick={() => onChange(v)} style={{
-          border: "none", cursor: "pointer", borderRadius: 8, padding: "6px 12px", fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+          border: "none", cursor: "pointer", borderRadius: 8, padding: "6px 10px", fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
           background: value === v ? T.accentSoft : "transparent", color: value === v ? T.text : T.textMute,
         }}>{l}</button>
       ))}
