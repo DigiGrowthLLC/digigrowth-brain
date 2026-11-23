@@ -2,13 +2,19 @@
 
 *Source: Dylan's Google Drive cold-calling corpus (scripts, notes, call reviews, rebuttal vault, playbooks, metrics). Compiled 2026-07-30 as a pre-read before building the `cold-calling-script` skill.*
 
-`Last resync: 2026-11-16`
+`Last resync: 2026-11-23`
 
 ---
 
 ## Update Log
 
 Reverse-chronological. Each entry is tagged `(automated resync)` (weekly, via `executive-assistant/.claude/skills/cold-calling-resync/SKILL.md`) or `(Dylan, in conversation)` (reactive, added the moment new data/notes come up). Check here first before leaning on the Baseline below — an entry may supersede a stale number or contradict a stated principle (the way March 2026's real booking rate contradicted the "V.1.9 was an improvement" narrative — see Baseline §7-8).
+
+### 2026-11-23 (automated resync)
+- **Drive:** No new or changed cold-calling docs since the last resync (2026-11-16) — files modified in that window (Becoming Self Trackers, Novo transactions, V.1.3 Free offer doc, Real Play Marketing Simulation – Dylan's Answers, November Daily Input Tracker, 90 Day Attack Plan, Morning Protocol, Nightly Reflection, Pinnacle consent screenshots/reviews JSON, video/image uploads) match none of the known cold-calling title patterns. Free Offer material is out of scope per Baseline §8.
+- **Metrics:** No November 2026 Cold Calling Metrics sheet exists; no Cold Calling Metrics sheet was modified since 2026-11-15. The newest sheet is still September 2026 (unchanged since 2026-09-16, effectively empty). No new booking rate — most recent real data remains July 2026 (per Baseline §7).
+- **OS dialer:** Could not check — `GET /api/dialer/stats` was refused at the egress proxy (`connect_rejected`, HTTP 403) for `digigrowth-brain-production.up.railway.app:443`. Not circumvented. Same recommendation as prior entries: allow this host in the cloud environment's network policy, and keep the credential in Doppler rather than the routine prompt.
+- **Changes the picture?** No — no new signal from the reachable sources; the OS dialer gap remains a network-policy issue.
 
 ### 2026-11-16 (automated resync)
 - **Drive:** No new or changed cold-calling docs since the last resync (2026-11-02; the 2026-11-09 run left no entry) — files modified in that window (V.1.3 Free offer doc, Free Offer Marketing Services Agreement + .docx copy, November Daily Input Tracker, Nightly Reflections, 90 Day Attack Plan, Morning Protocol, Cookie Jar, Becoming Self Trackers) match none of the known cold-calling title patterns. Free Offer material is out of scope per Baseline §8.
