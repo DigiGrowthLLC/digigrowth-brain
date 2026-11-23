@@ -7448,9 +7448,9 @@
       "last_scraped_date": "2026-11-23"
     },
     "Upland, CA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 108,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 111,
       "qualified_count": 1,
       "last_scraped_date": "2026-11-23"
     },
