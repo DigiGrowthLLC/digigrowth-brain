@@ -7455,9 +7455,9 @@
       "last_scraped_date": "2026-11-23"
     },
     "Bethlehem, PA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 118,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 123,
       "qualified_count": 1,
       "last_scraped_date": "2026-11-23"
     },
