@@ -7469,8 +7469,8 @@
       "last_scraped_date": "2026-11-23"
     },
     "Bloomington, IL": {
-      "status": "in_progress",
-      "term_index": 3,
+      "status": "covered",
+      "term_index": 4,
       "reviewed_count": 114,
       "qualified_count": 1,
       "last_scraped_date": "2026-11-23"
