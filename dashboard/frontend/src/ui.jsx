@@ -132,6 +132,11 @@ export function Loading() {
   return <div style={{ padding: "28px 16px", textAlign: "center", fontSize: 13, color: T.textMute }}>Loading…</div>;
 }
 
+// Time periods shared by Analytics and Finances (days; 0 = all time), so both
+// pages always offer the same choices.
+export const PERIOD_OPTIONS = [[1, "Today"], [7, "7 days"], [30, "30 days"], [90, "90 days"], [365, "1 year"], [0, "All time"]];
+export const PERIOD_TEXT = { 1: "Today", 7: "Last 7 days", 30: "Last 30 days", 90: "Last 90 days", 365: "Last 12 months", 0: "All time" };
+
 export const fmtDate = (d) => (d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "–");
 
 const HEALTH_TONE = { green: "good", yellow: "warn", red: "bad" };

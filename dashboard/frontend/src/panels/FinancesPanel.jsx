@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { API } from "../api.js";
-import { T, Card, PageHeader, SectionTitle, Tabs, Pill, Stat, Progress, Empty, Loading, inputStyle } from "../ui.jsx";
+import { T, Card, PageHeader, SectionTitle, Tabs, Pill, Stat, Progress, Empty, Loading, inputStyle, PERIOD_OPTIONS, PERIOD_TEXT } from "../ui.jsx";
 import { BankFeedCard, ReviewCard, ClientProfitCard, useFinanceStatus } from "../components/FinanceAuto.jsx";
 
 // Finances tab (redesigned 2026-11-22): summary strip, then Overview /
@@ -18,7 +18,6 @@ const CATEGORIES = [
   "Transfer", "Uncategorized",
 ];
 const EXPENSE_CATEGORIES = CATEGORIES.filter((c) => !["Client Revenue", "Other Income"].includes(c));
-const PERIODS = [[30, "30 days"], [90, "90 days"], [365, "12 months"]];
 const FREQ_LABELS = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -120,19 +119,23 @@ function AddTransactionModal({ onClose, onSaved }) {
 
 function Overview({ summary, categories, days, onPickCategory }) {
   const cats = categories?.expense_breakdown || [];
+  // All time asks for 10 years; start the chart at the first month with money moving.
+  const series = categories?.daily ?? [];
+  const first = series.findIndex((p) => p.income || p.expenses);
+  const trimmed = first > 0 ? series.slice(first) : series;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1.5fr_1fr]" style={{ gap: 16 }}>
       <Card>
-        <SectionTitle title="Money in vs money out" hint={`Running total over the last ${days === 365 ? "12 months" : `${days} days`}`} />
+        <SectionTitle title="Money in vs money out" hint={`Running total · ${PERIOD_TEXT[days] || `last ${days} days`}`} />
         <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={categories?.daily ?? []} margin={{ top: 8, right: 4, bottom: 0, left: -8 }}>
+          <AreaChart data={trimmed} margin={{ top: 8, right: 4, bottom: 0, left: -8 }}>
             <defs>
               <linearGradient id="fIn" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.good} stopOpacity={0.28} /><stop offset="95%" stopColor={T.good} stopOpacity={0} /></linearGradient>
               <linearGradient id="fOut" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={T.warn} stopOpacity={0.22} /><stop offset="95%" stopColor={T.warn} stopOpacity={0} /></linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(120,150,210,0.08)" vertical={false} />
             <XAxis dataKey="date" tick={{ fontFamily: T.font, fontSize: 11, fill: T.textMute }} axisLine={false} tickLine={false}
-              tickFormatter={(v) => (!v ? "" : days > 90 ? MONTHS[parseInt(v.slice(5, 7), 10) - 1] : shortDate(v))} minTickGap={24} />
+              tickFormatter={(v) => (!v ? "" : days === 0 ? `${MONTHS[parseInt(v.slice(5, 7), 10) - 1]} ${v.slice(2, 4)}` : days > 90 ? MONTHS[parseInt(v.slice(5, 7), 10) - 1] : shortDate(v))} minTickGap={24} />
             <YAxis tick={{ fontFamily: T.font, fontSize: 11, fill: T.textMute }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
             <Tooltip content={<ChartTooltip />} />
             <Area type="monotone" dataKey="income" name="In" stroke={T.good} strokeWidth={2} fill="url(#fIn)" />
@@ -260,12 +263,13 @@ export default function FinancesPanel() {
   const [status, reloadStatus] = useFinanceStatus();
 
   const loadAll = useCallback(async () => {
+    const d = days || 3650; // 0 = all time
     await fetch(API("/finances/recurring/apply"), { method: "POST" });
     const get = (p, d) => fetch(API(p)).then((x) => (x.ok ? x.json() : d));
     const [s, c, t, r] = await Promise.all([
-      get(`/finances/summary?days=${days}`, null),
-      get(`/finances/categories?days=${days}`, null),
-      get(`/finances/transactions?days=${days}&type=all&limit=2000`, null),
+      get(`/finances/summary?days=${d}`, null),
+      get(`/finances/categories?days=${d}`, null),
+      get(`/finances/transactions?days=${d}&type=all&limit=2000`, null),
       get("/finances/recurring", []),
     ]);
     setSummary(s); setCategories(c); setTxns(t?.transactions || []); setRecurring(r || []);
@@ -309,7 +313,7 @@ export default function FinancesPanel() {
           title="Finances"
           subtitle="Novo + Stripe, sorted automatically"
           actions={<>
-            <Segmented value={days} options={PERIODS} onChange={setDays} />
+            <Segmented value={days} options={PERIOD_OPTIONS} onChange={setDays} />
             <button className="btn btn-primary" style={{ fontSize: 13 }} onClick={() => setAdding(true)}>Add transaction</button>
           </>}
         />

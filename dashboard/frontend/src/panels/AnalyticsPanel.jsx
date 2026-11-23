@@ -3,7 +3,7 @@ import { API } from "../api.js";
 import DatePickerButton, { formatPickedDate } from "../components/DatePickerButton.jsx";
 import CampaignModal from "../CampaignModal.jsx";
 import RetentionView from "./RetentionView.jsx";
-import { T, Card, PageHeader, SectionTitle, Tabs, Pill, Empty, inputStyle } from "../ui.jsx";
+import { T, Card, PageHeader, SectionTitle, Tabs, Pill, Empty, inputStyle, PERIOD_OPTIONS, PERIOD_TEXT } from "../ui.jsx";
 
 // Analytics (2026-11-21 redesign): headline KPIs first, then the funnel as
 // one row per stage with its step conversion, then one card per outreach
@@ -28,8 +28,7 @@ const CH = {
   email:   { name: "Email", color: "#a78bfa" },
 };
 
-const ANALYTICS_PERIOD_OPTIONS = [[1, "Today"], [7, "7 days"], [30, "30 days"], [365, "1 year"], [0, "All time"]];
-const PERIOD_TEXT = { 1: "Today", 7: "Last 7 days", 30: "Last 30 days", 365: "Last 12 months", 0: "All time" };
+const ANALYTICS_PERIOD_OPTIONS = PERIOD_OPTIONS; // shared with Finances (ui.jsx)
 
 // ── Small building blocks ────────────────────────────────────────────────
 
