@@ -7343,9 +7343,9 @@
       "last_scraped_date": "2026-11-23"
     },
     "Pasco, WA": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 107,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 111,
       "qualified_count": 7,
       "last_scraped_date": "2026-11-23"
     },
