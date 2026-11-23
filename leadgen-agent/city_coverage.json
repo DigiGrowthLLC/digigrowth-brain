@@ -7420,9 +7420,9 @@
       "last_scraped_date": "2026-11-23"
     },
     "Bloomington, IN": {
-      "status": "in_progress",
-      "term_index": 3,
-      "reviewed_count": 99,
+      "status": "covered",
+      "term_index": 4,
+      "reviewed_count": 102,
       "qualified_count": 4,
       "last_scraped_date": "2026-11-23"
     },
