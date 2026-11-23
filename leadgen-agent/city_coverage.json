@@ -7483,11 +7483,11 @@
       "last_scraped_date": "2026-11-23"
     },
     "Cherry Hill, NJ": {
-      "status": "not_started",
-      "term_index": 0,
-      "reviewed_count": 0,
-      "qualified_count": 0,
-      "last_scraped_date": null
+      "status": "in_progress",
+      "term_index": 1,
+      "reviewed_count": 113,
+      "qualified_count": 3,
+      "last_scraped_date": "2026-11-23"
     },
     "Tustin, CA": {
       "status": "not_started",
