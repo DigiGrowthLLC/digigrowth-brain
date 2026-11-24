@@ -257,16 +257,27 @@ def format_open_slots(slots_utc: list[datetime] | None, tz_name: str, now: datet
         return "Calendar unavailable right now. Ask which day and time works for them instead of offering times."
     tz = ZoneInfo(tz_name)
     cutoff = now + timedelta(hours=_MIN_LEAD_HOURS)
-    days: dict[str, list[str]] = {}
+    days: dict[str, tuple[list[str], list[str]]] = {}
     for s in sorted(slots_utc):
         if s < cutoff:
             continue
         local = s.astimezone(tz)
         key = f"{local.strftime('%A %b')} {local.day} ({local.date().isoformat()})"
-        days.setdefault(key, []).append(_clock(local))
+        best, backup = days.setdefault(key, ([], []))
+        (backup if is_backup_slot(s, tz_name) else best).append(_clock(local))
     if not days:
         return "No open times in the next couple of weeks. Ask which day works for them and set action to handoff."
-    return "\n".join(f"- {day}: {', '.join(times)}" for day, times in days.items())
+    lines = []
+    for day, (best, backup) in days.items():
+        parts = [", ".join(best)] if best else ["(only backup times)"]
+        if backup:
+            parts.append(f"backup: {', '.join(backup)}")
+        lines.append(f"- {day}: {' | '.join(parts)}")
+    note = ("Times after \"backup:\" are less ideal for Dylan (right next to another call on his calendar, or very "
+            "early / late). They're still real openings: offer them only when no regular time works (the prospect "
+            "asked for that time or day, or the regular times don't suit them), and book one if they pick it. Never "
+            "call them backup times to the prospect.")
+    return "\n".join(lines) + ("\n" + note if any(b for _, b in days.values()) else "")
 
 
 SEQUENCE_KEYS = ("gatekeeper", "curiosity_opener", "relevance", "guarantee", "ask", "cta")
@@ -495,8 +506,42 @@ async def open_slots_utc(conn) -> list[datetime] | None:
         return None
     soonest = datetime.now(timezone.utc) + timedelta(minutes=15)
     slots = [s for s in raw if s >= soonest and not near_shift(s, shifts)]
-    _slot_cache.update(at=time.time(), slots=slots)
+    try:
+        busy = await personal_booking.ai_busy(_SLOT_DAYS)
+        backup = {s for s in slots if near_block(s, busy)}
+    except Exception as e:  # a preference only: on failure every slot just counts as preferred
+        print(f"[sms_setter_ai] busy-block lookup failed, no slots marked backup: {e}", flush=True)
+        backup = set()
+    _slot_cache.update(at=time.time(), slots=slots, backup=backup)
     return slots
+
+
+# Dylan's scheduling PREFERENCES (2026-11-23), not hard rules: avoid a call
+# that starts or ends within BLOCK_GAP of anything else on his calendar, and
+# avoid very early or very late calls (before PREFERRED_START / starting at or
+# after PREFERRED_END, in his time or the prospect's). Such slots stay
+# bookable; format_open_slots lists them as "backup" and the playbook says to
+# offer them only when no regular time works.
+BLOCK_GAP = timedelta(minutes=30)
+PREFERRED_START, PREFERRED_END = 9, 20  # hours, local
+DYLAN_TZ = "America/New_York"
+
+
+def near_block(start: datetime, busy: list[tuple[datetime, datetime]]) -> bool:
+    end = start + _HOLD_LENGTH
+    return any(start < b1 + BLOCK_GAP and end > b0 - BLOCK_GAP for b0, b1 in busy)
+
+
+def _odd_hour(local: datetime) -> bool:
+    return local.hour < PREFERRED_START or local.hour >= PREFERRED_END
+
+
+def is_backup_slot(start: datetime, tz_name: str, backup: set | None = None) -> bool:
+    """A less-preferred opening: next to another calendar block, or very
+    early / late for Dylan or the prospect."""
+    backup = (_slot_cache.get("backup") or set()) if backup is None else backup
+    return (start in backup or _odd_hour(start.astimezone(ZoneInfo(DYLAN_TZ)))
+            or _odd_hour(start.astimezone(ZoneInfo(tz_name))))
 
 
 # ── Slot holds ───────────────────────────────────────────────────────────────

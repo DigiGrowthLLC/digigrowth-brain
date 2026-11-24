@@ -535,6 +535,20 @@ async def ai_open_slots(days: int) -> list[datetime]:
     return [_parse_start(x) for x in slots]
 
 
+async def ai_busy(days: int) -> list[tuple[datetime, datetime]]:
+    """Dylan's busy blocks (every calendar + confirmed bookings) over the same
+    window ai_open_slots just read, so it's served from the busy cache. The
+    setters use it to tell which openings sit right next to another block."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        s = await get_settings(conn)
+    tz = ZoneInfo(s["timezone"])
+    today = datetime.now(timezone.utc).astimezone(tz).date()
+    last = min(today + timedelta(days=max(1, min(days, 62)) - 1), today + timedelta(days=s["max_days_ahead"]))
+    return await _busy(datetime.combine(today, datetime.min.time(), tz),
+                       datetime.combine(last + timedelta(days=1), datetime.min.time(), tz))
+
+
 async def ai_slot_open(start: datetime) -> bool:
     try:
         await _assert_open(await discovery_type_id(), start.astimezone(timezone.utc), prospect=False)

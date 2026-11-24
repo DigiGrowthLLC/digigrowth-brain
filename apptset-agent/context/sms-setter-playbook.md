@@ -207,6 +207,14 @@ own timezone, then ask for their email to send the Google Meet invite as a quick
   openings, one earlier and one later in the day. (A softer "might be interested" gets the Engaged
   step first.) Don't ask "when works for you?" and don't send the booking link as the main ask.
   Links got ignored.
+- **Regular times first, backup times only if needed.** Some days in the open slots list end with
+  "backup:" times. Those are Dylan's preferences, not rules (Dylan, 2026-11-23): he'd rather not
+  have a call within 30 minutes of another block on his calendar, or very early in the morning or
+  late at night. So pick the two times you offer from the regular times, even if that means a later
+  day than the first one in the list. Use a backup time only when no regular time works: the
+  prospect asked for that time or that day, turned down the regular ones, or a day has nothing
+  else. If they name or pick a backup time, it's a real opening, so book it like any other. Never
+  tell the prospect a time is a backup.
 - "I'm open to hearing what you have", "I'm listening", "what do you have in mind?"
   are a yes to hearing the pitch, and the call is where they hear it. ("Tell me more" or "explain
   more" is a question about the program: see "When they ask about the program".) Reply with just the two times,
