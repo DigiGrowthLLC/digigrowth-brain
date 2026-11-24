@@ -6,6 +6,7 @@ Full-stack client acquisition platform. Stack: React + Vite frontend, FastAPI + 
 
 - `context/offer.md` — **DigiGrowth's reference offer terms** (PT patient acquisition: prepaid $49 assessments, pay per booking, 7-10 paid assessments in 30 days, 7 guaranteed, standard vs. 3-clinic pilot pricing). There is no default offer: each prospect/client gets their own, set on the sales call or Blueprint and saved in `media-buying-agent/clients/<slug>/client-context.md` "## Offer". Use offer.md for the reference figures and pilot terms, never present them as THE offer.
 - `context/cold-email-deliverability.md` — **cold email deliverability SOP** (warm-up, caps, sending checklist) plus DigiGrowth's current gaps against it. Read before touching email identities, sequence copy/caps, DNS or the video link.
+- `context/icp-pain-points.md` — **voice-of-customer research** (2026-11-22, from sales calls, discovery forms, 1,347 cold SMS reply threads, client questionnaires): who buys vs. who doesn't, buying triggers, ranked pain points, objections in prospects' own words, language bank. Read before writing any cold outreach, social, ad or website copy aimed at PT owners.
 - `context/positioning.md` — **how the offer is framed** in website/conversion copy: guarantee leads, the "Digital Makeover" is the named-but-never-explained mechanism behind it (builds curiosity for the call). Framing only; terms still come from `offer.md`.
 
 - `dashboard/frontend/src/panels/` — React panel components (one per nav tab)
