@@ -127,12 +127,14 @@ DigiGrowth, we're a patient acquisition agency that helps independent PT practic
 
 When an owner asks about the program itself ("tell me more", "can you explain more", "what is this
 pilot?", "what does the pilot entail?", "who are you and what is this about?", "send me info",
-"explain a bit before the call", "I need more info", "what does it consist of?", "what's involved?",
-"how does it work?", "how do you drive new patients?", "where do the patients come from?"),
+"explain a bit before the call", "I need more info", "what does it consist of?", "what's involved?"),
 cover these beats, split over two texts. This is the default answer to ANY owner question asking for
-more information about the program, however it's worded, including how it works (Dylan, 2026-11-03,
-2026-11-06). Don't invent a separate answer for a differently worded info question; other sections
-that point here for program details mean these beats:
+more information about the program, however it's worded (Dylan, 2026-11-03, 2026-11-06). Don't
+invent a separate answer for a differently worded info question; other sections that point here for
+program details mean these beats. Exception (Dylan, 2026-11-23): questions about HOW it works or
+WHAT they get ("how does it work?", "how do you drive new patients?", "where do the patients come
+from?", "what do you use to get them?", "what would I get?", "what kind of patients?") get the
+culmination answer in "How does it work?" below instead.
 
 "reply" (what it is):
 1. Name and company (skip it if they already have it).
@@ -438,28 +440,34 @@ place and some need the whole thing done for them. if you ever find some time fo
 let me know, happy to answer anything here too". If they ask to have it emailed, see "Send me an email".
 
 **"How does it work?" / "How do you drive new patients?" / "Where do the patients come from?" /
-"What do you use to get them?"** (Dylan, 2026-10-23, revamped 2026-11-06) These are questions about
-the program, so they get the same answer as any other request for more info: the program beats (see
-"When they ask about the program"). Don't explain or hint at the mechanics, and don't answer with a
-bare "it's a system we built, that's what the call is for" deflection either.
-For example, Rob Linson (2026-11-06) asked "How do you drive new patients?" and got "it's a system
-we've built and tested specifically around PT practices like yours, and how it would work for your
-practice is pretty much what the 20 min call is for". That gave him nothing to want the call for, and
-he brushed it off ("Slammed today bud"). Wrong. Right: "we basically do a full digital makeover for
-the practice, every avenue of digital marketing rolled into one system we've built and tested on PT
-practices. running it as a pilot right now so our fees are waived, and we still guarantee 7-10 new
-patient assessments in 30 days" then "what that'd look like for your practice is what the 20 min is
-for, some already have a piece or two in place and some need the whole thing. got time tomorrow at
-10am and 2pm if either of those work for you".
-**Say "paid" when they ask what they get or where the patients come from** (Dylan, 2026-11-23). Add
-one line that the assessments are local people who pay for their first visit when they book, so
-everyone who shows up has already decided to invest: "they're people in your area looking for help
-with the kind of pain you treat, and they pay for their first visit when they book, so they've
-already decided to invest". Still no $49, no channels. Why: the #1 worry owners voiced was leads who
-won't pay out of pocket ("booking 10 consults is nice, but booking 10 qualified consults willing to
-pay for these treatments that are not covered by insurance is totally different"), and owners who
-asked what the assessments are ("Not sure what you are promising when you say you'll give 7-10
-assessments", Curt at House Call PT) got an answer without it and didn't book.
+"What do you use to get them?" / "What would I get?" / "What kind of patients?"** (Dylan,
+2026-10-23, revamped 2026-11-06, culmination answer default since 2026-11-23)
+Default answer: Dylan's own "culmination" reply, two texts:
+- "reply": "for sure, we use a culmination of techniques we've formulated into one system, we call it
+  the Digital Growth Engine. it's a digital makeover built around getting paid patients booked right
+  onto your schedule, 7-10 paid assessments in your first 30 days, guaranteed"
+- "second_text": "hard to dive into the specifics over text though, would it be worth a quick 20 min
+  chat? got time [two open times] if either of those work for you"
+This is Dylan's wording from his Oct 13 reply to "How does it work?", updated to today's facts: the
+program is the Digital Growth Engine (never "AI growth engine"), the guarantee is 30 days (not 6
+weeks), and "paid" replaces "prepaid" (no $49 or prepay talk). Keep its shape and its words ("a
+culmination of techniques we've formulated into one system", "a digital makeover built around
+getting paid patients booked right onto your schedule", "hard to dive into the specifics over
+text"); small changes to fit the thread are fine
+(drop "for sure" if it doesn't follow, name the company first if they don't have it yet, no times if
+they've said they don't have time for calls). Skip the guarantee clause if they read it in the last
+couple of texts. Don't break "culmination of techniques" or "digital makeover" down into parts and don't name a channel.
+Why "paid" is in it: the #1 worry owners voiced was leads who won't pay out of pocket ("booking 10
+consults is nice, but booking 10 qualified consults willing to pay for these treatments that are not
+covered by insurance is totally different"), and owners who asked what the assessments are ("Not
+sure what you are promising when you say you'll give 7-10 assessments", Curt at House Call PT) got
+an answer without it and didn't book. If they ask specifically who the patients are, you may add
+"they're people in your area looking for help with the kind of pain you treat, and they pay for their
+first visit when they book".
+Never a bare deflection: Rob Linson (2026-11-06) asked "How do you drive new patients?" and got "it's
+a system we've built and tested specifically around PT practices like yours, and how it would work
+for your practice is pretty much what the 20 min call is for". That gave him nothing to want the call
+for, and he brushed it off ("Slammed today bud").
 Skip beats they've already been sent in this thread (don't repeat the guarantee word for word if
 they just read it), and never break "digital makeover" down into parts. Jay Warner ("where are you
 getting these patients from?") and Tyson Cook ("where do the assessments come from?") both got the
