@@ -28,7 +28,7 @@ async def privacy_policy():
 <style>{_STYLE}</style></head>
 <body>
 <h1>Privacy Policy</h1>
-<p class="updated">Last updated: June 25, 2026</p>
+<p class="updated">Last updated: November 25, 2026</p>
 
 <h2>1. Who We Are</h2>
 <p>DigiGrowth LLC ("DigiGrowth", "we", "our") provides digital marketing and client acquisition
@@ -58,17 +58,75 @@ identifiable information with third parties for their marketing purposes.</stron
 numbers collected by DigiGrowth are used solely for direct communications between DigiGrowth
 and the contact, and will never be disclosed to external parties except as required by law.</p>
 
-<h2>6. Data Retention</h2>
+<h2>6. Facebook and Instagram Data</h2>
+<p>We manage Facebook Pages and Instagram business accounts on behalf of the healthcare clinics we
+work with (our "clinic clients"), using the Meta Platform under each clinic's authorization. When
+someone messages a clinic client's Facebook Page or Instagram account, or submits one of its Facebook
+or Instagram lead forms, we receive:</p>
+<ul>
+  <li>the message content, its timestamp and the Meta-provided ID of the conversation;</li>
+  <li>the sender's public name as provided by Meta;</li>
+  <li>any details the person chooses to share, such as their phone number or email, and lead form answers.</li>
+</ul>
+<p><strong>How we use it:</strong> only to reply to that person on the clinic's behalf (including with
+an AI assistant that answers questions and helps book an appointment with the clinic), to follow up
+with them by text if they gave a phone number, and to show the clinic its conversations and leads.
+<strong>We do not sell this data, use it for advertising or profiling, or share it with anyone other
+than the clinic the person contacted</strong>, apart from the service providers that run our systems
+(hosting, AI processing and messaging), who may use it only to provide those services to us.</p>
+<p><strong>Retention:</strong> kept while we provide services to that clinic, and deleted within 30 days
+after the clinic stops working with us or a deletion request is received.</p>
+<p><strong>Deletion:</strong> anyone can ask us to delete their Facebook or Instagram data. See our
+<a href="/data-deletion">Data Deletion Instructions</a>.</p>
+
+<h2>7. Data Retention</h2>
 <p>We retain contact information for as long as necessary to provide our services or as required
 by law. You may request deletion of your data at any time by emailing us.</p>
 
-<h2>7. Your Rights</h2>
+<h2>8. Your Rights</h2>
 <p>You may request access to, correction of, or deletion of your personal information by
-contacting us at <a href="mailto:dylangroenendijk@gmail.com">dylangroenendijk@gmail.com</a>.</p>
+contacting us at <a href="mailto:dylanrg@digigrowthllc.com">dylanrg@digigrowthllc.com</a>.</p>
 
-<h2>8. Changes to This Policy</h2>
+<h2>9. Changes to This Policy</h2>
 <p>We may update this Privacy Policy from time to time. The "last updated" date at the top of
 this page reflects the most recent revision.</p>
+</body></html>""")
+
+
+@router.get("/data-deletion", response_class=HTMLResponse, include_in_schema=False)
+async def data_deletion():
+    """Meta App Review's required User Data Deletion instructions URL."""
+    return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Deletion Instructions — DigiGrowth LLC</title>
+<style>{_STYLE}</style></head>
+<body>
+<h1>Data Deletion Instructions</h1>
+<p class="updated">Last updated: November 25, 2026</p>
+
+<p>DigiGrowth LLC answers Facebook and Instagram messages and lead forms on behalf of the healthcare
+clinics we work with. If you messaged one of those clinics, or filled out one of their forms, you
+can ask us to delete everything we hold about you.</p>
+
+<h2>How to request deletion</h2>
+<ol>
+  <li>Email <a href="mailto:dylanrg@digigrowthllc.com?subject=Data%20deletion%20request">dylanrg@digigrowthllc.com</a>
+      with the subject "Data deletion request".</li>
+  <li>Tell us the name of the clinic you contacted and your Facebook or Instagram name (and the phone
+      number or email you shared, if any), so we can find your records.</li>
+</ol>
+
+<h2>What we delete</h2>
+<ul>
+  <li>your messages and conversation history with the clinic's Facebook Page or Instagram account;</li>
+  <li>your name, Meta conversation ID, phone number, email and any lead form answers;</li>
+  <li>any scheduled follow-up messages to you.</li>
+</ul>
+<p>We confirm by email once it's done, within 30 days of your request.
+Appointments you already booked stay with the clinic, since they are the clinic's own records.</p>
+
+<p>See our <a href="/privacy">Privacy Policy</a> for how this data is used.</p>
 </body></html>""")
 
 
