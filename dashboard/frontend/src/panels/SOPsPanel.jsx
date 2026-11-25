@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { T, Tabs, Toggle, inputStyle } from "../ui.jsx";
+import { T, Tabs, Toggle, inputStyle, Card, Pill, Empty, SectionTitle } from "../ui.jsx";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Color } from "@tiptap/extension-color";
@@ -127,7 +127,7 @@ function FormatBar({ editor }) {
         background: active ? "rgba(58,123,213,0.3)" : "rgba(255,255,255,0.04)",
         border: `1px solid ${active ? "rgba(58,123,213,0.5)" : "rgba(58,123,213,0.15)"}`,
         borderRadius: 5, color: active ? "#6ab0ff" : "#7a9cc0",
-        fontFamily: "'Space Grotesk', sans-serif",
+        fontFamily: T.font,
         fontSize: 11, fontWeight: 600,
         padding: "3px 8px", cursor: "pointer", lineHeight: 1.4, minWidth: 28,
         ...extra,
@@ -227,7 +227,7 @@ function FormatBar({ editor }) {
           onMouseDown={e => { e.preventDefault(); editor.chain().focus().unsetColor().run(); }}
           style={{
             background: "rgba(255,255,255,0.04)", border: "1px solid rgba(58,123,213,0.15)",
-            borderRadius: 5, color: "#7a9cc0", fontSize: 10, padding: "3px 6px", cursor: "pointer",
+            borderRadius: 5, color: T.textDim, fontSize: 10, padding: "3px 6px", cursor: "pointer",
           }}
         >✕</button>
       </div>
@@ -239,7 +239,7 @@ function FormatBar({ editor }) {
           background: "rgba(58,123,213,0.06)",
           borderTop: "1px solid rgba(58,123,213,0.1)",
         }}>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, color: "#6ab0ff", whiteSpace: "nowrap" }}>
+          <span style={{ fontFamily: T.font, fontSize: 11, color: "#6ab0ff", whiteSpace: "nowrap" }}>
             Link URL:
           </span>
           <input
@@ -254,7 +254,7 @@ function FormatBar({ editor }) {
             style={{
               flex: 1, background: "rgba(255,255,255,0.06)",
               border: "1px solid rgba(58,123,213,0.3)", borderRadius: 5,
-              color: "#e8f0ff", fontFamily: "'Space Grotesk', sans-serif",
+              color: T.text, fontFamily: T.font,
               fontSize: 12, padding: "5px 10px", outline: "none",
             }}
           />
@@ -263,7 +263,7 @@ function FormatBar({ editor }) {
             style={{
               background: "linear-gradient(90deg, #2857a0, #3a7bd5)", border: "none",
               borderRadius: 5, color: "#fff",
-              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+              fontFamily: T.font, fontWeight: 600,
               fontSize: 11, padding: "5px 14px", cursor: "pointer",
             }}
           >Apply</button>
@@ -271,8 +271,8 @@ function FormatBar({ editor }) {
             onClick={cancelLink}
             style={{
               background: "transparent", border: "1px solid rgba(58,123,213,0.2)",
-              borderRadius: 5, color: "#4a6a8a",
-              fontFamily: "'Space Grotesk', sans-serif", fontSize: 11,
+              borderRadius: 5, color: T.textMute,
+              fontFamily: T.font, fontSize: 11,
               padding: "5px 10px", cursor: "pointer",
             }}
           >Cancel</button>
@@ -314,10 +314,87 @@ function resolveCategory(typed, existingCategories) {
 }
 
 const SUBSECTIONS = [
-  { id: "sop",                label: "SOPs",               subtitle: "STANDARD OPERATING PROCEDURES", newLabel: "New SOP",      placeholder: "SOP title..." },
-  { id: "business_doc",       label: "Business Documents",  subtitle: "CONTRACTS · PROPOSALS · DOCS",  newLabel: "New Document", placeholder: "Document title..." },
-  { id: "outreach_templates", label: "Outreach Templates",  subtitle: "SMS · EMAIL · SCRIPTS",          newLabel: "New Template", placeholder: "Template title..." },
+  { id: "sop",                label: "SOPs",                description: "Step-by-step procedures for how the business runs.",                                          newLabel: "New SOP",      placeholder: "SOP title",      noun: "SOP" },
+  { id: "business_doc",       label: "Business documents",  description: "Contracts, proposals and other files you keep on hand.",                                         newLabel: "New document", placeholder: "Document title", noun: "document" },
+  { id: "outreach_templates", label: "Outreach templates",  description: "Every text, email and script the OS sends or shows, and what makes each one go out.",            newLabel: "New",          placeholder: "Template title", noun: "template" },
 ];
+
+// What each built-in outreach template is for, in plain words. `purpose`
+// decides the "By purpose" grouping in the sidebar and on the overview;
+// `when` is the one-line "what makes it go out" shown under the title.
+const PURPOSES = [
+  { id: "cold",         label: "Cold outreach",        hint: "Getting prospects to reply and book." },
+  { id: "sequences",    label: "Inbox text sequences", hint: "Step-by-step texts you send from the Inbox. The Default one is what the Inbox shows." },
+  { id: "after_call",   label: "After a call",         hint: "Sent from what you pick when a call ends." },
+  { id: "calls",        label: "Call scripts",         hint: "Shown in the dialer while you're on a call." },
+  { id: "appointments", label: "Booked calls",         hint: "Reminders and recovery around your sales calls." },
+  { id: "new_clients",  label: "New clients",          hint: "Sent once a deal closes." },
+  { id: "client_updates", label: "Client updates",     hint: "Sent to clinics you already work with." },
+  { id: "docs",         label: "Your saved templates", hint: "Free-form templates you wrote yourself." },
+];
+
+const TEMPLATE_META = {
+  sendInfo:              { purpose: "after_call",     icon: "☎",  channels: ["Text", "Email"], when: "A call is marked Send Info" },
+  gkDeferralTemplate:    { purpose: "after_call",     icon: "📨", channels: ["Email"],         when: "Front desk says to email the owner (Gatekeeper Deferral)" },
+  smsSequence:           { purpose: "sequences",           icon: "💬", channels: ["Text"],          when: "Steps you send from the Inbox" },
+  emailHandoffTemplate:  { purpose: "cold",           icon: "📧", channels: ["Email"],         when: "A contact is set to Email Handoff (3 emails)" },
+  dmFollowupTemplate:    { purpose: "cold",           icon: "💭", channels: ["Text"],          when: "A DM Reached chat goes 24h without a reply" },
+  callScript:            { purpose: "calls",          icon: "📞", channels: ["Call"],          when: "Shown in the dialer during calls" },
+  reminderTemplate:      { purpose: "appointments",   icon: "📅", channels: ["Text", "Email"], when: "24h, 6h and 1h before a booked call, and on reschedule" },
+  noShow:                { purpose: "appointments",   icon: "🚫", channels: ["Text", "Email"], when: "An appointment is marked No Show (3 touches)" },
+  cancelTemplate:        { purpose: "appointments",   icon: "✕",  channels: ["Text", "Email"], when: "An appointment is cancelled (3 touches)" },
+  onboardingTemplate:    { purpose: "new_clients",    icon: "🎉", channels: ["Email", "Text"], when: "A deal is marked Closed (won)" },
+  clientBookingTemplate: { purpose: "client_updates", icon: "📣", channels: ["Text"],          when: "A patient books with one of your clients" },
+  clientSuccess:         { purpose: "client_updates", icon: "📊", channels: ["Email", "Text"], when: "Weekly and final campaign reports, milestones, check-ins" },
+};
+const SPECIAL_FLAGS = Object.keys(TEMPLATE_META);
+const metaFor = (item) => {
+  const flag = SPECIAL_FLAGS.find(f => item?.[f]);
+  return flag ? TEMPLATE_META[flag] : null;
+};
+const isSpecialItem = (item) => !!metaFor(item);
+// Pseudo-item titles used to carry the channel in brackets ("No Show (SMS +
+// Email)"); the channel now shows as chips, so strip it from the label.
+const cleanTitle = (t) => (t || "").replace(/\s*\((?:SMS|Email)(?:\s*\+\s*(?:SMS|Email))?\)\s*$/i, "");
+
+const readPref = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+const writePref = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
+
+function ChannelChips({ channels }) {
+  return (
+    <span style={{ display: "inline-flex", gap: 4, flexShrink: 0 }}>
+      {channels.map(c => (
+        <span key={c} style={{
+          fontSize: 10.5, fontWeight: 600, padding: "1px 6px", borderRadius: 99,
+          color: c === "Email" ? "#c3a6ff" : c === "Call" ? T.warn : "#8fb8ff",
+          background: c === "Email" ? "rgba(160,128,240,0.14)" : c === "Call" ? "rgba(242,173,61,0.13)" : T.accentSoft,
+        }}>{c}</span>
+      ))}
+    </span>
+  );
+}
+
+const fmtUpdated = (d) => {
+  if (!d) return "";
+  const dt = new Date(d);
+  const days = Math.floor((Date.now() - dt.getTime()) / 86400000);
+  if (days <= 0) return "Updated today";
+  if (days === 1) return "Updated yesterday";
+  if (days < 30) return `Updated ${days} days ago`;
+  return `Updated ${dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: dt.getFullYear() === new Date().getFullYear() ? undefined : "numeric" })}`;
+};
+
+const docKind = (item) => item.file_name
+  ? (/^audio/.test(item.file_type || "") ? { icon: "🎙", label: "Audio" } : /^video/.test(item.file_type || "") ? { icon: "🎬", label: "Video" } : /\/pdf$/.test(item.file_type || "") ? { icon: "📕", label: "PDF" } : { icon: "📎", label: "File" })
+  : { icon: "📄", label: "Doc" };
+
+const btnBase = {
+  borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 13,
+  padding: "7px 14px", cursor: "pointer", whiteSpace: "nowrap",
+};
+const btnPrimary = { ...btnBase, background: "linear-gradient(90deg, #2857a0, #3a7bd5)", border: "none", color: "#fff" };
+const btnGhost = { ...btnBase, background: "rgba(77,142,240,0.1)", border: `1px solid ${T.lineStrong}`, color: "#8fb8ff" };
+const btnDanger = { ...btnBase, background: "rgba(240,106,106,0.1)", border: "1px solid rgba(240,106,106,0.3)", color: T.bad };
 
 // Pinned pseudo-document at the top of the Outreach Templates list — not a
 // row in the `sops` table. Opening it shows the dedicated SMS/email editor
@@ -428,8 +505,8 @@ function CategoryPicker({ categories, category, setCategory, customCatMode, setC
         style={{
           width: 130, background: "rgba(255,255,255,0.04)",
           border: "1px solid rgba(58,123,213,0.3)", borderRadius: 6,
-          padding: "6px 10px", color: "#9ab8d8",
-          fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, outline: "none",
+          padding: "6px 10px", color: T.textDim,
+          fontFamily: T.font, fontSize: 12, outline: "none",
         }}
       />
     );
@@ -448,8 +525,8 @@ function CategoryPicker({ categories, category, setCategory, customCatMode, setC
       style={{
         background: "#0d1a3a",
         border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-        padding: "6px 10px", color: "#9ab8d8",
-        fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, outline: "none",
+        padding: "6px 10px", color: T.textDim,
+        fontFamily: T.font, fontSize: 12, outline: "none",
         cursor: "pointer", flexShrink: 0,
       }}
     >
@@ -517,25 +594,25 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
 
   const fieldStyle = {
     width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    border: `1px solid ${T.lineStrong}`, borderRadius: 8,
+    padding: "10px 12px", lineHeight: 1.5, color: T.text,
+    fontFamily: T.font, fontSize: 13,
     outline: "none", resize: "vertical", boxSizing: "border-box",
   };
   const labelStyle = {
     display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
+    fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+    color: T.textDim,
   };
   const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a",
+    marginTop: 6, fontFamily: T.font,
+    fontSize: 12, color: T.textMute, lineHeight: 1.5,
   };
 
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -546,8 +623,8 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Sent automatically whenever a call is dispositioned <strong style={{ color: "#a080f0" }}>Send Info</strong>. Edits apply to the very next send.
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          Sent automatically whenever a call is dispositioned <strong style={{ color: "#8fb8ff" }}>Send Info</strong>. Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -557,7 +634,7 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={save}
@@ -566,17 +643,17 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
             background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         <div>
-          <label style={labelStyle}>SMS MESSAGE</label>
+          <label style={labelStyle}>Text message</label>
           <textarea
             value={sms}
             onChange={e => setSms(e.target.value)}
@@ -588,7 +665,7 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
         </div>
 
         <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
-          <label style={labelStyle}>EMAIL SUBJECT</label>
+          <label style={labelStyle}>Email subject</label>
           <input
             value={emailSubject}
             onChange={e => setEmailSubject(e.target.value)}
@@ -599,7 +676,7 @@ function OutreachTemplatesEditor({ categories, onCategoryChange }) {
         </div>
 
         <div>
-          <label style={labelStyle}>EMAIL BODY</label>
+          <label style={labelStyle}>Email body</label>
           <textarea
             value={emailBody}
             onChange={e => setEmailBody(e.target.value)}
@@ -665,26 +742,26 @@ function GatekeeperDeferralEditor({ categories, onCategoryChange }) {
 
   const fieldStyle = {
     width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    border: `1px solid ${T.lineStrong}`, borderRadius: 8,
+    padding: "10px 12px", lineHeight: 1.5, color: T.text,
+    fontFamily: T.font, fontSize: 13,
     outline: "none", resize: "vertical", boxSizing: "border-box",
   };
   const labelStyle = {
     display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
+    fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+    color: T.textDim,
   };
   const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a", lineHeight: 1.6,
+    marginTop: 6, fontFamily: T.font,
+    fontSize: 12, color: T.textMute, lineHeight: 1.6,
   };
   const code = (t) => <code style={{ color: "#6ab0ff" }}>{t}</code>;
 
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -695,8 +772,8 @@ function GatekeeperDeferralEditor({ categories, onCategoryChange }) {
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Sent when a contact is set to <strong style={{ color: "#a080f0" }}>Gatekeeper Deferral</strong>, once their personalized video is ready. Goes to the email on the contact, so put the address the front desk gave you there first.
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          Sent when a contact is set to <strong style={{ color: "#8fb8ff" }}>Gatekeeper Deferral</strong>, once their personalized video is ready. Goes to the email on the contact, so put the address the front desk gave you there first.
         </span>
         <CategoryPicker
           categories={categories}
@@ -706,7 +783,7 @@ function GatekeeperDeferralEditor({ categories, onCategoryChange }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={save}
@@ -715,17 +792,17 @@ function GatekeeperDeferralEditor({ categories, onCategoryChange }) {
             background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         <div>
-          <label style={labelStyle}>EMAIL SUBJECT</label>
+          <label style={labelStyle}>Email subject</label>
           <input
             value={emailSubject}
             onChange={e => setEmailSubject(e.target.value)}
@@ -738,7 +815,7 @@ function GatekeeperDeferralEditor({ categories, onCategoryChange }) {
         </div>
 
         <div>
-          <label style={labelStyle}>EMAIL BODY</label>
+          <label style={labelStyle}>Email body</label>
           <textarea
             value={emailBody}
             onChange={e => setEmailBody(e.target.value)}
@@ -817,30 +894,30 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
 
   const fieldStyle = {
     width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    border: `1px solid ${T.lineStrong}`, borderRadius: 8,
+    padding: "10px 12px", lineHeight: 1.5, color: T.text,
+    fontFamily: T.font, fontSize: 13,
     outline: "none", resize: "vertical", boxSizing: "border-box",
   };
   const labelStyle = {
     display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
+    fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+    color: T.textDim,
   };
   const headingStyle = {
     display: "block", marginBottom: 8,
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
-    color: "#e8f0ff", letterSpacing: "0.01em",
+    fontFamily: T.font, fontSize: 16, fontWeight: 700,
+    color: T.text, letterSpacing: "0.01em",
   };
   const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a",
+    marginTop: 6, fontFamily: T.font,
+    fontSize: 12, color: T.textMute, lineHeight: 1.5,
   };
 
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -851,8 +928,8 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Welcome email fires immediately when a rep marks an appointment's outcome <strong style={{ color: "#a080f0" }}>Closed</strong> (won). The onboarding email + SMS fire the next morning (8am ET), and the reminder email 3 days later if no onboarding step is done yet. Edits apply to the very next send.
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          Welcome email fires immediately when a rep marks an appointment's outcome <strong style={{ color: "#8fb8ff" }}>Closed</strong> (won). The onboarding email + SMS fire the next morning (8am ET), and the reminder email 3 days later if no onboarding step is done yet. Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -862,7 +939,7 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={save}
@@ -871,18 +948,18 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
             background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         <div>
           <label style={headingStyle}>1. Welcome Email (sent immediately)</label>
-          <label style={{ ...labelStyle, marginTop: 4 }}>EMAIL SUBJECT</label>
+          <label style={{ ...labelStyle, marginTop: 4 }}>Email subject</label>
           <input
             value={values.onboarding_welcome_email_subject || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_welcome_email_subject: e.target.value }))}
@@ -891,7 +968,7 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
           />
           <div style={{ ...hintStyle, marginBottom: 14 }}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the client's first name.</div>
 
-          <label style={labelStyle}>EMAIL BODY</label>
+          <label style={labelStyle}>Email body</label>
           <textarea
             value={values.onboarding_welcome_email_body || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_welcome_email_body: e.target.value }))}
@@ -907,9 +984,9 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
         <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
           <label style={headingStyle}>2. Onboarding Email + SMS (sent next morning)</label>
           <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>
-            Sends the client's <strong style={{ color: "#a080f0" }}>client portal</strong> link — their one hub for the intake form, Onboarding Call booking, and campaign stats. Requires a <code style={{ color: "#6ab0ff" }}>clients</code> record already linked to this contact (Clients tab) by the time this fires, or the send is skipped.
+            Sends the client's <strong style={{ color: "#8fb8ff" }}>client portal</strong> link — their one hub for the intake form, Onboarding Call booking, and campaign stats. Requires a <code style={{ color: "#6ab0ff" }}>clients</code> record already linked to this contact (Clients tab) by the time this fires, or the send is skipped.
           </div>
-          <label style={{ ...labelStyle, marginTop: 4 }}>EMAIL SUBJECT</label>
+          <label style={{ ...labelStyle, marginTop: 4 }}>Email subject</label>
           <input
             value={values.onboarding_followup_email_subject || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_followup_email_subject: e.target.value }))}
@@ -918,7 +995,7 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
           />
           <div style={{ ...hintStyle, marginBottom: 14 }}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the client's first name.</div>
 
-          <label style={labelStyle}>EMAIL BODY</label>
+          <label style={labelStyle}>Email body</label>
           <textarea
             value={values.onboarding_followup_email_body || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_followup_email_body: e.target.value }))}
@@ -927,7 +1004,7 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
             style={{ ...fieldStyle, marginBottom: 14 }}
           />
 
-          <label style={labelStyle}>SMS MESSAGE</label>
+          <label style={labelStyle}>Text message</label>
           <textarea
             value={values.onboarding_followup_sms || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_followup_sms: e.target.value }))}
@@ -944,9 +1021,9 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
         <div style={{ borderTop: "1px solid rgba(58,123,213,0.1)", paddingTop: 20 }}>
           <label style={headingStyle}>3. Onboarding Reminder Email (3 days after the portal email)</label>
           <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>
-            Only sent if the client hasn't completed <strong style={{ color: "#a080f0" }}>any</strong> onboarding step in their portal yet (no Next Steps item ticked, no intake form section completed). Email only.
+            Only sent if the client hasn't completed <strong style={{ color: "#8fb8ff" }}>any</strong> onboarding step in their portal yet (no Next Steps item ticked, no intake form section completed). Email only.
           </div>
-          <label style={{ ...labelStyle, marginTop: 4 }}>EMAIL SUBJECT</label>
+          <label style={{ ...labelStyle, marginTop: 4 }}>Email subject</label>
           <input
             value={values.onboarding_nudge_email_subject || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_nudge_email_subject: e.target.value }))}
@@ -955,7 +1032,7 @@ function OnboardingKickoffEditor({ categories, onCategoryChange }) {
           />
           <div style={{ ...hintStyle, marginBottom: 14 }}>Use <code style={{ color: "#6ab0ff" }}>{"{first_name}"}</code> to insert the client's first name.</div>
 
-          <label style={labelStyle}>EMAIL BODY</label>
+          <label style={labelStyle}>Email body</label>
           <textarea
             value={values.onboarding_nudge_email_body || ""}
             onChange={e => setValues(v => ({ ...v, onboarding_nudge_email_body: e.target.value }))}
@@ -1180,25 +1257,25 @@ function ClientBookingAlertEditor({ categories, onCategoryChange }) {
 
   const fieldStyle = {
     width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    border: `1px solid ${T.lineStrong}`, borderRadius: 8,
+    padding: "10px 12px", lineHeight: 1.5, color: T.text,
+    fontFamily: T.font, fontSize: 13,
     outline: "none", resize: "vertical", boxSizing: "border-box",
   };
   const labelStyle = {
     display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
+    fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+    color: T.textDim,
   };
   const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a",
+    marginTop: 6, fontFamily: T.font,
+    fontSize: 12, color: T.textMute, lineHeight: 1.5,
   };
 
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -1209,8 +1286,8 @@ function ClientBookingAlertEditor({ categories, onCategoryChange }) {
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Fires immediately, to the <strong style={{ color: "#a080f0" }}>client</strong>, the instant a new appointment is booked for one of their leads (CRM or their own portal). Editable per-client on/off toggle lives on the Clients tab.
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          Fires immediately, to the <strong style={{ color: "#8fb8ff" }}>client</strong>, the instant a new appointment is booked for one of their leads (CRM or their own portal). Editable per-client on/off toggle lives on the Clients tab.
         </span>
         <CategoryPicker
           categories={categories}
@@ -1220,7 +1297,7 @@ function ClientBookingAlertEditor({ categories, onCategoryChange }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={save}
@@ -1229,17 +1306,17 @@ function ClientBookingAlertEditor({ categories, onCategoryChange }) {
             background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
         <div>
-          <label style={labelStyle}>SMS MESSAGE</label>
+          <label style={labelStyle}>Text message</label>
           <textarea
             value={values.client_booking_notification_sms || ""}
             onChange={e => setValues(v => ({ ...v, client_booking_notification_sms: e.target.value }))}
@@ -1326,7 +1403,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -1337,7 +1414,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
           Fires when a contact's status is set to <code style={{ color: "#6ab0ff" }}>email-handoff</code> — 3 touches, stops permanently on reply. Sent from a Google or Microsoft identity matched to the recipient's own provider.
         </span>
         <CategoryPicker
@@ -1348,7 +1425,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={() => setShowWarmup(true)}
@@ -1359,7 +1436,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
           onClick={() => setShowQueue(true)}
           className="btn btn-secondary"
           style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
-        >View Active Prospects</button>
+        >View active prospects</button>
         <button
           onClick={save}
           disabled={saving || !dirty}
@@ -1367,12 +1444,12 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
             background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       {showWarmup && <IdentityWarmupModal onClose={() => setShowWarmup(false)} />}
@@ -1387,7 +1464,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
             <label style={sequenceLabelStyle}>{f.heading}</label>
             {f.hint && <div style={{ ...sequenceHintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
 
-            <label style={{ ...sequenceLabelStyle, fontSize: 9 }}>SUBJECT</label>
+            <label style={{ ...sequenceLabelStyle, fontSize: 12.5, fontWeight: 600, color: T.textDim }}>Subject</label>
             <input
               value={values[subjectKey] || ""}
               onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
@@ -1419,7 +1496,7 @@ function EmailHandoffEditor({ categories, onCategoryChange }) {
 // Fixed-step outreach script shown as the Inbox's "SEQUENCE" dropdown
 // (InboxPanel.jsx). Step keys/labels/order must match routers/sms.py
 // SEQUENCE_STEPS. Multiple named sequences can exist (GET /api/sms-sequences);
-// exactly one is "active" (the Default) at a time — see the "Set as Default"
+// exactly one is "active" (the Default) at a time — see the "Set as default"
 // button below and POST /api/sms-sequences/{id}/activate.
 const SMS_SEQUENCE_STEPS = [
   { key: "gatekeeper", label: "0. Gatekeeper Message" },
@@ -1433,24 +1510,24 @@ const SMS_SEQUENCE_STEPS = [
 const sequenceFieldStyle = {
   width: "100%", background: "rgba(255,255,255,0.04)",
   border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-  padding: "10px 12px", color: "#e8f0ff",
-  fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+  padding: "10px 12px", color: T.text,
+  fontFamily: T.font, fontSize: 13,
   outline: "none", resize: "vertical", boxSizing: "border-box",
 };
 const sequenceLabelStyle = {
   display: "block", marginBottom: 8,
-  fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
-  color: "#e8f0ff", letterSpacing: "0.01em",
+  fontFamily: T.font, fontSize: 16, fontWeight: 700,
+  color: T.text, letterSpacing: "0.01em",
 };
 const sequenceHintStyle = {
-  marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-  fontSize: 11, color: "#4a6a8a",
+  marginTop: 6, fontFamily: T.font,
+  fontSize: 12, color: T.textMute, lineHeight: 1.5,
 };
 const sequenceNameInputStyle = {
   flex: 1, background: "rgba(255,255,255,0.04)",
   border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-  padding: "6px 10px", color: "#e8f0ff",
-  fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 600,
+  padding: "6px 10px", color: T.text,
+  fontFamily: T.font, fontSize: 13, fontWeight: 600,
   outline: "none",
 };
 
@@ -1502,7 +1579,7 @@ function SmsSequenceEditor({ sequence, categories, onSaved, onDeleted }) {
   if (!sequence) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -1571,7 +1648,7 @@ function SmsSequenceEditor({ sequence, categories, onSaved, onDeleted }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={activate}
@@ -1581,12 +1658,12 @@ function SmsSequenceEditor({ sequence, categories, onSaved, onDeleted }) {
             background: sequence.is_active ? "rgba(52,211,153,0.12)" : "rgba(58,123,213,0.12)",
             border: sequence.is_active ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: sequence.is_active ? "#34d399" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 14px", flexShrink: 0,
             cursor: sequence.is_active || activating ? "not-allowed" : "pointer",
             opacity: activating ? 0.6 : 1,
           }}
-        >{sequence.is_active ? "Default ✓" : activating ? "Setting..." : "Set as Default"}</button>
+        >{sequence.is_active ? "Default ✓" : activating ? "Setting…" : "Set as default"}</button>
         <button
           onClick={deleteSequence}
           disabled={sequence.is_active}
@@ -1595,7 +1672,7 @@ function SmsSequenceEditor({ sequence, categories, onSaved, onDeleted }) {
             background: "rgba(220,60,60,0.1)",
             border: "1px solid rgba(220,60,60,0.3)",
             borderRadius: 6, color: "#dc3c3c",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 14px", flexShrink: 0,
             cursor: sequence.is_active ? "not-allowed" : "pointer",
             opacity: sequence.is_active ? 0.5 : 1,
@@ -1608,23 +1685,23 @@ function SmsSequenceEditor({ sequence, categories, onSaved, onDeleted }) {
             background: dirty && name.trim() ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty && name.trim() ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty && name.trim() ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty || !name.trim() ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       {deleteError && (
         <div style={{
           padding: "8px 36px", background: "rgba(220,60,60,0.1)",
           borderBottom: "1px solid rgba(220,60,60,0.2)",
-          fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#dc3c3c",
+          fontFamily: T.font, fontSize: 12, color: "#dc3c3c",
         }}>{deleteError}</div>
       )}
 
-      <div style={{ padding: "12px 36px 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+      <div style={{ padding: "12px 36px 0", fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
         {sequence.is_active
           ? <>This is the <strong style={{ color: "#34d399" }}>default</strong> sequence — shown as the SEQUENCE dropdown in the SMS inbox.</>
           : "Not currently the default. Leave a step blank to skip it."}
@@ -1687,16 +1764,16 @@ function NewSequenceEditor({ title, setTitle, category, setCategory, categories,
             background: title.trim() ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: title.trim() ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: title.trim() ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !title.trim() ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Creating..." : "Create Sequence"}</button>
+        >{saving ? "Creating…" : "Create sequence"}</button>
       </div>
 
-      <div style={{ padding: "12px 36px 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-        This category already holds an SMS Sequence, so new templates here use the sequence format. Leave a step blank to skip it. New sequences start off <em>not</em> the default — set it as default from its own editor once you're ready to switch to it.
+      <div style={{ padding: "12px 36px 0", fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+        New text sequence. Fill in the steps you want and leave the rest blank to skip them. New sequences start off <em>not</em> the default — set it as default from its own editor once you're ready to switch to it.
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
@@ -1765,7 +1842,7 @@ function CallScriptEditor({ script, categories, onSaved, onDeleted }) {
   if (!script) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -1834,7 +1911,7 @@ function CallScriptEditor({ script, categories, onSaved, onDeleted }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={activate}
@@ -1844,12 +1921,12 @@ function CallScriptEditor({ script, categories, onSaved, onDeleted }) {
             background: script.is_active ? "rgba(52,211,153,0.12)" : "rgba(58,123,213,0.12)",
             border: script.is_active ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: script.is_active ? "#34d399" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 14px", flexShrink: 0,
             cursor: script.is_active || activating ? "not-allowed" : "pointer",
             opacity: activating ? 0.6 : 1,
           }}
-        >{script.is_active ? "Default ✓" : activating ? "Setting..." : "Set as Default"}</button>
+        >{script.is_active ? "Default ✓" : activating ? "Setting…" : "Set as default"}</button>
         <button
           onClick={deleteScript}
           disabled={script.is_active}
@@ -1858,7 +1935,7 @@ function CallScriptEditor({ script, categories, onSaved, onDeleted }) {
             background: "rgba(220,60,60,0.1)",
             border: "1px solid rgba(220,60,60,0.3)",
             borderRadius: 6, color: "#dc3c3c",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 14px", flexShrink: 0,
             cursor: script.is_active ? "not-allowed" : "pointer",
             opacity: script.is_active ? 0.5 : 1,
@@ -1871,23 +1948,23 @@ function CallScriptEditor({ script, categories, onSaved, onDeleted }) {
             background: dirty && name.trim() ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty && name.trim() ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty && name.trim() ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty || !name.trim() ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       {deleteError && (
         <div style={{
           padding: "8px 36px", background: "rgba(220,60,60,0.1)",
           borderBottom: "1px solid rgba(220,60,60,0.2)",
-          fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#dc3c3c",
+          fontFamily: T.font, fontSize: 12, color: "#dc3c3c",
         }}>{deleteError}</div>
       )}
 
-      <div style={{ padding: "12px 36px 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
+      <div style={{ padding: "12px 36px 0", fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
         {script.is_active
           ? <>This is the <strong style={{ color: "#34d399" }}>default</strong> script — shown in the Dialer during calls.</>
           : "Not currently the default. Leave a section blank to skip it."}
@@ -1948,16 +2025,16 @@ function NewCallScriptEditor({ title, setTitle, category, setCategory, categorie
             background: title.trim() ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: title.trim() ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: title.trim() ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !title.trim() ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Creating..." : "Create Script"}</button>
+        >{saving ? "Creating…" : "Create script"}</button>
       </div>
 
-      <div style={{ padding: "12px 36px 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-        This category already holds a Cold Call Script, so new templates here use the script format. Leave a section blank to skip it. New scripts start off <em>not</em> the default — set it as default from its own editor once you're ready to switch to it.
+      <div style={{ padding: "12px 36px 0", fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+        New call script. Fill in the sections you want and leave the rest blank to skip them. New scripts start off <em>not</em> the default — set it as default from its own editor once you're ready to switch to it.
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px", display: "flex", flexDirection: "column", gap: 24 }}>
@@ -2041,7 +2118,7 @@ function DylanCalendlyConnect() {
     <div className="glass-card-sm" style={{ padding: "16px 18px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#e8f0ff" }}>
+          <div style={{ fontFamily: T.font, fontSize: 13, fontWeight: 700, color: T.text }}>
             Your Calendly Connection
           </div>
           <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 3, maxWidth: 520 }}>
@@ -2082,7 +2159,7 @@ function DylanCalendlyConnect() {
 }
 
 const hintStyleShared = {
-  fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, color: "#4a6a8a",
+  fontFamily: T.font, fontSize: 12, color: T.textMute, lineHeight: 1.5,
 };
 
 // Dylan's own Facebook Page id — same idea as DylanCalendlyConnect above,
@@ -2120,7 +2197,7 @@ function DylanMetaPageId() {
 
   return (
     <div className="glass-card-sm" style={{ padding: "16px 18px", marginTop: -8 }}>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#e8f0ff" }}>
+      <div style={{ fontFamily: T.font, fontSize: 13, fontWeight: 700, color: T.text }}>
         Your Facebook Page (for Lead Ads)
       </div>
       <div style={{ fontSize: 11, color: "#5a7aa0", marginTop: 3, marginBottom: 10, maxWidth: 520 }}>
@@ -2190,30 +2267,30 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
 
   const fieldStyle = {
     width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    border: `1px solid ${T.lineStrong}`, borderRadius: 8,
+    padding: "10px 12px", lineHeight: 1.5, color: T.text,
+    fontFamily: T.font, fontSize: 13,
     outline: "none", resize: "vertical", boxSizing: "border-box",
   };
   const labelStyle = {
     display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
+    fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+    color: T.textDim,
   };
   const headingStyle = {
     display: "block", marginBottom: 8,
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
-    color: "#e8f0ff", letterSpacing: "0.01em",
+    fontFamily: T.font, fontSize: 16, fontWeight: 700,
+    color: T.text, letterSpacing: "0.01em",
   };
   const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a",
+    marginTop: 6, fontFamily: T.font,
+    fontSize: 12, color: T.textMute, lineHeight: 1.5,
   };
 
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -2224,8 +2301,8 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Sent by the <strong style={{ color: "#a080f0" }}>appointment reminder</strong> pipeline (24h/6h/1h reminders, reschedule notice). Edits apply to the very next send.
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          Sent by the <strong style={{ color: "#8fb8ff" }}>appointment reminder</strong> pipeline (24h/6h/1h reminders, reschedule notice). Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -2235,13 +2312,13 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={() => setShowQueue(true)}
           className="btn btn-secondary"
           style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
-        >View Active Prospects</button>
+        >View active prospects</button>
         <button
           onClick={save}
           disabled={saving || !dirty}
@@ -2249,12 +2326,12 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
             background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       {showQueue && <SequenceQueueModal sequence="reminder" onClose={() => setShowQueue(false)} />}
@@ -2271,7 +2348,7 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
             <label style={headingStyle}>{f.heading}</label>
             {f.hint && <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
 
-            <label style={labelStyle}>SMS MESSAGE</label>
+            <label style={labelStyle}>Text message</label>
             <textarea
               value={values[smsKey] || ""}
               onChange={e => setValues(v => ({ ...v, [smsKey]: e.target.value }))}
@@ -2281,7 +2358,7 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
             />
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL SUBJECT</label>
+              <label style={labelStyle}>Email subject</label>
               <input
                 value={values[subjectKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
@@ -2290,7 +2367,7 @@ function AppointmentRemindersEditor({ categories, onCategoryChange }) {
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL BODY</label>
+              <label style={labelStyle}>Email body</label>
               <textarea
                 value={values[bodyKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [bodyKey]: e.target.value }))}
@@ -2383,30 +2460,30 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
 
   const fieldStyle = {
     width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    border: `1px solid ${T.lineStrong}`, borderRadius: 8,
+    padding: "10px 12px", lineHeight: 1.5, color: T.text,
+    fontFamily: T.font, fontSize: 13,
     outline: "none", resize: "vertical", boxSizing: "border-box",
   };
   const labelStyle = {
     display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
+    fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+    color: T.textDim,
   };
   const headingStyle = {
     display: "block", marginBottom: 8,
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
-    color: "#e8f0ff", letterSpacing: "0.01em",
+    fontFamily: T.font, fontSize: 16, fontWeight: 700,
+    color: T.text, letterSpacing: "0.01em",
   };
   const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a",
+    marginTop: 6, fontFamily: T.font,
+    fontSize: 12, color: T.textMute, lineHeight: 1.5,
   };
 
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -2417,8 +2494,8 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Fires automatically after an appointment is marked <strong style={{ color: "#a080f0" }}>No Show</strong> in the Appointments tab — 3 touches, stops the moment the prospect replies. Edits apply to the very next send.
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          Fires automatically after an appointment is marked <strong style={{ color: "#8fb8ff" }}>No Show</strong> in the Appointments tab — 3 touches, stops the moment the prospect replies. Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -2428,13 +2505,13 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={() => setShowQueue(true)}
           className="btn btn-secondary"
           style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
-        >View Active Prospects</button>
+        >View active prospects</button>
         <button
           onClick={save}
           disabled={saving || !dirty}
@@ -2442,12 +2519,12 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
             background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       {showQueue && <SequenceQueueModal sequence="no_show" onClose={() => setShowQueue(false)} />}
@@ -2462,7 +2539,7 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
             <label style={headingStyle}>{f.heading}</label>
             {f.hint && <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
 
-            <label style={labelStyle}>SMS MESSAGE</label>
+            <label style={labelStyle}>Text message</label>
             <textarea
               value={values[smsKey] || ""}
               onChange={e => setValues(v => ({ ...v, [smsKey]: e.target.value }))}
@@ -2472,7 +2549,7 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
             />
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL SUBJECT</label>
+              <label style={labelStyle}>Email subject</label>
               <input
                 value={values[subjectKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
@@ -2481,7 +2558,7 @@ function NoShowSequenceEditor({ categories, onCategoryChange }) {
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL BODY</label>
+              <label style={labelStyle}>Email body</label>
               <textarea
                 value={values[bodyKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [bodyKey]: e.target.value }))}
@@ -2573,30 +2650,30 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
 
   const fieldStyle = {
     width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    border: `1px solid ${T.lineStrong}`, borderRadius: 8,
+    padding: "10px 12px", lineHeight: 1.5, color: T.text,
+    fontFamily: T.font, fontSize: 13,
     outline: "none", resize: "vertical", boxSizing: "border-box",
   };
   const labelStyle = {
     display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
+    fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+    color: T.textDim,
   };
   const headingStyle = {
     display: "block", marginBottom: 8,
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
-    color: "#e8f0ff", letterSpacing: "0.01em",
+    fontFamily: T.font, fontSize: 16, fontWeight: 700,
+    color: T.text, letterSpacing: "0.01em",
   };
   const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a",
+    marginTop: 6, fontFamily: T.font,
+    fontSize: 12, color: T.textMute, lineHeight: 1.5,
   };
 
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -2607,8 +2684,8 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Fires automatically after an appointment is marked <strong style={{ color: "#a080f0" }}>Cancel</strong> in the Appointments tab — 3 touches, stops the moment the prospect replies. Edits apply to the very next send.
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          Fires automatically after an appointment is marked <strong style={{ color: "#8fb8ff" }}>Cancel</strong> in the Appointments tab — 3 touches, stops the moment the prospect replies. Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -2618,13 +2695,13 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={() => setShowQueue(true)}
           className="btn btn-secondary"
           style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
-        >View Active Prospects</button>
+        >View active prospects</button>
         <button
           onClick={save}
           disabled={saving || !dirty}
@@ -2632,12 +2709,12 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
             background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       {showQueue && <SequenceQueueModal sequence="cancel" onClose={() => setShowQueue(false)} />}
@@ -2652,7 +2729,7 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
             <label style={headingStyle}>{f.heading}</label>
             {f.hint && <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
 
-            <label style={labelStyle}>SMS MESSAGE</label>
+            <label style={labelStyle}>Text message</label>
             <textarea
               value={values[smsKey] || ""}
               onChange={e => setValues(v => ({ ...v, [smsKey]: e.target.value }))}
@@ -2662,7 +2739,7 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
             />
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL SUBJECT</label>
+              <label style={labelStyle}>Email subject</label>
               <input
                 value={values[subjectKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [subjectKey]: e.target.value }))}
@@ -2671,7 +2748,7 @@ function CancelSequenceEditor({ categories, onCategoryChange }) {
             </div>
 
             <div style={{ marginTop: 14 }}>
-              <label style={labelStyle}>EMAIL BODY</label>
+              <label style={labelStyle}>Email body</label>
               <textarea
                 value={values[bodyKey] || ""}
                 onChange={e => setValues(v => ({ ...v, [bodyKey]: e.target.value }))}
@@ -2759,30 +2836,30 @@ function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
 
   const fieldStyle = {
     width: "100%", background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-    padding: "10px 12px", color: "#e8f0ff",
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 13,
+    border: `1px solid ${T.lineStrong}`, borderRadius: 8,
+    padding: "10px 12px", lineHeight: 1.5, color: T.text,
+    fontFamily: T.font, fontSize: 13,
     outline: "none", resize: "vertical", boxSizing: "border-box",
   };
   const labelStyle = {
     display: "block", marginBottom: 6,
-    fontFamily: "'Share Tech Mono', monospace", fontSize: 10,
-    color: "#3a5a80", letterSpacing: "0.12em",
+    fontFamily: T.font, fontSize: 12.5, fontWeight: 600,
+    color: T.textDim,
   };
   const headingStyle = {
     display: "block", marginBottom: 8,
-    fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700,
-    color: "#e8f0ff", letterSpacing: "0.01em",
+    fontFamily: T.font, fontSize: 16, fontWeight: 700,
+    color: T.text, letterSpacing: "0.01em",
   };
   const hintStyle = {
-    marginTop: 6, fontFamily: "'Space Grotesk', sans-serif",
-    fontSize: 11, color: "#4a6a8a",
+    marginTop: 6, fontFamily: T.font,
+    fontSize: 12, color: T.textMute, lineHeight: 1.5,
   };
 
   if (loading) {
     return (
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>LOADING…</div>
+        <div style={{ fontSize: 13, color: T.textMute }}>Loading…</div>
       </div>
     );
   }
@@ -2793,8 +2870,8 @@ function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
         padding: "12px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
         display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
       }}>
-        <span style={{ flex: 1, fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, color: "#7a9cc0" }}>
-          Fires automatically once a conversation marked <strong style={{ color: "#a080f0" }}>DM Reached</strong> in the Inbox goes 24h without a reply — 3 touches, stops on reply, restarts if quiet again. Edits apply to the very next send.
+        <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, color: T.textDim, lineHeight: 1.5 }}>
+          Fires automatically once a conversation marked <strong style={{ color: "#8fb8ff" }}>DM Reached</strong> in the Inbox goes 24h without a reply — 3 touches, stops on reply, restarts if quiet again. Edits apply to the very next send.
         </span>
         <CategoryPicker
           categories={categories}
@@ -2804,13 +2881,13 @@ function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
           setCustomCatMode={setCustomCatMode}
         />
         {savedFlash && (
-          <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
+          <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>
         )}
         <button
           onClick={() => setShowQueue(true)}
           className="btn btn-secondary"
           style={{ fontSize: 12, padding: "6px 14px", whiteSpace: "nowrap", flexShrink: 0 }}
-        >View Active Prospects</button>
+        >View active prospects</button>
         <button
           onClick={save}
           disabled={saving || !dirty}
@@ -2818,12 +2895,12 @@ function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
             background: dirty ? "linear-gradient(90deg, #2857a0, #3a7bd5)" : "rgba(58,123,213,0.12)",
             border: dirty ? "none" : "1px solid rgba(58,123,213,0.25)",
             borderRadius: 6, color: dirty ? "#fff" : "#6ab0ff",
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
+            fontFamily: T.font, fontWeight: 600,
             fontSize: 12, padding: "6px 16px", flexShrink: 0,
             cursor: saving || !dirty ? "not-allowed" : "pointer",
             opacity: saving ? 0.6 : 1,
           }}
-        >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
+        >{saving ? "Saving…" : dirty ? "Save changes" : "Save"}</button>
       </div>
 
       {showQueue && <DmFollowUpQueueModal onClose={() => setShowQueue(false)} />}
@@ -2836,7 +2913,7 @@ function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
             <label style={headingStyle}>{f.heading}</label>
             {f.hint && <div style={{ ...hintStyle, marginTop: 0, marginBottom: 10 }}>{f.hint}</div>}
 
-            <label style={labelStyle}>SMS MESSAGE</label>
+            <label style={labelStyle}>Text message</label>
             <textarea
               value={values[smsKey] || ""}
               onChange={e => setValues(v => ({ ...v, [smsKey]: e.target.value }))}
@@ -2859,8 +2936,17 @@ function DmFollowupSequenceEditor({ categories, onCategoryChange }) {
 
 // ── Main panel ───────────────────────────────────────────────────────────────
 export default function SOPsPanel() {
-  const [activeSection, setActiveSection] = useState("sop");
+  const [activeSection, setActiveSectionRaw] = useState(() => {
+    const v = readPref("dg.resources.section", "sop");
+    return SUBSECTIONS.some(s => s.id === v) ? v : "sop";
+  });
   const [sops, setSops] = useState([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [search, setSearch] = useState("");
+  const [groupBy, setGroupByRaw] = useState(() => readPref("dg.resources.groupBy", "purpose"));
+  const [collapsed, setCollapsed] = useState({});
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [newKind, setNewKind] = useState("doc");
   const [sendInfoCategory, setSendInfoCategory] = useState("General");
   const [noShowCategory, setNoShowCategory] = useState("General");
   const [cancelCategory, setCancelCategory] = useState("General");
@@ -2895,6 +2981,8 @@ export default function SOPsPanel() {
   const uploadRef = useRef(null);
 
   const section = SUBSECTIONS.find(s => s.id === activeSection) || SUBSECTIONS[0];
+  const isOutreach = activeSection === "outreach_templates";
+  const setGroupBy = (v) => { setGroupByRaw(v); writePref("dg.resources.groupBy", v); };
 
   const editor = useEditor({
     extensions: [
@@ -2919,11 +3007,15 @@ export default function SOPsPanel() {
   });
 
   const fetchSOPs = useCallback(async () => {
-    const r = await fetch(`/api/sops?doc_type=${activeSection}`);
-    if (r.ok) setSops(await r.json());
+    try {
+      const r = await fetch(`/api/sops?doc_type=${activeSection}`);
+      if (r.ok) setSops(await r.json());
+    } finally {
+      setLoadingList(false);
+    }
   }, [activeSection]);
 
-  useEffect(() => { fetchSOPs(); }, [fetchSOPs]);
+  useEffect(() => { setLoadingList(true); fetchSOPs(); }, [fetchSOPs]);
 
   const fetchSequences = useCallback(async () => {
     const r = await fetch("/api/sms-sequences");
@@ -2935,13 +3027,9 @@ export default function SOPsPanel() {
     if (r.ok) setCallScripts(await r.json());
   }, []);
 
-  // The sidebar labels above the pinned Send Info / Appointment Reminders
-  // items normally only pick up their saved category once the user opens
-  // that specific item (each editor fetches its own category on mount).
-  // Fetch those eagerly here (and the full sequences/scripts lists, needed
-  // by pseudoItems/categories/isSequenceCategory/isScriptCategory below) so
-  // the section renders correctly on first load instead of showing
-  // "General" until clicked.
+  // Each built-in template keeps its category in its own store, so fetch
+  // them all up front: the "Category" grouping and every category picker
+  // need them before any one of those editors is opened.
   useEffect(() => {
     if (activeSection !== "outreach_templates") return;
     fetchSequences();
@@ -2968,7 +3056,12 @@ export default function SOPsPanel() {
     })();
   }, [activeSection, fetchSequences, fetchCallScripts]);
 
-  useEffect(() => {
+  const setContent = (html) => {
+    suppressNextUpdate.current = true;
+    editor?.commands.setContent(html, false);
+  };
+
+  const clearSelection = () => {
     setSelectedId(null);
     setSelectedItem(null);
     setSelectedSequenceId(null);
@@ -2980,18 +3073,24 @@ export default function SOPsPanel() {
     setTitle("");
     setCategory("General");
     setContent("");
-  }, [activeSection]);
+  };
 
-  // Categories assigned only to the pinned Send Info / Appointment Reminders
-  // pseudo-docs live in dialer_settings, and SMS Sequence / Cold Call Script
-  // categories live on their own tables — none of these are in the `sops`
-  // table, so without folding them in here a category created on one of
-  // those would be invisible to every other picker in this section
-  // (including the regular document editor), making it look like categories
-  // silently fail to save.
+  const setActiveSection = (id) => {
+    if (id === activeSection) return;
+    if (dirty && !window.confirm("Discard unsaved changes?")) return;
+    writePref("dg.resources.section", id);
+    setSearch("");
+    setActiveSectionRaw(id);
+  };
+
+  useEffect(() => { clearSelection(); }, [activeSection]);
+
+  // Built-in template categories live outside the `sops` table (dialer
+  // settings, sms_sequences, cold_call_scripts); fold them in so a category
+  // made on one of them shows up in every picker in this section.
   const categories = dedupeCategories([
     ...sops.map(s => s.category || "General"),
-    ...(activeSection === "outreach_templates"
+    ...(isOutreach
       ? [
           sendInfoCategory, noShowCategory, cancelCategory, dmFollowupCategory, onboardingCategory, clientBookingCategory, clientSuccessCategory, emailHandoffCategory, gkDeferralCategory, remCategory,
           ...sequences.map(s => s.category || "General"),
@@ -3000,20 +3099,11 @@ export default function SOPsPanel() {
       : []),
   ]);
 
-  // A category counts as "sequence-type"/"script-type" once it already
-  // holds at least one SMS sequence / Cold Call Script — see the
-  // "+ New Template" auto-detect below.
-  const sequenceCategoryKeys = new Set(sequences.map(s => catKey(s.category || "General")));
-  const isSequenceCategory = activeSection === "outreach_templates" && isNew && sequenceCategoryKeys.has(catKey(category));
-  const scriptCategoryKeys = new Set(callScripts.map(s => catKey(s.category || "General")));
-  const isScriptCategory = activeSection === "outreach_templates" && isNew && !isSequenceCategory && scriptCategoryKeys.has(catKey(category));
-
-  const setContent = (html) => {
-    suppressNextUpdate.current = true;
-    editor?.commands.setContent(html, false);
-  };
+  const isSequenceCategory = isOutreach && isNew && newKind === "sequence";
+  const isScriptCategory = isOutreach && isNew && newKind === "script";
 
   const openSOP = (sop) => {
+    if (sop.id === selectedId && !isNew) return;
     if (dirty && !window.confirm("Discard unsaved changes?")) return;
     setSelectedId(sop.id);
     setSelectedItem(sop);
@@ -3022,7 +3112,7 @@ export default function SOPsPanel() {
     setCustomCatMode(false);
     setSelectedSequenceId(sop.smsSequence ? sop.sequenceId : null);
     setSelectedScriptId(sop.callScript ? sop.scriptId : null);
-    if (sop.sendInfo || sop.noShow || sop.cancelTemplate || sop.dmFollowupTemplate || sop.smsSequence || sop.reminderTemplate || sop.callScript) return;
+    if (isSpecialItem(sop)) return;
     setTitle(sop.title);
     setCategory(sop.category || "General");
     setVisibility(sop.visibility || "private");
@@ -3055,7 +3145,8 @@ export default function SOPsPanel() {
     }
   };
 
-  const startNew = () => {
+  const startNew = (kind = "doc") => {
+    setNewMenuOpen(false);
     if (dirty && !window.confirm("Discard unsaved changes?")) return;
     setSelectedId(null);
     setSelectedItem(null);
@@ -3063,9 +3154,11 @@ export default function SOPsPanel() {
     setNewSequenceSteps({});
     setSelectedScriptId(null);
     setNewScriptSections({});
+    setNewKind(kind);
     setIsNew(true);
     setTitle("");
-    setCategory(categories[0] || "General");
+    const kindCats = kind === "sequence" ? sequences.map(s => s.category) : kind === "script" ? callScripts.map(s => s.category) : sops.map(s => s.category);
+    setCategory(kindCats.find(Boolean) || categories[0] || "General");
     setVisibility("private");
     setDirty(false);
     setCustomCatMode(false);
@@ -3093,6 +3186,7 @@ export default function SOPsPanel() {
         if (r.ok) {
           const created = await r.json();
           setSelectedId(created.id);
+          setSelectedItem(created);
           setIsNew(false);
         }
       }
@@ -3109,276 +3203,240 @@ export default function SOPsPanel() {
     e?.stopPropagation();
     if (!window.confirm(`Delete "${sop.title}"?`)) return;
     await fetch(`/api/sops/${sop.id}`, { method: "DELETE" });
-    if (selectedId === sop.id) {
-      setSelectedId(null);
-      setSelectedItem(null);
-      setIsNew(false);
-      setDirty(false);
-      setTitle("");
-      setCategory("General");
-      setContent("");
-    }
+    if (selectedId === sop.id) clearSelection();
     await fetchSOPs();
   };
 
-  // The pinned pseudo-docs (Send Info / SMS Sequence(s) / Appointment
-  // Reminders) used to always render in their own individually-labeled rows
-  // above the real-document list, never joining it — so even when a
-  // pseudo-doc's category was set to exactly match a real document's
-  // category, they'd still show as separate sections. Folding them into the
-  // same grouping as `sops` here is what actually makes matching categories
-  // combine into one section instead of just deduplicating near-identical
-  // spellings. Each fetched sequence becomes its own pseudo-item (there can
-  // be many, unlike Send Info/Reminders which are always exactly one).
-  const pseudoItems = activeSection === "outreach_templates" ? [
-    { ...SEND_INFO_ITEM,        category: sendInfoCategory, icon: "☎" },
-    { ...NO_SHOW_ITEM,          category: noShowCategory,   icon: "🚫" },
-    { ...CANCEL_ITEM,           category: cancelCategory,   icon: "✕" },
-    { ...DM_FOLLOWUP_ITEM,      category: dmFollowupCategory, icon: "💭" },
-    { ...ONBOARDING_ITEM,       category: onboardingCategory, icon: "🎉" },
-    { ...CLIENT_BOOKING_ITEM,   category: clientBookingCategory, icon: "📣" },
-    { ...CLIENT_SUCCESS_ITEM,   category: clientSuccessCategory, icon: "📊" },
-    { ...EMAIL_HANDOFF_ITEM,    category: emailHandoffCategory, icon: "📧" },
-    { ...GK_DEFERRAL_ITEM,      category: gkDeferralCategory, icon: "📨" },
-    ...sequences.map(seq => ({
+  // Built-in templates become list items next to the saved docs, so they
+  // group, search and open the same way.
+  const pseudoItems = isOutreach ? [
+    { ...SEND_INFO_ITEM,        category: sendInfoCategory },
+    { ...NO_SHOW_ITEM,          category: noShowCategory },
+    { ...CANCEL_ITEM,           category: cancelCategory },
+    { ...DM_FOLLOWUP_ITEM,      category: dmFollowupCategory },
+    { ...ONBOARDING_ITEM,       category: onboardingCategory },
+    { ...CLIENT_BOOKING_ITEM,   category: clientBookingCategory },
+    { ...CLIENT_SUCCESS_ITEM,   category: clientSuccessCategory },
+    { ...EMAIL_HANDOFF_ITEM,    category: emailHandoffCategory },
+    { ...GK_DEFERRAL_ITEM,      category: gkDeferralCategory },
+    ...[...sequences].sort((x, y) => (y.is_active ? 1 : 0) - (x.is_active ? 1 : 0)).map(seq => ({
       id: `seq-${seq.id}`,
       title: seq.name,
       category: seq.category || "General",
       smsSequence: true,
       sequenceId: seq.id,
-      icon: "💬",
       isDefault: seq.is_active,
     })),
-    ...callScripts.map(cs => ({
+    ...[...callScripts].sort((x, y) => (y.is_active ? 1 : 0) - (x.is_active ? 1 : 0)).map(cs => ({
       id: `script-${cs.id}`,
       title: cs.name,
       category: cs.category || "General",
       callScript: true,
       scriptId: cs.id,
-      icon: "📞",
       isDefault: cs.is_active,
     })),
-    { ...REMINDER_TEMPLATE_ITEM, category: remCategory,     icon: "📅" },
+    { ...REMINDER_TEMPLATE_ITEM, category: remCategory },
   ] : [];
 
-  // Group case/whitespace-insensitively (see catKey above) so pre-existing
-  // near-duplicate category strings ("SMS Outreach" vs "sms outreach") still
-  // render as one section instead of splitting the list.
-  const grouped = [...pseudoItems, ...sops].reduce((acc, item) => {
-    const cat = item.category || "General";
-    const key = catKey(cat);
-    if (!acc[key]) acc[key] = { label: cat.trim(), items: [] };
-    acc[key].items.push(item);
-    return acc;
-  }, {});
+  const q = search.trim().toLowerCase();
+  const matches = (item) => !q || `${cleanTitle(item.title)} ${metaFor(item)?.when || ""} ${item.category || ""}`.toLowerCase().includes(q);
+  const allItems = [...pseudoItems, ...sops].filter(matches);
+  const totalCount = pseudoItems.length + sops.length;
+  const effectiveGroupBy = isOutreach ? groupBy : "category";
+
+  let groups;
+  if (effectiveGroupBy === "purpose") {
+    groups = PURPOSES
+      .map(p => ({ key: p.id, label: p.label, hint: p.hint, items: allItems.filter(i => (metaFor(i)?.purpose || "docs") === p.id) }))
+      .filter(g => g.items.length);
+  } else {
+    // Case/whitespace-insensitive (catKey), so "SMS Outreach" and
+    // "sms outreach" stay one group.
+    const byCat = allItems.reduce((acc, item) => {
+      const cat = item.category || "General";
+      const key = catKey(cat);
+      if (!acc[key]) acc[key] = { key, label: cat.trim(), items: [] };
+      acc[key].items.push(item);
+      return acc;
+    }, {});
+    groups = Object.values(byCat);
+  }
 
   const showEditor = selectedId !== null || isNew;
-  // Drives the mobile sidebar<->detail-pane swap below — true any time the
-  // right-hand pane has real content (a selected item, or a new-doc/
-  // new-sequence/new-script draft in progress via showEditor).
   const mobileDetailActive = !!selectedItem || showEditor;
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      <style>{PROSE_CSS}</style>
+  const itemIcon = (item) => metaFor(item)?.icon || docKind(item).icon;
+  const itemSub = (item) => metaFor(item)?.when || [docKind(item).label, fmtUpdated(item.updated_at)].filter(Boolean).join(" · ");
+  const collapseKey = (g) => `${activeSection}:${effectiveGroupBy}:${g.key}`;
 
-      {/* Top bar */}
-      <div className="flex-wrap" style={{
-        padding: "16px 24px 12px",
-        borderBottom: "1px solid rgba(58,123,213,0.12)",
-        display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
-      }}>
-        {mobileDetailActive && (
-          <button
-            onClick={() => { setSelectedItem(null); setSelectedId(null); setIsNew(false); }}
-            className="md:hidden"
-            style={{
-              background: "none", border: "none", color: "#3a7bd5", cursor: "pointer",
-              fontFamily: "'Share Tech Mono', monospace", fontSize: 10, letterSpacing: "0.06em",
-              padding: "4px 0", flexShrink: 0,
-            }}
-          >
-            ‹ BACK
-          </button>
-        )}
-        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#e8f0ff" }}>{section.label}</span>
-        <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em" }}>{section.subtitle}</span>
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.clientSuccess && !selectedItem?.emailHandoffTemplate && !selectedItem?.gkDeferralTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && savedFlash && (
-            <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#34d399", letterSpacing: "0.1em" }}>SAVED ✓</span>
-          )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.clientSuccess && !selectedItem?.emailHandoffTemplate && !selectedItem?.gkDeferralTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && !isSequenceCategory && !isScriptCategory && showEditor && !selectedItem?.file_name && (
-            <button
-              onClick={save}
-              disabled={saving || !title.trim()}
-              style={{
-                background: dirty && title.trim()
-                  ? "linear-gradient(90deg, #2857a0, #3a7bd5)"
-                  : "rgba(58,123,213,0.12)",
-                border: dirty && title.trim() ? "none" : "1px solid rgba(58,123,213,0.25)",
-                borderRadius: 6, color: dirty && title.trim() ? "#fff" : "#6ab0ff",
-                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-                fontSize: 12, padding: "6px 16px",
-                cursor: saving || !title.trim() ? "not-allowed" : "pointer",
-                opacity: saving ? 0.6 : 1,
-              }}
-            >{saving ? "Saving..." : dirty ? "Save *" : "Save"}</button>
-          )}
-          {!selectedItem?.sendInfo && !selectedItem?.noShow && !selectedItem?.cancelTemplate && !selectedItem?.dmFollowupTemplate && !selectedItem?.onboardingTemplate && !selectedItem?.clientBookingTemplate && !selectedItem?.clientSuccess && !selectedItem?.emailHandoffTemplate && !selectedItem?.gkDeferralTemplate && !selectedItem?.smsSequence && !selectedItem?.reminderTemplate && !selectedItem?.callScript && selectedId !== null && !isNew && (
-            <button
-              onClick={() => deleteSOP(selectedItem)}
-              title="Delete this document"
-              style={{
-                background: "rgba(220,60,60,0.1)",
-                border: "1px solid rgba(220,60,60,0.3)",
-                borderRadius: 6, color: "#dc3c3c",
-                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-                fontSize: 12, padding: "6px 14px", cursor: "pointer",
-              }}
-            >Delete</button>
-          )}
-          <input ref={uploadRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
-          <button
-            onClick={() => uploadRef.current?.click()}
-            disabled={uploading}
-            style={{
-              background: "rgba(58,123,213,0.12)",
-              border: "1px solid rgba(58,123,213,0.25)",
-              borderRadius: 6, color: "#6ab0ff",
-              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-              fontSize: 12, padding: "6px 14px", cursor: uploading ? "not-allowed" : "pointer",
-              opacity: uploading ? 0.6 : 1,
-            }}
-          >{uploading ? "Uploading…" : "↑ Upload"}</button>
-          <button
-            onClick={startNew}
-            style={{
-              background: "linear-gradient(90deg, #2857a0, #3a7bd5)",
-              border: "none", borderRadius: 6, color: "#fff",
-              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-              fontSize: 12, padding: "6px 14px", cursor: "pointer",
-            }}
-          >+ {section.newLabel}</button>
+  const newOptions = [
+    { kind: "doc",      label: "Saved template",  hint: "Free-form text you copy from" },
+    { kind: "sequence", label: "Text sequence",   hint: "Step-by-step texts for the Inbox" },
+    { kind: "script",   label: "Call script",     hint: "Opener, intro, body and close for the dialer" },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", fontFamily: T.font }}>
+      <style>{PROSE_CSS + `
+        .res-row .res-del { opacity: 0; transition: opacity .15s; }
+        .res-row:hover .res-del { opacity: 1; }
+        .res-row:hover { background: rgba(77,142,240,0.07); }
+        .res-card { transition: border-color .15s, transform .15s; }
+        .res-card:hover { border-color: rgba(77,142,240,0.45) !important; transform: translateY(-1px); }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ padding: "20px 28px 0", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            {mobileDetailActive && (
+              <button onClick={clearSelection} className="md:hidden" style={{ background: "none", border: "none", color: "#8fb8ff", cursor: "pointer", fontSize: 13, fontWeight: 600, padding: "0 0 6px" }}>
+                ‹ Back to list
+              </button>
+            )}
+            <h1 style={{ fontFamily: T.display, fontSize: 24, fontWeight: 700, color: T.text, letterSpacing: "-0.02em", margin: 0 }}>Resources</h1>
+            <div style={{ fontSize: 13.5, color: T.textMute, marginTop: 4 }}>{section.description}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", position: "relative" }}>
+            <input ref={uploadRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
+            <button onClick={() => uploadRef.current?.click()} disabled={uploading} style={{ ...btnGhost, opacity: uploading ? 0.6 : 1, cursor: uploading ? "not-allowed" : "pointer" }}>
+              {uploading ? "Uploading…" : "↑ Upload file"}
+            </button>
+            {isOutreach ? (
+              <>
+                <button onClick={() => setNewMenuOpen(o => !o)} style={btnPrimary}>+ New ▾</button>
+                {newMenuOpen && (
+                  <>
+                    <div onClick={() => setNewMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+                    <div style={{
+                      position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 41, width: 270,
+                      background: "#0d1734", border: `1px solid ${T.lineStrong}`, borderRadius: 10, padding: 6,
+                      boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+                    }}>
+                      {newOptions.map(o => (
+                        <button key={o.kind} onClick={() => startNew(o.kind)} className="res-row" style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderRadius: 8, padding: "8px 10px", cursor: "pointer" }}>
+                          <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>{o.label}</div>
+                          <div style={{ fontSize: 12, color: T.textMute, marginTop: 1 }}>{o.hint}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <button onClick={() => startNew("doc")} style={btnPrimary}>+ {section.newLabel}</button>
+            )}
+          </div>
         </div>
+        <Tabs style={{ marginTop: 14 }} value={activeSection} onChange={setActiveSection}
+          tabs={SUBSECTIONS.map(s => ({ id: s.id, label: s.label, count: s.id === activeSection && !loadingList ? totalCount : 0 }))} />
       </div>
 
       {/* Body */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* Sidebar — full-width on mobile until something is selected, then
-            the editor/viewer pane takes over full-screen; always
-            side-by-side at md+, same pattern as Inbox/Agents. */}
+        {/* Sidebar: full width on mobile until something is open */}
         <div
-          className={(mobileDetailActive ? "hidden " : "flex ") + "md:flex flex-col flex-shrink-0 w-full md:w-[240px]"}
-          style={{
-            borderRight: "1px solid rgba(58,123,213,0.1)",
-            overflow: "hidden",
-          }}>
-          {/* Subsection tabs */}
-          <div style={{ padding: "10px 8px 0", flexShrink: 0 }}>
-            {SUBSECTIONS.map(sub => (
-              <button
-                key={sub.id}
-                onClick={() => setActiveSection(sub.id)}
-                style={{
-                  display: "block", width: "100%", textAlign: "left",
-                  padding: "7px 12px", marginBottom: 2,
-                  background: activeSection === sub.id ? "rgba(58,123,213,0.18)" : "transparent",
-                  border: activeSection === sub.id ? "1px solid rgba(58,123,213,0.3)" : "1px solid transparent",
-                  borderRadius: 6, cursor: "pointer",
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 12, fontWeight: activeSection === sub.id ? 600 : 400,
-                  color: activeSection === sub.id ? "#6ab0ff" : "#4a6a8a",
-                  transition: "all 0.15s",
-                }}
-              >{sub.label}</button>
-            ))}
-            <div style={{ borderBottom: "1px solid rgba(58,123,213,0.1)", margin: "8px 0" }} />
+          className={(mobileDetailActive ? "hidden " : "flex ") + "md:flex flex-col flex-shrink-0 w-full md:w-[300px]"}
+          style={{ borderRight: `1px solid ${T.line}`, overflow: "hidden" }}>
+          <div style={{ padding: "12px 12px 8px", flexShrink: 0, display: "grid", gap: 8 }}>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={`Search ${section.label.toLowerCase()}…`}
+              style={{ ...inputStyle, padding: "8px 12px", fontSize: 13 }}
+            />
+            {isOutreach && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.textMute }}>
+                Group by
+                {[["purpose", "What it's for"], ["category", "Category"]].map(([id, label]) => {
+                  const on = groupBy === id;
+                  return (
+                    <button key={id} onClick={() => setGroupBy(id)} style={{
+                      border: `1px solid ${on ? "rgba(77,142,240,0.5)" : T.line}`, background: on ? T.accentSoft : "transparent",
+                      color: on ? T.text : T.textMute, padding: "3px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}>{label}</button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", padding: "0 0 12px" }}>
-          {isNew && (
-            <div style={{
-              margin: "0 8px 8px",
-              padding: "7px 12px",
-              borderRadius: 6,
-              background: "rgba(58,123,213,0.15)",
-              border: "1px solid rgba(58,123,213,0.3)",
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 12, color: "#6ab0ff", fontWeight: 600,
-            }}>
-              + {section.newLabel}
-            </div>
-          )}
-          {Object.keys(grouped).length === 0 && !isNew && (
-            <div style={{ padding: "20px 16px", fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#2a4a6a", textAlign: "center", letterSpacing: "0.1em" }}>
-              NO {section.label.toUpperCase()} YET
-            </div>
-          )}
-          {Object.entries(grouped).map(([key, { label, items }]) => (
-            <div key={key}>
-              <div style={{ padding: "8px 16px 4px", fontFamily: "'Share Tech Mono', monospace", fontSize: 9, color: "#3a5a80", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                {label}
+          <div style={{ flex: 1, overflowY: "auto", padding: "0 0 16px" }}>
+            {isNew && (
+              <div style={{ margin: "4px 8px 8px", padding: "8px 12px", borderRadius: 8, background: T.accentSoft, border: "1px solid rgba(77,142,240,0.35)", fontSize: 13, color: "#8fb8ff", fontWeight: 600 }}>
+                + {isOutreach ? newOptions.find(o => o.kind === newKind)?.label : section.newLabel} (not saved yet)
               </div>
-              {items.map(item => {
-                const isPseudo = item.sendInfo || item.smsSequence || item.reminderTemplate;
-                const isActive = selectedId === item.id;
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => openSOP(item)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "7px 16px", cursor: "pointer",
-                      background: isActive ? "linear-gradient(90deg, rgba(40,87,160,0.35), rgba(58,123,213,0.2))" : "transparent",
-                      borderLeft: isActive ? "2px solid #3a7bd5" : "2px solid transparent",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(58,123,213,0.07)"; }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+            )}
+            {loadingList && groups.length === 0 ? (
+              <Empty>Loading…</Empty>
+            ) : groups.length === 0 && !isNew ? (
+              <Empty>{q ? `Nothing matches "${search}".` : `No ${section.label.toLowerCase()} yet.`}</Empty>
+            ) : null}
+            {groups.map(g => {
+              const isCollapsed = !q && collapsed[collapseKey(g)];
+              return (
+                <div key={g.key} style={{ marginTop: 6 }}>
+                  <button
+                    onClick={() => setCollapsed(c => ({ ...c, [collapseKey(g)]: !isCollapsed }))}
+                    style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", background: "none", border: "none", cursor: "pointer", padding: "6px 16px", textAlign: "left" }}
                   >
-                    {isPseudo
-                      ? <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>{item.icon}</span>
-                      : item.file_name
-                        ? <span style={{ fontSize: 11, flexShrink: 0, opacity: 0.7 }}>{/^audio|^video/.test(item.file_type || "") ? "🎙" : "📎"}</span>
-                        : <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: item.visibility === "public" ? "#34d399" : "#6ab0ff", opacity: 0.8 }} />
-                    }
-                    <span style={{
-                      flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      fontFamily: "'Space Grotesk', sans-serif", fontSize: 12,
-                      color: isActive ? "#e8f0ff" : "#7a9cc0",
-                      fontWeight: isActive ? 600 : 400,
-                    }}>{item.title}</span>
-                    {item.isDefault && (
-                      <span style={{
-                        fontFamily: "'Share Tech Mono', monospace", fontSize: 8, color: "#34d399",
-                        letterSpacing: "0.08em", flexShrink: 0,
-                        border: "1px solid rgba(52,211,153,0.4)", borderRadius: 3, padding: "1px 4px",
-                      }}>DEFAULT</span>
-                    )}
-                    {!isPseudo && (
-                      <button
-                        onClick={e => deleteSOP(item, e)}
-                        title="Delete"
+                    <span style={{ fontSize: 10, color: T.textMute, width: 10, transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform .15s" }}>▾</span>
+                    <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: T.textDim }}>{g.label}</span>
+                    <span style={{ fontSize: 11.5, color: T.textMute }}>{g.items.length}</span>
+                  </button>
+                  {!isCollapsed && g.items.map(item => {
+                    const meta = metaFor(item);
+                    const isActive = selectedId === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => openSOP(item)}
+                        className="res-row"
                         style={{
-                          background: "none", border: "none", cursor: "pointer",
-                          color: "#dc3c3c", fontSize: 14, lineHeight: 1, padding: 0,
-                          flexShrink: 0, opacity: 0, transition: "opacity 0.15s",
+                          display: "flex", alignItems: "center", gap: 10,
+                          margin: "1px 8px", padding: "7px 10px", borderRadius: 8, cursor: "pointer",
+                          background: isActive ? "linear-gradient(90deg, rgba(40,87,160,0.38), rgba(58,123,213,0.18))" : undefined,
+                          boxShadow: isActive ? "inset 2px 0 0 #4d8ef0" : undefined,
                         }}
-                        onMouseEnter={e => e.currentTarget.style.opacity = "1"}
-                        onMouseLeave={e => e.currentTarget.style.opacity = "0"}
-                      >×</button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+                      >
+                        <span style={{ fontSize: 14, width: 20, textAlign: "center", flexShrink: 0, opacity: 0.85 }}>{itemIcon(item)}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: isActive ? 600 : 500, color: isActive ? T.text : T.textDim }}>
+                              {cleanTitle(item.title)}
+                            </span>
+                            {item.isDefault && <Pill tone="good" style={{ fontSize: 10.5, padding: "1px 7px" }}>Default</Pill>}
+                            {!meta && item.visibility === "public" && <Pill tone="good" style={{ fontSize: 10.5, padding: "1px 7px" }}>Public</Pill>}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                            {meta && <ChannelChips channels={meta.channels} />}
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11.5, color: T.textMute }}>{itemSub(item)}</span>
+                          </div>
+                        </div>
+                        {!meta && (
+                          <button className="res-del" onClick={e => deleteSOP(item, e)} title="Delete"
+                            style={{ background: "none", border: "none", cursor: "pointer", color: T.bad, fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Editor / file viewer pane — hidden on mobile until selected */}
+        {/* Detail pane: hidden on mobile until something is open */}
         <div className={(!mobileDetailActive ? "hidden " : "flex ") + "md:flex flex-col flex-1 min-w-0"} style={{ overflow: "hidden" }}>
+          {selectedItem && isSpecialItem(selectedItem) && (
+            <div style={{ padding: "16px 36px 0", flexShrink: 0, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 18 }}>{itemIcon(selectedItem)}</span>
+              <span style={{ fontFamily: T.display, fontSize: 18, fontWeight: 700, color: T.text }}>{cleanTitle(selectedItem.title)}</span>
+              <ChannelChips channels={metaFor(selectedItem).channels} />
+              <span style={{ fontSize: 12.5, color: T.textMute }}>{metaFor(selectedItem).when}</span>
+            </div>
+          )}
           {selectedItem?.sendInfo ? (
             <OutreachTemplatesEditor categories={categories} onCategoryChange={setSendInfoCategory} />
           ) : selectedItem?.noShow ? (
@@ -3402,24 +3460,14 @@ export default function SOPsPanel() {
               sequence={sequences.find(s => s.id === selectedSequenceId)}
               categories={categories}
               onSaved={fetchSequences}
-              onDeleted={() => {
-                setSelectedId(null);
-                setSelectedItem(null);
-                setSelectedSequenceId(null);
-                fetchSequences();
-              }}
+              onDeleted={() => { clearSelection(); fetchSequences(); }}
             />
           ) : selectedItem?.callScript ? (
             <CallScriptEditor
               script={callScripts.find(s => s.id === selectedScriptId)}
               categories={categories}
               onSaved={fetchCallScripts}
-              onDeleted={() => {
-                setSelectedId(null);
-                setSelectedItem(null);
-                setSelectedScriptId(null);
-                fetchCallScripts();
-              }}
+              onDeleted={() => { clearSelection(); fetchCallScripts(); }}
             />
           ) : selectedItem?.reminderTemplate ? (
             <AppointmentRemindersEditor categories={categories} onCategoryChange={setRemCategory} />
@@ -3436,7 +3484,7 @@ export default function SOPsPanel() {
                 setSelectedId(`seq-${created.id}`);
                 setSelectedItem({
                   id: `seq-${created.id}`, title: created.name, category: created.category,
-                  smsSequence: true, sequenceId: created.id, icon: "💬", isDefault: created.is_active,
+                  smsSequence: true, sequenceId: created.id, isDefault: created.is_active,
                 });
                 setSelectedSequenceId(created.id);
                 fetchSequences();
@@ -3455,41 +3503,80 @@ export default function SOPsPanel() {
                 setSelectedId(`script-${created.id}`);
                 setSelectedItem({
                   id: `script-${created.id}`, title: created.name, category: created.category,
-                  callScript: true, scriptId: created.id, icon: "📞", isDefault: created.is_active,
+                  callScript: true, scriptId: created.id, isDefault: created.is_active,
                 });
                 setSelectedScriptId(created.id);
                 fetchCallScripts();
               }}
             />
           ) : !showEditor ? (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#1e3050", letterSpacing: "0.12em" }}>
-                SELECT OR CREATE A {section.label.toUpperCase().replace(/S$/, "")}
+            /* ── Overview: every item as a card, grouped like the sidebar ── */
+            <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px 48px" }}>
+              <div style={{ maxWidth: 1040 }}>
+                {isOutreach && !q && (
+                  <div style={{ fontSize: 13.5, color: T.textDim, lineHeight: 1.6, marginBottom: 22, maxWidth: 720 }}>
+                    Most of these go out <b style={{ color: T.text }}>on their own</b> when something happens in the OS, like a call outcome, a status change or a booking. Each card says what sends it. Open one to edit the wording; changes apply to the very next send.
+                  </div>
+                )}
+                {groups.length === 0 && !loadingList && (
+                  <Card style={{ textAlign: "center", padding: 36, maxWidth: 520 }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>{isOutreach ? "💬" : "📄"}</div>
+                    <div style={{ fontFamily: T.display, fontSize: 16, fontWeight: 600, color: T.text }}>
+                      {q ? "Nothing matches your search" : `No ${section.label.toLowerCase()} yet`}
+                    </div>
+                    <div style={{ fontSize: 13, color: T.textMute, margin: "6px 0 16px" }}>
+                      {q ? "Try a different word, or clear the search." : "Write one here or upload a file you already have."}
+                    </div>
+                    {!q && (
+                      <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                        <button onClick={() => startNew("doc")} style={btnPrimary}>+ {isOutreach ? "Saved template" : section.newLabel}</button>
+                        <button onClick={() => uploadRef.current?.click()} style={btnGhost}>↑ Upload file</button>
+                      </div>
+                    )}
+                  </Card>
+                )}
+                {groups.map(g => (
+                  <section key={g.key} style={{ marginBottom: 28 }}>
+                    <SectionTitle title={g.label} hint={g.hint} right={<span style={{ fontSize: 12.5, color: T.textMute }}>{g.items.length}</span>} />
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 10 }}>
+                      {g.items.map(item => {
+                        const meta = metaFor(item);
+                        return (
+                          <Card key={item.id} pad={14} onClick={() => openSOP(item)} className="ui-card res-card">
+                            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                              <span style={{ fontSize: 18, lineHeight: 1.2 }}>{itemIcon(item)}</span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <span style={{ fontSize: 14, fontWeight: 600, color: T.text, lineHeight: 1.35 }}>{cleanTitle(item.title)}</span>
+                                  {item.isDefault && <Pill tone="good" style={{ fontSize: 10.5, padding: "1px 7px" }}>Default</Pill>}
+                                </div>
+                                <div style={{ fontSize: 12.5, color: T.textMute, marginTop: 4, lineHeight: 1.45 }}>{itemSub(item)}</div>
+                                {meta && <div style={{ marginTop: 8 }}><ChannelChips channels={meta.channels} /></div>}
+                                {!meta && effectiveGroupBy === "purpose" && item.category && (
+                                  <div style={{ fontSize: 11.5, color: T.textMute, marginTop: 6 }}>{item.category}</div>
+                                )}
+                              </div>
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
               </div>
             </div>
           ) : selectedItem?.file_name ? (
             /* ── File viewer ── */
             <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              <div style={{
-                padding: "14px 36px", borderBottom: "1px solid rgba(58,123,213,0.1)",
-                display: "flex", alignItems: "center", gap: 12, flexShrink: 0,
-              }}>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#e8f0ff", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <div style={{ padding: "14px 36px", borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "center", gap: 12, flexShrink: 0, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: T.display, fontWeight: 700, fontSize: 17, color: T.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {selectedItem.title}
                 </span>
-                <span style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 10, color: "#3a5a80", letterSpacing: "0.1em", flexShrink: 0 }}>
-                  {selectedItem.file_type} · {selectedItem.file_size ? (selectedItem.file_size / 1024 / 1024).toFixed(1) + " MB" : ""}
+                <span style={{ fontSize: 12.5, color: T.textMute, flexShrink: 0 }}>
+                  {docKind(selectedItem).label}{selectedItem.file_size ? ` · ${(selectedItem.file_size / 1024 / 1024).toFixed(1)} MB` : ""}{selectedItem.updated_at ? ` · ${fmtUpdated(selectedItem.updated_at)}` : ""}
                 </span>
-                <a
-                  href={`/api/sops/${selectedItem.id}/file`}
-                  download={selectedItem.file_name}
-                  style={{
-                    background: "rgba(58,123,213,0.12)", border: "1px solid rgba(58,123,213,0.25)",
-                    borderRadius: 6, color: "#6ab0ff", textDecoration: "none",
-                    fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-                    fontSize: 12, padding: "6px 14px", flexShrink: 0,
-                  }}
-                >↓ Download</a>
+                <a href={`/api/sops/${selectedItem.id}/file`} download={selectedItem.file_name} style={{ ...btnGhost, textDecoration: "none" }}>↓ Download</a>
+                <button onClick={() => deleteSOP(selectedItem)} style={btnDanger}>Delete</button>
               </div>
               <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 24 }}>
                 {/^audio\//.test(selectedItem.file_type || "") ? (
@@ -3500,111 +3587,57 @@ export default function SOPsPanel() {
                   <iframe src={`/api/sops/${selectedItem.id}/file`} style={{ width: "100%", height: "100%", border: "none", borderRadius: 8, background: "#fff" }} title={selectedItem.file_name} />
                 ) : (
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 48, marginBottom: 16 }}>📎</div>
-                    <div style={{ fontFamily: "'Space Grotesk', sans-serif", color: "#9ab8d8", marginBottom: 20 }}>{selectedItem.file_name}</div>
-                    <a
-                      href={`/api/sops/${selectedItem.id}/file`}
-                      download={selectedItem.file_name}
-                      style={{
-                        background: "linear-gradient(90deg, #2857a0, #3a7bd5)", border: "none",
-                        borderRadius: 6, color: "#fff", textDecoration: "none",
-                        fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600,
-                        fontSize: 13, padding: "9px 24px",
-                      }}
-                    >↓ Download File</a>
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>📎</div>
+                    <div style={{ color: T.textDim, marginBottom: 6 }}>{selectedItem.file_name}</div>
+                    <div style={{ fontSize: 12.5, color: T.textMute, marginBottom: 18 }}>This file type can't be previewed here.</div>
+                    <a href={`/api/sops/${selectedItem.id}/file`} download={selectedItem.file_name} style={{ ...btnPrimary, textDecoration: "none", padding: "9px 22px" }}>↓ Download file</a>
                   </div>
                 )}
               </div>
             </div>
           ) : (
             <>
-              {/* Title + meta row */}
-              <div style={{
-                padding: "12px 36px",
-                borderBottom: "1px solid rgba(58,123,213,0.1)",
-                display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
-              }}>
+              {/* ── Document editor ── */}
+              <div style={{ padding: "12px 36px", borderBottom: `1px solid ${T.line}`, display: "flex", alignItems: "center", gap: 10, flexShrink: 0, flexWrap: "wrap" }}>
                 <input
                   value={title}
                   onChange={e => { setTitle(e.target.value); setDirty(true); }}
                   placeholder={section.placeholder}
                   autoFocus={isNew}
-                  style={{
-                    flex: 1, background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-                    padding: "6px 12px", color: "#e8f0ff",
-                    fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
-                    fontSize: 15, outline: "none",
-                  }}
+                  style={{ ...inputStyle, flex: 1, minWidth: 220, width: "auto", fontFamily: T.display, fontWeight: 700, fontSize: 16, padding: "7px 12px" }}
                 />
-
-                {customCatMode ? (
-                  <input
-                    value={category}
-                    onChange={e => { setCategory(e.target.value); setDirty(true); }}
-                    placeholder="Category name"
-                    autoFocus
-                    onBlur={() => { if (!category.trim()) { setCustomCatMode(false); setCategory(categories[0] || "General"); } }}
-                    onKeyDown={e => { if (e.key === "Enter") { setCategory(resolveCategory(category, categories)); setCustomCatMode(false); setDirty(true); } }}
-                    style={{
-                      width: 130, background: "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(58,123,213,0.3)", borderRadius: 6,
-                      padding: "6px 10px", color: "#9ab8d8",
-                      fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, outline: "none",
-                    }}
-                  />
-                ) : (
-                  <select
-                    value={category}
-                    onChange={e => {
-                      if (e.target.value === "__new__") {
-                        setCustomCatMode(true);
-                        setCategory("");
-                      } else {
-                        setCategory(e.target.value);
-                        setDirty(true);
-                      }
-                    }}
-                    style={{
-                      background: "#0d1a3a",
-                      border: "1px solid rgba(58,123,213,0.2)", borderRadius: 6,
-                      padding: "6px 10px", color: "#9ab8d8",
-                      fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, outline: "none",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {dedupeCategories([...categories, category]).map(c => (
-                      <option key={c} value={c} style={{ background: "#0d1a3a" }}>{c}</option>
-                    ))}
-                    <option value="__new__" style={{ background: "#0d1a3a" }}>+ New category…</option>
-                  </select>
-                )}
-
-                <div style={{ display: "flex", borderRadius: 6, overflow: "hidden", border: "1px solid rgba(58,123,213,0.25)", flexShrink: 0 }}>
+                <CategoryPicker
+                  categories={categories}
+                  category={category}
+                  setCategory={(c) => { setCategory(c); setDirty(true); }}
+                  customCatMode={customCatMode}
+                  setCustomCatMode={setCustomCatMode}
+                  onCommit={() => setDirty(true)}
+                />
+                <div title="Private: only you see it. Public: can be shared outside the OS." style={{ display: "flex", borderRadius: 8, overflow: "hidden", border: `1px solid ${T.lineStrong}`, flexShrink: 0 }}>
                   {["private", "public"].map(v => (
-                    <button
-                      key={v}
-                      onClick={() => { setVisibility(v); setDirty(true); }}
-                      style={{
-                        padding: "5px 10px", border: "none", cursor: "pointer",
-                        background: visibility === v
-                          ? v === "public" ? "rgba(52,211,153,0.25)" : "rgba(58,123,213,0.3)"
-                          : "transparent",
-                        color: visibility === v
-                          ? v === "public" ? "#34d399" : "#6ab0ff"
-                          : "#3a5a80",
-                        fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600,
-                        textTransform: "capitalize", transition: "all 0.15s",
-                      }}
-                    >{v}</button>
+                    <button key={v} onClick={() => { setVisibility(v); setDirty(true); }} style={{
+                      padding: "6px 11px", border: "none", cursor: "pointer",
+                      background: visibility === v ? (v === "public" ? "rgba(47,208,143,0.2)" : T.accentSoft) : "transparent",
+                      color: visibility === v ? (v === "public" ? T.good : "#8fb8ff") : T.textMute,
+                      fontSize: 12.5, fontWeight: 600, textTransform: "capitalize",
+                    }}>{v}</button>
                   ))}
                 </div>
+                {savedFlash && <span style={{ fontSize: 12.5, color: T.good, fontWeight: 600 }}>Saved ✓</span>}
+                {selectedId !== null && !isNew && <button onClick={() => deleteSOP(selectedItem)} style={btnDanger}>Delete</button>}
+                <button onClick={save} disabled={saving || !title.trim()} style={{
+                  ...(dirty && title.trim() ? btnPrimary : btnGhost),
+                  cursor: saving || !title.trim() ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1,
+                }}>{saving ? "Saving…" : isNew ? "Create" : dirty ? "Save changes" : "Save"}</button>
               </div>
 
               <FormatBar editor={editor} />
 
               <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px" }}>
-                <EditorContent editor={editor} />
+                <div style={{ maxWidth: 820 }}>
+                  <EditorContent editor={editor} />
+                </div>
               </div>
             </>
           )}
