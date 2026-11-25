@@ -93,7 +93,7 @@ STEPS = [
             "breaks, run the check again and links fall back to ours.",
      "fields": [{"key": "booking_domain", "label": "Booking domain", "placeholder": "book.clientdomain.com"}]},
     {"id": "a2p", "long_lead": "Twilio/carrier review takes days to weeks; a rejection restarts it", "services": TEXTING, "phase": "handover", "package": "all", "title": "A2P 10DLC registered (marketing use case)",
-     "how": "Needs their legal business name + EIN (exactly as on the IRS letter). Register the Brand right away on "
+     "how": "Needs their legal business name + EIN (exactly as on the IRS letter): read them from the portal onboarding form's Legal section first (name, type, EIN, industry, website, address) and only ask the client for what's blank. Register the Brand right away on "
             "the client's Twilio subaccount. Submit the Campaign (Low Volume Mixed, covers marketing) only AFTER the "
             "Instant Form with its consent disclaimer is published: the opt-in field must quote each consent line "
             "word for word and link a public screenshot of the form, or carriers reject it (error 30909). Tick "
@@ -329,6 +329,12 @@ async def status(client_id: int) -> dict:
                 "UPDATE client_marketing_config SET guide_progress = $2::jsonb WHERE client_id = $1",
                 client_id, json.dumps(progress))
         proven = await signals(conn, client_id)
+        # A2P details already given on the portal onboarding form (Legal section)?
+        legal = _decode(await conn.fetchval(
+            "SELECT answers FROM client_onboarding_responses WHERE client_id = $1 AND section = 'legal'",
+            client_id), {}) or {}
+    has_legal = bool(str(legal.get("legal_business_name") or "").strip()
+                     and str(legal.get("business_ein") or "").strip())
     ticks = progress.get("v2") or {}
     package = client["service_package"] or "growth"
     services = client_services.effective(dict(client))
@@ -349,7 +355,9 @@ async def status(client_id: int) -> dict:
         "consent_since": row["voice_consent_meta_since"].isoformat() if row and row["voice_consent_meta_since"] else None,
         "lead_ads_error": row["lead_ads_error"] if row else None,
         "client_ask": client_ask(client["name"], {s["id"] for s in steps},
-                                 {s["id"] for s in steps if s["done"]}),
+                                 {s["id"] for s in steps if s["done"]}, has_legal=has_legal),
+        "a2p_details": {k: legal.get(k) for k in ("legal_business_name", "business_type", "business_ein",
+                                                  "business_industry", "business_website_url", "business_address")},
         "services": services,
         "services_from": "intake" if client["intake_completed_at"] else (
             "set by Dylan" if client["services"] is not None else "package"),
@@ -361,7 +369,7 @@ async def status(client_id: int) -> dict:
     }
 
 
-def client_ask(name: str, shown: set[str], done: set[str]) -> str:
+def client_ask(name: str, shown: set[str], done: set[str], has_legal: bool = False) -> str:
     """The one batched handover message, listing only what's still missing
     (and only for steps that apply to this client's services)."""
     done = done | {s["id"] for s in STEPS if s["id"] not in shown}
@@ -377,7 +385,7 @@ def client_ask(name: str, shown: set[str], done: set[str]) -> str:
         items.append("Website domain: access to wherever your domain's DNS is managed (or we'll send you the "
                      "records to add), so your landing page and booking link can live on your own web address "
                      "(go.<your domain> and book.<your domain>).")
-    if "a2p" not in done:
+    if "a2p" not in done and not has_legal:  # already on their portal onboarding form: don't ask again
         items.append("Your legal business name and EIN, for the texting registration carriers require.")
     if "lists" not in done:
         items.append("Two CSV exports from your patient system: past patients (discharged or dropped off) and old "

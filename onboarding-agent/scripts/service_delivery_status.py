@@ -71,8 +71,7 @@ def main():
         print(f"auto-ticked just now: {ticked}")
     long_lead = [s for s in setup["steps"] if s.get("long_lead") and not s["done"]]
     if long_lead:
-        print("
-## LONG-LEAD: start these first (needs approval or waits on time)")
+        print("\n## LONG-LEAD: start these first (needs approval or waits on time)")
         for st in long_lead:
             print(f"  [ ] {st['id']}: {st['title']} -- {st['long_lead']}")
     for ph in setup["phases"]:
@@ -99,6 +98,17 @@ def main():
         ob = api("GET", f"/portal-api/{token}/onboarding", auth=False)
         missing = [s for s in ob["sections"] if s not in (ob.get("responses") or {})]
         print(f"\n## Onboarding form: {ob.get('progress')} sections done; missing: {', '.join(missing) or 'none'}")
+        # A2P details: always read them from the portal form before asking the client (Dylan, 2026-11-25).
+        legal = (ob.get("responses") or {}).get("legal") or {}
+        legal = legal.get("answers", legal) if isinstance(legal, dict) else {}
+        keys = ["legal_business_name", "business_type", "business_ein", "business_industry",
+                "business_website_url", "business_address"]
+        print("\n## A2P details (portal onboarding form, Legal section)")
+        if any(legal.get(k) for k in keys):
+            for k in keys:
+                print(f"  {k}: {legal.get(k) or '- (blank: ask the client for this one only)'}")
+        else:
+            print("  not answered yet: ask the client for legal business name + EIN")
         todo = api("GET", f"/portal-api/{token}/todo", auth=False)
         print("\n## Portal launch checklist (client-visible To Do)")
         for it in todo:

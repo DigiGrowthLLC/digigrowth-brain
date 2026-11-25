@@ -57,7 +57,11 @@ that step. Order:
    else's approval or waits on time goes before everything else, because it can't be
    rushed at the last minute. These are the **long-lead steps** (the calendar-management
    skill uses the same list):
-   - `a2p`: Twilio A2P 10DLC. Register the Brand right away. Submit the Campaign only once
+   - `a2p`: Twilio A2P 10DLC. **Never ask the client for the legal name / EIN before reading
+     the status script's "A2P details" section** (their portal onboarding form, Legal section:
+     legal name, business type, EIN, industry, website, address; Dylan, 2026-11-25). Ask only
+     for what's blank there. Check the number is local first (a non-local number means swap
+     it before registering, since the registration is tied to the number). Register the Brand right away. Submit the Campaign only once
      the Instant Form with its consent disclaimer is published and screenshotted: follow
      `onboarding-agent/context/a2p-registration-sop.md` (a campaign without public opt-in
      proof was rejected for Pinnacle, costing weeks). Publishing that form is long-lead too.
