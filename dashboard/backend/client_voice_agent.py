@@ -1009,7 +1009,9 @@ async def run_function(name: str, args: dict, call: dict) -> str:
                 return (f"(Test call: nothing was booked or texted.) Act exactly as for a real paid visit: tell them "
                         f"you've just texted them a link to lock in {args.get('date')} at {args.get('time')} and pay the "
                         f"${v['price_cents'] / 100:g} there (Apple Pay or Google Pay works), that you'll stay on the "
-                        f"line while they do it{refund}. Then call check_payment when they say it's done.")
+                        f"line while they do it{refund}. When they respond, say one short line like \"Take your "
+                        "time, just let me know if you have any questions.\" Then call check_payment when they "
+                        "say it's done.")
             return f"(Test call: nothing was booked.) Pretend it worked: confirm {args.get('date')} at {args.get('time')}."
         return await response_ai._execute_tool(client_id, phone, "propose_appointment", {**args, "_channel": "voice"})
     if name == "check_payment":
@@ -1229,8 +1231,10 @@ How the call goes:
   the line while they do it. Only when the tool result says to, right after, one short casual line, said
   once: "And if something comes up and you can't make it, it's fully refundable up to twenty-four hours
   before." Word for word, nothing else about refunds unless they ask. (The tool says to only when the
-  visit is more than 24 hours away.) Then stay on the call:
-  stay quiet while they pay, answer questions briefly, and when they say it's done call check_payment.
+  visit is more than 24 hours away.) When they respond (e.g. "cool", "okay"), say one short line so it
+  isn't dead air, e.g. "Take your time, just let me know if you have any questions." Then stay on the
+  call quietly while they pay; if it stays quiet a while, one light check-in ("Did the text come through
+  okay?"). Answer questions briefly, and when they say it's done call check_payment.
   Only call them booked once check_payment says paid. Text didn't arrive -> book_appointment again with
   the same time (re-sends the same link). Can't do it right now -> fine, the link is in their texts.
 - Busy right now -> offer to call back: schedule_callback with the time they give. Prefer text ->

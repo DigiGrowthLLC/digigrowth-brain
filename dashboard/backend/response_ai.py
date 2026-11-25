@@ -1712,7 +1712,8 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                             f"just sent to their phone to lock in {tool_input.get('date')} {tool_input.get('time')} "
                             f"({res['tz']}). Tell them you just texted it, it takes about a minute (Apple Pay or "
                             "Google Pay works), and you'll stay on the line while they do it. " + refund_line +
-                            "When they say it's done, call check_payment. Don't say they're booked until "
+                            "When they respond, say one short line like \"Take your time, just let me know if you "
+                            "have any questions.\" so it isn't silent. When they say it's done, call check_payment. Don't say they're booked until "
                             "check_payment says it's paid."
                         )
                     return (
