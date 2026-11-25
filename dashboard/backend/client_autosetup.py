@@ -326,16 +326,27 @@ async def _step_sms(client_id: int, ctx: dict) -> tuple[str, str]:
     if ctx["cfg"].get("twilio_number"):
         return "skipped", f"Already has {ctx['cfg']['twilio_number']}"
     area = _area_code(ctx["phone"])
-    try:
-        row = await client_sms.provision_client_number(client_id, area_code=area)
-    except RuntimeError:
-        # No numbers left in their area code: take any US local number.
-        row = await client_sms.provision_client_number(client_id, area_code=None)
+    near = f"+1{area}{re.sub(r'[^0-9]', '', ctx['phone'])[-7:]}" if area else None
+    # Most local number first: their area code, then near their phone, then anywhere.
+    row = await client_sms.provision_client_number(client_id, area_code=area, near_phone=near)
     ctx["cfg"]["twilio_number"] = row["twilio_number"]
     await _check_guide_steps(client_id, "sms", [0, 2])
+    match = row.get("number_match")
+    where = {"near_50": "within 50 miles of the clinic", "near_150": "within 150 miles of the clinic",
+             "anywhere": "outside their region"}.get(match)
+    if where:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            name = await conn.fetchval("SELECT name FROM clients WHERE id = $1", client_id)
+            await conn.execute(
+                "INSERT INTO todos (text, description, due_date) VALUES ($1, $2, CURRENT_DATE)",
+                f"Check {name}'s Twilio number: not in their area code",
+                f"No numbers were left in area code {area or '(unknown)'}, so Auto-Setup bought "
+                f"{row['twilio_number']} ({where}). Swap it for a local one before registering A2P "
+                "(the registration is tied to the number).")
     return "done", (
-        f"Bought {row['twilio_number']} (calls forward to the client's phone). "
-        "Still manual: A2P 10DLC registration with their legal name + EIN."
+        f"Bought {row['twilio_number']}" + (f" ({where}; area code {area} was sold out)" if where else "")
+        + " (calls forward to the client's phone). Still manual: A2P 10DLC registration with their legal name + EIN."
     )
 
 

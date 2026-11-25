@@ -26,7 +26,34 @@ def _master_client() -> TwilioClient:
     )
 
 
-async def provision_client_number(client_id: int, area_code: str | None = None) -> dict:
+def _find_number(subaccount_client, area_code: str | None, near_phone: str | None):
+    """Most local number Twilio has (Dylan, 2026-11-25: Boulder's 303/720 were
+    sold out and the old fallback bought a Minnesota 218 number). Order: the
+    clinic's own area code, then near the clinic's phone (50 then 150 miles,
+    which covers overlay codes and the rest of the region), then any US number.
+    Returns (candidates, match) where match is "area_code", "near_50", "near_150"
+    or "anywhere"."""
+    local = subaccount_client.available_phone_numbers("US").local
+    base = {"limit": 1, "sms_enabled": True, "voice_enabled": True}
+    attempts = []
+    if area_code:
+        attempts.append(("area_code", {"area_code": area_code}))
+    if near_phone:
+        attempts += [("near_50", {"near_number": near_phone, "distance": 50}),
+                     ("near_150", {"near_number": near_phone, "distance": 150})]
+    attempts.append(("anywhere", {}))
+    for match, kw in attempts:
+        try:
+            found = local.list(**base, **kw)
+        except Exception:
+            found = []
+        if found:
+            return found, match
+    return [], None
+
+
+async def provision_client_number(client_id: int, area_code: str | None = None,
+                                  near_phone: str | None = None) -> dict:
     """
     Idempotent: if the client already has a subaccount/number in
     client_marketing_config, skips straight to Voice provisioning instead of
@@ -83,11 +110,9 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
             master.api.accounts(subaccount_sid).fetch().auth_token,
         )
 
+        number_match = None
         if not (config and config["twilio_number"]):
-            search_kwargs = {"limit": 1}
-            if area_code:
-                search_kwargs["area_code"] = area_code
-            candidates = subaccount_client.available_phone_numbers("US").local.list(**search_kwargs)
+            candidates, number_match = _find_number(subaccount_client, area_code, near_phone)
             if not candidates:
                 raise RuntimeError(f"No available Twilio numbers found for client {client_id}")
 
@@ -161,7 +186,9 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
             voice_fields.get("twilio_api_key_sid") or (config["twilio_api_key_sid"] if config else None),
             voice_fields.get("twilio_api_key_secret") or (config["twilio_api_key_secret"] if config else None),
         )
-        return dict(row)
+        # number_match: how local the newly bought number is (None = kept the
+        # existing one). Not a DB column; callers flag anything but "area_code".
+        return {**dict(row), "number_match": number_match}
 
 
 # Stages of texts that are part of the live conversation rather than a
