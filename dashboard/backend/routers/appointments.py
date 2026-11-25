@@ -577,6 +577,8 @@ async def update_appointment(appointment_id: int, payload: dict):
             # only for Dylan's own sales-pipeline appointments.
             if await client_appointment_sequence.resolve_client_lead(updated["contact_id"]):
                 await client_appointment_sequence.send_first_touch(dict(updated), "no_show")
+            elif (updated["calendly_event_uri"] or "").startswith("dgbook:"):
+                print(f"[appointments] booking appointment {appointment_id} has no client lead; no-show drip skipped")
             else:
                 await no_show_sequence.send_first_touch(dict(updated))
         except Exception as e:
@@ -742,6 +744,9 @@ async def cancel_appointment(appointment_id: int, notify: bool = False, cancel_c
             # Same client-lead branch as the no-show handler above.
             if await client_appointment_sequence.resolve_client_lead(row["contact_id"]):
                 await client_appointment_sequence.send_first_touch(dict(row), "cancellation")
+            elif (row["calendly_event_uri"] or "").startswith("dgbook:"):
+                # A clinic patient's booking never gets Dylan's DigiGrowth drip.
+                print(f"[appointments] booking appointment {appointment_id} has no client lead; cancel drip skipped")
             else:
                 await cancel_sequence.send_first_touch(dict(row))
         except Exception as e:

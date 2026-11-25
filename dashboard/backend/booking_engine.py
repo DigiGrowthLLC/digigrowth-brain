@@ -753,14 +753,17 @@ async def payment_status(client_id: int, phone: str) -> dict:
             """SELECT b.*, s.stripe_account_id FROM bookings b JOIN booking_settings s ON s.client_id = b.client_id
                WHERE b.client_id = $1 AND right(regexp_replace(coalesce(b.phone, ''), '\\D', '', 'g'), 10) = $2
                  AND b.created_at > now() - interval '2 hours' AND b.price_cents > 0
+                 AND b.status IN ('pending_payment', 'confirmed', 'expired')
                ORDER BY b.created_at DESC LIMIT 1""",
             client_id, d,
         )
     if not b:
         return {"state": "none"}
-    if b["status"] == "confirmed" or b["paid_at"]:
+    if b["status"] == "confirmed":
         return {"state": "paid", "start_at": b["start_at"]}
-    if b["status"] == "pending_payment" and b["stripe_session_id"]:
+    if b["status"] in ("pending_payment", "expired") and b["stripe_session_id"]:
+        # 'expired' too: paying a moment after the half-hour hold lapsed
+        # still confirms if nobody took the time (confirm_payment decides).
         try:
             sess = await _stripe("GET", f"/checkout/sessions/{b['stripe_session_id']}", account=b["stripe_account_id"])
             if sess.get("status") == "complete":

@@ -1692,9 +1692,21 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                         # A phone call can't text: send the link from the
                         # clinic's number now, then the agent talks them through it.
                         import client_sms
-                        await client_sms.send_client_sms(
-                            client_id, from_phone,
-                            f"Here's the link to lock in your visit: {res['link']}", stage="ai_reply")
+                        import lead_flags
+                        try:
+                            if await lead_flags.is_opted_out(client_id, from_phone):
+                                raise RuntimeError("number opted out of texts")
+                            await client_sms.send_client_sms(
+                                client_id, from_phone,
+                                f"Here's the link to lock in your visit: {res['link']}", stage="ai_reply")
+                        except Exception as e:
+                            print(f"[response_ai] voice pay-link text failed for client={client_id}: {e}", flush=True)
+                            return (
+                                "NOT booked: the payment link could NOT be texted to them. Don't say you texted "
+                                "anything. Tell them the clinic's team will reach out to finish booking, then call "
+                                "escalate_to_human with reason 'Wants to book "
+                                f"{tool_input.get('date')} {tool_input.get('time')}, pay link could not be texted'."
+                            )
                         return (
                             "NOT booked yet: this visit is paid when they book. A text with the payment link was "
                             f"just sent to their phone to lock in {tool_input.get('date')} {tool_input.get('time')} "

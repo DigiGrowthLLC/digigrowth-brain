@@ -597,6 +597,14 @@ async def list_bookings(client_id: int, limit: int = 50):
     return out
 
 
+@admin_router.get("/clients/{client_id}/booking/payment-status")
+async def admin_payment_status(client_id: int, phone: str):
+    """What the voice agent's check_payment sees for this number right now
+    (newest paid booking in the last 2 hours). For checking the live flow."""
+    st = await be.payment_status(client_id, phone)
+    return _jsonable(st)
+
+
 @admin_router.post("/clients/{client_id}/booking/bookings/{booking_id}/cancel")
 async def admin_cancel_booking(client_id: int, booking_id: int, payload: dict | None = None):
     pool = await get_pool()

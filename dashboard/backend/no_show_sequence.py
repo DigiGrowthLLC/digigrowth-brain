@@ -180,6 +180,8 @@ async def send_due_touches():
             WHERE ar.outcome_show = 'no_show'
             AND ar.no_show_sequence_stopped_at IS NULL AND ar.outcome_show_at IS NOT NULL
             AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
+            -- a clinic patient's DigiGrowth Booking is never Dylan's pipeline
+            AND coalesce(ar.calendly_event_uri, '') NOT LIKE 'dgbook:%'
             """
         )
     if not rows:

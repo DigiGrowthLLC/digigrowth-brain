@@ -255,6 +255,8 @@ async def send_due_reminders():
             WHERE ar.status = 'scheduled' AND ar.appointment_at > now()
             AND ar.reminders_stopped_at IS NULL
             AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)
+            -- a clinic patient's DigiGrowth Booking is never Dylan's pipeline
+            AND coalesce(ar.calendly_event_uri, '') NOT LIKE 'dgbook:%'
             """
         )
     if not rows:

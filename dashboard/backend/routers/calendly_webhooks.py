@@ -350,6 +350,15 @@ async def record_booking(*, name: str | None, email: str | None, phone: str | No
             # business, or anyone his outreach already touched) into a
             # client's portal: it disappears from his CRM (2026-11-10).
             # Handled like a phone owned by another client below instead.
+            # Never the clinic's anchor contact either (Dylan's own sales
+            # contact for the business): a patient booking linked to it reads
+            # as Dylan's pipeline, so a patient cancel fired his DigiGrowth
+            # sales drip from the OS number (2026-11-25, test from his cell,
+            # which is the Demo Clinic's anchor). Book a separate lead instead.
+            if existing and await conn.fetchval(
+                "SELECT is_client_anchor FROM contacts WHERE id = $1", existing["id"],
+            ):
+                existing = {"id": existing["id"], "client_id": -1}
             if existing and existing["client_id"] is None and await conn.fetchval(
                 "SELECT business IS NOT NULL OR auto_handoff_at IS NOT NULL OR is_client_anchor "
                 "FROM contacts WHERE id = $1", existing["id"],

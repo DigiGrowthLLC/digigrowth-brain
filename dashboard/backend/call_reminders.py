@@ -71,7 +71,9 @@ async def _check(outcome_column_where: str, reference_column: str, created_flag_
             f"LEFT JOIN contacts c ON c.id = ar.contact_id "
             f"WHERE ar.{outcome_column_where} "
             f"AND ar.{reference_column} IS NOT NULL AND ar.{created_flag_column} IS NULL "
-            f"AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor)"
+            f"AND (c.id IS NULL OR c.client_id IS NULL OR c.is_client_anchor) "
+            # A clinic patient's DigiGrowth Booking is never Dylan's pipeline.
+            f"AND coalesce(ar.calendly_event_uri, '') NOT LIKE 'dgbook:%'"
         )
         for record in rows:
             row = dict(record)
