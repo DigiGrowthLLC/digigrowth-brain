@@ -455,6 +455,16 @@ async def lifespan(app: FastAPI):
         id="booking-expire-holds",
         replace_existing=True,
     )
+    # DigiGrowth Booking card holds: capture each held $ payment at the 24h
+    # cancel cutoff (or before the card hold would lapse).
+    scheduler.add_job(
+        booking_engine.capture_due_holds,
+        IntervalTrigger(minutes=10),
+        id="booking-capture-holds",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
     # DigiGrowth Booking: one text to patients who left a name + mobile on
     # a booking page but didn't finish (booking_conversion.py).
     scheduler.add_job(

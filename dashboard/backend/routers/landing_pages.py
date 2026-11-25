@@ -179,6 +179,32 @@ async def mark_landing_page_sent(slug: str):
     return {"ok": True}
 
 
+class HtmlEdit(BaseModel):
+    find: str
+    replace: str
+
+
+@admin_router.post("/landing-pages/{slug}/html-edit")
+async def edit_landing_page_html(slug: str, body: HtmlEdit):
+    """Targeted edit of a live page's stored HTML: swaps one exact snippet and
+    touches nothing else on the row (contact, status, chat context). The
+    snippet must appear exactly once, so an edit can't land in the wrong place."""
+    if not body.find:
+        raise HTTPException(400, "find is empty")
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            html = await conn.fetchval("SELECT html FROM landing_pages WHERE slug = $1 FOR UPDATE", slug)
+            if html is None:
+                raise HTTPException(404, "page not found")
+            n = html.count(body.find)
+            if n != 1:
+                raise HTTPException(409, f"snippet found {n} times, expected exactly 1")
+            await conn.execute("UPDATE landing_pages SET html = $2 WHERE slug = $1",
+                               slug, html.replace(body.find, body.replace))
+    return {"ok": True, "slug": slug}
+
+
 @admin_router.get("/landing-pages")
 async def list_landing_pages():
     pool = await get_pool()

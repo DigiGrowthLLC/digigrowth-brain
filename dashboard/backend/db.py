@@ -2638,6 +2638,14 @@ async def _create_schema(pool: asyncpg.Pool):
             ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sms_consent BOOLEAN;
             -- Booked from an excluded IP (Dylan testing): kept out of funnel analytics.
             ALTER TABLE bookings ADD COLUMN IF NOT EXISTS excluded BOOLEAN NOT NULL DEFAULT false;
+            -- Card hold (2026-11-25): a paid visit 6 days out or less is only
+            -- authorized at booking and captured at the 24h cancel cutoff, so a
+            -- cancel before then releases the hold instead of refunding.
+            -- NULL = charged right away; held / captured / released / capture_failed.
+            ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_hold TEXT;
+            ALTER TABLE bookings ADD COLUMN IF NOT EXISTS held_at TIMESTAMPTZ;
+            ALTER TABLE bookings ADD COLUMN IF NOT EXISTS captured_at TIMESTAMPTZ;
+            ALTER TABLE bookings ADD COLUMN IF NOT EXISTS capture_error TEXT;
             -- First moment a client's ads went live: portal analytics count nothing before it
             -- (client_funnel.py). Auto-set by meta_ads.py from the first day with spend.
             ALTER TABLE client_marketing_config ADD COLUMN IF NOT EXISTS campaign_launched_at TIMESTAMPTZ;

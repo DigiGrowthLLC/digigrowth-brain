@@ -795,7 +795,10 @@ function BookingsSection({ clientId }) {
             <div style={{ color: "#d0e8ff" }}><ContactLink phone={b.phone} email={b.email} clientId={b.client_id}>{b.name}</ContactLink> · {b.event_name}</div>
             <div style={note}>
               {new Date(b.start_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })} (your time) · {b.phone} · {b.email}
-              {b.paid_at && ` · paid $${dollars(b.price_cents)}`}{b.refunded_at && " · refunded"}
+              {b.paid_at && (b.payment_hold === "held" ? ` · $${dollars(b.price_cents)} on card hold (charged 24h before)`
+                : b.payment_hold === "capture_failed" ? ` · $${dollars(b.price_cents)} charge failed at cutoff`
+                : ` · paid $${dollars(b.price_cents)}`)}
+              {b.refunded_at && (b.payment_hold === "released" ? " · hold released, not charged" : " · refunded")}
               {b.calendar_error && <span style={{ color: "#ff8a8a" }}> · not on clinic calendar: {b.calendar_error}</span>}
             </div>
           </div>

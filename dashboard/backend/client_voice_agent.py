@@ -661,7 +661,8 @@ async def _visit_info(client_id: int) -> dict | None:
 def _visit_text(v: dict | None) -> str:
     if not v:
         return "not listed on the calendar; use the business info"
-    price = f"${v['price_cents'] / 100:g}, paid when they book (the booking tool texts them a link to pay)" if v["price_cents"] else "free"
+    price = (f"${v['price_cents'] / 100:g}, paid when they book (the booking tool texts them a link to pay; "
+             "you stay on the line while they do)") if v["price_cents"] else "free"
     return f"{v['name']}, {v['duration_min']} minutes, {price}"
 
 
@@ -996,11 +997,39 @@ async def run_function(name: str, args: dict, call: dict) -> str:
         if row["source"] == "test":
             v = await _visit_info(client_id)
             if v and v["price_cents"]:
+                try:
+                    hh, mm = (args.get("time") or "").split(":")[:2]
+                    start = datetime.strptime(args.get("date") or "", "%Y-%m-%d").replace(
+                        hour=int(hh), minute=int(mm), tzinfo=await _tz(client_id, phone))
+                    far = start - datetime.now(start.tzinfo) > timedelta(hours=24)
+                except Exception:
+                    far = False
+                refund = (", and that if something comes up and they can't make it, it's fully refundable up to "
+                          "24 hours before" if far else ". Don't mention refunds (the visit is under 24 hours away)")
                 return (f"(Test call: nothing was booked or texted.) Act exactly as for a real paid visit: tell them "
                         f"you've just texted them a link to lock in {args.get('date')} at {args.get('time')} and pay the "
-                        f"${v['price_cents'] / 100:g} there, and that the spot is held for them while they do.")
+                        f"${v['price_cents'] / 100:g} there (Apple Pay or Google Pay works), that you'll stay on the "
+                        f"line while they do it{refund}. Then call check_payment when they say it's done.")
             return f"(Test call: nothing was booked.) Pretend it worked: confirm {args.get('date')} at {args.get('time')}."
-        return await response_ai._execute_tool(client_id, phone, "propose_appointment", args)
+        return await response_ai._execute_tool(client_id, phone, "propose_appointment", {**args, "_channel": "voice"})
+    if name == "check_payment":
+        if row["source"] == "test":
+            return "(Test call: no real payment.) Pretend it went through: it's paid and they're booked."
+        import booking_engine
+        st = await booking_engine.payment_status(client_id, phone)
+        if st["state"] == "paid":
+            return ("Paid. They're booked. Confirm the day and time once and tell them a confirmation text is "
+                    "on its way.")
+        if st["state"] == "waiting":
+            return ("Not paid yet. If they're still on it, wait quietly and help with any question, then check "
+                    "again when they say it's done. If the text never came, call book_appointment again with the "
+                    "same date and time: that re-sends the same link. If they can't finish right now, tell them "
+                    "no problem, the link is in their texts and they can tap it whenever; the time is held for "
+                    "about half an hour. Don't say they're booked.")
+        if st["state"] == "slot_lost":
+            return ("Someone else took that time just before they paid; their payment was released, so they "
+                    "weren't charged. Apologize, call check_availability and offer new times.")
+        return "No payment link was sent on this call yet. Book a time first with book_appointment."
     if name == "mark_not_interested":
         async with pool.acquire() as conn:
             await conn.execute("UPDATE client_voice_calls SET not_interested = true WHERE id = $1", row["id"])
@@ -1192,9 +1221,18 @@ How the call goes:
 - To book: call check_availability, then offer the two times as a full, natural question, e.g. "I've
   got Tuesday at nine in the morning or four thirty in the afternoon. Which works better for you?"
   When they pick one call
-  book_appointment with that date and 24h time. Read the result and say exactly what it says happened
-  (for a paid visit you text them a link to finish; say so). Never invent times or confirm a booking
-  the tool didn't confirm.
+  book_appointment with that date and 24h time. Read the result and say exactly what it says happened.
+  Never invent times or confirm a booking the tool didn't confirm.
+- PAID VISIT (the visit has a price): once they pick a time and BEFORE book_appointment, say the price
+  plainly once and get a yes, e.g. "So it's forty-nine to lock that in. Sound good?" Then book. The tool
+  texts them a payment link. Tell them you just texted it, it takes about a minute, and you'll stay on
+  the line while they do it. Only when the tool result says to, right after, one short casual line, said
+  once: "And if something comes up and you can't make it, it's fully refundable up to twenty-four hours
+  before." Word for word, nothing else about refunds unless they ask. (The tool says to only when the
+  visit is more than 24 hours away.) Then stay on the call:
+  stay quiet while they pay, answer questions briefly, and when they say it's done call check_payment.
+  Only call them booked once check_payment says paid. Text didn't arrive -> book_appointment again with
+  the same time (re-sends the same link). Can't do it right now -> fine, the link is in their texts.
 - Busy right now -> offer to call back: schedule_callback with the time they give. Prefer text ->
   tell them you'll text them and end the call.
 - Not interested, wrong number, or "stop calling" -> mark_not_interested (do_not_call true if they
@@ -1209,7 +1247,7 @@ How the call goes:
   start (e.g. "Um, so you've had back pain..."). Never two in one sentence. No lists, no em dashes, no "certainly"
   or "absolutely", and don't parrot their exact sentence word for word (paraphrase it).
 - Never give medical advice or diagnose. Never quote prices unless the business info below gives one
-  and they ask. Spell nothing out letter by letter unless asked. Say times naturally ("ten thirty").
+  and they ask (the one exception: the paid-visit price check right before booking). Spell nothing out letter by letter unless asked. Say times naturally ("ten thirty").
 - After a booking goes through: confirm the day and time once, tell them a confirmation text is on its
   way, and ask if there's anything else you can help with. Then STOP and wait for their answer; never
   say goodbye in the same turn as that question. Only after they say they're done, say a short, plain
@@ -1318,6 +1356,9 @@ def _llm_body(cfg, kind: str = "ads") -> dict:
                 "lead_name": {"type": "string", "description": "ONLY if a previous result said the name is missing"},
                 "reschedule": {"type": "boolean", "description": "ONLY if they already have a visit and want to move it"}},
                required=("date", "time"), speak=True, msg="Say only 'Okay.' in a flat, casual tone."),
+        custom("check_payment", "Paid visit only: check whether the caller has finished paying through the link "
+               "you texted. Call it when they say they're done (or after a quiet minute).", {},
+               speak=True, msg="Say only 'Let me check.' in a flat, casual tone."),
         custom("schedule_callback", "Caller asked you to call back later; schedule it.",
                {"date": {"type": "string", "description": "YYYY-MM-DD clinic time"}, "time": {"type": "string", "description": "HH:MM 24h"},
                 "note": {"type": "string", "description": "What to pick back up"}}, required=("date", "time")),

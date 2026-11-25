@@ -107,6 +107,15 @@ batch job die silently; that's a standing rule here too.
    same weight discipline as the cold-outreach page, more important here since
    real ad spend pays for every visitor who bounces on a slow load.
 
+   **Paid visit (e.g. the $49 assessment): refund line in the FAQ, never the offer**
+   (Dylan, 2026-11-25). Add one FAQ item such as "What if something comes up?"
+   answered with "Your $49 is fully refundable if you cancel at least 24 hours
+   before your visit. You can reschedule or cancel from your confirmation text."
+   Keep it out of the hero, the offer section, the CTAs and the ad copy: it's
+   there so people who look for it find it, not a selling point (he doesn't want
+   it to raise cancellations). Match the clinic's real refund setting on its
+   booking page (DigiGrowth Booking default = refundable until 24h before).
+
 5. **Register the website and embed the tracking snippet, before saving the
    final HTML.**
    ```bash

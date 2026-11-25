@@ -376,7 +376,7 @@ async function bookMode() {
     const paid = ev.price_cents > 0;
     const pol = prof.refund_policy;
     const assure = paid
-      ? [pol === "always" ? "Fully refundable if you cancel" : pol === "24h" ? "Full refund if you cancel 24+ hours ahead" : null, "Reschedule from your confirmation text", "Secure checkout by Stripe"]
+      ? [pol === "always" ? "Fully refundable if you cancel" : pol === "24h" ? "Fully refundable up to 24 hours before your visit" : null, "Reschedule from your confirmation text", "Secure checkout by Stripe"]
       : ["Free to reschedule or cancel", "Confirmation sent by text"];
     $("#main").innerHTML = `${progress(2)}
       <div class="chosen"><div><b>${esc(fmtDay(state.slot))}</b><small>${esc(fmtTime(state.slot))} · ${ev.duration_min} min · ${esc(tzLabel())}</small></div><button class="link" id="change">Change</button></div>

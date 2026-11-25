@@ -49,6 +49,15 @@ from db import get_pool
 
 ACTIVE_STATUSES = ("pending_payment", "confirmed")
 HOLD_MINUTES = 32          # Stripe Checkout's minimum expiry is 30 minutes
+# Card holds (2026-11-25): a paid visit inside this window is only authorized
+# at booking and captured at the cancel cutoff, so an in-policy cancel just
+# releases the hold (no charge, no refund, no lost Stripe fee). Online card
+# authorizations last ~7 days, so anything further out is charged right away
+# and refunded on an in-policy cancel instead. A hold is also captured
+# CARD_HOLD_MAX_DAYS after it was placed, whatever the visit date, so a
+# reschedule can never outlive the authorization.
+CARD_HOLD_MAX_DAYS = 6
+CANCEL_CUTOFF_HOURS = 24
 _BUSY_CACHE_SECONDS = 45
 _busy_cache: dict[tuple, tuple[float, list[tuple[datetime, datetime]]]] = {}
 
@@ -624,26 +633,144 @@ async def reserve(client_id: int, event_type_id: int, start_iso: str, name: str,
         return {"status": "confirmed", "manage_url": manage_url(token), "token": token}
 
     try:
-        session = await _stripe("POST", "/checkout/sessions", {
-            "mode": "payment",
-            "customer_email": email,
-            "line_items": [{"quantity": 1, "price_data": {
-                "currency": "usd", "unit_amount": ev["price_cents"],
-                "product_data": {"name": ev["name"]},
-            }}],
-            "metadata": {"digigrowth_booking_id": booking["id"]},
-            "payment_intent_data": {"metadata": {"digigrowth_booking_id": booking["id"]}},
-            "expires_at": int(_time.time()) + 31 * 60,
-            "success_url": f"{return_base}/return?b={token}&session_id={{CHECKOUT_SESSION_ID}}",
-            "cancel_url": f"{return_base}?cancelled={token}",
-        }, account=settings["stripe_account_id"])
+        session = await _checkout_session(booking, ev, settings, return_base)
     except Exception:
         async with pool.acquire() as conn:
             await conn.execute("UPDATE bookings SET status = 'expired' WHERE id = $1", booking["id"])
         raise
+    return {"status": "pending_payment", "checkout_url": session["url"], "token": token}
+
+
+def use_card_hold(start: datetime, refund_policy: str | None) -> bool:
+    """Authorize now, capture at the cutoff: only when a cancel could still
+    be refunded and the cutoff falls inside the card hold's lifetime."""
+    if (refund_policy or "none") == "none":
+        return False
+    hours = (start - datetime.now(timezone.utc)).total_seconds() / 3600
+    return CANCEL_CUTOFF_HOURS < hours <= CARD_HOLD_MAX_DAYS * 24
+
+
+async def _checkout_session(booking: dict, ev: dict, settings: dict, return_base: str) -> dict:
+    """A Stripe Checkout session for a pending booking, saved on the row.
+    Card only for a hold (wallets like Apple Pay / Google Pay still show:
+    they ride on the card method); otherwise the account's own methods."""
+    token = booking["manage_token"]
+    pi_data: dict = {"metadata": {"digigrowth_booking_id": booking["id"]}}
+    body: dict = {
+        "mode": "payment",
+        "customer_email": booking.get("email"),
+        "line_items": [{"quantity": 1, "price_data": {
+            "currency": "usd", "unit_amount": booking["price_cents"] or ev["price_cents"],
+            "product_data": {"name": ev["name"]},
+        }}],
+        "metadata": {"digigrowth_booking_id": booking["id"]},
+        "expires_at": int(_time.time()) + 31 * 60,
+        "success_url": f"{return_base}/return?b={token}&session_id={{CHECKOUT_SESSION_ID}}",
+        "cancel_url": f"{return_base}?cancelled={token}",
+    }
+    pol = settings.get("refund_policy") or "none"
+    if pol != "none":
+        body["custom_text"] = {"submit": {"message": (
+            "Fully refundable if you cancel at least 24 hours before your visit." if pol == "24h"
+            else "Fully refundable if you cancel before your visit.")}}
+    if use_card_hold(booking["start_at"], pol):
+        pi_data["capture_method"] = "manual"
+        body["payment_method_types"] = ["card"]
+    body["payment_intent_data"] = pi_data
+    session = await _stripe("POST", "/checkout/sessions", body, account=settings["stripe_account_id"])
+    pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("UPDATE bookings SET stripe_session_id = $2 WHERE id = $1", booking["id"], session["id"])
-    return {"status": "pending_payment", "checkout_url": session["url"], "token": token}
+    return session
+
+
+async def pay_redirect(token: str) -> str:
+    """Where a texted pay link (/booking/<token>/pay) sends the patient: the
+    open Stripe Checkout for that booking (one tap with Apple/Google Pay), a
+    fresh one if the old session lapsed but the time is still free, the
+    manage page once it's paid, or the booking page when the time is gone."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        b = await conn.fetchrow("SELECT * FROM bookings WHERE manage_token = $1", token)
+        if not b:
+            raise BookingError("Booking not found.")
+        b = dict(b)
+        ev = dict(await conn.fetchrow("SELECT * FROM booking_event_types WHERE id = $1", b["event_type_id"]))
+        s = dict(await conn.fetchrow("SELECT * FROM booking_settings WHERE client_id = $1", b["client_id"]))
+    page = f"{public_base()}/book/{s['booking_slug']}"
+    if b["status"] == "confirmed" or b["paid_at"]:
+        return manage_url(token)
+    if b["start_at"] <= datetime.now(timezone.utc) + timedelta(minutes=30) or b["status"] == "cancelled":
+        return booking_page_url(s["booking_slug"])
+    if b["status"] == "pending_payment" and b["stripe_session_id"] and b["hold_expires_at"] \
+            and b["hold_expires_at"] > datetime.now(timezone.utc) + timedelta(minutes=2):
+        try:
+            sess = await _stripe("GET", f"/checkout/sessions/{b['stripe_session_id']}", account=s["stripe_account_id"])
+            if sess.get("status") == "open" and sess.get("url"):
+                return sess["url"]
+            if sess.get("status") == "complete":
+                await confirm_payment(b["id"], sess)
+                return manage_url(token)
+        except Exception as e:
+            # Never open a second checkout next to one that may still be
+            # payable (double charge); the route falls back to the manage page.
+            print(f"[booking] pay link session lookup failed for booking {b['id']}: {e}")
+            raise
+    # Lapsed: take the time again if nobody else has, then a new session.
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("SELECT pg_advisory_xact_lock($1)", _lock_key(b["client_id"]))
+            clash = await conn.fetchval(
+                """SELECT 1 FROM bookings WHERE client_id = $1 AND id <> $4 AND start_at < $3 AND end_at > $2
+                     AND (status = 'confirmed' OR (status = 'pending_payment' AND hold_expires_at > now()))""",
+                b["client_id"], b["start_at"], b["end_at"], b["id"],
+            )
+            if not clash:
+                await conn.execute(
+                    "UPDATE bookings SET status = 'pending_payment', hold_expires_at = $2 WHERE id = $1",
+                    b["id"], datetime.now(timezone.utc) + timedelta(minutes=HOLD_MINUTES),
+                )
+    if clash:
+        pre = {"type": ev["slug"], "phone": b["phone"] or "", "name": b["name"] or ""}
+        return f"{booking_page_url(s['booking_slug'])}?{urlencode(pre)}"
+    _busy_cache.clear()
+    sess = await _checkout_session(b, ev, s, page)
+    return sess["url"]
+
+
+def pay_url(token: str) -> str:
+    return f"{manage_url(token)}/pay"
+
+
+async def payment_status(client_id: int, phone: str) -> dict:
+    """Live check for the voice agent while the patient pays on the call:
+    the newest pay-link booking for this number in the last 2 hours."""
+    d = "".join(c for c in (phone or "") if c.isdigit())[-10:]
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        b = await conn.fetchrow(
+            """SELECT b.*, s.stripe_account_id FROM bookings b JOIN booking_settings s ON s.client_id = b.client_id
+               WHERE b.client_id = $1 AND right(regexp_replace(coalesce(b.phone, ''), '\\D', '', 'g'), 10) = $2
+                 AND b.created_at > now() - interval '2 hours' AND b.price_cents > 0
+               ORDER BY b.created_at DESC LIMIT 1""",
+            client_id, d,
+        )
+    if not b:
+        return {"state": "none"}
+    if b["status"] == "confirmed" or b["paid_at"]:
+        return {"state": "paid", "start_at": b["start_at"]}
+    if b["status"] == "pending_payment" and b["stripe_session_id"]:
+        try:
+            sess = await _stripe("GET", f"/checkout/sessions/{b['stripe_session_id']}", account=b["stripe_account_id"])
+            if sess.get("status") == "complete":
+                res = await confirm_payment(b["id"], sess)
+                if res in ("confirmed", "already"):
+                    return {"state": "paid", "start_at": b["start_at"]}
+                if res == "refunded":
+                    return {"state": "slot_lost"}
+        except Exception as e:
+            print(f"[booking] payment check failed for booking {b['id']}: {e}")
+    return {"state": "waiting", "start_at": b["start_at"]}
 
 
 async def release_hold(token: str) -> None:
@@ -658,8 +785,13 @@ async def release_hold(token: str) -> None:
 async def confirm_payment(booking_id: int, session: dict) -> str:
     """Stripe says this booking's checkout is paid. Confirms it, even if the
     hold lapsed, as long as nobody else took the time meanwhile; otherwise
-    refunds. Idempotent (webhook + success redirect both call it)."""
-    if session.get("payment_status") != "paid":
+    refunds. Idempotent (webhook + success redirect both call it).
+    A card-hold checkout completes with payment_status 'unpaid' and its
+    PaymentIntent in requires_capture: that counts as paid (held)."""
+    pi_id = session.get("payment_intent")
+    if isinstance(pi_id, dict):
+        pi_id = pi_id.get("id")
+    if session.get("payment_status") != "paid" and not (session.get("status") == "complete" and pi_id):
         return "unpaid"
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -669,6 +801,14 @@ async def confirm_payment(booking_id: int, session: dict) -> str:
         if b["status"] == "confirmed" or b["paid_at"]:
             return "already"
         acct = await conn.fetchval("SELECT stripe_account_id FROM booking_settings WHERE client_id = $1", b["client_id"])
+    held = False
+    if session.get("payment_status") != "paid":
+        pi = await _stripe("GET", f"/payment_intents/{pi_id}", account=acct)
+        if pi.get("status") != "requires_capture":
+            return "unpaid"
+        held = True
+    session = {**session, "payment_intent": pi_id}
+    async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute("SELECT pg_advisory_xact_lock($1)", _lock_key(b["client_id"]))
             clash = await conn.fetchval(
@@ -679,12 +819,16 @@ async def confirm_payment(booking_id: int, session: dict) -> str:
             if not clash:
                 await conn.execute(
                     "UPDATE bookings SET status = 'confirmed', paid_at = now(), stripe_payment_intent = $2, "
-                    "hold_expires_at = NULL WHERE id = $1",
-                    booking_id, session.get("payment_intent"),
+                    "hold_expires_at = NULL, payment_hold = CASE WHEN $3 THEN 'held' END, "
+                    "held_at = CASE WHEN $3 THEN now() END WHERE id = $1",
+                    booking_id, session.get("payment_intent"), held,
                 )
     if clash:
         try:
-            await _stripe("POST", "/refunds", {"payment_intent": session.get("payment_intent")}, account=acct)
+            if held:
+                await _stripe("POST", f"/payment_intents/{pi_id}/cancel", {}, account=acct)
+            else:
+                await _stripe("POST", "/refunds", {"payment_intent": session.get("payment_intent")}, account=acct)
             refunded = True
         except Exception as e:
             print(f"[booking] refund after lost slot failed for booking {booking_id}: {e}")
@@ -873,17 +1017,72 @@ async def _refund_if_policy(b: dict, s: dict, by_patient: bool) -> bool:
     hours_left = (b["start_at"] - datetime.now(timezone.utc)).total_seconds() / 3600
     should = (not by_patient) or policy == "always" or (policy == "24h" and hours_left >= 24)
     if not should:
-        return False
+        return False  # a still-held card is captured by capture_due_holds
+    held = b.get("payment_hold") == "held"
     try:
-        await _stripe("POST", "/refunds", {"payment_intent": b["stripe_payment_intent"]},
-                      account=s["stripe_account_id"])
+        if held:  # never captured: just release the hold, nothing was charged
+            await _stripe("POST", f"/payment_intents/{b['stripe_payment_intent']}/cancel", {},
+                          account=s["stripe_account_id"])
+        else:
+            await _stripe("POST", "/refunds", {"payment_intent": b["stripe_payment_intent"]},
+                          account=s["stripe_account_id"])
     except Exception as e:
         print(f"[booking] refund failed for booking {b['id']}: {e}")
         return False
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute("UPDATE bookings SET refunded_at = now() WHERE id = $1", b["id"])
+        await conn.execute(
+            "UPDATE bookings SET refunded_at = now(), "
+            "payment_hold = CASE WHEN payment_hold = 'held' THEN 'released' ELSE payment_hold END WHERE id = $1",
+            b["id"])
     return True
+
+
+async def capture_due_holds() -> int:
+    """Scheduler job: capture each held card at the cancel cutoff (24h before
+    the visit), right away when the booking was cancelled too late for a
+    refund, and before the authorization could lapse. A failed capture
+    (declined, expired hold) goes on Dylan's To-Do list."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""SELECT b.id, b.client_id, b.name, b.start_at, b.price_cents, b.stripe_payment_intent,
+                       s.stripe_account_id, c.name AS clinic
+                FROM bookings b JOIN booking_settings s ON s.client_id = b.client_id
+                JOIN clients c ON c.id = b.client_id
+                WHERE b.payment_hold = 'held' AND b.refunded_at IS NULL AND b.stripe_payment_intent IS NOT NULL
+                  AND (b.status = 'cancelled'
+                       OR b.start_at - interval '{CANCEL_CUTOFF_HOURS} hours' <= now()
+                       OR b.held_at + interval '{CARD_HOLD_MAX_DAYS} days' <= now())
+                LIMIT 50""")
+    done = 0
+    for r in rows:
+        try:
+            await _stripe("POST", f"/payment_intents/{r['stripe_payment_intent']}/capture", {},
+                          account=r["stripe_account_id"])
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE bookings SET payment_hold = 'captured', captured_at = now(), capture_error = NULL "
+                    "WHERE id = $1", r["id"])
+            done += 1
+        except Exception as e:
+            print(f"[booking] capture failed for booking {r['id']}: {e}")
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE bookings SET payment_hold = 'capture_failed', capture_error = $2 WHERE id = $1",
+                    r["id"], str(e)[:500])
+                text = f"Booking payment didn't go through: {r['name'] or 'patient'} ({r['clinic']})"
+                if not await conn.fetchval("SELECT 1 FROM todos WHERE NOT done AND text = $1", text):
+                    when = r["start_at"].astimezone(ZoneInfo("America/New_York")).strftime("%a %b %d, %I:%M %p ET")
+                    await conn.execute(
+                        "INSERT INTO todos (text, description, due_date) VALUES ($1, $2, $3)",
+                        text,
+                        f"The card on hold for {r['name'] or 'this patient'}'s ${r['price_cents'] / 100:g} visit on "
+                        f"{when} couldn't be charged at the 24-hour cutoff ({str(e)[:300]}). The booking is "
+                        "still on the calendar. Let the clinic know so they can collect at the visit.",
+                        datetime.now(ZoneInfo("America/New_York")).date(),
+                    )
+    return done
 
 
 async def cancel_booking(booking_id: int, by_patient: bool, reason: str | None = None,

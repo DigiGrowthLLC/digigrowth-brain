@@ -444,8 +444,9 @@ async def ai_check_availability(client_id: int, after_date: str | None) -> list[
 
 async def ai_book(client_id: int, phone: str, name: str | None, date_str: str, time_str: str) -> dict:
     """Books the AI agent's agreed slot. Free visit: books it and returns
-    {"booked": True}. Paid visit: returns {"link": ...} to the page with the
-    slot pre-picked, since the patient has to pay."""
+    {"booked": True}. Paid visit: holds the time and returns {"link": ...},
+    a one-tap pay link straight into Stripe Checkout ("token" set); without
+    a name on file, the booking page with the slot pre-picked instead."""
     import booking_engine as be
     found = await _ai_event(client_id)
     if not found:
@@ -460,11 +461,37 @@ async def ai_book(client_id: int, phone: str, name: str | None, date_str: str, t
         raise be.BookingError("Use date YYYY-MM-DD and time HH:MM (24h).")
     start_iso = local.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     if ev["price_cents"] > 0:
-        await be._assert_slot_open(client_id, ev, local.astimezone(timezone.utc))
-        q = {"type": ev["slug"], "slot": start_iso, "phone": phone}
+        start_utc = local.astimezone(timezone.utc)
+        pol = s.get("refund_policy") or "none"
+        # The agents mention refundability only when it's still true: a
+        # refundable policy AND the visit more than 24h away (Dylan, 2026-11-25).
+        refundable = pol != "none" and start_utc - datetime.now(timezone.utc) > timedelta(hours=24)
+        out = {"tz": tz_name, "price_cents": ev["price_cents"], "refund_policy": pol, "refundable": refundable}
         if name:
-            q["name"] = name
-        return {"link": f"{be.booking_page_url(s['booking_slug'])}?{urlencode(q)}", "tz": tz_name}
+            # One-tap pay link (2026-11-25): hold the time now and text a
+            # link that opens Stripe Checkout directly. Asking again for the
+            # same time (link didn't arrive) re-sends the same booking's link.
+            d = _digits(phone)
+            async with (await get_pool()).acquire() as conn:
+                mine = await conn.fetch(
+                    """SELECT id, manage_token, start_at FROM bookings
+                       WHERE client_id = $1 AND status = 'pending_payment' AND hold_expires_at > now()
+                         AND right(regexp_replace(coalesce(phone, ''), '\\D', '', 'g'), 10) = $2""",
+                    client_id, d)
+                same = next((m for m in mine if m["start_at"] == start_utc), None)
+                stale = [m["id"] for m in mine if m is not same]
+                if stale:
+                    await conn.execute("UPDATE bookings SET status = 'expired' WHERE id = ANY($1::int[])", stale)
+            if stale:
+                be._busy_cache.clear()
+            if same:
+                return {**out, "link": be.pay_url(same["manage_token"]), "token": same["manage_token"]}
+            res = await be.reserve(client_id, ev["id"], start_iso, name, phone, None, None, None, None,
+                                   f"{be.public_base()}/book/{s['booking_slug']}")
+            return {**out, "link": be.pay_url(res["token"]), "token": res["token"]}
+        await be._assert_slot_open(client_id, ev, start_utc)
+        q = {"type": ev["slug"], "slot": start_iso, "phone": phone}
+        return {**out, "link": f"{be.booking_page_url(s['booking_slug'])}?{urlencode(q)}"}
     if not name:
         raise be.BookingError("NEED_NAME")
     await be.reserve(client_id, ev["id"], start_iso, name, phone, None, None, None, None, be.public_base())

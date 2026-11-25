@@ -1682,11 +1682,35 @@ async def _execute_tool(client_id: int, from_phone: str, tool_name: str, tool_in
                         "they're booked. Call check_availability again and offer the next open times."
                     )
                 if res.get("link"):
+                    refund_line = (
+                        "Right after the link, add exactly this line, word for word, once: \"If something comes up "
+                        "and you can't make it, it's fully refundable up to 24 hours before.\" Say nothing else "
+                        "about refunds unless they ask. "
+                    ) if res.get("refundable") else (
+                        "Don't mention refunds (the visit is less than 24 hours away). ")
+                    if tool_input.get("_channel") == "voice":
+                        # A phone call can't text: send the link from the
+                        # clinic's number now, then the agent talks them through it.
+                        import client_sms
+                        await client_sms.send_client_sms(
+                            client_id, from_phone,
+                            f"Here's the link to lock in your visit: {res['link']}", stage="ai_reply")
+                        return (
+                            "NOT booked yet: this visit is paid when they book. A text with the payment link was "
+                            f"just sent to their phone to lock in {tool_input.get('date')} {tool_input.get('time')} "
+                            f"({res['tz']}). Tell them you just texted it, it takes about a minute (Apple Pay or "
+                            "Google Pay works), and you'll stay on the line while they do it. " + refund_line +
+                            "When they say it's done, call check_payment. Don't say they're booked until "
+                            "check_payment says it's paid."
+                        )
                     return (
                         "NOT booked yet: this visit is paid when they book, so they confirm it themselves. "
                         f"Text them this link to lock in {tool_input.get('date')} {tool_input.get('time')} "
-                        f"({res['tz']}) and pay: {res['link']} . Say it only takes a minute. "
-                        "Don't say they're booked or all set until they've done it."
+                        f"({res['tz']}) and pay: {res['link']} . Say it only takes a minute "
+                        + ("(Apple Pay or Google Pay works). " if res.get("token") else ". ")
+                        + refund_line +
+                        "Don't say they're booked or all set until they've done it; they get a confirmation "
+                        "text automatically once they pay."
                     )
                 await _release_old(cal_row)
                 await _mark_booked()

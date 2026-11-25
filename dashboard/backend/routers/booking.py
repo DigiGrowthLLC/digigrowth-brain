@@ -834,6 +834,20 @@ async def manage_page(token: str, request: Request):
     return HTMLResponse(render_page("manage", ctx["clinic"], ctx["settings"]["accent_color"], pixel))
 
 
+@router.get("/booking/{token}/pay", include_in_schema=False)
+async def pay_link(token: str):
+    """The pay link the AI agents text: straight into Stripe Checkout for the
+    held time (Apple Pay / Google Pay = one tap), no form to fill first."""
+    try:
+        target = await be.pay_redirect(token)
+    except be.BookingError:
+        raise HTTPException(404, "Booking not found")
+    except Exception as e:
+        print(f"[booking] pay link failed for {token}: {e}")
+        target = be.manage_url(token)
+    return RedirectResponse(target, status_code=302)
+
+
 @router.get("/booking/{token}/api/info", include_in_schema=False)
 async def manage_info(token: str):
     ctx = await be.get_by_token(token)
