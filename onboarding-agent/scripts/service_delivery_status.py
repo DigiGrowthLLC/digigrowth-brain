@@ -69,6 +69,12 @@ def main():
           f"{', '.join(setup.get('services') or [])}")
     if ticked:
         print(f"auto-ticked just now: {ticked}")
+    long_lead = [s for s in setup["steps"] if s.get("long_lead") and not s["done"]]
+    if long_lead:
+        print("
+## LONG-LEAD: start these first (needs approval or waits on time)")
+        for st in long_lead:
+            print(f"  [ ] {st['id']}: {st['title']} -- {st['long_lead']}")
     for ph in setup["phases"]:
         steps = [s for s in setup["steps"] if s["phase"] == ph["id"]]
         if not steps:
@@ -78,7 +84,8 @@ def main():
             mark = "x" if st["done"] else " "
             how = st["how"][:240] + ("..." if len(st["how"]) > 240 else "")
             extra = st["proof"] or ("ticked by hand" if st["ticked"] else how)
-            print(f"  [{mark}] {st['id']}: {st['title']} -- {extra}")
+            tag = " (LONG-LEAD)" if st.get("long_lead") and not st["done"] else ""
+            print(f"  [{mark}] {st['id']}: {st['title']}{tag} -- {extra}")
     print(f"\nSetup: {setup['done']}/{setup['total']} done")
     if setup.get("client_ask"):
         print("\n## Client ask still outstanding\n" + setup["client_ask"])

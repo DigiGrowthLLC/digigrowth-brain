@@ -37,8 +37,10 @@ Classes are fixed events. Dylan keeps his class times as recurring events on Goo
 
 Each one gets the 2-hr study block on each of the 3 days before it. Delete a line once the test has passed.
 
-- MAR 3023 Exam 4 make-up: Wed 2026-11-18 (time unknown; Wed shift is 1:00-6:30)
 
 ## Learned preferences
 
 Add a line here when Dylan corrects an estimate or priority more than once (e.g. "<course> homework always takes 2 hrs").
+
+- THE 2000 module quizzes (e.g. "Quiz 25 - Module 12.1", 100-200 pts) are NOT tests: book them as a normal 15-min assignment, no study blocks, despite the ≥ 50 pts rule. (Dylan, 2026-11-17)
+- Skip any Canvas assignment worth 0 points (e.g. MAR 3023 chapter readings, "Study Tool" items). Only book items that are worth points. (Dylan, 2026-11-16)

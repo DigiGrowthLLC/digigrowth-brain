@@ -53,17 +53,27 @@ Post a short status: what's done (count, not a list), what's blocked on the clie
 line each, with the exact ask), and **the single next step Dylan can do now**. Then walk
 that step. Order:
 
-1. Steps Dylan can do right now with nothing from the client, in Setup Order order.
-2. Client asks: batch every outstanding ask into ONE text/email draft for Dylan to send
-   (written for the client: plain characters only, no em dashes or curly quotes, per the
-   SMS GSM-7 rule; short). Don't text the client yourself (memory "Don't Text Clients
-   Unless Necessary").
-3. Time-gated steps (A2P review, DNS propagation) get started as early as possible. For
-   A2P that means the Brand right away, but the Campaign only once the Instant Form with
-   its consent disclaimer is published and screenshotted: follow
-   `onboarding-agent/context/a2p-registration-sop.md` (a campaign without public opt-in
-   proof was rejected for Pinnacle, costing weeks).
-4. Tests, then pre-launch cleanup, then hand off to the campaign build.
+1. **Long-lead steps first, always (Dylan, 2026-11-25).** Anything that needs someone
+   else's approval or waits on time goes before everything else, because it can't be
+   rushed at the last minute. These are the **long-lead steps** (the calendar-management
+   skill uses the same list):
+   - `a2p`: Twilio A2P 10DLC. Register the Brand right away. Submit the Campaign only once
+     the Instant Form with its consent disclaimer is published and screenshotted: follow
+     `onboarding-agent/context/a2p-registration-sop.md` (a campaign without public opt-in
+     proof was rejected for Pinnacle, costing weeks). Publishing that form is long-lead too.
+   - `meta_access`: the partner invite / ad account permissions (took Pinnacle weeks of
+     back and forth), plus Meta Business verification and system-user access.
+   - `campaign`: ads need Meta review. Upload at least 2 days before launch.
+   - `dns` / `booking_domain`: DNS propagation.
+   - Any **client ask** (calendar share, Stripe connect and its verification, DNS records,
+     lists, EIN): batch every outstanding ask into ONE text/email draft for Dylan to send
+     **the same session** (written for the client: plain characters only, no em dashes or
+     curly quotes, per the SMS GSM-7 rule; short). Don't text the client yourself (memory
+     "Don't Text Clients Unless Necessary").
+   - Anything else waiting on a third-party review or approval (e.g. a provider's API change
+     that breaks a live integration, payouts verification).
+2. Steps Dylan can do right now with nothing from the client, in Setup Order order.
+3. Tests, then pre-launch cleanup, then hand off to the campaign build.
 
 **Booking: DigiGrowth Booking is the default (since 2026-11-06).** The client shares the
 Google Calendar they book on with dylanrg@digigrowthllc.com ("Make changes to events",

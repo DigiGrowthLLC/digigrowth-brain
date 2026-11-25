@@ -1,0 +1,15 @@
+{
+  "date": "2026-11-22",
+  "run_at": "2026-11-22T11:35",
+  "reviewed": true,
+  "answers": "1 hr after gym to clean car; blocks start only on :00/:30. Didn't answer skip/Calendar Link/BettyLou questions.",
+  "blocks": [
+    {"id": "60t5bijpc23mnnpgrtjbj9n4o4", "title": "Service Delivery: Pinnacle", "kind": "service_delivery", "start": "12:00", "end": "13:00", "color": "1"},
+    {"id": "022qlrbj9sie184ujf7qskd23s", "title": "MDR", "kind": "mdr", "start": "13:00", "end": "14:00", "color": "5"},
+    {"id": "2jcunnulemb37saii7l3f0oiko", "title": "Service Delivery: Boulder Body Solutions", "kind": "service_delivery", "start": "14:00", "end": "15:00", "color": "1"},
+    {"id": "98p1jfbrua8ejq740sn9c6c72o", "title": "To-Do: Patient Acquisition Blueprint", "kind": "todo", "start": "15:00", "end": "16:00", "color": "9"},
+    {"id": "al2fmn26661n9qsj39ne219hs0", "title": "Gym", "kind": "gym", "start": "16:00", "end": "18:00", "color": "11"},
+    {"id": "bbjqkqljk3o6qib42liapg1tfo", "title": "Clean Car", "kind": "must_do", "start": "18:00", "end": "19:00", "color": "8"}
+  ],
+  "fixed": []
+}

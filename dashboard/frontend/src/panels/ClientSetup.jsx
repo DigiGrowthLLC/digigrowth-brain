@@ -508,7 +508,10 @@ export default function ClientSetup({ clientId, onGoTab }) {
     setSetup(await call(`/clients/${clientId}/setup/package`, { method: "PUT", body: JSON.stringify({ package: pkg }) }));
   };
   const pct = Math.round((setup.done / Math.max(1, setup.total)) * 100);
-  const next = setup.steps.find((s) => !s.done);
+  // Long-lead steps (needs someone else's approval or waits on time) go first:
+  // listed above the phases while open, and "Next" points at them (Dylan, 2026-11-25).
+  const longLead = setup.steps.filter((s) => s.long_lead && !s.done);
+  const next = longLead[0] || setup.steps.find((s) => !s.done);
   const rowProps = { clientId, client, config, setup, reload, onGoTab };
 
   return (
@@ -551,11 +554,31 @@ export default function ClientSetup({ clientId, onGoTab }) {
 
       <ServicesCard clientId={clientId} setup={setup} onChange={setSetup} portalUrl={client?.portal_admin_url || client?.portal_url} />
 
+      {longLead.length > 0 && (
+        <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(240,160,40,0.35)", background: "rgba(240,160,40,0.06)" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+            <span style={{ ...label, fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "#f0c078" }}>START THESE FIRST</span>
+            <span style={{ ...mono, fontSize: 9.5, color: "#a08050" }}>· Needs someone else's approval or waits on time, so it can't be rushed last minute</span>
+          </div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {longLead.map((s) => (
+              <div key={s.id}>
+                <StepRow step={s} open={open === s.id} onToggle={() => setOpen(open === s.id ? null : s.id)}
+                  onTick={(v) => tick(s.id, v)} {...rowProps} />
+                <div style={{ ...mono, fontSize: 9.5, color: "#c09a60", padding: "3px 12px 0 40px" }}>{s.long_lead}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {setup.phases.map((ph) => {
         const steps = setup.steps.filter((s) => s.phase === ph.id);
         if (!steps.length) return null;
         const doneN = steps.filter((s) => s.done).length;
-        const visible = showDone ? steps : steps.filter((s) => !s.done || open === s.id);
+        // Open long-lead steps already show in "Start these first".
+        const visible = (showDone ? steps : steps.filter((s) => !s.done || open === s.id))
+          .filter((s) => !(s.long_lead && !s.done));
         return (
           <div key={ph.id}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
@@ -570,7 +593,9 @@ export default function ClientSetup({ clientId, onGoTab }) {
                 <StepRow key={s.id} step={s} open={open === s.id} onToggle={() => setOpen(open === s.id ? null : s.id)}
                   onTick={(v) => tick(s.id, v)} {...rowProps} />
               ))}
-              {!visible.length && <div style={{ ...mono, color: "#3a6a50" }}>All done.</div>}
+              {!visible.length && (doneN === steps.length
+                ? <div style={{ ...mono, color: "#3a6a50" }}>All done.</div>
+                : <div style={{ ...mono, color: "#a08050" }}>What's left here is under Start these first.</div>)}
             </div>
           </div>
         );

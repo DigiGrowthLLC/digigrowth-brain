@@ -6,10 +6,12 @@ To activate an override, fill in the fields below. To deactivate early, clear th
 
 ---
 
-from: 2026-06-06
-to: 2026-06-09
-start: 08:30
-blocks: Morning Routine → Growth → Gym → MDR
+from: 2026-11-13
+to: 2026-11-15
+start:
+blocks: Service Delivery → Service Delivery → Highest Leverage Task → Gym
+
+Note: no outreach this week (Cold SMS & Email, Cold Calling, Content Creation skipped). No MDR either (Dylan removed it 2026-11-13). Highest Leverage Task = work through the To-Do list in DigiGrowth OS.
 
 ---
 

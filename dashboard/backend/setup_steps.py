@@ -39,6 +39,10 @@ PHASES = [
     {"id": "launch", "title": "Test and launch", "note": ""},
 ]
 
+# long_lead (Dylan, 2026-11-25) = the step needs someone else's approval or waits on
+# time, so it can't be rushed last minute. The OS lists open ones first ("Start
+# these first"), the service delivery skill does them first and the morning
+# planner books them as the day's first block. The value says what it waits on.
 # action = which button(s) the OS shows on the row (ClientSetup in ClientsPanel.jsx).
 STEPS = [
     # ---- build
@@ -55,7 +59,7 @@ STEPS = [
      "action": "review", "legacy": [("automations", 5)]},
 
     # ---- handover
-    {"id": "meta_access", "services": META, "phase": "handover", "package": "growth", "title": "Meta access: Page, Instagram, ad account",
+    {"id": "meta_access", "long_lead": "Waits on the client + Meta permissions (took Pinnacle weeks)", "services": META, "phase": "handover", "package": "growth", "title": "Meta access: Page, Instagram, ad account",
      "how": "Client: Business Settings → Partners → add DigiGrowth (business ID 695946576605909) with the Page, "
             "Instagram and ad account, Full control / Manage campaigns. You: accept the portfolio invite, then "
             "DigiGrowth Business Settings → System users → assign the ad account (Manage campaigns: the spend cap "
@@ -65,19 +69,19 @@ STEPS = [
      "fields": [{"key": "meta_ad_account_id", "label": "Ad account ID", "placeholder": "123456789012345"},
                 {"key": "meta_page_id", "label": "Page ID", "placeholder": "987654321098765"}],
      "action": "meta_sync"},
-    {"id": "calendar", "services": BOOKING, "phase": "handover", "package": "all", "title": "Calendar shared (+ Stripe if the visit is paid)",
+    {"id": "calendar", "long_lead": "Waits on the client (calendar share, Stripe verification)", "services": BOOKING, "phase": "handover", "package": "all", "title": "Calendar shared (+ Stripe if the visit is paid)",
      "how": "Client shares the Google Calendar they book patients on with dylanrg@digigrowthllc.com, \"Make changes "
             "to events\" (their portal walks them through it). Paid visit: they click \"Connect Stripe to Get Paid\" "
             "in their portal. GoHighLevel/Calendly clients: see the Booking step instead.",
      "action": "booking"},
-    {"id": "dns", "services": ["funnel"], "phase": "handover", "package": "all", "title": "Funnel on their own domain",
+    {"id": "dns", "long_lead": "Waits on DNS access + propagation", "services": ["funnel"], "phase": "handover", "package": "all", "title": "Funnel on their own domain",
      "how": "Find where DNS is really edited (Resources shows the detected DNS host; often not the registrar). "
             "Get access there, or send the client the record: CNAME, host \"go\", value cname.vercel-dns.com. "
             "Never touch the root @ records. Save the domain below, then run deploy_client_funnels.py (the onboarding "
             "agent does it). Ticks itself once https://<domain>/ serves the funnel.",
      "fields": [{"key": "funnel_domain", "label": "Funnel domain", "placeholder": "go.clientdomain.com"}],
      "legacy": [("landing_page", 2)]},
-    {"id": "booking_domain", "services": BOOKING, "phase": "handover", "package": "all",
+    {"id": "booking_domain", "long_lead": "Waits on DNS access + propagation", "services": BOOKING, "phase": "handover", "package": "all",
      "title": "Booking link on their own domain",
      "how": "Same DNS access as the funnel step. Add a second record: CNAME, host \"book\", value "
             "cname.vercel-dns.com (never touch the root @ records). Save the domain below, then run "
@@ -88,7 +92,7 @@ STEPS = [
             "agents, portal, Booking Links) uses it. It's not re-checked in the background: if the domain ever "
             "breaks, run the check again and links fall back to ours.",
      "fields": [{"key": "booking_domain", "label": "Booking domain", "placeholder": "book.clientdomain.com"}]},
-    {"id": "a2p", "services": TEXTING, "phase": "handover", "package": "all", "title": "A2P 10DLC registered (marketing use case)",
+    {"id": "a2p", "long_lead": "Twilio/carrier review takes days to weeks; a rejection restarts it", "services": TEXTING, "phase": "handover", "package": "all", "title": "A2P 10DLC registered (marketing use case)",
      "how": "Needs their legal business name + EIN (exactly as on the IRS letter). Register the Brand right away on "
             "the client's Twilio subaccount. Submit the Campaign (Low Volume Mixed, covers marketing) only AFTER the "
             "Instant Form with its consent disclaimer is published: the opt-in field must quote each consent line "
@@ -97,7 +101,7 @@ STEPS = [
             "(the console can still say In progress). Full SOP: onboarding-agent/context/a2p-registration-sop.md.",
      "link": "https://console.twilio.com/us1/develop/sms/regulatory-compliance/brand-registrations",
      "linkLabel": "Twilio → Regulatory Compliance", "legacy": [("sms", 1)]},
-    {"id": "lists", "services": ["reactivation"], "phase": "handover", "package": "all", "title": "Past patient + old inquiry lists imported",
+    {"id": "lists", "long_lead": "Waits on the client's EHR exports", "services": ["reactivation"], "phase": "handover", "package": "all", "title": "Past patient + old inquiry lists imported",
      "how": "CSV exports from their EHR: past patients (discharged or dropped off) and old inquiries that never "
             "booked, with name, mobile, last visit + reason if they have it, minus anyone seen in the last 60 days. "
             "Import each in their portal (Leads → Import CSV) with its list type. Texts only, never voice-called.",
@@ -119,7 +123,7 @@ STEPS = [
             "delivery skill). Website testimonials count too. Ticks itself at 20 reviews on file, or every review "
             "when the clinic has fewer than 20.",
      "action": "booking"},
-    {"id": "lead_form", "services": ["paid_ads"], "phase": "connect", "package": "growth", "title": "Instant Form + lead relay",
+    {"id": "lead_form", "long_lead": "A2P's Campaign can't be submitted until this form is published", "services": ["paid_ads"], "phase": "connect", "package": "growth", "title": "Instant Form + lead relay",
      "how": "CREATE FORM builds the Instant Form on their Page (full name, phone, email; the text + AI-call consent "
             "line; thank-you button to their booking link). The lead relay builds itself when the Page ID is saved; "
             "if it shows an error: Make → Credentials → \"DigiGrowth FB\" → Reauthorize with this Page ticked, and "
@@ -151,7 +155,7 @@ STEPS = [
      "action": "ad_cap"},
 
     # ---- ads
-    {"id": "campaign", "services": ["paid_ads"], "phase": "ads", "package": "growth", "title": "Campaign approved and uploaded",
+    {"id": "campaign", "long_lead": "Meta ad review: upload at least 2 days before launch", "services": ["paid_ads"], "phase": "ads", "package": "growth", "title": "Campaign approved and uploaded",
      "how": "Media-buying agent: deep research → campaign plan → ads, each gated for your approval. Upload into the "
             "client's ad account with the Instant Form above, then publish when everything else is green.",
      "link": "https://business.facebook.com/adsmanager", "linkLabel": "Ads Manager", "legacy": [("ad_creatives", 5)]},

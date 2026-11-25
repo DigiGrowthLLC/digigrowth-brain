@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-21",
+  "run_at": "2026-11-21T15:22",
+  "reviewed": true,
+  "answers": "No gym today; Final Report Advantage only takes ~30 min. Didn't answer the Fri 11/27 handwritten shift question.",
+  "blocks": [
+    {"id": "0vgq531nvse4emgdmt50ndcjp0", "title": "Service Delivery: Pinnacle", "kind": "service_delivery", "start": "15:30", "end": "16:30", "color": "1"},
+    {"id": "lscsd87f0frhdrrgegltif5e34", "title": "Service Delivery: Boulder Body Solutions", "kind": "service_delivery", "start": "16:30", "end": "17:00", "color": "1"},
+    {"id": "llni8psgf19qekauvi2le37vho", "title": "To-Do: Final Report Advantage", "kind": "todo", "start": "17:00", "end": "17:30", "color": "9"},
+    {"id": "fuig1vds9ro8epveu5r5i7eoek", "title": "To-Do: Patient Acquisition Blueprint", "kind": "todo", "start": "17:30", "end": "18:00", "color": "9"}
+  ],
+  "fixed": [{"title": "Work", "start": "08:00", "end": "13:00"}]
+}
