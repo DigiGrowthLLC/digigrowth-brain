@@ -60,6 +60,20 @@ async def provision_client_number(client_id: int, area_code: str | None = None) 
                 friendly_name=f"DigiGrowth Client — {client['name']}"
             )
             subaccount_sid = subaccount.sid
+            # Save it right away: if the number search below fails (no numbers
+            # in their area code), client_autosetup retries with any area code,
+            # and that retry must reuse this subaccount. Saving only at the end
+            # left an empty duplicate subaccount per client (Advantage 10-07,
+            # Boulder 10-28, created a second apart).
+            await conn.execute(
+                """
+                INSERT INTO client_marketing_config (client_id, twilio_subaccount_sid, updated_at)
+                VALUES ($1, $2, now())
+                ON CONFLICT (client_id) DO UPDATE
+                    SET twilio_subaccount_sid = EXCLUDED.twilio_subaccount_sid, updated_at = now()
+                """,
+                client_id, subaccount_sid,
+            )
 
         # Number purchases must be made as the subaccount, using its own
         # auth token (not the master's) — Twilio subaccounts have their own
