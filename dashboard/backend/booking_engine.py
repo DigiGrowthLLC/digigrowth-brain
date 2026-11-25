@@ -753,7 +753,8 @@ async def payment_status(client_id: int, phone: str) -> dict:
             """SELECT b.*, s.stripe_account_id FROM bookings b JOIN booking_settings s ON s.client_id = b.client_id
                WHERE b.client_id = $1 AND right(regexp_replace(coalesce(b.phone, ''), '\\D', '', 'g'), 10) = $2
                  AND b.created_at > now() - interval '2 hours' AND b.price_cents > 0
-                 AND b.status IN ('pending_payment', 'confirmed', 'expired')
+                 AND (b.status IN ('pending_payment', 'confirmed')
+                      OR (b.status = 'expired' AND b.stripe_session_id IS NOT NULL))
                ORDER BY b.created_at DESC LIMIT 1""",
             client_id, d,
         )
