@@ -116,3 +116,8 @@ available — ranking/traffic notes. See `context/seo-keywords.md` for pillar de
   conversation/client), research cache stale (dated 2026-11-09), own web search (vendor stats
   unverified, not used; HBR 2011 study of 2,241 firms used) — 2026-11-11 — pending approval (draft
   pushed to `content-agent/pending_approvals/blog-2026-11-11.json` on `main`)
+- "Your DMs Are a Lead Inbox. Here's How to Answer Every One While You Work" (slug:
+  ai-dm-agent-books-calls-24-7) — pillar: Client Acquisition Systems — topic: rotation #13 (AI
+  chatbot handles DMs and books calls 24/7), research cache stale (dated 2026-10-16), own web search
+  (HBR lead-response study, Sprout Social response-time figure) — 2026-11-25 — pending approval
+  (draft pushed to `content-agent/pending_approvals/blog-2026-11-25.json` on `main`)
