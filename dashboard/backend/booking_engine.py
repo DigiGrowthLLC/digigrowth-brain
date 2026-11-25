@@ -675,7 +675,8 @@ async def _checkout_session(booking: dict, ev: dict, settings: dict, return_base
             else "Fully refundable if you cancel before your visit.")}}
     if use_card_hold(booking["start_at"], pol):
         pi_data["capture_method"] = "manual"
-        body["payment_method_types"] = ["card"]
+        # Stripe renamed this for Checkout (payment_method_types is rejected).
+        body["allowed_payment_method_types"] = ["card"]
     body["payment_intent_data"] = pi_data
     session = await _stripe("POST", "/checkout/sessions", body, account=settings["stripe_account_id"])
     pool = await get_pool()
