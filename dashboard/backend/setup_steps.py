@@ -62,8 +62,11 @@ STEPS = [
     {"id": "meta_access", "long_lead": "Waits on the client + Meta permissions (took Pinnacle weeks)", "services": META, "phase": "handover", "package": "growth", "title": "Meta access: Page, Instagram, ad account",
      "how": "Client: Business Settings → Partners → add DigiGrowth (business ID 695946576605909) with the Page, "
             "Instagram and ad account, Full control / Manage campaigns. You: accept the portfolio invite, then "
-            "DigiGrowth Business Settings → System users → assign the ad account (Manage campaigns: the spend cap "
-            "pauses through it) and the Page. Save both IDs below, then SYNC NOW must succeed. Pilot clients: ads "
+            "DigiGrowth Business Settings → System users → DigiGrowth OS Integration → Assign assets: the ad account "
+            "(Manage campaigns: the spend cap pauses through it), the Page (Full control: Messages, Content, Ads, "
+            "Leads) and the Instagram account (Content + Messages). Without the Page and Instagram on the system "
+            "user, the DM agent and Page reads fail even though the partner share looks fine (Pinnacle, 2026-11-25). "
+            "Save both IDs below, then SYNC NOW must succeed. Pilot clients: ads "
             "run on Dylan's card, add it if the account has no payment method.",
      "link": "https://business.facebook.com/settings/partners", "linkLabel": "Business Settings → Partners",
      "fields": [{"key": "meta_ad_account_id", "label": "Ad account ID", "placeholder": "123456789012345"},
@@ -143,11 +146,27 @@ STEPS = [
             "(Instant Form step). Tell the client to pick up when their own number calls.",
      "action": "agents"},
     {"id": "social", "services": ["dm_agent"], "phase": "connect", "package": "growth", "title": "DM agent on (Facebook + Instagram)",
-     "how": "Instagram must be a Professional account linked to the Page. Agents → Social Media Conversation Agent → "
-            "CONNECT DMS. Turn off Meta's own auto-replies (Business Suite → Inbox → Automations) and on Instagram "
-            "allow Connected tools access to messages. TEST CHAT, then switch the agent on.",
+     "how": "Needs the Meta access step (Page + Instagram assigned to the system user) and the client's portal steps "
+            "\"Link Your Instagram to Your Facebook Page\" + \"Let Our AI Answer Your Messages\" (Instagram → "
+            "Connected tools → Allow access to messages). Then: 1) Business Suite → Inbox → Automations, on the "
+            "client's Page: turn off Instant reply, Away message and any FAQ / keyword replies for Facebook AND "
+            "Instagram, so Meta and our agent don't both answer. 2) Agents → Social Media Conversation Agent → CONNECT "
+            "DMS: it must come back with an Instagram account ID (none = Instagram isn't linked to the Page or isn't "
+            "assigned to the system user). 3) TEST CHAT a few real questions (price, insurance, booking). 4) Have "
+            "someone who has NO role on the DigiGrowth OS app (not you) DM the Page and the Instagram: both must get "
+            "an answer, which proves Meta's app approval covers real patients. 5) Switch the agent on and tell the "
+            "client their staff can still answer any DM themselves (the agent backs off for 12 hours).",
      "link": "https://business.facebook.com/latest/inbox/automations", "linkLabel": "Inbox → Automations",
      "action": "agents"},
+    {"id": "organic_access", "services": ["social_media"], "phase": "connect", "package": "growth",
+     "title": "You can post to their Page + Instagram",
+     "how": "Needs the Meta access step and the client's portal step \"Link Your Instagram to Your Facebook Page\". "
+            "DigiGrowth Business Settings → People → you → Assign assets: the client's Page (Content, Messages, "
+            "Insights) and Instagram account (Content, Insights). Then business.facebook.com → switch to the client's "
+            "Page (top-left) → Planner → Create post: both the Facebook and Instagram boxes must be tickable. If "
+            "Instagram is missing, it isn't linked to the Page or wasn't shared. If Meta asks for Page Publishing "
+            "Authorization, the client completes it (Page → Settings → Page setup); it's rare for a local clinic.",
+     "link": "https://business.facebook.com/settings/people", "linkLabel": "Business Settings → People"},
     {"id": "ad_cap", "services": ["paid_ads"], "phase": "connect", "package": "growth", "title": "Ad spend cap set",
      "how": "Cap = what they signed minus $100 for software (e.g. $600 → 500), start = launch day. Pauses the "
             "campaigns at the cap and times reactivation: first dollar starts check-ins, cap reached starts the "
@@ -169,9 +188,12 @@ STEPS = [
                 {"key": "campaign_goal_label", "label": "Goal counts", "placeholder": "assessments"},
                 {"key": "campaign_length_days", "label": "Length in days (blank = ends at ad budget)", "placeholder": ""}]},
     {"id": "organic", "services": ["social_media"], "phase": "ads", "package": "growth", "title": "Organic posts scheduled",
-     "how": "Tidy the Page and Instagram (images, bio, website = their funnel). Schedule the approved creatives in "
-            "Planner, Facebook + Instagram together, one every 3 days for 30 days, mid-morning clinic time. Caption = "
-            "the hook and story without ad-only urgency, soft CTA, 3-5 local hashtags.",
+     "how": "Scheduling is by hand in Meta Business Suite's Planner (decided 2026-11-25; an OS scheduler comes once "
+            "~3 clients are on organic). Tidy the Page and Instagram first (profile + cover images, bio, website = "
+            "their funnel). Schedule the approved creatives in Planner, Facebook + Instagram ticked together, one "
+            "every 3 days for 30 days (10 posts), mid-morning clinic time, Planner set to the clinic's timezone. "
+            "Images as JPG/PNG at 4:5 or 1:1, videos as Reels at 9:16. Caption = the hook and story without ad-only "
+            "urgency, soft CTA, 3-5 local hashtags. Before the 30 days run out, schedule the next batch.",
      "link": "https://business.facebook.com/latest/planner", "linkLabel": "Business Suite → Planner",
      "legacy": [("social", 6)]},
 
@@ -377,6 +399,12 @@ def client_ask(name: str, shown: set[str], done: set[str], has_legal: bool = Fal
     if "meta_access" not in done:
         items.append("Facebook: in Business Settings → Partners, add DigiGrowth (business ID 695946576605909) with "
                      "your Page, Instagram and ad account (Full control / Manage campaigns).")
+    if "social" not in done or "organic_access" not in done:
+        items.append("Instagram: make sure it's a Business account linked to your Facebook Page (Page → Settings → "
+                     "Linked accounts → Instagram).")
+    if "social" not in done:
+        items.append("Instagram app → Settings and activity → Messages and story replies → Connected tools → turn on "
+                     "\"Allow access to messages\", so our AI can answer your DMs.")
     if "calendar" not in done:
         items.append("Google Calendar: share the calendar you book patients on with dylanrg@digigrowthllc.com, "
                      "permission \"Make changes to events\" (your portal walks you through it). If the visit is "
