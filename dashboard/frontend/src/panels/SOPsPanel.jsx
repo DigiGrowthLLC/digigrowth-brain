@@ -334,18 +334,18 @@ const PURPOSES = [
 ];
 
 const TEMPLATE_META = {
-  sendInfo:              { purpose: "after_call",     icon: "☎",  channels: ["Text", "Email"], when: "A call is marked Send Info" },
-  gkDeferralTemplate:    { purpose: "after_call",     icon: "📨", channels: ["Email"],         when: "Front desk says to email the owner (Gatekeeper Deferral)" },
-  smsSequence:           { purpose: "sequences",           icon: "💬", channels: ["Text"],          when: "Steps you send from the Inbox" },
-  emailHandoffTemplate:  { purpose: "cold",           icon: "📧", channels: ["Email"],         when: "A contact is set to Email Handoff (3 emails)" },
-  dmFollowupTemplate:    { purpose: "cold",           icon: "💭", channels: ["Text"],          when: "A DM Reached chat goes 24h without a reply" },
-  callScript:            { purpose: "calls",          icon: "📞", channels: ["Call"],          when: "Shown in the dialer during calls" },
-  reminderTemplate:      { purpose: "appointments",   icon: "📅", channels: ["Text", "Email"], when: "24h, 6h and 1h before a booked call, and on reschedule" },
-  noShow:                { purpose: "appointments",   icon: "🚫", channels: ["Text", "Email"], when: "An appointment is marked No Show (3 touches)" },
-  cancelTemplate:        { purpose: "appointments",   icon: "✕",  channels: ["Text", "Email"], when: "An appointment is cancelled (3 touches)" },
-  onboardingTemplate:    { purpose: "new_clients",    icon: "🎉", channels: ["Email", "Text"], when: "A deal is marked Closed (won)" },
-  clientBookingTemplate: { purpose: "client_updates", icon: "📣", channels: ["Text"],          when: "A patient books with one of your clients" },
-  clientSuccess:         { purpose: "client_updates", icon: "📊", channels: ["Email", "Text"], when: "Weekly and final campaign reports, milestones, check-ins" },
+  sendInfo:              { purpose: "after_call",     icon: "phone",    channels: ["Text", "Email"], when: "A call is marked Send Info" },
+  gkDeferralTemplate:    { purpose: "after_call",     icon: "mail",     channels: ["Email"],         when: "Front desk says to email the owner" },
+  smsSequence:           { purpose: "sequences",      icon: "chat",     channels: ["Text"],          when: "Steps you send from the Inbox", generic: true },
+  emailHandoffTemplate:  { purpose: "cold",           icon: "mail",     channels: ["Email"],         when: "A contact is set to Email Handoff (3 emails)" },
+  dmFollowupTemplate:    { purpose: "cold",           icon: "chat",     channels: ["Text"],          when: "A DM Reached chat goes 24h without a reply" },
+  callScript:            { purpose: "calls",          icon: "phone",    channels: ["Call"],          when: "Shown in the dialer during calls", generic: true },
+  reminderTemplate:      { purpose: "appointments",   icon: "calendar", channels: ["Text", "Email"], when: "24h, 6h and 1h before a booked call, and on reschedule" },
+  noShow:                { purpose: "appointments",   icon: "calendar", channels: ["Text", "Email"], when: "An appointment is marked No Show (3 touches)" },
+  cancelTemplate:        { purpose: "appointments",   icon: "calendar", channels: ["Text", "Email"], when: "An appointment is cancelled (3 touches)" },
+  onboardingTemplate:    { purpose: "new_clients",    icon: "spark",    channels: ["Email", "Text"], when: "A deal is marked Closed (won)" },
+  clientBookingTemplate: { purpose: "client_updates", icon: "bell",     channels: ["Text"],          when: "A patient books with one of your clients" },
+  clientSuccess:         { purpose: "client_updates", icon: "chart",    channels: ["Email", "Text"], when: "Weekly and final campaign reports, milestones, check-ins" },
 };
 const SPECIAL_FLAGS = Object.keys(TEMPLATE_META);
 const metaFor = (item) => {
@@ -360,16 +360,37 @@ const cleanTitle = (t) => (t || "").replace(/\s*\((?:SMS|Email)(?:\s*\+\s*(?:SMS
 const readPref = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
 const writePref = (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 
+// Channels as one quiet line ("Text · Email") instead of coloured chips.
 function ChannelChips({ channels }) {
   return (
-    <span style={{ display: "inline-flex", gap: 4, flexShrink: 0 }}>
-      {channels.map(c => (
-        <span key={c} style={{
-          fontSize: 10.5, fontWeight: 600, padding: "1px 6px", borderRadius: 99,
-          color: c === "Email" ? "#c3a6ff" : c === "Call" ? T.warn : "#8fb8ff",
-          background: c === "Email" ? "rgba(160,128,240,0.14)" : c === "Call" ? "rgba(242,173,61,0.13)" : T.accentSoft,
-        }}>{c}</span>
-      ))}
+    <span style={{ fontSize: 12, color: T.textMute, whiteSpace: "nowrap", flexShrink: 0 }}>{channels.join(" · ")}</span>
+  );
+}
+
+// Monochrome line icons (replaces the old emoji set).
+const ICON_PATHS = {
+  chat:     "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z",
+  mail:     "M4 6h16v12H4z M4 7l8 6 8-6",
+  phone:    "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z",
+  calendar: "M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4",
+  spark:    "M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z",
+  bell:     "M6 16V11a6 6 0 0 1 12 0v5l2 2H4z M10 20a2 2 0 0 0 4 0",
+  chart:    "M4 20h16 M7 16v-5 M12 16V7 M17 16v-8",
+  doc:      "M6 3h8l4 4v14H6z M14 3v4h4 M9 12h6 M9 16h6",
+  pdf:      "M6 3h8l4 4v14H6z M14 3v4h4 M9 14h6",
+  audio:    "M12 4a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V7a3 3 0 0 1 3-3z M6 11a6 6 0 0 0 12 0 M12 17v3",
+  video:    "M4 7h11v10H4z M15 10l5-3v10l-5-3",
+  file:     "M16 8l-6.5 6.5a2 2 0 0 0 2.8 2.8L19 10.6a4 4 0 0 0-5.7-5.7L6.6 11.6a6 6 0 0 0 8.5 8.5L20 15",
+};
+function ResIcon({ name, size = 30, active }) {
+  return (
+    <span style={{
+      width: size, height: size, borderRadius: 8, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+      background: active ? "rgba(77,142,240,0.22)" : "rgba(120,150,210,0.08)", color: active ? "#8fb8ff" : T.textDim,
+    }}>
+      <svg width={size * 0.53} height={size * 0.53} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d={ICON_PATHS[name] || ICON_PATHS.doc} />
+      </svg>
     </span>
   );
 }
@@ -385,8 +406,8 @@ const fmtUpdated = (d) => {
 };
 
 const docKind = (item) => item.file_name
-  ? (/^audio/.test(item.file_type || "") ? { icon: "🎙", label: "Audio" } : /^video/.test(item.file_type || "") ? { icon: "🎬", label: "Video" } : /\/pdf$/.test(item.file_type || "") ? { icon: "📕", label: "PDF" } : { icon: "📎", label: "File" })
-  : { icon: "📄", label: "Doc" };
+  ? (/^audio/.test(item.file_type || "") ? { icon: "audio", label: "Audio" } : /^video/.test(item.file_type || "") ? { icon: "video", label: "Video" } : /\/pdf$/.test(item.file_type || "") ? { icon: "pdf", label: "PDF" } : { icon: "file", label: "File" })
+  : { icon: "doc", label: "Doc" };
 
 const btnBase = {
   borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 13,
@@ -2944,7 +2965,6 @@ export default function SOPsPanel() {
   const [loadingList, setLoadingList] = useState(true);
   const [search, setSearch] = useState("");
   const [groupBy, setGroupByRaw] = useState(() => readPref("dg.resources.groupBy", "purpose"));
-  const [collapsed, setCollapsed] = useState({});
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [newKind, setNewKind] = useState("doc");
   const [sendInfoCategory, setSendInfoCategory] = useState("General");
@@ -3263,11 +3283,16 @@ export default function SOPsPanel() {
   }
 
   const showEditor = selectedId !== null || isNew;
-  const mobileDetailActive = !!selectedItem || showEditor;
+  const detailOpen = !!selectedItem || showEditor;
 
   const itemIcon = (item) => metaFor(item)?.icon || docKind(item).icon;
-  const itemSub = (item) => metaFor(item)?.when || [docKind(item).label, fmtUpdated(item.updated_at)].filter(Boolean).join(" · ");
-  const collapseKey = (g) => `${activeSection}:${effectiveGroupBy}:${g.key}`;
+  // Generic "when" lines (every sequence / script says the same thing) are
+  // already the group's hint, so rows leave them out.
+  const itemSub = (item) => {
+    const meta = metaFor(item);
+    if (meta) return meta.generic ? "" : meta.when;
+    return [item.file_name ? docKind(item).label : "", fmtUpdated(item.updated_at), effectiveGroupBy === "purpose" ? item.category : ""].filter(Boolean).join(" · ");
+  };
 
   const newOptions = [
     { kind: "doc",      label: "Saved template",  hint: "Free-form text you copy from" },
@@ -3280,16 +3305,18 @@ export default function SOPsPanel() {
       <style>{PROSE_CSS + `
         .res-row .res-del { opacity: 0; transition: opacity .15s; }
         .res-row:hover .res-del { opacity: 1; }
-        .res-row:hover { background: rgba(77,142,240,0.07); }
-        .res-card { transition: border-color .15s, transform .15s; }
-        .res-card:hover { border-color: rgba(77,142,240,0.45) !important; transform: translateY(-1px); }
+        .res-row { transition: background .12s; }
+        .res-row:hover { background: rgba(77,142,240,0.06); }
+        .res-list > .res-row + .res-row { border-top: 1px solid ${T.line}; }
+        .res-list > .res-row:hover .res-chev { color: ${T.textDim}; transform: translateX(2px); }
+        .res-chev { transition: transform .15s, color .15s; }
       `}</style>
 
       {/* Header */}
       <div style={{ padding: "20px 28px 0", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
-            {mobileDetailActive && (
+            {detailOpen && (
               <button onClick={clearSelection} className="md:hidden" style={{ background: "none", border: "none", color: "#8fb8ff", cursor: "pointer", fontSize: 13, fontWeight: 600, padding: "0 0 6px" }}>
                 ‹ Back to list
               </button>
@@ -3300,7 +3327,7 @@ export default function SOPsPanel() {
           <div style={{ display: "flex", gap: 8, alignItems: "center", position: "relative" }}>
             <input ref={uploadRef} type="file" style={{ display: "none" }} onChange={handleUpload} />
             <button onClick={() => uploadRef.current?.click()} disabled={uploading} style={{ ...btnGhost, opacity: uploading ? 0.6 : 1, cursor: uploading ? "not-allowed" : "pointer" }}>
-              {uploading ? "Uploading…" : "↑ Upload file"}
+              {uploading ? "Uploading…" : "Upload"}
             </button>
             {isOutreach ? (
               <>
@@ -3335,103 +3362,51 @@ export default function SOPsPanel() {
       {/* Body */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* Sidebar: full width on mobile until something is open */}
-        <div
-          className={(mobileDetailActive ? "hidden " : "flex ") + "md:flex flex-col flex-shrink-0 w-full md:w-[300px]"}
-          style={{ borderRight: `1px solid ${T.line}`, overflow: "hidden" }}>
-          <div style={{ padding: "12px 12px 8px", flexShrink: 0, display: "grid", gap: 8 }}>
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={`Search ${section.label.toLowerCase()}…`}
-              style={{ ...inputStyle, padding: "8px 12px", fontSize: 13 }}
-            />
-            {isOutreach && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.textMute }}>
-                Group by
-                {[["purpose", "What it's for"], ["category", "Category"]].map(([id, label]) => {
-                  const on = groupBy === id;
+        {/* Sidebar: only while something is open (desktop); otherwise the overview is the list */}
+        {detailOpen && (
+        <div className="hidden md:flex flex-col flex-shrink-0 md:w-[264px]" style={{ borderRight: `1px solid ${T.line}`, overflow: "hidden" }}>
+          <div style={{ padding: "12px 12px 6px", flexShrink: 0 }}>
+            <button onClick={() => { if (dirty && !window.confirm("Discard unsaved changes?")) return; clearSelection(); }}
+              style={{ background: "none", border: "none", color: T.textMute, cursor: "pointer", fontSize: 12.5, fontWeight: 600, padding: "2px 4px 10px" }}>
+              ‹ All {section.label.toLowerCase()}
+            </button>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+              style={{ ...inputStyle, padding: "7px 11px", fontSize: 13 }} />
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "0 0 16px" }}>
+            {isNew && (
+              <div style={{ margin: "6px 8px", padding: "7px 10px", borderRadius: 8, background: T.accentSoft, fontSize: 13, color: "#8fb8ff", fontWeight: 600 }}>
+                {isOutreach ? newOptions.find(o => o.kind === newKind)?.label : section.newLabel} (not saved)
+              </div>
+            )}
+            {groups.map(g => (
+              <div key={g.key} style={{ marginTop: 10 }}>
+                <div style={{ padding: "4px 18px", fontSize: 11.5, fontWeight: 600, color: T.textMute }}>{g.label}</div>
+                {g.items.map(item => {
+                  const isActive = selectedId === item.id;
                   return (
-                    <button key={id} onClick={() => setGroupBy(id)} style={{
-                      border: `1px solid ${on ? "rgba(77,142,240,0.5)" : T.line}`, background: on ? T.accentSoft : "transparent",
-                      color: on ? T.text : T.textMute, padding: "3px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                    }}>{label}</button>
+                    <div key={item.id} onClick={() => openSOP(item)} className="res-row" style={{
+                      display: "flex", alignItems: "center", gap: 9, margin: "1px 8px", padding: "6px 10px", borderRadius: 7, cursor: "pointer",
+                      background: isActive ? T.accentSoft : undefined,
+                    }}>
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: isActive ? 600 : 500, color: isActive ? T.text : T.textDim }}>
+                        {cleanTitle(item.title)}
+                      </span>
+                      {item.isDefault && <span title="Default" style={{ width: 6, height: 6, borderRadius: 99, background: T.good, flexShrink: 0 }} />}
+                    </div>
                   );
                 })}
               </div>
-            )}
-          </div>
-
-          <div style={{ flex: 1, overflowY: "auto", padding: "0 0 16px" }}>
-            {isNew && (
-              <div style={{ margin: "4px 8px 8px", padding: "8px 12px", borderRadius: 8, background: T.accentSoft, border: "1px solid rgba(77,142,240,0.35)", fontSize: 13, color: "#8fb8ff", fontWeight: 600 }}>
-                + {isOutreach ? newOptions.find(o => o.kind === newKind)?.label : section.newLabel} (not saved yet)
-              </div>
-            )}
-            {loadingList && groups.length === 0 ? (
-              <Empty>Loading…</Empty>
-            ) : groups.length === 0 && !isNew ? (
-              <Empty>{q ? `Nothing matches "${search}".` : `No ${section.label.toLowerCase()} yet.`}</Empty>
-            ) : null}
-            {groups.map(g => {
-              const isCollapsed = !q && collapsed[collapseKey(g)];
-              return (
-                <div key={g.key} style={{ marginTop: 6 }}>
-                  <button
-                    onClick={() => setCollapsed(c => ({ ...c, [collapseKey(g)]: !isCollapsed }))}
-                    style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", background: "none", border: "none", cursor: "pointer", padding: "6px 16px", textAlign: "left" }}
-                  >
-                    <span style={{ fontSize: 10, color: T.textMute, width: 10, transform: isCollapsed ? "rotate(-90deg)" : "none", transition: "transform .15s" }}>▾</span>
-                    <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: T.textDim }}>{g.label}</span>
-                    <span style={{ fontSize: 11.5, color: T.textMute }}>{g.items.length}</span>
-                  </button>
-                  {!isCollapsed && g.items.map(item => {
-                    const meta = metaFor(item);
-                    const isActive = selectedId === item.id;
-                    return (
-                      <div
-                        key={item.id}
-                        onClick={() => openSOP(item)}
-                        className="res-row"
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          margin: "1px 8px", padding: "7px 10px", borderRadius: 8, cursor: "pointer",
-                          background: isActive ? "linear-gradient(90deg, rgba(40,87,160,0.38), rgba(58,123,213,0.18))" : undefined,
-                          boxShadow: isActive ? "inset 2px 0 0 #4d8ef0" : undefined,
-                        }}
-                      >
-                        <span style={{ fontSize: 14, width: 20, textAlign: "center", flexShrink: 0, opacity: 0.85 }}>{itemIcon(item)}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: isActive ? 600 : 500, color: isActive ? T.text : T.textDim }}>
-                              {cleanTitle(item.title)}
-                            </span>
-                            {item.isDefault && <Pill tone="good" style={{ fontSize: 10.5, padding: "1px 7px" }}>Default</Pill>}
-                            {!meta && item.visibility === "public" && <Pill tone="good" style={{ fontSize: 10.5, padding: "1px 7px" }}>Public</Pill>}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-                            {meta && <ChannelChips channels={meta.channels} />}
-                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11.5, color: T.textMute }}>{itemSub(item)}</span>
-                          </div>
-                        </div>
-                        {!meta && (
-                          <button className="res-del" onClick={e => deleteSOP(item, e)} title="Delete"
-                            style={{ background: "none", border: "none", cursor: "pointer", color: T.bad, fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+            ))}
           </div>
         </div>
+        )}
 
         {/* Detail pane: hidden on mobile until something is open */}
-        <div className={(!mobileDetailActive ? "hidden " : "flex ") + "md:flex flex-col flex-1 min-w-0"} style={{ overflow: "hidden" }}>
+        <div className="flex flex-col flex-1 min-w-0" style={{ overflow: "hidden" }}>
           {selectedItem && isSpecialItem(selectedItem) && (
             <div style={{ padding: "16px 36px 0", flexShrink: 0, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 18 }}>{itemIcon(selectedItem)}</span>
+              <ResIcon name={itemIcon(selectedItem)} size={28} />
               <span style={{ fontFamily: T.display, fontSize: 18, fontWeight: 700, color: T.text }}>{cleanTitle(selectedItem.title)}</span>
               <ChannelChips channels={metaFor(selectedItem).channels} />
               <span style={{ fontSize: 12.5, color: T.textMute }}>{metaFor(selectedItem).when}</span>
@@ -3510,54 +3485,74 @@ export default function SOPsPanel() {
               }}
             />
           ) : !showEditor ? (
-            /* ── Overview: every item as a card, grouped like the sidebar ── */
-            <div style={{ flex: 1, overflowY: "auto", padding: "24px 36px 48px" }}>
-              <div style={{ maxWidth: 1040 }}>
-                {isOutreach && !q && (
-                  <div style={{ fontSize: 13.5, color: T.textDim, lineHeight: 1.6, marginBottom: 22, maxWidth: 720 }}>
-                    Most of these go out <b style={{ color: T.text }}>on their own</b> when something happens in the OS, like a call outcome, a status change or a booking. Each card says what sends it. Open one to edit the wording; changes apply to the very next send.
-                  </div>
-                )}
+            /* ── Overview: one clean list, grouped ── */
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px 48px" }}>
+              <div style={{ maxWidth: 880 }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 22 }}>
+                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${section.noun}s…`}
+                    style={{ ...inputStyle, flex: 1, minWidth: 200, width: "auto", padding: "8px 12px", fontSize: 13.5 }} />
+                  {isOutreach && (
+                    <div style={{ display: "flex", padding: 3, borderRadius: 9, border: `1px solid ${T.line}`, background: "rgba(255,255,255,0.02)" }}>
+                      {[["purpose", "By purpose"], ["category", "By category"]].map(([id, label]) => {
+                        const on = groupBy === id;
+                        return (
+                          <button key={id} onClick={() => setGroupBy(id)} style={{
+                            border: "none", background: on ? T.accentSoft : "transparent", color: on ? T.text : T.textMute,
+                            padding: "5px 12px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                          }}>{label}</button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {loadingList && groups.length === 0 && <Empty>Loading…</Empty>}
                 {groups.length === 0 && !loadingList && (
-                  <Card style={{ textAlign: "center", padding: 36, maxWidth: 520 }}>
-                    <div style={{ fontSize: 28, marginBottom: 8 }}>{isOutreach ? "💬" : "📄"}</div>
+                  <div style={{ textAlign: "center", padding: "48px 20px" }}>
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}><ResIcon name="doc" size={40} /></div>
                     <div style={{ fontFamily: T.display, fontSize: 16, fontWeight: 600, color: T.text }}>
                       {q ? "Nothing matches your search" : `No ${section.label.toLowerCase()} yet`}
                     </div>
-                    <div style={{ fontSize: 13, color: T.textMute, margin: "6px 0 16px" }}>
+                    <div style={{ fontSize: 13, color: T.textMute, margin: "6px 0 18px" }}>
                       {q ? "Try a different word, or clear the search." : "Write one here or upload a file you already have."}
                     </div>
                     {!q && (
                       <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
                         <button onClick={() => startNew("doc")} style={btnPrimary}>+ {isOutreach ? "Saved template" : section.newLabel}</button>
-                        <button onClick={() => uploadRef.current?.click()} style={btnGhost}>↑ Upload file</button>
+                        <button onClick={() => uploadRef.current?.click()} style={btnGhost}>Upload file</button>
                       </div>
                     )}
-                  </Card>
+                  </div>
                 )}
                 {groups.map(g => (
-                  <section key={g.key} style={{ marginBottom: 28 }}>
-                    <SectionTitle title={g.label} hint={g.hint} right={<span style={{ fontSize: 12.5, color: T.textMute }}>{g.items.length}</span>} />
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 10 }}>
+                  <section key={g.key} style={{ marginBottom: 26 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8, padding: "0 2px" }}>
+                      <span style={{ fontFamily: T.display, fontSize: 14.5, fontWeight: 600, color: T.text }}>{g.label}</span>
+                      <span style={{ fontSize: 12.5, color: T.textMute }}>{g.items.length}</span>
+                      {g.hint && <span className="hidden md:inline" style={{ fontSize: 12.5, color: T.textMute, marginLeft: "auto", textAlign: "right" }}>{g.hint}</span>}
+                    </div>
+                    <div className="res-list" style={{ border: `1px solid ${T.line}`, borderRadius: 12, background: "rgba(13,22,52,0.45)", overflow: "hidden" }}>
                       {g.items.map(item => {
                         const meta = metaFor(item);
+                        const sub = itemSub(item);
                         return (
-                          <Card key={item.id} pad={14} onClick={() => openSOP(item)} className="ui-card res-card">
-                            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                              <span style={{ fontSize: 18, lineHeight: 1.2 }}>{itemIcon(item)}</span>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                  <span style={{ fontSize: 14, fontWeight: 600, color: T.text, lineHeight: 1.35 }}>{cleanTitle(item.title)}</span>
-                                  {item.isDefault && <Pill tone="good" style={{ fontSize: 10.5, padding: "1px 7px" }}>Default</Pill>}
-                                </div>
-                                <div style={{ fontSize: 12.5, color: T.textMute, marginTop: 4, lineHeight: 1.45 }}>{itemSub(item)}</div>
-                                {meta && <div style={{ marginTop: 8 }}><ChannelChips channels={meta.channels} /></div>}
-                                {!meta && effectiveGroupBy === "purpose" && item.category && (
-                                  <div style={{ fontSize: 11.5, color: T.textMute, marginTop: 6 }}>{item.category}</div>
-                                )}
+                          <div key={item.id} onClick={() => openSOP(item)} className="res-row"
+                            style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", cursor: "pointer" }}>
+                            <ResIcon name={itemIcon(item)} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cleanTitle(item.title)}</span>
+                                {item.isDefault && <Pill tone="good" style={{ fontSize: 10.5, padding: "1px 7px" }}>Default</Pill>}
+                                {!meta && item.visibility === "public" && <Pill tone="good" style={{ fontSize: 10.5, padding: "1px 7px" }}>Public</Pill>}
                               </div>
+                              {sub && <div style={{ fontSize: 12.5, color: T.textMute, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
                             </div>
-                          </Card>
+                            {meta && <span className="hidden sm:inline"><ChannelChips channels={meta.channels} /></span>}
+                            {!meta && (
+                              <button className="res-del" onClick={e => deleteSOP(item, e)} title="Delete"
+                                style={{ background: "none", border: "none", cursor: "pointer", color: T.bad, fontSize: 16, lineHeight: 1, padding: "0 2px", flexShrink: 0 }}>×</button>
+                            )}
+                            <span className="res-chev" style={{ color: T.textMute, fontSize: 16, flexShrink: 0 }}>›</span>
+                          </div>
                         );
                       })}
                     </div>
