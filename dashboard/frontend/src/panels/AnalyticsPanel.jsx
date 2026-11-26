@@ -322,7 +322,9 @@ function SalesCampaigns({ campaigns, details, columns, rows, loading, periodNote
         </div>
         {m && (
           <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 12, fontSize: 13, color: T.textMute }}>
-            <span><b style={{ color: T.text, fontWeight: 600 }}>{m.two_call_closes}</b> two-call close{m.two_call_closes === 1 ? "" : "s"}{m.two_call_closes ? ` (${m.two_call_won} closed since)` : ""}</span>
+            <span><b style={{ color: T.text, fontWeight: 600 }}>{m.two_call_closes}</b> two-call close{m.two_call_closes === 1 ? "" : "s"}{m.two_call_closes
+              ? ` (${[`${m.two_call_won} closed`, m.two_call_lost ? `${m.two_call_lost} didn't` : null, m.two_call_open ? `${m.two_call_open} waiting on the second call` : null].filter(Boolean).join(", ")})`
+              : ""}</span>
             {m.avg_call_minutes != null && <span><b style={{ color: T.text, fontWeight: 600 }}>{m.avg_call_minutes} min</b> average call</span>}
             {m.upcoming > 0 && <span><b style={{ color: T.text, fontWeight: 600 }}>{m.upcoming}</b> upcoming</span>}
           </div>

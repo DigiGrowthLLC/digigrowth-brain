@@ -193,12 +193,13 @@ async def campaign_metrics(conn, campaign_id: int, since=None, until=None) -> di
             SELECT first_id,
                    bool_or(outcome_close = 'closed') AS closed_any,
                    count(*) FILTER (WHERE row_id != first_id) AS follow_up_calls,
+                   bool_or(row_id != first_id AND outcome_close = 'not_closed') AS follow_up_lost,
                    (array_agg(pricing ORDER BY (pricing IS NULL), outcome_close_at DESC NULLS LAST)
                         FILTER (WHERE outcome_close = 'closed'))[1] AS price
             FROM credit GROUP BY first_id
         )
         SELECT f.id, f.appointment_at, f.outcome_show, f.outcome_close, f.call_length,
-               f.call_recording_url, a.closed_any, a.follow_up_calls, a.price
+               f.call_recording_url, a.closed_any, a.follow_up_calls, a.follow_up_lost, a.price
         FROM firsts f LEFT JOIN agg a ON a.first_id = f.id
         WHERE f.sales_campaign_id = $1
           AND ($2::timestamptz IS NULL OR f.appointment_at >= $2)
@@ -215,10 +216,18 @@ async def campaign_metrics(conn, campaign_id: int, since=None, until=None) -> di
     closed = [r for r in rows if r["closed_any"]]
     closes = len(closed)
     closed_first = sum(1 for r in rows if r["outcome_close"] == "closed")
-    two_call = [r for r in rows if r["outcome_close"] == "two_call"]
+    # A two-call close = a first call that showed and either was marked
+    # two-call close or has a second call after it (calls before the button
+    # existed were marked "not closed" even though a second call followed).
+    # Won = closed on a later call; lost = a later call marked not closed;
+    # open = still waiting on the second call.
+    two_call = [r for r in rows if r["outcome_show"] == "show" and r["outcome_close"] != "closed"
+                and (r["outcome_close"] == "two_call" or (r["follow_up_calls"] or 0) > 0)]
     two_call_won = sum(1 for r in two_call if r["closed_any"])
-    two_call_open = sum(1 for r in two_call if not r["closed_any"])
-    not_closed = sum(1 for r in rows if r["outcome_show"] == "show" and not r["closed_any"] and r["outcome_close"] != "two_call")
+    two_call_lost = sum(1 for r in two_call if not r["closed_any"] and r["follow_up_lost"])
+    two_call_open = len(two_call) - two_call_won - two_call_lost
+    open_ids = {r["id"] for r in two_call if not r["closed_any"] and not r["follow_up_lost"]}
+    not_closed = sum(1 for r in rows if r["outcome_show"] == "show" and not r["closed_any"] and r["id"] not in open_ids)
     revenue = float(sum(float(r["price"] or 0) for r in closed))
     lengths = [m for m in (_minutes(r["call_length"]) for r in rows if r["outcome_show"] == "show") if m]
     recorded = sum(1 for r in rows if r["outcome_show"] == "show" and r["call_recording_url"])
@@ -236,6 +245,7 @@ async def campaign_metrics(conn, campaign_id: int, since=None, until=None) -> di
         "two_call_closes": len(two_call),
         "two_call_rate": _pct(len(two_call), shows),
         "two_call_won": two_call_won,
+        "two_call_lost": two_call_lost,
         "two_call_open": two_call_open,
         "not_closed": not_closed,
         "booked_to_close": _pct(closes, booked),
