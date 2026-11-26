@@ -241,24 +241,13 @@ function campaignRows(channel, ms) {
   // Sales (sales_tracking.campaign_metrics): first discovery calls booked
   // while the campaign ran; a close on a follow-up call counts for the first.
   if (channel === "sales") return [
-    { label: "Calls booked", vals: col("booked"), fmt: num, hint: "First discovery calls, follow-ups not counted" },
-    { label: "Upcoming", vals: col("upcoming"), fmt: num },
-    { label: "Waiting on an outcome", vals: col("awaiting_outcome"), fmt: num, hint: "Held, show/no-show not marked yet" },
-    { label: "Showed", vals: col("shows"), fmt: num },
-    { label: "No-shows", vals: col("no_shows"), fmt: num, tone: "bad" },
-    { label: "Show rate", vals: col("show_rate"), fmt: pct, best: true, hint: "Showed ÷ (showed + no-shows)" },
-    { label: "Two-call closes", vals: col("two_call_closes"), fmt: num, hint: "Second call booked instead of a close" },
-    { label: "Two-call → closed", vals: col("two_call_won"), fmt: num, tone: "good", hint: "Of those, closed on a later call" },
-    { label: "Not closed", vals: col("not_closed"), fmt: num, tone: "bad" },
+    { label: "Calls booked", vals: col("booked"), fmt: num, hint: "Follow-up calls not counted" },
+    { label: "Show rate", vals: col("show_rate"), fmt: pct, best: true },
     { label: "Closed", vals: col("closes"), fmt: num, tone: "good", strong: true, best: true },
-    { label: "Close rate", vals: col("close_rate"), fmt: pct, tone: "good", strong: true, best: true, hint: "Closed ÷ showed" },
-    { label: "Booked → closed", vals: col("booked_to_close"), fmt: pct, best: true },
-    { label: "Closed on the first call", vals: col("closed_on_first_call"), fmt: num },
-    { label: "Closed on a follow-up", vals: col("closed_on_follow_up"), fmt: num },
+    { label: "Close rate", vals: col("close_rate"), fmt: pct, tone: "good", strong: true, best: true, hint: "Of calls that showed" },
+    { label: "Two-call closes", vals: col("two_call_closes"), fmt: num, hint: "Second call booked" },
     { label: "Revenue", vals: col("total_revenue"), fmt: money, best: true },
-    { label: "Avg deal size", vals: col("avg_deal_size"), fmt: money },
     { label: "Avg call length", vals: col("avg_call_minutes"), fmt: v => `${v} min` },
-    { label: "Calls recorded", vals: col("calls_recorded"), fmt: num, hint: "Showed calls with a recording link" },
   ];
   if (channel === "calling") return [
     { label: "Calls made", vals: col("total"), fmt: num },
@@ -302,6 +291,53 @@ function fmtCampaignDate(iso) {
 }
 
 const selectStyle = { ...inputStyle, width: "auto", minWidth: 200, padding: "8px 12px", cursor: "pointer" };
+
+// Sales: the running campaign's headline numbers as tiles, then (only once
+// there's more than one campaign) the side-by-side comparison.
+function SalesCampaigns({ campaigns, details, columns, rows, loading, periodNote, onStop, onReactivate }) {
+  const current = campaigns.find(c => c.is_active) || campaigns[0];
+  const m = details[current.id]?.metrics;
+  const v = (x, f) => (loading || !m ? "…" : f(x));
+  const since = current.periods?.[0]?.started_at;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+          <span style={{ fontFamily: T.display, fontSize: 17, fontWeight: 700, color: T.text }}>{current.name}</span>
+          <Pill tone={current.is_active ? "good" : "neutral"} dot style={{ fontSize: 11, padding: "2px 8px" }}>{current.is_active ? "Running" : "Ended"}</Pill>
+          <span style={{ fontSize: 12.5, color: T.textMute }}>
+            {since ? `Since ${fmtCampaignDate(since)}` : ""}{periodNote ? ` · ${periodNote}` : ""}
+          </span>
+          {current.is_active ? (
+            <button onClick={() => onStop(current)} style={{ marginLeft: "auto", background: "none", border: "none", padding: 0, cursor: "pointer", color: T.bad, fontSize: 12.5, fontWeight: 600 }}>Stop</button>
+          ) : (
+            <button onClick={() => onReactivate(current.id)} style={{ marginLeft: "auto", background: "none", border: "none", padding: 0, cursor: "pointer", color: T.accent, fontSize: 12.5, fontWeight: 600 }}>Reactivate</button>
+          )}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
+          <Kpi label="Calls booked" icon={ICON.target} color={CH.sales.color} value={v(m?.booked, num)} sub="Follow-up calls not counted" />
+          <Kpi label="Show rate" icon={ICON.check} color="#4d8ef0" value={v(m?.show_rate, pct)} sub={m ? `${m.shows} showed · ${m.no_shows} no-show${m.no_shows === 1 ? "" : "s"}` : null} />
+          <Kpi label="Close rate" icon={ICON.trend} color={T.good} value={v(m?.close_rate, pct)} sub={m ? `${m.closes} closed of ${m.shows} who showed` : null} />
+          <Kpi label="Revenue" icon={ICON.money} color="#a78bfa" value={v(m?.total_revenue, money)} sub={m && m.closes ? `${money(m.avg_deal_size)} avg deal` : null} />
+        </div>
+        {m && (
+          <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 12, fontSize: 13, color: T.textMute }}>
+            <span><b style={{ color: T.text, fontWeight: 600 }}>{m.two_call_closes}</b> two-call close{m.two_call_closes === 1 ? "" : "s"}{m.two_call_closes ? ` (${m.two_call_won} closed since)` : ""}</span>
+            {m.avg_call_minutes != null && <span><b style={{ color: T.text, fontWeight: 600 }}>{m.avg_call_minutes} min</b> average call</span>}
+            {m.upcoming > 0 && <span><b style={{ color: T.text, fontWeight: 600 }}>{m.upcoming}</b> upcoming</span>}
+          </div>
+        )}
+      </div>
+
+      {campaigns.length > 1 && (
+        <div>
+          <SectionTitle title="Compare campaigns" hint="The highlighted value is the best campaign on that row." />
+          <ComparisonTable columns={columns} rows={rows} loading={loading} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Every campaign in the chosen channel side by side (running one first),
 // each column with its own dates + Running/Ended, so they compare at a glance.
@@ -386,14 +422,15 @@ function CampaignsView({ days, date }) {
         <Card><Empty>Loading…</Empty></Card>
       ) : !campaigns.length ? (
         <Card><Empty>No {CH[channel].name.toLowerCase()} campaigns yet.</Empty></Card>
+      ) : channel === "sales" ? (
+        <SalesCampaigns campaigns={campaigns} details={details} columns={columns} rows={rows} loading={loading}
+          periodNote={days !== 0 || date ? `Calls held ${date ? `on ${formatPickedDate(date)}` : (PERIOD_TEXT[days] || "this period").toLowerCase()}` : null}
+          onStop={stop} onReactivate={reactivate} />
       ) : (
         <div>
           <SectionTitle title={`${CH[channel].name} campaigns`}
             hint={`Read across to compare. The highlighted value is the best campaign on that row.${columns.length > 3 ? " Scroll sideways for older campaigns." : ""}`} />
           {smsNote && <div style={{ fontSize: 12, color: T.textMute, margin: "-4px 0 10px", lineHeight: 1.45 }}>{smsNote}</div>}
-          {channel === "sales" && <div style={{ fontSize: 12, color: T.textMute, margin: "-4px 0 10px", lineHeight: 1.45 }}>
-            Every discovery call registered in the OS counts toward the campaign running when it was booked. Meetings that were only on the old sales sheet aren't included. {days !== 0 || date ? "Narrowed to calls held in this period." : ""}
-          </div>}
           <ComparisonTable columns={columns} rows={rows} loading={loading} />
         </div>
       )}
