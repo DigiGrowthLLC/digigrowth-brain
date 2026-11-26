@@ -1,0 +1,23 @@
+{"reports": [
+  {
+    "domain": "digigrowthllc.com",
+    "reporter": "Postmark",
+    "period_start": "2026-11-15",
+    "period_end": "2026-11-22",
+    "total_messages": 339,
+    "dmarc_pass": 336,
+    "dmarc_fail": 3,
+    "spf_pass": 334,
+    "dkim_pass": 336,
+    "sources": [
+      {"source": "google.com", "count": 214, "spf": "pass", "dkim": "pass", "dmarc": "pass"},
+      {"source": "outlook.com", "count": 122, "spf": "pass", "dkim": "pass", "dmarc": "pass"},
+      {"source": "cloud-sec-av.com (35.174.145.124)", "count": 1, "spf": "fail", "dkim": "fail", "dmarc": "fail"},
+      {"source": "titan.email (3.225.65.124, forwarded)", "count": 1, "spf": "fail", "dkim": "pass", "dmarc": "pass"},
+      {"source": "ace-host.net (68.171.223.227, forwarded)", "count": 1, "spf": "fail", "dkim": "pass", "dmarc": "pass"}
+    ],
+    "notes": "Digest reports 99% SPF or DKIM aligned. Unknown source cloud-sec-av.com sent 1 message as the domain (SPF and DKIM not aligned). Google: 2 of 73 messages from its 'more IPs' group not aligned (97.2%). Pass/fail counts derived from the digest's per-source percentages.",
+    "email_subject": "DMARC weekly digest for digigrowthllc.com",
+    "received_at": "2026-11-23T13:34:10Z"
+  }
+]}
