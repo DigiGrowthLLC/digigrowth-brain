@@ -61,6 +61,8 @@ export default function AppointmentOutcomeButtons({ appointment, onUpdated }) {
           onClick={() => setOutcome("outcome_close", "closed")}>CLOSED</Pill>
         <Pill active={appointment.outcome_close === "not_closed"} color="#dc3c3c" disabled={saving}
           onClick={() => setOutcome("outcome_close", "not_closed")}>NOT CLOSED</Pill>
+        <Pill active={appointment.outcome_close === "two_call"} color="#f2ad3d" disabled={saving}
+          onClick={() => setOutcome("outcome_close", "two_call")}>TWO-CALL</Pill>
       </div>
     </div>
   );

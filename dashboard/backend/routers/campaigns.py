@@ -30,8 +30,10 @@ from db import get_pool
 
 router = APIRouter()
 
-_CHANNELS = {"sms", "email", "calling", "vsl", "loom"}
-_CHANNELS_MSG = "channel must be one of sms/email/calling/vsl/loom"
+# "sales" (2026-11-25): Dylan's discovery calls, stamped with the active
+# sales campaign when booked (sales_tracking.py, appointments.create_appointment_row).
+_CHANNELS = {"sms", "email", "calling", "vsl", "loom", "sales"}
+_CHANNELS_MSG = "channel must be one of sms/email/calling/vsl/loom/sales"
 
 
 async def _activate(conn, campaign_id: int, channel: str):

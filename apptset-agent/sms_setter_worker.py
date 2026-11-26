@@ -20,6 +20,15 @@ Loop (every POLL_SECONDS):
      /api/email-setter/worker/queue -> claude -> /worker/submit (+ /worker/flush
      in its own auto mode). One worker, two setters, each with its own mode.
 
+Blueprint thread (its own loop, every BLUEPRINT_POLL_SECONDS, so a long run
+never holds up the setters): when Dylan marks a two-call close in
+Appointments, dashboard/backend/sales_tracking.py queues a Patient
+Acquisition Blueprint job. This thread claims it
+(GET /api/sales/blueprint-jobs/worker/next), runs the
+patient-acquisition-blueprint skill through `claude -p` from the repo root
+with tools on (Playwright, yt-dlp, ffmpeg, fal all live on this PC), and
+posts the published URL back (/worker/result). One run at a time.
+
 Started at logon by the DigiGrowth-SMSSetter scheduled task
 (register-sms-setter-task.ps1), under `doppler run` for DASHBOARD_URL /
 DASHBOARD_PASSWORD. ANTHROPIC_API_KEY (also in that Doppler config) is
@@ -39,6 +48,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -50,6 +60,11 @@ CLAUDE_TIMEOUT_SECONDS = 300
 MODEL = os.environ.get("SMS_SETTER_MODEL", "opus")
 EFFORT = os.environ.get("SMS_SETTER_EFFORT", "medium")
 _LOCK_PORT = 47614   # single-instance guard: a second copy can't bind it and exits
+BLUEPRINT_POLL_SECONDS = 300
+BLUEPRINT_TIMEOUT_SECONDS = 3 * 60 * 60   # server retries a 'running' job after 4h
+BLUEPRINT_MODEL = os.environ.get("BLUEPRINT_MODEL", "opus")
+BLUEPRINT_EFFORT = os.environ.get("BLUEPRINT_EFFORT", "high")
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 LOG_DIR = Path(__file__).parent / "logs"
 _console = False
@@ -201,6 +216,63 @@ def email_pass() -> None:
             log(f"sent {flushed['sent']} held email draft(s)")
 
 
+def run_blueprint(job: dict) -> dict:
+    """One full blueprint build through `claude -p` on the subscription.
+    Unlike run_claude, this is an agentic run: repo root as cwd (CLAUDE.md,
+    skills, tools), project settings + MCP servers loaded, permissions
+    bypassed because nobody is there to approve tool calls."""
+    env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
+    cmd = [
+        _claude_exe(), "-p",
+        "--model", BLUEPRINT_MODEL, "--effort", BLUEPRINT_EFFORT,
+        "--output-format", "json",
+        "--json-schema", json.dumps(job["schema"]),
+        "--permission-mode", "bypassPermissions",
+        "--no-session-persistence",
+    ]
+    try:
+        proc = subprocess.run(
+            cmd, input=job["prompt"], capture_output=True, text=True, encoding="utf-8", cwd=REPO_ROOT, env=env,
+            timeout=BLUEPRINT_TIMEOUT_SECONDS, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": f"The blueprint run timed out after {BLUEPRINT_TIMEOUT_SECONDS // 3600}h."}
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        return {"ok": False, "error": f"claude returned non-JSON (exit {proc.returncode}): {(proc.stdout or proc.stderr)[-400:]}"}
+    if out.get("apiKeySource"):
+        log(f"WARNING: blueprint run used an API key ({out['apiKeySource']}), not the subscription")
+    if out.get("is_error") or not isinstance(out.get("structured_output"), dict):
+        # The page may still have been published; the server looks it up by contact.
+        return {"ok": True, "error": f"run ended with {out.get('subtype')}: {str(out.get('result'))[:300]}"}
+    return out["structured_output"]
+
+
+def blueprint_loop() -> None:
+    while True:
+        try:
+            job = (_api("GET", "/api/sales/blueprint-jobs/worker/next") or {}).get("job")
+        except urllib.error.HTTPError as e:
+            if e.code != 404:   # 404 = server predates blueprint jobs
+                log(f"blueprint queue failed: HTTP {e.code}")
+            job = None
+        except Exception as e:
+            log(f"blueprint queue failed: {type(e).__name__}: {e}")
+            job = None
+        if job:
+            started = time.time()
+            log(f"blueprint job {job['id']} ({job.get('label')}): starting")
+            result = run_blueprint(job)
+            try:
+                resp = _api("POST", f"/api/sales/blueprint-jobs/{job['id']}/worker/result", result)
+            except Exception as e:
+                resp = f"report failed: {e}"
+            log(f"blueprint job {job['id']}: {resp} ({(time.time() - started) / 60:.0f} min)")
+            continue
+        time.sleep(BLUEPRINT_POLL_SECONDS)
+
+
 def main() -> None:
     global _console
     ap = argparse.ArgumentParser()
@@ -217,6 +289,8 @@ def main() -> None:
         return
 
     log(f"worker started (model={MODEL}, effort={EFFORT}, claude={_claude_exe()})")
+    if not args.once:
+        threading.Thread(target=blueprint_loop, name="blueprint", daemon=True).start()
     while True:
         try:
             one_pass()

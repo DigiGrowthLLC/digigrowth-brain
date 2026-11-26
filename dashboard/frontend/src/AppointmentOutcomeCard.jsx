@@ -68,9 +68,9 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, ratingUr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const resp = await r.json().catch(() => ({}));
       if (!r.ok) {
-        const d = await r.json().catch(() => ({}));
-        setErr(d.detail || "Couldn't save outcome.");
+        setErr(resp.detail || "Couldn't save outcome.");
         setSaving(false);
         return;
       }
@@ -82,6 +82,10 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, ratingUr
       }
       const saved = { ...appointment, outcome_show: show, outcome_close: close, outcome_notes: notes.trim() || null,
         ...(askFit && fit ? { fit_rating: fit, fit_note: fitNote.trim() || null } : {}) };
+      if (resp.blueprint) {
+        saved.own_blueprint_status = resp.blueprint.status;
+        saved.own_blueprint_url = resp.blueprint.url || null;
+      }
       if (showRevenueFields) {
         saved.pricing = body.pricing;
         saved.call_length = body.call_length;
@@ -128,12 +132,28 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, ratingUr
 
         <div>
           <div style={labelStyle}>CONCLUSION</div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Pill active={close === "closed"} color="#14c882" disabled={saving}
               onClick={() => setClose(close === "closed" ? null : "closed")}>CLOSED</Pill>
             <Pill active={close === "not_closed"} color="#dc3c3c" disabled={saving}
               onClick={() => setClose(close === "not_closed" ? null : "not_closed")}>NOT CLOSED</Pill>
+            {/* Dylan's own sales calls only: no close yet, a second call is
+                booked. Saving it queues the prospect's blueprint
+                (backend sales_tracking.py), linked on their next appointment. */}
+            {showRevenueFields && (
+              <Pill active={close === "two_call"} color="#f2ad3d" disabled={saving}
+                onClick={() => setClose(close === "two_call" ? null : "two_call")}>TWO-CALL CLOSE</Pill>
+            )}
           </div>
+          {showRevenueFields && close === "two_call" && (
+            <div style={{ fontSize: 11.5, color: "#c9a25a", marginTop: 8, lineHeight: 1.45 }}>
+              {appointment.own_blueprint_status === "done" && appointment.own_blueprint_url
+                ? <>Blueprint ready: <a href={appointment.own_blueprint_url} target="_blank" rel="noreferrer" style={{ color: "#f2ad3d" }}>open it</a>. It's also linked on their next appointment.</>
+                : appointment.own_blueprint_status
+                ? `Blueprint ${appointment.own_blueprint_status === "failed" ? "failed. Retry it from their next appointment" : "is being built on your PC"}.`
+                : "Saving builds their Patient Acquisition Blueprint on your PC. The link shows on their next appointment."}
+            </div>
+          )}
         </div>
 
         {askFit && (
@@ -167,6 +187,12 @@ export default function AppointmentOutcomeCard({ appointment, patchUrl, ratingUr
               className="dg-input" style={{ width: "100%", boxSizing: "border-box" }}
               placeholder="$0.00"
             />
+          </div>
+        )}
+
+        {showRevenueFields && appointment.call_data_source === "fireflies" && (
+          <div style={{ fontSize: 11.5, color: "#7f9cc4", marginBottom: -8 }}>
+            Call length and recording filled in from Fireflies.
           </div>
         )}
 

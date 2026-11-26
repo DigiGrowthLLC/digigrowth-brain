@@ -1335,6 +1335,11 @@ async def campaign_analytics(campaign_id: int, days: int = 0, date: str | None =
             metrics = await vsl_funnel(campaign_id=campaign_id, since_override=since)
         elif campaign["channel"] == "loom":
             metrics = await loom_outreach_funnel(campaign_id=campaign_id, since_override=since)
+        elif campaign["channel"] == "sales":
+            # Cohort of first discovery calls stamped with this campaign,
+            # narrowed by when the call was held (sales_tracking.py).
+            import sales_tracking
+            metrics = await sales_tracking.campaign_metrics(conn, campaign_id, since=since, until=until)
         else:
             sales = _load_sales_stats()
             metrics = _calling_metrics_for_campaign(

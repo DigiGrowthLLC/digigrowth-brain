@@ -2915,3 +2915,9 @@ async def _create_schema(pool: asyncpg.Pool):
         await ai_usage.ensure_schema(conn)
         import finance_auto
         await finance_auto.ensure_schema(conn)
+
+        # Sales campaigns, Fireflies call data, two-call-close blueprints
+        # (sales_tracking.py, 2026-11-25).
+        import sales_tracking
+        await sales_tracking.ensure_schema(conn)
+        await sales_tracking.ensure_seeded(conn)

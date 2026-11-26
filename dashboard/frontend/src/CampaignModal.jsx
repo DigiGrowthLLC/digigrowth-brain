@@ -5,6 +5,7 @@ const DEFAULT_CHANNELS = [
   { value: "sms",     label: "SMS" },
   { value: "email",    label: "Email" },
   { value: "calling",  label: "Cold Calling" },
+  { value: "sales",    label: "Sales" },
 ];
 
 // "New Campaign" modal — pick a channel, name the campaign, create it.

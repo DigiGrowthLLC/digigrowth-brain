@@ -45,6 +45,7 @@ import client_booking_notification
 import no_show_sequence
 import onboarding_sequence
 import reminder_engine
+import sales_tracking
 
 router = APIRouter()
 
@@ -199,13 +200,21 @@ async def create_appointment_row(payload: dict) -> dict:
     if call_type not in CALL_TYPES:
         raise ValueError(f"call_type must be one of {', '.join(CALL_TYPES)}")
 
+    # sales_campaign_id: Dylan's own discovery calls count toward whichever
+    # sales campaign is running when they're booked (sales_tracking.py,
+    # Analytics -> Campaigns -> Sales). A client's patient never does.
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            """
+            f"""
             INSERT INTO appointment_reminders
-                (contact_id, prospect_name, prospect_phone, prospect_email, appointment_at, prospect_timezone, calendly_event_uri, call_type)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                (contact_id, prospect_name, prospect_phone, prospect_email, appointment_at, prospect_timezone, calendly_event_uri, call_type,
+                 sales_campaign_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+                CASE WHEN $8 = 'discovery'
+                      AND COALESCE($7, '') NOT LIKE 'dgbook:%'
+                      AND NOT EXISTS (SELECT 1 FROM contacts WHERE id = $1 AND client_id IS NOT NULL AND NOT is_client_anchor)
+                     THEN {sales_tracking.ACTIVE_SALES_CAMPAIGN_SQL} END)
             RETURNING *
             """,
             payload.get("contact_id"),
@@ -391,10 +400,15 @@ async def list_appointments(status: str = Query("scheduled"), contact_id: Option
 
     pool = await get_pool()
     async with pool.acquire() as conn:
+        # blueprint_*: the two-call-close blueprint from an earlier call with
+        # this prospect, shown on this (their next) appointment;
+        # own_blueprint_*: the one this appointment's own outcome queued.
         rows = await conn.fetch(
             f"""
-            SELECT ar.*, c.business, c.owner FROM appointment_reminders ar
+            SELECT ar.*, c.business, c.owner, {sales_tracking.BLUEPRINT_SELECT_SQL}
+            FROM appointment_reminders ar
             LEFT JOIN contacts c ON c.id = ar.contact_id
+            {sales_tracking.BLUEPRINT_LATERAL_SQL}
             {where}
             ORDER BY ar.appointment_at ASC
             """,
@@ -456,8 +470,10 @@ async def update_appointment(appointment_id: int, payload: dict):
         updates["outcome_show"] = value
     if "outcome_close" in payload:
         value = payload["outcome_close"]
-        if value not in (None, "closed", "not_closed"):
-            raise HTTPException(400, "outcome_close must be 'closed', 'not_closed', or null")
+        # 'two_call': didn't close yet, a second call is booked (two-call
+        # close). Queues the prospect's blueprint (sales_tracking.py).
+        if value not in (None, "closed", "not_closed", "two_call"):
+            raise HTTPException(400, "outcome_close must be 'closed', 'not_closed', 'two_call', or null")
         updates["outcome_close"] = value
     if "outcome_notes" in payload:
         updates["outcome_notes"] = (payload["outcome_notes"] or "").strip() or None
@@ -584,6 +600,15 @@ async def update_appointment(appointment_id: int, payload: dict):
         except Exception as e:
             print(f"[appointments] no-show touch 1 failed for {appointment_id}: {e}")
 
+    blueprint = None
+    if updates.get("outcome_close") == "two_call" and updated["call_type"] == "discovery":
+        try:
+            job = await sales_tracking.queue_blueprint(dict(updated))
+            if job:
+                blueprint = {"id": job["id"], "status": job["status"], "url": job.get("url")}
+        except Exception as e:
+            print(f"[appointments] blueprint queue failed for {appointment_id}: {e}")
+
     portal_url = None
     if updates.get("outcome_close") == "closed":
         # Build the client + portal right away so the next-morning portal
@@ -605,7 +630,7 @@ async def update_appointment(appointment_id: int, payload: dict):
         except Exception as e:
             print(f"[appointments] onboarding kickoff failed for {appointment_id}: {e}")
 
-    return {"ok": True, "id": appointment_id, "portal_url": portal_url}
+    return {"ok": True, "id": appointment_id, "portal_url": portal_url, "blueprint": blueprint}
 
 
 @router.post("/appointment-reminders/{appointment_id}/onboarding/send-followup")

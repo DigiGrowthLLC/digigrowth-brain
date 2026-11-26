@@ -26,6 +26,7 @@ const CH = {
   calling: { name: "Cold calling", color: "#4d8ef0" },
   sms:     { name: "SMS", color: "#2dd4bf" },
   email:   { name: "Email", color: "#a78bfa" },
+  sales:   { name: "Sales", color: "#f2ad3d" },
 };
 
 const ANALYTICS_PERIOD_OPTIONS = PERIOD_OPTIONS; // shared with Finances (ui.jsx)
@@ -237,6 +238,28 @@ function ChannelTable({ calling: c, sms: s, email: e, loading }) {
 // Metric rows per campaign channel; `ms` = each campaign's metrics, in column order.
 function campaignRows(channel, ms) {
   const col = (k) => ms.map(m => (m ? m[k] ?? null : null));
+  // Sales (sales_tracking.campaign_metrics): first discovery calls booked
+  // while the campaign ran; a close on a follow-up call counts for the first.
+  if (channel === "sales") return [
+    { label: "Calls booked", vals: col("booked"), fmt: num, hint: "First discovery calls, follow-ups not counted" },
+    { label: "Upcoming", vals: col("upcoming"), fmt: num },
+    { label: "Waiting on an outcome", vals: col("awaiting_outcome"), fmt: num, hint: "Held, show/no-show not marked yet" },
+    { label: "Showed", vals: col("shows"), fmt: num },
+    { label: "No-shows", vals: col("no_shows"), fmt: num, tone: "bad" },
+    { label: "Show rate", vals: col("show_rate"), fmt: pct, best: true, hint: "Showed ÷ (showed + no-shows)" },
+    { label: "Two-call closes", vals: col("two_call_closes"), fmt: num, hint: "Second call booked instead of a close" },
+    { label: "Two-call → closed", vals: col("two_call_won"), fmt: num, tone: "good", hint: "Of those, closed on a later call" },
+    { label: "Not closed", vals: col("not_closed"), fmt: num, tone: "bad" },
+    { label: "Closed", vals: col("closes"), fmt: num, tone: "good", strong: true, best: true },
+    { label: "Close rate", vals: col("close_rate"), fmt: pct, tone: "good", strong: true, best: true, hint: "Closed ÷ showed" },
+    { label: "Booked → closed", vals: col("booked_to_close"), fmt: pct, best: true },
+    { label: "Closed on the first call", vals: col("closed_on_first_call"), fmt: num },
+    { label: "Closed on a follow-up", vals: col("closed_on_follow_up"), fmt: num },
+    { label: "Revenue", vals: col("total_revenue"), fmt: money, best: true },
+    { label: "Avg deal size", vals: col("avg_deal_size"), fmt: money },
+    { label: "Avg call length", vals: col("avg_call_minutes"), fmt: v => `${v} min` },
+    { label: "Calls recorded", vals: col("calls_recorded"), fmt: num, hint: "Showed calls with a recording link" },
+  ];
   if (channel === "calling") return [
     { label: "Calls made", vals: col("total"), fmt: num },
     { label: "Answer rate", vals: col("answer_rate"), fmt: pct, best: true },
@@ -270,7 +293,7 @@ function campaignRows(channel, ms) {
 
 // ── Campaigns tab ────────────────────────────────────────────────────────
 
-const CAMPAIGN_CHANNEL_OPTIONS = [["sms", "SMS"], ["email", "Email"], ["calling", "Cold calling"]];
+const CAMPAIGN_CHANNEL_OPTIONS = [["sms", "SMS"], ["email", "Email"], ["calling", "Cold calling"], ["sales", "Sales"]];
 const CAMPAIGN_COLORS = ["#4d8ef0", "#2dd4bf", "#a78bfa", "#f2ad3d", "#f472b6", "#38bdf8", "#a3e635", "#fb923c"];
 
 function fmtCampaignDate(iso) {
@@ -314,7 +337,8 @@ function CampaignsView({ days, date }) {
   }
 
   async function stop(c) {
-    if (!window.confirm(`Stop "${c.name}"? Its stats stay. New ${CH[channel].name.toLowerCase()} outreach won't count toward any campaign until you reactivate one or start a new one.`)) return;
+    const what = channel === "sales" ? "sales calls" : `${CH[channel].name.toLowerCase()} outreach`;
+    if (!window.confirm(`Stop "${c.name}"? Its stats stay. New ${what} won't count toward any campaign until you reactivate one or start a new one.`)) return;
     await fetch(API(`/campaigns/${c.id}/stop`), { method: "POST" });
     setReload(n => n + 1);
   }
@@ -367,6 +391,9 @@ function CampaignsView({ days, date }) {
           <SectionTitle title={`${CH[channel].name} campaigns`}
             hint={`Read across to compare. The highlighted value is the best campaign on that row.${columns.length > 3 ? " Scroll sideways for older campaigns." : ""}`} />
           {smsNote && <div style={{ fontSize: 12, color: T.textMute, margin: "-4px 0 10px", lineHeight: 1.45 }}>{smsNote}</div>}
+          {channel === "sales" && <div style={{ fontSize: 12, color: T.textMute, margin: "-4px 0 10px", lineHeight: 1.45 }}>
+            Every discovery call registered in the OS counts toward the campaign running when it was booked. Meetings that were only on the old sales sheet aren't included. {days !== 0 || date ? "Narrowed to calls held in this period." : ""}
+          </div>}
           <ComparisonTable columns={columns} rows={rows} loading={loading} />
         </div>
       )}

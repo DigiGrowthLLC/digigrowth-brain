@@ -40,6 +40,8 @@ import domain_health
 import dm_followup_sequence
 import sms_setter_ai
 import calendly_watchdog
+import sales_tracking
+from routers import sales as sales_router
 import email_handoff_sequence
 import email_followup_trigger
 import outreach_video
@@ -580,6 +582,17 @@ async def lifespan(app: FastAPI):
     # Calendly can drop a webhook subscription without telling us (it did
     # ~2026-11-05 and bookings silently stopped reaching Appointments) —
     # re-register any missing one and import bookings it missed.
+    # Fireflies call recordings + lengths onto Dylan's discovery calls
+    # (sales_tracking.py); the /webhooks/fireflies route catches most of
+    # them right away, this picks up anything the webhook missed.
+    scheduler.add_job(
+        sales_tracking.sync_fireflies,
+        IntervalTrigger(minutes=15),
+        id="fireflies-sync",
+        replace_existing=True,
+        max_instances=1,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=90),
+    )
     scheduler.add_job(
         calendly_watchdog.run_watchdog,
         IntervalTrigger(minutes=30),
@@ -834,6 +847,8 @@ app.include_router(client_voice_webhooks.router)  # no auth — Twilio voice web
 app.include_router(meta_lead_webhooks.router)  # no auth — Meta's own webhook protocol, verified via HMAC signature + verify-token handshake instead
 app.include_router(calendly_webhooks.router)  # no auth — Calendly's own webhook protocol, verified via HMAC signature instead
 app.include_router(calendly_admin.router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(sales_router.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
+app.include_router(sales_router.router)  # no auth: Fireflies webhook (only names a meeting to fetch with our key; HMAC-checked when FIREFLIES_WEBHOOK_SECRET is set)
 app.include_router(booking.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(personal_booking.admin_router, prefix="/api", dependencies=[Depends(require_auth)])
 app.include_router(personal_booking.router)  # no auth: Dylan's own booking page /book/discovery-call (before booking.router so it wins over /book/{key})
