@@ -72,6 +72,8 @@ _DM_CHANNEL_ADDITION = (
     "give it. Booking needs it too: propose_appointment won't work until a number is saved.\n"
     "- You can't schedule a later check-in here. If they want to be contacted later, get their number "
     "and say the team will text them.\n"
+    "- If propose_appointment gives you a payment link, send it right here in the DM exactly as its result "
+    "says. The no-link rules elsewhere don't cover it, and it's never a reason to escalate.\n"
 )
 
 _DM_SAVE_TOOL = {
