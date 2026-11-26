@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { API } from "../api.js";
 import ContactLink from "../ContactLink.jsx";
-import AppointmentOutcomeCard from "../AppointmentOutcomeCard.jsx";
+import SalesOutcomeCard from "../SalesOutcomeCard.jsx";
 
 function fmtLocal(iso, tz) {
   if (!iso) return "—";
@@ -282,12 +282,15 @@ export default function AppointmentsPanel() {
       )}
 
       {outcomeTarget && (
-        <AppointmentOutcomeCard
+        <SalesOutcomeCard
           appointment={outcomeTarget}
           patchUrl={API(`/appointment-reminders/${outcomeTarget.id}`)}
+          nextCall={outcomeTarget.contact_id ? rows
+            .filter(r => r.contact_id === outcomeTarget.contact_id && r.id !== outcomeTarget.id && r.status !== "canceled"
+              && new Date(r.appointment_at) > new Date(outcomeTarget.appointment_at))
+            .sort((x, y) => new Date(x.appointment_at) - new Date(y.appointment_at))[0] : null}
           onClose={() => setOutcomeTarget(null)}
           onSaved={handleOutcomeSaved}
-          showRevenueFields
         />
       )}
     </div>
